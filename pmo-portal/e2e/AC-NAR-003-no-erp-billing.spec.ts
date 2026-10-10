@@ -108,6 +108,18 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   let row = await invoiceRow(page);
   await expect(row.getByText(localizedExact('Draft', 'Draf'))).toBeVisible({ timeout: 15_000 });
 
+  // The draft has a stable record URL; reload keeps its project identity, and its author gets no approval action.
+  await row.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
+  await page.getByRole('menuitem', { name: localized('View invoice', 'Lihat faktur') }).click();
+  await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+\?q=/);
+  await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
+  await expect(page.getByRole('button', { name: localized('Continue to approve', 'Lanjutkan untuk menyetujui') })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
+  await page.getByRole('button', { name: localized('Back to Sales Invoices', 'Kembali ke Faktur Penjualan') }).click();
+  await expect(page).toHaveURL(/\/sales-invoices\?q=/);
+  await expect(page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'))).toHaveValue(`${tag} Client`);
+
   // A second person — an Admin — approves it from the Approvals queue.
   await signIn(page, 'admin@acme.test');
   await page.goto('/approvals');

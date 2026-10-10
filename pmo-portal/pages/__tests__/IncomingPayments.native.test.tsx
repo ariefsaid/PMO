@@ -107,6 +107,16 @@ async function setAmount(user: ReturnType<typeof userEvent.setup>, label: RegExp
 }
 
 describe('Incoming Payments while PMO owns revenue (#784)', () => {
+  it('UXS-042 renders payment money with tabular UI numerals rather than the identifier typeface', () => {
+    h.payments.data = [receipt()];
+    renderPage();
+    const row = rowFor('RCV-2610070001');
+    const amount = row.querySelector('.tabular');
+    expect(amount).not.toBeNull();
+    expect(amount).toHaveTextContent('500');
+    expect(amount).not.toHaveClass('font-mono');
+  });
+
   it('AC-NAR-003 a receipt recorded in PMO must name the invoice it settles', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -2639,6 +2639,9 @@
       },
       "billing": {
         "column": "Billing",
+        "openDraft": "Open draft",
+        "draftHandoffNative": "Draft created. A different Finance or Admin user must approve it.",
+        "draftHandoffErp": "Draft created. A different Finance or Admin user must submit it.",
         "incompleteNote": "An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.",
         "invoiceAction": "Invoice",
         "invoiced": "Invoiced",
@@ -3557,6 +3560,12 @@
   "financeCopy": {
     "viewInvoice": "View invoice",
     "invoiceDetailsTitle": "Invoice details",
+    "invoiceRecordTitle": "Invoice {{number}}",
+    "invoiceRecordNotFound": "Invoice not found",
+    "invoiceRecordNotFoundBody": "This invoice is no longer available.",
+    "backToInvoices": "Back to Sales Invoices",
+    "draftInvoiceForProject": "Draft invoice · {{project}}",
+    "unnamedInvoice": "invoice",
     "continueToApprove": "Continue to approve",
     "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
     "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",

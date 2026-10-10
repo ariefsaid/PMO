@@ -174,6 +174,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/:section', element: <AdministrationPage /> },
   // Finance section.
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
+  { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
