@@ -249,7 +249,11 @@ const ContractBook: React.FC<{
   const marginPct = `${(onHandMargin * 100).toFixed(1)}%`;
 
   return (
-    <div data-testid="mobile-contract-book" aria-label="Contract book" className="space-y-[10px]">
+    <div
+      data-testid="mobile-contract-book"
+      aria-label={t('dashboard.mobile.contractBook', 'Contract book')}
+      className="space-y-[10px]"
+    >
       {/* Tile 1: Revenue on hand — CW-3b: the canonical KPITile, not one-off tile markup.
           The B-MIN-3 scope micro-line rides as the tile's `vs` sub. */}
       <KPITile
