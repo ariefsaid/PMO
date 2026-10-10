@@ -28,7 +28,7 @@
   },
   "bupot": {
     "loading": "Memuat bukti potong…", "loadError": "Bukti potong tidak tersedia", "unavailable": "Tidak tersedia",
-    "view": "Lihat bukti potong", "record": "Catat bukti potong", "history": "Riwayat bukti potong",
+    "view": "Lihat bukti potong", "record": "Catat bukti potong", "setVendor": "Tentukan vendor", "vendorRequired": "Atur vendor pada permintaan ini sebelum mencatat bukti potong.", "history": "Riwayat bukti potong",
     "state": { "slipped": "Sudah dipotong", "needsReview": "Perlu ditinjau", "unavailable": "Tidak tersedia", "notRecorded": "Belum dicatat", "notRequired": "Tidak diperlukan", "returnReview": "Tinjau pengembalian" },
     "select": "Pilih", "selectBill": "Pilih tagihan {{bill}}", "bill": "Tagihan", "withheld": "Dipotong", "type": "Jenis PPh",
     "confirmUnknown": "Konfirmasi sebagai {{type}} berdasarkan bukti potong terbit", "recordTitle": "Catat bukti potong",
@@ -2647,6 +2647,10 @@
         }
       },
       "clientPo": "PO klien",
+      "issueGate": {
+        "title": "Work Order ini harus diterbitkan oleh peninjau lain",
+        "body": "Anda yang menetapkan nilainya. Minta peninjau lain yang berwenang untuk meninjau dan menerbitkannya."
+      },
       "column": {
         "actions": "Tindakan",
         "number": "Nomor WO",
@@ -3801,6 +3805,7 @@
     "paidToDateAmount": "Dibayar {{amount}}",
     "invoiceLineCodeOrDescription": "Baris {{line}}: Isi kode item atau deskripsi.",
     "vatRateMissing": "Proyek ini belum memiliki tarif PPN yang tercatat",
+    "vatRateMissingDetail": "Tarif PPN harus dicatat pada proyek ini sebelum faktur dapat dibuat. Isian Anda tetap tersimpan di formulir.",
     "vatRateMissingInline": "Proyek ini belum memiliki tarif PPN yang tercatat, sehingga belum dapat ditagihkan.",
     "recordVatRateOnProject": "Catat tarif PPN di proyek",
     "paymentDateBeforeInvoice": "Tanggal pembayaran tidak boleh sebelum tanggal faktur.",

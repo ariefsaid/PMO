@@ -27,6 +27,8 @@ let projectId = '';
 let companyId = '';
 let tag = '';
 let financeName = '';
+const localized = (en: string, id: string) => new RegExp(`(?:${en}|${id})`, 'i');
+const localizedExact = (en: string, id: string) => new RegExp(`^(?:${en}|${id})$`, 'i');
 
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
@@ -70,7 +72,7 @@ test.afterEach(async () => {
 /** This run's invoice row on the Sales Invoices list, once the list has loaded. */
 async function invoiceRow(page: Page) {
   await page.goto('/sales-invoices');
-  const search = page.getByLabel('Search sales invoices');
+  const search = page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'));
   await expect(search).toBeVisible({ timeout: 15_000 });
   await search.fill(`${tag} Client`);
   return page.getByRole('row').filter({ hasText: `${tag} Client` });
@@ -79,14 +81,14 @@ async function invoiceRow(page: Page) {
 /** Records a receipt against this run's invoice; `startsAt` is the balance the form must start at (DD-NAR-17). */
 async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
   await page.goto('/incoming-payments');
-  await page.getByRole('button', { name: 'Receive Payment' }).first().click();
+  await page.getByRole('button', { name: localized('Receive Payment', 'Terima Pembayaran') }).first().click();
   const form = page.getByRole('dialog');
-  await pickComboboxOption(form, page, /^Customer/, new RegExp(`${tag} Client`));
-  await pickComboboxOption(form, page, /^Sales Invoice/, /INV-\d{10}/);
-  if (startsAt) await expect(form.getByLabel(/Paid Amount/)).toHaveValue(startsAt);
-  await form.getByLabel(/Paid Amount/).fill(amount);
-  await form.getByLabel(/Received Amount/).fill(amount);
-  await form.getByRole('button', { name: 'Record payment' }).click();
+  await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
+  await pickComboboxOption(form, page, /^(?:Sales Invoice|Faktur Penjualan)/, /INV-\d{10}/);
+  if (startsAt) await expect(form.getByLabel(localized('Paid Amount', 'Jumlah Dibayar'))).toHaveValue(startsAt);
+  await form.getByLabel(localized('Paid Amount', 'Jumlah Dibayar')).fill(amount);
+  await form.getByLabel(localized('Received Amount', 'Jumlah Diterima')).fill(amount);
+  await form.getByRole('button', { name: localized('Record payment', 'Catat pembayaran') }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
 }
 
@@ -94,46 +96,46 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   // Finance raises the invoice.
   await signIn(page, 'finance@acme.test');
   await page.goto('/sales-invoices');
-  await page.getByRole('button', { name: 'New Invoice' }).first().click();
+  await page.getByRole('button', { name: localized('New Invoice', 'Faktur Baru') }).first().click();
   const form = page.getByRole('dialog');
-  await pickComboboxOption(form, page, /^Customer/, new RegExp(`${tag} Client`));
-  await pickComboboxOption(form, page, /^Project/, new RegExp(tag));
-  await form.getByLabel(/Item code/).fill('SVC-NAR');
-  await form.getByLabel('Description').fill('Site survey');
-  await form.getByLabel(/Rate/).fill('1000000');
-  await form.getByRole('button', { name: 'Create invoice' }).click();
+  await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
+  await pickComboboxOption(form, page, /^(?:Project|Proyek)/, new RegExp(tag));
+  await form.getByLabel(localized('Item code', 'Kode item')).fill('SVC-NAR');
+  await form.getByLabel(localized('Description', 'Deskripsi')).fill('Site survey');
+  await form.getByLabel(localized('Rate', 'Tarif')).fill('1000000');
+  await form.getByRole('button', { name: localized('Create invoice', 'Buat faktur') }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
   let row = await invoiceRow(page);
-  await expect(row.getByText('Draft', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Draft', 'Draf'))).toBeVisible({ timeout: 15_000 });
 
   // A second person — an Admin — approves it from the Approvals queue.
   await signIn(page, 'admin@acme.test');
   await page.goto('/approvals');
-  const queue = page.getByRole('region', { name: 'Customer invoices awaiting you' });
+  const queue = page.getByRole('region', { name: localized('Customer invoices awaiting you', 'Faktur pelanggan yang menunggu Anda') });
   const item = queue.getByRole('listitem').filter({ hasText: `${tag} Client` });
   await expect(item).toBeVisible({ timeout: 15_000 });
   // I-1: the approver reads the invoice before approving it — project, customer, the line, who raised it, the total due.
-  await item.getByRole('button', { name: `Show invoice details for ${tag} Client` }).click();
+  await item.getByRole('button', { name: new RegExp(`(?:Show invoice details for|Tampilkan detail faktur untuk) ${tag} Client`, 'i') }).click();
   await expect(item.getByRole('link', { name: new RegExp(tag) })).toBeVisible();
-  await expect(item.getByRole('list', { name: 'Line items' })).toContainText('Site survey');
-  await expect(item.getByRole('list', { name: 'Line items' })).toContainText('SVC-NAR');
+  await expect(item.getByRole('list', { name: localized('Line items', 'Item faktur') })).toContainText('Site survey');
+  await expect(item.getByRole('list', { name: localized('Line items', 'Item faktur') })).toContainText('SVC-NAR');
   await expect(item).toContainText(financeName);
-  await expect(item).toContainText(/Total due\s*\S*\s?1[.,]110[.,]000/);
-  await item.getByRole('button', { name: 'Approve' }).click();
-  await page.getByRole('button', { name: 'Approve invoice' }).click();
+  await expect(item).toContainText(/(?:Total due|Total tagihan)\s*\S*\s?1[.,]110[.,]000/i);
+  await item.getByRole('button', { name: localized('Approve', 'Setujui') }).click();
+  await page.getByRole('button', { name: localized('Approve invoice', 'Setujui faktur') }).click();
   await expect(item).toHaveCount(0, { timeout: 15_000 });
   row = await invoiceRow(page);
-  await expect(row.getByText('Unpaid', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Unpaid', 'Belum dibayar'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/INV-\d{10}/);
 
   // Finance records a part payment, then more than is still owed.
   await signIn(page, 'finance@acme.test');
   await recordReceipt(page, '500000');
   row = await invoiceRow(page);
-  await expect(row.getByText('Partly paid', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Partly paid', 'Dibayar sebagian'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/610[.,]000/);
   await recordReceipt(page, '700000', /^610[.,]000$/);
   row = await invoiceRow(page);
-  await expect(row.getByText('Paid', { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(row).toContainText(/Overpaid by\s*\S*\s?90[.,]000/);
+  await expect(row.getByText(localizedExact('Paid', 'Dibayar'))).toBeVisible({ timeout: 15_000 });
+  await expect(row).toContainText(/(?:Overpaid by|Kelebihan bayar)\s*\S*\s?90[.,]000/i);
 });

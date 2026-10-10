@@ -1092,6 +1092,8 @@ const ProcurementDetails: React.FC = () => {
               invoices={p.invoices}
               targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
+              vendorMissing={!p.vendor_id}
+              onSetVendor={canEditHeader ? () => setHeaderEditOpen(true) : undefined}
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}

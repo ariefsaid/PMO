@@ -33,3 +33,10 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'native-drafts-open': t('financeCopy.nativeDraftsOpen', "Invoices raised in PMO are still in draft"),
   };
 }
+
+/** Stable-code keyed detail copy keeps known late VAT refusals actionable and localized. */
+export function nativeRevenueDetails(t: T): Partial<Record<NativeRevenueRefusal, string>> {
+  return {
+    'vat-rate-missing': t('financeCopy.vatRateMissingDetail', 'This project needs a recorded VAT rate before an invoice can be created. Your entries are still in the form.'),
+  };
+}

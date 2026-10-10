@@ -7,6 +7,7 @@ import {
   CardPad,
   ConfirmDialog,
   DataTable,
+  GateNotice,
   ListState,
   StatusPill,
   TaxBasisLabel,
@@ -15,6 +16,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency, formatCurrencyCents, formatDateOnly, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -96,6 +98,7 @@ interface PendingTransition {
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
 
   const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
@@ -426,11 +429,16 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.setValue', 'Set value')}
               </Button>
             )}
-            {isDraft && canTransition && (
+            {isDraft && canTransition && row.order_value_set_by === currentUser?.id ? (
+              <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">
+                <strong>{t('projectDetail.workOrders.issueGate.title', 'Another reviewer must issue this order')}</strong>{' '}
+                {t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')}
+              </GateNotice>
+            ) : isDraft && canTransition ? (
               <Button variant="primary" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
-            )}
+            ) : null}
             {isIssued && canTransition && (
               <Button variant="outline" size="sm" onClick={() => setPending({ row, to: 'Closed' })}>
                 {t('projectDetail.workOrders.action.close', 'Close')}

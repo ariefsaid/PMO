@@ -28,7 +28,7 @@
   },
   "bupot": {
     "loading": "Loading bukti potong…", "loadError": "Bukti potong unavailable", "unavailable": "Unavailable",
-    "view": "View bukti potong", "record": "Record bukti potong", "history": "Bukti potong history",
+    "view": "View bukti potong", "record": "Record bukti potong", "setVendor": "Set vendor", "vendorRequired": "Set a vendor on the request before recording this slip.", "history": "Bukti potong history",
     "state": { "slipped": "Slipped", "needsReview": "Needs review", "unavailable": "Unavailable", "notRecorded": "Not recorded", "notRequired": "Not required", "returnReview": "Return review" },
     "select": "Select", "selectBill": "Select bill {{bill}}", "bill": "Bill", "withheld": "Withheld", "type": "PPh type",
     "confirmUnknown": "Confirm as {{type}} from issued slip", "recordTitle": "Record bukti potong",
@@ -2647,6 +2647,10 @@
         }
       },
       "clientPo": "Client PO",
+      "issueGate": {
+        "title": "Another reviewer must issue this order",
+        "body": "You set its value. Ask another authorized reviewer to review and issue it."
+      },
       "column": {
         "actions": "Actions",
         "number": "WO number",
@@ -3801,6 +3805,7 @@
     "paidToDateAmount": "Paid {{amount}}",
     "invoiceLineCodeOrDescription": "Line {{line}}: Enter an item code or a description.",
     "vatRateMissing": "This project has no VAT rate recorded",
+    "vatRateMissingDetail": "This project needs a recorded VAT rate before an invoice can be created. Your entries are still in the form.",
     "vatRateMissingInline": "This project has no VAT rate recorded, so it cannot be invoiced yet.",
     "recordVatRateOnProject": "Record the VAT rate on the project",
     "paymentDateBeforeInvoice": "The payment date cannot be before the invoice date.",

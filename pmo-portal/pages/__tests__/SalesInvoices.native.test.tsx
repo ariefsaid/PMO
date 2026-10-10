@@ -357,6 +357,31 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(document.activeElement).toBe(document.getElementById('sales-invoice-line-0-qty'));
   });
 
+  it('UXS-020 localizes a late VAT refusal and retains invoice entries with the existing project remedy', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.createMutate.mockRejectedValueOnce(new AppError('this project is subject to VAT but has no VAT rate recorded', 'vat-rate-missing'));
+    await financeTestI18n.changeLanguage('id');
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /Faktur Baru|New Invoice/i })[0]);
+    await pick(user, 'Pelanggan', 'Acme Energy');
+    await pick(user, 'Proyek', 'Alpha Platform');
+    await user.type(screen.getByLabelText('Kode item'), 'SVC-7');
+    await user.type(screen.getByLabelText('Deskripsi'), 'Inspeksi panel');
+    const rate = screen.getByLabelText(/tarif/i);
+    await user.clear(rate);
+    await user.type(rate, '125000');
+    await user.click(screen.getByRole('button', { name: 'Buat faktur' }));
+
+    const error = await screen.findByTestId('entity-modal-save-error');
+    expect(error).toHaveTextContent('Tarif PPN harus dicatat pada proyek ini sebelum faktur dapat dibuat. Isian Anda tetap tersimpan di formulir.');
+    expect(within(error).getByRole('link', { name: 'Catat tarif PPN di proyek' })).toHaveAttribute('href', '/projects/proj-1');
+    expect(screen.getByLabelText('Deskripsi')).toHaveValue('Inspeksi panel');
+    expect(rate).toHaveValue('125,000');
+    expect(screen.getByLabelText('Kode item')).toHaveValue('SVC-7');
+    expect(h.toast).not.toHaveBeenCalled();
+  });
+
   it('DD-TAX-4a (I-2) a VAT project with no recorded rate is flagged in the form before submit, with a way to record it', async () => {
     const user = userEvent.setup();
     renderPage();
