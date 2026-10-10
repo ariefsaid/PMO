@@ -888,6 +888,26 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     toast.mockClear();
   });
 
+  it('AC-PMC-008: a NULL-amount invoice falls back to the procurement total in the Paid confirmation', async () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      approved_by_id: 'u-someone-else',
+      total_value: 620,
+      invoices: [{
+        id: 'i-null', procurement_id: 'proc-001', vi_number: 'VI-NULL', status: 'Received',
+        invoice_date: '2026-01-20', amount: null, tax_treatment: 'exclusive', tax_amount: null,
+        withheld_amount: null, org_id: 'org-1', created_at: '2026-01-20T00:00:00Z',
+      }],
+    };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('$620');
+    expect(mockTransition).not.toHaveBeenCalled();
+  });
+
   it('P1: a forward action (Mark as Paid) opens a DEFAULT-tone popover confirm', async () => {
     detailState.data = {
       ...baseProcurement,

@@ -241,12 +241,15 @@ begin
     -- stated withholding is deducted. With no bill, retain the legacy header fallback.
     insert into public.payments (procurement_id, invoice_id, pay_number, status, date, amount, currency)
     select p_id,
-           case when count(i.id) = 1 then (array_agg(i.id))[1] else null end,
+           case when count(i.id) filter (where i.amount is not null) = 1
+                then (array_agg(i.id) filter (where i.amount is not null))[1] else null end,
            next_procurement_doc_number(v_org, 'PAY'), 'Paid', current_date,
-           case when count(i.id) = 0 then p.total_value
-                else sum(coalesce(i.amount, 0)
-                       + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
-                       - coalesce(i.withheld_amount, 0)) end,
+           coalesce(
+             sum(i.amount
+                 + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+                 - coalesce(i.withheld_amount, 0)) filter (where i.amount is not null),
+             p.total_value
+           ),
            p.currency
       from public.procurements p
       left join public.procurement_invoices i on i.procurement_id = p.id

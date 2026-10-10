@@ -521,10 +521,11 @@ const ProcurementDetails: React.FC = () => {
   // sentence with the pieces as placeholders a translator can reorder.
   const moneyAmount = formatCurrency(Number(p.total_value), p.currency);
   const scheduledPayments = (p.payments ?? []).filter((payment) => payment.status === 'Scheduled');
+  const payableInvoices = p.invoices.filter((invoice) => invoice.amount != null);
   const paidConfirmationAmount = scheduledPayments.length > 0
     ? scheduledPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
-    : p.invoices.length > 0
-      ? p.invoices.reduce((sum, invoice) => sum + Number(invoice.amount ?? 0)
+    : payableInvoices.length > 0
+      ? payableInvoices.reduce((sum, invoice) => sum + Number(invoice.amount)
           + (invoice.tax_treatment === 'exclusive' ? Number(invoice.tax_amount ?? 0) : 0)
           - Number(invoice.withheld_amount ?? 0), 0)
       : Number(p.total_value);

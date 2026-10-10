@@ -1,6 +1,6 @@
 -- 0284 procurement money consistency — line totals, settlement evidence, and quote decision.
 begin;
-select plan(26);
+select plan(32);
 
 insert into organizations (id, name) values ('02840000-0000-0000-0000-000000000001','PMC Org');
 insert into auth.users (id, email) values
@@ -24,10 +24,15 @@ insert into procurements (id,org_id,title,status,requested_by_id,total_value,cur
  ('02840000-0000-0000-0000-000000000015','02840000-0000-0000-0000-000000000001','Approved bypass','Approved','02840000-0000-0000-0000-0000000000a1',500,'USD'),
  ('02840000-0000-0000-0000-000000000016','02840000-0000-0000-0000-000000000001','Backfill target','Requested','02840000-0000-0000-0000-0000000000a1',0,'USD'),
  ('02840000-0000-0000-0000-000000000017','02840000-0000-0000-0000-000000000001','Terminal excluded','Cancelled','02840000-0000-0000-0000-0000000000a1',0,'USD'),
- ('02840000-0000-0000-0000-000000000018','02840000-0000-0000-0000-000000000001','No invoice fallback','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',420,'USD');
+ ('02840000-0000-0000-0000-000000000018','02840000-0000-0000-0000-000000000001','No invoice fallback','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',420,'USD'),
+ ('02840000-0000-0000-0000-000000000019','02840000-0000-0000-0000-000000000001','Null invoice fallback','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',620,'USD'),
+ ('02840000-0000-0000-0000-000000000020','02840000-0000-0000-0000-000000000001','Priced among null invoices','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',900,'USD');
 update procurements set approved_by_id='02840000-0000-0000-0000-0000000000a2' where id='02840000-0000-0000-0000-000000000012';
 insert into procurement_invoices (id,org_id,procurement_id,vi_number,invoice_date,status,amount,currency,tax_treatment,tax_amount,withheld_amount) values
- ('02840000-0000-0000-0000-000000000080','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000013','VI-PMC',current_date,'Received',1000,'USD','exclusive',110,20);
+ ('02840000-0000-0000-0000-000000000080','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000013','VI-PMC',current_date,'Received',1000,'USD','exclusive',110,20),
+ ('02840000-0000-0000-0000-000000000081','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000019','VI-PMC-NULL',current_date,'Received',null,'USD','exclusive',0,0),
+ ('02840000-0000-0000-0000-000000000082','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000020','VI-PMC-NULL-2',current_date,'Received',null,'USD','exclusive',0,0),
+ ('02840000-0000-0000-0000-000000000083','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000020','VI-PMC-500',current_date,'Received',500,'USD','exclusive',0,25);
 insert into payments (id,org_id,procurement_id,pay_number,status,date,amount,currency) values
  ('02840000-0000-0000-0000-000000000090','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000012','PAY-PMC-SCHED','Scheduled',null,700,'USD'),
  ('02840000-0000-0000-0000-000000000091','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000012','PAY-PMC-SCHED-2','Scheduled','2026-01-01',500,'USD');
@@ -85,7 +90,13 @@ reset role;
 select is((select amount from payments where procurement_id='02840000-0000-0000-0000-000000000018'),420::numeric,'AC-PMC-004 request total is the fallback only when no invoice exists');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"02840000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok($$select transition_procurement('02840000-0000-0000-0000-000000000019','Paid')$$,'AC-PMC-008 NULL-only invoice falls back to request total');
+select lives_ok($$select transition_procurement('02840000-0000-0000-0000-000000000020','Paid')$$,'AC-PMC-008 NULL invoice is ignored when a priced invoice exists');
 reset role;
+select is((select amount from payments where procurement_id='02840000-0000-0000-0000-000000000019'),620::numeric,'AC-PMC-008 NULL-only invoice uses procurement total_value');
+select is((select invoice_id from payments where procurement_id='02840000-0000-0000-0000-000000000019'),null::uuid,'AC-PMC-008 NULL-only invoice is not linked');
+select is((select amount from payments where procurement_id='02840000-0000-0000-0000-000000000020'),475::numeric,'AC-PMC-008 only the priced invoice payable contributes');
+select is((select invoice_id from payments where procurement_id='02840000-0000-0000-0000-000000000020'), '02840000-0000-0000-0000-000000000083'::uuid,'AC-PMC-008 exactly one priced invoice is linked');
 update procurements set status='Vendor Invoiced' where id='02840000-0000-0000-0000-000000000013';
 set local role authenticated;
 select lives_ok($$select transition_procurement('02840000-0000-0000-0000-000000000013','Paid')$$,'AC-PMC-005 replayed Paid transition does not fail');
