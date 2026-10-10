@@ -124,7 +124,7 @@ describe('AC-W3-B1: Timesheet Rejected → Draft rework action', () => {
     tsState.isPending = false; tsState.isError = false;
     renderPage();
     // The ErrBanner must still be present
-    expect(screen.getByText(/returned for changes/i)).toBeInTheDocument();
+    expect(screen.getByText('This week was returned for changes', { exact: true })).toBeInTheDocument();
     // The rework button must be present
     expect(screen.getByRole('button', { name: /revise this week/i })).toBeInTheDocument();
   });
