@@ -31,7 +31,7 @@ export interface InvoiceWorkOrderModalProps {
   /** Still to invoice on this work order, excl. tax, from work_order_billing. */
   remaining: number;
   onClose: () => void;
-  onCreated: (siNumber: string) => void;
+  onCreated: (invoice: { id: string; si_number: string | null }) => void;
 }
 
 interface Values {
@@ -128,7 +128,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
           intent,
         });
         // The ERP names the invoice; a PMO Draft has no number yet (DD-NAR-9 mints it on approval).
-        onCreated(res.si_number ?? '');
+        onCreated(res);
       } catch (err) {
         // The dialog is the one place the failure is shown (no second toast); classifying here records the single
         // save_failed event (ADR-0067). On the native path the RPC's refusals carry their own detail codes (0275),
