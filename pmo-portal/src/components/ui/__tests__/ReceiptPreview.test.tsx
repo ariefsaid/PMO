@@ -38,9 +38,11 @@ describe('ReceiptPreview', () => {
     expect(screen.getAllByRole('button', { name: 'Download original' })).toHaveLength(1);
     failed.unmount();
 
-    const retrievalFailure = render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} onDownload={vi.fn()} />);
+    const fallbackDownload = vi.fn();
+    const retrievalFailure = render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} onDownload={fallbackDownload} />);
     await userEvent.click(retrievalFailure.getByRole('button', { name: 'Preview receipt' }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't preview this file.");
-    expect(retrievalFailure.getByRole('button', { name: 'Download original' })).toBeInTheDocument();
+    await userEvent.click(retrievalFailure.getByRole('button', { name: 'Download original' }));
+    expect(fallbackDownload).toHaveBeenCalledOnce();
   });
 });
