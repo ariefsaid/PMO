@@ -496,7 +496,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   Finance gets a **Vendors** doorway to the existing Companies list filtered to vendors, independent
   of unrelated CRM navigation visibility; Companies remains the canonical vendor record. Shared
   route labels should be reused by navigation, command-palette results, and breadcrumbs, including
-  the localized parent label on an expense-claim breadcrumb. When an async panel owns a URL fragment,
+  the localized parent label on an expense-claim breadcrumb and the localized pending/not-found
+  state crumbs on detail routes. When an async panel owns a URL fragment,
   focus and scroll its target after the panel mounts. A background access refresh keeps a settled
   panel visible; pending access applies only before membership resolves, and an unavailable check has
   a recoverable error state.
