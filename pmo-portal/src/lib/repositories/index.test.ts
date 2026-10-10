@@ -71,6 +71,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
 vi.mock('@/src/lib/db/procurementCrud', () => ({
   createProcurement: vi.fn(),
   updateProcurementHeader: vi.fn(),
+  updateProcurementVendor: vi.fn(),
   createProcurementItem: vi.fn(),
   updateProcurementItem: vi.fn(),
   deleteProcurementItem: vi.fn(),
@@ -269,6 +270,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'transition',
         'updateHeader',
         'updateItem',
+        'updateVendor',
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
@@ -639,6 +641,7 @@ describe('delegation — methods pass args through and return the DAL result', (
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
     vi.mocked(procCrudDal.createProcurement).mockResolvedValue({ id: 'pr9' } as never);
     vi.mocked(procCrudDal.updateProcurementHeader).mockResolvedValue(undefined);
+    vi.mocked(procCrudDal.updateProcurementVendor).mockResolvedValue(undefined);
     vi.mocked(procCrudDal.createProcurementItem).mockResolvedValue({ id: 'it1' } as never);
     vi.mocked(procCrudDal.updateProcurementItem).mockResolvedValue(undefined);
     vi.mocked(procCrudDal.deleteProcurementItem).mockResolvedValue(undefined);
@@ -659,6 +662,9 @@ describe('delegation — methods pass args through and return the DAL result', (
       projectId: null,
       vendorId: null,
     });
+
+    await repositories.procurement.updateVendor('pr9', 'vendor-1');
+    expect(procCrudDal.updateProcurementVendor).toHaveBeenCalledWith('pr9', 'vendor-1');
 
     await repositories.procurement.createItem('pr9', { name: 'W', quantity: 2, rate: 5 });
     expect(procCrudDal.createProcurementItem).toHaveBeenCalledWith('pr9', { name: 'W', quantity: 2, rate: 5 });

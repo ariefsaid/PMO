@@ -50,6 +50,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.r
 import {
   createProcurement,
   updateProcurementHeader,
+  updateProcurementVendor,
   createProcurementItem,
   updateProcurementItem,
   deleteProcurementItem,
@@ -70,6 +71,17 @@ beforeEach(() => {
   }
   h.result.value = { data: null, error: null };
   h.rpcResult.value = { data: null, error: null };
+});
+
+describe('vendor recovery writes only vendor_id', () => {
+  it('updates only the vendor_id field and requires a landed row', async () => {
+    h.result.value = { data: [{ id: 'pr1' }], error: null };
+    await updateProcurementVendor('pr1', 'vendor-1');
+    expect(h.calls.from).toEqual(['procurements']);
+    expect(h.calls.update).toEqual([{ vendor_id: 'vendor-1' }]);
+    expect(h.calls.eq).toEqual([['id', 'pr1']]);
+    expect(h.calls.select).toEqual(['id']);
+  });
 });
 
 describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stamped, no org_id)', () => {

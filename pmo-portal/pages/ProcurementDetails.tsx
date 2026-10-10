@@ -9,6 +9,7 @@ import {
   CardHead,
   CardPad,
   Button,
+  Combobox,
   StatusPill,
   LifecycleStepper,
   ListState,
@@ -327,6 +328,8 @@ const ProcurementDetails: React.FC = () => {
   // header-edit panel. Procurement's role-allowed header action set is Edit only —
   // there is no archive/delete (Cancel is a lifecycle transition, in the action zone).
   const [headerEditOpen, setHeaderEditOpen] = useState(false);
+  const [vendorPickerOpen, setVendorPickerOpen] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
   // clicks the action so invoice details are captured BEFORE the transition fires.
   const [showVICapture, setShowVICapture] = useState(false);
@@ -473,6 +476,7 @@ const ProcurementDetails: React.FC = () => {
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
+  const canSetVendor = !p.vendor_id && may('edit', 'procurement');
   const currentUserId = currentUser?.id ?? null;
 
 
@@ -1093,12 +1097,40 @@ const ProcurementDetails: React.FC = () => {
               targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
               vendorMissing={!p.vendor_id}
-              onSetVendor={canEditHeader ? () => setHeaderEditOpen(true) : undefined}
+              onSetVendor={canSetVendor ? () => { setSelectedVendorId(null); setVendorPickerOpen(true); } : undefined}
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
               isApprover={isApprover}
             />
+            {vendorPickerOpen && canSetVendor && (
+              <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+                <Combobox
+                  label={t('procurementDetail.vendor', 'Vendor')}
+                  noun={t('procurementDetail.vendor', 'vendor')}
+                  value={selectedVendorId}
+                  onChange={(value) => setSelectedVendorId(value)}
+                  loadOptions={async () => vendorOptions ?? []}
+                  placeholder={t('procurementDetail.selectVendor', 'Select a vendor…')}
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!selectedVendorId || crud.updateVendor.isPending}
+                  onClick={async () => {
+                    if (!selectedVendorId) return;
+                    try {
+                      await crud.updateVendor.mutateAsync(selectedVendorId);
+                      setVendorPickerOpen(false);
+                      toast(t('bupot.vendorSet', 'Vendor set'), undefined, 'success');
+                    } catch (err) {
+                      onMutationError(err);
+                    }
+                  }}
+                >{t('common.save', 'Save')}</Button>
+                <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('common.cancel', 'Cancel')}</Button>
+              </div>
+            )}
           </Card>
         )}
 

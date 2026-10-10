@@ -122,6 +122,16 @@ export interface ProcurementHeaderPatch {
  * caller's org and the client-writable columns. Status and document numbers are
  * unreachable here (revoked by 0010 → minter/transition RPCs only).
  */
+export async function updateProcurementVendor(id: string, vendorId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('procurements')
+    .update({ vendor_id: vendorId })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Purchase request not found or you do not have permission to edit it.');
+}
+
 export async function updateProcurementHeader(
   id: string,
   patch: ProcurementHeaderPatch,

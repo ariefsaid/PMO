@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   detail: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
+  updateVendor: vi.fn().mockResolvedValue(undefined),
   history: { data: { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] }, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn() },
 }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => h.detail,
   useProcurementMutations: () => ({ transition: { mutateAsync: vi.fn(), isPending: false }, createQuotation: { mutateAsync: vi.fn(), isPending: false }, createReceipt: { mutateAsync: vi.fn(), isPending: false }, createInvoice: { mutateAsync: vi.fn(), isPending: false }, captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false }, setEfaktur: { mutateAsync: vi.fn(), isPending: false } }),
 }));
-vi.mock('@/src/hooks/useProcurementCrud', () => ({ useProcurementCrudMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false }, createItem: { mutateAsync: vi.fn(), isPending: false }, updateItem: { mutateAsync: vi.fn(), isPending: false }, deleteItem: { mutateAsync: vi.fn(), isPending: false }, selectQuote: { mutateAsync: vi.fn(), isPending: false } }) }));
+vi.mock('@/src/hooks/useProcurementCrud', () => ({ useProcurementCrudMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false }, updateVendor: { mutateAsync: h.updateVendor, isPending: false }, createItem: { mutateAsync: vi.fn(), isPending: false }, updateItem: { mutateAsync: vi.fn(), isPending: false }, deleteItem: { mutateAsync: vi.fn(), isPending: false }, selectQuote: { mutateAsync: vi.fn(), isPending: false } }) }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingCoverage: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   useVendorWithholdingRegister: () => h.history,
@@ -19,8 +20,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement, suppressArrivalFocus }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean }) => <div data-testid="slip-detail" data-suppress-arrival-focus={suppressArrivalFocus ? 'true' : 'false'}>Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId, 'invoice-2')}>Open bill in case</button></div> }));
-vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span><button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record evidence for bill</button><button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }), useProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing ? <button onClick={onSetVendor}>Set vendor</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [{ value: 'vendor-new', label: 'New vendor' }] }), useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
@@ -52,15 +53,34 @@ function renderAt(path: string) {
 }
 beforeEach(() => {
   h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null;
+  h.updateVendor.mockClear();
   h.history.data = { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] };
   h.history.isLoading = false; h.history.isError = false;
 });
 
 describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
+  it('lets Finance set only the missing vendor on a billed request, then permits slip recording', async () => {
+    const vendorlessBilled = { ...procurement, vendor_id: null };
+    h.detail.data = vendorlessBilled;
+    const view = renderAt('/procurement/proc-001/documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
+    h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/documents']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
+    expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
+  });
+
   it('opens the record modal from a paid bill row', () => {
     renderAt('/procurement/proc-001/documents');
     expect(screen.getAllByText('VI-001')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Record evidence for bill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
     expect(screen.getByRole('button', { name: 'Save evidence' })).toBeInTheDocument();
   });
