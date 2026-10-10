@@ -1665,7 +1665,7 @@
       "reject": "Reject",
       "requestVendorQuotes": "Request Vendor Quotes",
       "rework": "Rework (Back to Draft)",
-      "selectQuote": "Select Quote",
+      "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit Request"
     },
     "vendorInvoice": {
@@ -1703,7 +1703,7 @@
       "grBody": "This records a {{status}} goods receipt against {{request}}.",
       "grTitle": "Record this goods receipt?",
       "keepRequest": "Keep request",
-      "markPaidBody": "Mark <money/> as paid? This releases payment and cannot be undone.",
+      "markPaidBody": "Record {{amount}} as paid? This records payment evidence; it does not transfer funds.",
       "moneyOnProject": "<amount>{{amount}}</amount> on <project/>",
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> on <project/>, requested by <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, requested by <person>{{name}}</person>",
@@ -1745,6 +1745,9 @@
       "history": "History"
     },
     "tabsLabel": "Procurement sections",
+    "quotes": {
+      "emptyTitle": "No quotes recorded. Add a vendor quote to compare bids."
+    },
     "tile": {
       "goodsReceived": "Goods received",
       "poCommitted": "PO committed",

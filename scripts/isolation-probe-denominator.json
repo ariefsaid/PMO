@@ -198,6 +198,7 @@
     "record_outbox_ref(uuid,integer,text,text,text,text)",
     "record_timesheet_command_held(uuid,uuid,timestamp with time zone,text,uuid,integer)",
     "recover_external_connect_trap(uuid,text,boolean,boolean,uuid)",
+    "reconcile_procurement_line_totals()",
     "release_credits(uuid)",
     "release_outbox_hold(uuid,text,text)",
     "release_sales_invoice_submit_clearance(uuid,uuid)",

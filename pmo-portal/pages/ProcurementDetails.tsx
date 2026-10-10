@@ -208,7 +208,7 @@ function allowedActions(
 
   // Vendor Quoted → Quote Selected: PM/Finance/Admin
   if (legal('Quote Selected') && canSource(role)) {
-    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Select Quote'), variant: 'primary' });
+    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Compare and select a quote'), variant: 'primary' });
   }
 
   // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
@@ -520,6 +520,16 @@ const ProcurementDetails: React.FC = () => {
   // and requester clauses are what forced the fragments, so each combination gets its own whole
   // sentence with the pieces as placeholders a translator can reorder.
   const moneyAmount = formatCurrency(Number(p.total_value), p.currency);
+  const scheduledPayments = (p.payments ?? []).filter((payment) => payment.status === 'Scheduled');
+  const payableInvoices = p.invoices.filter((invoice) => invoice.amount != null);
+  const paidConfirmationAmount = scheduledPayments.length > 0
+    ? scheduledPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+    : payableInvoices.length > 0
+      ? payableInvoices.reduce((sum, invoice) => sum + Number(invoice.amount)
+          + (invoice.tax_treatment === 'exclusive' ? Number(invoice.tax_amount ?? 0) : 0)
+          - Number(invoice.withheld_amount ?? 0), 0)
+      : Number(p.total_value);
+  const paidMoneyAmount = formatCurrency(paidConfirmationAmount, p.currency);
   const moneyProject = p.project?.name ?? null;
   const moneyRequester = p.requested_by?.full_name ?? null;
   const moneyContext = moneyProject ? (
@@ -558,6 +568,10 @@ const ProcurementDetails: React.FC = () => {
 
   const onActionClick = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
+    if (action.to === 'Quote Selected') {
+      setTab('quotes');
+      return;
+    }
     // O3 (AC-W3-O3): "Mark Vendor Invoiced" opens an inline capture so the invoice
     // reference + date + status are recorded BEFORE the transition fires (co-locate
     // capture with the action, mirroring the PipelineLens Mark-won pattern).
@@ -588,8 +602,8 @@ const ProcurementDetails: React.FC = () => {
       ) : action.to === 'Paid' ? (
         <Trans
           i18nKey="procurementDetail.confirm.markPaidBody"
-          defaults="Mark <money/> as paid? This releases payment and cannot be undone."
-          components={{ money: <span>{moneyContext}</span> }}
+          defaults="Record {{amount}} as paid? This records payment evidence; it does not transfer funds."
+          values={{ amount: paidMoneyAmount }}
         />
       ) : (
         t(

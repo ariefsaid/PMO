@@ -3,15 +3,14 @@ import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 
 // AC-IXD-WP-002 — consequential / financial procurement writes STILL confirm, and the kept
-// Approve + Mark-as-Paid confirms RESTATE the amount + project + requester (OD-UX-1, plan
-// tasks 9/10; the contract-value SoD confirm is the template — confirm against the money).
+// Approve + Mark-as-Paid confirms RESTATE the amount and settlement consequence.
 //
 // Natural journey / Given-When-Then:
 //   Given: a Requested PR (PROC-2026-002) that a non-requester approver (finance@) views.
 //   When:  they click "Approve",
 //   Then:  a ConfirmDialog appears whose body restates the AMOUNT + project + requester;
 //   And:   clicking "Mark as Paid" on a Vendor-Invoiced PR (PROC-2026-008) also confirms with
-//          the amount.
+//          the amount and explains that this records evidence rather than transferring funds.
 //   Invariant: consequential/financial writes confirm before the write, against the money.
 
 /** Find the open confirm dialog (default `dialog`; falls back to destructive `alertdialog`). */
@@ -71,8 +70,8 @@ test('AC-IXD-WP-002: Mark as Paid still confirms and its dialog restates the amo
   const dialog = confirmSurface(page);
   await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-  // The body restates the amount being paid.
-  await expect(dialog).toContainText('$30,000');
+  // The body restates the invoice payable and clarifies that this records evidence only.
+  await expect(dialog).toContainText('Record $30,000 as paid? This records payment evidence; it does not transfer funds.');
 
   // No write fired on the first click.
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced');

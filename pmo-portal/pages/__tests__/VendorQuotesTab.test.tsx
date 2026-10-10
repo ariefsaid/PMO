@@ -122,11 +122,9 @@ async function confirmInDialog(label: string | RegExp) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
-  it('AC-VQ-001: renders taught empty state with "No vendor quotes yet" heading', () => {
+  it('AC-PMC-006: empty state names the missing bid comparison and next step', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[]} />);
-    expect(screen.getByText(/No vendor quotes yet/i)).toBeInTheDocument();
-    // Teaches the user what to do
-    expect(screen.getByText(/quotes are captured/i)).toBeInTheDocument();
+    expect(screen.getByText('No quotes recorded. Add a vendor quote to compare bids.')).toBeInTheDocument();
   });
 
   it('AC-VQ-001: empty state still shows Add button when canAdd=true', () => {
