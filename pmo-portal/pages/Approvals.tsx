@@ -941,7 +941,7 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
       {canApproveTimesheets && <PushAttentionSection />}
       {canApproveTimesheets && <EmployeeLinkConfirmSection />}
-      {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0} />}
+      {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
     </div>
   );
 };
