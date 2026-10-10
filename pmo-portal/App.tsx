@@ -353,7 +353,10 @@ export const ShellChrome: React.FC = () => {
         group: 'Navigate',
         title: m.module === 'administration'
           ? t('shell.nav.administration', 'Administration')
-          : m.label,
+          : m.labelKey ? t(m.labelKey, m.label) : m.label,
+        sub: m.module === 'my-tasks'
+          ? t('shell.nav.myTasksHint', 'Your assigned work across projects')
+          : undefined,
         icon: m.icon,
         run: () => navigate(m.path),
       })),

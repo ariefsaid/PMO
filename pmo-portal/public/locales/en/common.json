@@ -3138,6 +3138,8 @@
       "integrations": "My integrations",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
+      "myTasksHint": "Your assigned work across projects",
+      "vendors": "Vendors",
       "procurement": "Procurement",
       "projects": "Projects",
       "revenueByProject": "Revenue by Project",
@@ -3186,6 +3188,9 @@
     "skipLink": {
       "mainContent": "Skip to main content"
     }
+  },
+  "table": {
+    "rowActions": "Row actions"
   },
   "task": {
     "status": {

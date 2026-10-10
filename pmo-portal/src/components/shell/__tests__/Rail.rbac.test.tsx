@@ -86,4 +86,19 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     renderRailAs('Admin');
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
+
+  it('UXS-007: a Project Manager can discover their assigned work from the rail', () => {
+    renderRailAs('Project Manager');
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('UXS-007: the personal task doorway does not change Executive navigation', () => {
+    renderRailAs('Executive');
+    expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
+  });
+
+  it('UXS-030: Vendors opens the existing Companies list with the Vendor filter', () => {
+    renderRailAs('Finance');
+    expect(screen.getByRole('link', { name: 'Vendors' })).toHaveAttribute('href', '/companies?type=Vendor');
+  });
 });

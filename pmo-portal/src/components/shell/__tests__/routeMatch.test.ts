@@ -32,6 +32,14 @@ describe('UIP-001: navigation module icon semantics', () => {
   });
 });
 
+describe('UXS-007 shell label consistency', () => {
+  it('uses the canonical My Tasks locale key for its breadcrumb', () => {
+    expect(breadcrumbForPath('/my-tasks')).toEqual([
+      { label: 'My Tasks', i18nKey: 'shell.nav.myTasks' },
+    ]);
+  });
+});
+
 describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
   it('C-MIN-4: an unknown path resolves breadcrumb label to "Not found"', () => {
     const crumbs = breadcrumbForPath('/no-such-route');

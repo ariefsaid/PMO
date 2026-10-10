@@ -21,6 +21,8 @@ export interface ModuleDef {
    * matches the rail — a denied role never sees a Navigate item for a hidden module.
    */
   roles?: UserRole[];
+  /** Canonical shell copy key shared by rail, palette, and breadcrumbs. */
+  labelKey?: string;
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
@@ -75,6 +77,14 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
+    module: 'vendors',
+    icon: 'companies',
+    label: 'Vendors',
+    labelKey: 'shell.nav.vendors',
+    path: '/companies?type=Vendor',
+    roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+  },
+  {
     module: 'contacts',
     icon: 'contacts',
     label: 'Contacts',
@@ -106,15 +116,15 @@ export const MODULES: ModuleDef[] = [
   },
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
-  // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
-  // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).
+  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
+  // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
     icon: 'tasks',
     label: 'My Tasks',
+    labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
-    roles: [UserRole.Engineer, UserRole.Admin],
+    roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
   },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
@@ -321,6 +331,7 @@ export function breadcrumbForPath(
       '/sales-invoices': 'shell.nav.salesInvoices',
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
+      '/my-tasks': 'shell.nav.myTasks',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
@@ -367,9 +378,11 @@ export function breadcrumbForPath(
         // and stepper, not the breadcrumb ancestry.
         const parentLabel = m.label;
         const parentPath = m.path;
+        const parentKey = m.labelKey;
         return [
           {
             label: parentLabel,
+            ...(parentKey ? { i18nKey: parentKey } : {}),
             // App passes a descriptor for every adopting list's detail route: the validated source
             // list URL, or the owning index when there is no usable context, with cleaned router
             // state (a one-shot scroll restore only when an offset was captured). Other modules'
@@ -383,7 +396,7 @@ export function breadcrumbForPath(
     }
     // Index route → a single current crumb.
     if (matchPath({ path: m.path, end: true }, pathname)) {
-      return [{ label: m.label }];
+      return [{ label: m.label, ...(m.labelKey ? { i18nKey: m.labelKey } : {}) }];
     }
   }
 
@@ -404,6 +417,8 @@ export interface RecordLists {
   contacts?: { id: string; full_name: string }[];
   /** #526: meetings — the record name is its `title`. */
   meetings?: { id: string; title: string }[];
+  /** Expense claims resolve from the detail query cache; no additional list read. */
+  expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
 }
@@ -531,6 +546,13 @@ export function recordLabelForPath(
   // #526: a meeting's label is its `title`.
   const meetingId = idFrom('/meetings');
   if (meetingId) return lists.meetings?.find((m) => m.id === meetingId)?.title;
+
+  // Expense detail breadcrumb uses its human-facing claim number, then its title.
+  const expenseId = idFrom('/expenses');
+  if (expenseId) {
+    const claim = lists.expenses?.find((item) => item.id === expenseId);
+    return claim?.claim_number || claim?.title || undefined;
+  }
 
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');

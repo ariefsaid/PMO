@@ -3138,6 +3138,8 @@
       "integrations": "Integrasi saya",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
+      "myTasksHint": "Tugas Anda di seluruh proyek",
+      "vendors": "Vendor",
       "procurement": "Pengadaan",
       "projects": "Proyek",
       "revenueByProject": "Pendapatan per Proyek",
@@ -3186,6 +3188,9 @@
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
     }
+  },
+  "table": {
+    "rowActions": "Tindakan baris"
   },
   "task": {
     "status": {

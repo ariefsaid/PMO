@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIsOperator } from '@/src/auth/useIsOperator';
@@ -71,6 +71,7 @@ const ALL_ITEMS: NavItem[] = [
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
@@ -79,11 +80,9 @@ const ALL_ITEMS: NavItem[] = [
   // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
   { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // B-1 (AC-W2-IXD-001 / OD-W2-4): My Tasks — IC (Engineer) own-assigned cross-project list.
-  // An Engineer lands on something actionable rather than the all-projects financial table.
-  // Admin is included for parity (Admin may also have tasks assigned to them).
-  // Executives and managers use the project Tasks tab for their task oversight (OD-W2-4).
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.Engineer, UserRole.Admin] },
+  // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
+  // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
@@ -138,6 +137,7 @@ export interface RailProps {
 
 export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
   const { t } = useTranslation();
+  const location = useLocation();
   const { effectiveRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
 
@@ -187,6 +187,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
+    '/companies?type=Vendor': t('shell.nav.vendors', 'Vendors'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
@@ -209,6 +210,30 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
+    const isCompanyDirectoryLink = item.to === '/companies' || item.to === '/companies?type=Vendor';
+
+    if (isCompanyDirectoryLink) {
+      const active = location.pathname === '/companies' && (
+        item.to === '/companies?type=Vendor'
+          ? location.search === '?type=Vendor'
+          : location.search !== '?type=Vendor'
+      );
+      return (
+        <Link
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            NAV_LINK_BASE,
+            active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
+          )}
+        >
+          <Icon name={item.icon} />
+          <span>{navLabels[item.to] ?? item.text}</span>
+        </Link>
+      );
+    }
 
     if (isStageAware) {
       const overrideActive =
@@ -218,7 +243,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         <NavLink
           key={item.to}
           to={item.to}
-          end={item.to === '/'}
+          end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
           // Ignore NavLink's built-in isActive; use the override decision.
           className={() =>
@@ -240,16 +265,17 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       <NavLink
         key={item.to}
         to={item.to}
-        end={item.to === '/'}
+        end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
-        className={({ isActive }: { isActive: boolean }) =>
-          cn(
+        className={({ isActive }: { isActive: boolean }) => {
+          const active = isActive;
+          return cn(
             NAV_LINK_BASE,
-            isActive
+            active
               ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
-          )
-        }
+          );
+        }}
       >
         <Icon name={item.icon} />
         <span>{navLabels[item.to] ?? item.text}</span>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
@@ -529,6 +530,7 @@ const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spa
 const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
 
 const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -645,7 +647,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
       <button
         ref={triggerRef}
         type="button"
-        aria-label="Row actions"
+        aria-label={t('table.rowActions', 'Row actions')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}

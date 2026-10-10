@@ -19,6 +19,16 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
+  it('UXS-007: shows the assignee-scoped context beneath My Tasks', () => {
+    const personalWork: PaletteItem[] = [{
+      id: 'nav-my-tasks', group: 'Navigate', title: 'My Tasks',
+      sub: 'Your assigned work across projects', icon: 'tasks', run: vi.fn(),
+    }];
+    render(<CommandPalette open items={personalWork} onClose={vi.fn()} />);
+    expect(screen.getByText('My Tasks')).toBeInTheDocument();
+    expect(screen.getByText('Your assigned work across projects')).toBeInTheDocument();
+  });
+
   it('renders nothing when closed', () => {
     render(<CommandPalette open={false} items={items} onClose={vi.fn()} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
