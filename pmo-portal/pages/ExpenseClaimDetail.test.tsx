@@ -78,12 +78,16 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
-  it('AC-EXP-061 the named approver sees Approve', () => {
+  it('AC-UXS-011 the named approver confirms the selected claim identity and amount', async () => {
     h.claim = { ...base, status: 'Submitted' };
     h.route = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pma', fullName: 'Ayu Approver' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
     as('pma', 'Project Manager');
     renderAt();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Approve EXP-2610060001 for');
+    expect(dialog).toHaveTextContent('Site visit');
+    expect(dialog).toHaveTextContent(money(300, 'IDR'));
   });
 
   it('AC-EXP-061 Finance paying an advance-linked claim sees the advance applied and the cash to pay', async () => {

@@ -1075,6 +1075,11 @@
       "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     }
   },
+  "decisionContext": {
+    "amount": "Jumlah",
+    "record": "Catatan",
+    "title": "Detail keputusan"
+  },
   "expenses": {
     "postings": {
       "errorSub": "Klaim itu sendiri tidak terpengaruh. Coba lagi.",
@@ -1158,17 +1163,17 @@
       "title": "Judul"
     },
     "confirm": {
-      "approveTitle": "Setujui ini?",
+      "approveTitle": "Setujui {{number}} sebesar {{amount}}?",
       "cancelConfirm": "Batalkan",
       "cancelDescription": "Tetap tercatat sebagai Dibatalkan dan tidak dapat lagi disetujui atau dibayar.",
-      "cancelTitle": "Batalkan ini?",
+      "cancelTitle": "Batalkan {{number}}?",
       "keep": "Simpan",
       "notesLabel": "Catatan untuk pengaju (opsional)",
-      "payTitle": "Tandai sebagai dibayar?",
+      "payTitle": "Tandai {{number}} dibayar: {{amount}}?",
       "previewApplied": "Uang muka dipakai",
       "previewCash": "Kas yang dibayar",
       "referenceLabel": "Referensi pembayaran (opsional)",
-      "rejectTitle": "Tolak ini?",
+      "rejectTitle": "Tolak {{number}}?",
       "returnAmountHelper": "Maksimal {{amount}} belum diselesaikan.",
       "returnAmountLabel": "Jumlah dikembalikan",
       "returnConfirm": "Catat pengembalian",
@@ -1283,7 +1288,13 @@
       "attachAria": "Pilih berkas bukti",
       "attached": "Bukti terlampir",
       "download": "Unduh {{name}}",
+      "downloadOriginal": "Unduh berkas asli",
       "empty": "Belum ada bukti terlampir.",
+      "preview": "Pratinjau bukti",
+      "previewError": "Berkas ini tidak dapat dipratinjau.",
+      "previewLoading": "Memuat bukti…",
+      "unsupported": "Pratinjau tidak tersedia untuk jenis berkas ini.",
+      "close": "Tutup",
       "error": "Gagal memuat bukti.",
       "loading": "Memuat bukti…",
       "remove": "Hapus {{name}}",

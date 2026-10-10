@@ -1075,6 +1075,11 @@
       "declined": "{{n}} declined to bid — not counted in the win rate"
     }
   },
+  "decisionContext": {
+    "amount": "Amount",
+    "record": "Record",
+    "title": "Decision details"
+  },
   "expenses": {
     "postings": {
       "errorSub": "The claim itself is unaffected. Try again.",
@@ -1158,17 +1163,17 @@
       "title": "Title"
     },
     "confirm": {
-      "approveTitle": "Approve this?",
+      "approveTitle": "Approve {{number}} for {{amount}}?",
       "cancelConfirm": "Cancel it",
       "cancelDescription": "It stays on record as Cancelled and can no longer be approved or paid.",
-      "cancelTitle": "Cancel this?",
+      "cancelTitle": "Cancel {{number}}?",
       "keep": "Keep it",
       "notesLabel": "Note to the claimant (optional)",
-      "payTitle": "Mark as paid?",
+      "payTitle": "Mark {{number}} paid: {{amount}}?",
       "previewApplied": "Advance applied",
       "previewCash": "Cash to pay",
       "referenceLabel": "Payment reference (optional)",
-      "rejectTitle": "Reject this?",
+      "rejectTitle": "Reject {{number}}?",
       "returnAmountHelper": "Up to {{amount}} is outstanding.",
       "returnAmountLabel": "Amount returned",
       "returnConfirm": "Record return",
@@ -1283,7 +1288,13 @@
       "attachAria": "Choose a receipt file",
       "attached": "Receipt attached",
       "download": "Download {{name}}",
+      "downloadOriginal": "Download original",
       "empty": "No receipts attached.",
+      "preview": "Preview receipt",
+      "previewError": "Couldn't preview this file.",
+      "previewLoading": "Loading receipt…",
+      "unsupported": "Preview is not available for this file type.",
+      "close": "Close",
       "error": "Couldn't load receipts.",
       "loading": "Loading receipts…",
       "remove": "Remove {{name}}",

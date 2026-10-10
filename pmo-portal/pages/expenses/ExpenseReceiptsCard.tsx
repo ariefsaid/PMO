@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, Icon, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, Icon, ReceiptPreview, useToast } from '@/src/components/ui';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { RECEIPT_INPUT_ACCEPT, type ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
@@ -86,6 +86,11 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
                   <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate" title={name}>{name}</span>
                   <span className="ml-auto flex items-center gap-1">
+                    <ReceiptPreview
+                      fileName={name}
+                      getPreviewUrl={() => download(f.file_path)}
+                      onDownload={() => open(f)}
+                    />
                     <Button variant="ghost" size="sm" onClick={() => void open(f)}
                       aria-label={t('expenses.receipts.download', 'Download {{name}}', { name })}>
                       <Icon name="download" />
