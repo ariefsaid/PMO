@@ -25,6 +25,17 @@ describe('Breadcrumb', () => {
     expect(onNavigate).toHaveBeenCalled();
   });
 
+  it('UXS-030: uses the Vendors label for the canonical filtered Companies route', () => {
+    const originalUrl = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, '', '/companies?type=Vendor');
+    try {
+      render(<Breadcrumb parts={[{ label: 'Companies' }]} />);
+      expect(screen.getByText('Vendors')).toHaveAttribute('aria-current', 'page');
+    } finally {
+      window.history.replaceState({}, '', originalUrl || '/');
+    }
+  });
+
   it('renders a parent with href as a link and keeps callback navigation', async () => {
     const onNavigate = vi.fn();
     render(

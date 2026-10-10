@@ -3104,7 +3104,9 @@
       "label": "Kembali ke {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb"
+      "label": "Breadcrumb",
+      "recordLoading": "Memuat…",
+      "recordNotFound": "Tidak ditemukan"
     },
     "contextBar": {
       "accountMenu": "Menu akun",
@@ -3138,6 +3140,8 @@
       "integrations": "Integrasi saya",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
+      "myTasksHint": "Tugas Anda di seluruh proyek",
+      "vendors": "Vendor",
       "procurement": "Pengadaan",
       "projects": "Proyek",
       "revenueByProject": "Pendapatan per Proyek",
@@ -3168,6 +3172,17 @@
       "inputPlaceholder": "Cari proyek, PR, klien, atau jalankan perintah…",
       "recordsError": "Gagal memuat data.",
       "recordsGroup": "Data",
+      "navigateGroup": "Navigasi",
+      "actionsGroup": "Tindakan",
+      "projectPipeline": "Proyek · Pipeline",
+      "recordProject": "Proyek",
+      "recordProcurement": "Pengadaan",
+      "recordCompany": "Perusahaan",
+      "recordCompanyNamed": "Perusahaan · {{name}}",
+      "recordContact": "Kontak",
+      "recordIncident": "Insiden",
+      "noResults": "Tidak ada hasil untuk “{{query}}”",
+      "moreResults": "+{{count}} lainnya — persempit pencarian",
       "resultsLabel": "Hasil perintah",
       "retry": "Coba lagi"
     },
@@ -3186,6 +3201,11 @@
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
     }
+  },
+  "table": {
+    "actions": "Tindakan",
+    "openRow": "Buka {{name}}",
+    "rowActions": "Tindakan baris"
   },
   "task": {
     "status": {

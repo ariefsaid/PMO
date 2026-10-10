@@ -46,12 +46,14 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(modules).toContain('my-tasks');
   });
 
-  it('AC-W3-N3: PM sees Sales, Procurement, Companies but NOT My Tasks', () => {
-    const modules = modulesForRole(UserRole.ProjectManager).map((m) => m.module);
-    expect(modules).toContain('sales');
-    expect(modules).toContain('procurement');
-    expect(modules).toContain('companies');
-    expect(modules).not.toContain('my-tasks');
+  it('UXS-007: PM can discover assigned work without changing Executive access', () => {
+    const modules = modulesForRole(UserRole.ProjectManager);
+    expect(modules.map((m) => m.module)).toContain('my-tasks');
+    expect(modules.find((m) => m.module === 'my-tasks')?.path).toBe('/my-tasks');
+    expect(modules.find((m) => m.module === 'my-tasks')?.roles).toContain(UserRole.ProjectManager);
+    expect(modulesForRole(UserRole.Executive).map((m) => m.module)).not.toContain('my-tasks');
+    const vendors = modules.find((m) => m.module === 'vendors');
+    expect(vendors).toMatchObject({ path: '/companies?type=Vendor', labelKey: 'shell.nav.vendors' });
   });
 
   it('AC-W3-N3: Finance sees Sales, Procurement, Companies but NOT My Tasks', () => {

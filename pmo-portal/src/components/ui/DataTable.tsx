@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
@@ -201,7 +202,15 @@ export function DataTable<Row>({
   className,
   cardBelow,
 }: DataTableProps<Row>) {
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
+  const accessibleRowLabel = (row: Row) => {
+    const label = rowLabel?.(row);
+    const openLabel = label?.match(/^Open (.+)$/);
+    return openLabel
+      ? t('table.openRow', 'Open {{name}}', { name: openLabel[1] })
+      : label;
+  };
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
@@ -282,7 +291,7 @@ export function DataTable<Row>({
               {rowMenu && (
                 <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b')} scope="col">
                   <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('table.actions', 'Actions')}</span>
                 </th>
               )}
             </tr>
@@ -352,7 +361,7 @@ export function DataTable<Row>({
                           {activatable ? (
                             <button
                               type="button"
-                              aria-label={rowLabel(row)}
+                              aria-label={accessibleRowLabel(row)}
                               onClick={(e) => {
                                 // The <tr> onClick already activates; stop it so
                                 // the row doesn't fire onActivate twice.
@@ -442,7 +451,7 @@ export function DataTable<Row>({
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
-                        aria-label={rowLabel(row)}
+                        aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
@@ -529,6 +538,7 @@ const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spa
 const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
 
 const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -645,7 +655,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
       <button
         ref={triggerRef}
         type="button"
-        aria-label="Row actions"
+        aria-label={t('table.rowActions', 'Row actions')}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
