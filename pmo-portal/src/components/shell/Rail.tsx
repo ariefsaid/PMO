@@ -202,7 +202,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   };
   const navLabels: Record<string, string> = Object.fromEntries(
     items.map((item) => {
-      const route = MODULES.find((module) => module.path === item.to);
+      const route = MODULES.find((module) => `${module.path}${module.search ?? ''}` === item.to);
       return [
         item.to,
         route?.labelKey
@@ -219,12 +219,27 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     Finance: t('shell.rail.group.finance', 'Finance'),
   };
   const myViewsLabel = t('shell.rail.myViews', 'My Views');
+  const renderLabel = (item: NavItem) => {
+    const label = navLabels[item.to] ?? item.text;
+    if (item.to !== '/my-tasks') return <span>{label}</span>;
+    const hint = t('shell.nav.myTasksHint', 'Your assigned work across projects');
+    return (
+      <span className="flex min-w-0 flex-col text-left leading-tight">
+        <span>{label}</span>
+        <span id="rail-my-tasks-hint" className="mt-0.5 text-[11px] font-normal text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+    );
+  };
 
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
     const isCompanyDirectoryLink = item.to === '/companies' || item.to === '/companies?type=Vendor';
+    const descriptionProps = item.to === '/my-tasks' ? { 'aria-describedby': 'rail-my-tasks-hint' } : {};
+    const itemClass = item.to === '/my-tasks' ? 'min-h-9 h-auto py-1' : '';
 
     if (isCompanyDirectoryLink) {
       const active = location.pathname === '/companies' && (
@@ -238,13 +253,15 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           to={item.to}
           onClick={onNavigate}
           aria-current={active ? 'page' : undefined}
+          {...descriptionProps}
           className={cn(
             NAV_LINK_BASE,
+            itemClass,
             active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
           )}
         >
           <Icon name={item.icon} />
-          <span>{navLabels[item.to] ?? item.text}</span>
+          {renderLabel(item)}
         </Link>
       );
     }
@@ -260,9 +277,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
           // Ignore NavLink's built-in isActive; use the override decision.
+          aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
           className={() =>
             cn(
               NAV_LINK_BASE,
+              itemClass,
               overrideActive
                 ? 'bg-primary/10 font-semibold text-nav-active-text'
                 : 'text-foreground hover:bg-accent',
@@ -270,7 +289,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           }
         >
           <Icon name={item.icon} />
-          <span>{navLabels[item.to] ?? item.text}</span>
+          {renderLabel(item)}
         </NavLink>
       );
     }
@@ -281,10 +300,12 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         to={item.to}
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
+        aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
         className={({ isActive }: { isActive: boolean }) => {
           const active = isActive;
           return cn(
             NAV_LINK_BASE,
+            itemClass,
             active
               ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
@@ -292,7 +313,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         }}
       >
         <Icon name={item.icon} />
-        <span>{navLabels[item.to] ?? item.text}</span>
+        {renderLabel(item)}
       </NavLink>
     );
   };

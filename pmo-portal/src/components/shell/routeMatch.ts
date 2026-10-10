@@ -10,8 +10,10 @@ export interface ModuleDef {
   module: string;
   icon: IconName;
   label: string;
-  /** Index route path. */
+  /** Index route path, excluding any query-string selector. */
   path: string;
+  /** Canonical query selector for a filtered doorway backed by this module's existing page. */
+  search?: string;
   /** Detail route pattern (record drill) + the param name carrying the id. */
   detail?: { pattern: string; param: string };
   /**
@@ -86,7 +88,8 @@ export const MODULES: ModuleDef[] = [
     icon: 'companies',
     label: 'Vendors',
     labelKey: 'shell.nav.vendors',
-    path: '/companies?type=Vendor',
+    path: '/companies',
+    search: '?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
@@ -322,6 +325,7 @@ export function breadcrumbForPath(
   _recordStatusGroup?: ProjectStatusGroup,
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
+  routeSearch = '',
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -367,6 +371,15 @@ export function breadcrumbForPath(
       },
       { label: viewCrumb },
     ];
+  }
+
+  // A filtered doorway can share its pathname with the canonical directory while keeping
+  // its own visible vocabulary (for example Vendors is the Companies page's Vendor filter).
+  const selectedIndexModule = MODULES.find(
+    (module) => module.path === pathname && (module.search ?? '') === routeSearch,
+  );
+  if (selectedIndexModule) {
+    return [{ label: selectedIndexModule.label, ...(selectedIndexModule.labelKey ? { i18nKey: selectedIndexModule.labelKey } : {}) }];
   }
 
   for (const m of MODULES) {

@@ -24,11 +24,14 @@ describe('CommandPalette', () => {
     render(
       <CommandPalette
         open
-        items={[{ id: 'nav-companies', group: 'Navigate', title: 'Perusahaan', icon: 'companies', run }]}
+        items={[{
+          id: 'nav-companies', group: 'Navigate', title: 'Perusahaan',
+          searchCodes: ['Companies'], icon: 'companies', run,
+        }]}
         onClose={vi.fn()}
       />,
     );
-    await userEvent.type(screen.getByRole('combobox'), 'perusahaan');
+    await userEvent.type(screen.getByRole('combobox'), 'companies');
     expect(await screen.findByText('Perusahaan')).toBeInTheDocument();
     await userEvent.keyboard('{Enter}');
     expect(run).toHaveBeenCalledOnce();

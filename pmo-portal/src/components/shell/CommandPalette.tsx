@@ -168,6 +168,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   let flatIndex = -1;
   const hasResults = resultCount > 0;
+  const groupLabel = (name: string) => {
+    if (name === 'Navigate') return t('shell.palette.navigateGroup', 'Navigate');
+    if (name === 'Actions') return t('shell.palette.actionsGroup', 'Actions');
+    if (name === 'Records') return t('shell.palette.recordsGroup', 'Records');
+    return name;
+  };
 
   return (
     <div
@@ -258,14 +264,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
           {!hasResults && !loading ? (
             <div className="px-2.5 py-8 text-center text-[13px] text-muted-foreground">
-              No results for “{query}”
+              {t('shell.palette.noResults', 'No results for “{{query}}”', { query })}
             </div>
           ) : (
             <>
               {groups.map((group) => (
                 <div key={group.name}>
                   <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                    {group.name}
+                    {groupLabel(group.name)}
                   </div>
                   {group.items.map((item) => {
                     flatIndex += 1;
@@ -305,7 +311,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   })}
                   {group.overflow > 0 && (
                     <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                      +{group.overflow} more — refine your search
+                      {t('shell.palette.moreResults', '+{{count}} more — refine your search', { count: group.overflow })}
                     </div>
                   )}
                 </div>

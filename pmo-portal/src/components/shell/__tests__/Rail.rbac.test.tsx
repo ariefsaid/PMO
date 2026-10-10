@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -88,9 +88,12 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
 
-  it('UXS-007: a Project Manager can discover their assigned work from the rail', () => {
+  it('UXS-007: a Project Manager can discover assigned work with its cross-project meaning in the rail', () => {
     renderRailAs('Project Manager');
-    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+    const link = screen.getByRole('link', { name: /My Tasks.*Your assigned work across projects/ });
+    expect(link).toHaveAttribute('href', '/my-tasks');
+    expect(link).toHaveAttribute('aria-describedby', 'rail-my-tasks-hint');
+    expect(within(link).getByText('Your assigned work across projects')).toBeInTheDocument();
   });
 
   it('UXS-007: the personal task doorway does not change Executive navigation', () => {

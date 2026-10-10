@@ -53,7 +53,8 @@ describe('UXS-006 shared route vocabulary', () => {
   it('every navigable module owns the translation key used across shell surfaces', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
     expect(MODULES.find((module) => module.module === 'vendors')).toMatchObject({
-      path: '/companies?type=Vendor',
+      path: '/companies',
+      search: '?type=Vendor',
       label: 'Vendors',
       labelKey: 'shell.nav.vendors',
     });
@@ -62,6 +63,12 @@ describe('UXS-006 shared route vocabulary', () => {
       label: 'My Tasks',
       labelKey: 'shell.nav.myTasks',
     });
+  });
+
+  it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
+    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, undefined, '?type=Vendor')).toEqual([
+      { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
+    ]);
   });
 });
 

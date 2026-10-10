@@ -202,7 +202,7 @@ export const AppRoutes: React.FC = () => (
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = () => {
   const location = useLocation();
-  const { pathname } = location;
+  const { pathname, search } = location;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -308,9 +308,11 @@ export const ShellChrome: React.FC = () => {
       recordResolved,
       recordStatusGroup,
       contextualParent,
+      search,
     );
   }, [
     pathname,
+    search,
     contextualParent,
     t,
     breadcrumbNavigate,
@@ -357,8 +359,9 @@ export const ShellChrome: React.FC = () => {
         sub: m.module === 'my-tasks'
           ? t('shell.nav.myTasksHint', 'Your assigned work across projects')
           : undefined,
+        searchCodes: m.labelKey && m.label !== t(m.labelKey, m.label) ? [m.label] : undefined,
         icon: m.icon,
-        run: () => navigate(m.path),
+        run: () => navigate(`${m.path}${m.search ?? ''}`),
       })),
       ...(needsOperatorRecovery ? [{
         id: 'nav-administration-check',
