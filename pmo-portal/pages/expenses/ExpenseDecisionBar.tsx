@@ -90,7 +90,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
 
       <ConfirmDialog
         open={dialog === 'pay'}
-        title={t('expenses.confirm.payTitle', 'Mark {{number}} paid: {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
+        title={t('expenses.confirm.payTitle', 'Mark {{number}} paid: {{amount}}?', { number: claim.claim_number ?? claim.title, amount: claim.advance_id && previewKnown ? formatCurrencyCents(preview.cash, claim.currency) : formattedAmount })}
         description={
           <div className="space-y-3">
             {decisionContext}

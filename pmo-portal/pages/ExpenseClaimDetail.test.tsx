@@ -130,6 +130,8 @@ describe('ExpenseClaimDetail', () => {
     expect(dialog).toHaveTextContent(money(300, 'IDR'));
     expect(await screen.findByTestId('pay-preview-applied')).toHaveTextContent(money(250, 'IDR'));
     expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent(money(50, 'IDR'));
+    // The headline restates the cash actually paid, not the full claim the advance partly covers.
+    expect(dialog).toHaveTextContent(`Mark EXP-2610060001 paid: ${money(50, 'IDR')}?`);
   });
 
   it('AC-UXS-011 cash-return confirmation keeps the advance and outstanding amount in context', async () => {
