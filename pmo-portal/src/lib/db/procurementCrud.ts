@@ -43,6 +43,13 @@ export type ProcurementItemRow = Tables<'procurement_items'>;
 export type ProcurementDocumentRow = Tables<'procurement_documents'>;
 export type ProcurementDocStatus = ProcurementDocumentRow['status'];
 
+export class ProcurementVendorAlreadySetError extends ProcurementError {
+  constructor() {
+    super('A vendor was already set.', 'VENDOR_ALREADY_SET');
+    this.name = 'ProcurementVendorAlreadySetError';
+  }
+}
+
 /** Shape of a Supabase/PostgREST error we surface (only the fields we read). */
 interface RpcErrorLike {
   message: string;
@@ -127,9 +134,10 @@ export async function updateProcurementVendor(id: string, vendorId: string): Pro
     .from('procurements')
     .update({ vendor_id: vendorId })
     .eq('id', id)
+    .is('vendor_id', null)
     .select('id');
   if (error) throwWrite(error);
-  assertWriteLanded(data, 'Purchase request not found or you do not have permission to edit it.');
+  if (!data?.length) throw new ProcurementVendorAlreadySetError();
 }
 
 export async function updateProcurementHeader(

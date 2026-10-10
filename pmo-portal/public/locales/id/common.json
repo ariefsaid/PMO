@@ -28,7 +28,7 @@
   },
   "bupot": {
     "loading": "Memuat bukti potong…", "loadError": "Bukti potong tidak tersedia", "unavailable": "Tidak tersedia",
-    "view": "Lihat bukti potong", "record": "Catat bukti potong", "setVendor": "Tentukan vendor", "vendorRequired": "Atur vendor pada permintaan ini sebelum mencatat bukti potong.", "vendorSet": "Vendor ditetapkan", "selectVendor": "Pilih vendor…", "saveVendor": "Simpan vendor", "cancelSetVendor": "Batalkan", "history": "Riwayat bukti potong",
+    "view": "Lihat bukti potong", "record": "Catat bukti potong", "setVendor": "Tentukan vendor", "vendorRequired": "Atur vendor pada permintaan ini sebelum mencatat bukti potong.", "vendorSet": "Vendor ditetapkan", "vendorAlreadySet": "Vendor sudah ditetapkan. Muat ulang untuk melihatnya.", "selectVendor": "Pilih vendor…", "saveVendor": "Simpan vendor", "cancelSetVendor": "Batalkan", "history": "Riwayat bukti potong",
     "state": { "slipped": "Sudah dipotong", "needsReview": "Perlu ditinjau", "unavailable": "Tidak tersedia", "notRecorded": "Belum dicatat", "notRequired": "Tidak diperlukan", "returnReview": "Tinjau pengembalian" },
     "select": "Pilih", "selectBill": "Pilih tagihan {{bill}}", "bill": "Tagihan", "withheld": "Dipotong", "type": "Jenis PPh",
     "confirmUnknown": "Konfirmasi sebagai {{type}} berdasarkan bukti potong terbit", "recordTitle": "Catat bukti potong",
