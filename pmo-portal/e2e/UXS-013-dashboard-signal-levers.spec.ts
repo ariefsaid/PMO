@@ -15,16 +15,31 @@ import { signIn, waitForFonts } from './helpers';
  *
  * Seed: SP-2402 "Cascade Foods 6.0 MW Ground-Mount PV" is the deliberate at-risk fixture
  * (committed spend over its 6,900,000 budget), so it appears in the at-risk filter and in the
- * budget review rows. Both journeys are navigation-only; locale defaults to en (id parity is
- * asserted at the component layer).
+ * budget review rows. Both journeys are navigation-only. The persona's locale preference lives in
+ * the SHARED demo DB (prior rendered reviews saved Bahasa), so each test pins the profile response
+ * to en — the same route-override pattern as AC-BUPOT-021 — instead of assuming a default. id
+ * parity is asserted at the component layer.
  */
 
 const SP2402_ID = '41000000-0000-0000-0000-000000000002';
 const SP2402_NAME = 'Cascade Foods 6.0 MW Ground-Mount PV';
 
+/** Pin the signed-in persona's resolved locale to en for this journey, whatever the shared DB says. */
+async function pinEnglishLocale(page: import('@playwright/test').Page) {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const response = await route.fetch();
+    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
+    const localized = Array.isArray(profile)
+      ? profile.map((row) => ({ ...row, locale: 'en' }))
+      : { ...profile, locale: 'en' };
+    await route.fulfill({ response, json: localized });
+  });
+}
+
 test.describe('UXS-013 — a dashboard signal carries its lever', () => {
   test('phone Executive reaches the flagged project from the at-risk signal', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    await pinEnglishLocale(page);
     await signIn(page, 'exec@acme.test');
     await page.goto('/');
     await waitForFonts(page);
@@ -43,6 +58,7 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
   test('Finance opens the flagged project Budget tab from the budget exception in one step', async ({
     page,
   }) => {
+    await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.goto('/');
     await waitForFonts(page);
