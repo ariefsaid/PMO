@@ -550,6 +550,11 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   Confirmations with context-dependent decisions restate the current record identity and caller-supplied,
   authoritative amount inside the existing confirmation. Keep the safeguard and existing consequence; do
   not add another confirmation layer or infer financial values in the shared presentation component.
+- **Long phone entry forms:** keep the completion action beside the work in a fixed mobile strip, reserve
+  content space beneath it, and account for device safe areas. For week-based timesheet entry, show the
+  localized total and existing Save/Submit actions without removing days or changing Submit's auto-save;
+  the final field and its inline validation remain scroll-reachable above the strip. The strip also clears
+  the non-production environment badge rather than placing that marker over a control.
 - **Evidence preview:** use a shared, keyboard-dismissible preview for supported image/PDF receipts, using
   the caller's existing authorized short-lived URL retrieval. Preserve a single Download original action
   for unsupported files and preview failures; closing returns focus to the opener.
