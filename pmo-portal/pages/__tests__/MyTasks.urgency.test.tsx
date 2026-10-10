@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -102,13 +103,13 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
     expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('AC-IFW-TASKS-01: Done task sinks below all open tasks', () => {
+  it('AC-IFW-TASKS-01: completed tasks stay out of the default open queue and remain reachable', async () => {
+    const user = userEvent.setup();
     renderMyTasks();
-    const overdueEl = screen.getByText('Overdue Task');
-    const doneEl = screen.getByText('Done Task');
-    // Done task should appear AFTER overdue task
-    const order = overdueEl.compareDocumentPosition(doneEl);
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('Done Task')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Completed' }));
+    expect(screen.getByText('Done Task')).toBeInTheDocument();
+    expect(screen.queryByText('Overdue Task')).not.toBeInTheDocument();
   });
 
   it('AC-IFW-TASKS-01: overdue task carries an "Overdue" status flag/badge', () => {

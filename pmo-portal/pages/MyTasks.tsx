@@ -55,6 +55,8 @@ const NO_PROJECT = '\u0000no-project';
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
+  const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
+  const [search, setSearch] = React.useState('');
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
@@ -69,16 +71,26 @@ const MyTasks: React.FC = () => {
     Blocked: t('task.status.blocked', 'Blocked'),
   };
 
-  // Group by project for a structured "what do I do today" view, then sort each group by urgency.
-  // AC-IFW-TASKS-01: within each project group, overdue open tasks sort first (key=0), then
-  // non-overdue open (key=1), then Done (key=2). Secondary sort: end_date asc (nulls last).
+  const visibleTasks = React.useMemo(() => {
+    if (!tasks) return [];
+    const normalizedSearch = search.trim().toLocaleLowerCase();
+    return tasks.filter((task) => {
+      const isCompleted = task.status === 'Done';
+      if (isCompleted !== (queue === 'completed')) return false;
+      if (!normalizedSearch) return true;
+      return `${task.name} ${task.project_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
+    });
+  }, [tasks, queue, search]);
+
+  // Keep project grouping/context and urgency ordering after search/status filtering.
+  // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
     // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
     // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
     // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
     const map = new Map<string, { projectId: string | null; projectName: string; items: typeof tasks }>();
-    for (const task of tasks) {
+    for (const task of visibleTasks) {
       const key = task.project_id ?? NO_PROJECT;
       if (!map.has(key)) {
         map.set(key, {
@@ -104,7 +116,7 @@ const MyTasks: React.FC = () => {
       });
     }
     return groups;
-  }, [tasks, t]);
+  }, [tasks, visibleTasks, t]);
 
   return (
     <div>
@@ -115,9 +127,49 @@ const MyTasks: React.FC = () => {
         </p>
       </div>
 
-      {isPending && (
-        <ListState variant="loading" rows={4} />
+      {!isPending && !isError && tasks && tasks.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
+          <div className="inline-flex w-fit rounded-lg bg-secondary p-0.5" role="group" aria-label={t('myTasks.queueLabel', 'Task status')}>
+            <button
+              type="button"
+              aria-pressed={queue === 'open'}
+              onClick={() => setQueue('open')}
+              className="touch-target min-h-8 rounded-md px-3 text-[13px] font-medium text-foreground hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-background aria-pressed:font-semibold"
+            >
+              {t('myTasks.openTasks', 'Open tasks')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={queue === 'completed'}
+              onClick={() => setQueue('completed')}
+              className="touch-target min-h-8 rounded-md px-3 text-[13px] font-medium text-foreground hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-background aria-pressed:font-semibold"
+            >
+              {t('myTasks.completed', 'Completed')}
+            </button>
+          </div>
+          <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
+            <input
+              type="search"
+              aria-label={t('myTasks.searchLabel', 'Search your tasks')}
+              placeholder={t('myTasks.searchPlaceholder', 'Search your tasks')}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-[13.5px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="touch-target h-8 shrink-0 rounded-lg px-2 text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('myTasks.clearSearch', 'Clear search')}
+              </button>
+            )}
+          </div>
+        </div>
       )}
+
+      {isPending && <ListState variant="loading" rows={4} />}
 
       {isError && (
         <ListState
@@ -138,6 +190,16 @@ const MyTasks: React.FC = () => {
             'When tasks are assigned to you they will appear here across all your projects.',
           )}
         />
+      )}
+
+      {!isPending && !isError && tasks && tasks.length > 0 && visibleTasks.length === 0 && (
+        <div className="py-8 text-center" role="status">
+          <p className="text-sm text-muted-foreground">
+            {search.trim()
+              ? t('myTasks.noSearchResults', 'No tasks match your search')
+              : t('myTasks.noTasksInView', 'No tasks in this view')}
+          </p>
+        </div>
       )}
 
       {!isPending && !isError && grouped.length > 0 && (
@@ -174,9 +236,9 @@ const MyTasks: React.FC = () => {
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
                         {/* AC-JR-T25: task name deep-links to the specific task row via
                             #task-<id> anchor — TasksTab scrolls to and highlights it. */}
-                        {task.project_id ? (
+                        {task.project_id || task.meeting_id ? (
                           <Link
-                            to={`/projects/${task.project_id}/tasks#task-${task.id}`}
+                            to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
                             className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
                             title={task.name}
                           >

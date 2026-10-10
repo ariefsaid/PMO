@@ -45,6 +45,16 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }], isPending: false }),
 }));
 
+vi.mock('@/src/hooks/useTasks', () => ({
+  useAssignableProfiles: () => ({
+    data: [
+      { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
+      { id: 'peer-1', full_name: 'Putri Peer', role: 'Engineer' },
+    ],
+    isPending: false,
+  }),
+}));
+
 let currentUserId = 'author-1';
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: currentUserId, org_id: 'org-1' } }),
@@ -423,12 +433,17 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     const name = within(dialog).getByLabelText(/Task name/);
     await userEvent.clear(name);
     await userEvent.type(name, 'Chase the flange samples (redacted client)');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Owner' }));
+    await userEvent.click(await screen.findByRole('option', { name: /Putri Peer/ }));
+    await userEvent.type(within(dialog).getByLabelText('Due date'), '2099-12-31');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create task' }));
     await waitFor(() =>
       expect(mutations.createActionItem.mutateAsync).toHaveBeenCalledWith({
         meetingId: 'm1',
         projectId: 'p1',
         name: 'Chase the flange samples (redacted client)',
+        assigneeId: 'peer-1',
+        endDate: '2099-12-31',
       }),
     );
     await waitFor(() => expect(insertActionItem).toHaveBeenCalledWith('task-new'));
@@ -560,7 +575,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     renderPage('Engineer');
     const list = screen.getByTestId('action-items-list');
     expect(within(list).getByText('Order the flange samples')).toBeInTheDocument();
-    expect(within(list).getByText('Putri Peer')).toBeInTheDocument();
+    expect(within(list).getByText('Owner: Putri Peer')).toBeInTheDocument();
   });
 
   it('when the tasks domain is externally owned, /action is not offered and the page explains why', async () => {
