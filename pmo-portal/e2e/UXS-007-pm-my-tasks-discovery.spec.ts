@@ -66,13 +66,17 @@ test.describe('UXS-007: PM discovers assigned work without typing a URL', () => 
     );
 
     // Follow it: the assignee-scoped list renders the PM's own in-progress work.
+    // (Two seed projects carry identically-named tasks assigned to the PM — the
+    // assert is on the PM's own work being present, not on one specific row.)
     await myTasksLink.click();
     await expect(page).toHaveURL(/\/my-tasks$/);
-    await expect(page.getByText(PM_TASK)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('link', { name: 'PROC — Panel & Inverter Procurement' }).first(),
+    ).toBeVisible({ timeout: 15_000 });
 
     // Project oversight is a separate destination — the project-scoped Tasks
     // surface stays reachable through Projects, not merged into this list.
-    await expect(rail.getByRole('link', { name: /projects/i })).toBeVisible();
+    await expect(rail.getByRole('link', { name: 'Projects', exact: true })).toBeVisible();
   });
 
   test('⌘K palette finds the same destination with its meaning stated', async ({ page }) => {
@@ -95,7 +99,9 @@ test.describe('UXS-007: PM discovers assigned work without typing a URL', () => 
     await page.keyboard.press('Enter');
     await page.waitForURL('**/my-tasks');
     await expect(dialog).toBeHidden();
-    await expect(page.getByText(PM_TASK)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('link', { name: 'PROC — Panel & Inverter Procurement' }).first(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test('Executive navigation is unchanged by the PM doorway', async ({ page }) => {

@@ -61,8 +61,12 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       ? { ...part, label: filteredModule.label, i18nKey: filteredModule.labelKey }
       : part)
     : parts;
-  const resolveCrumb = (part: BreadcrumbPart): string =>
-    (part.i18nKey && STATE_CRUMBS[part.i18nKey]) || part.label;
+  const resolveCrumb = (part: BreadcrumbPart): string => {
+    if (!part.i18nKey) return part.label;
+    // The two state crumbs come from the pre-resolved literal references above;
+    // every other crumb localizes through its own attached key.
+    return STATE_CRUMBS[part.i18nKey] ?? t(part.i18nKey, part.label);
+  };
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}

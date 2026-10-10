@@ -46,7 +46,7 @@ async function forceBahasa(page: Page) {
 
 /** Open the palette (⌘K toggles — only press when closed) and return its combobox. */
 async function openPalette(page: Page) {
-  const dialog = page.getByRole('dialog', { name: /command palette/i });
+  const dialog = page.getByRole('dialog', { name: /command palette|palet perintah/i });
   await expect(async () => {
     if (!(await dialog.isVisible())) {
       await page.keyboard.press('ControlOrMeta+k');
@@ -68,34 +68,34 @@ test.describe('UXS-006: shell speaks the saved language', () => {
     await forceBahasa(page);
     await signIn(page, 'pm@acme.test');
 
-    // The rail uses the shared vocabulary, including the PM personal doorway.
-    const rail = page.getByRole('navigation', { name: /primary navigation/i });
-    await expect(rail.getByRole('link', { name: 'Tugas Saya' })).toBeVisible({ timeout: 10_000 });
+    // The rail uses the shared vocabulary, including the PM personal doorway
+    // (its accessible name carries the hint, hence the prefix match; the nav
+    // label itself is localized, hence the alternation).
+    const rail = page.getByRole('navigation', { name: /primary navigation|navigasi utama/i });
+    await expect(rail.getByRole('link', { name: /^Tugas Saya/ })).toBeVisible({ timeout: 10_000 });
     await expect(rail.getByRole('link', { name: 'Vendor' })).toBeVisible();
     await expect(page.locator('#rail-my-tasks-hint')).toHaveText(
       'Tugas Anda di seluruh proyek',
     );
 
     // A localized word finds its destination; the breadcrumb agrees with it.
+    // Records whose type label matches rank first, so click the exact module
+    // option rather than running whatever row is on top.
     await (await openPalette(page)).fill('perusahaan');
-    await expect(page.getByRole('option', { name: 'Perusahaan' })).toBeVisible();
-    await page.keyboard.press('Enter');
+    await page.getByRole('option', { name: 'Perusahaan', exact: true }).click();
     await page.waitForURL('**/companies');
     await currentCrumb(page, 'Perusahaan');
 
     // The canonical Vendors doorway opens the existing Companies list filtered
     // to vendors, and its breadcrumb carries the doorway's own name.
     await (await openPalette(page)).fill('vendor');
-    await expect(page.getByRole('option', { name: 'Vendor' })).toBeVisible();
-    await page.keyboard.press('Enter');
+    await page.getByRole('option', { name: 'Vendor', exact: true }).click();
     await page.waitForURL('**/companies?type=Vendor');
     await currentCrumb(page, 'Vendor');
 
     // The familiar English alias still finds the localized destination.
     await (await openPalette(page)).fill('my tasks');
-    const option = page.getByRole('option', { name: /Tugas Saya/i });
-    await expect(option).toBeVisible();
-    await page.keyboard.press('Enter');
+    await page.getByRole('option', { name: /Tugas Saya/ }).click();
     await page.waitForURL('**/my-tasks');
     await currentCrumb(page, 'Tugas Saya');
   });
