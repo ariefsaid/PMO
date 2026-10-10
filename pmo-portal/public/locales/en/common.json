@@ -3268,7 +3268,21 @@
       "sub": "Something went wrong fetching your hours.",
       "title": "Couldn't load timesheets"
     },
-    "hoursThisWeek": "h this week",
+    "hoursThisWeek": "{{hours}} hours this week",
+    "saveDraft": "Save draft",
+    "note": "Note",
+    "addNotePlaceholder": "Add a note",
+    "submitWeek": "Submit week",
+    "weekTotal": "Week total",
+    "dailyTotal": "Daily total",
+    "rowTotal": "Row total",
+    "projectColumn": "Project",
+    "totalColumn": "Total",
+    "hoursCell": "{{project}}, {{day}} hours",
+    "noteForProject": "{{project}} note",
+    "addNoteForProject": "Add note to {{project}}",
+    "deleteProjectRow": "Delete {{project}} row",
+    "invalidHours": "0–24 only",
     "nextWeek": "Next week",
     "picker": {
       "none": "No projects to add",
@@ -3283,7 +3297,11 @@
     "review": "Review {{n}} awaiting",
     "save": "Save",
     "status": {
-      "draftNotSubmitted": "Draft — not submitted"
+      "draftNotSubmitted": "Draft — not submitted",
+      "Draft": "Draft",
+      "Submitted": "Submitted",
+      "Approved": "Approved",
+      "Rejected": "Returned for changes"
     },
     "submit": "Submit timesheet",
     "submitConfirm": {
