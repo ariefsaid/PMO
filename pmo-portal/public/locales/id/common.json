@@ -990,7 +990,7 @@
     },
     "accountingSnapshots": "Snapshot akuntansi",
     "actualsSnapshotEmpty": "Belum ada snapshot aktual",
-    "agingSnapshotEmpty": "Data umur utang/piutang belum disinkronkan.",
+    "agingSnapshotEmpty": "Belum ada data umur utang/piutang untuk ditampilkan.",
     "boardPack": {
       "ariaLabel": "Board pack (segera hadir)",
       "label": "Board pack",

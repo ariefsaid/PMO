@@ -990,7 +990,7 @@
     },
     "accountingSnapshots": "Accounting snapshots",
     "actualsSnapshotEmpty": "No actuals snapshot yet",
-    "agingSnapshotEmpty": "No aging data has been synced yet.",
+    "agingSnapshotEmpty": "No aging data to show yet.",
     "boardPack": {
       "ariaLabel": "Board pack (coming soon)",
       "label": "Board pack",

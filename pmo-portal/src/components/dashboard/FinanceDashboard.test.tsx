@@ -160,7 +160,7 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     renderPane();
     expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data has been synced yet.')).toHaveLength(2);
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
     expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
   });
 });

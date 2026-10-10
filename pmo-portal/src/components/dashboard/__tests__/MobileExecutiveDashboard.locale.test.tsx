@@ -47,6 +47,6 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
       'href',
       '/projects?filter=at-risk',
     );
-    expect(screen.getByRole('button', { name: 'Tentang metrik ini' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Tentang metrik ini: \S/ })).toBeInTheDocument();
   });
 });

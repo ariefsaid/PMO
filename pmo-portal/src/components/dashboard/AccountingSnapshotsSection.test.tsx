@@ -86,12 +86,12 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
   it('renders an empty state for each of the three snapshots when no rows exist', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data has been synced yet.')).toHaveLength(2);
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
   });
 
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot and gives Finance a usable next step', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
-    expect(screen.getAllByText(/No aging data has been synced yet/i)).toHaveLength(2);
+    expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
     expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
     expect(screen.queryByRole('link', { name: /sync/i })).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
@@ -122,7 +122,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
     }];
     render(<AccountingSnapshotsSection {...emptyProps} apAging={zeroRows} />);
     const apCard = screen.getByText('No outstanding balance').closest('.rounded-lg.border') as HTMLElement;
-    expect(within(apCard).queryByText(/No aging data has been synced yet/i)).not.toBeInTheDocument();
+    expect(within(apCard).queryByText(/No aging data to show yet/i)).not.toBeInTheDocument();
     expect(within(apCard).getAllByText('$0')).toHaveLength(6);
   });
 

@@ -198,7 +198,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     />
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AP aging"
-      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data has been synced yet.')}
+      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
       pending={apAgingPending}
@@ -210,7 +210,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     />
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AR aging"
-      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data has been synced yet.')}
+      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
       pending={arAgingPending}

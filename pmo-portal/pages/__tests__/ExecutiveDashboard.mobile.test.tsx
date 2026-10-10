@@ -230,7 +230,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     mockIsDesktop = false;
     renderPage();
     const book = screen.getByTestId('mobile-contract-book');
-    const help = within(book).getByRole('button', { name: 'About this metric' });
+    const help = within(book).getByRole('button', { name: /^About this metric: \S/ });
     await userEvent.click(help);
     expect(screen.getByRole('tooltip')).toHaveTextContent(/Realized margin is the share of revenue remaining/i);
     expect(within(book).queryByRole('link')).not.toBeInTheDocument();
