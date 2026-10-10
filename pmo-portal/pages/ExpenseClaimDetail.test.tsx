@@ -90,14 +90,57 @@ describe('ExpenseClaimDetail', () => {
     expect(dialog).toHaveTextContent(money(300, 'IDR'));
   });
 
+  it('AC-UXS-011 rejection also restates the record and amount without changing the note or decision', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    h.route = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pma', fullName: 'Ayu Approver' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+    as('pma', 'Project Manager');
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Reject EXP-2610060001?');
+    expect(dialog).toHaveTextContent('Site visit');
+    expect(dialog).toHaveTextContent(money(300, 'IDR'));
+    expect(dialog).toHaveTextContent('Note to the claimant (optional)');
+    expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-UXS-011 cancellation restates the current claim before its existing safeguard', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    as('fin', 'Finance');
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Cancel EXP-2610060001?');
+    expect(dialog).toHaveTextContent('Site visit');
+    expect(dialog).toHaveTextContent(money(300, 'IDR'));
+    expect(dialog).toHaveTextContent('It stays on record as Cancelled');
+    expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('AC-EXP-061 Finance paying an advance-linked claim sees the advance applied and the cash to pay', async () => {
     h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', advance_id: 'adv-1' };
     h.outstanding = 250;
     as('f2', 'Finance');
     renderAt();
     await userEvent.click(screen.getByRole('button', { name: 'Mark paid' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Site visit');
+    expect(dialog).toHaveTextContent(money(300, 'IDR'));
     expect(await screen.findByTestId('pay-preview-applied')).toHaveTextContent(money(250, 'IDR'));
     expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent(money(50, 'IDR'));
+  });
+
+  it('AC-UXS-011 cash-return confirmation keeps the advance and outstanding amount in context', async () => {
+    h.claim = { ...base, kind: 'advance', claim_number: 'ADV-2610060001', title: 'Travel advance', amount: 700, status: 'Paid' };
+    h.outstanding = 250;
+    as('f2', 'Finance');
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Record cash returned' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('ADV-2610060001 · Travel advance');
+    expect(dialog).toHaveTextContent(money(700, 'IDR'));
+    expect(dialog).toHaveTextContent(`Up to ${money(250, 'IDR')} is outstanding.`);
+    expect(dialog).toHaveTextContent('Amount returned');
   });
 
   it('AC-EXP-061 the claimant of an Approved claim cannot pay it', () => {

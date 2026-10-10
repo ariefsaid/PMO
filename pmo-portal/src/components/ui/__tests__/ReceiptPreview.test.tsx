@@ -27,16 +27,18 @@ describe('ReceiptPreview', () => {
     expect(screen.getByText('Loading receipt…')).toBeInTheDocument();
     resolve('https://signed.test/receipt.pdf');
     await waitFor(() => expect(screen.getByRole('dialog').querySelector('iframe')).toHaveAttribute('src', 'https://signed.test/receipt.pdf'));
+    expect(screen.getByRole('dialog').querySelector('iframe')).toHaveAttribute('tabindex', '0');
     first.unmount();
 
     const failed = render(<ReceiptPreview fileName="receipt.tiff" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} onDownload={vi.fn()} />);
     await userEvent.click(failed.getByRole('button', { name: 'Preview receipt' }));
     expect(await failed.findByText('Preview is not available for this file type.')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Download original' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Download original' })).toHaveLength(1);
     failed.unmount();
 
-    const retrievalFailure = render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} />);
+    const retrievalFailure = render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} onDownload={vi.fn()} />);
     await userEvent.click(retrievalFailure.getByRole('button', { name: 'Preview receipt' }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't preview this file.");
+    expect(retrievalFailure.getByRole('button', { name: 'Download original' })).toBeInTheDocument();
   });
 });

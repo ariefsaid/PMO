@@ -85,10 +85,10 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ fileName, getPre
           </header>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-3" aria-live="polite">
             {loading && <p className="text-sm text-muted-foreground">{t('expenses.receipts.previewLoading', 'Loading receipt…')}</p>}
-            {failed && <div className="text-center"><p role="alert" className="text-sm text-destructive-text">{t('expenses.receipts.previewError', "Couldn't preview this file.")}</p>{onDownload && <div className="mt-3"><Button variant="outline" onClick={() => void onDownload()}>{t('expenses.receipts.downloadOriginal', 'Download original')}</Button></div>}</div>}
-            {kind === 'unsupported' && <div className="text-center"><p className="text-sm text-muted-foreground">{t('expenses.receipts.unsupported', 'Preview is not available for this file type.')}</p>{onDownload && <div className="mt-3"><Button variant="outline" onClick={() => void onDownload()}>{t('expenses.receipts.downloadOriginal', 'Download original')}</Button></div>}</div>}
+            {failed && <p role="alert" className="text-center text-sm text-destructive-text">{t('expenses.receipts.previewError', "Couldn't preview this file.")}</p>}
+            {kind === 'unsupported' && <p className="text-center text-sm text-muted-foreground">{t('expenses.receipts.unsupported', 'Preview is not available for this file type.')}</p>}
             {!loading && !failed && url && kind === 'image' && <img src={url} alt={fileName} onError={() => setFailed(true)} className="max-h-full max-w-full object-contain" />}
-            {!loading && !failed && url && kind === 'pdf' && <iframe src={url} title={fileName} className="h-[70dvh] min-h-[320px] w-full border-0" />}
+            {!loading && !failed && url && kind === 'pdf' && <iframe src={url} title={fileName} tabIndex={0} className="h-[70dvh] min-h-[320px] w-full border-0" />}
           </div>
         </div>
       </div>, document.body,
