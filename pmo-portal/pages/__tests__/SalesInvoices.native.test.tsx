@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -93,9 +93,12 @@ const page = () => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole={h.role}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/sales-invoices']}>
         <ToastProvider>
-          <SalesInvoices />
+          <Routes>
+            <Route path="/sales-invoices" element={<SalesInvoices />} />
+            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+          </Routes>
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>
@@ -175,7 +178,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
     expect(screen.getByText('Total due')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
   });
 
   it('keeps invoice details available to a reader but does not offer Continue to approve', async () => {
@@ -187,7 +190,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
   });
 
   it('AC-NAR-002 the author of a PMO Draft is not offered "Approve"', async () => {
