@@ -3589,7 +3589,6 @@
   },
   "financeCopy": {
     "viewInvoice": "View invoice",
-    "invoiceDetailsTitle": "Invoice details",
     "invoiceRecordTitle": "Invoice {{number}}",
     "invoiceRecordNotFound": "Invoice not found",
     "invoiceRecordNotFoundBody": "This invoice is no longer available.",

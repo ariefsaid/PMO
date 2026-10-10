@@ -3589,7 +3589,6 @@
   },
   "financeCopy": {
     "viewInvoice": "Lihat faktur",
-    "invoiceDetailsTitle": "Detail faktur",
     "invoiceRecordTitle": "Faktur {{number}}",
     "invoiceRecordNotFound": "Faktur tidak ditemukan",
     "invoiceRecordNotFoundBody": "Faktur ini tidak lagi tersedia.",
