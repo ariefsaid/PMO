@@ -47,8 +47,6 @@ async function forceEnglish(page: Page) {
  * pins live in the shell unit suites; this journey proves the rendered discovery.
  */
 
-const PM_TASK = 'PROC — Panel & Inverter Procurement';
-
 test.describe('UXS-007: PM discovers assigned work without typing a URL', () => {
   test('rail entry leads to the assignee-scoped list with its cross-project meaning', async ({ page }) => {
     await forceEnglish(page);
