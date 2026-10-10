@@ -476,7 +476,12 @@ const ProcurementDetails: React.FC = () => {
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
-  const canSetVendor = !p.vendor_id && may('edit', 'procurement');
+  // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
+  // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
+  const canSetVendor = !p.vendor_id
+    && effectiveRole === realRole
+    && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
+    && may('edit', 'procurement');
   const currentUserId = currentUser?.id ?? null;
 
 
@@ -1124,6 +1129,16 @@ const ProcurementDetails: React.FC = () => {
                       setVendorPickerOpen(false);
                       toast(t('bupot.vendorSet', 'Vendor set'), undefined, 'success');
                     } catch (err) {
+                      if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
+                        setVendorPickerOpen(false);
+                        toast(
+                          t('bupot.vendorAlreadySet', 'A vendor was already set. Refresh to see it.'),
+                          undefined,
+                          'warning',
+                        );
+                        await detailQuery.refetch();
+                        return;
+                      }
                       onMutationError(err);
                     }
                   }}
