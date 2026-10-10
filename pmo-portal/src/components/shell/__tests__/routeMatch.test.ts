@@ -32,6 +32,15 @@ describe('UIP-001: navigation module icon semantics', () => {
   });
 });
 
+describe('UXS-038 expense breadcrumb labels', () => {
+  it('uses the localized Expenses label and resolved claim identity', () => {
+    expect(breadcrumbForPath('/expenses/claim-1', 'EXP-2048')).toEqual([
+      { label: 'Expenses', i18nKey: 'shell.nav.expenses', href: '/expenses', onClick: expect.any(Function) },
+      { label: 'EXP-2048' },
+    ]);
+  });
+});
+
 describe('UXS-007 shell label consistency', () => {
   it('uses the canonical My Tasks locale key for its breadcrumb', () => {
     expect(breadcrumbForPath('/my-tasks')).toEqual([

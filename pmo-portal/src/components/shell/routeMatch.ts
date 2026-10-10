@@ -115,7 +115,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
   // #775: Expenses — every role (own claims); RLS scopes reads.
-  { module: 'expenses', icon: 'expenses', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
+  { module: 'expenses', icon: 'expenses', label: 'Expenses', labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
