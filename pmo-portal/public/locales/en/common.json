@@ -3104,7 +3104,9 @@
       "label": "Back to {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb"
+      "label": "Breadcrumb",
+      "recordLoading": "Loading…",
+      "recordNotFound": "Not found"
     },
     "contextBar": {
       "accountMenu": "Account menu",

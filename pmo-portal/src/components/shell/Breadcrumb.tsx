@@ -45,6 +45,14 @@ export interface BreadcrumbProps {
  */
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
+  // Pending/not-found crumbs carry shared shell vocabulary keys that routeMatch attaches
+  // dynamically (object properties), which catalogue extraction cannot see — so resolve those
+  // two through the literal t() references below (same parser-visible pattern as Rail's
+  // staticNavLabels). Every other crumb localizes through its own attached key.
+  const STATE_CRUMBS: Record<string, string> = {
+    'shell.breadcrumb.recordLoading': t('shell.breadcrumb.recordLoading', 'Loading…'),
+    'shell.breadcrumb.recordNotFound': t('shell.breadcrumb.recordNotFound', 'Not found'),
+  };
   const filteredModule = typeof window === 'undefined'
     ? undefined
     : MODULES.find((module) => module.path.includes('?') && module.path === `${window.location.pathname}${window.location.search}`);
@@ -53,6 +61,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       ? { ...part, label: filteredModule.label, i18nKey: filteredModule.labelKey }
       : part)
     : parts;
+  const resolveCrumb = (part: BreadcrumbPart): string =>
+    (part.i18nKey && STATE_CRUMBS[part.i18nKey]) || part.label;
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
@@ -60,7 +70,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
     >
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
-        const label = part.i18nKey ? t(part.i18nKey, part.label) : part.label;
+        const label = resolveCrumb(part);
         return (
           <React.Fragment key={i}>
             {i > 0 && (

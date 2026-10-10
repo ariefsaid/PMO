@@ -3104,7 +3104,9 @@
       "label": "Kembali ke {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb"
+      "label": "Breadcrumb",
+      "recordLoading": "Memuat…",
+      "recordNotFound": "Tidak ditemukan"
     },
     "contextBar": {
       "accountMenu": "Menu akun",

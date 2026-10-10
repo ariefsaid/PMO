@@ -308,9 +308,14 @@ export const ShellChrome: React.FC = () => {
       recordResolved,
       recordStatusGroup,
       contextualParent,
+      // A filtered doorway (e.g. Vendors = Companies?type=Vendor) owns its visible
+      // vocabulary in the route-derived parts; the Breadcrumb component keeps a
+      // render-level fallback for direct mounts without the router location.
+      location.search,
     );
   }, [
     pathname,
+    location.search,
     contextualParent,
     t,
     breadcrumbNavigate,

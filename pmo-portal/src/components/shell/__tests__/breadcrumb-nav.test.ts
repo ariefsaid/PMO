@@ -74,6 +74,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1].label).toBe('Loading…');
+    // UXS-006: the pending crumb carries the shared shell vocabulary key so an
+    // id-locale session reads the localized pending state.
+    expect(crumbs[1].i18nKey).toBe('shell.breadcrumb.recordLoading');
     // the raw URL id must never leak into a visible label (fixes M3/M4)
     expect(crumbs[1].label).not.toContain('9f3a-uuid');
   });
@@ -90,6 +93,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1].label).toBe('Not found');
+    // UXS-006: the not-found crumb carries the shared shell vocabulary key so an
+    // id-locale session reads the localized not-found state.
+    expect(crumbs[1].i18nKey).toBe('shell.breadcrumb.recordNotFound');
     expect(crumbs[1].label).not.toBe('Loading…');
     expect(crumbs[1].label).not.toContain('9f3a-uuid');
   });
@@ -204,7 +210,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
   // C-MIN-4: an unknown route renders "Not found" — the `*` route is a 404, not the dashboard.
   it('C-MIN-4: an unknown route resolves to a "Not found" crumb, not "Dashboard"', () => {
-    expect(breadcrumbForPath('/totally-unknown')).toEqual([{ label: 'Not found' }]);
+    expect(breadcrumbForPath('/totally-unknown')).toEqual([
+      { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' },
+    ]);
   });
 
   it('the /budget deep-link route resolves under the Projects module', () => {

@@ -358,7 +358,11 @@ export function breadcrumbForPath(
   // the destination, consistent with option (a) of OD-4. When a /views index route ships
   // (I4/I5), update onClick to navigate('/views') and drop the aria-label override.
   if (pathname.startsWith('/views/')) {
-    const viewCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+    // The pending/not-found state crumbs share the shell vocabulary keys so the
+    // states localize like every other breadcrumb label (UXS-006).
+    const viewCrumb = recordResolved || recordLabel
+      ? { label: recordLabel || 'Not found', ...(recordLabel ? {} : { i18nKey: 'shell.breadcrumb.recordNotFound' }) }
+      : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
     return [
       {
         label: 'My Views',
@@ -366,7 +370,7 @@ export function breadcrumbForPath(
         onClick: () => navigate?.('/'),
         ariaLabel: 'My Views — back to Dashboard',
       },
-      { label: viewCrumb },
+      viewCrumb,
     ];
   }
 
@@ -390,7 +394,13 @@ export function breadcrumbForPath(
         // recordLabel resolved → the record name; still loading → "Loading…";
         // resolved-but-absent (bad id / deleted) → "Not found", never a
         // perpetual "Loading…" once the error card has rendered (item I).
-        const recordCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+        // Both state crumbs share the shell vocabulary keys so the states
+        // localize like every other breadcrumb label (UXS-006).
+        const recordCrumb = recordLabel
+          ? { label: recordLabel }
+          : recordResolved
+            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }
+            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -410,7 +420,7 @@ export function breadcrumbForPath(
             href: contextualParent?.path ?? parentPath,
             onClick: () => navigate?.(contextualParent ?? parentPath),
           },
-          { label: recordCrumb },
+          { label: recordCrumb.label, ...(recordCrumb.i18nKey ? { i18nKey: recordCrumb.i18nKey } : {}) },
         ];
       }
     }
@@ -421,7 +431,7 @@ export function breadcrumbForPath(
   }
 
   // Unknown route → "Not found" (C-MIN-4: the `*` route renders the 404 page, not the dashboard).
-  return [{ label: 'Not found' }];
+  return [{ label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }];
 }
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
