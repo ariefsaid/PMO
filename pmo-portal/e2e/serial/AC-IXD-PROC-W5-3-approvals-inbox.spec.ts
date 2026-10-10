@@ -54,8 +54,8 @@ test(
     await login(page, 'pm@acme.test');
     await page.goto('/approvals?scope=procurement');
 
-    const queue = page.getByRole('region', { name: /approvals queue/i });
-    const preview = page.getByRole('region', { name: /approval preview/i });
+    const queue = page.getByTestId('approvals-queue-region');
+    const preview = page.getByTestId('approvals-preview-region');
     await expect(queue).toBeVisible({ timeout: 15_000 });
     await expect(preview).toBeVisible({ timeout: 15_000 });
 
@@ -292,20 +292,20 @@ test(
     await page.goto('/approvals?scope=timesheets');
 
     // Timesheet section visible.
-    const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
+    const tsSection = page.getByTestId('approvals-timesheets-mobile-section');
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
     // The Select button is only shown when there are approvable rows — its presence confirms at
     // least one Submitted sheet is in the queue. The exact owned count is asserted structurally
     // below (and again via the "Approve N" label).
-    const selectBtn = tsSection.getByRole('button', { name: /^select$/i });
+    const selectBtn = tsSection.getByRole('button', { name: /^(select|pilih)$/i });
     await expect(selectBtn).toBeVisible({ timeout: 15_000 });
 
     // Enter Select mode.
     await selectBtn.click();
 
     // The bulk-action toolbar appears.
-    const bulkGroup = page.getByRole('group', { name: /bulk approve/i });
+    const bulkGroup = page.getByRole('group', { name: /bulk approve|setujui massal/i });
     await expect(bulkGroup).toBeVisible({ timeout: 5_000 });
 
     // Select every row of the week this test OWNS. Each row wraps its checkbox in a
@@ -322,13 +322,13 @@ test(
     }
 
     // "Approve N" (N = ownCount ≥ 2) button becomes enabled.
-    const approveNBtn = bulkGroup.getByRole('button', { name: /^approve \d+$/i });
+    const approveNBtn = bulkGroup.getByRole('button', { name: /^(approve|setujui) \d+$/i });
     await expect(approveNBtn).toBeVisible({ timeout: 5_000 });
     await expect(approveNBtn).toBeEnabled();
 
     // Capture N from the button label and assert it counts exactly the rows selected.
     const approveLabel = (await approveNBtn.textContent()) ?? '';
-    const nMatch = approveLabel.match(/approve (\d+)/i);
+    const nMatch = approveLabel.match(/(?:approve|setujui) (\d+)/i);
     const n = nMatch ? parseInt(nMatch[1], 10) : ownCount;
     expect(n).toBe(ownCount);
     expect(n).toBeGreaterThanOrEqual(2);
@@ -341,10 +341,10 @@ test(
     await expect(bulkDialog).toBeVisible({ timeout: 5_000 });
 
     // Dialog title mentions N.
-    await expect(bulkDialog).toContainText(`Approve ${n} timesheet`);
+    await expect(bulkDialog).toContainText(new RegExp(`(?:Approve|Setujui) ${n} timesheet`, 'i'));
 
     // Confirm button label matches.
-    const confirmBtn = bulkDialog.getByRole('button', { name: `Approve ${n}`, exact: true });
+    const confirmBtn = bulkDialog.getByRole('button', { name: new RegExp(`^(Approve|Setujui) ${n}$`, 'i') });
     await expect(confirmBtn).toBeVisible();
     await confirmBtn.click();
 

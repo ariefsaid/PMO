@@ -320,6 +320,10 @@ export const ShellChrome: React.FC = () => {
       recordResolved,
       recordStatusGroup,
       contextualParent,
+      // A filtered doorway (e.g. Vendors = Companies?type=Vendor) owns its visible
+      // vocabulary in the route-derived parts; the Breadcrumb component keeps a
+      // render-level fallback for direct mounts without the router location.
+      location.search,
     );
   }, [
     pathname,
@@ -366,7 +370,10 @@ export const ShellChrome: React.FC = () => {
         group: 'Navigate',
         title: m.module === 'administration'
           ? t('shell.nav.administration', 'Administration')
-          : m.label,
+          : m.labelKey ? t(m.labelKey, m.label) : m.label,
+        sub: m.module === 'my-tasks'
+          ? t('shell.nav.myTasksHint', 'Your assigned work across projects')
+          : undefined,
         icon: m.icon,
         run: () => navigate(m.path),
       })),

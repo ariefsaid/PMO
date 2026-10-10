@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { filterAndCap } from '@/src/hooks/useRecordSearch';
+import { MODULES } from './routeMatch';
 
 export interface PaletteItem {
   id: string;
@@ -77,6 +78,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => clearTimeout(t);
   }, [query]);
 
+  const searchableItems = useMemo(() => items.map((item) => {
+    if (item.group !== 'Navigate') return item;
+    const route = MODULES.find((module) => `nav-${module.module}` === item.id);
+    if (!route || route.label === item.title) return item;
+    return { ...item, searchCodes: [...new Set([...(item.searchCodes ?? []), route.label])] };
+  }), [items]);
+
   // Build the capped, grouped result set in stable group order. "Records" rows
   // only show while the user is searching; "Navigate"/"Actions" always show.
   // Filtering, exact-code-first ranking, and the per-group cap are NOT
@@ -87,7 +95,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     // Preserve first-seen group order while bucketing rows by group.
     const order: string[] = [];
     const byGroup = new Map<string, PaletteItem[]>();
-    for (const item of items) {
+    for (const item of searchableItems) {
       // Records are search-only — hide them on an empty query so the default
       // palette is the (always-present) module Navigate group, never blank.
       if (item.group === 'Records' && !q) continue;
@@ -105,7 +113,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
       return { name, items: capped, overflow };
     });
-  }, [items, debounced]);
+  }, [searchableItems, debounced]);
 
   // Flat list of the rendered (capped) options — the roving-selection order.
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
@@ -168,6 +176,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   let flatIndex = -1;
   const hasResults = resultCount > 0;
+  const groupLabel = (name: string) => {
+    if (name === 'Navigate') return t('shell.palette.navigateGroup', 'Navigate');
+    if (name === 'Actions') return t('shell.palette.actionsGroup', 'Actions');
+    if (name === 'Records') return t('shell.palette.recordsGroup', 'Records');
+    return name;
+  };
 
   return (
     <div
@@ -258,14 +272,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
           {!hasResults && !loading ? (
             <div className="px-2.5 py-8 text-center text-[13px] text-muted-foreground">
-              No results for “{query}”
+              {t('shell.palette.noResults', 'No results for “{{query}}”', { query })}
             </div>
           ) : (
             <>
               {groups.map((group) => (
                 <div key={group.name}>
                   <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                    {group.name}
+                    {groupLabel(group.name)}
                   </div>
                   {group.items.map((item) => {
                     flatIndex += 1;
@@ -305,7 +319,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   })}
                   {group.overflow > 0 && (
                     <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                      +{group.overflow} more — refine your search
+                      {t('shell.palette.moreResults', '+{{count}} more — refine your search', { count: group.overflow })}
                     </div>
                   )}
                 </div>
