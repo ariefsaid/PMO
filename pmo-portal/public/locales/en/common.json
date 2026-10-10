@@ -1337,7 +1337,7 @@
   "meetingDetail": {
     "action": {
       "externalGate": "Tasks are managed by the connected task system, so action items cannot be created from these minutes.",
-      "modalSection": "Task",
+      "modalSection": "Follow-up task",
       "modalSubmit": "Create task",
       "modalSubtitle": "This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.",
       "modalTitle": "New action item",

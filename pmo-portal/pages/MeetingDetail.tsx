@@ -785,7 +785,7 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
       dirty={form.isDirty}
       submitError={saveError}
     >
-      <FormSection legend={t('meetingDetail.action.modalSection', 'Task')}>
+      <FormSection legend={t('meetingDetail.action.modalSection', 'Follow-up task')}>
         <FormGrid>
           <TextField
             id={nameField.id}

@@ -1337,7 +1337,7 @@
   "meetingDetail": {
     "action": {
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
-      "modalSection": "Tugas",
+      "modalSection": "Tugas tindak lanjut",
       "modalSubmit": "Buat tugas",
       "modalSubtitle": "Tindakan ini membuat tugas sungguhan. Namanya terlihat oleh semua yang dapat melihat tugas — edit sebelum diterbitkan.",
       "modalTitle": "Action item baru",
