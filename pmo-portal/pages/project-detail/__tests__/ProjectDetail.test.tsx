@@ -175,6 +175,23 @@ describe('ProjectDetail shell (decomposition)', () => {
     });
   });
 
+  it('UIP-005: Overview owns the full phase planner below the tab navigation', () => {
+    renderAt('/projects/p1');
+    const panel = screen.getByRole('tabpanel');
+    expect(within(panel).getByTestId('milestone-strip-empty')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /Add the first phase/i })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('UIP-005: Tasks keeps compact phase context with an adjacent Overview link, not the full planner', () => {
+    renderAt('/projects/p1/tasks');
+    expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
+    const summary = screen.getByTestId('milestone-summary');
+    expect(within(summary).getByText('No delivery phases yet')).toBeInTheDocument();
+    expect(within(summary).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Tasks');
+  });
+
   it('renders the header from the real cached row, defaults to Overview, and moves record details into the persistent rail (L3-RECORD)', () => {
     renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
@@ -242,6 +259,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1');
 
     const sticky = screen.getByTestId('mobile-sticky-action');
+    expect(sticky).toHaveAttribute('data-mobile-action-bar');
     expect(sticky.className).toMatch(/fixed|sticky/);
     expect(sticky.className).toContain('bottom-0');
     expect(sticky.textContent).toMatch(/change status/i);

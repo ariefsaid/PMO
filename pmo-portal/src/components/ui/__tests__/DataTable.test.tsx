@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { DataTable, type Column } from '../DataTable';
+
+afterEach(() => vi.unstubAllGlobals());
 
 interface Row {
   id: string;
@@ -18,6 +22,58 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('UXS-006: localizes shared accessible row and action names', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: 'en',
+      resources: {
+        en: { translation: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
+        id: { translation: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
+      },
+      interpolation: { escapeValue: false },
+    });
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('min-width: 768px'), media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(
+      <I18nextProvider i18n={i18n}>
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(row) => row.id}
+          onActivate={vi.fn()}
+          rowLabel={(row) => `Open ${row.name}`}
+          rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Buka Alpha' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Tindakan baris' })).toHaveLength(rows.length);
+    expect(screen.getByRole('columnheader', { name: 'Tindakan' })).toBeInTheDocument();
+  });
+
+  it('#961 open-case-scroll exposes a focusable row target in both table and card branches', () => {
+    const rowTarget = (row: Row) => row.id === 'PRJ-1' ? 'target-alpha' : undefined;
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: true, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const desktop = render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} rowTarget={rowTarget} />);
+    expect(document.getElementById('target-alpha')?.tagName).toBe('TR');
+    expect(document.getElementById('target-alpha')).toHaveAttribute('tabindex', '-1');
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} rowTarget={rowTarget} />);
+    expect(document.getElementById('target-alpha')?.tagName).toBe('LI');
+    expect(document.getElementById('target-alpha')).toHaveAttribute('tabindex', '-1');
+  });
+
   it('renders one row per record and the column headers', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     expect(screen.getByText('Alpha')).toBeInTheDocument();

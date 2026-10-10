@@ -40,6 +40,21 @@ describe('Tooltip', () => {
     await userEvent.unhover(btn);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
+
+  it('keeps explanatory content at a readable preferred width and clamps it to the viewport', async () => {
+    render(
+      <Tooltip content="A complete explanation that should remain easy to read near the edge of the screen.">
+        <button>help</button>
+      </Tooltip>,
+    );
+    await userEvent.hover(screen.getByRole('button', { name: 'help' }));
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.parentElement).toBe(document.body);
+    expect(tooltip.className).toContain('fixed');
+    expect(tooltip.className).toContain('w-[280px]');
+    expect(tooltip.className).toContain('max-w-[calc(100vw-16px)]');
+    expect(tooltip).toHaveAttribute('data-placement', 'bottom');
+  });
 });
 
 describe('Toast', () => {

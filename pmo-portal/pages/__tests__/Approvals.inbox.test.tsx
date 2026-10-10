@@ -35,16 +35,21 @@ const procRows = [
 
 const procState = { data: procRows as unknown[], isPending: false, isError: false };
 const tsState = { data: [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }] as unknown[], isPending: false, isError: false };
+const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+const reopenableState = { data: [] as unknown[], isPending: false, isError: false };
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
+  useReopenableApprovedTimesheets: () => reopenableState,
   useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: vi.fn() }),
   useTimesheetMutations: () => ({
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
+    reopenApproved: { mutate: vi.fn(), isPending: false },
+    attestNoErpDocument: { mutate: vi.fn(), isPending: false },
   }),
   // P3b: `PushAttentionSection` renders inside Approvals, so this mock must carry the hook it calls
   // or the whole page throws on render. Empty + settled = the section renders nothing, which keeps
@@ -92,9 +97,9 @@ vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
   ),
 }));
 
-vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
-vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: () => undefined }) }));
+vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 import ApprovalsPage from '../Approvals';
 
 const renderAs = (realRole: Role, initialPath = '/approvals') =>
@@ -113,11 +118,34 @@ beforeEach(() => {
   procState.data = procRows;
   procState.isPending = false;
   procState.isError = false;
+  tsState.data = [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }];
   tsState.isPending = false;
   tsState.isError = false;
+  expenseState.data = [];
+  expenseState.isPending = false;
+  expenseState.isError = false;
+  invoiceState.rows = [];
+  invoiceState.isPending = false;
+  invoiceState.isError = false;
+  reopenableState.data = [];
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of status and metadata', async () => {
+    const title = 'Cable supply for extended commissioning — northern distribution boards';
+    procState.data = [{ ...procRows[0], title }];
+    renderAs('Finance');
+    const button = screen.getByRole('button', { name: new RegExp(title) });
+    const identity = within(button).getByText(title);
+    expect(identity.className).toContain('line-clamp-2');
+    expect(identity.className).not.toContain('truncate');
+    expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
+    expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
+    await userEvent.tab();
+    await userEvent.click(button);
+    expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByRole('button', { name: /Approve/i })).toBeVisible();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
   it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.
@@ -126,10 +154,65 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
   });
 
+  it('UXS-025: pending work precedes collapsed approved correction history', () => {
+    reopenableState.data = [{
+      id: 'approved-week', user_id: 'other', week_start_date: '2026-05-25', status: 'Approved',
+      owner: { full_name: 'Reviewer' }, entries: [], mirror: null, pushCommandState: null,
+    }];
+    renderAs('Project Manager');
+
+    const queue = screen.getByRole('heading', { name: /Approvals queue/i });
+    const history = screen.getByText('Approved history and corrections');
+    expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(history.closest('details')).not.toHaveAttribute('open');
+    expect(history).toHaveTextContent('last 90 days');
+  });
+
+  it('AC-UXS-005: All pending counts every eligible kind once and each kind filter uses the same population', async () => {
+    expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
+    invoiceState.rows = [{ id: 'si1', created_at: '2026-06-04' }];
+    renderAs('Project Manager');
+
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('4');
+    // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Customer invoices/i })).toHaveTextContent('1');
+
+    await userEvent.click(screen.getByRole('tab', { name: /Expense claims/i }));
+    expect(screen.getByRole('link', { name: 'EXP-1' })).toHaveAttribute('href', '/expenses/ex1');
+    expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('Finance All pending excludes hook-returned timesheets from its count and selectable queue', () => {
+    procState.data = [];
+    expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
+    renderAs('Finance');
+
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();
+    expect(within(queue).queryByText('Timesheets')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Select an approval item/i);
+  });
+
+  it('keeps the desktop preview loading while an eligible expense read is pending', () => {
+    procState.data = [];
+    tsState.data = [];
+    expenseState.isPending = true;
+    renderAs('Project Manager');
+
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Select an approval item/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No requests awaiting your decision/i)).not.toBeInTheDocument();
+  });
+
   it('L3-APPROVALS: a PM (sees both modules) gets queue filters for All, Procurement, and Timesheets', () => {
     renderAs('Project Manager');
     expect(screen.getByRole('tab', { name: /All/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
@@ -158,11 +241,12 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
-  it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue', () => {
+  it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue with neutral policy guidance', () => {
     renderAs('Project Manager', '/approvals?scope=timesheets');
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
+    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
@@ -172,7 +256,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getAllByText('Steel beams').length).toBeGreaterThan(0);
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Procurement/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
   });
 
   it('a queue selection moves the preview pane + keeps approve/reject there — no navigation', async () => {

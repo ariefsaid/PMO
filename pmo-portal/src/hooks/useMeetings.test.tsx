@@ -66,12 +66,15 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
       meetingId: 'm1',
       projectId: 'p1',
       name: 'Order the flange samples',
+      assigneeId: 'user-2',
+      endDate: '2026-10-20',
     });
     expect(repoMock.task.create).toHaveBeenCalledWith({
       project_id: 'p1',
       name: 'Order the flange samples',
       status: 'To Do',
-      assignee_id: null,
+      assignee_id: 'user-2',
+      end_date: '2026-10-20',
       meeting_id: 'm1',
     });
   });
@@ -83,6 +86,8 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
       meetingId: 'm2',
       projectId: null,
       name: 'Follow up',
+      assigneeId: null,
+      endDate: null,
     });
     expect(repoMock.task.create).toHaveBeenCalledWith(
       expect.objectContaining({ project_id: null, meeting_id: 'm2' }),
@@ -101,6 +106,8 @@ describe('useMeetingMutations.createActionItem — the /action seam (FR-MTG-017 
       meetingId: 'm1',
       projectId: 'p1',
       name: 'Chase samples',
+      assigneeId: null,
+      endDate: null,
     });
     const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
     expect(keys).toContain('meeting-action-items');

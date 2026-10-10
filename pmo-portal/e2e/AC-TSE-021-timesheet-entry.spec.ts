@@ -1,10 +1,10 @@
 // @e2e-isolation: self-isolated — dedicated engineer tse-021-eng@acme.test + own week; self-cleans.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, visibleToast, waitForFonts } from './helpers';
 
 // AC-TSE-021 — Engineer logs, edits, deletes, and submits a timesheet week via the real stack.
 //
-// Journey (Given/When/Then per spec §5 AC-TSE-021, FR-TSE-001/003/006/008/011/012):
+// Journey (Given/When/Then per spec §5 AC-TSE-021, FR-TSE-001/003/006/008/011/012): Mobile 390×844 completion is the rendered oracle.
 //   Given a signed-in Engineer on a week with NO existing timesheet,
 //   When they add "Acme Internal Platform" (P003, Ongoing Project), enter 8h Mon + 6h Tue, Save
 //     → Draft is created on first Save; totals reflect the persisted state.
@@ -29,6 +29,20 @@ test.setTimeout(120_000);
 const ENGINEER = 'tse-021-eng@acme.test';
 const PROJECT_NAME = 'Acme Internal Platform';
 
+/** Pin the signed-in persona's resolved locale to en for this journey, whatever the shared DB says.
+ *  Read-only route rewrite (no DB write) — same pattern as UXS-013/AC-BUPOT-021 — because the
+ *  journey's English assertions describe the en surface; id parity is covered at the component layer. */
+async function pinEnglishLocale(page: Page) {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const response = await route.fetch();
+    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
+    const localized = Array.isArray(profile)
+      ? profile.map((row) => ({ ...row, locale: 'en' }))
+      : { ...profile, locale: 'en' };
+    await route.fulfill({ response, json: localized });
+  });
+}
+
 /** Navigate forward week-by-week until the grid is empty (no rows) and editable. */
 async function stepToEmptyWeek(page: Page, maxWeeks = 26): Promise<void> {
   for (let attempt = 0; attempt < maxWeeks; attempt++) {
@@ -36,7 +50,7 @@ async function stepToEmptyWeek(page: Page, maxWeeks = 26): Promise<void> {
     await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
 
     const addProject = page.getByLabel('Add a project');
-    const gridRow = page.locator('tbody tr').first();
+    const gridRow = page.locator('[data-testid^="tsgrid-row-total-"]').first();
 
     const addVisible = await addProject.isVisible().catch(() => false);
     const hasRows = await gridRow.isVisible().catch(() => false);
@@ -54,7 +68,7 @@ async function stepToEmptyWeek(page: Page, maxWeeks = 26): Promise<void> {
 
 /** Wait for a success toast. Use .first() to handle multiple stacked toasts. */
 async function expectSaveToast(page: Page): Promise<void> {
-  await expect(page.getByText(/timesheet saved/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(visibleToast(page, /timesheet saved/i)).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(300);
 }
 
@@ -63,9 +77,7 @@ async function expectSaveToast(page: Page): Promise<void> {
  * avoid stale-reference issues across React re-renders triggered by query refetches.
  */
 async function fillHourCell(page: Page, projectName: string, dayLabel: string, value: string): Promise<void> {
-  const input = page.locator('tbody tr')
-    .filter({ hasText: projectName })
-    .getByRole('textbox', { name: new RegExp(`${projectName}, ${dayLabel} hours`, 'i') });
+  const input = page.getByRole('textbox', { name: new RegExp(`${projectName}, ${dayLabel} hours`, 'i') });
   await expect(input).toBeVisible({ timeout: 10_000 });
   await expect(input).toBeEnabled();
   await input.fill(value);
@@ -74,8 +86,11 @@ async function fillHourCell(page: Page, projectName: string, dayLabel: string, v
 test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real stack', async ({ page }) => {
 
   // ── Step 1: Sign in as Engineer and navigate to Timesheets ──────────────────
+  await pinEnglishLocale(page);
   await login(page, ENGINEER);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/timesheets');
+  await waitForFonts(page);
 
   // Wait for the loading skeleton to resolve.
   await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
@@ -95,27 +110,29 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
 
   // A new editable row should appear for Acme Internal Platform.
-  await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
 
-  // ── Step 4: Enter hours — 8h Monday, 6h Tuesday ─────────────────────────────
-  // The aria-label pattern is "<project>, <weekday> hours" (NFR-TSE-A11Y-001).
+  // ── Step 4: Enter hours across two projects ──────────────────────────────────
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
   await fillHourCell(page, PROJECT_NAME, 'Tue', '6');
+  await page.getByLabel('Add a project').selectOption({ label: 'Innovate Corp HQ Fit-Out' });
+  await expect(page.getByText('Innovate Corp HQ Fit-Out', { exact: true })).toBeVisible({ timeout: 5_000 });
+  await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
-  // Live total should reflect 14h before saving (FR-TSE-013 — totals track edits live).
+  // Live total should reflect 18h before saving across both projects.
   const weeklyTotalSpan = page.getByTestId('timesheets-weekly-total');
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(weeklyTotalSpan).toContainText('18');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────
-  const saveBtn = page.getByRole('button', { name: /^save$/i });
+  const saveBtn = page.getByRole('button', { name: /^save draft$/i });
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
   await saveBtn.click();
 
   // Success toast confirms the write went through.
   await expectSaveToast(page);
 
-  // Weekly total reflects persisted state: 14.0 h this week.
-  await expect(weeklyTotalSpan).toContainText('14');
+  // Weekly total reflects persisted state: 18 hours across both projects.
+  await expect(weeklyTotalSpan).toContainText('18');
 
   // The "Draft — not submitted" pill confirms a sheet now exists (FR-TSE-003 — created on Save).
   await expect(page.getByText('Draft — not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
@@ -124,40 +141,37 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // After save + query refetch, re-locate the Monday input to avoid stale reference.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '4');
 
-  // Weekly total live-updates to 10 before saving.
-  await expect(weeklyTotalSpan).toContainText('10');
+  // Weekly total live-updates to 14 before saving.
+  await expect(weeklyTotalSpan).toContainText('14');
 
   await saveBtn.click();
   await expectSaveToast(page);
 
-  // Persisted weekly total = 10.0 h this week (Mon=4 + Tue=6).
-  await expect(weeklyTotalSpan).toContainText('10');
+  // Persisted weekly total = 14h across both projects.
+  await expect(weeklyTotalSpan).toContainText('14');
 
   // ── Step 7: Delete the project row via the destructive ConfirmDialog ─────────
   // (FR-TSE-008 — mandatory ConfirmDialog before removing row)
-  await page.locator('tbody tr')
-    .filter({ hasText: PROJECT_NAME })
-    .getByRole('button', { name: new RegExp(`delete ${PROJECT_NAME} row`, 'i') })
-    .click();
+  await page.getByRole('button', { name: new RegExp(`delete ${PROJECT_NAME} row`, 'i') }).click();
 
   // A destructive ConfirmDialog (alertdialog) must open before any row is removed.
   const alertDialog = page.getByRole('alertdialog');
   await expect(alertDialog).toBeVisible({ timeout: 5_000 });
 
   // The row is still present while the dialog is open — no write yet (FR-TSE-008).
-  await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible();
+  await expect(page.getByTestId('tsgrid-mobile').getByText(PROJECT_NAME, { exact: true })).toBeVisible();
 
   // Confirm the deletion.
   await alertDialog.getByRole('button', { name: /delete row/i }).click();
 
   // Dialog closes and row is gone (FR-TSE-008 — deletion round-trips to DB).
   await expect(alertDialog).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).not.toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(PROJECT_NAME, { exact: true })).not.toBeVisible({ timeout: 15_000 });
 
-  // Weekly total resets to 0.0 h (all entries deleted).
-  await expect(weeklyTotalSpan).toContainText('0.0');
+  // The other project's saved 4 hours remain after deleting this project row.
+  await expect(weeklyTotalSpan).toContainText('4');
 
-  // ── Step 8: Re-add, enter 8h Mon, Save, then Submit ─────────────────────────
+  // ── Step 8: Re-add, complete a two-project week, then Submit ────────────────
   // Wait for the query invalidation + refetch to settle before re-adding.
   // The picker becomes available again once editRows reflects the empty server state.
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 15_000 });
@@ -166,19 +180,49 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
 
   // Wait for the new row to be stable before filling cells.
-  await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
 
-  // Fill Mon hour using the fresh-locator helper.
+  // Fill Monday, retain the other project's Tuesday hours, and submit without a Save-first step.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
-  await expect(weeklyTotalSpan).toContainText('8');
+  await expect(weeklyTotalSpan).toContainText('12');
 
-  // Save.
-  await saveBtn.click();
-  await expectSaveToast(page);
-  await expect(weeklyTotalSpan).toContainText('8');
+  // Focus the last input as a phone keyboard would; both it and a validation error stay visible.
+  await waitForFonts(page);
+  const lastInput = page.getByRole('textbox', { name: /Innovate Corp HQ Fit-Out, Sun hours/i });
+  await lastInput.fill('25');
+  await expect(lastInput).toHaveAttribute('aria-invalid', 'true');
+  const lastError = page.locator('[role="alert"]').filter({ hasText: '0–24 only' });
+  await expect(lastError).toBeVisible();
+  await lastInput.focus();
+  await expect(lastInput).toBeFocused();
 
-  // Submit: click "Submit timesheet" → confirm dialog → confirm.
-  const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
+  // A reduced visual viewport stands in for the on-screen keyboard. Keep the whole final
+  // field/error visible above the completion strip, with the existing invalid-input gate intact.
+  await page.setViewportSize({ width: 390, height: 500 });
+  await lastInput.scrollIntoViewIfNeeded();
+  const strip = page.getByTestId('timesheets-mobile-action-strip');
+  await expect(strip).toBeVisible();
+  await expect(lastInput).toBeInViewport();
+  await expect(lastError).toBeInViewport();
+  const stripBox = await strip.boundingBox();
+  const inputBox = await lastInput.boundingBox();
+  const errorBox = await lastError.boundingBox();
+  expect(stripBox).not.toBeNull();
+  expect(inputBox).not.toBeNull();
+  expect(errorBox).not.toBeNull();
+  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(errorBox!.y);
+  expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(stripBox!.y);
+  const submitBtn = page.getByRole('button', { name: 'Submit week' });
+  await expect(submitBtn).toBeVisible();
+  await expect(submitBtn).toBeDisabled(); // Invalid hours remain gated; the error is still visible.
+
+  // Restore the full phone viewport and correct the invalid draft before submission.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await lastInput.fill('0');
+  await expect(lastInput).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(submitBtn).toBeEnabled();
+
+  // Submit: mobile action opens the existing confirmation; dirty hours auto-save first.
   await expect(submitBtn).toBeVisible({ timeout: 10_000 });
   await submitBtn.click();
 
@@ -196,14 +240,16 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
 
   // No editable hour inputs: the TimesheetGrid is now in read-only mode
   // (cells render as <div> elements, not <input> elements).
-  await expect(page.locator('tbody input[type="text"]')).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole('textbox')).toHaveCount(0, { timeout: 10_000 });
 
   // No "Add project" picker (read-only = no write affordances).
   await expect(page.getByLabel('Add a project')).not.toBeVisible({ timeout: 5_000 });
 
-  // No Save button.
-  await expect(page.getByRole('button', { name: /^save$/i })).not.toBeVisible({ timeout: 5_000 });
-
-  // Submit button also gone (already Submitted).
-  await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+  // Completion controls are removed after submission; the saved week remains visible.
+  await expect(page.getByRole('button', { name: 'Save draft' })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: 'Submit week' })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText('12');
+  const mobileGrid = page.getByTestId('tsgrid-mobile');
+  await expect(mobileGrid.locator('[aria-label="Acme Internal Platform, Mon hours"]')).toHaveText('8');
+  await expect(mobileGrid.locator('[aria-label="Innovate Corp HQ Fit-Out, Wed hours"]')).toHaveText('4');
 });

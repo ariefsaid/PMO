@@ -10,7 +10,7 @@ export interface ModuleDef {
   module: string;
   icon: IconName;
   label: string;
-  /** Index route path. */
+  /** Canonical route destination, including any query selector for a filtered doorway. */
   path: string;
   /** Detail route pattern (record drill) + the param name carrying the id. */
   detail?: { pattern: string; param: string };
@@ -21,16 +21,19 @@ export interface ModuleDef {
    * matches the rail — a denied role never sees a Navigate item for a hidden module.
    */
   roles?: UserRole[];
+  /** Canonical shell copy key shared by rail, palette, and breadcrumbs. */
+  labelKey?: string;
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
   // Dashboard: every authenticated role (no roles restriction = all).
-  { module: 'dashboard', icon: 'grid', label: 'Dashboard', path: '/' },
+  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', labelKey: 'shell.nav.dashboard', path: '/' },
   {
     module: 'sales',
-    icon: 'pipe',
+    icon: 'pipeline',
     label: 'Sales Pipeline',
+    labelKey: 'shell.nav.sales',
     path: '/sales',
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Sales nav — rbac-visibility §C).
@@ -38,8 +41,9 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'procurement',
-    icon: 'cart',
+    icon: 'procurement',
     label: 'Procurement',
+    labelKey: 'shell.nav.procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
@@ -47,8 +51,9 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'projects',
-    icon: 'folder',
+    icon: 'projects',
     label: 'Projects',
+    labelKey: 'shell.nav.projects',
     path: '/projects',
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
     // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
@@ -57,6 +62,7 @@ export const MODULES: ModuleDef[] = [
     module: 'timesheets',
     icon: 'clock',
     label: 'Timesheets',
+    labelKey: 'shell.nav.timesheets',
     path: '/timesheets',
     // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
@@ -65,8 +71,9 @@ export const MODULES: ModuleDef[] = [
   // breadcrumb resolves via the module path and ⌘K Navigate includes them.
   {
     module: 'companies',
-    icon: 'doc',
+    icon: 'companies',
     label: 'Companies',
+    labelKey: 'shell.nav.companies',
     path: '/companies',
     // CW-4b: /companies/:id is a routable detail page (retires the drawer-as-record) — the detail
     // pattern makes the breadcrumb drill [Companies > <record>] and lets ⌘K open one.
@@ -75,9 +82,18 @@ export const MODULES: ModuleDef[] = [
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
+    module: 'vendors',
+    icon: 'companies',
+    label: 'Vendors',
+    labelKey: 'shell.nav.vendors',
+    path: '/companies?type=Vendor',
+    roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+  },
+  {
     module: 'contacts',
-    icon: 'doc',
+    icon: 'contacts',
     label: 'Contacts',
+    labelKey: 'shell.nav.contacts',
     path: '/contacts',
     // CW-4b: /contacts/:id is a routable detail page (retires the drawer-as-record) — the detail
     // pattern makes the breadcrumb drill [Contacts > <record>] and lets ⌘K open one.
@@ -89,6 +105,7 @@ export const MODULES: ModuleDef[] = [
     module: 'incidents',
     icon: 'alert',
     label: 'Incidents',
+    labelKey: 'shell.nav.incidents',
     path: '/incidents',
     // CW-4a: /incidents/:id is a routable detail page (fixes the Incidents dead-end) — the
     // detail pattern makes the breadcrumb drill [Incidents > <record>] and lets ⌘K open one.
@@ -101,28 +118,30 @@ export const MODULES: ModuleDef[] = [
     module: 'meetings',
     icon: 'cal',
     label: 'Meetings',
+    labelKey: 'shell.nav.meetings',
     path: '/meetings',
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
   // #775: Expenses — every role (own claims); RLS scopes reads.
-  { module: 'expenses', icon: 'dollar', label: 'Expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // AC-W3-N4: My Tasks — the IC's primary landing. Was in PLACEHOLDER_TITLES only (no ⌘K target).
-  // Adding here makes it reachable via ⌘K Navigate for roles that have the nav item.
-  // Mirror Rail: Engineer·Admin (B-1, AC-W2-IXD-001, OD-W2-4).
+  { module: 'expenses', icon: 'expenses', label: 'Expenses', labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
+  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
+  // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
-    icon: 'check',
+    icon: 'tasks',
     label: 'My Tasks',
+    labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
-    roles: [UserRole.Engineer, UserRole.Admin],
+    roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
   },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
   // Finance approves procurement; Exec·PM·Admin approve timesheets. Engineer stays OUT.
   {
     module: 'approvals',
-    icon: 'check',
+    icon: 'approvals',
     label: 'Approvals',
+    labelKey: 'shell.nav.approvals',
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
@@ -131,6 +150,7 @@ export const MODULES: ModuleDef[] = [
     module: 'administration',
     icon: 'admin',
     label: 'Administration',
+    labelKey: 'shell.nav.administration',
     path: '/administration',
     roles: [UserRole.Executive, UserRole.Admin],
   },
@@ -302,6 +322,7 @@ export function breadcrumbForPath(
   _recordStatusGroup?: ProjectStatusGroup,
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
+  routeSearch = '',
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -321,6 +342,7 @@ export function breadcrumbForPath(
       '/sales-invoices': 'shell.nav.salesInvoices',
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
+      '/my-tasks': 'shell.nav.myTasks',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
@@ -336,7 +358,11 @@ export function breadcrumbForPath(
   // the destination, consistent with option (a) of OD-4. When a /views index route ships
   // (I4/I5), update onClick to navigate('/views') and drop the aria-label override.
   if (pathname.startsWith('/views/')) {
-    const viewCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+    // The pending/not-found state crumbs share the shell vocabulary keys so the
+    // states localize like every other breadcrumb label (UXS-006).
+    const viewCrumb = recordResolved || recordLabel
+      ? { label: recordLabel || 'Not found', ...(recordLabel ? {} : { i18nKey: 'shell.breadcrumb.recordNotFound' }) }
+      : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
     return [
       {
         label: 'My Views',
@@ -344,8 +370,17 @@ export function breadcrumbForPath(
         onClick: () => navigate?.('/'),
         ariaLabel: 'My Views — back to Dashboard',
       },
-      { label: viewCrumb },
+      viewCrumb,
     ];
+  }
+
+  // A filtered doorway can share its pathname with the canonical directory while keeping
+  // its own visible vocabulary (for example Vendors is the Companies page's Vendor filter).
+  const selectedIndexModule = MODULES.find(
+    (module) => module.path === `${pathname}${routeSearch}`,
+  );
+  if (selectedIndexModule) {
+    return [{ label: selectedIndexModule.label, ...(selectedIndexModule.labelKey ? { i18nKey: selectedIndexModule.labelKey } : {}) }];
   }
 
   for (const m of MODULES) {
@@ -359,7 +394,13 @@ export function breadcrumbForPath(
         // recordLabel resolved → the record name; still loading → "Loading…";
         // resolved-but-absent (bad id / deleted) → "Not found", never a
         // perpetual "Loading…" once the error card has rendered (item I).
-        const recordCrumb = recordLabel || (recordResolved ? 'Not found' : 'Loading…');
+        // Both state crumbs share the shell vocabulary keys so the states
+        // localize like every other breadcrumb label (UXS-006).
+        const recordCrumb = recordLabel
+          ? { label: recordLabel }
+          : recordResolved
+            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }
+            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -367,9 +408,11 @@ export function breadcrumbForPath(
         // and stepper, not the breadcrumb ancestry.
         const parentLabel = m.label;
         const parentPath = m.path;
+        const parentKey = m.labelKey;
         return [
           {
             label: parentLabel,
+            ...(parentKey ? { i18nKey: parentKey } : {}),
             // App passes a descriptor for every adopting list's detail route: the validated source
             // list URL, or the owning index when there is no usable context, with cleaned router
             // state (a one-shot scroll restore only when an offset was captured). Other modules'
@@ -377,18 +420,18 @@ export function breadcrumbForPath(
             href: contextualParent?.path ?? parentPath,
             onClick: () => navigate?.(contextualParent ?? parentPath),
           },
-          { label: recordCrumb },
+          { label: recordCrumb.label, ...(recordCrumb.i18nKey ? { i18nKey: recordCrumb.i18nKey } : {}) },
         ];
       }
     }
     // Index route → a single current crumb.
     if (matchPath({ path: m.path, end: true }, pathname)) {
-      return [{ label: m.label }];
+      return [{ label: m.label, ...(m.labelKey ? { i18nKey: m.labelKey } : {}) }];
     }
   }
 
   // Unknown route → "Not found" (C-MIN-4: the `*` route renders the 404 page, not the dashboard).
-  return [{ label: 'Not found' }];
+  return [{ label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }];
 }
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
@@ -404,6 +447,8 @@ export interface RecordLists {
   contacts?: { id: string; full_name: string }[];
   /** #526: meetings — the record name is its `title`. */
   meetings?: { id: string; title: string }[];
+  /** Expense claims resolve from the detail query cache; no additional list read. */
+  expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
 }
@@ -531,6 +576,13 @@ export function recordLabelForPath(
   // #526: a meeting's label is its `title`.
   const meetingId = idFrom('/meetings');
   if (meetingId) return lists.meetings?.find((m) => m.id === meetingId)?.title;
+
+  // Expense detail breadcrumb uses its human-facing claim number, then its title.
+  const expenseId = idFrom('/expenses');
+  if (expenseId) {
+    const claim = lists.expenses?.find((item) => item.id === expenseId);
+    return claim?.claim_number || claim?.title || undefined;
+  }
 
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');

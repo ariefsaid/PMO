@@ -116,6 +116,16 @@ describe('ordinary sales invoice tax rows (#856)', () => {
     expect(templateReads).toEqual([]);
   });
 
+  it('AC-PPNC-018 ordinary next create uses the authoritative current VAT flag, not caller taxes or cancelled history', async () => {
+    const forged = [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }];
+    const enabled = await push({ ...TAXED, tax_base_numerator: 11, tax_base_denominator: 12 }, { taxes: forged });
+    expect((enabled.body.taxes as Row[])[0].rate).toBe(11);
+    expect(enabled.command.record.vat_flag_at_resolution).toBe(true);
+    const disabled = await push(VAT_OFF, { taxes: forged });
+    expect(disabled.body).not.toHaveProperty('taxes');
+    expect(disabled.command.record.vat_flag_at_resolution).toBe(false);
+  });
+
   it('AC-856-4 a caller-supplied taxes array is still stripped', async () => {
     const forged = [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }];
     const { body } = await push(VAT_OFF, { taxes: forged });
@@ -282,7 +292,23 @@ describe('an ordinary invoice edit or amend is stated in its own currency (OD-BI
     const cmd = edit(operation, { ...extra, currency: 'EUR' });
     await resolve(cmd).done;
     expect(cmd.record.currency).toBe('USD');
+    expect(cmd.record.vat_flag_at_resolution).toBe(false);
     expect((siToBody(cmd.record, { refs: { customer: 'Synthetic Customer' } } as never) as Row).currency).toBe('USD');
+  });
+
+  it.each([
+    ['update', 'update' as const, {}],
+    ['amend', 'transition' as const, { verb: 'amend' }],
+  ])('AC-PPNC-015 %s witness is the mirror-derived project flag, overwriting any caller value, and fails closed on a non-boolean source', async (_label, operation, extra) => {
+    // The caller forges FALSE; the authoritative project says TRUE — the stamp must be the
+    // project's, never the caller's (a no-op producer could not pass this).
+    const cmd = edit(operation, { ...extra, vat_flag_at_resolution: false });
+    await resolve(cmd, { ...MIRROR, projects: [{ id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 }] }).done;
+    expect(cmd.record.vat_flag_at_resolution).toBe(true);
+
+    const invalid = edit(operation, extra);
+    const { done } = resolve(invalid, { ...MIRROR, projects: [{ id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: 'true', tax_base_numerator: 1, tax_base_denominator: 1 }] });
+    await expect(done).rejects.toMatchObject({ code: 'config-rejected' });
   });
 
   it('AC-BWO-002 an edit whose invoice has no mirror row is refused before any ERPNext call', async () => {

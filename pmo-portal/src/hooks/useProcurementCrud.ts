@@ -86,6 +86,11 @@ export function useProcurementCrudMutations(id: string) {
     onSuccess: invalidate,
   });
 
+  const updateVendor = useMutation<void, AppError, string>({
+    mutationFn: (vendorId) => repositories.procurement.updateVendor(id, vendorId),
+    onSuccess: invalidate,
+  });
+
   const createItem = useMutation<ProcurementItemRow, AppError, ProcurementItemInput>({
     mutationFn: (input) => repositories.procurement.createItem(id, input),
     onSuccess: invalidate,
@@ -116,5 +121,5 @@ export function useProcurementCrudMutations(id: string) {
     onSuccess: invalidateDocs,
   });
 
-  return { updateHeader, createItem, updateItem, deleteItem, selectQuote, createDocument, deleteDocument };
+  return { updateHeader, updateVendor, createItem, updateItem, deleteItem, selectQuote, createDocument, deleteDocument };
 }

@@ -105,6 +105,30 @@ beforeEach(() => {
 });
 
 describe('Procurement list — inline preview (fix #5)', () => {
+  it('UIP-007: linked project identities wrap within their column and lifecycle stays below status', () => {
+    procState.data = [{ ...PROC_ROW, project_id: 'proj-1' }];
+    const { container } = renderPage();
+    const project = screen.getByRole('link', { name: /Open Tower Build/ });
+    expect(project.className).toContain('whitespace-normal');
+    const lifecycle = container.querySelector('[aria-label^="Lifecycle:"]');
+    expect(lifecycle?.parentElement?.className).toContain('block');
+  });
+  it('UIP-007: mixed rows use one comparative grid and retain labelled phone fields', () => {
+    procState.data = [PROC_ROW, { ...PROC_ROW, id: 'pr-2', title: 'Cable supply for the extended site commissioning works', total_value: 9800, project: null, requested_by: null }];
+    const { container } = renderPage();
+    const header = screen.getByTestId('procurement-list-columns');
+    const rows = container.querySelectorAll('[data-row-activate]');
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.className).toContain('md:grid-cols-12');
+      expect(header.className).toContain('md:grid-cols-12');
+      const value = row.querySelector('[data-procurement-value]');
+      expect(value?.className).toContain('md:text-right');
+      expect(value?.className).toContain('tabular');
+      expect(row).toHaveTextContent(/Project.*Requester.*Value.*Age.*Status/);
+    }
+    expect(screen.getByRole('link', { name: 'Cable supply for the extended site commissioning works' }).className).not.toContain('truncate');
+  });
   it('AC-FIX5-PREVIEW-01: each table row has an expand toggle button', () => {
     renderPage();
     const toggles = screen.getAllByRole('button', { name: /show.*preview|expand|preview/i });

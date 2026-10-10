@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
@@ -28,6 +27,7 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
+import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLink';
 
 const ExecutiveDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -236,10 +236,11 @@ const ExecutiveDashboard: React.FC = () => {
             icon="dollar"
             label={t('dashboard.kpi.revenueOnHand.label', 'Revenue on hand')}
             value={formatCurrency(data.on_hand_value, orgCurrency)}
-            vs={`${onHandPct} ${t('dashboard.kpi.revenueOnHand.vs', 'realized')}`}
+            vs={t('dashboard.kpi.revenueOnHand.vs', 'Realized margin: {{percent}}', { percent: onHandPct })}
+            helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
             help={t(
               'dashboard.kpi.revenueOnHand.help',
-              'Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below.',
+              'Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date.',
             )}
           />
           {/* AC-IXD-DASH-W5-C2A: Pipeline (weighted) → /sales (the pipeline IS the weighted-value view) */}
@@ -331,19 +332,10 @@ const ExecutiveDashboard: React.FC = () => {
         {/* AC-IFW-DASH-02: discrete at-risk drill link — sits OUTSIDE the Active-projects tile
             (which is already a whole-tile link to /projects?filter=Ongoing) so no nested
             interactives. Only shown when there are at-risk projects. */}
-        {data.projects_at_risk > 0 && (
-          <div className="flex items-center gap-1 text-[13px]">
-            <Link
-              to="/projects?filter=at-risk"
-              className="font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-              aria-label={t('dashboard.atRisk.linkLabel', 'View {{n}} at-risk projects', {
-                n: String(data.projects_at_risk),
-              })}
-            >
-              {data.projects_at_risk} {t('dashboard.atRisk.label', 'at-risk')} →
-            </Link>
-          </div>
-        )}
+        <AtRiskProjectsLink
+          count={data.projects_at_risk}
+          className="inline-flex min-h-8 items-center font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+        />
 
         {/* N15: combined approvals shortcut (PRs Exec can approve + timesheets) → /approvals. */}
         <section

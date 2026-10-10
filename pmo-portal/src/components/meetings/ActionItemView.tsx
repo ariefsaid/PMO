@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Link, useParams } from 'react-router';
 import { StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
@@ -18,6 +19,7 @@ import { formatDateOnly } from '@/src/lib/format';
 export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
+  const { meetingId } = useParams<{ meetingId: string }>();
   const orgId = currentUser?.org_id;
   const query = useQuery({
     queryKey: ['tasks', orgId, 'one', taskId],
@@ -51,10 +53,28 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   const task = query.data;
   return (
     <div className={shell} data-testid="action-item">
-      <span className={`${shell}__name`}>{task.name}</span>
+      {task.project_id || (task.meeting_id && task.meeting_id !== meetingId) ? (
+        <Link
+          to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
+          aria-label={t('meetingDetail.minutes.openTask', 'Open task: {{name}}', { name: task.name })}
+          className={`${shell}__name rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+        >
+          {task.name}
+        </Link>
+      ) : (
+        <span className={`${shell}__name`}>{task.name}</span>
+      )}
       <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
-      {task.assignee && <span className={`${shell}__meta`}>{task.assignee.full_name}</span>}
-      {task.end_date && <span className={`${shell}__meta`}>{formatDateOnly(task.end_date)}</span>}
+      <span className={`${shell}__meta`}>
+        {task.assignee
+          ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
+          : t('meetingDetail.minutes.unassigned', 'Unassigned — assign an owner')}
+      </span>
+      {task.end_date && (
+        <span className={`${shell}__meta`}>
+          {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+        </span>
+      )}
     </div>
   );
 };

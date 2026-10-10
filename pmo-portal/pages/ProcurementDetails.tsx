@@ -5,9 +5,11 @@ import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
+  MobileActionBar,
   CardHead,
   CardPad,
   Button,
+  Combobox,
   StatusPill,
   LifecycleStepper,
   ListState,
@@ -207,7 +209,7 @@ function allowedActions(
 
   // Vendor Quoted → Quote Selected: PM/Finance/Admin
   if (legal('Quote Selected') && canSource(role)) {
-    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Select Quote'), variant: 'primary' });
+    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Compare and select a quote'), variant: 'primary' });
   }
 
   // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
@@ -286,6 +288,9 @@ const ProcurementDetails: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const bupotParams = new URLSearchParams(location.search);
+  const bupotId = bupotParams.get('bupot');
+  const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
 
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
@@ -296,7 +301,13 @@ const ProcurementDetails: React.FC = () => {
   const historyReturnFocus = React.useRef<HTMLElement | null>(null);
   const setBupotSelection = (slipId: string | null) => {
     const params = new URLSearchParams(location.search);
-    if (slipId) params.set('bupot', slipId); else params.delete('bupot');
+    if (slipId) {
+      params.set('bupot', slipId);
+      params.delete('bupotBill');
+    } else {
+      params.delete('bupot');
+      params.delete('bupotBill');
+    }
     const query = params.toString();
     navigate(`${location.pathname}${query ? `?${query}` : ''}${location.hash}`, { replace: !slipId });
   };
@@ -317,6 +328,8 @@ const ProcurementDetails: React.FC = () => {
   // header-edit panel. Procurement's role-allowed header action set is Edit only —
   // there is no archive/delete (Cancel is a lifecycle transition, in the action zone).
   const [headerEditOpen, setHeaderEditOpen] = useState(false);
+  const [vendorPickerOpen, setVendorPickerOpen] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
   // clicks the action so invoice details are captured BEFORE the transition fires.
   const [showVICapture, setShowVICapture] = useState(false);
@@ -463,6 +476,13 @@ const ProcurementDetails: React.FC = () => {
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
   const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
+  // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
+  // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
+  const canSetVendor = !p.vendor_id
+    && effectiveRole === realRole
+    && realRole != null
+    && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
+    && may('edit', 'procurement');
   const currentUserId = currentUser?.id ?? null;
 
 
@@ -510,6 +530,16 @@ const ProcurementDetails: React.FC = () => {
   // and requester clauses are what forced the fragments, so each combination gets its own whole
   // sentence with the pieces as placeholders a translator can reorder.
   const moneyAmount = formatCurrency(Number(p.total_value), p.currency);
+  const scheduledPayments = (p.payments ?? []).filter((payment) => payment.status === 'Scheduled');
+  const payableInvoices = p.invoices.filter((invoice) => invoice.amount != null);
+  const paidConfirmationAmount = scheduledPayments.length > 0
+    ? scheduledPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+    : payableInvoices.length > 0
+      ? payableInvoices.reduce((sum, invoice) => sum + Number(invoice.amount)
+          + (invoice.tax_treatment === 'exclusive' ? Number(invoice.tax_amount ?? 0) : 0)
+          - Number(invoice.withheld_amount ?? 0), 0)
+      : Number(p.total_value);
+  const paidMoneyAmount = formatCurrency(paidConfirmationAmount, p.currency);
   const moneyProject = p.project?.name ?? null;
   const moneyRequester = p.requested_by?.full_name ?? null;
   const moneyContext = moneyProject ? (
@@ -548,6 +578,10 @@ const ProcurementDetails: React.FC = () => {
 
   const onActionClick = (action: { to: ProcurementStatus; label: string; variant: ActionVariant }) => {
     setMutationError(null);
+    if (action.to === 'Quote Selected') {
+      setTab('quotes');
+      return;
+    }
     // O3 (AC-W3-O3): "Mark Vendor Invoiced" opens an inline capture so the invoice
     // reference + date + status are recorded BEFORE the transition fires (co-locate
     // capture with the action, mirroring the PipelineLens Mark-won pattern).
@@ -578,8 +612,8 @@ const ProcurementDetails: React.FC = () => {
       ) : action.to === 'Paid' ? (
         <Trans
           i18nKey="procurementDetail.confirm.markPaidBody"
-          defaults="Mark <money/> as paid? This releases payment and cannot be undone."
-          components={{ money: <span>{moneyContext}</span> }}
+          defaults="Record {{amount}} as paid? This records payment evidence; it does not transfer funds."
+          values={{ amount: paidMoneyAmount }}
         />
       ) : (
         t(
@@ -1066,12 +1100,53 @@ const ProcurementDetails: React.FC = () => {
                 );
               }}
               invoices={p.invoices}
+              targetInvoiceId={targetInvoiceId ?? undefined}
               canWriteWithholdingSlip={canWriteWithholdingSlip}
+              vendorMissing={!p.vendor_id}
+              onSetVendor={canSetVendor ? () => { setSelectedVendorId(null); setVendorPickerOpen(true); } : undefined}
               onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
               isApprover={isApprover}
             />
+            {vendorPickerOpen && canSetVendor && (
+              <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+                <Combobox
+                  label={t('bupot.vendor', 'Vendor')}
+                  noun={t('bupot.vendor', 'vendor')}
+                  value={selectedVendorId}
+                  onChange={(value) => setSelectedVendorId(value)}
+                  loadOptions={async () => vendorOptions ?? []}
+                  placeholder={t('bupot.selectVendor', 'Select a vendor…')}
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!selectedVendorId || crud.updateVendor.isPending}
+                  onClick={async () => {
+                    if (!selectedVendorId) return;
+                    try {
+                      await crud.updateVendor.mutateAsync(selectedVendorId);
+                      setVendorPickerOpen(false);
+                      toast(t('bupot.vendorSet', 'Vendor set'), undefined, 'success');
+                    } catch (err) {
+                      if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
+                        setVendorPickerOpen(false);
+                        toast(
+                          t('bupot.vendorAlreadySet', 'A vendor was already set. Refresh to see it.'),
+                          undefined,
+                          'warning',
+                        );
+                        await detailQuery.refetch();
+                        return;
+                      }
+                      onMutationError(err);
+                    }
+                  }}
+                >{t('bupot.saveVendor', 'Save vendor')}</Button>
+                <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
+              </div>
+            )}
           </Card>
         )}
 
@@ -1120,11 +1195,17 @@ const ProcurementDetails: React.FC = () => {
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
       />}
       {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => { setSlipHistoryInvoiceId(null); requestAnimationFrame(() => historyReturnFocus.current?.focus()); }} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
-      {new URLSearchParams(location.search).get('bupot') && <VendorWithholdingSlipDetails
-        slipId={new URLSearchParams(location.search).get('bupot')!}
+      {bupotId && <VendorWithholdingSlipDetails
+        slipId={bupotId}
         canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
         onClose={() => setBupotSelection(null)}
-        onOpenProcurement={(id, slipId) => navigate(`/procurement/${id}/documents?bupot=${encodeURIComponent(slipId)}`)}
+        suppressArrivalFocus={Boolean(targetInvoiceId)}
+        onOpenProcurement={(id, slipId, invoiceId) => {
+          const params = new URLSearchParams(location.search);
+          params.set('bupot', slipId);
+          params.set('bupotBill', invoiceId);
+          navigate(`/procurement/${encodeURIComponent(id)}/documents?${params.toString()}${location.hash}`);
+        }}
       />}
 
       {/* Approval / rejection notes */}
@@ -1197,7 +1278,7 @@ const ProcurementDetails: React.FC = () => {
           The in-card action row remains the canonical slot; this bar mirrors the
           primary CTA only, providing the mobile reach affordance. */}
       {actions.length > 0 && !showVICapture && (
-        <div
+        <MobileActionBar
           data-testid="mobile-sticky-action"
           aria-hidden="true"
           className="hidden max-[920px]:flex fixed bottom-0 left-0 right-0 z-10 items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-sm"
@@ -1222,7 +1303,7 @@ const ProcurementDetails: React.FC = () => {
                 </Button>
               );
             })}
-        </div>
+        </MobileActionBar>
       )}
     </div>
   );

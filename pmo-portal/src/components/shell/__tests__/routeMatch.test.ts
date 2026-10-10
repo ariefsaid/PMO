@@ -15,6 +15,62 @@ import {
  */
 
 // C-MIN-4: unknown route breadcrumb must read "Not found", not "Dashboard".
+describe('UIP-001: navigation module icon semantics', () => {
+  it('keeps each module on its distinct entity metaphor', () => {
+    const icons = Object.fromEntries(MODULES.map(({ path, icon }) => [path, icon]));
+    expect(icons).toMatchObject({
+      '/': 'dashboard',
+      '/sales': 'pipeline',
+      '/procurement': 'procurement',
+      '/projects': 'projects',
+      '/timesheets': 'clock',
+      '/companies': 'companies',
+      '/contacts': 'contacts',
+      '/approvals': 'approvals',
+      '/my-tasks': 'tasks',
+    });
+  });
+});
+
+describe('UXS-038 expense breadcrumb labels', () => {
+  it('uses the localized Expenses label and resolved claim identity', () => {
+    expect(breadcrumbForPath('/expenses/claim-1', 'EXP-2048')).toEqual([
+      { label: 'Expenses', i18nKey: 'shell.nav.expenses', href: '/expenses', onClick: expect.any(Function) },
+      { label: 'EXP-2048' },
+    ]);
+  });
+});
+
+describe('UXS-007 shell label consistency', () => {
+  it('uses the canonical My Tasks locale key for its breadcrumb', () => {
+    expect(breadcrumbForPath('/my-tasks')).toEqual([
+      { label: 'My Tasks', i18nKey: 'shell.nav.myTasks' },
+    ]);
+  });
+});
+
+describe('UXS-006 shared route vocabulary', () => {
+  it('every navigable module owns the translation key used across shell surfaces', () => {
+    expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
+    expect(MODULES.find((module) => module.module === 'vendors')).toMatchObject({
+      path: '/companies?type=Vendor',
+      label: 'Vendors',
+      labelKey: 'shell.nav.vendors',
+    });
+    expect(MODULES.find((module) => module.module === 'my-tasks')).toMatchObject({
+      path: '/my-tasks',
+      label: 'My Tasks',
+      labelKey: 'shell.nav.myTasks',
+    });
+  });
+
+  it('keeps the filtered Vendors doorway vocabulary on its canonical breadcrumb', () => {
+    expect(breadcrumbForPath('/companies', undefined, undefined, false, undefined, undefined, '?type=Vendor')).toEqual([
+      { label: 'Vendors', i18nKey: 'shell.nav.vendors' },
+    ]);
+  });
+});
+
 describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
   it('C-MIN-4: an unknown path resolves breadcrumb label to "Not found"', () => {
     const crumbs = breadcrumbForPath('/no-such-route');

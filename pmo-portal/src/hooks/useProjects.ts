@@ -104,6 +104,7 @@ export function useProjectMutations() {
   // also bust the project FK-picker cache (`['fk-options','project']`) so procurement/other forms
   // don't serve a stale, archived, or missing project name for the ~5-min query staleTime.
   const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['project-vat-editability'] });
     qc.invalidateQueries({ queryKey: ['projects'] });
     qc.invalidateQueries({ queryKey: ['opportunity'] });
     qc.invalidateQueries({ queryKey: ['project'] });

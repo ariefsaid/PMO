@@ -22,7 +22,7 @@
  * signs the URL lazily on click (try/catch — non-fatal) and shows an upload
  * affordance for canWrite rows with no file.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CardPad,
@@ -220,8 +220,12 @@ export interface ProcurementLedgerProps {
   canWriteWithholdingSlip?: boolean;
   onRetryWithholdingCoverage?: () => void;
   onRecordWithholdingSlip?: (invoice: ProcurementInvoiceRow) => void;
+  vendorMissing?: boolean;
+  onSetVendor?: () => void;
   onViewWithholdingSlip?: (slipId: string) => void;
   onWithholdingHistory?: (invoiceId: string) => void;
+  /** Invoice to scroll to after opening this case from a withholding slip detail. */
+  targetInvoiceId?: string;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
 }
@@ -246,12 +250,16 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   canWriteWithholdingSlip = false,
   onRetryWithholdingCoverage,
   onRecordWithholdingSlip,
+  vendorMissing = false,
+  onSetVendor,
   onViewWithholdingSlip,
   onWithholdingHistory,
+  targetInvoiceId,
   isApprover = false,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
+  const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation();
   const resolvedWithholdingCoverage = withholdingCoverage;
   const slipCoverageLoading = withholdingCoverageLoading;
@@ -295,10 +303,10 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
-      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={resolvedWithholdingCoverage[row.recordId]} isLoading={slipCoverageLoading} isError={slipCoverageError} canWrite={canWriteWithholdingSlip} onRetry={onRetryWithholdingCoverage} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
+      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={resolvedWithholdingCoverage[row.recordId]} isLoading={slipCoverageLoading} isError={slipCoverageError} canWrite={canWriteWithholdingSlip} onRetry={onRetryWithholdingCoverage} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
       return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
     },
-  }), [canWriteWithholdingSlip, invoices, onRecordWithholdingSlip, onRetryWithholdingCoverage, onViewWithholdingSlip, onWithholdingHistory, resolvedWithholdingCoverage, slipCoverageError, slipCoverageLoading]);
+  }), [canWriteWithholdingSlip, invoices, onRecordWithholdingSlip, onRetryWithholdingCoverage, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, resolvedWithholdingCoverage, slipCoverageError, slipCoverageLoading, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
@@ -319,6 +327,19 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
     if (filter === 'has-file') return row.fileHref !== null;
     return true;
   });
+
+  useLayoutEffect(() => {
+    if (!targetInvoiceId) {
+      focusedInvoiceTarget.current = null;
+      return;
+    }
+    if (!filteredRows.some((row) => row.type === 'Invoice' && row.recordId === targetInvoiceId)) return;
+    const target = document.getElementById(`invoice-${targetInvoiceId}`);
+    if (!target || target === focusedInvoiceTarget.current) return;
+    target.scrollIntoView({ block: 'nearest' });
+    target.focus({ preventScroll: true });
+    focusedInvoiceTarget.current = target;
+  }, [targetInvoiceId, filteredRows]);
 
   // Determine DataTable state
   const tableState = filteredRows.length === 0 ? 'empty' : undefined;
@@ -406,6 +427,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
         rows={filteredRows}
         columns={columns}
         rowKey={(row) => row.id}
+        rowTarget={(row) => row.type === 'Invoice' && row.recordId === targetInvoiceId ? `invoice-${row.recordId}` : undefined}
         rowMenu={(row): RowMenuItem[] | undefined => {
           if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
@@ -413,7 +435,8 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           const coverage = resolvedWithholdingCoverage[row.recordId];
           const invoice = invoices.find((item) => item.id === row.recordId);
           if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
-          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
+          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set vendor'), onClick: onSetVendor });
+          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
           items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
           return items.length ? items : undefined;
         }}

@@ -63,7 +63,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: realRole }),
+  useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1', role: realRole }, role: realRole }),
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
@@ -90,6 +90,7 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     start_date: null,
     end_date: null,
     order_value_set_by: 'u-2',
+    value_author: { role: 'Finance', manager_id: null, status: 'active' },
     order_value_set_at: '2026-08-01T00:00:00Z',
     issued_by: null,
     issued_at: null,
@@ -169,13 +170,82 @@ describe('the rows', () => {
 // ── Affordances match what the server will honour ─────────────────────────────
 
 describe('authorization (UX gate; the RPCs are the authority)', () => {
-  it('a PM gets create, edit, set-value, issue and cancel on a draft', () => {
-    listState.data = [row()];
+  it('AC-UXS-010 blocks only a positive-value self-authored issue for a below-Finance issuer', () => {
+    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
+    expect(issueGate).toHaveTextContent('Another reviewer must issue this order');
+    expect(issueGate).toHaveTextContent('You set its value. Ask another authorized reviewer to review and issue it.');
+    expect(screen.queryByText('Issue this work order?')).not.toBeInTheDocument();
+  });
+
+  it('blocks a positive-value draft with no value-set stamp, matching the RPC gate', () => {
+    listState.data = [row({ order_value_set_at: null })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('The value must be set by an authorized reviewer before this order can be issued.')).toBeInTheDocument();
+  });
+
+  it.each(['Finance', 'Executive', 'Admin'] as const)(
+    'allows a %s value author to issue their own positive-value draft (0197 §8 exemption)',
+    (role) => {
+      listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
+      renderTab(role);
+      expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+      expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
+    },
+  );
+
+  it('allows any author to issue a zero-value draft because there is no value to ratify', () => {
+    listState.data = [row({ order_value: 0, order_value_set_by: 'u-1' })];
+    renderTab('Project Manager');
+    expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+    expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
+  });
+
+  it('blocks a PM when a peer author does not outrank them per the server predicate', () => {
+    listState.data = [row({
+      order_value_set_by: 'u-2',
+      value_author: { role: 'Project Manager', manager_id: null, status: 'active' },
+    })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
+    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
+  });
+
+  it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
+    listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
     expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();
     for (const name of ['Edit', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
+  });
+
+  it('#953 shows a rejected Set value save in the modal without an unreachable warning toast', async () => {
+    listState.data = [row()];
+    mutations.setValue.mutateAsync.mockRejectedValueOnce(new Error('Could not save'));
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Set value' }));
+
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByTestId('wo-value-input'), '300000');
+    await user.selectOptions(within(dialog).getByTestId('wo-value-tax-treatment'), 'inclusive');
+    await user.type(within(dialog).getByTestId('wo-value-tax-amount'), '30000');
+    await user.click(within(dialog).getByRole('button', { name: 'Set value' }));
+
+    const saveError = await within(dialog).findByTestId('entity-modal-save-error');
+    await waitFor(() => expect(saveError).toHaveFocus());
+    // The locale-aware NumberField displays the entered digits with en-US grouping.
+    expect(within(dialog).getByTestId('wo-value-input')).toHaveValue('300,000');
+    expect(mutations.setValue.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      value: 300_000,
+      taxTreatment: 'inclusive',
+    }));
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
   });
 
   it('an Engineer may READ work orders but gets no write affordance anywhere', () => {

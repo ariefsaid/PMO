@@ -151,6 +151,7 @@ const Projects: React.FC = () => {
   // so the mobile toolbar can drive them.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [classificationOpen, setClassificationOpen] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -315,7 +316,14 @@ const Projects: React.FC = () => {
   );
 
   const classificationCount = activeClassificationCount(workingSet);
-  const classificationFilters = <ProjectClassificationFilters rows={all} value={workingSet} onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} />;
+  const classificationFilters = (
+    <ProjectClassificationFilters rows={all} value={workingSet} closeOnMobileSelect
+      onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
+      open={classificationOpen} onOpenChange={(next) => {
+        setClassificationOpen(next);
+        if (next) { setFiltersOpen(false); setMoreOpen(false); }
+      }} />
+  );
   const filtersActive =
     classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
@@ -396,11 +404,12 @@ const Projects: React.FC = () => {
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
+      colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
       exportValue: (p) => p.name,
       cell: (p) => {
         const atRisk = isAtRiskCommitted(p);
         return (
-          <div className="flex min-w-0 max-w-none items-center gap-2.5 md:max-w-[160px]">
+          <div className="flex min-w-0 items-start gap-2.5">
             <span
               aria-hidden
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
@@ -408,8 +417,8 @@ const Projects: React.FC = () => {
             >
               {(p.name.trim().charAt(0) || '•').toUpperCase()}
             </span>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
+            <div className="min-w-0 md:w-[190px] md:min-w-[190px]">
+              <div className="flex min-w-0 flex-col items-start gap-1">
                 <button
                   type="button"
                   data-list-return-focus={`projects:${p.id}`}
@@ -417,7 +426,7 @@ const Projects: React.FC = () => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block max-w-none whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:max-w-[16ch] md:truncate"
+                  className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
                   title={p.name}
                 >
                   {p.name}
@@ -451,32 +460,36 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: t('projects.columns.customer', 'Customer'),
+      colClassName: 'min-[1280px]:w-[132px] min-[1280px]:max-w-[132px]',
       exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
       // can navigate directly to the client record. stopPropagation prevents the
       // row's own click handler (which opens the project detail) from firing when
       // the user clicks the company link.
       cell: (p) => (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()} title={p.client ? companyDisplayName(p.client) : undefined}>
           <CompanyNameLink
             companyId={p.client_id}
             name={p.client ? companyDisplayName(p.client) : null}
-            className="block max-w-[96px] text-[13px]"
+            className="block max-w-[132px] overflow-visible text-clip whitespace-normal break-words text-[13px]"
           />
         </div>
       ),
-      // Keep both customer columns at the high-priority 1440px desktop width.
-      // At narrower laptop widths, the table prioritizes project and delivery data.
-      colClassName: 'hidden min-[1360px]:table-cell',
+      // The DataTable's bounded scroll keeps ancillary fields reachable on laptops.
     },
     {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
-      header: t('projects.columns.endCustomer', 'End customer'),
+      header: all.some((project) => project.end_client)
+        ? t('projects.columns.endCustomer', 'End customer')
+        : <span aria-label={t('projects.columns.endCustomer', 'End customer')} title={t('projects.columns.endCustomer', 'End customer')}>{t('projects.columns.endCustomerShort', 'End')}</span>,
+      colClassName: all.some((project) => project.end_client)
+        ? 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2'
+        : 'min-[1280px]:w-[52px] min-[1280px]:max-w-[52px] min-[1280px]:px-2',
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()} title={p.end_client ? companyDisplayName(p.end_client) : undefined}>
           <CompanyNameLink
             companyId={p.end_client_id}
             name={p.end_client ? companyDisplayName(p.end_client) : null}
@@ -484,11 +497,11 @@ const Projects: React.FC = () => {
           />
         </div>
       ),
-      colClassName: 'hidden min-[1360px]:table-cell',
     },
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
+      colClassName: 'min-[1280px]:w-[44px] min-[1280px]:max-w-[44px]',
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -498,8 +511,7 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         }),
-      // M-D: the PM name no longer truncates ("Alice Mana…"); it wraps within the
-      // roomy 54px row. whitespace-normal overrides the cell's whitespace-nowrap.
+      // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
         const label = projectManagerLabel({
           managerId: p.project_manager_id,
@@ -507,15 +519,18 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
+        const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
         return (
-          <span className="flex max-w-[96px] items-center gap-1.5">
+          <span className="flex items-center justify-center">
             <span
-              aria-hidden
-              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              role="img"
+              aria-label={label}
+              title={label}
+              className="grid size-[18px] shrink-0 place-items-center rounded-full text-[8px] font-bold text-white"
+              style={{ background: 'hsl(var(--avatar-2))' }}
             >
-              {(label.trim().charAt(0) || '?').toUpperCase()}
+              {initials}
             </span>
-            <span className="min-w-0 break-words whitespace-normal leading-tight">{label}</span>
           </span>
         );
       },
@@ -526,13 +541,14 @@ const Projects: React.FC = () => {
       // status labels is its own decision (it needs one map every surface shares) and is not in
       // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
+      colClassName: 'min-[1280px]:w-[76px] min-[1280px]:max-w-[76px]',
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <StatusPill
           variant={pillVariantForProjectStatus(p.status as string)}
           // The label wraps beside its dot: `!` overrides the pill's own whitespace-nowrap (cn does
           // not merge conflicting utilities), so a long status never forces the column wider.
-          className="max-w-[92px] leading-tight whitespace-normal!"
+          className="max-w-[68px] px-1.5 py-0.5 text-[10px] leading-tight whitespace-normal!"
         >
           {p.status}
         </StatusPill>
@@ -541,6 +557,7 @@ const Projects: React.FC = () => {
     {
       key: 'contract',
       header: t('projects.columns.contract', 'Contract'),
+      colClassName: 'min-[1280px]:w-[98px] min-[1280px]:max-w-[98px]',
       align: 'num',
       exportValue: (p) => p.contract_value,
       // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
@@ -548,25 +565,34 @@ const Projects: React.FC = () => {
       // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
       // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
       // there reads as comparable when it is not.
-      // The basis note takes its own wrapping line under the amount (the DESIGN.md invoice-card
-      // rule): inline, its rate + DPP details (#811) widened the column past the 1440px table
-      // budget (AC-TBL-OVERFLOW-001).
-      cell: (p) => (
-        <div className="flex flex-col items-end gap-0.5">
-          <span>{formatCurrency(p.contract_value, p.currency)}</span>
-          <TaxBasisLabel
-            treatment={p.tax_treatment}
-            taxRate={p.tax_rate}
-            taxBaseNumerator={p.tax_base_numerator}
-            taxBaseDenominator={p.tax_base_denominator}
-            className="block max-w-[110px] whitespace-normal leading-tight"
-          />
-        </div>
-      ),
+      // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
+      cell: (p) => {
+        const detailsId = `contract-tax-details-${p.id}`;
+        return (
+          <div className="flex flex-col items-end gap-0.5" aria-describedby={detailsId}>
+            <span>{formatCurrency(p.contract_value, p.currency)}</span>
+            <TaxBasisLabel
+              treatment={p.tax_treatment}
+              showDetails={false}
+              className="block whitespace-nowrap leading-tight"
+            />
+            <span id={detailsId} className="sr-only">
+              <TaxBasisLabel
+                treatment={p.tax_treatment}
+                taxRate={p.tax_rate}
+                taxBaseNumerator={p.tax_base_numerator}
+                taxBaseDenominator={p.tax_base_denominator}
+                testId={`contract-tax-label-${p.id}`}
+              />
+            </span>
+          </div>
+        );
+      },
     },
     {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
+      colClassName: 'min-[1280px]:w-[94px] min-[1280px]:max-w-[94px]',
       align: 'num',
       // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
       // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
@@ -582,6 +608,7 @@ const Projects: React.FC = () => {
     {
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
+      colClassName: 'min-[1280px]:w-[108px] min-[1280px]:max-w-[108px]',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -607,6 +634,7 @@ const Projects: React.FC = () => {
     {
       key: 'budget-used',
       header: t('projects.columns.budgetUsed', 'Budget used'),
+      colClassName: 'min-[1280px]:w-[116px] min-[1280px]:max-w-[116px]',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of $0/$0.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -636,6 +664,7 @@ const Projects: React.FC = () => {
     {
       key: 'transition',
       header: t('projects.columns.action', 'Action'),
+      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px]',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()}>
           <ProjectStatusControl
@@ -728,7 +757,7 @@ const Projects: React.FC = () => {
   // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
   // it into cards.
   const secondaryCount =
-    classificationCount + (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
+    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
   const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
   const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
   const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
@@ -815,7 +844,7 @@ const Projects: React.FC = () => {
             closeOnSelectChange
             onOpenChange={(next) => {
               setFiltersOpen(next);
-              if (next) setMoreOpen(false);
+              if (next) { setMoreOpen(false); setClassificationOpen(false); }
             }}
           >
             <div className="w-full min-w-0 space-y-3">
@@ -932,16 +961,7 @@ const Projects: React.FC = () => {
                     </p>
                   )}
               </div>
-              {classificationFilters}
             </div>
-          </MobileToolbarDisclosure>
-        )}
-
-        {isEngineer && (
-          <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
-            count={classificationCount} open={filtersOpen} closeOnSelectChange
-            onOpenChange={(next) => { setFiltersOpen(next); if (next) setMoreOpen(false); }}>
-            {classificationFilters}
           </MobileToolbarDisclosure>
         )}
 
@@ -951,7 +971,7 @@ const Projects: React.FC = () => {
             open={moreOpen}
             onOpenChange={(next) => {
               setMoreOpen(next);
-              if (next) setFiltersOpen(false);
+              if (next) { setFiltersOpen(false); setClassificationOpen(false); }
             }}
           >
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
@@ -960,6 +980,8 @@ const Projects: React.FC = () => {
           </MobileToolbarDisclosure>
         )}
       </div>
+
+      {classificationFilters}
 
       {/* active secondary-filter chips + Clear all (AC-PRJUX-002) */}
       {hasNonDefaultFilter && (

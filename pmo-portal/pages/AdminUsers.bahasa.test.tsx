@@ -128,7 +128,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the row menu, role confirm and its toast are Bahasa', async () => {
     renderPage();
     await userEvent.click(
-      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Tindakan baris/i }),
     );
     expect(await screen.findByRole('menuitem', { name: 'Ubah manajer' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the reporting line reads "Atasan langsung" in the manager modal and its toast — not the literal "garis pelaporan"', async () => {
     renderPage();
     await userEvent.click(
-      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Tindakan baris/i }),
     );
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Ubah manajer' }));
     const dialog = await screen.findByRole('dialog');

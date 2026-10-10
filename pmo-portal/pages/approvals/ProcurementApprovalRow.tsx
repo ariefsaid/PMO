@@ -156,12 +156,6 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               </div>
             )}
           </div>
-          {!isInline && (
-            <p className="max-w-[68ch] text-[13px] text-muted-foreground">
-              Approval actions remain permission-gated in the UI and server-enforced via the
-              procurement transition RPC.
-            </p>
-          )}
         </div>
 
         <div className={isInline ? 'space-y-3' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>
@@ -291,16 +285,20 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
   const [expanded, setExpanded] = useState(false);
 
   const subtitle = (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-      <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
-      <ProjectNameLink
-        projectId={row.project_id}
-        name={row.project?.name ?? null}
-        className="text-[12px]"
-      />
-      {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-      <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
-      <span>{daysAgo(row.created_at)}</span>
+    <span className="block">
+      <span className="block break-words">
+        <span className="block whitespace-nowrap font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+        <ProjectNameLink
+          projectId={row.project_id}
+          name={row.project?.name ?? null}
+          className="block whitespace-normal break-words text-xs"
+        />
+      </span>
+      <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
+        <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
+        <span>{daysAgo(row.created_at)}</span>
+      </span>
     </span>
   );
 
@@ -308,6 +306,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
     <div className="border-b border-border last:border-b-0">
       <ApprovalRow
         name={row.title}
+        identityLayout="request"
         subtitle={subtitle}
         status={<StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>}
         onActivate={() => setExpanded((v) => !v)}

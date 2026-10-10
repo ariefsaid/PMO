@@ -24,14 +24,14 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile & preferences' }]);
   });
   it('AC-NAV-003: a module index route renders a single current crumb', () => {
-    expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects' }]);
-    expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline' }]);
-    expect(breadcrumbForPath('/procurement')).toEqual([{ label: 'Procurement' }]);
-    expect(breadcrumbForPath('/timesheets')).toEqual([{ label: 'Timesheets' }]);
+    expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects', i18nKey: 'shell.nav.projects' }]);
+    expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline', i18nKey: 'shell.nav.sales' }]);
+    expect(breadcrumbForPath('/procurement')).toEqual([{ label: 'Procurement', i18nKey: 'shell.nav.procurement' }]);
+    expect(breadcrumbForPath('/timesheets')).toEqual([{ label: 'Timesheets', i18nKey: 'shell.nav.timesheets' }]);
   });
 
   it('AC-NAV-003: the dashboard root renders the Dashboard crumb', () => {
-    expect(breadcrumbForPath('/')).toEqual([{ label: 'Dashboard' }]);
+    expect(breadcrumbForPath('/')).toEqual([{ label: 'Dashboard', i18nKey: 'shell.nav.dashboard' }]);
   });
 
   it('AC-NAV-004: a detail route with a resolved record name renders [module link > record current]', () => {
@@ -74,6 +74,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1].label).toBe('Loading…');
+    // UXS-006: the pending crumb carries the shared shell vocabulary key so an
+    // id-locale session reads the localized pending state.
+    expect(crumbs[1].i18nKey).toBe('shell.breadcrumb.recordLoading');
     // the raw URL id must never leak into a visible label (fixes M3/M4)
     expect(crumbs[1].label).not.toContain('9f3a-uuid');
   });
@@ -90,6 +93,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(crumbs).toHaveLength(2);
     expect(crumbs[0].label).toBe('Projects');
     expect(crumbs[1].label).toBe('Not found');
+    // UXS-006: the not-found crumb carries the shared shell vocabulary key so an
+    // id-locale session reads the localized not-found state.
+    expect(crumbs[1].i18nKey).toBe('shell.breadcrumb.recordNotFound');
     expect(crumbs[1].label).not.toBe('Loading…');
     expect(crumbs[1].label).not.toContain('9f3a-uuid');
   });
@@ -108,7 +114,7 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   });
 
   it('AC-NAV-005: a placeholder route reads its OWN page label, not "Dashboard"', () => {
-    expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies' }]);
+    expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies', i18nKey: 'shell.nav.companies' }]);
     expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Reports' }]);
     // The shell-owned Administration placeholder carries its i18n key so the crumb localizes.
     expect(breadcrumbForPath('/administration')).toEqual([
@@ -204,7 +210,9 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
   // C-MIN-4: an unknown route renders "Not found" — the `*` route is a 404, not the dashboard.
   it('C-MIN-4: an unknown route resolves to a "Not found" crumb, not "Dashboard"', () => {
-    expect(breadcrumbForPath('/totally-unknown')).toEqual([{ label: 'Not found' }]);
+    expect(breadcrumbForPath('/totally-unknown')).toEqual([
+      { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' },
+    ]);
   });
 
   it('the /budget deep-link route resolves under the Projects module', () => {

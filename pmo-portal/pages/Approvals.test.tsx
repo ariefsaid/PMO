@@ -72,6 +72,8 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
+const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
@@ -171,6 +173,9 @@ beforeEach(() => {
   invoiceState.rows = [];
   invoiceState.isPending = false;
   invoiceState.isError = false;
+  expenseState.data = [];
+  expenseState.isPending = false;
+  expenseState.isError = false;
   queryState.data = undefined;
   queryState.isPending = false;
   queryState.isError = false;
@@ -226,7 +231,7 @@ describe('Approvals page states', () => {
     renderPage('all');
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
     const scope = screen.getByLabelText('Approvals scope');
-    expect(within(scope).getByText('All').closest('[role="tab"], button')).toHaveTextContent('2');
+    expect(within(scope).getByText('All pending').closest('[role="tab"], button')).toHaveTextContent('2');
   });
 
   it('AC-NAR-002 (C-1) while the invoices awaiting the viewer are still loading, the page does not claim "all caught up"', () => {

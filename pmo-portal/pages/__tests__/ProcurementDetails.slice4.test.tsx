@@ -33,6 +33,7 @@ const detailState = {
 };
 
 const mockTransition = vi.fn().mockResolvedValue(undefined);
+const mockNavigate = vi.hoisted(() => vi.fn());
 
 // Real-role state — mirrors how impersonation works (realRole != effectiveRole)
 const roleState = vi.hoisted(() => ({
@@ -114,7 +115,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
+  return { ...actual, useNavigate: () => mockNavigate };
 });
 
 vi.mock('@/src/components/ui', async (orig) => {
@@ -197,6 +198,7 @@ beforeEach(() => {
   detailState.isError = false;
   detailState.error = null;
   mockTransition.mockClear();
+  mockNavigate.mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -254,12 +256,21 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.getByRole('button', { name: /generate purchase order/i })).toBeInTheDocument();
   });
 
-  it('Vendor Quoted: shows Select Quote (primary)', () => {
+  it('AC-PMC-006: Vendor Quoted action opens bid comparison and does not transition', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Vendor Quoted' };
     renderPage();
-    expect(screen.getByRole('button', { name: /select quote/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /compare and select a quote/i }));
+    expect(mockNavigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', expect.objectContaining({ replace: true }));
+    expect(mockTransition).not.toHaveBeenCalled();
+  });
+
+  it('AC-PMC-006: empty quote tab explains the missing bid comparison', () => {
+    detailState.data = { ...BASE, status: 'Vendor Quoted', quotations: [] };
+    renderPage('proc-001', 'quotes');
+    expect(screen.getByText('No quotes recorded. Add a vendor quote to compare bids.')).toBeInTheDocument();
   });
 
   it('Quote Selected: shows Generate Purchase Order (primary)', () => {
@@ -732,6 +743,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
       status: 'Vendor Invoiced',
       approved_by_id: 'u-other', // not the payer — SoD OK
       total_value: 50000, currency: 'USD',
+      invoices: [{ id: 'vi-payable', amount: 1000, tax_treatment: 'exclusive', tax_amount: 110, withheld_amount: 20 }],
       project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
     };
     renderPage();
@@ -739,7 +751,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     // Dialog body restates the money context (confirm against the money — OD-UX-1)
-    expect(dialog!.textContent).toMatch(/mark.*paid.*cannot be undone/i);
+    expect(dialog!.textContent).toContain('Record $1,090 as paid? This records payment evidence; it does not transfer funds.');
   });
 
   it('Submit Request (routine) commits directly — no ConfirmDialog', async () => {

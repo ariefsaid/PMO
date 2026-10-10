@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -34,7 +35,9 @@ const hoisted = vi.hoisted(() => ({
         erp_amended_from: null,
         erp_cancelled_at: null,
         created_at: '2026-07-01T00:00:00Z',
-        author_user_id: 'user-1',
+        author_user_id: 'u-pm',
+        author_user_ids: ['u-pm'],
+        pmo_native: true,
         erp_payment_terms_days: 30,
         erp_due_date: null,
       },
@@ -88,12 +91,22 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
+vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
+  SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
+}));
 
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: vi.fn(),
 }));
 
 import SalesInvoices from '../../pages/SalesInvoices';
+
+const Location = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+};
 
 const renderAt = (url: string) =>
   render(
@@ -103,7 +116,11 @@ const renderAt = (url: string) =>
       <ImpersonationProvider realRole="Finance">
         <MemoryRouter initialEntries={[url]}>
           <ToastProvider>
-            <SalesInvoices />
+            <Location />
+            <Routes>
+              <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+            </Routes>
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
@@ -123,5 +140,54 @@ describe('SalesInvoices — deep link (#787)', () => {
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).toContain('ACC-SINV-2026-00002');
+  });
+
+  it('UXS-014 directly addresses an unnumbered draft by its customer and does not offer its author self-approval', () => {
+    salesInvoicesState.data[0] = {
+      ...salesInvoicesState.data[0],
+      si_number: null,
+      status: 'Draft',
+      pmo_native: true,
+      author_user_id: 'u-pm',
+      author_user_ids: ['u-pm'],
+    };
+    renderAt('/sales-invoices/inv-1?q=ACC-SINV-2026-00002');
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-1?q=ACC-SINV-2026-00002');
+    expect(screen.getByRole('heading', { name: 'Draft invoice · Acme Energy' })).toBeInTheDocument();
+    expect(screen.getByText('Invoice preview')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue to approve' })).not.toBeInTheDocument();
+    expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
+  });
+
+  it('UXS-014 opens from the list and browser Back restores the search URL', async () => {
+    const userInstance = userEvent.setup();
+    renderAt('/sales-invoices?q=ACC-SINV-2026-00002');
+    const row = screen.getByText('ACC-SINV-2026-00002').closest('tr');
+    expect(row).not.toBeNull();
+    await userInstance.click(within(row as HTMLElement).getByRole('button', { name: 'Row actions' }));
+    await userInstance.click(screen.getByRole('menuitem', { name: 'View invoice' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-2?q=ACC-SINV-2026-00002');
+    await userInstance.click(screen.getByRole('button', { name: 'Back to Sales Invoices' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ACC-SINV-2026-00002');
+    expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
+  });
+
+  it('UXS-014 an unknown invoice id reads as not found', () => {
+    renderAt('/sales-invoices/inv-missing');
+    expect(screen.getByText('Invoice not found')).toBeInTheDocument();
+  });
+
+  it('UXS-014 a failed load on a record link is an error with retry, never "not found"', async () => {
+    const prev = { isError: salesInvoicesState.isError, data: salesInvoicesState.data };
+    Object.assign(salesInvoicesState, { isError: true, data: undefined });
+    try {
+      renderAt('/sales-invoices/inv-1');
+      expect(screen.queryByText('Invoice not found')).not.toBeInTheDocument();
+      expect(screen.getByText("Couldn't load sales invoices")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(salesInvoicesState.refetch).toHaveBeenCalled();
+    } finally {
+      Object.assign(salesInvoicesState, prev);
+    }
   });
 });

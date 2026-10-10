@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -114,6 +115,56 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
       'href',
       '/projects/p1/tasks',
     );
+  });
+
+  it('AC-IFW-TASKS-01 defaults to active work and keeps completed tasks available', async () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 'open', name: 'Prepare the agenda', status: 'To Do', assignee_id: 'u-self', project_id: 'p1', project_name: 'North project', start_date: null, end_date: null },
+      { id: 'done', name: 'Send last week notes', status: 'Done', assignee_id: 'u-self', project_id: 'p1', project_name: 'North project', start_date: null, end_date: null },
+    ];
+    const user = userEvent.setup();
+    renderMyTasks();
+
+    expect(screen.getByRole('button', { name: 'Open tasks' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Prepare the agenda')).toBeInTheDocument();
+    expect(screen.queryByText('Send last week notes')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Completed' }));
+    expect(screen.getByText('Send last week notes')).toBeInTheDocument();
+    expect(screen.queryByText('Prepare the agenda')).not.toBeInTheDocument();
+  });
+
+  it('AC-IFW-TASKS-01 searches task and project context and clearing restores the selected queue', async () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 't1', name: 'Prepare the agenda', status: 'To Do', assignee_id: 'u-self', project_id: 'p1', project_name: 'North project', start_date: null, end_date: null },
+      { id: 't2', name: 'Review the estimate', status: 'To Do', assignee_id: 'u-self', project_id: 'p2', project_name: 'South project', start_date: null, end_date: null },
+    ];
+    const user = userEvent.setup();
+    renderMyTasks();
+
+    const search = screen.getByRole('searchbox', { name: 'Search your tasks' });
+    await user.type(search, 'south');
+    expect(screen.getByText('Review the estimate')).toBeInTheDocument();
+    expect(screen.queryByText('Prepare the agenda')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(search).toHaveValue('');
+    expect(screen.getByText('Prepare the agenda')).toBeInTheDocument();
+    expect(screen.getByText('Review the estimate')).toBeInTheDocument();
+  });
+
+  it('AC-IFW-TASKS-01 shows a useful no-results state with a clear-search remedy', async () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 't1', name: 'Prepare the agenda', status: 'To Do', assignee_id: 'u-self', project_id: 'p1', project_name: 'North project', start_date: null, end_date: null },
+    ];
+    const user = userEvent.setup();
+    renderMyTasks();
+    await user.type(screen.getByRole('searchbox', { name: 'Search your tasks' }), 'missing');
+    expect(screen.getByText('No tasks match your search')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument();
   });
 
   it('CW-7: task dates render human-formatted, never raw ISO', () => {

@@ -96,6 +96,8 @@ export interface ClassifyContext {
    * classifies the same rejection for its toast. One user-visible failure, one `save_failed`.
    */
   suppressCapture?: boolean;
+  /** Caller-owned product wording for known refusal details; never pass backend text through to the UI when a localized message exists. */
+  detailOverrides?: Record<string, string>;
 }
 
 // RUNTIME guards (not just the types above): TS types are erased at runtime and a caller can
@@ -262,7 +264,10 @@ export function classifyMutationError(
       : code
         ? POSTGRES_GENERATED_DETAIL[code]
         : undefined;
-  const detail = generated || rawDetail;
+  const detailOverride = code && context?.detailOverrides && Object.prototype.hasOwnProperty.call(context.detailOverrides, code)
+    ? context.detailOverrides[code]
+    : undefined;
+  const detail = detailOverride ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS

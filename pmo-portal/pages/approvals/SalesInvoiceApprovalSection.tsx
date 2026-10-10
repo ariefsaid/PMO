@@ -23,7 +23,7 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
   const intents = useCommandIntentMap();
   const [target, setTarget] = useState<SalesInvoiceRow | null>(null);
 
-  if (isPending) return null;
+  if (isPending) return <div className="mb-4"><ListState variant="loading" rows={3} /></div>;
   if (isError) {
     return (
       <div className="mb-4">
