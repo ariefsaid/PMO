@@ -44,10 +44,9 @@ describe('KPITile', () => {
     expect(screen.getByTestId('kpi-delta').className).toContain('text-destructive');
   });
 
-  it('help is keyboard-focusable with an aria-label', () => {
+  it('help is a native keyboard-focusable button with an accessible name', () => {
     render(<KPITile icon="dollar" tone="blue" label="x" value="1" help="Weighted by stage" />);
-    const help = screen.getByLabelText(/help/i);
-    expect(help).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
   });
 
   it('loading renders a skeleton tile', () => {

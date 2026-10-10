@@ -980,9 +980,17 @@
       "label": "Approvals"
     },
     "atRisk": {
-      "label": "at-risk",
-      "linkLabel": "View {{n}} at-risk projects"
+      "reviewSingle": "Review {{count}} at-risk project",
+      "reviewMany": "Review {{count}} at-risk projects"
     },
+    "budgetReviewLink": "Review {{project}} budget",
+    "snapshots": {
+      "unavailable": "No accounting snapshot has been synced yet.",
+      "guidance": "Ask your administrator to sync accounting data."
+    },
+    "accountingSnapshots": "Accounting snapshots",
+    "actualsSnapshotEmpty": "No actuals snapshot yet",
+    "agingSnapshotEmpty": "No aging data to show yet.",
     "boardPack": {
       "ariaLabel": "Board pack (coming soon)",
       "label": "Board pack",
@@ -1032,15 +1040,19 @@
         "vs": "of {{gross}} gross"
       },
       "revenueOnHand": {
-        "help": "Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below.",
+        "help": "Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date.",
         "label": "Revenue on hand",
-        "vs": "realized"
+        "vs": "Realized margin: {{percent}}"
       },
+      "aboutMetric": "About this metric",
+      "helpLabel": "Help: {{label}}",
+      "mobileVs": "Booked across active + closed-out contracts · {{margin}}",
       "totalContractValue": {
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
         "linkLabel": "Open active projects to see total contract value",
-        "vs": "active projects"
+        "vs": "active projects",
+        "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
         "help": "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
@@ -1048,6 +1060,24 @@
         "linkLabel": "Open active projects to see spend breakdown",
         "vs": "actual to date"
       }
+    },
+    "mobile": {
+      "needsAttention": "Needs attention",
+      "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
+      "noRiskSummary": "of {{count}} active projects · all on track",
+      "activeProjectsLink": "Open active projects · {{count}} projects",
+      "spendLink": "Open spend breakdown · {{amount}} spent to date",
+      "view": "View",
+      "breakdown": "Breakdown",
+      "approvals": "Approvals",
+      "awaitingApproval": "Awaiting your approval",
+      "approvalsLink": "Awaiting your approval: {{count}} items. Open approvals inbox.",
+      "approvalsLinkError": "Awaiting your approval. Open approvals inbox.",
+      "review": "Review",
+      "contractBook": "Contract book",
+      "atRiskRegion": "Projects at risk",
+      "atRiskZero": "All projects on track",
+      "atRiskCount": "{{count}} projects at risk"
     },
     "kpiBand": {
       "label": "Portfolio KPIs"

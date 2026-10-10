@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
@@ -111,6 +112,7 @@ const actualsColumns = (orgCurrency: string): Column<ErpActualsSnapshotRow>[] =>
 function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }>({
   title,
   emptyLabel,
+  emptyDescription,
   rows,
   pending,
   isError,
@@ -121,6 +123,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
 }: {
   title: string;
   emptyLabel: string;
+  emptyDescription: string;
   rows: Row[];
   pending?: boolean;
   isError?: boolean;
@@ -147,7 +150,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
         ) : pending ? (
           <ListState variant="loading" rows={3} />
         ) : rows.length === 0 ? (
-          <ListState variant="empty" icon="doc" title={emptyLabel} sub="Refresh the ERPNext binding to populate this snapshot." />
+          <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
           <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" />
         )}
@@ -170,15 +173,17 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   arAgingError,
   onRetryArAging,
 }) => {
+  const { t } = useTranslation();
   // FR-L10N-020 (D6): aging rows carry the ERP document's OWN currency (nullable) — use it when
   // present and fall back to the org's. Actuals rows (ErpActualsSnapshotRow) carry no currency
   // field at all — those figures are org-denominated.
   const orgCurrency = useOrgCurrency();
   return (
-  <section aria-label="Accounting snapshots" className="flex flex-col gap-4">
+  <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
     <SnapshotBlock<ErpActualsSnapshotRow>
       title="Actuals (ERP ledger)"
-      emptyLabel="No actuals snapshot yet"
+      emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
+      emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
       rows={actuals}
       pending={actualsPending}
       isError={actualsError}
@@ -193,7 +198,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     />
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AP aging"
-      emptyLabel="No AP aging snapshot yet"
+      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
+      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
       pending={apAgingPending}
       isError={apAgingError}
@@ -204,7 +210,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     />
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AR aging"
-      emptyLabel="No AR aging snapshot yet"
+      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
+      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
       pending={arAgingPending}
       isError={arAgingError}

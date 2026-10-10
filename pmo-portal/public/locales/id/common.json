@@ -980,9 +980,17 @@
       "label": "Persetujuan"
     },
     "atRisk": {
-      "label": "berisiko",
-      "linkLabel": "Lihat {{n}} proyek berisiko"
+      "reviewSingle": "Tinjau {{count}} proyek berisiko",
+      "reviewMany": "Tinjau {{count}} proyek berisiko"
     },
+    "budgetReviewLink": "Tinjau anggaran {{project}}",
+    "snapshots": {
+      "unavailable": "Belum ada snapshot akuntansi yang disinkronkan.",
+      "guidance": "Minta administrator menyinkronkan data akuntansi."
+    },
+    "accountingSnapshots": "Snapshot akuntansi",
+    "actualsSnapshotEmpty": "Belum ada snapshot aktual",
+    "agingSnapshotEmpty": "Belum ada data umur utang/piutang untuk ditampilkan.",
     "boardPack": {
       "ariaLabel": "Board pack (segera hadir)",
       "label": "Board pack",
@@ -1032,15 +1040,19 @@
         "vs": "dari {{gross}} bruto"
       },
       "revenueOnHand": {
-        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi hingga kini adalah % yang ditampilkan di bawah.",
+        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi adalah bagian pendapatan yang tersisa setelah biaya aktual hingga kini.",
         "label": "Pendapatan saat ini",
-        "vs": "terealisasi"
+        "vs": "Margin terealisasi: {{percent}}"
       },
+      "aboutMetric": "Tentang metrik ini",
+      "helpLabel": "Bantuan: {{label}}",
+      "mobileVs": "Pendapatan terkontrak pada kontrak aktif + selesai · {{margin}}",
       "totalContractValue": {
         "help": "Total nilai kontrak di seluruh portofolio aktif.",
         "label": "Total nilai kontrak",
         "linkLabel": "Buka proyek aktif untuk melihat total nilai kontrak",
-        "vs": "proyek aktif"
+        "vs": "proyek aktif",
+        "mobileVs": "Nilai kontrak {{count}} proyek yang masih berjalan"
       },
       "totalSpend": {
         "help": "Jumlah realisasi pengeluaran pada proyek teratas portofolio. (Agregat pengeluaran terkomitmen akan menyusul.)",
@@ -1048,6 +1060,24 @@
         "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran",
         "vs": "realisasi hingga kini"
       }
+    },
+    "mobile": {
+      "needsAttention": "Perlu perhatian",
+      "riskSummary": "dari {{count}} proyek aktif melewati anggaran atau terlambat",
+      "noRiskSummary": "dari {{count}} proyek aktif · semua berjalan sesuai rencana",
+      "activeProjectsLink": "Buka proyek aktif · {{count}} proyek",
+      "spendLink": "Buka rincian pengeluaran · {{amount}} hingga kini",
+      "view": "Lihat",
+      "breakdown": "Rincian",
+      "approvals": "Persetujuan",
+      "awaitingApproval": "Menunggu persetujuan Anda",
+      "approvalsLink": "Menunggu persetujuan Anda: {{count}} item. Buka kotak masuk persetujuan.",
+      "approvalsLinkError": "Menunggu persetujuan Anda. Buka kotak masuk persetujuan.",
+      "review": "Tinjau",
+      "contractBook": "Portofolio kontrak",
+      "atRiskRegion": "Proyek berisiko",
+      "atRiskZero": "Semua proyek sesuai rencana",
+      "atRiskCount": "{{count}} proyek berisiko"
     },
     "kpiBand": {
       "label": "KPI portofolio"
