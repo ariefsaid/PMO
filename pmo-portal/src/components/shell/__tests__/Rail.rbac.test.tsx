@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -32,11 +32,12 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 }));
 
 // S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
+let crmFeatureEnabled = true;
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({
     data: {
       incidents: false,
-      crm: true,
+      crm: crmFeatureEnabled,
       procurement: true,
       timesheets: true,
       import_export: true,
@@ -85,5 +86,27 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
   it('AC-W2-IXD-003: an Admin sees the Approvals nav item', () => {
     renderRailAs('Admin');
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
+  });
+
+  it('UXS-007: a Project Manager can discover assigned work with its cross-project meaning in the rail', () => {
+    renderRailAs('Project Manager');
+    const link = screen.getByRole('link', { name: /My Tasks.*Your assigned work across projects/ });
+    expect(link).toHaveAttribute('href', '/my-tasks');
+    expect(link).toHaveAttribute('aria-describedby', 'rail-my-tasks-hint');
+    expect(within(link).getByText('Your assigned work across projects')).toBeInTheDocument();
+  });
+
+  it('UXS-007: the personal task doorway does not change Executive navigation', () => {
+    renderRailAs('Executive');
+    expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
+  });
+
+  it('UXS-030: Vendors opens the existing Companies list with the Vendor filter even when CRM navigation is hidden', () => {
+    crmFeatureEnabled = false;
+    renderRailAs('Finance');
+    expect(screen.getByRole('link', { name: 'Vendors' })).toHaveAttribute('href', '/companies?type=Vendor');
+    expect(screen.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Contacts' })).not.toBeInTheDocument();
+    crmFeatureEnabled = true;
   });
 });

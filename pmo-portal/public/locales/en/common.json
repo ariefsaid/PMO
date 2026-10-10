@@ -3104,7 +3104,9 @@
       "label": "Back to {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb"
+      "label": "Breadcrumb",
+      "recordLoading": "Loading…",
+      "recordNotFound": "Not found"
     },
     "contextBar": {
       "accountMenu": "Account menu",
@@ -3138,6 +3140,8 @@
       "integrations": "My integrations",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
+      "myTasksHint": "Your assigned work across projects",
+      "vendors": "Vendors",
       "procurement": "Procurement",
       "projects": "Projects",
       "revenueByProject": "Revenue by Project",
@@ -3168,6 +3172,17 @@
       "inputPlaceholder": "Search projects, PRs, customers, or run a command…",
       "recordsError": "Couldn't load records.",
       "recordsGroup": "Records",
+      "navigateGroup": "Navigate",
+      "actionsGroup": "Actions",
+      "projectPipeline": "Project · Pipeline",
+      "recordProject": "Project",
+      "recordProcurement": "Procurement",
+      "recordCompany": "Company",
+      "recordCompanyNamed": "Company · {{name}}",
+      "recordContact": "Contact",
+      "recordIncident": "Incident",
+      "noResults": "No results for “{{query}}”",
+      "moreResults": "+{{count}} more — refine your search",
       "resultsLabel": "Command results",
       "retry": "Retry"
     },
@@ -3186,6 +3201,11 @@
     "skipLink": {
       "mainContent": "Skip to main content"
     }
+  },
+  "table": {
+    "actions": "Actions",
+    "openRow": "Open {{name}}",
+    "rowActions": "Row actions"
   },
   "task": {
     "status": {

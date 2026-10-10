@@ -1,5 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 // Type-only import from the component file (not the barrel) — keeps the
 // value-side dependency one-directional (CommandPalette imports filterAndCap
 // from here; this file only borrows the PaletteItem type, erased at runtime).
@@ -47,6 +48,7 @@ export function useRecordSearch(
 ): RecordSearch {
   // #840: the six lists load only while the palette is open (`enabled`), not on every cold page;
   // anything an index page already cached is still searched.
+  const { t } = useTranslation();
   const enabled = opts?.enabled !== false;
   const projects = useProjects({ enabled });
   const procurements = useProcurements({ enabled });
@@ -83,7 +85,7 @@ export function useRecordSearch(
         id: `projects:${p.id}`,
         group: 'Records',
         title: p.name,
-        sub: 'Project',
+        sub: t('shell.palette.recordProject', 'Project'),
         code: [
           p.pmo_project_number ? `PMO Project Number: ${p.pmo_project_number}` : null,
           p.code ? `Client Project Code: ${p.code}` : null,
@@ -100,7 +102,7 @@ export function useRecordSearch(
           id: `sales:${o.id}`,
           group: 'Records',
           title: o.name,
-          sub: 'Project · Pipeline',
+          sub: t('shell.palette.projectPipeline', 'Project · Pipeline'),
           code: [
             o.pmo_project_number ? `PMO Project Number: ${o.pmo_project_number}` : null,
             o.code ? `Client Project Code: ${o.code}` : null,
@@ -121,7 +123,7 @@ export function useRecordSearch(
           id: `procurement:${pr.id}`,
           group: 'Records',
           title: pr.title,
-          sub: 'Procurement',
+          sub: t('shell.palette.recordProcurement', 'Procurement'),
           code: pr.code ?? pr.pr_number ?? undefined,
           icon: 'procurement',
           run: () => navigate(`/procurement/${pr.id}`),
@@ -135,7 +137,9 @@ export function useRecordSearch(
           id: `companies:${c.id}`,
           group: 'Records',
           title: companyDisplayName(c),
-          sub: c.short_name ? `Company · ${c.name}` : 'Company',
+          sub: c.short_name
+            ? t('shell.palette.recordCompanyNamed', 'Company · {{name}}', { name: c.name })
+            : t('shell.palette.recordCompany', 'Company'),
           icon: 'companies',
           // CW-4b: open the routable `/companies/:id` record page (was an interim `?focus=<id>`
           // drawer-open until the page landed — now retired).
@@ -150,7 +154,7 @@ export function useRecordSearch(
           id: `contacts:${ct.id}`,
           group: 'Records',
           title: ct.full_name,
-          sub: 'Contact',
+          sub: t('shell.palette.recordContact', 'Contact'),
           icon: 'contacts',
           // CW-4b: open the routable `/contacts/:id` record page (was an interim `?focus=<id>`
           // drawer-open until the page landed — now retired).
@@ -168,7 +172,7 @@ export function useRecordSearch(
           id: `incidents:${inc.id}`,
           group: 'Records',
           title: inc.type,
-          sub: 'Incident',
+          sub: t('shell.palette.recordIncident', 'Incident'),
           icon: 'alert',
           // CW-4a: open the routable detail page (was a dead-end — no detail route existed).
           run: () => navigate(`/incidents/${inc.id}`),
@@ -185,6 +189,7 @@ export function useRecordSearch(
     contacts.data,
     incidents.data,
     navigate,
+    t,
     mayViewPipeline,
     mayViewProcurement,
     mayViewCompanies,
