@@ -2650,7 +2650,8 @@
       "issueGate": {
         "title": "Work Order ini harus diterbitkan oleh peninjau lain",
         "body": "Anda yang menetapkan nilainya. Minta peninjau lain yang berwenang untuk meninjau dan menerbitkannya.",
-        "peerBody": "Nilai harus ditetapkan oleh atasan Anda atau peninjau aktif dengan jabatan lebih tinggi sebelum pesanan ini dapat diterbitkan."
+        "peerBody": "Nilai harus ditetapkan oleh atasan Anda atau peninjau aktif dengan jabatan lebih tinggi sebelum pesanan ini dapat diterbitkan.",
+        "unstampedBody": "Nilai harus ditetapkan oleh peninjau yang berwenang sebelum pesanan ini dapat diterbitkan."
       },
       "column": {
         "actions": "Tindakan",

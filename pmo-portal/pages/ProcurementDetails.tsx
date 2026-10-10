@@ -480,6 +480,7 @@ const ProcurementDetails: React.FC = () => {
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
   const canSetVendor = !p.vendor_id
     && effectiveRole === realRole
+    && realRole != null
     && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
     && may('edit', 'procurement');
   const currentUserId = currentUser?.id ?? null;
