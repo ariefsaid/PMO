@@ -436,12 +436,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           || !currentUser?.id
           || !(author.manager_id === currentUser.id
             || (ROLE_RANK[author.role] ?? 0) > (ROLE_RANK[issuerRole] ?? 0));
+        // The RPC also checks auth.users membership/ban state, which is not exposed to this client gate.
         const issueBlockedByValueAuthor = Number(row.order_value ?? 0) > 0
           && !['Finance', 'Executive', 'Admin'].includes(issuerRole)
-          && authorRelationshipFails;
-        const issueGateBody = authorIsSelf
-          ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
-          : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
+          && (!row.order_value_set_at || authorRelationshipFails);
+        const issueGateBody = !row.order_value_set_at
+          ? t('projectDetail.workOrders.issueGate.unstampedBody', 'The value must be set by an authorized reviewer before this order can be issued.')
+          : authorIsSelf
+            ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
+            : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (

@@ -180,6 +180,13 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.queryByText('Issue this work order?')).not.toBeInTheDocument();
   });
 
+  it('blocks a positive-value draft with no value-set stamp, matching the RPC gate', () => {
+    listState.data = [row({ order_value_set_at: null })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('The value must be set by an authorized reviewer before this order can be issued.')).toBeInTheDocument();
+  });
+
   it.each(['Finance', 'Executive', 'Admin'] as const)(
     'allows a %s value author to issue their own positive-value draft (0197 §8 exemption)',
     (role) => {
