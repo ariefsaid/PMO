@@ -26,13 +26,14 @@ import {
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { EfakturCell } from '@/src/components/EfakturCell';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useInvoiceProjectOptions, type InvoiceProjectOption } from '@/src/hooks/useFkOptions';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -164,6 +165,9 @@ const SalesInvoices: React.FC = () => {
   const mode = useRevenueMode();
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
+  const { invoiceId } = useParams<{ invoiceId: string }>();
+  const recordContext = useRecordContext('/sales-invoices', invoiceId);
+  const { data: projectOptions } = useInvoiceProjectOptions();
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -182,12 +186,30 @@ const SalesInvoices: React.FC = () => {
 
   const all = useMemo(() => data ?? [], [data]);
 
-  // #787 (AC-AIN-015): the assistant links an overdue invoice as /sales-invoices?q=<number>; seed the search
-  // from it once on mount. Typing afterwards is local state as before (the URL is not kept in sync).
-  const [searchParams] = useSearchParams();
+  // Search and status live in the list URL so a record address can retain and restore the exact context.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
-  const [viewTarget, setViewTarget] = useState<SalesInvoiceRow | null>(null);
+  const requestedStatus = searchParams.get('status') as StatusFilter | null;
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    requestedStatus && [...ERP_STATUS_FILTERS, ...NATIVE_STATUS_FILTERS].includes(requestedStatus) ? requestedStatus : 'All',
+  );
+  const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
+
+  const updateListParam = (key: 'q' | 'status', value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (!value || (key === 'status' && value === 'All')) next.delete(key);
+      else next.set(key, value);
+      return next;
+    }, { replace: true });
+  };
+
+  const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
+    if (inv.si_number) return inv.si_number;
+    const project = projectOptions?.find((option) => option.value === inv.project_id)?.label;
+    const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
+    return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
+  };
 
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
@@ -231,6 +253,66 @@ const SalesInvoices: React.FC = () => {
             {t('financeCopy.backToDashboard', "Back to dashboard")}</Button>
         </div>
       </div>
+    );
+  }
+
+  if (invoiceId) {
+    return (
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+        <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
+          <Icon name="back" className="size-4" />
+          {t('financeCopy.backToInvoices', 'Back to Sales Invoices')}
+        </Button>
+        {isPending || mode === undefined ? (
+          <ListState variant="loading" rows={3} />
+        ) : isError || !data ? (
+          <ListState
+            variant="error"
+            title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}
+            sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
+            onRetry={() => refetch()}
+          />
+        ) : viewTarget ? (
+          <>
+            <header className="mb-5 border-b border-border pb-4">
+              <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+                {viewTarget.si_number
+                  ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                  : invoiceDisplayLabel(viewTarget)}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+            </header>
+            <SalesInvoiceApprovalPreview inv={viewTarget} />
+            {canApproveDraft(viewTarget) && (
+              <div className="mt-5 flex justify-end">
+                <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)}>
+                  {t('financeCopy.continueToApprove', 'Continue to approve')}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <ListState
+            variant="empty"
+            icon="doc"
+            title={t('financeCopy.invoiceRecordNotFound', 'Invoice not found')}
+            sub={t('financeCopy.invoiceRecordNotFoundBody', 'This invoice is no longer available.')}
+          />
+        )}
+        <ConfirmDialog
+          open={!!submitTarget}
+          title={submitTarget?.pmo_native
+            ? t('financeCopy.approveInvoiceNamed', 'Approve the invoice for {{customer}}?', { customer: submitTarget.customer_name ?? '' })
+            : submitTarget ? t('financeCopy.submitInvoiceNamed', 'Submit {{invoice}}?', { invoice: submitTarget.si_number ?? invoiceDisplayLabel(submitTarget) }) : t('financeCopy.submitInvoiceQuestion', 'Submit invoice?')}
+          description={submitTarget?.pmo_native
+            ? t('financeCopy.approveInvoiceBody', 'Approving issues the invoice: it gets its number, becomes Unpaid and can receive payments. Its author cannot approve it.')
+            : t('financeCopy.submitInvoiceForApprovalThisCommitsItToTheLedgerAndCannotBeUndoneByTheSubmitter', 'Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter.')}
+          confirmLabel={submitTarget?.pmo_native ? t('financeCopy.approveInvoice', 'Approve invoice') : t('financeCopy.submitInvoice', 'Submit invoice')}
+          loading={submitInvoice.isPending}
+          onConfirm={onSubmitConfirm}
+          onCancel={() => setSubmitTarget(null)}
+        />
+      </main>
     );
   }
 
@@ -303,7 +385,7 @@ const SalesInvoices: React.FC = () => {
       // pre-selects a form and is never read here.
       cell: (inv) => (
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
-          <span className="tabular text-right font-mono text-[13px]">
+          <span className="tabular text-right text-[13px]">
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
@@ -327,7 +409,7 @@ const SalesInvoices: React.FC = () => {
         const paid = paidToDate(inv);
         return (
           <span className="flex w-full flex-col items-end gap-0.5 text-right">
-            <span className="tabular font-mono text-[13px]">
+            <span className="tabular text-[13px]">
               {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
             </span>
             {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
@@ -394,11 +476,10 @@ const SalesInvoices: React.FC = () => {
     ]);
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
-    const items: RowMenuItem[] = [];
-    if (inv.pmo_native) items.push({
+    const items: RowMenuItem[] = [{
       label: t('financeCopy.viewInvoice', 'View invoice'),
-      onClick: () => setViewTarget(inv),
-    });
+      onClick: () => recordContext.openRecord(inv.id),
+    }];
     // #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history — no approve or cancel.
     const frozen = Boolean(inv.pmo_native) && !native;
     // #912 (OD-INV-PDF-1, AC-PDF-003): the ERP's own PDF of a submitted invoice — what the client receives.
@@ -439,7 +520,7 @@ const SalesInvoices: React.FC = () => {
     ) {
       items.push({
         label: inv.pmo_native ? t('financeCopy.approve', 'Approve') : t('financeCopy.submit', "Submit"),
-        onClick: () => inv.pmo_native ? setViewTarget(inv) : setSubmitTarget(inv),
+        onClick: () => inv.pmo_native ? recordContext.openRecord(inv.id) : setSubmitTarget(inv),
       });
     }
     return items;
@@ -459,7 +540,7 @@ const SalesInvoices: React.FC = () => {
     }
   };
 
-  const onSubmitConfirm = async () => {
+  async function onSubmitConfirm() {
     if (!submitTarget) return;
     const key = `submit:${submitTarget.id}`;
     try {
@@ -475,7 +556,7 @@ const SalesInvoices: React.FC = () => {
       const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t));
       toast(headline, detail, 'warning');
     }
-  };
+  }
 
   return (
     <ListPage
@@ -505,6 +586,7 @@ const SalesInvoices: React.FC = () => {
               value={statusFilter}
               onChange={(v) => {
                 setStatusFilter(v);
+                updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
               ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
@@ -518,7 +600,10 @@ const SalesInvoices: React.FC = () => {
             placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
             aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              updateListParam('q', e.target.value);
+            }}
             searchSurface="sales-invoices-list"
             module="salesInvoices"
             resultCount={filtered.length}
@@ -600,7 +685,7 @@ const SalesInvoices: React.FC = () => {
 
       {efakturTarget && (
         <EfakturModal
-          recordLabel={efakturTarget.si_number ?? efakturTarget.id}
+          recordLabel={invoiceDisplayLabel(efakturTarget)}
           number={efakturTarget.efaktur_number}
           date={efakturTarget.efaktur_date}
           loading={setEfaktur.isPending}
@@ -626,25 +711,6 @@ const SalesInvoices: React.FC = () => {
         />
       )}
 
-      {viewTarget?.pmo_native && (
-        <EntityFormModal
-          open
-          title={t('financeCopy.invoiceDetailsTitle', 'Invoice details')}
-          subtitle={viewTarget.customer_name ?? undefined}
-          submitLabel={canApproveDraft(viewTarget) ? t('financeCopy.continueToApprove', 'Continue to approve') : t('entityForm.close', 'Close')}
-          cancelLabel={t('entityForm.close', 'Close')}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canApproveDraft(viewTarget)) setSubmitTarget(viewTarget);
-            setViewTarget(null);
-          }}
-          onClose={() => setViewTarget(null)}
-          loading={false}
-          dirty={false}
-        >
-          <SalesInvoiceApprovalPreview inv={viewTarget} />
-        </EntityFormModal>
-      )}
 
       {/* Cancel confirm (destructive tone) */}
       <ConfirmDialog

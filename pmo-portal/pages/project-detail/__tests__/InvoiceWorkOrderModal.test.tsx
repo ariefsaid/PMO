@@ -57,7 +57,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
       items: [{ item_code: 'SVC', qty: 1, rate: 80000, description: 'WO-1 — Phase 1 fabrication' }],
       intent: { id: 'intent-1', idempotencyKey: 'key-1' },
     });
-    expect(onCreated).toHaveBeenCalledWith('ACC-SINV-1');
+    expect(onCreated).toHaveBeenCalledWith({ id: 'si-1', si_number: 'ACC-SINV-1' });
   });
 
   it.each([
@@ -234,7 +234,7 @@ describe('InvoiceWorkOrderModal — PMO owns revenue, no ERP (#913, OD-NAR-1 ite
       intent: { id: 'intent-1', idempotencyKey: 'key-1' },
     });
     // A PMO Draft has no number yet — none is reported.
-    expect(onCreated).toHaveBeenCalledWith('');
+    expect(onCreated).toHaveBeenCalledWith({ id: 'si-native-1', si_number: null });
   });
 
   it('#913 clearing both the item code and the description refuses the line before the round trip', async () => {

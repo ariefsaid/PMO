@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import {
   Button,
   Card,
@@ -137,6 +138,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   );
   const totals = summarizeProjectWorkOrderBilling(billing.data ?? []);
   const [invoiceFor, setInvoiceFor] = useState<{ row: WorkOrderRow; remaining: number } | null>(null);
+  const [createdInvoice, setCreatedInvoice] = useState<{ id: string; native: boolean } | null>(null);
   // Every billing figure is normalised excl. tax (DD-BWO-3): ONE shared basis label qualifies a whole cell (OD-TAX-1).
   const excl = <TaxBasisLabel treatment="exclusive" showDetails={false} testId="wo-billing-basis" className="whitespace-nowrap" />;
 
@@ -475,7 +477,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {canInvoice && (() => {
               const f = billingById.get(row.id);
               return f && canInvoiceWorkOrder(row.status, f) ? (
-                <Button variant="primary" size="sm" onClick={() => setInvoiceFor({ row, remaining: f.remaining })}>
+                <Button variant="primary" size="sm" onClick={() => {
+                  setCreatedInvoice(null);
+                  setInvoiceFor({ row, remaining: f.remaining });
+                }}>
                   {t('projectDetail.workOrders.billing.invoiceAction', 'Invoice')}
                 </Button>
               ) : null;
@@ -537,7 +542,20 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       <ProjectDrawdown projectId={projectId} />
 
       {canViewBilling && (
-        <Card variant="bare" data-testid="wo-billing-summary">
+        <>
+          {createdInvoice && (
+            <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+              <p className="text-sm text-muted-foreground">
+                {createdInvoice.native
+                  ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
+                  : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
+              </p>
+              <Link className="inline-flex min-h-8 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
+                {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
+              </Link>
+            </div>
+          )}
+          <Card variant="bare" data-testid="wo-billing-summary">
           <CardHead>{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
           <CardPad>
             {billing.isPending ? (
@@ -580,7 +598,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </>
             )}
           </CardPad>
-        </Card>
+          </Card>
+        </>
       )}
 
       <Card variant="bare">
@@ -646,7 +665,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           clientId={clientId}
           remaining={invoiceFor.remaining}
           onClose={() => setInvoiceFor(null)}
-          onCreated={(siNumber) => {
+          onCreated={(invoice) => {
+            setCreatedInvoice({ id: invoice.id, native: revenueMode === 'native' });
             if (revenueMode === 'native') {
               // #913: a PMO Draft has no number yet (DD-NAR-9 mints it on approval) — name it by its work order.
               toast(
@@ -663,7 +683,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
                 t('projectDetail.workOrders.billing.toast.createdSub', {
                   defaultValue: '{{number}} — submit it from Sales Invoices.',
-                  number: siNumber,
+                  number: invoice.si_number ?? '',
                   interpolation: { escapeValue: false },
                 }),
                 'success',

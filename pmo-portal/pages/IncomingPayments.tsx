@@ -301,7 +301,7 @@ const IncomingPayments: React.FC = () => {
       header: t('financeCopy.amount', "Amount"),
       align: 'num',
       cell: (p) => (
-        <span className="tabular text-right font-mono text-[13px]">
+        <span className="tabular text-right text-[13px]">
           {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
         </span>
       ),
