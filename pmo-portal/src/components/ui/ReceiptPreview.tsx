@@ -80,7 +80,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ fileName, getPre
         <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="flex max-h-[min(90dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-popover">
           <header className="flex min-h-12 items-center gap-3 border-b border-border px-4">
             <h2 id={titleId} className="min-w-0 flex-1 truncate text-sm font-semibold" title={fileName}>{fileName}</h2>
-            {onDownload && <Button variant="outline" size="sm" onClick={() => void onDownload()}>{t('expenses.receipts.downloadOriginal', 'Download original')}</Button>}
+            {onDownload && (failed || kind === 'unsupported') && <Button variant="outline" size="sm" onClick={() => void onDownload()}>{t('expenses.receipts.downloadOriginal', 'Download original')}</Button>}
             <Button ref={closeRef} variant="ghost" size="sm" aria-label={t('expenses.receipts.close', 'Close')} onClick={() => setOpen(false)}><Icon name="x" /></Button>
           </header>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50 p-3" aria-live="polite">

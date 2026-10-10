@@ -10,9 +10,10 @@ describe('ReceiptPreview', () => {
     const opener = document.createElement('button');
     document.body.append(opener);
     opener.focus();
-    render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockResolvedValue('https://signed.test/receipt.png')} />);
+    render(<ReceiptPreview fileName="receipt.png" getPreviewUrl={vi.fn().mockResolvedValue('https://signed.test/receipt.png')} onDownload={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Preview receipt' }));
     expect(await screen.findByRole('img', { name: 'receipt.png' })).toHaveAttribute('src', 'https://signed.test/receipt.png');
+    expect(screen.queryByRole('button', { name: 'Download original' })).not.toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Preview receipt' })).toHaveFocus();
@@ -22,12 +23,13 @@ describe('ReceiptPreview', () => {
   it('AC-UXS-012 exposes loading, retrieval error, and unsupported-file download fallback', async () => {
     let resolve!: (url: string) => void;
     const getPreviewUrl = vi.fn(() => new Promise<string>((r) => { resolve = r; }));
-    const first = render(<ReceiptPreview fileName="receipt.pdf" getPreviewUrl={getPreviewUrl} />);
+    const first = render(<ReceiptPreview fileName="receipt.pdf" getPreviewUrl={getPreviewUrl} onDownload={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview receipt' }));
     expect(screen.getByText('Loading receipt…')).toBeInTheDocument();
     resolve('https://signed.test/receipt.pdf');
     await waitFor(() => expect(screen.getByRole('dialog').querySelector('iframe')).toHaveAttribute('src', 'https://signed.test/receipt.pdf'));
     expect(screen.getByRole('dialog').querySelector('iframe')).toHaveAttribute('tabindex', '0');
+    expect(screen.queryByRole('button', { name: 'Download original' })).not.toBeInTheDocument();
     first.unmount();
 
     const failed = render(<ReceiptPreview fileName="receipt.tiff" getPreviewUrl={vi.fn().mockRejectedValue(new Error('failed'))} onDownload={vi.fn()} />);
