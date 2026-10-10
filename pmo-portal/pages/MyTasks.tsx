@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, SelectField, useToast } from '@/src/components/ui';
+import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 import { formatDateOnly } from '@/src/lib/format';
@@ -129,32 +129,31 @@ const MyTasks: React.FC = () => {
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
-          <div className="inline-flex w-fit rounded-lg bg-secondary p-0.5" role="group" aria-label={t('myTasks.queueLabel', 'Task status')}>
-            <button
-              type="button"
-              aria-pressed={queue === 'open'}
-              onClick={() => setQueue('open')}
-              className="touch-target min-h-8 rounded-md px-3 text-[13px] font-medium text-foreground hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-background aria-pressed:font-semibold"
-            >
-              {t('myTasks.openTasks', 'Open tasks')}
-            </button>
-            <button
-              type="button"
-              aria-pressed={queue === 'completed'}
-              onClick={() => setQueue('completed')}
-              className="touch-target min-h-8 rounded-md px-3 text-[13px] font-medium text-foreground hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-background aria-pressed:font-semibold"
-            >
-              {t('myTasks.completed', 'Completed')}
-            </button>
-          </div>
+          {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
+              filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
+          <ViewToggle
+            semantics="toggle"
+            ariaLabel={t('myTasks.queueLabel', 'Task status')}
+            value={queue}
+            onChange={setQueue}
+            options={[
+              { value: 'open', label: t('myTasks.openTasks', 'Open tasks') },
+              { value: 'completed', label: t('myTasks.completed', 'Completed') },
+            ]}
+          />
           <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
-            <input
-              type="search"
+            {/* Shared list search (Companies/Projects pattern): DESIGN search shell + the
+                `search_used` analytics contract; `flex-1` fills the toolbar row, and below `sm`
+                the variant classes drop the base `min-w-[190px]` clip (clsx cannot merge). */}
+            <SearchMini
               aria-label={t('myTasks.searchLabel', 'Search your tasks')}
               placeholder={t('myTasks.searchPlaceholder', 'Search your tasks')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-[13.5px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              searchSurface="my-tasks-list"
+              module="tasks"
+              resultCount={visibleTasks.length}
+              containerClassName="flex-1 max-sm:w-full max-sm:min-w-0"
             />
             {search && (
               <button
