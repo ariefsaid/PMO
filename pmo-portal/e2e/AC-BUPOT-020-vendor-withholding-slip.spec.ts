@@ -12,6 +12,8 @@ import { login, requireServiceRoleKey } from './helpers';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const serviceKey = requireServiceRoleKey();
+const localized = (en: string, id: string) => new RegExp(`(?:${en}|${id})`, 'i');
+const localizedExact = (en: string, id: string) => new RegExp(`^(?:${en}|${id})$`, 'i');
 test.skip(!serviceKey, 'AC-BUPOT-020 requires service-role access for isolated fixture setup and cleanup.');
 test.setTimeout(120_000);
 
@@ -54,30 +56,30 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await openDocuments(page, ids.caseA);
     const rowA = page.locator('tr').filter({ hasText: viA });
     await expect(rowA).toBeVisible();
-    await expect(rowA.getByText('Not recorded', { exact: true })).toBeVisible({ timeout: 20_000 });
-    await rowA.getByRole('button', { name: /Record bukti potong/i }).click();
+    await expect(rowA.getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
+    await rowA.getByRole('button', { name: localized('Record bukti potong', 'Catat bukti potong') }).click();
 
     const capture = page.getByRole('dialog');
     await expect(capture).toBeVisible();
-    await capture.getByLabel(/Issued slip number/i).fill(slipNumber);
-    await capture.getByLabel(/Tax base/i).fill('100000');
-    await capture.getByLabel(/Issued withheld amount/i).fill('50000');
-    await expect(capture.getByText(/Selected total:.*20,000|Selected total:.*20000/i)).toBeVisible();
-    const secondBill = capture.getByLabel(new RegExp(`Select bill ${viB}`));
+    await capture.getByLabel(localized('Issued slip number', 'Nomor slip terbit')).fill(slipNumber);
+    await capture.getByLabel(localized('Tax base', 'Dasar pengenaan pajak')).fill('100000');
+    await capture.getByLabel(localized('Issued withheld amount', 'Jumlah potongan pada slip')).fill('50000');
+    await expect(capture.getByText(/(?:Selected total|Total pilihan):.*20[.,]000/i)).toBeVisible();
+    const secondBill = capture.getByLabel(new RegExp(`(?:Select bill|Pilih tagihan) ${viB}`, 'i'));
     await expect(secondBill).toBeVisible({ timeout: 20_000 });
     await secondBill.check();
-    await expect(capture.getByText(/Selection.*50,000|Selection.*50000/i)).toBeVisible();
-    await capture.getByRole('button', { name: /Record bukti potong/i }).click();
-    await expect(rowA.getByText(/Slipped/i)).toBeVisible({ timeout: 20_000 });
-    await rowA.getByRole('button', { name: /View bukti potong/i }).click();
+    await expect(capture.getByText(/(?:Selection|Pilihan).*50[.,]000/i)).toBeVisible();
+    await capture.getByRole('button', { name: localized('Record bukti potong', 'Catat bukti potong') }).click();
+    await expect(rowA.getByText(localizedExact('Slipped', 'Sudah dipotong'))).toBeVisible({ timeout: 20_000 });
+    await rowA.getByRole('button', { name: localized('View bukti potong', 'Lihat bukti potong') }).click();
 
-    await expect(page.getByLabel(/Bukti potong details/i)).toBeVisible({ timeout: 20_000 });
-    const details = page.getByLabel(/Bukti potong details/i);
+    await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
+    const details = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
     await expect(details.getByText(slipNumber)).toBeVisible();
     await expect(details.getByText(viA, { exact: true })).toBeVisible();
     await expect(details.getByText(viB, { exact: true })).toBeVisible();
-    await expect(details.getByText(new RegExp(`Bukti potong bill link · ${viA}`))).toBeVisible();
-    await expect(details.getByText(new RegExp(`Bukti potong bill link · ${viB}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viA}`, `Tautan tagihan bukti potong · ${viA}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viB}`, `Tautan tagihan bukti potong · ${viB}`))).toBeVisible();
     const { data: recorded, error: recordedError } = await admin.from('vendor_withholding_slips').select('id,slip_number,withheld_amount,revision,status').eq('slip_number', slipNumber).single();
     if (recordedError || !recorded) throw new Error(`recorded slip readback failed: ${recordedError?.message}`);
     expect(recorded).toMatchObject({ slip_number: slipNumber, withheld_amount: 50000, revision: 1, status: 'active' });
@@ -87,23 +89,23 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     expect(recordedLinks).toHaveLength(2);
     expect(recordedLinks?.map((link) => link.invoice_id).sort()).toEqual([ids.billA, ids.billB].sort());
 
-    await page.getByRole('button', { name: /Correct metadata/i }).click();
+    await page.getByRole('button', { name: localized('Correct metadata', 'Koreksi metadata') }).click();
     const correction = page.getByRole('dialog');
     const correctedDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    await correction.getByLabel(/Slip date/i).fill(correctedDate);
-    await correction.getByLabel(/Correction reason/i).fill('Corrected to match issued document');
-    await correction.getByRole('button', { name: /Save changes/i }).click();
+    await correction.getByLabel(localized('Slip date', 'Tanggal slip')).fill(correctedDate);
+    await correction.getByLabel(localized('Correction reason', 'Alasan koreksi')).fill('Corrected to match issued document');
+    await correction.getByRole('button', { name: localized('Save changes', 'Simpan perubahan') }).click();
     await expect(correction).toBeHidden({ timeout: 15_000 });
     const { data: corrected, error: correctedError } = await admin.from('vendor_withholding_slips').select('slip_date,revision').eq('id', slipId).single();
     if (correctedError || !corrected) throw new Error(`corrected slip readback failed: ${correctedError?.message}`);
     expect(corrected).toEqual({ slip_date: correctedDate, revision: 2 });
 
-    await page.getByRole('button', { name: /Void PMO entry/i }).click();
+    await page.getByRole('button', { name: localized('Void PMO entry', 'Batalkan catatan PMO') }).click();
     const confirmation = page.getByRole('alertdialog');
-    await expect(confirmation.getByText(/does not cancel a DJP document/i)).toBeVisible();
-    await confirmation.getByLabel(/Reason/i).fill('Duplicate PMO evidence entry');
-    await confirmation.getByRole('button', { name: /Void PMO entry/i }).click();
-    await expect(page.getByText(/void/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(confirmation.getByText(/(?:does not cancel a DJP document|tidak membatalkan dokumen DJP)/i)).toBeVisible();
+    await confirmation.getByLabel(localized('Reason', 'Alasan')).fill('Duplicate PMO evidence entry');
+    await confirmation.getByRole('button', { name: localized('Void PMO entry', 'Batalkan catatan PMO') }).click();
+    await expect(page.getByText(localized('Voided in PMO', 'Dibatalkan di PMO')).first()).toBeVisible({ timeout: 15_000 });
 
     await expect.poll(async () => (await admin.from('vendor_withholding_slips').select('status').eq('id', slipId).single()).data?.status, { timeout: 15_000 }).toBe('void');
     const { data: voidedHeader, error: voidedHeaderError } = await admin.from('vendor_withholding_slips').select('status,void_reason').eq('id', slipId).single();
@@ -124,16 +126,16 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     expect(outboxAfter).toBe(outboxBefore);
 
     await openDocuments(page, ids.caseA);
-    await expect(page.locator('tr').filter({ hasText: viA }).getByText('Not recorded', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('tr').filter({ hasText: viA }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
     await openDocuments(page, ids.caseB);
-    await expect(page.locator('tr').filter({ hasText: viB }).getByText('Not recorded', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('tr').filter({ hasText: viB }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
     await page.goto(`/procurement/${ids.caseA}/documents?bupot=${encodeURIComponent(slipId)}`);
-    await expect(page.getByLabel(/Bukti potong details/i)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByLabel(/Bukti potong details/i).getByText(slipNumber)).toBeVisible();
-    await expect(page.getByLabel(/Bukti potong details/i).getByText(/^Voided in PMO$/i)).toHaveCount(2);
+    await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(slipNumber)).toBeVisible();
+    await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(localized('Voided in PMO', 'Dibatalkan di PMO'))).toHaveCount(2);
 
-    const retainedDetails = page.getByLabel(/Bukti potong details/i);
-    await retainedDetails.getByRole('button', { name: new RegExp(`Open bill ${viB} in case ${ids.caseB}`) }).click();
+    const retainedDetails = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
+    await retainedDetails.getByRole('button', { name: new RegExp(`(?:Open bill ${viB} in case ${ids.caseB}|Buka tagihan ${viB} di kasus ${ids.caseB})`, 'i') }).click();
     await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/documents\\?bupot=${slipId}&bupotBill=${ids.billB}`));
     const destinationRow = page.locator(`#invoice-${ids.billB}`);
     await expect(destinationRow).toBeVisible({ timeout: 20_000 });

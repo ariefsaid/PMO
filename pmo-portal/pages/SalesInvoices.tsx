@@ -46,7 +46,7 @@ import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandInt
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
-import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
+import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
@@ -825,7 +825,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       } catch (err) {
         // I-2: a rejected save is shown ONCE — here, persistently, in the dialog (#559) — not also as a toast. This
         // is therefore the one `save_failed` capture point for the form (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales' });
+        const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales', detailOverrides: nativeRevenueDetails(t) });
         const code = (err as { code?: unknown } | null)?.code;
         setSaveError({ headline, detail, ...(code === 'vat-rate-missing' ? { action: vatRateLink(values.projectId) } : {}) });
       }

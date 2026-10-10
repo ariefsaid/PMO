@@ -43,6 +43,13 @@ export type ProcurementItemRow = Tables<'procurement_items'>;
 export type ProcurementDocumentRow = Tables<'procurement_documents'>;
 export type ProcurementDocStatus = ProcurementDocumentRow['status'];
 
+export class ProcurementVendorAlreadySetError extends ProcurementError {
+  constructor() {
+    super('A vendor was already set.', 'VENDOR_ALREADY_SET');
+    this.name = 'ProcurementVendorAlreadySetError';
+  }
+}
+
 /** Shape of a Supabase/PostgREST error we surface (only the fields we read). */
 interface RpcErrorLike {
   message: string;
@@ -122,6 +129,17 @@ export interface ProcurementHeaderPatch {
  * caller's org and the client-writable columns. Status and document numbers are
  * unreachable here (revoked by 0010 → minter/transition RPCs only).
  */
+export async function updateProcurementVendor(id: string, vendorId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('procurements')
+    .update({ vendor_id: vendorId })
+    .eq('id', id)
+    .is('vendor_id', null)
+    .select('id');
+  if (error) throwWrite(error);
+  if (!data?.length) throw new ProcurementVendorAlreadySetError();
+}
+
 export async function updateProcurementHeader(
   id: string,
   patch: ProcurementHeaderPatch,

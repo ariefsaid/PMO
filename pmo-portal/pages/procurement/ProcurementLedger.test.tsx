@@ -244,6 +244,17 @@ describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
     }
   });
 
+  it('AC-UXS-004 offers the existing vendor edit recovery instead of opening a slip form without a vendor', () => {
+    const onSetVendor = vi.fn();
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} withholdingCoverage={{ 'vi-1': { coverage_state: 'not-recorded', active_slip_id: null } as never }} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
+    expect(screen.getByText('Set a vendor on the request before recording this slip.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record bukti potong' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    expect(onSetVendor).toHaveBeenCalledTimes(1);
+  });
+
   it('renders a table or card list with all rows', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} />);
     // All system numbers appear
