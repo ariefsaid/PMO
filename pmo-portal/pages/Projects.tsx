@@ -569,12 +569,12 @@ const Projects: React.FC = () => {
       cell: (p) => {
         const detailsId = `contract-tax-details-${p.id}`;
         return (
-          <div className="flex flex-col items-end gap-0.5" aria-describedby={detailsId}>
+          <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
             <span>{formatCurrency(p.contract_value, p.currency)}</span>
             <TaxBasisLabel
               treatment={p.tax_treatment}
               showDetails={false}
-              className="block whitespace-nowrap leading-tight"
+              className="block max-w-full whitespace-normal break-words leading-tight"
             />
             <span id={detailsId} className="sr-only">
               <TaxBasisLabel
@@ -582,6 +582,7 @@ const Projects: React.FC = () => {
                 taxRate={p.tax_rate}
                 taxBaseNumerator={p.tax_base_numerator}
                 taxBaseDenominator={p.tax_base_denominator}
+                className="block max-w-full whitespace-normal break-words"
                 testId={`contract-tax-label-${p.id}`}
               />
             </span>

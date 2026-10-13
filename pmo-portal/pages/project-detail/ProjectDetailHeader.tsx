@@ -458,6 +458,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
         </div>
       ) : null}
+      {isOnHand && !valueEditing && (
+        <span className="basis-full text-[12px] text-muted-foreground">
+          {canEditValue && isFinanceForward
+            ? t(
+                'projectDetail.header.sodIdleNote',
+                'Contract value changes are recorded for segregation of duties.',
+              )
+            : t(
+                'projectDetail.header.sodLockedNote',
+                'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
+              )}
+        </span>
+      )}
       {isOnHand && canEditValue && isFinanceForward && valueEditing && (
         <span className="basis-full text-[12px] text-muted-foreground">
           {t(
