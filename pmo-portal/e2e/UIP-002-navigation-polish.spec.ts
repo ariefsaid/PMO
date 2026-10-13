@@ -39,6 +39,10 @@ test('UIP-002: phone navigation uses the menu glyph, opens routes, and returns k
   await drawer.getByRole('link', { name: 'Projects' }).click();
   await expect(page).toHaveURL(/\/projects$/);
   await expect(drawer).toHaveCount(0);
+  // Let the Projects route finish loading first: a late data load can move focus, and this
+  // journey is about the menu returning focus, not about racing the page load (CI-only red).
+  await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
+  await page.waitForLoadState('networkidle');
 
   await trigger.focus();
   await page.keyboard.press('Enter');
