@@ -1011,6 +1011,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
                 client,
                 doctype,
                 fields,
+                includeAmendedFrom: DOCTYPE_REGISTRY[kind].submittable,
                 fromDoc: bodyFns.fromDoc,
                 ...(hydrateDoc ? { hydrateDoc } : {}),
                 // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.

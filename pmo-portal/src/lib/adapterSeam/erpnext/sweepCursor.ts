@@ -30,6 +30,8 @@ export interface SweepCursorDeps {
   /** The list-endpoint fields to fetch. MUST include 'name','modified','docstatus','amended_from'
    *  so the routing fields land on each emitted canonical record. Additional fields are caller-chosen. */
   fields: readonly string[];
+  /** Whether this doctype supports amendment lineage. Defaults true for byte-identical existing callers. */
+  includeAmendedFrom?: boolean;
   /** The kind's `DOCTYPE_BODIES.fromDoc` — maps an ERP row to the PMO canonical the apply path upserts. */
   fromDoc: (doc: unknown) => PmoRecord;
   /** Page size for the list endpoint. Default 500 (a safe Frappe page length). */
@@ -120,7 +122,10 @@ export async function listErpChangesSinceWatermark(
 ): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number }> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   // Union the caller's fields with the routing-required ones (deduped, order-stable).
-  const fields = Array.from(new Set([...deps.fields, ...REQUIRED_FIELDS.filter(field => deps.doctype !== 'Contact' || field !== 'amended_from')]));
+  const fields = Array.from(new Set([
+    ...deps.fields,
+    ...REQUIRED_FIELDS.filter(field => field !== 'amended_from' || (deps.includeAmendedFrom ?? true)),
+  ]));
   const filters: unknown[] = [];
   if (cursor !== null && cursor !== '') filters.push(['modified', '>=', cursor]);
   // Luna BLOCK A1: conjoin the caller's discriminator filters (e.g. payment_type='Receive' for
