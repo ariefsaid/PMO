@@ -213,9 +213,13 @@ describe('Projects index — IA-3 (real data)', () => {
     }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
-      expect(screen.getByText('excl. PPN')).toBeVisible();
+      const visibleBasis = screen.getByText('excl. PPN');
+      expect(visibleBasis).toBeVisible();
+      expect(visibleBasis).toHaveClass('whitespace-normal', 'break-words', 'max-w-full');
+      expect(visibleBasis).not.toHaveClass('whitespace-nowrap');
       const detail = screen.getByText('excl. PPN 11% · DPP 1/1');
       expect(detail).toHaveAttribute('data-testid', 'contract-tax-label-p1');
+      expect(detail).toHaveClass('max-w-full', 'whitespace-normal', 'break-words');
       expect(detail.parentElement).toHaveClass('sr-only');
       expect(detail.parentElement?.parentElement).toHaveAttribute('aria-describedby', detail.parentElement?.id);
     } finally {
