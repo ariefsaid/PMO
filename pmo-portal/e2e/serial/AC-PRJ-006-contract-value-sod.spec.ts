@@ -86,18 +86,24 @@ test(
     await waitProjectsReady(page);
     await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
-    const sod = page.getByTestId('contract-value-sod');
     // GOAL ORACLE: PM sees the "Read-only" lock, NOT an edit control.
-    await expect(sod.getByText(/Read-only/i)).toBeVisible({ timeout: 10_000 });
-    await expect(sod.getByRole('button', { name: /Edit contract value/i })).toHaveCount(0);
+    // #975 / UIP-006 keeps the idle amount + lock toggle in the compact Contract strip;
+    // follow the deliberate disclosure step rather than locating the control in the old SoD row.
+    const lockToggle = page.getByRole('button', { name: /Read-only/i });
+    await expect(lockToggle).toBeVisible({ timeout: 10_000 });
+    await expect(lockToggle).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
+    await expect(page.getByRole('button', { name: /Edit contract value/i })).toHaveCount(0);
+    await lockToggle.click();
+    const lockReason = page.getByTestId('contract-value-lock-reason');
+    await expect(lockReason).toBeVisible();
+    await expect(lockReason).toHaveText(/Once a project is won, the contract value is locked for your role/i);
 
     // Finance view: money authority can edit the value behind the audit confirm.
     await login(page, 'finance@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
     await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
-    const sodFin = page.getByTestId('contract-value-sod');
-    await sodFin.getByRole('button', { name: /Edit contract value/i }).click();
+    await page.getByRole('button', { name: /Edit contract value/i }).click();
     const valueInput = page.getByRole('textbox', { name: /Contract value/i });
     await valueInput.fill('5250000');
     // The tax basis must travel with the edited amount.
@@ -110,9 +116,7 @@ test(
     await expect(confirm).toContainText(/segregation of duties/i);
     await confirm.getByRole('button', { name: /record/i }).click();
 
-    // GOAL ORACLE: the new value is reflected in the authoritative SoD block.
-    await expect(page.getByTestId('contract-value-sod').getByText(/\$5,250,000/)).toBeVisible({
-      timeout: 15_000,
-    });
+    // GOAL ORACLE: the new value is reflected in the single authoritative Contract read (UIP-006).
+    await expect(page.getByTestId('contract-value-amount')).toHaveText(/\$5,250,000/);
   },
 );

@@ -100,9 +100,17 @@ test(
     await projectRow(page, onHandName).getByRole('button', { name: onHandName, exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
     await expect(page.getByRole('heading', { name: onHandName })).toBeVisible({ timeout: 15_000 });
-    // delivery lens markers: the section tabs + the contract-value SoD block
+    // delivery lens markers: section tabs + the explicit contract-value lock control.
     await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
-    await expect(page.getByTestId('contract-value-sod')).toBeVisible();
+    // #975 / UIP-006 deliberately keeps the idle header to one compact read strip;
+    // update this journey step to follow its lock toggle, not a permanently visible SoD note.
+    const lockToggle = page.getByRole('button', { name: /Read-only/i });
+    await expect(lockToggle).toBeVisible();
+    await expect(lockToggle).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
+    await lockToggle.click();
+    const lockReason = page.getByTestId('contract-value-lock-reason');
+    await expect(lockReason).toBeVisible();
+    await expect(lockReason).toHaveText(/Once a project is won, the contract value is locked for your role/i);
     // and NOT the pipeline lens
     await expect(page.getByLabel('Project stage journey')).toHaveCount(0);
 

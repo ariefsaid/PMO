@@ -516,7 +516,6 @@ describe('ProjectDetailHeader — content-over-containers (L2-RECORD)', () => {
   it('the contract-value SoD row sits on the canvas (no card box)', () => {
     renderHeader('Project Manager', onHand, 2_100_000);
     const sod = screen.getByTestId('contract-value-sod');
-    expect(sod).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
     expect(sod.className).not.toContain('bg-card');
     expect(sod.className).not.toContain('border-border');
     expect(sod.className).not.toContain('rounded-lg');
