@@ -101,7 +101,7 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     expect(within(tile).queryByText(/on-hand margin/i)).toBeNull();
     expect(within(tile).queryByText(/^margin$/i)).toBeNull();
     // The true margin RATIO still rides as the `vs` sub.
-    expect(tile).toHaveTextContent(/94\.9%\s*realized/i);
+    expect(tile).toHaveTextContent(/Realized margin: 94\.9%/i);
   });
 
   it('AC-IXD-DASH-002: exactly ONE forecast-margin tile, named "Pipeline forecast margin"', () => {

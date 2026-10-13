@@ -133,13 +133,29 @@ export const AppShell: React.FC<AppShellProps> = ({
     mainRef.current?.scrollTo?.({ top: 0 });
   }, [pathname]);
 
+  // Remember the navigation trigger when it receives focus. The subsequent render that
+  // marks the background inert may already have moved document.activeElement to body.
+  useEffect(() => {
+    const rememberTrigger = (event: FocusEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const trigger = target.closest<HTMLElement>('[data-drawer-toggle]');
+        if (trigger) drawerTriggerRef.current = trigger;
+      }
+    };
+    document.addEventListener('focusin', rememberTrigger);
+    return () => document.removeEventListener('focusin', rememberTrigger);
+  }, []);
+
   // C3: Focus management for the drawer.
-  // On open: capture the current focus target (the hamburger), then move focus
-  // into the drawer. On close: restore focus to the captured trigger.
+  // On open: retain the focused hamburger, then move focus into the drawer.
+  // On close: restore focus to the captured trigger.
   useEffect(() => {
     if (railOpen) {
-      // Capture the element that had focus before the drawer opened (the hamburger).
-      drawerTriggerRef.current = document.activeElement as HTMLElement | null;
+      // Keep the tracked trigger; applying `inert` can move activeElement to body
+      // before this passive effect runs. Use current focus only as a fallback.
+      const activeElement = document.activeElement as HTMLElement | null;
+      if (!drawerTriggerRef.current) drawerTriggerRef.current = activeElement;
       // Move focus into the first focusable in the drawer, or the dialog itself.
       // setTimeout(0) defers past the synchronous render so the drawer DOM is
       // committed; this works in both browsers and jsdom (unlike requestAnimationFrame
@@ -198,7 +214,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
       data-app-shell="root"
-      className="grid h-[100dvh] w-screen overflow-hidden"
+      className="grid h-[100dvh] w-full overflow-hidden"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the

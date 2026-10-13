@@ -174,6 +174,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/:section', element: <AdministrationPage /> },
   // Finance section.
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
+  { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
@@ -289,6 +290,17 @@ export const ShellChrome: React.FC = () => {
     if (pathname === '/settings/profile') {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
+    if (/^\/sales-invoices\/[^/]+$/.test(pathname)) {
+      const listPath = `/sales-invoices${location.search}`;
+      return [
+        {
+          label: t('shell.nav.salesInvoices', 'Sales Invoices'),
+          href: listPath,
+          onClick: () => breadcrumbNavigate(listPath),
+        },
+        { label: t('shell.nav.invoiceRecord', 'Invoice record') },
+      ];
+    }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
@@ -308,9 +320,14 @@ export const ShellChrome: React.FC = () => {
       recordResolved,
       recordStatusGroup,
       contextualParent,
+      // A filtered doorway (e.g. Vendors = Companies?type=Vendor) owns its visible
+      // vocabulary in the route-derived parts; the Breadcrumb component keeps a
+      // render-level fallback for direct mounts without the router location.
+      location.search,
     );
   }, [
     pathname,
+    location.search,
     contextualParent,
     t,
     breadcrumbNavigate,
@@ -353,7 +370,10 @@ export const ShellChrome: React.FC = () => {
         group: 'Navigate',
         title: m.module === 'administration'
           ? t('shell.nav.administration', 'Administration')
-          : m.label,
+          : m.labelKey ? t(m.labelKey, m.label) : m.label,
+        sub: m.module === 'my-tasks'
+          ? t('shell.nav.myTasksHint', 'Your assigned work across projects')
+          : undefined,
         icon: m.icon,
         run: () => navigate(m.path),
       })),

@@ -323,7 +323,9 @@ describe('AC-S6-1 (B-C-2 + A-IMP-2): sticky mobile primary action bar', () => {
     detailState.data = { ...draftByAlice }; // Draft + has items → Submit Request shown
     renderPage();
     // The sticky action bar must be present with the testid
-    expect(screen.getByTestId('mobile-sticky-action')).toBeInTheDocument();
+    const sticky = screen.getByTestId('mobile-sticky-action');
+    expect(sticky).toBeInTheDocument();
+    expect(sticky).toHaveAttribute('data-mobile-action-bar');
   });
 
   it('AC-S6-1: the sticky bar carries fixed/sticky bottom positioning classes', () => {

@@ -24,6 +24,30 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
     await page.waitForLoadState('networkidle').catch(() => {});
     await waitForFonts(page);
 
+    const rows = table.locator('tbody tr');
+    let verifiedCustomer = false;
+    for (let index = 0; index < await rows.count(); index += 1) {
+      const cells = rows.nth(index).locator('td');
+      const customer = cells.nth(1).locator('a').first();
+      const customerName = (await customer.textContent())?.trim() ?? '';
+      if (customerName.length < 12 || !(await customer.isVisible())) continue;
+      const fitsWithoutEllipsis = await customer.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return style.textOverflow !== 'ellipsis' && element.scrollWidth <= element.clientWidth;
+      });
+      expect(fitsWithoutEllipsis, `customer name "${customerName}" should be visible without truncation`).toBe(true);
+      verifiedCustomer = true;
+      break;
+    }
+    expect(verifiedCustomer, 'a customer name of at least 12 characters should be rendered in the table').toBe(true);
+
+    const pmAvatar = table.getByRole('img').first();
+    await expect(pmAvatar).toBeVisible();
+    const accessiblePmName = await pmAvatar.getAttribute('aria-label');
+    expect(accessiblePmName?.trim().length).toBeGreaterThan(0);
+    await expect(pmAvatar).toHaveAccessibleName(/\s/);
+    await expect(pmAvatar).toHaveAttribute('title', accessiblePmName!);
+
     for (const header of [
       'Project', 'Customer', 'End customer', 'PM', 'Status', 'Contract',
       'Actual', 'Progress', 'Budget used', 'Action',
@@ -55,6 +79,14 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
       scrollerScrollWidth,
       `Projects table scroller scrollWidth ${scrollerScrollWidth}px exceeds clientWidth ${scrollerClientWidth}px`,
     ).toBeLessThanOrEqual(scrollerClientWidth);
+
+    const action = table.getByRole('button', { name: 'Change status' }).first();
+    const actionBounds = await action.boundingBox();
+    const scrollerBounds = await scroller.boundingBox();
+    expect(actionBounds, 'Projects Action button should be rendered').not.toBeNull();
+    expect(scrollerBounds, 'Projects table viewport should be rendered').not.toBeNull();
+    expect(actionBounds!.x).toBeGreaterThanOrEqual(scrollerBounds!.x);
+    expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(scrollerBounds!.x + scrollerBounds!.width);
 
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,

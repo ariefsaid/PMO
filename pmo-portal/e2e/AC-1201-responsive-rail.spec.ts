@@ -14,6 +14,17 @@ const MOBILE = { width: 560, height: 800 };
 test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer carries nav', async ({
   page,
 }) => {
+  // The DOM landmark labels below are English; avoid dependence on a persisted seed locale.
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch();
+    const body: unknown = await response.json();
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
   await page.setViewportSize(DESKTOP);
   await login(page, 'exec@acme.test');
   await page.goto('/');

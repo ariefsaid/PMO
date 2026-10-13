@@ -43,6 +43,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  getProjectVatEditability,
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
@@ -150,6 +151,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import {
   createProcurement,
   updateProcurementHeader,
+  updateProcurementVendor,
   createProcurementItem,
   updateProcurementItem,
   deleteProcurementItem,
@@ -369,6 +371,7 @@ const project: ProjectRepository = {
   archive: (id) => wrap(() => archiveProject(id)),
   delete: (id) => wrap(() => deleteProject(id)),
   setContractValue: (input) => wrap(() => setProjectContractValue(input)),
+  getVatEditability: (id) => wrap(() => getProjectVatEditability(id)),
   proposeNumber: (clientId) => wrap(() => proposeProjectNumber(clientId)),
 };
 
@@ -584,6 +587,7 @@ const procurement: ProcurementRepository = {
   setEfaktur: (invoiceId, values) => wrap(() => setProcurementInvoiceEfaktur(invoiceId, values.efakturNumber, values.efakturDate)),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
+  updateVendor: (id, vendorId) => wrap(() => updateProcurementVendor(id, vendorId)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
   updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
   deleteItem: (id) => wrap(() => deleteProcurementItem(id)),

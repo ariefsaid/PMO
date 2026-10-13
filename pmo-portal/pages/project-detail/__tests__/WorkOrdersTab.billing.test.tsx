@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
@@ -29,12 +30,12 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mod
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('../InvoiceWorkOrderModal', () => ({
-  default: ({ workOrder, remaining, clientId, onCreated }: { workOrder: { id: string }; remaining: number; clientId: string; onCreated: (n: string) => void }) => (
+  default: ({ workOrder, remaining, clientId, onCreated }: { workOrder: { id: string }; remaining: number; clientId: string; onCreated: (invoice: { id: string; si_number: string | null }) => void }) => (
     <div data-testid="invoice-modal">
       {`${workOrder.id}|${remaining}|${clientId}`}
       {/* The two realities the real modal reports: the ERP named the invoice; a PMO Draft has no number yet. */}
-      <button onClick={() => onCreated('ACC-SINV-1')}>modal-created-numbered</button>
-      <button onClick={() => onCreated('')}>modal-created-unnamed</button>
+      <button onClick={() => onCreated({ id: 'si-erp-returned', si_number: 'ACC-SINV-1' })}>modal-created-numbered</button>
+      <button onClick={() => onCreated({ id: 'si-native-returned', si_number: null })}>modal-created-unnamed</button>
     </div>
   ),
 }));
@@ -58,7 +59,7 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
 const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null) => {
   h.role = role;
   return render(
-    <ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /></ToastProvider>,
+    <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /></ToastProvider></MemoryRouter>,
   );
 };
 
@@ -236,6 +237,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
     const toast = await findToastAnnouncement('status', 'Draft invoice created');
     expect(toast).toHaveTextContent('ACC-SINV-1 — submit it from Sales Invoices.');
+    expect(screen.getByRole('link', { name: 'Open draft' })).toHaveAttribute('href', '/sales-invoices/si-erp-returned');
+    expect(screen.getByText('Draft created. A different Finance or Admin user must submit it.')).toBeInTheDocument();
   });
 
   it('#913 a PMO-native draft is named by its work order and routed to a second person for approval', async () => {
@@ -246,6 +249,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const toast = await findToastAnnouncement('status', 'Draft invoice created in PMO');
     expect(toast).toHaveTextContent('WO-1 — a second Finance/Admin person approves it from Sales Invoices.');
     expect(toast).not.toHaveTextContent('ERPNext');
+    expect(screen.getByRole('link', { name: 'Open draft' })).toHaveAttribute('href', '/sales-invoices/si-native-returned');
+    expect(screen.getByText('Draft created. A different Finance or Admin user must approve it.')).toBeInTheDocument();
   });
 
   it('AC-UNB-002 the project totals add Issued and Closed work orders; an over-invoiced one adds nothing left', () => {

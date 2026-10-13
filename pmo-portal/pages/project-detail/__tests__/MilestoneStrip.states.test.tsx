@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -36,11 +36,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import MilestoneStrip from '../MilestoneStrip';
 
-const render$ = () =>
+const render$ = (summary = false) =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <MilestoneStrip projectId="p1" />
+        <MilestoneStrip projectId="p1" summary={summary} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -53,6 +53,43 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     milestoneState.isError = false;
     milestoneState.refetch = vi.fn();
     mockRole = 'Project Manager';
+  });
+
+  it('UIP-005: compact phase context states loading, error + retry, and empty without a full-height panel', () => {
+    milestoneState.isPending = true;
+    const pending = render$(true);
+    expect(within(screen.getByTestId('milestone-summary')).getByRole('status')).toHaveTextContent(/Delivery phases/);
+    expect(screen.queryByTestId('milestone-strip-skeleton')).not.toBeInTheDocument();
+    pending.unmount();
+    milestoneState.isPending = false;
+    milestoneState.isError = true;
+    const failed = render$(true);
+    expect(within(screen.getByTestId('milestone-summary')).getByRole('alert')).toHaveTextContent("Couldn't load milestones");
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+    expect(milestoneState.refetch).toHaveBeenCalledTimes(1);
+    failed.unmount();
+    milestoneState.isError = false;
+    render$(true);
+    expect(screen.getByText('No delivery phases yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(screen.queryByRole('button', { name: /Add the first phase/ })).not.toBeInTheDocument();
+  });
+
+  it('UIP-005: compact context identifies the current phase, rollup and overdue recovery link; completed phases stay honest', () => {
+    milestoneState.data = [
+      { id: 'm1', project_id: 'p1', name: 'Design', sort_order: 0, target_date: null, weight: 1, input_pct: 100, effective_pct: 100, calculated_pct: 100, task_count: 2 },
+      { id: 'm2', project_id: 'p1', name: 'Installation', sort_order: 1, target_date: '2000-01-01', weight: 1, input_pct: 40, effective_pct: 40, calculated_pct: 40, task_count: 2 },
+    ];
+    const active = render$(true);
+    expect(screen.getByTestId('milestone-summary')).toHaveTextContent('Installation');
+    expect(screen.getByTestId('milestone-summary')).toHaveTextContent('70%');
+    expect(screen.getByRole('link', { name: 'View blocking tasks' })).toHaveAttribute('href', '/projects/p1/tasks');
+    expect(screen.queryByRole('button', { name: /Edit progress/ })).not.toBeInTheDocument();
+    active.unmount();
+    milestoneState.data = milestoneState.data.map(m => ({ ...m, effective_pct: 100 }));
+    render$(true);
+    expect(screen.getByTestId('milestone-summary')).toHaveTextContent('100%');
+    expect(screen.queryByRole('link', { name: 'View blocking tasks' })).not.toBeInTheDocument();
   });
 
   it('AC-DEL-014: pending query renders the loading skeleton (testid milestone-strip-loading)', () => {

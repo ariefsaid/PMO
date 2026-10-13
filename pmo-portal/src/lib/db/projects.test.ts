@@ -29,6 +29,7 @@ import {
   archiveProject,
   deleteProject,
   setProjectContractValue,
+  getProjectVatEditability,
   proposeProjectNumber,
 } from './projects';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
@@ -682,5 +683,20 @@ describe('getProject (AC-OVERFETCH-002)', () => {
   it('returns null when the project is absent or not visible', async () => {
     makeBuilder({ data: null, error: null });
     expect(await getProject('nope')).toBeNull();
+  });
+});
+
+describe('project VAT editability DAL', () => {
+  it('AC-PPNC-019 calls the scoped RPC and validates the eligibility-only result', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { eligible: false, reason: 'vat-live-invoice', hasInvoices: true }, error: null });
+    await expect(getProjectVatEditability('project-1')).resolves.toEqual({ eligible: false, reason: 'vat-live-invoice', hasInvoices: true });
+    expect(mockRpc).toHaveBeenCalledWith('get_project_vat_editability', { p_id: 'project-1' });
+  });
+
+  it('preserves PostgREST detail and rejects malformed reader data', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'denied', code: '42501', details: 'vat-not-authorized' } });
+    await expect(getProjectVatEditability('project-1')).rejects.toMatchObject({ code: '42501', details: 'vat-not-authorized' });
+    mockRpc.mockResolvedValueOnce({ data: { eligible: true, reason: 'unexpected', hasInvoices: false }, error: null });
+    await expect(getProjectVatEditability('project-1')).rejects.toThrow('Project VAT editability is unavailable');
   });
 });

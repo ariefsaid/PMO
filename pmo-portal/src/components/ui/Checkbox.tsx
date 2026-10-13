@@ -22,6 +22,8 @@ export interface CheckboxProps {
    * get conventional checkbox-label hit-target behavior; it does not come for free.
    */
   labelledBy?: string;
+  /** Ids of help/error text associated with the control. */
+  describedBy?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -37,6 +39,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
   onChange,
   label,
   labelledBy,
+  describedBy,
   disabled = false,
   className,
 }) => {
@@ -56,6 +59,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
       aria-checked={ariaChecked}
       aria-label={labelledBy ? undefined : label}
       aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : 0}
       onClick={toggle}

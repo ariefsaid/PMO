@@ -1,6 +1,7 @@
 import React from 'react';
 import { ICON_PATHS, type IconName } from './iconPaths';
 
+export { ICON_NAMES } from './iconPaths';
 export type { IconName } from './iconPaths';
 
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
@@ -26,6 +27,7 @@ export const Icon: React.FC<IconProps> = ({ name, className, ...rest }) => (
     width="1em"
     height="1em"
     className={className}
+    data-icon={name}
     {...rest}
   >
     {ICON_PATHS[name]}

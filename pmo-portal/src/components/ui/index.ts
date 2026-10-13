@@ -34,6 +34,8 @@ export {
   type ConfirmTone,
   type ConfirmSurface,
 } from './ConfirmDialog';
+export { ReceiptPreview, type ReceiptPreviewProps } from './ReceiptPreview';
+export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 
 export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
@@ -68,6 +70,8 @@ export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
 export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
+export { MobileActionBar } from './MobileActionBar';
+export { MobileActionStrip, type MobileActionStripProps } from './MobileActionStrip';
 export { EntryList, type EntryListProps } from './EntryList';
 
 // --- CRUD form primitives (Phase 1, crud-components §2) ---

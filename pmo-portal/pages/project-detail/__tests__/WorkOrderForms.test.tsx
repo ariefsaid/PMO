@@ -12,12 +12,13 @@
  *     resistance for the very decision the SoD is asking a second person to make.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
+import { ToastProvider } from '@/src/components/ui/Toast';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -74,11 +75,64 @@ const renderCreate = () =>
       onClose={vi.fn()}
       onCreate={onCreate}
       onUpdate={onUpdate}
-      onError={vi.fn()}
     />,
   );
 
 describe('WorkOrderFormModal — create', () => {
+  it('#953 keeps a failed create inline, focused, and editable without calling the toast handler', async () => {
+    onCreate.mockRejectedValueOnce(new Error('write rejected'));
+    render(
+      <ToastProvider>
+        <WorkOrderFormModal
+          workOrder={null}
+          currencySymbolPrefix="$"
+          onClose={vi.fn()}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+        />
+      </ToastProvider>,
+    );
+    const title = screen.getByLabelText(/Title/);
+    await userEvent.type(title, 'Phase 2');
+    await userEvent.type(screen.getByTestId('wo-order-value'), '500000');
+    await userEvent.selectOptions(screen.getByTestId('wo-tax-treatment'), 'exclusive');
+    await userEvent.type(screen.getByTestId('wo-tax-amount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    const error = await screen.findByLabelText('Save failed');
+    await waitFor(() => expect(error).toHaveFocus());
+    expect(error).toHaveTextContent(/nothing was saved/i);
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
+    expect(title).toHaveValue('Phase 2');
+    expect(screen.getByTestId('wo-order-value')).toHaveValue('500,000');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('#953 keeps a failed edit inline and retains the revised title without a toast', async () => {
+    onUpdate.mockRejectedValueOnce(new Error('write rejected'));
+    render(
+      <ToastProvider>
+        <WorkOrderFormModal
+          workOrder={draft()}
+          currencySymbolPrefix="$"
+          onClose={vi.fn()}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+        />
+      </ToastProvider>,
+    );
+    const title = screen.getByLabelText(/Title/);
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Revised draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Save work order' }));
+
+    const error = await screen.findByLabelText('Save failed');
+    await waitFor(() => expect(error).toHaveFocus());
+    expect(document.querySelector('[data-toast="visible"]')).toBeNull();
+    expect(title).toHaveValue('Revised draft');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('OD-TAX-1: the tax treatment starts UNCHOSEN — nothing is pre-selected', () => {
     renderCreate();
     expect(screen.getByTestId('wo-tax-treatment')).toHaveValue('');
@@ -206,7 +260,6 @@ describe('WorkOrderFormModal — edit', () => {
         onClose={vi.fn()}
         onCreate={onCreate}
         onUpdate={onUpdate}
-        onError={vi.fn()}
       />,
     );
 
@@ -248,7 +301,6 @@ describe('WorkOrderValueModal', () => {
         currencySymbolPrefix="$"
         onClose={vi.fn()}
         onSave={onSave}
-        onError={vi.fn()}
       />,
     );
 
@@ -272,6 +324,43 @@ describe('WorkOrderValueModal', () => {
     await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '30000');
     await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
 
+    expect(onSave).toHaveBeenCalledWith({
+      id: 'wo-1',
+      value: 300_000,
+      taxTreatment: 'inclusive',
+      taxAmount: 30_000,
+      taxRate: null,
+      taxBaseNumerator: 1,
+      taxBaseDenominator: 1,
+    });
+  });
+
+  it('#953 keeps a rejected Set value save keyboard-reachable in the modal while preserving entered values', async () => {
+    onSave.mockRejectedValueOnce(new Error('Could not save'));
+    render(
+      <WorkOrderValueModal
+        workOrder={draft()}
+        currentValueText="$250,000 excl. PPN"
+        currencySymbolPrefix="$"
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    await userEvent.type(screen.getByTestId('wo-value-input'), '300000');
+    await userEvent.selectOptions(screen.getByTestId('wo-value-tax-treatment'), 'inclusive');
+    await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '30000');
+    await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
+
+    const dialog = screen.getByRole('dialog');
+    const saveError = await screen.findByTestId('entity-modal-save-error');
+    expect(dialog).toContainElement(saveError);
+    await waitFor(() => expect(saveError).toHaveFocus());
+    // NumberField applies the active en-US grouping mask; the typed digits remain
+    // intact semantically, while the controlled display is formatted for reading.
+    expect(screen.getByTestId('wo-value-input')).toHaveValue('300,000');
+    expect(screen.getByTestId('wo-value-tax-treatment')).toHaveValue('inclusive');
+    expect(screen.getByTestId('wo-value-tax-amount')).toHaveValue('30,000');
     expect(onSave).toHaveBeenCalledWith({
       id: 'wo-1',
       value: 300_000,

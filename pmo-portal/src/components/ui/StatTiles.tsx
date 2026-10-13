@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from './cn';
 
 export interface StatTile {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   /** Positive → success, negative → destructive coloring on the value. */
   tone?: 'pos' | 'neg';

@@ -7,6 +7,14 @@ else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md
 the 1b `grill-with-docs` gate and 1c HTML-mockup gate), the UI cycle in `docs/design-workflow.md`,
 and the DoD in `docs/product-expectations.md` are unchanged and binding.
 
+> **⚑ Current routing (owner, 2026-10-07/08) — supersedes the model choices below where they differ:**
+> builds and fix rounds → `pi-dispatch build` (GPT Luna first) · reviews → `pi-dispatch review` / `review-money`
+> (GLM flash first, Luna fallback) · specs, plans and decision drafts → `pi-dispatch plan` (GPT Sol). **ONE
+> reviewer per PR**, not a multi-lens Claude battery; Claude (the Director) only orchestrates, merges and deploys.
+> Long waits on the shared test lock: prefix `PI_DISPATCH_STALL=3600` (the default stall kill fires while a run
+> waits on the lock). Never edit `pi-dispatch` in place while runs are live (bash reads scripts incrementally) —
+> write a new file and `mv` it over.
+
 > **⚑ Dispatch entry point (owner, 2026-07-22): use `pi-dispatch <tier>` — not raw `pi` — for role dispatches.**
 > The wrapper (`~/.local/bin/pi-dispatch`) owns provider/model selection: capability-banded fallback
 > ladders (**z.ai GLM → codex OAuth → `claude -p` last resort**), per-model rung-hopping, and a token

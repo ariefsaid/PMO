@@ -712,6 +712,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       { status: 400, headers },
     );
   }
+  // #956: the VAT witness is internal command material, never a client authority. This HTTP
+  // boundary is a fresh dispatch; trusted sweep replay reconstructs persisted payloads elsewhere.
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN && command.record.erp_doc_kind === 'sales-invoice') {
+    delete (command.record as Record<string, unknown>).vat_flag_at_resolution;
+  }
 
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
   const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;

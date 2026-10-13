@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import {
   Button,
   Card,
@@ -7,6 +8,7 @@ import {
   CardPad,
   ConfirmDialog,
   DataTable,
+  GateNotice,
   ListState,
   StatusPill,
   TaxBasisLabel,
@@ -15,6 +17,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency, formatCurrencyCents, formatDateOnly, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -79,6 +82,13 @@ const BILLING_VARIANT: Record<Exclude<WorkOrderBillingState, 'not-billable'>, St
 /** The billing state is a property of the money, not the work order: it sits on a quiet `secondary` chip so it never
  *  reads as the work order's own status mark beside it (an Issued work order and a partly invoiced one share a hue). */
 const BILLING_CHIP = 'rounded-sm bg-secondary px-1.5 py-0.5';
+const ROLE_RANK: Record<string, number> = {
+  Engineer: 10,
+  'Project Manager': 20,
+  Finance: 30,
+  Executive: 40,
+  Admin: 50,
+};
 
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
   Draft: 'draft',
@@ -96,6 +106,7 @@ interface PendingTransition {
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
 
   const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
@@ -127,6 +138,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   );
   const totals = summarizeProjectWorkOrderBilling(billing.data ?? []);
   const [invoiceFor, setInvoiceFor] = useState<{ row: WorkOrderRow; remaining: number } | null>(null);
+  const [createdInvoice, setCreatedInvoice] = useState<{ id: string; native: boolean } | null>(null);
   // Every billing figure is normalised excl. tax (DD-BWO-3): ONE shared basis label qualifies a whole cell (OD-TAX-1).
   const excl = <TaxBasisLabel treatment="exclusive" showDetails={false} testId="wo-billing-basis" className="whitespace-nowrap" />;
 
@@ -414,6 +426,27 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
         const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
         const canTransition = may('transition', 'workOrder');
+        // Mirrors transition_work_order's complete visible author predicate (0197 §8, lines 387–393):
+        // only positive-value drafts issued below Finance need a distinct, active author who is the
+        // issuer's manager or outranks them. The RPC remains authoritative for auth.users bans.
+        const issuerRole = currentUser?.role ?? '';
+        const author = row.value_author;
+        const authorIsSelf = row.order_value_set_by === currentUser?.id;
+        const authorRelationshipFails = authorIsSelf
+          || !author
+          || author.status !== 'active'
+          || !currentUser?.id
+          || !(author.manager_id === currentUser.id
+            || (ROLE_RANK[author.role] ?? 0) > (ROLE_RANK[issuerRole] ?? 0));
+        // The RPC also checks auth.users membership/ban state, which is not exposed to this client gate.
+        const issueBlockedByValueAuthor = Number(row.order_value ?? 0) > 0
+          && !['Finance', 'Executive', 'Admin'].includes(issuerRole)
+          && (!row.order_value_set_at || authorRelationshipFails);
+        const issueGateBody = !row.order_value_set_at
+          ? t('projectDetail.workOrders.issueGate.unstampedBody', 'The value must be set by an authorized reviewer before this order can be issued.')
+          : authorIsSelf
+            ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
+            : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (
@@ -426,11 +459,16 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.setValue', 'Set value')}
               </Button>
             )}
-            {isDraft && canTransition && (
+            {isDraft && canTransition && issueBlockedByValueAuthor ? (
+              <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">
+                <strong>{t('projectDetail.workOrders.issueGate.title', 'Another reviewer must issue this order')}</strong>{' '}
+                {issueGateBody}
+              </GateNotice>
+            ) : isDraft && canTransition ? (
               <Button variant="primary" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
-            )}
+            ) : null}
             {isIssued && canTransition && (
               <Button variant="outline" size="sm" onClick={() => setPending({ row, to: 'Closed' })}>
                 {t('projectDetail.workOrders.action.close', 'Close')}
@@ -439,7 +477,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {canInvoice && (() => {
               const f = billingById.get(row.id);
               return f && canInvoiceWorkOrder(row.status, f) ? (
-                <Button variant="primary" size="sm" onClick={() => setInvoiceFor({ row, remaining: f.remaining })}>
+                <Button variant="primary" size="sm" onClick={() => {
+                  setCreatedInvoice(null);
+                  setInvoiceFor({ row, remaining: f.remaining });
+                }}>
                   {t('projectDetail.workOrders.billing.invoiceAction', 'Invoice')}
                 </Button>
               ) : null;
@@ -501,7 +542,20 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       <ProjectDrawdown projectId={projectId} />
 
       {canViewBilling && (
-        <Card variant="bare" data-testid="wo-billing-summary">
+        <>
+          {createdInvoice && (
+            <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+              <p className="text-sm text-muted-foreground">
+                {createdInvoice.native
+                  ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
+                  : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
+              </p>
+              <Link className="inline-flex min-h-8 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
+                {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
+              </Link>
+            </div>
+          )}
+          <Card variant="bare" data-testid="wo-billing-summary">
           <CardHead>{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
           <CardPad>
             {billing.isPending ? (
@@ -544,7 +598,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </>
             )}
           </CardPad>
-        </Card>
+          </Card>
+        </>
       )}
 
       <Card variant="bare">
@@ -590,7 +645,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           onClose={() => setFormFor(undefined)}
           onCreate={runCreate}
           onUpdate={runUpdate}
-          onError={fail}
         />
       )}
 
@@ -601,7 +655,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           currencySymbolPrefix={prefix}
           onClose={() => setValueFor(null)}
           onSave={runSetValue}
-          onError={fail}
         />
       )}
 
@@ -612,7 +665,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           clientId={clientId}
           remaining={invoiceFor.remaining}
           onClose={() => setInvoiceFor(null)}
-          onCreated={(siNumber) => {
+          onCreated={(invoice) => {
+            setCreatedInvoice({ id: invoice.id, native: revenueMode === 'native' });
             if (revenueMode === 'native') {
               // #913: a PMO Draft has no number yet (DD-NAR-9 mints it on approval) — name it by its work order.
               toast(
@@ -629,7 +683,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
                 t('projectDetail.workOrders.billing.toast.createdSub', {
                   defaultValue: '{{number}} — submit it from Sales Invoices.',
-                  number: siNumber,
+                  number: invoice.si_number ?? '',
                   interpolation: { escapeValue: false },
                 }),
                 'success',

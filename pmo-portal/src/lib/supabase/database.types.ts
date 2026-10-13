@@ -7341,6 +7341,7 @@ export type Database = {
           weight: number
         }[]
       }
+      get_project_vat_editability: { Args: { p_id: string }; Returns: Json }
       get_projects_delivery: {
         Args: { p_ids: string[] }
         Returns: {
@@ -7947,6 +7948,10 @@ export type Database = {
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
+      }
+      project_invoice_vat_lock_reason: {
+        Args: { p_org: string; p_project: string }
+        Returns: string
       }
       project_number_null_insert_default: { Args: never; Returns: string }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }

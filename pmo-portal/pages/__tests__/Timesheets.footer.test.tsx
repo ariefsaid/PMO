@@ -191,6 +191,41 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 // ---------------------------------------------------------------------------
 // AC-IXD-TS-004 — redundant rollup panels removed from the entry screen
 // ---------------------------------------------------------------------------
+describe('AC-UXS-023: mobile timesheet completion stays with the week', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps the total and both actions available for a two-project mobile week', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const monday = currentWeekStartStr();
+    const tuesdayDate = new Date(`${monday}T12:00:00`);
+    tuesdayDate.setDate(tuesdayDate.getDate() + 1);
+    const tuesday = `${tuesdayDate.getFullYear()}-${String(tuesdayDate.getMonth() + 1).padStart(2, '0')}-${String(tuesdayDate.getDate()).padStart(2, '0')}`;
+    tsState.data = draftSheet([
+      { id: 'e1', timesheet_id: 'ts-draft', project_id: 'pr1', entry_date: monday, hours: 6,
+        notes: null, project: { name: 'Alpha Project', code: 'A001' } },
+      { id: 'e2', timesheet_id: 'ts-draft', project_id: 'pr2', entry_date: tuesday, hours: 4,
+        notes: null, project: { name: 'Beta Project', code: 'B002' } },
+    ]);
+    tsState.isPending = false;
+    tsState.isError = false;
+
+    renderPage();
+
+    const strip = screen.getByTestId('timesheets-mobile-action-strip');
+    expect(strip).toHaveAttribute('data-mobile-action-bar');
+    expect(within(strip).getByText('10 hours this week')).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeEnabled();
+    expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeEnabled();
+    expect(screen.queryByTestId('timesheets-footer')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();
+    expect(screen.getByLabelText('Beta Project, Sun hours')).toBeInTheDocument();
+  });
+});
+
 describe('AC-IXD-TS-004: the entry screen drops the redundant rollup panels', () => {
   beforeEach(() => {
     tsState.data = draftSheet([

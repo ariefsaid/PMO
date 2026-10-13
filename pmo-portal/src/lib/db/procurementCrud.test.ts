@@ -10,6 +10,7 @@ const h = vi.hoisted(() => {
     from: [] as unknown[],
     select: [] as unknown[],
     eq: [] as unknown[],
+    is: [] as unknown[],
     order: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
@@ -28,6 +29,7 @@ const h = vi.hoisted(() => {
   };
   builder.select = chain('select');
   builder.eq = chain('eq');
+  builder.is = chain('is');
   builder.order = chain('order');
   builder.insert = chain('insert');
   builder.update = chain('update');
@@ -50,6 +52,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.r
 import {
   createProcurement,
   updateProcurementHeader,
+  updateProcurementVendor,
   createProcurementItem,
   updateProcurementItem,
   deleteProcurementItem,
@@ -70,6 +73,26 @@ beforeEach(() => {
   }
   h.result.value = { data: null, error: null };
   h.rpcResult.value = { data: null, error: null };
+});
+
+describe('vendor recovery writes only vendor_id', () => {
+  it('updates only the vendor_id field and requires a landed row', async () => {
+    h.result.value = { data: [{ id: 'pr1' }], error: null };
+    await updateProcurementVendor('pr1', 'vendor-1');
+    expect(h.calls.from).toEqual(['procurements']);
+    expect(h.calls.update).toEqual([{ vendor_id: 'vendor-1' }]);
+    expect(h.calls.eq).toEqual([['id', 'pr1']]);
+    expect(h.calls.is).toEqual([['vendor_id', null]]);
+    expect(h.calls.select).toEqual(['id']);
+  });
+
+  it('returns the typed vendor-already-set outcome when the conditional update lands no row', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateProcurementVendor('pr1', 'vendor-1')).rejects.toMatchObject({
+      code: 'VENDOR_ALREADY_SET',
+      name: 'ProcurementVendorAlreadySetError',
+    });
+  });
 });
 
 describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stamped, no org_id)', () => {

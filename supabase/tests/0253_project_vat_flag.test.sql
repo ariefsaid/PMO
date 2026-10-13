@@ -104,14 +104,14 @@ insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, c
    'SI-VAT-001','2026-03-02',500.00,500.00,'Unpaid',1,'02530000-0000-0000-0000-0000000000a1');
 select throws_ok(
   $$ update public.projects set subject_to_vat = false where id = '02530000-0000-0000-0000-0000000000b2' $$,
-  '42501', 'whether this project is subject to VAT is locked once the project has an invoice',
+  '42501', 'this project VAT setting is locked by its invoice state',
   'AC-856-8 the VAT flag is locked once the project has a sales invoice (direct writer)');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02530000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$ select set_project_contract_value('02530000-0000-0000-0000-0000000000b2'::uuid, 100, p_tax_treatment => 'exclusive', p_tax_amount => 0, p_subject_to_vat => false) $$,
-  '42501', 'whether this project is subject to VAT is locked once the project has an invoice',
-  'AC-856-8 the VAT flag is locked once the project has a sales invoice (Finance via the RPC)');
+  '42501', 'this project VAT setting is locked by its invoice state',
+  'AC-PPNC-007 a live invoice blocks the setter');
 reset role;
 
 -- 8. A cancelled invoice still locks it (ERPNext keeps the taxed history).
@@ -120,20 +120,19 @@ insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, c
   ('exclusive', 0, '02530000-0000-0000-0000-0000000000e2','02530000-0000-0000-0000-000000000001',
    '02530000-0000-0000-0000-0000000000b3','02530000-0000-0000-0000-0000000000c1',
    'SI-VAT-002','2026-03-02',500.00,0,'Cancelled',2,'02530000-0000-0000-0000-0000000000a1');
-select throws_ok(
+select lives_ok(
   $$ update public.projects set subject_to_vat = false where id = '02530000-0000-0000-0000-0000000000b3' $$,
-  '42501', 'whether this project is subject to VAT is locked once the project has an invoice',
-  'AC-856-8 a cancelled invoice still locks the VAT flag');
+  'AC-PPNC-006 a verifiably cancelled invoice permits a VAT flag change');
 
 -- 9. A sales-invoice create still in flight in the outbox locks it; a terminal one does not.
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload) values
   ('02530000-0000-0000-0000-000000000001','revenue','si-flight','k-flight','erpnext','create','committing',
-   '{"erp_doc_kind":"sales-invoice","projectId":"02530000-0000-0000-0000-0000000000b4"}'),
+   '{"erp_doc_kind":"sales-invoice","projectId":"02530000-0000-0000-0000-0000000000b4","vat_flag_at_resolution":true}'),
   ('02530000-0000-0000-0000-000000000001','revenue','si-done','k-done','erpnext','create','confirmed',
    '{"erp_doc_kind":"sales-invoice","projectId":"02530000-0000-0000-0000-0000000000b5"}');
 select throws_ok(
   $$ update public.projects set subject_to_vat = false where id = '02530000-0000-0000-0000-0000000000b4' $$,
-  '42501', 'whether this project is subject to VAT is locked once the project has an invoice',
+  '42501', 'this project VAT setting is locked by its invoice state',
   'AC-856-8 an in-flight sales-invoice create locks the VAT flag');
 select lives_ok(
   $$ update public.projects set subject_to_vat = false where id = '02530000-0000-0000-0000-0000000000b5' $$,

@@ -26,7 +26,7 @@ import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { NewProcurementModal } from './procurement/NewProcurementModal';
-import { ProcurementListRow } from './procurement/ProcurementListRow';
+import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
 import { formatCurrency } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -515,6 +515,7 @@ const ProcurementPage: React.FC = () => {
           />
         ) : (
           <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
+            <ProcurementListColumns />
             {filtered.map((r) => (
               <ProcurementListRow key={r.id} row={r} />
             ))}

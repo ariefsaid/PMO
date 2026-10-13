@@ -9,6 +9,7 @@ import {
   SelectField,
   StatusPill,
   TimesheetGrid,
+  MobileActionStrip,
   Toolbar,
   AccessDenied,
   useToast,
@@ -40,7 +41,8 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay, formatWeekday } from '@/src/lib/format';
+import { formatFullDate, formatMonthDay, formatNumberExact, formatWeekday } from '@/src/lib/format';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
 const getWeekStartDate = (date: Date): Date => {
@@ -63,6 +65,7 @@ const formatDate = (date: Date): string => {
 
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
@@ -656,6 +659,12 @@ const TimesheetsPage: React.FC = () => {
   }
 
   const status = (currentTimesheet?.status as TimesheetStatus | undefined) ?? null;
+  const statusCopy: Record<TimesheetStatus, string> = {
+    [TimesheetStatus.Draft]: t('timesheets.status.Draft', 'Draft'),
+    [TimesheetStatus.Submitted]: t('timesheets.status.Submitted', 'Submitted'),
+    [TimesheetStatus.Approved]: t('timesheets.status.Approved', 'Approved'),
+    [TimesheetStatus.Rejected]: t('timesheets.status.Rejected', 'Returned for changes'),
+  };
   const returned = status === TimesheetStatus.Rejected;
 
   // AC-W3-B1: "Revise this week" — single-click routine reversible step (OD-UX-1: no confirm).
@@ -706,12 +715,15 @@ const TimesheetsPage: React.FC = () => {
         />
       )}
 
-      <Card clip>
+      <Card
+        clip
+        className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
+      >
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
           <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
             {status === TimesheetStatus.Draft || !status
               ? t('timesheets.status.draftNotSubmitted', 'Draft — not submitted')
-              : status}
+              : statusCopy[status]}
           </StatusPill>
           {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
               push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
@@ -752,8 +764,9 @@ const TimesheetsPage: React.FC = () => {
             data-testid="timesheets-weekly-total"
             className="ml-auto text-[13px] tabular text-muted-foreground"
           >
-            {(editable ? editTotals.weekly : weeklyTotal).toFixed(1)}{' '}
-            {t('timesheets.hoursThisWeek', 'h this week')}
+            {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
+              hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
+            })}
           </span>
         </div>
 
@@ -796,7 +809,7 @@ const TimesheetsPage: React.FC = () => {
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
 
-        {editable && (
+        {editable && isDesktop && (
           <div
             data-testid="timesheets-footer"
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
@@ -835,6 +848,19 @@ const TimesheetsPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {editable && !isDesktop && (
+        <MobileActionStrip
+          total={editTotals.weekly}
+          canSave={editValid && !saveWeek.isPending && !deleteRow.isPending}
+          canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
+          showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
+          saving={saveWeek.isPending}
+          submitting={submit.isPending}
+          onSave={commitSave}
+          onSubmit={() => setConfirmSubmit(true)}
+        />
+      )}
 
       {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
           TOTAL column + daily-total row + header weekly total are the single source of truth; the

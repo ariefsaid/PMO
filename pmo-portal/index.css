@@ -412,6 +412,13 @@
 /* ---------- Toast slide-in ---------- */
 .toast-anim { animation: toastIn 0.2s ease; }
 .toast-anim.out { animation: toastOut 0.2s ease forwards; }
+
+/* Persistent remedies move above an open dialog instead of covering its actions. */
+[data-toast-container][data-dialog-open="true"] {
+  top: max(12px, env(safe-area-inset-top));
+  bottom: auto;
+  transform: none !important;
+}
 @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
 

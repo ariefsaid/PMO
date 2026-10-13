@@ -336,7 +336,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
     expect(dialog).toHaveTextContent('Alice Manager');
   });
 
-  it('AC-IXD-WP-002: the Mark-as-Paid confirm body names the amount, project, and requester', async () => {
+  it('AC-PMC-004: the Mark-as-Paid confirm body matches the payment-evidence copy and amount', async () => {
     detailState.data = {
       ...baseProcurement,
       status: 'Vendor Invoiced',
@@ -349,9 +349,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
     const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('$85,000');
-    expect(dialog).toHaveTextContent('HQ Fit-Out');
-    expect(dialog).toHaveTextContent('Alice Manager');
+    expect(dialog).toHaveTextContent('Record $85,000 as paid? This records payment evidence; it does not transfer funds.');
     // confirming pays it (SoD-b is server-enforced; here the click commits)
     await userEvent.click(within(dialog).getByRole('button', { name: /mark as paid/i }));
     await waitFor(() =>

@@ -15,7 +15,7 @@
 >   tenant IDs.
 >
 > **Where open-weakness detail goes instead:** a GitHub **private security advisory**
-> (`Security → Advisories`), or the Director's private memory
+> (`Security → Advisories`), the local-only `docs/private/` (own git repo, no remote, ignored via `.git/info/exclude`; reviews/audits of unfixed defects go here), or the Director's private memory
 > (`public-repo-hygiene-open-items` holds the current set). In-repo docs carry only a **neutral
 > stub** that names no path and no missing control; restore the detail to the docs when the fix
 > ships. Before filing anything touching security, auth, infra, or people:

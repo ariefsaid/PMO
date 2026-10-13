@@ -26,6 +26,8 @@ import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
+
 // ── Mutable data box — lets each test control the project list ────────────────
 const { projectsBox } = vi.hoisted(() => ({
   projectsBox: { data: [] as ProjectWithRefs[], isPending: false },

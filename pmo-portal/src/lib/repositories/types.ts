@@ -25,6 +25,7 @@ import type {
   CreateProjectInput,
   ProjectHeaderInput,
   SetProjectContractValueInput,
+  ProjectVatEditability,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type {
@@ -178,6 +179,8 @@ export interface ProjectRepository {
    * TypeScript forbids a required parameter after an optional one.
    */
   setContractValue(input: SetProjectContractValueInput): Promise<void>;
+  /** Read advisory server-side VAT editability for this project. */
+  getVatEditability(id: string): Promise<ProjectVatEditability>;
   /** Reserve one editable PMO project-number proposal for the selected client. */
   proposeNumber(clientId: string): Promise<string>;
 }
@@ -392,6 +395,8 @@ export interface ProcurementRepository {
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
   /** Edit the PR header (requester while Draft/Rejected; RLS is the authority). */
   updateHeader(id: string, patch: ProcurementHeaderPatch): Promise<void>;
+  /** Set only vendor_id on a vendor-less request; RLS decides eligible roles/stages. */
+  updateVendor(id: string, vendorId: string): Promise<void>;
   /** Add a line item (Draft-gated by RLS). */
   createItem(procurementId: string, input: ProcurementItemInput): Promise<ProcurementItemRow>;
   /** Edit a line item (Draft-gated by RLS). */

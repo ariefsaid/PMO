@@ -1077,3 +1077,199 @@ like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pric
 parked reseller conversation).
 
 </details>
+
+
+## Backlog status chronicle, 2026-09-08 → 2026-10-05 (moved from `docs/backlog.md` 2026-10-09)
+
+### ⚑ 2026-10-05 — promote #779 + production (owner yes): **production == main == `0fb733c1`**; hosted DB at 0224
+
+`main` == `dev` trees. Adds #758 (end customer on projects, 0223) and #778 (revenue entitlement key, 0224 + registry
+drift test). Hosted DB: 0223–0224 pushed; nothing pending; anon probes refused (pipeline RPC 401, guard fn 404); no
+edge-function change. Revenue section switched on for RIS. Found live: #781 (finance lists show customer ids,
+breadcrumb, date locale).
+
+### ⚑ 2026-10-02 — RIS connected to its ERPNext on the hosted project (owner yes); next build #758
+
+Connected and activated through the UI (ERPNext 16). Service-side, audited: four domains employed (companies,
+procurement, revenue, timesheets), timesheet activity type and receivable account set, party onboarding adopted
+13 customers/suppliers. Still manual per project: the ERP project mapping (no UI or writer yet). **Next: #758
+(end customer alongside the client) — ahead of RIS project seeding.**
+First-client gap review filed as issues: #759 #760 #762–#777 (withholding on receipts, ERP item lines, project
++ vendor ref on purchase pushes, management report, down payment/progress billing (G5), receipt-date due date,
+multi-account budget map, external procurement refs, project tags, project-code numbering, in-app ERP project
+link + setup checklist, contacts adopt, declined outcome, expense claims (G2), two UI polish). RIS-specific setup
+and decisions are tracked privately with the client, not in this repo.
+
+### ⚑ 2026-09-30 (later) — second promote to `main` (#755); **v0.13.0 LIVE: production == main == `fc1aee72`** (owner yes); hosted DB at 0222; all 22 edge fns at `fc1aee72` (health verified)
+
+`main` == `dev`. Adds #735, #732, #731, #585, #728 (owner CLI over Supabase OAuth + consent page +
+API-client guard 0222, runbook `docs/runbooks/pmo-cli.md`), #655/#656 (ERPNext: no redirects, read-permission
+probe before activation, active-member caller), and #754 (all eleven verify guards now run in CI; leaner local
+and CI load). Open issues triaged the same day (13 closed). Release **v0.13.0** cut (#744) and back-merged to `dev`.
+**Hosted DB: 0219–0222 pushed 2026-09-30 (owner yes)** — 0219 normalised 0 rows; REST/auth/RPC answer 200 after the
+push; the replaced definer `approved_timesheet_for_push` still refuses the anon key (42501). **CLI sign-in enabled on the hosted project 2026-09-30 (owner yes):** OAuth server on, consent at `/oauth/consent`, CLI client registered; authorize → consent page verified. Owner signed in as the RIS Admin; with that CLI token the 0222 guard refuses DELETE and non-allow-listed tables (403/42501) and allows project reads. Open follow-up: #756 (branded CLI callback page). Was: enable the OAuth server there and register the CLI client (runbook); `main` → `production` FE promote.
+Before RIS activates ERPNext: its integration user needs read on the owned domains' doctypes + GL Entry +
+Payment Ledger Entry.
+
+### ⚑ 2026-09-30 — promoted to `main` (#743, merge `37380e17`); production and the hosted DB untouched
+
+`main` == `dev` (trees identical). Carries the milestone below, the 16-issue follow-up batch
+(#729 #730 #733 #734 #736 #737 #738 #741), the two security fixes found by the public-docs audit
+(#739 migration 0220, #740 migration 0221), preference validation (0219), and the CI changes (#726, #727,
+#742 — CI is now the full-suite gate for PRs to `main` too; this was the first promote decided by CI alone).
+**Owner-gated next:** push 0219–0221 to the hosted project (read the org preference values first, read-only)
+and the `main` → `production` FE promote. Open follow-ups from the batch: #728 (seeding CLI), #731, #732, #735.
+
+### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (promoted 2026-09-30, above)
+
+Signed brief `docs/design/2026-09-26-enterprise-coherence-brief.md`: #685 (#691), #689 (#698), #681 (#703),
+#687 (#706), #683 (#709), #684 (#710), #688 (#712), #682 (#717); umbrella #679 closed. The full CI e2e lane
+(chromium + serial) went green via #725, which fixed seven drifted journeys and a real list-seam race (a filter
+picked just before a debounced search write was dropped). `main` and production are untouched by this
+milestone. **Code-ready is not RIS-ready:** RIS stays unproven until a real RIS org Admin exercises live
+Microsoft 365 and ERPNext. Open follow-ups: #690, #692–#697, #700, #701, #704, #707, #708, #711, #713, #715,
+#716; external-access map #720 (API/MCP), PWA #718, record history #719. **CI fair use (owner, shared with MOS):**
+heavy e2e only via `scripts/ci-e2e.sh` (#726).
+
+### ⚑⚑⚑ CURRENT STATE (2026-09-08) — v0.10.0 is LIVE; what is left is owner-held facts and the RIS test paths
+
+**Live in production (2026-09-11, owner-instructed):** release **v0.10.1** (`b9a84459`) — Cloudflare
+`production` == `main` == `b9a84459`; cloud DB at **0215**; all 22 edge functions at stamp **`d71939c6`**
+(2026-09-10 — the CORS fixes #637/#641: the external-system functions now answer the browser's preflight AND
+every response with CORS headers; the ERPNext/ClickUp admin-connect flows were unreachable from the app
+before). v0.10.1 = 0212–0215 + the CORS fixes + vitest 4.1.11 (Dependabot #21 closed); the FE bundle is
+otherwise v0.10.0's. Open Dependabot: `js-yaml` (dev scope, not shipped) — next promote. **2026-09-09 — the second-tenant pre-flight (map #618):** the RIS Admin could
+not create a meeting (#616) because every test runs in the seed org, where the wrong `org_id` default is
+the right value; four fixes shipped and are live (`0212` meetings stamp + catalog guard, `0213`
+`seed_org_defaults` at org creation, `0214` invite probe pinned, `0215` org checks after the stamp), the
+whole e2e portfolio ran locally as a second org (`E2E_SECOND_ORG=1`), and prod now carries a
+`lifecycle=test` smoke org for `scripts/second-org-smoke.sh` + `scripts/isolation-probe.sh` after every
+push (both green on 0215; the two operator readers still answer `[]`, #612). The live walk as an empty
+second-org Admin (#622) found the CORS defect (fixed, deployed) and #639 (Administration fetches ERPNext
+companies with no binding — cosmetic, frontend). **Nothing on map #618 blocks inviting the RIS team.**
+v0.10.1 cut and promoted 2026-09-11 (#611 still open: DB-only promotes do not bump). **2026-09-12 — owner's final pre-ERPNext check:** a third after-push probe, `scripts/second-org-roles-smoke.sh` (#646),
+walks every day-1 workflow as each of the five roles inside the test org on the hosted project — 81 steps, 0 failures,
+every write in the caller's org (recipe in `docs/environments.md`). The e2e portfolio also ran locally as a second org:
+every spec passed at least once; the reds that moved between runs were 30–120 s timeouts on a box another session held
+at load 20–130, never the same spec twice in a row. Still uncovered anywhere: the 41 served-function specs
+(ClickUp/ERPNext/M365 edge flows) skip locally and have never run as a second org — #590's dry-run is that test. Verified after deploy: demo login + five routes render, zero console errors, the
+prod grant sweep equals local. Run the four commands under *Deployment state* below before quoting any of
+this — it rots.
+
+**What v0.10.0 carries beyond v0.9.0:** the i18n framework + Bahasa catalogue (#547/#567, launch-scope gate
+per `DD-I18N-9`) · first-class tasks + `DD-TASK-8` Engineer rights (#525/#568) · the meeting module (#526) ·
+work orders + the drawdown surface (#498/#566) · currency seam + tax basis on every money figure
+(#478/#495/#505/#513/#548/#578) · the three owner rulings of 2026-09-02 — author archives own minute
+(`OD-MTG-3`, #589), approvals queue filtered to the approve authority (`OD-TS-5`, #591), desktop
+bulk-approve as one shared controller (`OD-TS-6`, #592) · the timesheet delete-row race (#596) · the
+service-only definer grant pin (`0210`, #608) · the `toHaveCount(0)` skeleton-wait sweep (#610).
+
+**Every wayfinder decision ticket across all three maps is closed.** Nothing on the board waits on a
+ruling. What remains is either an **owner-held fact** (below) or a **build issue** on the tracker — the
+frontier hook prints both at session start.
+
+**The RIS route now (map #450):** an ERPNext **v16.33 test instance** exists (`DD-OPS-10`, self-hosted on the
+owner's Oracle ARM VM — coordinates owner-held). Two test paths are ticketed and share only the deploy that
+has now happened: [#590](https://github.com/ariefsaid/PMO/issues/590) (ERPNext Connect-ready + the crossing
+dry-run, which doubles as the v16 re-proof) and [#598](https://github.com/ariefsaid/PMO/issues/598) (Entra
+Option-B registration in RIS's tenant → first user connect → AC-M1's data-200). **RIS's whole contribution:**
+the accountant's chart-of-accounts codes, fiscal-year convention, PPN encoding and the 2025 sheets
+(`DD-OPS-3`, #546); confirmation their tenant has SharePoint licences; one tenant-admin sitting; one user
+to click Connect. **Ours — DONE 2026-09-08:** the `ris-integrity` org exists on the live project (`live`, IDR, `id`/`id-ID`, Asia/Jakarta; guard proven refusing) with its first Admin invited; their Admin invites the rest. `pmo_epoch_at` has no column yet — the epoch is set at Connect (#590).
+**2026-09-14 — #590 steps 1–2 done, step 3 found the shipped ERPNext connect path was never end-to-end functional:**
+the credential probe fetched a User document Frappe cannot serve (#647, fixed on `dev` — takes effect on the cloud only
+after an `external-connect` deploy); beyond it, connect leaves the binding with an empty `site_url` and no
+`activated_at`, the write paths resolve credentials from function env rather than Vault, and the version handshake has
+no call site and pins v15. Every existing binding is seed / e2e helper / operator SQL. Findings with file:line on #590;
+the #481 dry-run plan (`docs/plans/2026-09-14-erpnext-crossing-dryrun.md`) is written against a second company
+`PMO Smoke Co` on the v16 site so the client's books are never touched. Owner sequencing pending. Also shipped: #639.
+**2026-09-14 — #650 built (ERPNext activation at Company selection, ADR-0073):** migration `0216` adds three
+service-role-only RPCs — `set_external_binding_site_url` (connect persists the site URL; a repoint un-activates),
+`activate_external_binding` (Company selection IS activation: version handshake {15,16} → ONE statement writing
+`version_major` + `config.company` + Company account defaults + the SET-ONCE `activated_at`),
+`deactivate_external_binding` (disconnect un-activates) — plus the catalog-derived SELECT-only grant guard (pgTAP
+`erpnext_activation.test.sql`, AC-EAC-103..114). `external-disconnect`'s disconnect audit defect fixed (#650) and its
+suite now binds the shipped handler (edge-fn guard 6/6 → 7/7). FE seam
+surfaces the endpoint's refusal message (AC-EAC-115). **Merged to `dev` 2026-09-14 as `03a8cb6d` (PR #657), after #651
+(`df6e31bc`, PR #652) — and the served ERPNext e2e lane (timesheet push/backstop/idempotency/native-not-adopted/
+cross-org + procure-to-pay, incl. the four fault-injection variants) ran green on `dev` against the local v15 bench:
+40 specs passed, 2 allowlisted skips (recipe in `docs/environments.md` § ERPNext v15 dev bed).** **Then the #481 dry-run ran against the v16.33 test
+instance's `PMO Smoke Co` (2026-09-14 evening): 18/18 served crossing assertions green, A4 green in pgTAP, and the
+SHIPPED connect path — served locally with the #659 issuer fix — activated a binding against v16 with
+`version_major = 16` (`DD-OPS-11`). #481 closed; #590 steps 3–4 done for the test path. ⛔ Nothing of this is on the
+hosted project yet: promote + `0216` + the function deploys are owner-gated.** **2026-09-15: PROMOTED — `dev`→`main` as `7ee157fc` (PR #661, `--merge`, `main..dev`=0, trees identical; the
+local gate was owner-bypassed after three memory-starvation failures, CI `verify` + `integration` green). Cloud DB still
+0215, functions pre-#647: the `0216` push + fourteen function deploys and any production promote remain owner-gated.** **2026-09-15 (owner yes, 10:30–10:40 UTC): DEPLOYED to the hosted project — cloud DB `0215 → 0216`; ten
+functions took new versions (`external-connect/-set-company/-disconnect/-companies/-lists/-link/-unlink` v6,
+`m365-token-custody` v10, `erpnext-sweep` v5, `adapter-dispatch` v6; `erpnext-onboard`, `erpnext-webhook`,
+`clickup-sweep`, `clickup-webhook-worker` unchanged bundles). After-push probes green: the three activation RPCs
+refuse anon (401 42501) AND an authenticated tenant-B Admin against tenant A (403 42501); every user-facing function
+answers preflight 200 / no-JWT 401; `second-org-smoke` 20/0; `second-org-roles-smoke` 81/0. **Isolation probe re-run on `0216` 2026-09-15 (later, owner-asked): 83 tables all RLS forced, 236 checks, 0 leaks; the only flags are the two operator readers answering `[]` (#612 item 3, unchanged since #490); no residue in tenant A.** **Item 3 closed on `dev` 2026-09-16: migration `0217` makes both readers raise `operator_only` (PR #663, squash `634beeb3`) — PUSHED to the hosted project 2026-09-16 (owner yes, this message): cloud DB `0216 → 0217`; re-probed as tenant B — both RPCs now 403 `operator_only`, anon has no EXECUTE, authenticated keeps it. No FE change, no promote needed.** **Item 4 closed on `dev` 2026-09-16: migration `0218` revokes the member EXECUTE grant on `may_approve_work_of` (PR #664, squash) — `assert_org_destroyable` was already member-revoked by `0214`. PUSHED to the hosted project 2026-09-16 (owner yes, this message): cloud DB `0217 → 0218`; on prod `may_approve_work_of` and `assert_org_destroyable` both refuse anon + authenticated (tenant-B RPC → 403, anon → 401), service_role kept; positive controls after the push: `second-org-roles-smoke` 81/0 (work-order issue + timesheet approval go through the two definer callers), `second-org-smoke` 20/0. No FE change. Item 1 closed on `dev` 2026-09-16 (PR #665, factory run `62b99a5f`): `scripts/isolation-probe-denominator.json` + `scripts/check-isolation-denominator.mjs` (`--self-test` / `--write`) run in the `pgtap` CI lane — a new table / definer / edge fn / bucket without a manifest entry fails the PR; the probe reads its table list from the same file. **Only item 2 of #612 (run the probe in the promote gate against the hosted project) remains open.**** #645 (js-yaml) merged to
+`main`; v0.11.0 release PR #662 pending merge + back-merge. Production FE promote NOT done (nothing FE-visible except
+#639). RIS's own ERPNext Connect now needs only RIS's real credentials.** **v0.11.0 cut as `0d97fd7b` (PR #662, squash) and back-merged into `dev`; `main..dev` = docs only.** **PRODUCTION promoted 2026-09-15 (owner-instructed, per-instance): `production == main == 0d97fd7b` (v0.11.0).** All gates green on the branch (`fix/650-erpnext-activation`):
+pgTAP 309 files / 3711 tests (review follow-up: AC-EAC-113 column-grant oracle), vitest 825 files / 7509 tests, deno suites + boot smoke, lint/typecheck. The #481 dry-run stays the live-bench proof. Spec §7.6 open questions: **Q1** (ClickUp rotate's destructive
+`cleanup_external_connect_attempt` DELETEs the one live binding on a failed finalize) — own issue, deliberately not
+copied onto the ERPNext branch; **Q2** (Company account defaults) — ruled IN scope and shipped in Phase 4 (the
+v16.33 shape — `default_bank_account` key ABSENT — maps to null "no default", and `paymentEntry.ts`'s `??` chain
+verified to treat null as no-default); Q3 (v16 field names) settled on the live v16.33 bench by the Director's
+pre-build ruling.
+
+**Known gaps, tracked:** a DB-only promote does not bump release-please (package path is `pmo-portal/`,
+[#611](https://github.com/ariefsaid/PMO/issues/611)) · the local promote gate exits at the first red lane,
+so serial/consent/smoke lanes only run when Chromium is clean — pre-run them by hand on a contended box
+(`docs/qa-portfolio.md`) · ERPNext follow-ups (#565) and the operational-completeness slate (#562) are
+not scheduled.
+
+**The standing lesson of the last three weeks:** every defect that reached `main` was found by a step that
+had not been run — a gate lane that never executed, a proof that only ran on local Docker whose grant
+defaults differ from production, a mutation nobody made. Read `docs/decisions.md` for the rulings and
+`docs/history.md` § *2026-08-18 → 2026-09-08* for the narrative that used to sit here.
+
+**⏸ POOLED OWNER QUESTIONS — parked, blocking nothing.** These are facts only the owner holds
+(commercial terms, client relationships, or a client's own data). They are **closed on the tracker**
+so they stop re-surfacing on the session frontier; the full question and its context live in the
+linked issue and are intact. **Reopen when the answer arrives.**
+
+| Question | Reopen when |
+|---|---|
+| [#496](https://github.com/ariefsaid/PMO/issues/496) — what a real RIS client PO looks like (line items? PPN inclusive or exclusive?) | one real PO is to hand; it settles four design questions at once |
+| [#497](https://github.com/ariefsaid/PMO/issues/497) — ERPNext SLA, partner role, data locality, e-Faktur | before committing anything to RIS in writing |
+| [#487](https://github.com/ariefsaid/PMO/issues/487) — which reports RIS needs, and whether any is day-1 | if a named report turns out to be a day-1 requirement |
+| [#466](https://github.com/ariefsaid/PMO/issues/466) — pricing numbers and what each band buys | after the reseller conversation happens |
+| [#456](https://github.com/ariefsaid/PMO/issues/456) — RIS Microsoft tenant consent ceremony | when their tenant admin is available; steps are pre-written (#494) |
+
+None of these blocks a build. Everything downstream of them is either shipped or has a stated
+default recorded as a `DD-`.
+
+**Executor routing is binding** — `docs/factory-workflow.md` § Executor routing. Bounded slices run
+on the SSSF ADW; money/SoD/auth **and anything under `adws/`** are Director-dispatched.
+
+---
+
+**Snapshot 2026-09-08, for orientation only:** **v0.10.0 is DEPLOYED** — cloud DB `0186 → 0210`, all 22 edge functions stamped `59f91bbf`, Cloudflare `production` = `aa20f394` (== `main`), live site serves v0.10.0 (demo login + five routes rendered, zero console errors). The post-deploy grant sweep found the pre-0185 residual class live on the cloud (hosted default EXECUTE grants on service-only definers, incl. the vault reader — `docs/decisions.md` / the 0210 migration header carry the account); closed by an owner-instructed emergency revoke, then **migration 0210** (PR #608 → promote #609 → applied on prod, its own assertion passing there; prod sweep now equals local). ⚑ **A DB-only promote does not bump release-please** (package path is `pmo-portal/`): 0210 is on `main` at `aa20f394` with no tag; v0.10.1 needs a `Release-As` commit under `pmo-portal/` or a root-path release config. Also on `dev`: the `toHaveCount(0)` skeleton-wait sweep (#610) that ends the #593 flake class.
+
+
+**Dev-tooling (2026-08-06): SSSF stamped (#435).** `adws/` ADW scripts orchestrate bounded pi
+phases (zai GLM + codex-OAuth roster per `docs/pi-delegation.md`; openrouter/fireworks swapped
+out); demos green. **Trial done (#436) → owner adopted "iterate" 2026-08-16:** iterate items landed
+(planner → `docs/plans/`; default chain = `adw_simple_sdlc.py` with its review+fix loops) and the
+consolidated operating model is **`docs/factory-workflow.md`** (milestone-brief checkpoints — owner
+signs front, reviews at milestone boundaries). Operating skill: `/sssf` (vendored). Follow-up
+candidate: wire `claude -p` as an opt-in `coding_agent` (upstream stubs it until v2) — on hold.
+
+**What v0.9.0 carried to prod** (beyond v0.8.0): the three 07-29 promoted programs — observability +
+analytics (#394, #398–#408; ADRs 0066/0067), skipped-workflow remediation (#409), create-path SoD
+class (#411, `0173`–`0178`, ADR-0070) — plus the authorization-hierarchy round (#418/#421,
+`0179`–`0184`: rank-gated profile edits, `is_active_member()` on 15 privileged RPCs, three money-SoD
+bypasses closed) and #413/#414.
+
+**`0185` (#425) — the anon-executable-definer close, ON `main` AND applied+verified ON PROD.**
+Hosted Supabase grants EXECUTE to `anon`/`authenticated` on every `public` function; local Docker
+does not — so `0173`'s completeness sweep was green in CI and false in prod: 23 SECURITY DEFINER
+*writers* were unauthenticated-callable. Revoked; prod sweep now 0, 49/49 client RPCs intact.
+⚑ Lesson: a proof that only runs against a DB whose grant defaults differ from prod certifies nothing.
+
+**✅ PostHog quota alarm is LIVE and running.** Daily `schedule` runs on `main` since 2026-07-30,
+green every day through 2026-08-04 (verified `gh run list --workflow=posthog-quota.yml`; 8–15s runs =
+the check really executes, and it exits(2) loudly if secrets are missing).
+

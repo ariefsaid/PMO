@@ -105,7 +105,8 @@ test(
     await searchId.fill('e');
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
 
-    await page.getByRole('button', OPEN_CABLECORE).tap();
+    // #989 localized the row-open label (`openRow`: "Buka {{name}}" in Bahasa Indonesia).
+    await page.getByRole('button', { name: 'Buka CableCore Electrical', exact: true }).tap();
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('CableCore Electrical');
 

@@ -291,9 +291,14 @@ the content earns it (a phase/delivery card, a table frame).
 
 **UI font:** Inter variable (opsz 14..32, 400/500/600) + the cv stylistic sets
 (`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0068).
+
 Fallback `system-ui, -apple-system, "Segoe UI", sans-serif`. Root font-size is **16px** (load-bearing:
 rem-based utilities resolve to DESIGN.md sizes — `h-8` = 32px controls). Default body size is 14px,
 line-height 1.45.
+
+**Functional reference legibility.** Rail overlines use the existing 11px
+Overline token. Action/evidence document IDs in a lifecycle stepper use 12px
+identifier text, not decorative 10px microtype. Mono remains identifier-only.
 
 **Mono:** the Tailwind v4 `font-mono` default stack (`ui-monospace, SFMono-Regular, Menlo, …`), applied
 via the `font-mono` utility for IDs/codes/`⌘K` only. **Never** for prose or money (money is Inter-tabular).
@@ -447,6 +452,14 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Reflow (OD-W4-4):** single-renders — `<table>` at `md` (768px), stacked card list below. One branch
   in the DOM (no flash, no `aria-hidden` dup). Touch targets extend to ≥44px via `.touch-target`.
 
+**Recognition before compression** (2026-10-09, UI polish UIP-003/007). Primary record identity gets enough
+space to distinguish same-prefix records before ancillary columns. On the desktop Projects table, target a
+minimum 240px identity region and two readable lines; at 1440 the whole table fits with no clipped control
+(customer ≥12 visible characters; PM as initials with the full name as its accessible name). Use bounded
+table scrolling only below ~1280 — never reduce a name to a few characters. Keep full accessible names,
+numeric comparison alignment and available fields. Repeating procurement rows share one column template
+(header and cells from one definition) with aligned headers and a gutter between adjacent numeric columns.
+
 ### Kanban Card (signature)
 White `card`, `lg` radius, ~11px padding, faint rest shadow; hover lift + `muted-foreground/35%` border;
 active → `scale(.992)`; selected → `primary` border + `primary` ring + `primary/4%` fill. 26px icon,
@@ -478,9 +491,16 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Route-backed setup:** Administration section links are native navigation links. The selected
   section, breadcrumb, panel heading, and URL use one label and one route; compatibility redirects
   do not add a history stop. Personal **My integrations** remains distinct from organization setup.
-  When an async panel owns a URL fragment, focus and scroll its target after the panel mounts.
-  A background access refresh keeps a settled panel visible; pending access applies only before
-  membership resolves, and an unavailable check has a recoverable error state.
+  Project Managers get a direct **My Tasks** entry while the project-scoped Tasks page remains the
+  project-oversight destination; keep both destinations distinct in the rail and command palette.
+  Finance gets a **Vendors** doorway to the existing Companies list filtered to vendors, independent
+  of unrelated CRM navigation visibility; Companies remains the canonical vendor record. Shared
+  route labels should be reused by navigation, command-palette results, and breadcrumbs, including
+  the localized parent label on an expense-claim breadcrumb and the localized pending/not-found
+  state crumbs on detail routes. When an async panel owns a URL fragment,
+  focus and scroll its target after the panel mounts. A background access refresh keeps a settled
+  panel visible; pending access applies only before membership resolves, and an unavailable check has
+  a recoverable error state.
 
 ### Organization integration readiness
 - A connection, service activation, outbound queue state, and verified data movement are separate
@@ -532,6 +552,19 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
   dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
   regions once, empty, then inserts each announcement into the existing region.
+- **Persistent toast + blocking dialog:** when a modal opens, keep persistent warning/error toasts
+  visible but move them to the safe top edge; never dismiss a remedy or cover the modal's actions.
+  Confirmations with context-dependent decisions restate the current record identity and caller-supplied,
+  authoritative amount inside the existing confirmation. Keep the safeguard and existing consequence; do
+  not add another confirmation layer or infer financial values in the shared presentation component.
+- **Long phone entry forms:** keep the completion action beside the work in a fixed mobile strip, reserve
+  content space beneath it, and account for device safe areas. For week-based timesheet entry, show the
+  localized total and existing Save/Submit actions without removing days or changing Submit's auto-save;
+  the final field and its inline validation remain scroll-reachable above the strip. The strip also clears
+  the non-production environment badge rather than placing that marker over a control.
+- **Evidence preview:** use a shared, keyboard-dismissible preview for supported image/PDF receipts, using
+  the caller's existing authorized short-lived URL retrieval. Preserve a single Download original action
+  for unsupported files and preview failures; closing returns focus to the opener.
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
   near-white text, `lg`-derived radius, `0 8px 24px / 0.4` shadow, max 280px; bold title + `tabular`
   key/value rows; `tooltip-muted` for de-emphasised body. (The tooltip surface is constant-dark in both
@@ -592,6 +625,13 @@ Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/D
 actions top-right. Optional `meta` row + `StatTiles` strip below. Thin wrapper over `PageHeader`
 (`src/components/ui/PageHeader.tsx`); the Project detail header is the template.
 
+**Selected-job-first** (2026-10-09, UIP-005/006/009). Compact common identity/status comes before the tab
+strip; the selected tab's work follows without a mandatory tour of Overview cards. Full project phase cards
+stay actionable in Overview; other tabs keep a one-line phase summary (`Current: <phase>`, overdue named in
+text) with an adjacent Overview/blocker link. One idle contract-value presentation; the Read-only chip sits
+where the Edit control sits, so KPI values share one baseline. On phone, a long record title takes the full
+width; status/metadata stack below it. Approval previews keep readable request identity before secondary metadata.
+
 ### Record-open paradigm (The Record-Open Rule)
 - **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers are
   optional quick-peek previews that carry a URL + "Open full record" — never the only home.
@@ -622,6 +662,13 @@ control the user intentionally selected.
 ### Approvals (one inbox)
 `/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
 `ApprovalRow`, one decision affordance (inline Approve/Return + "Open"). Rail label + H1 = "Approvals".
+
+### Dashboard states
+
+**A clear queue is compact, not absent** (2026-10-09, UIP-010/011). A dashboard work panel with no items states
+its exact scope in a compact region (≤120px at 1440, in every locale), letting active work below rise. Loading,
+error and unavailable states stay distinct. A displayed project exception links to its canonical record in one
+step; presentation changes never alter financial calculations.
 
 ### Skeleton loading pattern
 - **Page-head skeleton:** two `skel` divs mirroring `DashPageHead` (h1 + two-line sub) — never a single
@@ -791,10 +838,22 @@ the `ICON_PATHS` registry (`src/components/ui/iconPaths.tsx`). The facade is the
 `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={2}`, round caps/joins,
 `width/height="1em"` (sized by font-size), and `aria-hidden` unless an `aria-label`/`title` is passed.
 
-**Adopting Lucide is DEFERRED.** The hand-rolled monoline set (~36 icons) already matches the Lucide
-style (stroke-2, 24×24, currentColor), and the facade means Lucide can be swapped in behind `<Icon name>`
-with **zero call-site churn** if a future surface needs an icon the set lacks. This is a deliberate
-deferral, not an omission — do not introduce a second icon family or bypass the facade.
+**One licensed geometry family.** UI glyph geometry comes from a pinned Lucide
+release, copied into the typed icon registry with source provenance and the
+distributed license/attributions. `<Icon name=…>` is the public facade; legacy
+named icon exports delegate to it. Do not mix independent 1.5px/2px families.
+Keep 24×24 / stroke 2 / round caps and joins / currentColor. Keep existing
+rendered sizes: about 17px rail, 15px controls; icons remain decorative unless
+explicitly named. Vendor marks and charts are not UI-glyph substitutions.
+
+**Entity semantics stay stable.** Projects uses FolderKanban; Procurement uses
+ShoppingCart; Pipeline uses SquareKanban; Companies Building2; Contacts
+ContactRound; Approvals ListChecks; My Tasks ListTodo; Expenses Receipt;
+Incoming Payments Banknote; Management pack FileSpreadsheet. Use Menu for
+the phone drawer trigger, never the Board/Columns glyph. Rail, Navigate and
+record-search metadata agree for the same entity. Preserve old icon aliases
+until callers are deliberately mapped; do not repurpose financial chart keys
+globally to fix a navigation metaphor.
 
 ---
 

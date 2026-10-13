@@ -21,6 +21,7 @@ describe('ExpenseReceiptsCard', () => {
   it('AC-EXP-066 every viewer can download; only a writer can attach or remove', () => {
     const { rerender } = render(<ToastProvider><ExpenseReceiptsCard claimId="c1" canWrite={false} /></ToastProvider>);
     expect(screen.getByText('receipt.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview receipt' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download receipt.pdf' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Attach receipt' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Remove receipt.pdf' })).toBeNull();

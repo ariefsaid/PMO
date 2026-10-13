@@ -5,6 +5,8 @@ import { Icon } from './icons';
 import { computeTotals, type EditRow } from '@/src/lib/timesheet-edit';
 import { useIsDesktop } from './useIsDesktop';
 import { ProjectNameLink } from './ProjectNameLink';
+import { useTranslation } from 'react-i18next';
+import { formatNumberExact } from '@/src/lib/format';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -57,7 +59,7 @@ export interface TimesheetGridProps {
 
 /** Format hours with a tabular figure; trims trailing zeros (8 not 8.00). */
 function fmt(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(n);
+  return formatNumberExact(n);
 }
 
 /**
@@ -86,6 +88,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   onNoteChange,
   onDeleteRow,
 }) => {
+  const { t } = useTranslation();
   const isDesktop = useIsDesktop();
 
   // Read-only totals: the shipped numeric reduce. Editable totals: derive from
@@ -153,7 +156,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               scope="col"
               className="sticky left-0 z-[1] h-[38px] min-w-[220px] max-md:min-w-[160px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
             >
-              Project
+              {t('timesheets.projectColumn', 'Project')}
             </th>
             {days.map((d, i) => (
               <th
@@ -174,7 +177,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               scope="col"
               className="h-[38px] min-w-[64px] border-b border-border bg-secondary/40 px-2 text-center text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
             >
-              Total
+              {t('timesheets.totalColumn', 'Total')}
             </th>
           </tr>
         </thead>
@@ -216,7 +219,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                         className="touch-target shrink-0"
                         variant="ghost"
                         size="icon"
-                        aria-label={`Delete ${r.project} row`}
+                        aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
                         onClick={() => onDeleteRow?.(r.id)}
                       >
                         <Icon name="x" />
@@ -256,7 +259,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                           type="text"
                           inputMode="decimal"
                           autoComplete="off"
-                          aria-label={`${r.project}, ${days[i]?.label} hours`}
+                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: days[i]?.label })}
                           aria-invalid={invalid || undefined}
                           value={value}
                           onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
@@ -274,7 +277,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                             style={{ color: 'hsl(0 72% 42%)' }}
                             className="mt-0.5 block text-center text-[11px] leading-tight"
                           >
-                            0–24 only
+                            {t('timesheets.invalidHours', '0–24 only')}
                           </span>
                         )}
                       </td>
@@ -287,7 +290,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                       className={cn('p-1 text-center align-middle', weekend && 'bg-secondary/60')}
                     >
                       <div
-                        aria-label={`${r.project}, ${days[i]?.label} hours`}
+                        aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: days[i]?.label })}
                         className={cn(
                           'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-[13.5px] tabular',
                           filled
@@ -313,7 +316,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         <tfoot>
           <tr className="border-t-[1.5px] border-border bg-secondary/40">
             <td className="sticky left-0 z-[1] bg-card px-3 py-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-              Daily total
+              {t('timesheets.dailyTotal', 'Daily total')}
             </td>
             {dailyTotals.map((t, i) => (
               <td
@@ -387,6 +390,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
   onNoteChange,
   onDeleteRow,
 }) => {
+  const { t } = useTranslation();
   return (
     <div data-testid="tsgrid-mobile" className={cn('divide-y divide-border', className)}>
       {rows.map((r, rowIdx) => {
@@ -423,7 +427,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   className="touch-target -mt-0.5 shrink-0"
                   variant="ghost"
                   size="icon"
-                  aria-label={`Delete ${r.project} row`}
+                  aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
                   onClick={() => onDeleteRow?.(r.id)}
                 >
                   <Icon name="x" />
@@ -465,7 +469,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           type="text"
                           inputMode="decimal"
                           autoComplete="off"
-                          aria-label={`${r.project}, ${day.label} hours`}
+                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                           aria-invalid={invalid || undefined}
                           value={value}
                           onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
@@ -480,7 +484,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                             style={{ color: 'hsl(0 72% 42%)' }}
                             className="mt-0.5 block text-[11px] leading-tight"
                           >
-                            0–24 only
+                            {t('timesheets.invalidHours', '0–24 only')}
                           </span>
                         )}
                       </div>
@@ -509,7 +513,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       <span className="ml-1 font-normal tabular">{day.dateNum}</span>
                     </span>
                     <div
-                      aria-label={`${r.project}, ${day.label} hours`}
+                      aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                       className={cn(
                         'flex h-9 flex-1 items-center rounded-md px-3 text-[13.5px] tabular',
                         filled
@@ -541,7 +545,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               data-testid={`tsgrid-row-total-${r.id}`}
               className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-semibold tabular text-muted-foreground"
             >
-              <span className="text-[11px] uppercase tracking-[0.03em]">Row total</span>
+              <span className="text-[11px] uppercase tracking-[0.03em]">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
                 {rowTotal > 0 ? fmt(rowTotal) : '·'}
               </span>
@@ -553,7 +557,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
       {/* Grand total footer */}
       <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
         <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-          Week total
+          {t('timesheets.weekTotal', 'Week total')}
         </span>
         <span
           data-testid="tsgrid-grand-total"
@@ -582,6 +586,7 @@ const NoteCell: React.FC<{
   value: string;
   onNoteChange?: (rowId: string, note: string) => void;
 }> = ({ rowId, project, value, onNoteChange }) => {
+  const { t } = useTranslation();
   const hasContent = value.trim().length > 0;
   const [expanded, setExpanded] = React.useState(hasContent);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -607,7 +612,7 @@ const NoteCell: React.FC<{
     return (
       <button
         type="button"
-        aria-label={`Add note to ${project}`}
+        aria-label={t('timesheets.addNoteForProject', 'Add note to {{project}}', { project })}
         onClick={() => {
           focusOnExpand.current = true;
           setExpanded(true);
@@ -615,7 +620,7 @@ const NoteCell: React.FC<{
         className="touch-target mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="plus" className="size-3" />
-        Note
+        {t('timesheets.note', 'Note')}
       </button>
     );
   }
@@ -624,8 +629,8 @@ const NoteCell: React.FC<{
     <input
       ref={inputRef}
       type="text"
-      aria-label={`${project} note`}
-      placeholder="Add a note"
+      aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
+      placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
       value={value}
       onChange={(e) => onNoteChange?.(rowId, e.target.value)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads

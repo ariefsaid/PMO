@@ -71,15 +71,20 @@ New build files:
 - `supabase/migrations/rollback/0282_vat_flag_unlock_down.sql` — full reversal described below.
 - `supabase/tests/0282_vat_flag_unlock.test.sql`, `0282_vat_flag_unlock_outbox.test.sql`,
   `0282_vat_flag_unlock_acl_history.test.sql` — state/refusal/scope/history proof.
-- `pmo-portal/src/hooks/useProjectVatEditability.ts`, `useProjectVatEditability.test.tsx`,
-  `useRevenue.vatUnlock.test.tsx` (actual existing-write/eligibility invalidation).
+- `pmo-portal/src/hooks/useProjectVatEditability.ts`, `useProjectVatEditability.test.tsx`
+  (the reader/cache-identity half; see the consolidation note below for the write-path half).
 - `pmo-portal/src/lib/projectVatRefusal.ts`, `projectVatRefusal.test.ts` — stable-detail copy selector.
-- `pmo-portal/src/lib/adapterSeam/erpnext/invoiceVatContext.test.ts` — witness source and replay tests.
-- `pmo-portal/pages/project-detail/__tests__/ProjectDetailHeader.vatUnlock.test.tsx`.
+- `pmo-portal/src/lib/adapterSeam/erpnext/salesInvoiceTaxRows.test.ts` +
+  `progressClaimInvoice.test.ts` — witness source and replay tests (consolidated from the planned
+  `invoiceVatContext.test.ts`; the served boundary evidence lives in
+  `supabase/functions/adapter-dispatch/moneyOutboxDeps.test.ts`).
+- `pmo-portal/pages/project-detail/__tests__/ProjectDetailHeader.test.tsx` (the planned
+  `ProjectDetailHeader.vatUnlock.test.tsx` was folded in here).
 - `pmo-portal/e2e/serial/AC-PPNC-001-ppn-reissue.spec.ts` — one curated served-lane normal
   cancel/create/submit journey with mandatory ERP child-row reads and rendered money oracles.
-- `pmo-portal/e2e/AC-PPNC-014-vat-stale-editor.spec.ts` — deterministic rendered stale-refusal journey,
-  mocked RPC/writes, read-only isolation (no DB mutations).
+- `pmo-portal/e2e/AC-PPNC-014-vat-stale-editor.spec.ts` — **not kept**: the deterministic
+  stale-refusal journey is owned at the component layer (AC-PPNC-014 in
+  `ProjectDetailHeader.test.tsx`) plus the stable-code mapping unit (`projectVatRefusal.test.ts`).
 - `scripts/spikes/ppnc-vat-concurrency.sh` — two-session local DB proof, no bench needed.
 - `scripts/spikes/ppnc-vat-rollback.sh` — transactional local up→down→up catalog/history proof.
 
@@ -638,8 +643,8 @@ not suitable for this public repository remain private; this plan specifies inte
 | 010 | pgTAP `0282_vat_flag_unlock_acl_history.test.sql` | Roles/member/org/grants refuse |
 | 011 | pgTAP same file | Existing history diff/actor/time, no-op/fail |
 | 012 | pgTAP `0282_vat_flag_unlock.test.sql` | Native next tax + immutable cancelled history/relock |
-| 013 | Unit `pages/project-detail/__tests__/ProjectDetailHeader.vatUnlock.test.tsx` | Role/state/a11y/i18n editor behavior |
-| 014 | UI e2e `e2e/AC-PPNC-014-vat-stale-editor.spec.ts` | Retained input/code-keyed remedy/refreshed lock |
+| 013 | Component `pages/project-detail/__tests__/ProjectDetailHeader.test.tsx` + `src/hooks/useProjectVatEditability.test.tsx` | Role/state/a11y/i18n editor behavior; reader/cache identity |
+| 014 | Component + unit `ProjectDetailHeader.test.tsx` (stale-save journey) + `src/lib/projectVatRefusal.test.ts` (code-keyed mapping) | Retained input/code-keyed remedy/refreshed lock |
 | 015 | pgTAP `0282_vat_flag_unlock_outbox.test.sql` | Failed revival witness refusal |
 | 016 | Integration `scripts/spikes/ppnc-vat-concurrency.sh` | Actual transaction interleaves |
 | 018 | Unit `src/lib/adapterSeam/erpnext/salesInvoiceTaxRows.test.ts` | New flag drives ordinary/claim/down-payment create |
@@ -652,6 +657,25 @@ served/live journey: existing `salesInvoiceTaxRows.test.ts` (AC-856-2 effective 
 `erpSalesTaxRows.test.ts` and normal SoD tests support it; sanitized spike evidence supports ERP and
 rendered semantics without replacing the canonical pin. There is no claim of PASS until run.
 No invoice/AR/drawdown expected values are weakened.
+
+**Consolidation note (post-implementation, 2026-10-09 review follow-up).** Four files this plan
+names were consolidated while building — their coverage shipped, none of it was lost:
+
+- `invoiceVatContext.test.ts` → the witness/digest/replay proof lives in
+  `salesInvoiceTaxRows.test.ts` (ordinary create + update/amend witness, replay digest) and
+  `progressClaimInvoice.test.ts` (claim witness pin, AC-PPNC-015); the boundary evidence (a forged
+  witness never persists; the digest binds the server-derived one) is served in
+  `supabase/functions/adapter-dispatch/moneyOutboxDeps.test.ts`.
+- `useRevenue.vatUnlock.test.tsx` → the eligibility/invalidation surface is covered by
+  `useProjectVatEditability.test.tsx` (reader + cache identity) and the `ProjectDetailHeader.test.tsx`
+  editor journeys (refetch after a stale refusal; state-driven rendering).
+- `ProjectDetailHeader.vatUnlock.test.tsx` → folded into `ProjectDetailHeader.test.tsx`
+  (AC-PPNC-013/014 live there).
+- `e2e/AC-PPNC-014-vat-stale-editor.spec.ts` → not kept; the stale-refusal journey is owned at the
+  component layer (above), so no AC lost its owner.
+
+Path references elsewhere in this plan (tasks D8/U1 and the Exact verification commands) to these
+four consolidated names read against the surviving owners listed here.
 
 ## Premise corrections and stop conditions
 
@@ -674,3 +698,109 @@ owner question queue. Remaining owner-only checkpoint: spec sign-off (and the us
 of the existing editor hint if not already approved). No unresolved owner product question is
 introduced by this revision; ERP amended-from is only a future owner-requested scope change.
 No bench/DB execution is performed as part of the present documentation brief.
+
+## Mutation evidence (2026-10-09)
+
+Each row is a single temporary mutation, owning oracle failure, `git checkout -- <file>`,
+and fresh restored GREEN. SQL runs reset + four owning files under one DB lock (0283 state,
+outbox, ACL/history and 0255 case); production mutations are never committed.
+
+| Row / mutation | Quoted RED oracle | Restored GREEN |
+|---|---|---|
+| a — only ordinary invoices counted | Initial suite survived; added real progress/down-payment invoice fixtures. `Failed test 21: "AC-PPNC-007 live progress invoice blocks"` and `Failed test 22: "AC-PPNC-007 live down-payment invoice blocks"`; `caught: no exception`, `wanted: 42501`. | Files=4, Tests=88, Result: PASS |
+| b1 — only creates counted | `Failed test 20: "AC-PPNC-008 pending SI amend refuses the VAT change"`; also pending cancel/submit/update (21/23/24) and identity cases (30/31), 22 failures. | Files=4, Tests=88, Result: PASS |
+| b2 — only payload projectId counted | `Failed test 30: "AC-PPNC-008 claim pmo_record_id blocks before a mirror exists"`; `Failed test 31: "AC-PPNC-008 command without projectId associates through invoice pmo_record_id"`. | Files=4, Tests=88, Result: PASS |
+| c — remove lowercase normalization | `Failed test 22: "AC-PPNC-008 pending SI create refuses the VAT change"`; identity tests 30/31; `Failed test 1: "AC-858-4 an in-flight create with an upper-case projectId still locks the VAT flag"` (0255). Graduated uppercase fixtures containing actual hex letters (the original matrix's project UUID was digits only). | Files=4, Tests=88, Result: PASS |
+| d1 — held treated as terminal | `Failed test 17: "AC-PPNC-008 held SI create refuses the VAT change"`; all held verbs (15–19) and identity (31) fail. | Files=4, Tests=88, Result: PASS |
+| d2 — quarantined treated as terminal | `Failed test 27: "AC-PPNC-008 quarantined SI create refuses the VAT change"`; all quarantined verbs (25–29) fail. | Files=4, Tests=88, Result: PASS |
+| d3 — committed treated as terminal | `Failed test 7: "AC-PPNC-008 committed SI create refuses the VAT change"`; all committed verbs (5–9) fail. | Files=4, Tests=88, Result: PASS |
+| e1 — remove flag-role check | `Failed test 11: "AC-PPNC-010 Project Manager is refused"`; Executive/Engineer (13/14) and unchanged-facts/history assertions fail. | Files=4, Tests=88, Result: PASS |
+| e2 — remove active-member checks (reader/setter) | `Failed test 3: "AC-PPNC-019 inactive member cannot read project VAT eligibility"`; `Failed test 15: "AC-PPNC-010 inactive Finance member is refused"`. | Files=4, Tests=88, Result: PASS |
+| e3 — remove org checks (reader/setter) | `Failed test 4: "AC-PPNC-019 wrong-org member cannot read project VAT eligibility"`; `Failed test 16: "AC-PPNC-010 wrong-org Finance is refused"`. | Files=4, Tests=88, Result: PASS |
+| f — grant direct flag UPDATE | `Failed test 24: "AC-PPNC-010 direct VAT UPDATE remains unavailable"`; `Failed test 25: "AC-PPNC-010 authenticated direct UPDATE is refused"`. | Files=4, Tests=88, Result: PASS |
+| g1 — delete witness comparison | `Failed test 1: "AC-PPNC-015 stale VAT witness is refused before activation"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
+| g2 — delete failed-revival guard | `Failed test 4: "AC-PPNC-015 failed command cannot revive without a valid VAT witness"` (`caught: no exception`). | Files=4, Tests=88, Result: PASS |
+| h — suppress project record capture | `Failed test 9: "AC-PPNC-011 successful VAT change records exactly one actor-attributed diff"`; `Failed test 10: "AC-PPNC-011 VAT diff records old/new boolean and timestamp"`. | Files=4, Tests=88, Result: PASS |
+| i — remove create effective-rate scaling (`erpSalesTaxRows.ts`) | `FAIL ... AC-856-2 a reduced-base contract (11/12) scales the rate`; `AssertionError: expected 12 to be 11`; AC-PPNC-018 also RED. | salesInvoiceTaxRows.test.ts: 24/24 PASS |
+| j — delete persisted create taxes on replay (`dispatchFactory.ts`) | `FAIL ... AC-858-1 a replayed ordinary create keeps its persisted tax rows: no ERPNext read, same digest after the template rate or VAT flag changes`; digest equality AssertionError. | salesInvoiceTaxRows.test.ts: 24/24 PASS |
+| k1 — count Cancelled in submitted AR/revenue (`projectInvoicing.ts` shared allow-list) | `FAIL ... AC-UNB-001: reports submitted invoice totals and remaining contract value on the contract basis`; `invoicedToDate: 10900` vs `2900`. DAL submitted-status filter test also RED. | revenue.test.ts + projectInvoicing.test.ts: 21/21 PASS |
+| k2 — count Cancelled in work-order billing (`0262_billing_by_work_order.sql`) | `Failed test 11: "AC-BWO-001 the cancelled invoice and the withdrawn claim are out, and a raised claim counts once (as its invoice)"`; totals/pending/count tests 3/5/7 also RED. | 0262_work_order_billing_figures.test.sql: Files=1, Tests=18, Result: PASS |
+| l1 — remove outbox project FOR SHARE | `RACE stale_insert: T2 completed without project serialization`; `RACE stale_insert: committed facts violate VAT/history oracle`; failed claim revival also completes with `success` instead of `vat-context-changed`. | AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts |
+| l2 — remove native VAT-read and invoice-trigger project FOR SHARE | `RACE setter_first: committed facts violate VAT/history oracle`; AC-PPNC-016 FAIL (exit 1). A later FK wait still occurs, but tax was read under the old flag: waiting alone is not the oracle. Both 0275 and 0283 restored with checkout. | AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts |
+
+### AC-PPNC-016 two-session proof output
+
+Harness: `scripts/spikes/ppnc-vat-concurrency.sh`, local Docker psql only, under DB lock.
+T1 is held by an explicit FIFO BEGIN/COMMIT barrier; T2 must appear blocked by T1 in
+`pg_stat_activity`/`pg_blocking_pids` before COMMIT is sent. Bounded polling is observation,
+not sleep-based transaction ordering. Synthetic fixtures are cleaned by an EXIT trap.
+Native creation is the real 0275 RPC. The postconditions check invoice tax, committed flag,
+actor-attributed old/new history and absence of stale activation; failed revival preserves
+its exact payload, digest and failed state.
+
+Restored output (exit 0):
+
+```text
+PASS native_first: T2 waits on T1 project transaction
+PASS native_first: T2 outcome=vat-live-invoice
+PASS native_first: committed VAT, invoice/body and history consistent
+PASS setter_first: T2 waits on T1 project transaction
+PASS setter_first: T2 outcome=success
+PASS setter_first: committed VAT, invoice/body and history consistent
+PASS stale_insert: T2 waits on T1 project transaction
+PASS stale_insert: T2 outcome=vat-context-changed
+PASS stale_insert: committed VAT, invoice/body and history consistent
+PASS stale_revival: T2 waits on T1 project transaction
+PASS stale_revival: T2 outcome=vat-context-changed
+PASS stale_revival: committed VAT, invoice/body and history consistent
+AC-PPNC-016 PASS: all four interleaves serialized, no superseded VAT facts
+```
+
+### Final verification and self-review
+
+- `git diff 85fa1aa9 -- supabase/migrations`: empty. No production/schema repair required.
+- ONE full suite: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (exit 0):
+
+```text
+All tests successful.
+Files=409, Tests=5545, 65 wallclock secs ( 1.50 usr  0.70 sys +  3.78 cusr  1.91 csys =  7.89 CPU)
+Result: PASS
+```
+
+- Final standalone harness invocation (self-acquired DB lock): four interleaves PASS, exit 0.
+- `bash -n scripts/spikes/ppnc-vat-concurrency.sh` and `git diff --check`: exit 0.
+- Self-review: changes add behavioral proofs only (claim-family fixtures, genuine uppercase UUIDs,
+  two-session script and evidence). All mutations restored; no assertions weakened, no new app
+  behavior, no push/deploy. Aggregate unit/pgTAP proofs support AC-001; they do not claim the
+  unavailable live ERP/rendered journey passed. Existing served acceptance remains a separate gate.
+
+### Rollback spike evidence (2026-10-09 review follow-up)
+
+`bash scripts/spikes/ppnc-vat-rollback.sh` (self-acquired DB lock; local `supabase_db_pmo-portal`
+only; the down SQL + fixtures + assertions run inside ONE transaction that is always rolled back;
+the trap restores the current schema with `supabase db reset`). Exit 0. The assertion portion of
+the run:
+
+```text
+[db-lock] ACQUIRED (waited 0s) - running: bash scripts/spikes/ppnc-vat-rollback.sh
+Applying 0283 rollback in a transaction on local supabase_db_pmo-portal...
+BEGIN
+SET
+DROP TRIGGER / DROP TRIGGER / DROP FUNCTION ×4 / DROP INDEX ×4  (0283 down SQL)
+CREATE FUNCTION ×2 / REVOKE ×2 / GRANT   (pre-0283 guard + setter bodies restored)
+INSERT 0 1 ×6   (synthetic org/user/profile/company/project/cancelled-invoice fixtures)
+SET ×2
+NOTICE:  PASS: pre-0283 setter refuses the VAT flip after a cancelled invoice (0253 message, 42501)
+DO
+RESET
+NOTICE:  PASS: the VAT flag is still locked at its pre-refusal value (true)
+DO
+NOTICE:  PASS: VAT column, project history table, and the cancelled invoice tax survive the rollback
+ROLLBACK
+PASS: rollback assertions completed; restoring current local schema with supabase db reset.
+```
+
+Then the restore (same run): `supabase db reset` re-applied all migrations through
+`0283_vat_flag_unlock.sql`, reseeded, and
+`[db-lock] released (rc=0)`.
+

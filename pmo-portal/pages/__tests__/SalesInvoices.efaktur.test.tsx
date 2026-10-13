@@ -27,6 +27,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-test', org_id: 'org-test' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Project North' }] }) }));
 vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFailed: vi.fn() }));
 
 import SalesInvoices from '../SalesInvoices';
@@ -69,6 +70,15 @@ beforeEach(() => {
 });
 
 describe('SalesInvoices e-Faktur details', () => {
+  it('UXS-042 formats invoice amount and outstanding in tabular UI numerals, not the identifier typeface', () => {
+    renderAs('Finance');
+    for (const header of ['Amount', 'Outstanding']) {
+      const money = within(cellOf('SI-one', header)).getByText(/IDR/, { selector: 'span.tabular' });
+      expect(money).toHaveClass('tabular');
+      expect(money).not.toHaveClass('font-mono');
+    }
+  });
+
   it('AC-EFK-004 shows number + date in ONE e-Faktur cell after Due Date, and an honest dash when empty', () => {
     renderAs('Finance');
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
@@ -86,7 +96,7 @@ describe('SalesInvoices e-Faktur details', () => {
     expect(cellOf('SI-two', 'e-Faktur').textContent?.trim()).toBe('—');
   });
 
-  it('AC-EFK-004 offers Record e-Faktur to Finance/Admin across Draft, Submitted, and Paid but not PM/Executive', () => {
+  it('AC-EFK-004 offers Record e-Faktur to Finance/Admin across Draft, Submitted, and Paid but not PM/Executive', async () => {
     h.invoices = [invoice('draft', 'Draft', null, null), invoice('issued', 'Submitted', null, null), invoice('paid', 'Paid', null, null)];
     for (const role of ['Finance', 'Admin'] as const) {
       const { unmount } = renderAs(role);
@@ -101,13 +111,26 @@ describe('SalesInvoices e-Faktur details', () => {
       unmount();
     }
     renderAs('Project Manager');
-    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(3);
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
+    expect(screen.getByRole('menuitem', { name: 'View invoice' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('UXS-031 gives an unnumbered e-Faktur draft a project identity instead of exposing its UUID', () => {
+    h.invoices = [{ ...invoice('private-row-id', 'Draft', null, null), si_number: null, project_id: 'project-1' }];
+    renderAs('Finance');
+    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('For Draft invoice · Project North.');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('private-row-id');
   });
 
   it('AC-EFK-004 does not offer e-Faktur editing on cancelled invoices', () => {
     h.invoices = [invoice('cancelled', 'Cancelled', '010-01', '2026-10-01')];
     renderAs('Finance');
-    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
+    expect(screen.getByRole('menuitem', { name: 'View invoice' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
   });
 

@@ -1,8 +1,26 @@
 // Task 6.4 — the DB-backed DispatchMoneyOutboxDeps (ADR-0058 §4). Deno-native test (matches
 // readModelWriters.test.ts's plain-assert idiom) against a structural fake OutboxServiceClient.
 // Verify: cd supabase/functions/adapter-dispatch && deno test moneyOutboxDeps.test.ts
+//
+// #956 review follow-up — the VAT-witness boundary evidence also lives here (the plan's `edge` file):
+// the SHIPPED handler (index.ts via the Deno.serve stub, `globalThis.fetch` mocked — the repo's
+// edge-fn test-binding rule) is driven with a fresh request that forges `vat_flag_at_resolution`,
+// and the OUTBOX INSERT is the oracle: what persists is what the server derived, and the digest
+// binds it.
 
-import { createDbMoneyOutboxDeps, type OutboxServiceClient } from './moneyOutboxDeps.ts';
+import { canonicalCommandDigest, createDbMoneyOutboxDeps, type OutboxServiceClient } from './moneyOutboxDeps.ts';
+import {
+  createJwtAuthority,
+  createTestJwksResolver,
+  installEdgeEnv,
+  jsonResponse,
+  supabaseRpc,
+  supabaseSelect,
+  withFetchMock,
+  type FetchCall,
+  type MockRoute,
+} from '../_shared/testing/edgeTestKit.ts';
+import { installErpCredentials, ERP_HOST, ERP_SITE_URL, SECRET_REF, COMPANY } from './bfyServedFixture.ts';
 
 function assertEquals<T>(actual: T, expected: T, msg?: string): void {
   const a = JSON.stringify(actual);
@@ -247,6 +265,158 @@ Deno.test('Luna B7 — insertOutboxPending omits actor_user_id when no actor is 
     !('actor_user_id' in (inserted[0] as Record<string, unknown>)),
     'an actor-less caller must not write the column at all (never a bogus/empty actor)',
   );
+});
+
+// ── #956 — the VAT-witness boundary, through the SHIPPED handler ─────────────────────────────
+// The same module-level harness every served test in this directory uses: capture the shipped
+// handler from its own serve call, never re-declare it.
+const env = installEdgeEnv();
+Deno.env.set('SUPABASE_ANON_KEY', 'test-anon-key');
+const restoreCreds = installErpCredentials();
+const auth = await createJwtAuthority(env.SUPABASE_URL);
+
+let servedHandler: ((req: Request) => Promise<Response>) | null = null;
+(Deno as unknown as { serve: (h: unknown) => unknown }).serve = (h: unknown) => {
+  servedHandler = h as (req: Request) => Promise<Response>;
+  return { finished: Promise.resolve() };
+};
+const { setTestJwks } = await import('./index.ts');
+setTestJwks(createTestJwksResolver(auth));
+
+addEventListener('unload', () => {
+  restoreCreds();
+  env.restore();
+});
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const PROJECT_ID = '33333333-3333-4333-8333-333333333333';
+const CUSTOMER_ID = '55555555-5555-4555-8555-555555555555';
+/** An ERP-path invoice that already has a mirror row and an external mapping (the update case). */
+const SI_ID = '66666666-6666-4666-8666-666666666601';
+/** A fresh unmapped id no mirror row knows (the create case). */
+const FRESH_SI_ID = '66666666-6666-4666-8666-666666666602';
+const ERP_SI_NAME = 'ACC-SINV-2026-0956';
+
+function objectResponse(body: unknown): Response {
+  return jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
+}
+function nullObjectResponse(): Response {
+  return new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
+}
+function eqParam(call: FetchCall, key: string): string | null {
+  const raw = call.url.searchParams.get(key);
+  return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : raw;
+}
+
+/** The world the served handler reads for one fresh sales-invoice dispatch.
+ *  `mirrorRow` decides update (row present, `project_id` null so the factory has no VAT source)
+ *  vs create (absent — a fresh id no mirror knows). `project` is the authoritative VAT source the
+ *  factory reads on the create path. Every route is a FACT; the catch-all names any read not mocked. */
+function witnessRoutes(world: { mirrorRow: Record<string, unknown> | null; project: Record<string, unknown> | null }, unexpected: FetchCall[]): MockRoute[] {
+  return [
+    supabaseSelect('profiles', (call) =>
+      call.url.searchParams.has('role') ? jsonResponse([{ id: USER_ID }]) : objectResponse({ org_id: ORG_ID })),
+    supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
+    supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
+    supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    supabaseRpc('get_process_gates', () => jsonResponse({ require_project_on_si: false })),
+    supabaseRpc('read_vault_secret', () => jsonResponse(null)),
+    supabaseSelect('external_org_bindings', () => objectResponse({
+      site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
+      config: { company: COMPANY, cost_center: 'Main - DEMO', default_receivable_account: 'Debtors - DEMO', require_project_on_si: false, project_map: { [PROJECT_ID]: 'ERP-PROJ-1' } },
+    })),
+    supabaseSelect('organizations', () => objectResponse({ default_currency: 'IDR' })),
+    supabaseSelect('sales_invoices', (call) => {
+      const id = eqParam(call, 'id');
+      return id && id.toLowerCase() === SI_ID && world.mirrorRow ? objectResponse(world.mirrorRow) : nullObjectResponse();
+    }),
+    supabaseSelect('incoming_payments', () => nullObjectResponse()),
+    supabaseSelect('progress_claims', () => nullObjectResponse()),
+    supabaseSelect('companies', () => objectResponse({ org_id: ORG_ID })),
+    supabaseSelect('projects', () => world.project ? objectResponse(world.project) : nullObjectResponse()),
+    supabaseSelect('external_refs', (call) => {
+      const pmo = eqParam(call, 'pmo_record_id');
+      if (pmo === SI_ID) return objectResponse({ external_record_id: ERP_SI_NAME });
+      if (pmo === CUSTOMER_ID) return objectResponse({ external_record_id: 'Customer:Demo Customer' });
+      return nullObjectResponse();
+    }),
+    // ── ERPNext ────────────────────────────────────────────────────────────────────────────────
+    { label: 'ERP SI list (recovery probe)', host: ERP_HOST, method: 'GET', pathname: '/api/resource/Sales%20Invoice', response: () => jsonResponse({ data: [] }) },
+    { label: 'ERP SI document (update PUT / re-read)', host: ERP_HOST, pathname: /^\/api\/resource\/Sales%20Invoice\/.+$/, response: (call) => jsonResponse({ data: { name: ERP_SI_NAME, docstatus: 0, ...(call.bodyJson as Record<string, unknown>) } }) },
+    { label: 'ERP SI create', host: ERP_HOST, method: 'POST', pathname: '/api/resource/Sales%20Invoice', response: (call) => jsonResponse({ data: { name: ERP_SI_NAME, docstatus: 0, ...(call.bodyJson as Record<string, unknown>) } }) },
+    { label: 'ERP Item preflight', host: ERP_HOST, pathname: '/api/resource/Item', response: () => jsonResponse({ data: [{ name: 'SVC', item_name: 'SVC', disabled: 0, is_sales_item: 1, is_purchase_item: 0 }] }) },
+    { label: 'ERP Customer', host: ERP_HOST, pathname: '/api/resource/Customer/Demo%20Customer', response: () => jsonResponse({ data: { name: 'Demo Customer', default_currency: 'IDR' } }) },
+    { label: 'ERP Company', host: ERP_HOST, pathname: `/api/resource/Company/${encodeURIComponent(COMPANY)}`, response: () => jsonResponse({ data: { name: COMPANY, default_currency: 'IDR' } }) },
+    // ── the money outbox + post-commit writes ─────────────────────────────────────────────────
+    { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: () => nullObjectResponse() },
+    { label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (call) => jsonResponse({ id: 'outbox-1', state: 'pending', external_record_id: null, canonical: null, claim_generation: 0, ...(call.bodyJson as Record<string, unknown>) }) },
+    { label: 'outbox write-back', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: () => jsonResponse([{ id: 'outbox-1' }]) },
+    supabaseRpc('claim_sales_invoice_author', () => jsonResponse(1)),
+    { label: 'SI author stamp (read-model writer)', method: 'POST', pathname: '/rest/v1/sales_invoice_authors', response: () => jsonResponse([]) },
+    supabaseRpc('claim_outbox_for_commit', () => jsonResponse({ id: 'outbox-1', state: 'committing', claim_generation: 1 })),
+    supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
+    supabaseRpc('confirm_outbox', () => jsonResponse(1)),
+    supabaseRpc('surface_action_required', () => jsonResponse(null)),
+    { label: 'SI mirror insert', method: 'POST', pathname: '/rest/v1/sales_invoices', response: () => jsonResponse([]) },
+    { label: 'SI mirror update', method: 'PATCH', pathname: '/rest/v1/sales_invoices', response: () => jsonResponse([]) },
+    { label: 'notifications', pathname: '/rest/v1/notifications', response: () => jsonResponse([]) },
+    { label: 'unexpected', response: (call) => { unexpected.push(call); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
+  ];
+}
+
+async function dispatchSalesInvoice(operation: 'create' | 'update', record: Record<string, unknown>, world: { mirrorRow: Record<string, unknown> | null; project: Record<string, unknown> | null }) {
+  const unexpected: FetchCall[] = [];
+  return await withFetchMock(witnessRoutes(world, unexpected), async ({ calls }) => {
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ domain: 'revenue', operation, idempotencyKey: '88888888-8888-4888-8888-888888888801', record }),
+    }));
+    return { status: res.status, body: await res.text(), calls, unexpectedSummary: unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`) };
+  });
+}
+
+function outboxInsert(calls: FetchCall[]): Record<string, unknown> {
+  const inserts = calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox');
+  if (inserts.length !== 1) throw new Error(`expected exactly one outbox INSERT, got ${inserts.length}`);
+  return inserts[0].bodyJson as Record<string, unknown>;
+}
+
+Deno.test('#956 — a fresh update carrying a forged VAT witness persists NO caller witness: the dispatch boundary strips it', async () => {
+  // The mirror row has no project (project_id null), so the factory has no authoritative VAT source
+  // to re-stamp from — the ONLY thing that must persist is the stripped record, and the digest must
+  // bind THAT, not the caller-forged witness.
+  const r = await dispatchSalesInvoice('update', {
+    id: SI_ID, erp_doc_kind: 'sales-invoice', externalRecordId: ERP_SI_NAME, vat_flag_at_resolution: true,
+    items: [{ item_code: 'SVC', qty: 1, rate: 100 }],
+  }, { mirrorRow: { id: SI_ID, org_id: ORG_ID, project_id: null, customer_id: CUSTOMER_ID, currency: 'IDR', reference_number: null, work_order_id: null, received_date: null, pmo_native: false }, project: null });
+  assertEquals(r.status, 200, `${r.body} — unmocked: ${r.unexpectedSummary.join(', ')}`);
+  const row = outboxInsert(r.calls);
+  const payload = row.payload as Record<string, unknown>;
+  assert(!('vat_flag_at_resolution' in payload), `caller witness must not survive the boundary: ${JSON.stringify(payload)}`);
+  assertEquals(row.payload_digest, await canonicalCommandDigest({ domain: 'revenue', operation: 'update', record: payload }));
+  const forged = await canonicalCommandDigest({ domain: 'revenue', operation: 'update', record: { ...payload, vat_flag_at_resolution: true } });
+  assert(row.payload_digest !== forged, 'the digest must reflect the stripped record, not the caller-supplied witness');
+});
+
+Deno.test('#956 — a fresh create carrying a forged witness persists the SERVER-derived witness and the digest binds it', async () => {
+  // The project is VAT-off; the request forges `true`. The persisted payload and its digest must
+  // carry the SERVER-derived false, never the caller's.
+  const r = await dispatchSalesInvoice('create', {
+    id: FRESH_SI_ID, erp_doc_kind: 'sales-invoice', customerId: CUSTOMER_ID, projectId: PROJECT_ID,
+    vat_flag_at_resolution: true, taxes: [{ charge_type: 'Actual', account_head: 'EVIL', rate: 99 }],
+    items: [{ item_code: 'SVC', qty: 1, rate: 100 }],
+  }, { mirrorRow: null, project: { id: PROJECT_ID, org_id: ORG_ID, currency: 'IDR', customer_contract_ref: null, contract_date: null, subject_to_vat: false, tax_base_numerator: 1, tax_base_denominator: 1 } });
+  assertEquals(r.status, 200, `${r.body} — unmocked: ${r.unexpectedSummary.join(', ')}`);
+  const row = outboxInsert(r.calls);
+  const payload = row.payload as Record<string, unknown>;
+  assertEquals(payload.vat_flag_at_resolution, false, 'the persisted witness must be the SERVER-derived flag, not the forged true');
+  assert(!('taxes' in payload), 'a caller-supplied taxes array is still stripped');
+  assertEquals(row.payload_digest, await canonicalCommandDigest({ domain: 'revenue', operation: 'create', record: payload }));
+  const forged = await canonicalCommandDigest({ domain: 'revenue', operation: 'create', record: { ...payload, vat_flag_at_resolution: true } });
+  assert(row.payload_digest !== forged, 'the digest must bind the server-derived witness');
 });
 
 Deno.test('insertOutboxPending: inserts a fresh pending row; a duplicate 4-tuple throws with .code=23505', async () => {

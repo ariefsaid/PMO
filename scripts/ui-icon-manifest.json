@@ -1,0 +1,10 @@
+{
+  "package": "lucide-static",
+  "version": "0.468.0",
+  "license": "ISC (Lucide Contributors; includes Feather-derived portions under MIT terms stated in LICENSE)",
+  "icons": {
+    "grid": "layout-grid.svg", "pipe": "chart-no-axes-combined.svg", "cart": "shopping-cart.svg", "folder": "folder-kanban.svg", "clock": "clock-3.svg", "doc": "file-text.svg", "x": "x.svg", "plus": "plus.svg", "help": "circle-help.svg", "up": "arrow-up-right.svg", "down": "arrow-down-right.svg", "check": "check.svg", "lock": "lock-keyhole.svg", "alert": "triangle-alert.svg", "inbox": "inbox.svg", "refresh": "refresh-cw.svg", "back": "arrow-left.svg", "chev": "chevron-right.svg", "cal": "calendar-days.svg", "dollar": "dollar-sign.svg", "table": "table-2.svg", "cols": "columns-3.svg", "cards": "layout-grid.svg", "export": "download.svg", "search": "search.svg", "bell": "bell.svg", "admin": "settings.svg", "pencil": "square-pen.svg", "trash": "trash-2.svg", "upload": "upload.svg", "file": "file.svg", "download": "download.svg", "eye": "eye.svg", "eye-off": "eye-off.svg", "message": "message-square.svg", "sun": "sun.svg", "moon": "moon.svg", "plug": "plug.svg", "info": "info.svg",
+    "dashboard": "layout-dashboard.svg", "pipeline": "square-kanban.svg", "projects": "folder-kanban.svg", "procurement": "shopping-cart.svg", "invoices": "file-text.svg", "payments": "banknote.svg", "reports": "file-spreadsheet.svg", "expenses": "receipt.svg", "approvals": "list-checks.svg", "tasks": "list-todo.svg", "companies": "building-2.svg", "contacts": "contact-round.svg", "views": "panels-top-left.svg", "menu": "menu.svg",
+    "circle-check": "circle-check.svg", "user": "user-round.svg", "clipboard-check": "clipboard-check.svg", "chart-column": "chart-column.svg", "funnel": "filter.svg", "cloud-upload": "cloud-upload.svg"
+  }
+}

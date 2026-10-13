@@ -11,6 +11,18 @@ import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('AppShell', () => {
+  it('UIP-002: root shell width does not include the vertical scrollbar gutter', () => {
+    const { container } = wrap(
+      <AppShell rail={null} header={null}>
+        <div>x</div>
+      </AppShell>
+    );
+    const root = container.querySelector<HTMLElement>('[data-app-shell="root"]');
+    expect(root).not.toBeNull();
+    expect(root).not.toHaveClass('w-screen');
+    expect(root?.className).not.toMatch(/(?:100vw|100dvw)/);
+  });
+
   it('renders the grid areas (rail/header/main slots)', () => {
     wrap(
       <AppShell

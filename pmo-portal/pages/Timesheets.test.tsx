@@ -122,8 +122,8 @@ describe('Timesheets (real data)', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    // weekly-total cell renders toFixed(1); a rendered computed value, not mere presence.
-    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('10.0');
+    // Weekly total remains visible alongside its localized unit label.
+    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('10 hours this week');
   });
 });
 
@@ -584,8 +584,8 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.type(mon, '6');
     const tue = screen.getByLabelText('Acme Internal Platform, Tue hours');
     await userEvent.type(tue, '25');
-    // Header total gates the invalid cell to 0 → 6.0; the grid footer agrees.
-    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('6.0');
+    // Header total gates the invalid cell to 0 → 6; the grid footer agrees.
+    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('6 hours this week');
     expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('6');
   });
 

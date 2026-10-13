@@ -162,8 +162,8 @@ describe('AC-PRJUX-005 — Unassigned is distinct from an anonymous assigned pro
   it('AC-PRJUX-005: an unnamed assigned manager is NOT shown as Unassigned in the table — labels are distinct', () => {
     renderPage();
     const tbody = document.querySelector('tbody')!;
-    expect(within(tbody as HTMLElement).getByText('Unnamed user · b1a2c3d4')).toBeInTheDocument();
-    expect(within(tbody as HTMLElement).getByText('Unassigned')).toBeInTheDocument();
-    expect(within(tbody as HTMLElement).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(tbody as HTMLElement).getByRole('img', { name: 'Unnamed user · b1a2c3d4' })).toBeInTheDocument();
+    expect(within(tbody as HTMLElement).getByRole('img', { name: 'Unassigned' })).toBeInTheDocument();
+    expect(within(tbody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })).not.toHaveLength(0);
   });
 });

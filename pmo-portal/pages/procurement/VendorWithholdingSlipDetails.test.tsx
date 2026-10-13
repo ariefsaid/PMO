@@ -1,6 +1,8 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '../__tests__/financeI18nTestInstance';
 
 const state = vi.hoisted(() => ({
   detail: { isLoading: false, isError: false, data: null as unknown, refetch: vi.fn() },
@@ -66,6 +68,60 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(opener).toHaveFocus());
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('#961 F13 makes Open bill in case at least 44px on phone', () => {
+    const onOpenProcurement = vi.fn();
+    render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} />);
+    const open = screen.getByRole('button', { name: 'Open bill VI-002 in case case-2' });
+    expect(open.className).toContain('touch-target');
+    expect(open.className).toContain('max-[767px]:min-h-11');
+    fireEvent.click(open);
+    expect(onOpenProcurement).toHaveBeenCalledWith('case-2', 'slip-1', 'invoice-1');
+  });
+
+  it('#961 open-case-scroll suppresses detail arrival focus for a targeted bill', async () => {
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} suppressArrivalFocus />);
+    const heading = await screen.findByRole('heading', { name: 'Bukti potong details', level: 2 });
+    await waitFor(() => expect(heading).not.toHaveFocus());
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it('#961 F20 retains detail title and Close while loading', () => {
+    const onClose = vi.fn();
+    state.detail.isLoading = true;
+    state.detail.data = null;
+    render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={onClose} />);
+    expect(screen.getByRole('heading', { name: 'Bukti potong details' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Loading bukti potong/);
+    const closeButton = screen.getByRole('button', { name: 'Close' });
+    expect(closeButton).toBeEnabled();
+    fireEvent.click(closeButton);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('#961 F21 translates void Cancel in English and Bahasa', async () => {
+    await financeTestI18nReady;
+    await act(async () => { await financeTestI18n.changeLanguage('en'); });
+    const { rerender } = render(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite onClose={vi.fn()} /></FinanceI18nTestProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Void PMO entry' }));
+    let dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Void PMO entry' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(state.voidSlip).not.toHaveBeenCalled();
+
+    await act(async () => { await financeTestI18n.changeLanguage('id'); });
+    rerender(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite onClose={vi.fn()} /></FinanceI18nTestProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Batalkan catatan PMO' }));
+    dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: 'Batal' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Batalkan catatan PMO' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Batal' }));
+    expect(state.voidSlip).not.toHaveBeenCalled();
+    await act(async () => { await financeTestI18n.changeLanguage('en'); });
   });
 
   it('AC-BUPOT-018 exposes recorded/current/difference for a changed bill and its legitimate remedy', () => {

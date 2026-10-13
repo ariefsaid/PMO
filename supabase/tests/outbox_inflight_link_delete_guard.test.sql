@@ -32,7 +32,7 @@ insert into external_command_outbox
 values
   ('01191000-0000-0000-0000-0000000a0001','01191000-0000-0000-0000-000000000001','revenue','pmo-si-1',
    '3f2504e0-4f89-41d3-9a0c-0305e82c3301','erpnext','create','committed',
-   '{"erp_doc_kind":"sales-invoice","projectId":"01191000-0000-0000-0000-0000000b0001","customerId":"01191000-0000-0000-0000-0000000c0001"}'::jsonb);
+   '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true,"projectId":"01191000-0000-0000-0000-0000000b0001","customerId":"01191000-0000-0000-0000-0000000c0001"}'::jsonb);
 -- An in-flight incoming-payment create naming the invoice above.
 insert into external_command_outbox
   (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)

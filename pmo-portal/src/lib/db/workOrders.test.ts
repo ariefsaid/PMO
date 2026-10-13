@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
     eq: [] as unknown[],
     order: [] as unknown[],
     select: 0,
+    selectArgs: [] as unknown[],
     single: 0,
     maybeSingle: 0,
   };
@@ -28,6 +29,7 @@ const h = vi.hoisted(() => {
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
     if (name === 'select' || name === 'single' || name === 'maybeSingle') {
       (calls[name] as number)++;
+      if (name === 'select') calls.selectArgs.push(args[0]);
     } else {
       (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
     }
@@ -101,6 +103,7 @@ describe('reads', () => {
     const rows = await listProjectWorkOrders('proj-1');
     expect(rows).toEqual([{ id: 'wo-1' }]);
     expect(h.calls.from).toEqual(['work_orders']);
+    expect(h.calls.selectArgs).toEqual(['*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)']);
     expect(h.calls.eq).toEqual([['project_id', 'proj-1']]);
     expect(h.calls.order).toEqual([['created_at', { ascending: false }]]);
     expect(JSON.stringify(h.calls)).not.toContain('org_id');

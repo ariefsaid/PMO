@@ -173,7 +173,7 @@ export const ProfileSettings: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
+      <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <h1 className="text-xl font-bold tracking-[-0.01em] text-foreground">
           {t('profileSettings.title', 'Profile & preferences')}
         </h1>

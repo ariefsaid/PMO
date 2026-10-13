@@ -121,5 +121,6 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
 /** Contacts require their Dynamic Link children, so enumerate scalars then hydrate each changed doc. */
 export async function listErpContactSources(client: ErpClientDeps) {
   return (await listErpChangesSinceWatermark({client, doctype:'Contact', fields:CONTACT_FROM_DOC_FIELDS,
+    includeAmendedFrom: false,
     fromDoc:contactCanonicalFromDoc, hydrateDoc:async(name) => await getDoc(client,'Contact',name) as Record<string,unknown>},null)).changes;
 }

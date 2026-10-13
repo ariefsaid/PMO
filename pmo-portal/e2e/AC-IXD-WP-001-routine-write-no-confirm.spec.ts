@@ -1,6 +1,6 @@
 // @e2e-isolation: dedicated-row — owns PROC-2026-007 (60000000-...-007); dedicated Approved procurement fixture; no other spec targets it.
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, visibleToast } from './helpers';
 
 // AC-IXD-WP-001 — routine reversible procurement forward steps are single-click + a toast
 // (OD-UX-1, plan task 9; supersedes the "confirm before every write" rule for routine writes).
@@ -52,7 +52,7 @@ test('AC-IXD-WP-001: a routine procurement forward step (Request Vendor Quotes) 
   // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
   // same noun the badge label shows — not the raw enum ("Vendor Quoted"). The
   // single-click + success-toast goal-oracle is unchanged; only the label noun is.
-  await expect(page.getByRole('status').filter({ hasText: /Vendor Quote/i })).toBeVisible({
+  await expect(visibleToast(page, /Vendor Quote/i)).toBeVisible({
     timeout: 10_000,
   });
 });

@@ -22,6 +22,7 @@ vi.mock('@/src/lib/repositories', async (orig) => {
 vi.mock('@/src/lib/download', () => ({ triggerBlobDownload }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
   useProjectOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -116,10 +117,11 @@ describe('SalesInvoices — Download PDF is offered only where it can succeed', 
     }
   });
 
-  it('AC-PDF-003 an Executive is not offered it', async () => {
+  it('AC-PDF-003 an Executive can open the invoice record but is not offered PDF download', async () => {
+    const user = userEvent.setup();
     renderPage('Executive');
-    await screen.findAllByText('ACC-SINV-2026-00001');
-    expect(screen.queryAllByRole('button', { name: 'Row actions' })).toHaveLength(0);
+    await openMenu(user, 'ACC-SINV-2026-00001');
+    expect(screen.getByRole('menuitem', { name: 'View invoice' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Download PDF' })).not.toBeInTheDocument();
   });
 

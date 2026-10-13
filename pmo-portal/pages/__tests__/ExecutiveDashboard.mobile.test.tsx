@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from '../ExecutiveDashboard';
@@ -216,6 +217,23 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     // The pre-reconcile mobile-only terms must NOT appear.
     expect(screen.queryByText(/Active contract value/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Spent to date/i)).not.toBeInTheDocument();
+  });
+
+  it('gives the shown at-risk count a risk-filtered doorway without nesting it in another action', () => {
+    mockIsDesktop = false;
+    renderPage();
+    const link = within(screen.getByTestId('dashboard-at-risk')).getByRole('link', { name: 'Review 3 at-risk projects' });
+    expect(link).toHaveAttribute('href', '/projects?filter=at-risk');
+  });
+
+  it('keeps the phone definition keyboard/touch help separate from navigation', async () => {
+    mockIsDesktop = false;
+    renderPage();
+    const book = screen.getByTestId('mobile-contract-book');
+    const help = within(book).getByRole('button', { name: /^About this metric: \S/ });
+    await userEvent.click(help);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Realized margin is the share of revenue remaining/i);
+    expect(within(book).queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('at-risk block shows projects_at_risk count with warning tone', () => {

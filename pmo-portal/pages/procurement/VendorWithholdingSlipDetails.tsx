@@ -8,9 +8,9 @@ import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
 
 interface Header { id: string; slip_number: string; slip_date: string; tax_period: string; pph_type: string; currency: string; tax_base: string; withheld_amount: string; status: string; validation_state: string; revision: number; void_reason?: string | null; linked_withheld_at_record?: string | null; linked_withheld_current?: string | null; difference?: string | null; }
 interface Bill { invoice_id: string; procurement_id: string; vi_number?: string | null; withheld_at_record: string; withheld_current?: string | null; difference?: string | null; currency: string; released_at?: string | null; coverage_state?: string; }
-export interface VendorWithholdingSlipDetailsProps { slipId: string; canWrite: boolean; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string) => void; onReload?: () => void; }
+export interface VendorWithholdingSlipDetailsProps { slipId: string; canWrite: boolean; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean; onReload?: () => void; }
 
-export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpenProcurement, onReload }: VendorWithholdingSlipDetailsProps) {
+export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpenProcurement, suppressArrivalFocus = false, onReload }: VendorWithholdingSlipDetailsProps) {
   const { t } = useTranslation();
   const query = useVendorWithholdingSlip(slipId);
   const mutations = useVendorWithholdingSlipMutations();
@@ -28,8 +28,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
   const titleRef = useRef<HTMLHeadingElement>(null);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   useEffect(() => {
-    if (query.data && titleRef.current) { titleRef.current.focus(); titleRef.current.scrollIntoView({ block: 'nearest' }); }
-  }, [query.data]);
+    if (!suppressArrivalFocus && query.data && titleRef.current) { titleRef.current.focus(); titleRef.current.scrollIntoView({ block: 'nearest' }); }
+  }, [query.data, suppressArrivalFocus]);
   const close = () => { onClose(); requestAnimationFrame(() => returnFocus.current?.focus()); };
   if (query.isLoading) return <Card className="mt-3"><CardHead><div className="flex items-center justify-between"><h2 tabIndex={-1} ref={titleRef} className="font-semibold">{t('bupot.detailTitle', 'Bukti potong details')}</h2><Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad><div role="status" className="space-y-3"><div className="h-4 w-2/3 animate-pulse rounded bg-muted" /><div className="h-4 w-1/2 animate-pulse rounded bg-muted" />{t('bupot.loading', 'Loading bukti potong…')}</div></CardPad></Card>;
   if (query.isError || !query.data) return <Card className="mt-3"><CardHead><div className="flex items-center justify-between"><h2 tabIndex={-1} ref={titleRef} className="font-semibold">{t('bupot.detailTitle', 'Bukti potong details')}</h2><Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></div></CardHead><CardPad><p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')}</p><Button onClick={() => void query.refetch()}>{t('bupot.reload', 'Reload')}</Button></CardPad></Card>;
@@ -72,7 +72,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
       <h3 className="mt-5 font-semibold">{t('bupot.bill', 'Linked bills')} ({bills.length})</h3>
       <ul className="mt-2 divide-y divide-border">{bills.map((bill) => <li key={bill.invoice_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
         <div className="min-w-0"><span className="break-all">{bill.vi_number ?? bill.invoice_id}</span><span className="block text-xs text-muted-foreground">{t('bupot.recordedTotal', 'Recorded')}: {formatCurrencyCents(Number(bill.withheld_at_record), bill.currency)} · {t('bupot.currentTotal', 'Current')}: {bill.withheld_current == null ? '—' : formatCurrencyCents(Number(bill.withheld_current), bill.currency)} · {t('bupot.difference', 'Difference')}: {bill.difference == null ? '—' : formatCurrencyCents(Number(bill.difference), bill.currency)}</span></div>
-        <Button variant="outline" className="touch-target max-[767px]:min-h-11" aria-label={t('bupot.openBillCase', 'Open bill {{bill}} in case {{case}}', { bill: bill.vi_number ?? bill.invoice_id, case: bill.procurement_id })} onClick={() => onOpenProcurement?.(bill.procurement_id, slipId)}>{t('bupot.openBill', 'Open bill in case')}</Button>
+        <Button variant="outline" className="touch-target max-[767px]:min-h-11" aria-label={t('bupot.openBillCase', 'Open bill {{bill}} in case {{case}}', { bill: bill.vi_number ?? bill.invoice_id, case: bill.procurement_id })} onClick={() => onOpenProcurement?.(bill.procurement_id, slipId, bill.invoice_id)}>{t('bupot.openBill', 'Open bill in case')}</Button>
       </li>)}</ul>
       {header.status === 'void' && <p className="mt-3 text-sm text-foreground">{t('bupot.voidReason', 'Void reason')}: {header.void_reason || '—'}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}<Button variant="outline" onClick={() => { void query.refetch(); onReload?.(); }}>{t('bupot.reload', 'Reload')}</Button></p>}

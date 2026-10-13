@@ -53,6 +53,19 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(result.current.resolved).toBe(true);
   });
 
+  it('UXS-038: resolves a cold expense detail from its own cached record query', async () => {
+    const { qc, result } = setup('/expenses/claim-1');
+    expect(result.current.resolved).toBe(false);
+    act(() => {
+      qc.setQueryData(['expense-claim', 'org-1', 'claim-1'], {
+        id: 'claim-1', claim_number: 'EXP-2048', title: 'Site travel',
+      });
+    });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/expenses/claim-1', result.current.lists)).toBe('EXP-2048');
+    expect(qc.isFetching()).toBe(0);
+  });
+
   it('resolves a not-found detail (settled with no record) so the crumb stops saying Loading', async () => {
     const { qc, result } = setup('/projects/p2');
     act(() => {

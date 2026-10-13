@@ -23,6 +23,8 @@ export interface MyTask {
   project_id: string | null;
   /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
   project_name: string | null;
+  /** Meeting-linked tasks without a project still have a canonical record doorway. */
+  meeting_id?: string | null;
   start_date: string | null;
   end_date: string | null;
 }
@@ -38,7 +40,7 @@ export interface MyTask {
 async function listMyTasks(userId: string): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, start_date, end_date, project:projects!tasks_project_id_fkey(name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
@@ -50,6 +52,7 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     status: string;
     assignee_id: string | null;
     project_id: string | null;
+    meeting_id: string | null;
     start_date: string | null;
     end_date: string | null;
     project: { name: string } | null;
@@ -59,6 +62,7 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     status: t.status as TaskStatus,
     assignee_id: t.assignee_id,
     project_id: t.project_id,
+    meeting_id: t.meeting_id,
     // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
     // would make it indistinguishable from a project whose name failed to load — the UI needs to
     // tell them apart to decide between a link and a plain heading (FR-FCT-041).

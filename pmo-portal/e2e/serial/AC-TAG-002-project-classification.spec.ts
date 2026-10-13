@@ -40,6 +40,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
       created.push(name);
     }
     await page.goto('/sales?view=table');
+    await page.getByRole('button', { name: /^Classification$/ }).click();
     await page.getByLabel('Filter by service line').selectOption(serviceLine);
     await page.getByLabel('Filter by sector').selectOption(sector);
     await page.getByLabel('Filter by award type').selectOption('tender');
@@ -51,6 +52,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(dealRow).toHaveCount(1);
     await expect(dealRow).toBeVisible();
     await dealRow.click();
+    await expect(page.getByTestId('record-header')).toContainText(deal);
     // Pre-win records have no rail: the classification list is a named region.
     const rail = page.getByRole('region', { name: 'Classification' });
     for (const value of [serviceLine, sector, 'West Java', 'Tender', 'Consortium']) await expect(rail.getByText(value, { exact: true })).toBeVisible();
@@ -64,6 +66,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
+    await page.getByRole('button', { name: /^Classification$/ }).click();
     await page.getByLabel('Filter by service line').last().selectOption(serviceLine);
     await expect(page.getByText(internal, { exact: true })).toBeVisible();
     await page.getByLabel('Filter by location').last().fill('Bali');

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, DecisionContextSummary, TextArea, TextField, useToast } from '@/src/components/ui';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -47,6 +47,9 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
   const parsedReturn = parseMoneyInputAtScale(returnAmount, 2);
   const returnValid = parsedReturn !== null && parsedReturn > 0 && advanceOutstanding !== null && parsedReturn <= advanceOutstanding;
   const deciding = dialog === 'approve' || dialog === 'reject';
+  const identity = [claim.claim_number, claim.title].filter(Boolean).join(' · ');
+  const formattedAmount = formatCurrencyCents(Number(claim.amount), claim.currency);
+  const decisionContext = <DecisionContextSummary identity={identity} amount={formattedAmount} />;
 
   return (
     <div className="mb-4 flex flex-wrap gap-2" data-testid="expense-decision-bar">
@@ -73,8 +76,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       <ConfirmDialog
         open={deciding}
         tone={dialog === 'reject' ? 'destructive' : 'default'}
-        title={dialog === 'reject' ? t('expenses.confirm.rejectTitle', 'Reject this?') : t('expenses.confirm.approveTitle', 'Approve this?')}
-        description={<TextArea label={t('expenses.confirm.notesLabel', 'Note to the claimant (optional)')} value={notes} onChange={setNotes} />}
+        title={dialog === 'reject' ? t('expenses.confirm.rejectTitle', 'Reject {{number}}?', { number: claim.claim_number ?? claim.title }) : t('expenses.confirm.approveTitle', 'Approve {{number}} for {{amount}}?', { number: claim.claim_number ?? claim.title, amount: formattedAmount })}
+        description={<div className="space-y-3"><DecisionContextSummary identity={identity} amount={formattedAmount} /><TextArea label={t('expenses.confirm.notesLabel', 'Note to the claimant (optional)')} value={notes} onChange={setNotes} /></div>}
         confirmLabel={dialog === 'reject' ? t('expenses.actions.reject', 'Reject') : t('expenses.actions.approve', 'Approve')}
         loading={transition.isPending}
         onConfirm={() =>
@@ -87,9 +90,10 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
 
       <ConfirmDialog
         open={dialog === 'pay'}
-        title={t('expenses.confirm.payTitle', 'Mark as paid?')}
+        title={t('expenses.confirm.payTitle', 'Mark {{number}} paid: {{amount}}?', { number: claim.claim_number ?? claim.title, amount: claim.advance_id && previewKnown ? formatCurrencyCents(preview.cash, claim.currency) : formattedAmount })}
         description={
           <div className="space-y-3">
+            {decisionContext}
             {claim.advance_id && (
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <dt>{t('expenses.confirm.previewApplied', 'Advance applied')}</dt>
@@ -116,6 +120,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
         title={t('expenses.confirm.returnTitle', 'Record cash returned')}
         description={
           <div className="space-y-3">
+            {decisionContext}
             <TextField label={t('expenses.confirm.returnAmountLabel', 'Amount returned')} inputMode="decimal" value={returnAmount} onChange={setReturnAmount}
               helper={advanceOutstanding !== null
                 ? t('expenses.confirm.returnAmountHelper', 'Up to {{amount}} is outstanding.', { amount: formatCurrencyCents(advanceOutstanding, claim.currency) })
@@ -138,8 +143,8 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       <ConfirmDialog
         open={dialog === 'cancel'}
         tone="destructive"
-        title={t('expenses.confirm.cancelTitle', 'Cancel this?')}
-        description={t('expenses.confirm.cancelDescription', 'It stays on record as Cancelled and can no longer be approved or paid.')}
+        title={t('expenses.confirm.cancelTitle', 'Cancel {{number}}?', { number: claim.claim_number ?? claim.title })}
+        description={<div className="space-y-3"><p>{t('expenses.confirm.cancelDescription', 'It stays on record as Cancelled and can no longer be approved or paid.')}</p><DecisionContextSummary identity={identity} amount={formattedAmount} /></div>}
         confirmLabel={t('expenses.confirm.cancelConfirm', 'Cancel it')}
         cancelLabel={t('expenses.confirm.keep', 'Keep it')}
         loading={transition.isPending}

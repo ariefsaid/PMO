@@ -27,6 +27,17 @@ import { HoursBar } from '../HoursBar';
 // ── (a + b + c) LifecycleStepper ────────────────────────────────────────────
 
 describe('LifecycleStepper — Freed-Blue enforcement (Part 2)', () => {
+  it('UIP-013: functional document references use the DESIGN 12px identifier size', () => {
+    const { container } = render(
+      <LifecycleStepper
+        variant="bar"
+        steps={[{ label: 'Purchase order', state: 'current', ref: 'PO-2026-0042' }]}
+      />,
+    );
+    const reference = container.querySelector('span.font-mono');
+    expect(reference).toHaveTextContent('PO-2026-0042');
+    expect(reference).toHaveClass('text-[12px]');
+  });
   it('(a) inline variant: done pip uses bg-success, NOT bg-primary', () => {
     const { container } = render(
       <LifecycleStepper

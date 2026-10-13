@@ -211,14 +211,21 @@ describe('AC-CONFIRM-005: focus trap (onTrapKeyDown)', () => {
     expect(cancel).toHaveFocus();
   });
 
-  it('AC-CONFIRM-005: Shift+Tab from the Cancel button wraps focus to Confirm', () => {
+  it('AC-CONFIRM-005: Shift+Tab from Cancel reaches a decision field before the action row', async () => {
+    render(<ConfirmDialog {...baseProps} description={<textarea aria-label="Reason" />} />);
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const reason = screen.getByRole('textbox', { name: 'Reason' });
+    cancel.focus();
+    await userEvent.tab({ shift: true });
+    expect(reason).toHaveFocus();
+  });
+
+  it('AC-CONFIRM-005: Shift+Tab from Cancel wraps focus to Confirm when no decision fields exist', () => {
     render(<ConfirmDialog {...baseProps} />);
     const dialog = screen.getByRole('dialog');
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     const confirm = screen.getByRole('button', { name: 'Mark lost' });
-    // Cancel is the FIRST focusable; Shift+Tab from it wraps to the last (Confirm).
     cancel.focus();
-    expect(cancel).toHaveFocus();
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
     expect(confirm).toHaveFocus();
   });

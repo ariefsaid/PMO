@@ -39,7 +39,7 @@ export interface HistoryPage {
 
 const DEFAULT_LIMIT = 50;
 
-export type HistoryNameKind = 'purchase_request' | 'rfq' | 'purchase_order' | 'payment' | 'sales_invoice' | 'procurement_invoice';
+export type HistoryNameKind = 'purchase_request' | 'rfq' | 'purchase_order' | 'payment' | 'sales_invoice' | 'procurement_invoice' | 'vendor_withholding_slip_bill';
 export interface RecordHistoryRepository {
   list(q: RecordHistoryQuery): Promise<HistoryPage>;
   /** Resolve only event IDs on the visible history page; RLS scopes every query to the caller's org. */
@@ -67,6 +67,19 @@ export const recordHistoryRepository: RecordHistoryRepository = {
         return typeof value === 'string' && value ? [[row.id, value]] : [];
       }));
     }));
+    const linkIds = bounded(ids.vendor_withholding_slip_bill);
+    if (linkIds.length > 0) {
+      const { data, error } = await supabase.from('vendor_withholding_slip_bills')
+        .select('id,invoice:procurement_invoices!vendor_withholding_slip_bills_org_id_invoice_id_fkey(vi_number,reference_number)')
+        .in('id', linkIds);
+      if (error) throw toAppError(error);
+      const rows = data ?? [];
+      result.vendor_withholding_slip_bill = new Map(rows.flatMap((row): [string, string][] => {
+        const invoice = Array.isArray(row.invoice) ? row.invoice[0] : row.invoice;
+        const value = invoice?.vi_number || invoice?.reference_number || '';
+        return value ? [[row.id, value]] : [];
+      }));
+    }
     return result;
   },
   async list(q) {

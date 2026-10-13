@@ -5,25 +5,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   detail: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
+  updateVendor: vi.fn().mockResolvedValue(undefined),
   history: { data: { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] }, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn() },
+  realRole: 'Finance',
+  effectiveRole: 'Finance',
+  toast: vi.fn(),
 }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => h.detail,
   useProcurementMutations: () => ({ transition: { mutateAsync: vi.fn(), isPending: false }, createQuotation: { mutateAsync: vi.fn(), isPending: false }, createReceipt: { mutateAsync: vi.fn(), isPending: false }, createInvoice: { mutateAsync: vi.fn(), isPending: false }, captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false }, setEfaktur: { mutateAsync: vi.fn(), isPending: false } }),
 }));
-vi.mock('@/src/hooks/useProcurementCrud', () => ({ useProcurementCrudMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false }, createItem: { mutateAsync: vi.fn(), isPending: false }, updateItem: { mutateAsync: vi.fn(), isPending: false }, deleteItem: { mutateAsync: vi.fn(), isPending: false }, selectQuote: { mutateAsync: vi.fn(), isPending: false } }) }));
+vi.mock('@/src/hooks/useProcurementCrud', () => ({ useProcurementCrudMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false }, updateVendor: { mutateAsync: h.updateVendor, isPending: false }, createItem: { mutateAsync: vi.fn(), isPending: false }, updateItem: { mutateAsync: vi.fn(), isPending: false }, deleteItem: { mutateAsync: vi.fn(), isPending: false }, selectQuote: { mutateAsync: vi.fn(), isPending: false } }) }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingCoverage: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   useVendorWithholdingRegister: () => h.history,
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
-vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string) => void }) => <div data-testid="slip-detail">Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId)}>Open bill in case</button></div> }));
-vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void }) => <section aria-label="Bill row"><span>{invoices[0]?.vi_number}</span><button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record evidence for bill</button><button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }), useProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement, suppressArrivalFocus }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean }) => <div data-testid="slip-detail" data-suppress-arrival-focus={suppressArrivalFocus ? 'true' : 'false'}>Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId, 'invoice-2')}>Open bill in case</button></div> }));
+vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing && onSetVendor ? <button onClick={onSetVendor}>Set vendor</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [{ value: 'vendor-new', label: 'New vendor' }] }), useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.effectiveRole }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => ({ data: 0 }), useProjectReservedSpend: () => ({ data: 0 }) }));
@@ -32,7 +35,7 @@ vi.mock('@/src/hooks/useListReturn', () => ({ useListReturn: () => ({ returnToLi
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
-  return { ...actual, useToast: () => ({ toast: vi.fn() }) };
+  return { ...actual, useToast: () => ({ toast: h.toast }) };
 });
 
 import ProcurementDetails from '../ProcurementDetails';
@@ -50,30 +53,99 @@ function LocationText() { const location = useLocation(); return <output data-te
 function renderAt(path: string) {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
 }
-beforeEach(() => { h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null; });
+beforeEach(() => {
+  h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null;
+  h.updateVendor.mockClear();
+  h.toast.mockClear();
+  h.realRole = 'Finance'; h.effectiveRole = 'Finance';
+  h.history.data = { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] };
+  h.history.isLoading = false; h.history.isError = false;
+});
 
 describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
+  it('lets Finance set only the missing vendor on a billed request, then permits slip recording', async () => {
+    const vendorlessBilled = { ...procurement, vendor_id: null };
+    h.detail.data = vendorlessBilled;
+    const view = renderAt('/procurement/proc-001/documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+
+    await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
+    h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/documents']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
+    expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
+  });
+
+  it('hides Set vendor from Engineer under the live procurements_update role policy', () => {
+    h.realRole = 'Engineer'; h.effectiveRole = 'Engineer';
+    h.detail.data = { ...procurement, vendor_id: null };
+    renderAt('/procurement/proc-001/documents');
+    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+  });
+
+  it('hides Set vendor while an Admin is impersonating another role', () => {
+    h.realRole = 'Admin'; h.effectiveRole = 'Engineer';
+    h.detail.data = { ...procurement, vendor_id: null };
+    renderAt('/procurement/proc-001/documents');
+    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+  });
+
+  it('shows Set vendor to Finance under the live procurements_update role policy', () => {
+    h.realRole = 'Finance'; h.effectiveRole = 'Finance';
+    h.detail.data = { ...procurement, vendor_id: null };
+    renderAt('/procurement/proc-001/documents');
+    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+  });
+
+  it('shows the stale-vendor recovery message and refetches after a conditional write conflict', async () => {
+    h.detail.data = { ...procurement, vendor_id: null };
+    h.updateVendor.mockRejectedValueOnce(Object.assign(new Error('A vendor was already set.'), { code: 'VENDOR_ALREADY_SET' }));
+    renderAt('/procurement/proc-001/documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'New vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+    await waitFor(() => expect(h.toast).toHaveBeenCalledWith('A vendor was already set. Refresh to see it.', undefined, 'warning'));
+    expect(h.detail.refetch).toHaveBeenCalled();
+  });
+
   it('opens the record modal from a paid bill row', () => {
     renderAt('/procurement/proc-001/documents');
     expect(screen.getAllByText('VI-001')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Record evidence for bill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
     expect(screen.getByRole('button', { name: 'Save evidence' })).toBeInTheDocument();
   });
 
-  it('opens slip details from the URL and closing removes only bupot, preserving other params', async () => {
-    renderAt('/procurement/proc-001?keep=1&bupot=slip-from-url&tabHint=history');
+  it('opens slip details from the URL and closing removes bupot targets, preserving other params', async () => {
+    renderAt('/procurement/proc-001?keep=1&bupot=slip-from-url&bupotBill=invoice-2&tabHint=history');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Close slip' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/proc-001?keep=1&tabHint=history'));
   });
 
-  it('AC-BUPOT-020 opens a linked bill in its case Documents tab with the same slip selected', async () => {
+  it('#961 open-case-scroll carries the selected slip and linked bill to the target Documents ledger', async () => {
     renderAt('/procurement/proc-001?bupot=slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Open bill in case' }));
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url'));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url&bupotBill=invoice-2'));
     expect(screen.getByRole('tab', { name: /^Documents/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
+    expect(screen.getByTestId('slip-detail')).toHaveAttribute('data-suppress-arrival-focus', 'true');
+    expect(screen.getByRole('region', { name: 'Bill row' })).toHaveAttribute('data-target-invoice', 'invoice-2');
+  });
+
+  it('#961 F15 states that this bill has no withholding history', async () => {
+    h.history.data = { pages: [{ rows: [] }] };
+    renderAt('/procurement/proc-001/documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Bill history' }));
+    expect(await screen.findByText('No withholding slips recorded for this bill.')).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('opens a retained slip from the bill history entry point, including void entries', async () => {

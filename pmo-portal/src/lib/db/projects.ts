@@ -25,6 +25,23 @@ export const ACTIVE_PROJECT_STATUSES: readonly ProjectStatus[] = [
 ] as ProjectStatus[];
 
 export type ProjectRow = Tables<'projects'>;
+
+export interface ProjectVatEditability {
+  eligible: boolean;
+  reason: 'vat-live-invoice' | 'vat-command-pending' | null;
+  hasInvoices: boolean;
+}
+
+export async function getProjectVatEditability(id: string): Promise<ProjectVatEditability> {
+  const { data: raw, error } = await supabase.rpc('get_project_vat_editability', { p_id: id });
+  if (error) throwWrite(error as PostgrestErrorLike);
+  const data = raw as unknown as Record<string, unknown> | null;
+  if (!data || typeof data.eligible !== 'boolean' || typeof data.hasInvoices !== 'boolean'
+      || ![null, 'vat-live-invoice', 'vat-command-pending'].includes(data.reason as string | null)) {
+    throw new Error('Project VAT editability is unavailable');
+  }
+  return data as unknown as ProjectVatEditability;
+}
 export type ProjectStatus = ProjectRow['status'];
 
 /** A project row with client + PM names resolved in SQL (kills render-time .find(), F-7). */
@@ -55,11 +72,12 @@ const SELECT =
 interface PostgrestErrorLike {
   message: string;
   code?: string;
+  details?: string;
 }
 
 /** Re-throws an `AppError` preserving the Postgres error `code` for `classifyMutationError`. */
 function throwWrite(error: PostgrestErrorLike): never {
-  throw new AppError(error.message, error.code);
+  throw new AppError(error.message, error.code, error.details);
 }
 
 /**

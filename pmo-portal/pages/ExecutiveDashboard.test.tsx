@@ -162,7 +162,7 @@ describe('ExecutiveDashboard states', () => {
 describe('ExecutiveDashboard design polish', () => {
   it('DA-1: actionable warning link uses the accessible warning-foreground token', () => {
     renderPage();
-    const warningLink = screen.getByRole('link', { name: /View 1 at-risk projects/i });
+    const warningLink = screen.getByRole('link', { name: /Review 1 at-risk project/i });
     expect(warningLink).toHaveClass('text-warning-foreground');
     expect(warningLink).not.toHaveClass('text-warning');
   });

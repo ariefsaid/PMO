@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pendingProcurementApprovals } from './approvals';
+import { approvalPopulation, pendingProcurementApprovals } from './approvals';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -14,6 +14,24 @@ const routed = (ids: string[], kind: ApprovalRoute['route'] = 'project'): Approv
 });
 const row = (id: string, approvalRoute?: ApprovalRoute, over: Record<string, unknown> = {}) =>
   ({ id, status: 'Requested', requested_by_id: 'u-req', approvalRoute, ...over }) as unknown as ProcurementWithRefs;
+
+describe('AC-UXS-005 one eligible pending population', () => {
+  it('counts mixed eligible kinds once and filters the shared population by kind', () => {
+    const entries = [
+      { key: 'procurement:pr-1', kind: 'procurement' as const, createdAt: '2026-10-01', row: 'request' },
+      { key: 'timesheets:ts-1', kind: 'timesheets' as const, createdAt: '2026-10-02', row: 'week' },
+      { key: 'expense:ex-1', kind: 'expense' as const, createdAt: '2026-10-03', row: 'claim' },
+      { key: 'expense:ex-1', kind: 'expense' as const, createdAt: '2026-10-03', row: 'duplicate' },
+      { key: 'invoice:si-1', kind: 'invoice' as const, createdAt: '2026-10-04', row: 'draft' },
+    ];
+
+    const all = approvalPopulation(entries, 'all');
+    expect(all.map((item) => item.row)).toEqual(['request', 'week', 'claim', 'draft']);
+    expect(all).toHaveLength(4);
+    expect(approvalPopulation(entries, 'expense').map((item) => item.row)).toEqual(['claim']);
+    expect(approvalPopulation(entries, 'timesheets').map((item) => item.row)).toEqual(['week']);
+  });
+});
 
 describe('AC-APR-032 awaiting-you respects approval routing', () => {
   it('AC-APR-032: keeps requests routed to me, flat, or unrouted; drops ones routed to someone else', () => {

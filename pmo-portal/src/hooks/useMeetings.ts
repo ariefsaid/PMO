@@ -96,6 +96,9 @@ export interface CreateActionItemArgs {
   projectId: string | null;
   /** Prefilled from the minute line; FR-MTG-017's placeholder when the line is blank. */
   name: string;
+  /** Optional assignee and deadline use the existing task columns. */
+  assigneeId: string | null;
+  endDate: string | null;
 }
 
 /**
@@ -159,12 +162,13 @@ export function useMeetingMutations() {
    * goes through the SAME repository path the task list uses — the meeting never owns a copy.
    */
   const createActionItem = useMutation({
-    mutationFn: ({ meetingId, projectId, name }: CreateActionItemArgs) =>
+    mutationFn: ({ meetingId, projectId, name, assigneeId, endDate }: CreateActionItemArgs) =>
       repositories.task.create({
         project_id: projectId,
         name,
         status: 'To Do',
-        assignee_id: null,
+        assignee_id: assigneeId,
+        end_date: endDate,
         meeting_id: meetingId,
       }),
     onSuccess: () => {

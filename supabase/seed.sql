@@ -1164,8 +1164,8 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
   ('60000000-0000-0000-0000-000000000008','c0000000-0000-0000-0000-000000000010','RMS-PAY-08',30000,'2026-02-23',true,'VQ-2602240001');
 insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
   ('60000000-0000-0000-0000-000000000008','GR-2602240001','2026-02-24','Complete');
-insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
-  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received','inclusive',0);
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount) values
+  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received',30000,'inclusive',0);
 
 update procurements set pr_number='PR-2512010001', po_number='PO-2512010001',
   approved_by_id='00000000-0000-0000-0000-0000000000a3'

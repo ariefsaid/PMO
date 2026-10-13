@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-const h = vi.hoisted(() => ({ data: { pages: [] as unknown[] }, save: vi.fn() }));
-vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({ useVendorWithholdingCandidates: () => ({ data: h.data, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn(), isFetchingNextPage: false }) }));
+const h = vi.hoisted(() => ({ data: { pages: [] as unknown[] }, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn(), save: vi.fn() }));
+vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({ useVendorWithholdingCandidates: () => ({ data: h.data, isLoading: false, isError: h.isError, hasNextPage: h.hasNextPage, refetch: h.refetch, fetchNextPage: h.fetchNextPage, isFetchingNextPage: false }) }));
 import { VendorWithholdingSlipModal } from './VendorWithholdingSlipModal';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 const invoice = { id: 'invoice-a', currency: 'IDR', withheld_amount: 20000, withheld_pph_type: 'pph23' } as ProcurementInvoiceRow;
@@ -10,6 +10,74 @@ const bill = { invoice_id: 'invoice-a', vendor_id: 'vendor-a', currency: 'IDR', 
 afterEach(() => resetActiveLocale());
 
 describe('AC-BUPOT-017 capture form', () => {
+  it('#961 F13 makes candidate checkbox targets at least 44px on phone', async () => {
+    h.data = { pages: [{ rows: [bill, { ...bill, invoice_id: 'invoice-unknown', withheld_pph_type: null }] }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    const select = await screen.findByRole('checkbox', { name: 'Select bill invoice-a' });
+    expect(select.className).toContain('touch-target');
+    expect(select.className).toContain('max-[767px]:!size-11');
+    const confirm = screen.getByRole('checkbox', { name: 'Confirm as PPh 23 from issued slip' });
+    expect(confirm.className).toContain('touch-target');
+    expect(confirm.className).toContain('max-[767px]:!size-11');
+  });
+
+  it('#961 F16 retains currency and two cents in candidate reconciliation', async () => {
+    const centsBill = { ...bill, withheld_amount: '12345.67' };
+    h.data = { pages: [{ rows: [centsBill] }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    fireEvent.change(await screen.findByLabelText(/issued slip number/i), { target: { value: 'DJ-CENTS-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '50000.00' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '12345.67' } });
+    const reconciliation = screen.getByText(/Selection .* · Slip .* · Difference/);
+    expect(reconciliation).toHaveTextContent(/Selection IDR\s?12,345\.67/);
+    expect(reconciliation).toHaveTextContent(/Slip IDR\s?12,345\.67/);
+    expect(reconciliation).toHaveTextContent(/Difference IDR\s?0\.00/);
+    expect(reconciliation).not.toHaveTextContent(/12345\.67/);
+    expect(reconciliation.className).toContain('tabular-nums');
+  });
+
+  it('#961 F17 keeps case/date context and appends candidate page two', async () => {
+    const first = { ...bill, vi_number: 'VI-FIRST', procurement_id: 'case-first', invoice_date: '2026-09-03' };
+    const second = { ...bill, invoice_id: 'invoice-b', vi_number: 'VI-SECOND', procurement_id: 'case-second', invoice_date: '2026-09-04' };
+    h.data = { pages: [{ rows: [first] }] };
+    h.hasNextPage = true;
+    h.fetchNextPage.mockClear();
+    const view = render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(await screen.findByText(/Case: case-first · Bill date: 2026-09-03/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load more bills' }));
+    expect(h.fetchNextPage).toHaveBeenCalledOnce();
+    h.data = { pages: [{ rows: [first] }, { rows: [second] }] };
+    h.hasNextPage = false;
+    view.rerender(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(screen.getByText('VI-FIRST')).toBeInTheDocument();
+    expect(screen.getByText('VI-SECOND')).toBeInTheDocument();
+    expect(screen.getByText(/Case: case-second · Bill date: 2026-09-04/)).toBeInTheDocument();
+    expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
+  });
+
+  it('#961 F19 retains selected entries across candidate error retry and renders empty copy', async () => {
+    h.data = { pages: [{ rows: [bill] }] };
+    h.isError = false;
+    h.refetch.mockClear();
+    const view = render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    fireEvent.change(await screen.findByLabelText(/issued slip number/i), { target: { value: 'DJ-RETRY-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '50000.00' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '20000.00' } });
+    h.isError = true;
+    view.rerender(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to load eligible bills. Your entries are kept. Retry loading.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetch).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText(/issued slip number/i)).toHaveValue('DJ-RETRY-1');
+    expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
+    h.isError = false;
+    h.data = { pages: [{ rows: [] }] };
+    view.rerender(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    expect(screen.getByText('No eligible bills for this vendor, currency and PPh type.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/issued slip number/i)).toHaveValue('DJ-RETRY-1');
+    expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
+  });
+
   it('pins the vendor/currency, preselects the starting bill, and refuses a one-cent mismatch', async () => {
     h.data = { pages: [{ rows: [bill] }] };
     render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" vendorName="Northwind Supplies" open onClose={vi.fn()} onSave={h.save} />);

@@ -1121,14 +1121,36 @@ async function resolveOrdinaryInvoiceTaxes(
   record: Record<string, unknown>,
 ): Promise<void> {
   const company = binding.config?.company;
-  if (deps.command.operation !== 'create') return;
+  if (deps.command.operation !== 'create') {
+    const verb = record.verb;
+    if (deps.command.operation === 'update' || (deps.command.operation === 'transition' && verb === 'amend')) {
+      const { data: invoice, error: invoiceError } = await deps.serviceClient.from('sales_invoices')
+        .select('project_id').eq('org_id', deps.orgId).eq('id', record.id as string).maybeSingle();
+      if (invoiceError) throw new AppError(invoiceError.message, invoiceError.code);
+      const projectId = (invoice as { project_id?: string | null } | null)?.project_id;
+      if (projectId) {
+        const { data: project, error: projectError } = await deps.serviceClient.from('projects')
+          .select('subject_to_vat').eq('org_id', deps.orgId).eq('id', projectId).maybeSingle();
+        if (projectError) throw new AppError(projectError.message, projectError.code);
+        const vat = (project as { subject_to_vat?: unknown } | null)?.subject_to_vat;
+        if (typeof vat !== 'boolean') throw new AppError('Project VAT context could not be verified.', 'config-rejected');
+        record.vat_flag_at_resolution = vat;
+      }
+    }
+    return;
+  }
   let fraction = { numerator: 1, denominator: 1 };
   if (typeof record.projectId === 'string' && record.projectId) {
     const { data, error } = await deps.serviceClient.from('projects')
       .select('subject_to_vat,tax_base_numerator,tax_base_denominator')
       .eq('org_id', deps.orgId).eq('id', record.projectId).maybeSingle();
     if (error) throw new AppError(error.message, error.code);
-    if ((data as { subject_to_vat?: unknown } | null)?.subject_to_vat === false) return;
+    const project = data as { subject_to_vat?: unknown } | null;
+    if (!project || typeof project.subject_to_vat !== 'boolean') {
+      throw new AppError('Project VAT context could not be verified. Refresh the project and try again.', 'config-rejected');
+    }
+    record.vat_flag_at_resolution = project.subject_to_vat;
+    if (project.subject_to_vat === false) return;
     fraction = taxBaseFraction(data);
   }
   if (typeof company !== 'string' || !company) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
@@ -1373,6 +1395,10 @@ async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, binding
   const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
   let fraction = taxBaseFraction(project);
   const subjectToVat = (project as { subject_to_vat?: unknown } | null)?.subject_to_vat !== false;
+  if (!project || typeof (project as { subject_to_vat?: unknown }).subject_to_vat !== 'boolean') {
+    throw new AppError('Project VAT context could not be verified. Refresh the project and try again.', 'config-rejected');
+  }
+  record.vat_flag_at_resolution = subjectToVat;
   if (!clientId || record.customerId !== clientId) {
     throw new AppError('The invoice customer must be the project client', 'commit-rejected');
   }

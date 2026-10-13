@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { PMDashboard } from './PMDashboard';
 
@@ -85,6 +85,19 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByText('Loss Tender')).toBeInTheDocument();
     expect(screen.getByText('On Hold')).toBeInTheDocument();
     expect(screen.getByText('Leads')).toBeInTheDocument();
+  });
+  it('UIP-011: every Project Status name is an accessible, correctly routed project link', () => {
+    renderPane();
+    const statusCard = screen.getByText('Project Status').parentElement;
+    expect(statusCard).not.toBeNull();
+
+    for (const project of mine) {
+      const projectLink = within(statusCard as HTMLElement).getByRole('link', { name: project.name });
+      expect(projectLink).toHaveAttribute('href', `/projects/${project.id}`);
+      expect(projectLink.className).toContain('focus-visible:outline');
+    }
+
+    expect(within(statusCard as HTMLElement).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
   });
 });
 

@@ -28,7 +28,8 @@ import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
  * org on the row, RLS scopes every read, and both definer RPCs re-assert org internally.
  */
 
-export type WorkOrderRow = Tables<'work_orders'>;
+export type WorkOrderValueAuthor = Pick<Tables<'profiles'>, 'role' | 'manager_id' | 'status'>;
+export type WorkOrderRow = Tables<'work_orders'> & { value_author?: WorkOrderValueAuthor | null };
 export type WorkOrderStatus = WorkOrderRow['status'];
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -168,7 +169,7 @@ export function isOverCommitmentRefusal(err: unknown): boolean {
 export async function listProjectWorkOrders(projectId: string): Promise<WorkOrderRow[]> {
   const { data, error } = await supabase
     .from('work_orders')
-    .select('*')
+    .select('*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
   if (error) throwWrite(error);

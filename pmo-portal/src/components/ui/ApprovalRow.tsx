@@ -20,6 +20,8 @@ export interface ApprovalRowProps {
    * in the unified shell without being tied to the timesheet format.
    */
   subtitle?: React.ReactNode;
+  /** Request titles wrap ahead of status/meta; omitted keeps existing timesheet/invoice anatomy. */
+  identityLayout?: 'request';
   /** Status pill node. */
   status?: React.ReactNode;
   /**
@@ -67,6 +69,7 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
   week,
   hours,
   subtitle,
+  identityLayout,
   status,
   disclosure,
   children,
@@ -113,12 +116,13 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
         {initial}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium" title={name}>{name}</div>
-        <div className="text-[12px] text-muted-foreground">
+        <div className={cn(identityLayout === 'request' ? 'line-clamp-2 break-words' : 'truncate', 'text-sm font-medium')} title={name}>{name}</div>
+        {identityLayout === 'request' && status && <div className="mt-1">{status}</div>}
+        <div className={cn('text-xs text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
           {subtitleNode}
         </div>
       </div>
-      {status && <div className="shrink-0">{status}</div>}
+      {identityLayout !== 'request' && status && <div className="shrink-0">{status}</div>}
       {children}
     </div>
   );

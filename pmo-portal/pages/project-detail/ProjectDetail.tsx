@@ -3,7 +3,7 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, MobileActionBar, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
@@ -210,6 +210,10 @@ const ProjectDetail: React.FC = () => {
     >
       {tab === 'overview' && (
         <>
+          {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
+          <div className="mb-6">
+            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
+          </div>
           <OverviewTab
             project={project}
             committedSpend={committedSpend}
@@ -287,12 +291,8 @@ const ProjectDetail: React.FC = () => {
             <ProjectErpLink projectId={project.id} />
           </div>
 
-          {/* Pre-win: delivery planner demoted (PM may pre-fill phases while pursuing the deal).
-              M2: when empty, collapse to a single-line affordance so the sales levers stay above
-              the fold — the full planning prompt is only surfaced on a won (delivery) record. */}
-          <div className="mb-8">
-            <MilestoneStrip projectId={project.id} compactWhenEmpty />
-          </div>
+          {/* Phase planning stays available in Overview at every stage. */}
+          {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
 
           {/* Pre-win: S-curve is hidden — no real progress data exists yet for an opportunity.
               Guard: {!isPipeline && <ProjectSCurve …/>} per the design plan. */}
@@ -317,13 +317,11 @@ const ProjectDetail: React.FC = () => {
               onEditProject={openEditProject}
             />
 
-            {/* Delivery: milestone stepper first, then the tab bar immediately below the stepper
-                so the actionable surface is above the fold (AC-IFW-RECORD-02). */}
-            <div className="mb-8">
-              <MilestoneStrip projectId={project.id} />
-            </div>
+            {/* UIP-005: identity → compact phase context → tabs → selected work.
+                Full phase editing lives inside the Overview panel. */}
+            {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
 
-            {/* Delivery tabs directly after the stepper — above the S-curve (AC-IFW-RECORD-02). */}
+            {/* Tab URLs, role gates and roving focus remain unchanged. */}
             <Tabs<PTab>
               items={tabItems}
               value={tab}
@@ -342,7 +340,7 @@ const ProjectDetail: React.FC = () => {
           </div>
 
           {!isDesktop && canTransitionProject && (
-            <div
+            <MobileActionBar
               data-testid="mobile-sticky-action"
               className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 pt-3 backdrop-blur-sm"
               style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
@@ -354,7 +352,7 @@ const ProjectDetail: React.FC = () => {
                   triggerSize="sm"
                 />
               </div>
-            </div>
+            </MobileActionBar>
           )}
         </>
       )}

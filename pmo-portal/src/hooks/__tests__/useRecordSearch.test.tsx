@@ -78,7 +78,7 @@ beforeEach(() => {
 
 describe('useRecordSearch — index of the 3 cached lists', () => {
   // AC-CMDK-001: projects appear as Records rows with title + code + module sub-label.
-  it('AC-CMDK-001: maps projects to Records rows with code, sub-label, and a run() → /projects/:id', () => {
+  it('AC-CMDK-001 / UIP-001: maps projects to Records rows with code, sub-label, and a run() → /projects/:id', () => {
     state.projects = {
       data: [{ id: 'p1', name: 'Harbour Expansion', code: 'PRJ-0142' }],
       isPending: false,
@@ -91,6 +91,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(proj!.title).toBe('Harbour Expansion');
     expect(proj!.code).toBe('Client Project Code: PRJ-0142');
     expect(proj!.sub).toBe('Project');
+    expect(proj!.icon).toBe('projects');
     proj!.run();
     expect(navigate).toHaveBeenCalledWith('/projects/p1');
   });
@@ -112,7 +113,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
   // Model B (ADR-0020): a pipeline record drills to the ONE canonical route /projects/:id
   // (was /sales/:id) — the deliberate UX change; the goal (open the record's detail page)
   // is preserved.
-  it('indexes pipeline opportunities → /projects/:id and procurements → /procurement/:id', () => {
+  it('UIP-001: indexes pipeline opportunities and procurements with entity-specific glyphs', () => {
     state.pipeline = {
       data: { stages: [], projects: [{ id: 'o1', name: 'Acme Tender' }] },
       isPending: false,
@@ -127,11 +128,13 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
 
     const opp = result.current.records.find((r) => r.title === 'Acme Tender');
     expect(opp?.sub).toBe('Project · Pipeline');
+    expect(opp?.icon).toBe('pipeline');
     opp!.run();
     expect(navigate).toHaveBeenCalledWith('/projects/o1');
 
     const pr = result.current.records.find((r) => r.title === 'Crane hire');
     expect(pr?.sub).toBe('Procurement');
+    expect(pr?.icon).toBe('procurement');
     expect(pr?.code).toBe('PROC-2026-002');
     pr!.run();
     expect(navigate).toHaveBeenCalledWith('/procurement/pr1');
@@ -153,7 +156,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
 
   // CW-7: ⌘K must index master data (Companies + Contacts), not just projects/procurement —
   // searching a company/contact name returned nothing before this fix.
-  it('CW-7: indexes companies → /companies (deep-link to the record) with the right sub-label', () => {
+  it('CW-7 / UIP-001: indexes companies → /companies with the right sub-label and entity glyph', () => {
     stateCC.companies = {
       data: [{ id: 'co1', name: 'Innovate Corp', type: 'Client' }],
       isPending: false,
@@ -164,13 +167,14 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(co).toBeDefined();
     expect(co!.group).toBe('Records');
     expect(co!.sub).toBe('Company');
+    expect(co!.icon).toBe('companies');
     co!.run();
     // CW-4b: ⌘K now navigates to the routable `/companies/:id` record page (the interim
     // `?focus=<id>` drawer-open is retired).
     expect(navigate).toHaveBeenCalledWith('/companies/co1');
   });
 
-  it('CW-7: indexes contacts → /contacts (deep-link to the record) with the right sub-label', () => {
+  it('CW-7 / UIP-001: indexes contacts → /contacts with the right sub-label and entity glyph', () => {
     stateCC.contacts = {
       data: [{ id: 'ct1', full_name: 'Dana Buyer', company_id: 'co1' }],
       isPending: false,
@@ -180,6 +184,7 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     const ct = result.current.records.find((r) => r.title === 'Dana Buyer');
     expect(ct).toBeDefined();
     expect(ct!.sub).toBe('Contact');
+    expect(ct!.icon).toBe('contacts');
     ct!.run();
     // CW-4b: ⌘K now navigates to the routable `/contacts/:id` record page (interim focus retired).
     expect(navigate).toHaveBeenCalledWith('/contacts/ct1');

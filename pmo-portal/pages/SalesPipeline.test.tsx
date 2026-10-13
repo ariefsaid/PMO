@@ -460,6 +460,7 @@ describe('SalesPipeline Board stage selection (#697)', () => {
 it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible deals by classification', async (view) => {
   pipelineState.data = { stages: seedStages, projects: seedProjects.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) };
   const user = userEvent.setup(); renderPage(`/sales?view=${view}`);
+  await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   await user.selectOptions(screen.getByLabelText('Filter by service line'), 'Engineering');
   expect(screen.getByText('Northwind ERP Rollout')).toBeVisible();
   expect(screen.queryByText('Regional Services')).toBeNull();
@@ -479,6 +480,7 @@ describe('#830 location filter debounce', () => {
     vi.useFakeTimers();
     try {
       renderPage('/sales?view=table');
+      fireEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
       fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
       expect(probeSearch()).not.toContain('location=');
       await act(async () => { await vi.advanceTimersByTimeAsync(299); });
@@ -488,11 +490,52 @@ describe('#830 location filter debounce', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('AC-TAG-002 changing award type during the location pause preserves both URL filters', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    vi.useFakeTimers();
+    try {
+      renderPage('/sales?view=table');
+      fireEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
+      fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
+      fireEvent.change(screen.getByLabelText('Filter by award type'), { target: { value: 'tender' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(screen.getByLabelText('Filter by location')).toHaveValue('Bali');
+      expect(probeSearch()).toContain('location=Bali');
+      expect(probeSearch()).toContain('awardType=tender');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('AC-TAG-002 changing award type before typing location preserves both URL filters', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    vi.useFakeTimers();
+    try {
+      renderPage('/sales?view=table');
+      fireEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
+      fireEvent.change(screen.getByLabelText('Filter by award type'), { target: { value: 'tender' } });
+      fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      expect(screen.getByLabelText('Filter by location')).toHaveValue('Bali');
+      expect(probeSearch()).toContain('location=Bali');
+      expect(probeSearch()).toContain('awardType=tender');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('AC-TAG-002 removing the location chip empties the location box', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    renderPage('/sales?view=table&location=Bali');
+    fireEvent.click(screen.getByRole('button', { name: /^Classification\s*1/ }));
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('Bali');
+    fireEvent.click(screen.getByRole('button', { name: /Remove classification: Location: Bali/ }));
+    expect(probeSearch()).not.toContain('location=');
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('');
+  });
+
   it('AC-TAG-002 Clear filters within the pause cancels the pending location', async () => {
     pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
     vi.useFakeTimers();
     try {
       renderPage('/sales?view=table&serviceLine=Engineering');
+      fireEvent.click(screen.getByRole('button', { name: /^Classification\s*1/ }));
       fireEvent.change(screen.getByLabelText(/Search projects/i), { target: { value: 'no-such-deal' } });
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });

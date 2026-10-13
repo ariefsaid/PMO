@@ -91,6 +91,16 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e, { '42501': 'Custom message' }).headline).toBe('Custom message');
   });
 
+  it('AC-UXS-020 uses a localized known-refusal detail while retaining raw diagnostics', () => {
+    const e = new AppError('this project is subject to VAT but has no VAT rate recorded', 'vat-rate-missing');
+    expect(classifyMutationError(e, { 'vat-rate-missing': 'VAT missing' }, {
+      module: 'sales', detailOverrides: { 'vat-rate-missing': 'Localized VAT recovery copy.' },
+    })).toMatchObject({
+      headline: 'VAT missing', detail: 'Localized VAT recovery copy.',
+      rawDetail: 'this project is subject to VAT but has no VAT rate recorded',
+    });
+  });
+
   it('AC-INV: an unmatched code falls through to the generic headline even with overrides present', () => {
     const e = Object.assign(new Error('boom'), { code: 'UNKNOWN_ONE' });
     expect(classifyMutationError(e, { DUPLICATE_EMAIL: 'x' }).headline).toBe('Update failed');

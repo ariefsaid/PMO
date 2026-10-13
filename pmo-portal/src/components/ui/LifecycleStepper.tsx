@@ -154,7 +154,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
                 {s.label}
               </span>
               {s.ref && (
-                <span className="font-mono text-[10px] text-muted-foreground">{s.ref}</span>
+                <span className="font-mono text-[12px] text-muted-foreground">{s.ref}</span>
               )}
             </div>
           ))}
