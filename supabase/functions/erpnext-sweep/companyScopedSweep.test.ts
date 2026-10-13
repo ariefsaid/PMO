@@ -103,6 +103,11 @@ function stubErpFetch(docsByDoctype: Record<string, Array<Record<string, unknown
       const raw = new URL(url).searchParams.get('filters') ?? '';
       return raw;
     },
+    fieldsFor(doctype: string): string[] {
+      const url = urls.find((u) => u.includes(`/api/resource/${encodeURIComponent(doctype)}?`)) ?? '';
+      const raw = new URL(url).searchParams.get('fields') ?? '[]';
+      return JSON.parse(raw) as string[];
+    },
     restore: () => { globalThis.fetch = original; },
   };
 }
@@ -120,6 +125,28 @@ Deno.test("WIRE 3: the poll FETCHES the doc's `company` (without it the per-doc 
   // A GLOBAL master has no company column — requesting one would make Frappe reject the whole list query.
   assert(!sweepFieldsForKind('supplier').includes('company'), 'Supplier is a site-wide master (no company field)');
   assert(!sweepFieldsForKind('customer').includes('company'), 'Customer is a site-wide master (no company field)');
+});
+
+Deno.test('AC-921 the live list requests include amended_from only for submittable doctypes', async () => {
+  const db = fakeDb();
+  const env = stubEnv();
+  const erp = stubErpFetch({});
+  try {
+    await sweepOrgDoctypesLive(db.client, orgBinding(OURS, ['companies', 'revenue', 'timesheets']));
+    assert(
+      erp.fieldsFor('Sales Invoice').includes('amended_from'),
+      `the live Sales Invoice request must include amended_from; got ${JSON.stringify(erp.fieldsFor('Sales Invoice'))}`,
+    );
+    for (const doctype of ['Customer', 'Supplier', 'Employee']) {
+      assert(
+        !erp.fieldsFor(doctype).includes('amended_from'),
+        `the live ${doctype} request must omit amended_from; got ${JSON.stringify(erp.fieldsFor(doctype))}`,
+      );
+    }
+  } finally {
+    erp.restore();
+    env.restore();
+  }
 });
 
 Deno.test('WIRE 3: the list query is scoped SERVER-SIDE to the binding company', async () => {

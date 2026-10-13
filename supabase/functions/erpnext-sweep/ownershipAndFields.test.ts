@@ -14,7 +14,6 @@
 // Stub Deno.serve so importing index.ts (top-level Deno.serve) does not bind a port under deno test.
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { sweepKindsForOrg, sweepFieldsForKind, KINDS_NEEDING_FULL_DOC } = await import('./index.ts');
-import { listErpChangesSinceWatermark, type SweepCursorDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.ts';
 import { DOCTYPE_REGISTRY } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
@@ -169,37 +168,6 @@ Deno.test('AC-921 sweep requests amended_from exactly for registered submittable
     assert(
       fields.includes('amended_from') === entry.submittable,
       `kind '${kind}' submittable=${entry.submittable} but amended_from ${fields.includes('amended_from') ? 'is present' : 'is absent'}`,
-    );
-  }
-});
-
-Deno.test('AC-921 actual list requests include amended_from iff the polled doctype is submittable', async () => {
-  const polledKinds = sweepKindsForOrg(['companies', 'procurement', 'revenue', 'timesheets', 'budget', 'expenses']);
-  for (const { kind } of polledKinds) {
-    const entry = DOCTYPE_REGISTRY[kind];
-    let requestedUrl = '';
-    const client = {
-      fetchImpl: async (url: string | URL | Request) => {
-        requestedUrl = String(url);
-        return new Response(JSON.stringify({ data: [] }), { status: 200 });
-      },
-      apiKey: 'k',
-      apiSecret: 's',
-      baseUrl: 'http://erp.test',
-    };
-    const deps: SweepCursorDeps = {
-      client: client as unknown as SweepCursorDeps['client'],
-      doctype: entry.doctype,
-      fields: sweepFieldsForKind(kind),
-      fromDoc: (doc: unknown) => ({ id: String((doc as Record<string, unknown>).name) }),
-      // Keep this option identical to the one supplied by sweepOrgDoctypesLive.
-      includeAmendedFrom: DOCTYPE_REGISTRY[kind].submittable,
-    };
-    await listErpChangesSinceWatermark(deps, null);
-    const requestedFields = JSON.parse(new URL(requestedUrl).searchParams.get('fields') ?? '[]') as string[];
-    assert(
-      requestedFields.includes('amended_from') === entry.submittable,
-      `kind '${kind}' (${entry.doctype}) submittable=${entry.submittable}, but the real list request ${requestedFields.includes('amended_from') ? 'includes' : 'omits'} amended_from`,
     );
   }
 });
