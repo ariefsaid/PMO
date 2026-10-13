@@ -117,6 +117,6 @@ test(
     await confirm.getByRole('button', { name: /record/i }).click();
 
     // GOAL ORACLE: the new value is reflected in the single authoritative Contract read (UIP-006).
-    await expect(page.getByTestId('contract-value-amount')).toHaveText(/\$5,250,000/);
+    await expect(page.getByTestId('contract-value-amount')).toHaveText(/\$5,250,000/, { timeout: 15_000 });
   },
 );

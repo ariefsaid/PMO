@@ -68,10 +68,8 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await expect(page.getByTestId('milestone-strip-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('milestone-strip-empty')).toBeVisible({ timeout: 15_000 });
 
-  // UI polish slice 3 gives the empty-state doorway context-specific copy. Activate the
-  // primary action within the empty planner without coupling this journey to its locale/copy;
-  // the milestone form and both 100% goal oracles below remain asserted.
-  await page.getByTestId('milestone-strip-empty').getByRole('button').click();
+  // The empty strip teaches the PM to plan phases; the primary doorway opens the same modal.
+  await page.getByRole('button', { name: /Add the first phase/i }).click();
 
   // MilestoneFormModal opens (EntityFormModal renders a dialog).
   const dialog = page.getByRole('dialog');
