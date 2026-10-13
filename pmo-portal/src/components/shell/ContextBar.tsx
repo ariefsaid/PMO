@@ -30,6 +30,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       <button
         type="button"
         aria-label={t('shell.contextBar.openNavigation', 'Open navigation menu')}
+        data-drawer-toggle
         onClick={onToggleRail}
         className="touch-target mobile-rail-toggle hidden size-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground max-[921px]:grid [&_svg]:size-[17px]"
       >

@@ -277,6 +277,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
           // Ignore NavLink's built-in isActive; use the override decision.
+          aria-label={item.to === '/my-tasks' ? navLabels[item.to] : undefined}
           aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
           className={() =>
             cn(
@@ -300,6 +301,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         to={item.to}
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
+        aria-label={item.to === '/my-tasks' ? navLabels[item.to] : undefined}
         aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
         className={({ isActive }: { isActive: boolean }) => {
           const active = isActive;

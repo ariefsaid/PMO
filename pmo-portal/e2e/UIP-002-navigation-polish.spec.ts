@@ -16,6 +16,17 @@ test('UIP-002: dashboard has no horizontal page overflow at 1440×900', async ({
 });
 
 test('UIP-002: phone navigation uses the menu glyph, opens routes, and returns keyboard focus', async ({ page }) => {
+  // Keep shell labels deterministic when another journey changed the persisted seed locale.
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch();
+    const body: unknown = await response.json();
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, 'exec@acme.test');
 
