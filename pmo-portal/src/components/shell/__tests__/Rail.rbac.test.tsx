@@ -90,8 +90,9 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
 
   it('UXS-007: a Project Manager can discover assigned work with its cross-project meaning in the rail', () => {
     renderRailAs('Project Manager');
-    const link = screen.getByRole('link', { name: /My Tasks.*Your assigned work across projects/ });
+    const link = screen.getByRole('link', { name: /^My Tasks$/ });
     expect(link).toHaveAttribute('href', '/my-tasks');
+    expect(link).toHaveAccessibleDescription('Your assigned work across projects');
     expect(link).toHaveAttribute('aria-describedby', 'rail-my-tasks-hint');
     expect(within(link).getByText('Your assigned work across projects')).toBeInTheDocument();
   });

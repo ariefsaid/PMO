@@ -9,6 +9,17 @@ import { SEED_PASSWORD } from './helpers';
 // NOT use the signIn() helper — signIn() now injects a captured session (#306), which would make
 // this AC prove session-injection instead of real login. Do not convert this to signIn().
 test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flagged project by keyboard', async ({ page }) => {
+  // Shell copy is English in this journey regardless of persisted seed-profile preferences.
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch();
+    const body: unknown = await response.json();
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
   await page.goto('/login');
   await page.getByLabel(/email/i).fill('pm@acme.test');
   await page.getByLabel(/password/i).fill(SEED_PASSWORD);

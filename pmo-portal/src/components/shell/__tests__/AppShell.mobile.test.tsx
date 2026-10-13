@@ -217,30 +217,31 @@ describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
     });
   });
 
-  it('focus restores to the hamburger button when drawer closes', () => {
-    // We simulate via the ref-tracking: the hamburger must have data-drawer-toggle
-    // and be the element that held focus before the drawer opened.
-    const hamburger = document.createElement('button');
-    hamburger.setAttribute('data-testid', 'hamburger');
-    hamburger.textContent = 'Open nav';
-    document.body.appendChild(hamburger);
-    hamburger.focus();
-
-    const { rerender } = wrap(
-      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
-        <div>x</div>
-      </AppShell>
-    );
-    rerender(
-      <MemoryRouter>
-        <AppShell rail={<div>nav</div>} header={null} railOpen={false} onCloseRail={vi.fn()}>
-          <div>x</div>
-        </AppShell>
-      </MemoryRouter>
-    );
-    // Hamburger should regain focus after close
-    // (In the real app, the hamburger is in the ContextBar and holds focus before open)
-    hamburger.remove();
+  it('returns keyboard focus to the navigation trigger after Escape closes the drawer', async () => {
+    const Harness = () => {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <>
+          <button type="button" data-drawer-toggle onClick={() => setOpen(true)}>
+            Open navigation menu
+          </button>
+          <AppShell
+            rail={<div><a href="#a">Nav link</a></div>}
+            header={null}
+            railOpen={open}
+            onCloseRail={() => setOpen(false)}
+          >
+            <div>x</div>
+          </AppShell>
+        </>
+      );
+    };
+    wrap(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
+    await userEvent.setup().click(trigger);
+    await waitFor(() => expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true));
+    await userEvent.setup().keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
 
