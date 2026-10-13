@@ -125,11 +125,15 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // Wait for the mutation to commit (query re-fetch propagates back to the milestone strip).
   await expect(statusSelect).toHaveValue('Done', { timeout: 10_000 });
 
+  // UIP-005 (#975) deliberately moved the full actionable planner into Overview; other tabs
+  // retain only its compact summary. Return to Overview after completing the task so the phase
+  // card's effective progress remains the goal oracle rather than asserting against the summary.
+  await page.getByRole('tab', { name: /overview/i }).click();
+
   // ── GOAL ORACLE part 1: milestone strip effective % = 100% ──────────────────
   // The redesigned stepper removed "From tasks" text; each phase card (<section>) now shows
-  // the effective % as a large headline number on the right. With input_pct=null the effective %
-  // equals the task-derived value, so asserting the "Engineering design" card reads 100% is the
-  // full-strength equivalent oracle.
+  // the effective % as a large headline number. With input_pct=null the effective % equals the
+  // task-derived value, so asserting the phase card reads 100% preserves the full-strength oracle.
   const phaseCard = page.locator('section').filter({ hasText: MILESTONE_NAME });
   await expect(phaseCard.getByText('100%', { exact: true })).toBeVisible({ timeout: 20_000 });
 
