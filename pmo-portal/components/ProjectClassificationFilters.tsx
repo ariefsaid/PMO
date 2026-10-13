@@ -62,7 +62,10 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const emittedChange = useRef(false);
   const emitChange = (patch: FilterValues) => {
-    emittedChange.current = true;
+    // Flag only a patch that really changes the working set: a no-op leaves `value` unchanged,
+    // and a flag left set would swallow the next OUTSIDE change (e.g. Clear filters).
+    const changes = (Object.keys(patch) as (keyof FilterValues)[]).some((k) => (patch[k] ?? '') !== (value[k] ?? ''));
+    if (changes) emittedChange.current = true;
     onChange(patch);
   };
   // Outside changes (e.g. Clear filters) drop pending typed text; own emits preserve it while
@@ -124,7 +127,11 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
                 <li key={key} className="flex min-w-0 max-w-full items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">
                   <span className="min-w-0 break-words">{selection}</span>
                   <Button variant="ghost" size="icon" className="shrink-0" aria-label={t('projectClassification.remove', 'Remove classification: {{selection}}', { selection })}
-                    onClick={() => { focusTrigger(); emitChange({ [key]: '' }); }}>
+                    onClick={() => {
+                      focusTrigger();
+                      if (key === 'location') { clearTimeout(timer.current); setLocationText(''); }
+                      emitChange({ [key]: '' });
+                    }}>
                     <Icon name="x" />
                   </Button>
                 </li>

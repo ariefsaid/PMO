@@ -520,6 +520,16 @@ describe('#830 location filter debounce', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('AC-TAG-002 removing the location chip empties the location box', async () => {
+    pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
+    renderPage('/sales?view=table&location=Bali');
+    fireEvent.click(screen.getByRole('button', { name: /^Classification\s*1/ }));
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('Bali');
+    fireEvent.click(screen.getByRole('button', { name: /Remove classification: Location: Bali/ }));
+    expect(probeSearch()).not.toContain('location=');
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('');
+  });
+
   it('AC-TAG-002 Clear filters within the pause cancels the pending location', async () => {
     pipelineState.data = { stages: seedStages, projects: rowsWithClassification() };
     vi.useFakeTimers();
