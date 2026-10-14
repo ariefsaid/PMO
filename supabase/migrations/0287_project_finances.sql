@@ -182,3 +182,31 @@ begin
      lower(tg_op), v_actor, v_changes, v_currency);
   return null;
 end $$;
+
+
+create function public.fill_sales_invoice_project(
+  p_org_id uuid,p_si_id uuid,p_project_id uuid,p_erp_project text
+) returns boolean language plpgsql security definer set search_path = public as $$
+declare v_count int;
+begin
+  if p_org_id is null or p_project_id is null or not exists (
+    select 1 from public.projects p where p.id = p_project_id and p.org_id = p_org_id
+  ) then return false; end if;
+  update public.sales_invoices si set project_id = p_project_id
+   where si.id = p_si_id and si.org_id = p_org_id and si.project_id is null
+     and not si.pmo_native and si.si_number is not null
+     and si.erp_project is not distinct from p_erp_project
+     and si.author_user_id is null
+     and not exists (select 1 from public.sales_invoice_authors a where a.sales_invoice_id = si.id)
+     and exists (select 1 from public.external_refs r where r.org_id = si.org_id and r.domain = 'revenue'
+                 and r.pmo_record_id = si.id::text and r.external_record_id = si.si_number)
+     and (si.work_order_id is null or exists (select 1 from public.work_orders w
+          where w.id = si.work_order_id and w.org_id = si.org_id and w.project_id = p_project_id))
+     and not exists (select 1 from public.progress_claims c where c.id = si.id
+                     and (c.org_id is distinct from si.org_id or c.project_id is distinct from p_project_id));
+  get diagnostics v_count = row_count;
+  return v_count = 1;
+end $$;
+alter function public.fill_sales_invoice_project(uuid,uuid,uuid,text) owner to postgres;
+revoke all on function public.fill_sales_invoice_project(uuid,uuid,uuid,text) from public,anon,authenticated;
+grant execute on function public.fill_sales_invoice_project(uuid,uuid,uuid,text) to service_role;
