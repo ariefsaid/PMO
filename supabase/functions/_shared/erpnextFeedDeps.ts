@@ -513,16 +513,17 @@ async function mintMirrorRow(
   );
 }
 
-/** The inbound feed's lifecycle/status patch for a normal upsert (the per-row source-mod guard
- *  already gated the write). Customer/Supplier legal names are ERP-owned on this path; all other
- *  PMO-owned company columns stay untouched. */
+/** The inbound feed's lifecycle/status patch for a normal upsert, after its per-row source-mod
+ *  guard. Amend-convergence writes use a separate path and are not covered by that guard.
+ *  Customer/Supplier legal names are ERP-owned on this path; all other PMO-owned company columns
+ *  stay untouched. */
 function mirrorStatusPatch(kind: ErpDocKind, canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
   if (kind === 'contact') return {full_name: canonical.full_name, email: canonical.email ?? null, phone: canonical.phone ?? null, company_id: canonical.company_id, erp_modified: new Date(sourceModMs).toISOString()};
   const partyNameField = kind === 'customer' ? 'erp_customer_name' : kind === 'supplier' ? 'erp_supplier_name' : null;
   const patch: Record<string, unknown> = { erp_modified: new Date(sourceModMs).toISOString() };
   if (partyNameField) {
-    const partyName = canonical.name ?? canonical[partyNameField];
-    if (partyName !== null && partyName !== undefined) {
+    const partyName = canonical[partyNameField];
+    if (typeof partyName === 'string' && partyName.trim().length > 0) {
       patch.name = partyName;
       patch[partyNameField] = partyName;
     }

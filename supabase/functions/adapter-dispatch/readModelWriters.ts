@@ -154,6 +154,7 @@ const companiesWriter: ReadModelWriter = {
       erp_customer_name: (canonical.erp_customer_name as string | null | undefined) ?? null,
       erp_tax_id: (canonical.erp_tax_id as string | null | undefined) ?? null,
       erp_payment_terms_days: (canonical.erp_payment_terms_days as number | null | undefined) ?? null,
+      erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
     };
     if (command.operation === 'create') {
       const { error } = await ctx.serviceClient.from('companies').insert({ id: canonical.id, org_id: ctx.orgId, ...patch });
