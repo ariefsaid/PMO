@@ -353,7 +353,7 @@ Owner mandate "proceed until wave 5 & wave 4 completion" → Director adopts the
 ### OD-W5-C2-A — "at-risk" = the existing `spent/budget ≥ 0.9` (one shared constant)
 Reuse the canonical threshold already in `get_executive_dashboard`/BvACard/PMDashboard. No schedule/aging signal (would need a data domain that doesn't exist). Pin it as one shared constant consumed by the at-risk filter + PM risk-sort.
 
-### DD-RISK-1 — at-risk population = active delivery set
+### DD-RISK-1 — at-risk population = active delivery set (Director, 2026-10-14, #986)
 Count projects whose spend can still grow against budget: `Ongoing Project`, `Won, Pending KoM`, `On Hold`, and `Internal Project`; exclude `Close Out`. The Executive dashboard RPC aligns its membership with the existing frontend `ACTIVE_PROJECT_STATUSES` rule. The `>= 0.9` threshold and committed-spend budget basis remain unchanged, as do rankings and all other dashboard figures.
 ### OD-W5-C2-B — J4 finance-console = RESTRAINED reframe
 Tabular-nums, right-aligned money, variance-first framing, existing tokens only — NOT a redesign (a bigger one risks DESIGN.md-banned chrome). No new DESIGN.md token.
