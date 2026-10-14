@@ -2580,6 +2580,8 @@ export type Database = {
           domain: string
           external_tier: string
           id: string
+          last_error: string | null
+          last_error_at: string | null
           org_id: string
           updated_at: string
           watermark_cursor: string
@@ -2588,6 +2590,8 @@ export type Database = {
           domain: string
           external_tier: string
           id?: string
+          last_error?: string | null
+          last_error_at?: string | null
           org_id?: string
           updated_at?: string
           watermark_cursor?: string
@@ -2596,6 +2600,8 @@ export type Database = {
           domain?: string
           external_tier?: string
           id?: string
+          last_error?: string | null
+          last_error_at?: string | null
           org_id?: string
           updated_at?: string
           watermark_cursor?: string
@@ -2606,6 +2612,70 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fx_rates: {
+        Row: {
+          base_currency: string
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          quote_currency: string
+          rate: number
+          rate_date: string
+          source: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_currency?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          quote_currency?: string
+          rate: number
+          rate_date: string
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_currency?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          quote_currency?: string
+          rate?: number
+          rate_date?: string
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fx_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -7237,6 +7307,13 @@ export type Database = {
         }
         Returns: string
       }
+      fx_rate_on: {
+        Args: { base: string; on_date: string; quote: string }
+        Returns: {
+          rate: number
+          rate_date: string
+        }[]
+      }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
@@ -7995,6 +8072,7 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
+      reconcile_procurement_line_totals: { Args: never; Returns: undefined }
       record_expense_advance_return: {
         Args: { p_amount: number; p_id: string; p_reference?: string }
         Returns: undefined
@@ -8500,6 +8578,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      upsert_fx_rates: { Args: { p_rows: Json }; Returns: Json }
       valid_project_classification_options: {
         Args: { p_options: string[] }
         Returns: boolean
