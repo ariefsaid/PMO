@@ -87,7 +87,9 @@ import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pm
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps, type ErpFilter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
+import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
 import {
   lookupConfirmedErpEmployee,
   readBudgetLineItems,
@@ -179,6 +181,34 @@ export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function sweepErrorCode(error: unknown): string {
+  if (error instanceof ErpError && Number.isInteger(error.status) && error.status >= 100 && error.status <= 599) {
+    return `erp-http-${error.status}`;
+  }
+  if (error instanceof FetchDeadlineError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name))) {
+    return 'erp-timeout';
+  }
+  if (error instanceof AdapterError && error.code === 'external-unreachable') return 'erp-unreachable';
+  if (error instanceof Error) return 'apply-failed';
+  return 'unknown';
+}
+
+const SWEEP_ERROR_EVENT_TIMEOUT_MS = 2_000;
+
+async function recordSweepErrorEvent(supabase: ErrorEventSupabaseLike, event: Parameters<typeof recordErrorEvent>[1]): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      recordErrorEvent(supabase, event),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, SWEEP_ERROR_EVENT_TIMEOUT_MS); }),
+    ]);
+  } catch {
+    // Best effort by design: reporting a failed doctype must not stall its siblings.
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 
@@ -962,6 +992,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
             external_tier: ERPNEXT_TIER,
             domain: wmDomain,
             watermark_cursor: cursor,
+            last_error: null,
+            last_error_at: null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'org_id,external_tier,domain' },
@@ -1042,15 +1074,52 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
         },
       );
       applied += result.applied;
+      // A successful walk with no changed rows has no cursor to advance, but it still recovers
+      // the doctype and must clear its previous failure state.
+      const { error: clearError } = await serviceClient.from('external_sync_watermarks').update({ last_error: null, last_error_at: null })
+        .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).not('last_error', 'is', null);
+      if (clearError) throw new AppError(clearError.message, clearError.code);
       // Never silent: an acked-and-skipped document (never-adopt / lossy hint) is logged with its ERP
       // name so an operator can see exactly what the poll declined to import.
       for (const s of result.skipped) {
         console.warn(`[erpnext-sweep] org ${org.orgId} ${doctype} ${s.externalRecordId}: acked+skipped — ${s.error}`);
       }
     } catch (err) {
+      // Full upstream detail stays in function logs only; watermarks are member-readable, so persist
+      // only a diagnostic code derived from the error class/status.
+      console.error(`[erpnext-sweep] ${doctype} walk failed`, err);
+      const safeError = sweepErrorCode(err);
+      try {
+        const { error } = await serviceClient.from('external_sync_watermarks').update({ last_error: safeError })
+          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain);
+        if (error) console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
+      } catch {
+        console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
+      }
+      const alertAt = nowMs();
+      let shouldAlert = false;
+      try {
+        const { data, error } = await serviceClient.from('external_sync_watermarks')
+          .update({ last_error_at: new Date(alertAt).toISOString() })
+          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain)
+          .or(`last_error_at.is.null,last_error_at.lt.${new Date(alertAt - 3_600_000).toISOString()}`)
+          .select('id');
+        if (error) console.error('[erpnext-sweep] SWEEP_ERROR_ALERT_CLAIM_FAILED');
+        else shouldAlert = Boolean(data?.length);
+      } catch {
+        console.error('[erpnext-sweep] SWEEP_ERROR_ALERT_CLAIM_FAILED');
+      }
+      if (shouldAlert) {
+        await recordSweepErrorEvent(serviceClient as unknown as ErrorEventSupabaseLike, {
+          fn: 'erpnext-sweep',
+          errorCode: 'sweep-doctype-failed',
+          contextId: wmDomain,
+          orgId: org.orgId,
+        });
+      }
       // An unreachable adapter (or one doctype's failure) is recorded but does NOT abort the other
       // doctypes/orgs (AC-CUA-044 sibling: the next schedule retries).
-      doctypeErrors.push(`${doctype}:${err instanceof Error ? err.message : String(err)}`);
+      doctypeErrors.push(`${doctype}: sweep failed`);
       continue;
     }
   }

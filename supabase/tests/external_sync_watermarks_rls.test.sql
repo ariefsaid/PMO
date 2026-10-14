@@ -3,7 +3,14 @@
 -- (AC-EAS-051 — one row per (org,tier,domain) — is owned by the Vitest unit test; pgTAP proves the
 --  unique constraint + RLS write-authority here as defense-in-depth.)
 begin;
-select plan(5);
+select plan(11);
+
+select has_column('public', 'external_sync_watermarks', 'last_error', 'AC-998-001 last_error exists');
+select has_column('public', 'external_sync_watermarks', 'last_error_at', 'AC-998-001 last_error_at exists');
+select col_type_is('public', 'external_sync_watermarks', 'last_error', 'text', 'AC-998-001 last_error is text');
+select col_type_is('public', 'external_sync_watermarks', 'last_error_at', 'timestamp with time zone', 'AC-998-001 last_error_at is timestamptz');
+select is((select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'external_sync_watermarks' and column_name = 'last_error'), 'YES', 'AC-998-001 last_error is nullable');
+select is((select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'external_sync_watermarks' and column_name = 'last_error_at'), 'YES', 'AC-998-001 last_error_at is nullable');
 
 insert into organizations (id, name) values
   ('00870000-0000-0000-0000-000000000001','AC-EAS WM A'),
