@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatExactMoney, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveMargin, formatExactMoney, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {
@@ -66,6 +66,31 @@ describe('exact project-finance money', () => {
       actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } },
   ])('AC-PFIN-015 rejects malformed top-level project-finance data', (value) => {
     expect(isProjectFinances(value)).toBe(false);
+  });
+
+  it('AC-PFIN-013 derives a same-currency margin from billed work and mapped costs only', () => {
+    const invoice = { currency: 'USD', invoice_count: 1, invoiced: '150.00', settled: null, outstanding: null,
+      missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
+    const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
+      excludes_restricted_rows: false, categories: [] };
+    expect(deriveMargin(invoice, actuals)).toEqual({ amount: '80.00', reason: null });
+  });
+
+  it('AC-PFIN-013 withholds margins for currency mismatch or incomplete work and actuals', () => {
+    const invoice = { currency: 'IDR', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
+      missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
+    const actuals = { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false, categories: [] };
+    expect(deriveMargin(invoice, actuals)).toEqual({ amount: null, reason: 'different-currencies' });
+    expect(deriveMargin({ ...invoice, currency: 'USD', work_revenue: null }, actuals))
+      .toEqual({ amount: null, reason: 'work-unavailable' });
+    expect(deriveMargin({ ...invoice, currency: 'USD', missing_work: 1 }, actuals))
+      .toEqual({ amount: null, reason: 'work-unavailable' });
+    expect(deriveMargin({ ...invoice, currency: 'USD' }, { ...actuals, total: null }))
+      .toEqual({ amount: null, reason: 'actuals-unavailable' });
+    expect(deriveMargin({ ...invoice, currency: 'USD' }, { ...actuals, currency: null }))
+      .toEqual({ amount: null, reason: 'actuals-unavailable' });
+    expect(deriveMargin({ ...invoice, currency: 'USD' }, { ...actuals, excludes_restricted_rows: true }))
+      .toEqual({ amount: null, reason: 'restricted-rows' });
   });
 
   it('AC-PFIN-015 rejects non-integer counts, non-string money, and malformed categories', () => {

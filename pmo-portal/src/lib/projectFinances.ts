@@ -62,6 +62,16 @@ export function moneyText(units: bigint): ExactMoney {
   return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
 }
 
+export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinances['actuals']): Margin {
+  if (actuals.currency && bucket.currency !== actuals.currency) return { amount: null, reason: 'different-currencies' };
+  if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
+  const revenue = moneyUnits(bucket.work_revenue);
+  if (revenue === null || bucket.missing_work > 0) return { amount: null, reason: 'work-unavailable' };
+  const cost = moneyUnits(actuals.total);
+  if (cost === null || !actuals.currency) return { amount: null, reason: 'actuals-unavailable' };
+  return { amount: moneyText(revenue - cost), reason: null };
+}
+
 export function isProjectFinances(value: unknown): value is ProjectFinances {
   const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
   const exact = (v: unknown) => v === null || (typeof v === 'string' && moneyUnits(v) !== null);
