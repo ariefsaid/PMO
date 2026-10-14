@@ -11,6 +11,8 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
+
 // Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
 const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },

@@ -40,7 +40,12 @@ vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ co
 
 // #731: the create form's money adornment reads the org currency. Pinned here rather than left to a
 // real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a syntax error.
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => 'USD',
+  useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-12', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => hoisted.salesInvoicesState,
   useRevenueMutations: () => ({

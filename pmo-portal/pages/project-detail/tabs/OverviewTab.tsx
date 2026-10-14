@@ -15,6 +15,7 @@ import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../comp
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -195,7 +196,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
     ? [
         {
           label: t('projectDetail.overview.finance.contract', 'Contract'),
-          value: formatCurrency(contract, project.currency),
+          value: (
+            <>
+              <span>{formatCurrency(contract, project.currency)}</span>
+              <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
+            </>
+          ),
           // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
           // states the same basis, read off this project's own row.
           sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="overview-contract-tax-basis" />,
