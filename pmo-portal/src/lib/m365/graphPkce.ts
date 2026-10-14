@@ -14,6 +14,9 @@
 
 const VERIFIER_BYTES = 64; // → 86 base64url chars after encoding, within the RFC 7636 43-128 range
 const AUTHORIZE_BASE = 'https://login.microsoftonline.com';
+
+/** Phase-1 Microsoft Graph data permissions; protocol scopes are added only to the authorize flow. */
+export const M365_PHASE1_DATA_SCOPES = ['Files.Read', 'Files.Read.All', 'Sites.Read.All'];
 // Valid Microsoft tenant identifiers: a GUID, the keywords common/organizations/consumers, or a
 // verified domain (e.g. contoso.onmicrosoft.com). All match [A-Za-z0-9._-]. Anything else could
 // smuggle path/query segments into the authorize URL (security-audit Minor 1, 2026-07-14).
@@ -117,9 +120,10 @@ export interface AdminConsentUrlParams {
  *
  * MIRRORS buildAuthorizeUrl: the same pinned login.microsoftonline.com host, the same
  * {@link validateTenant} guard (defense-in-depth — the tenant is interpolated into the URL path),
- * client_id + redirect_uri + state carried through. It carries **NO PKCE** (no code_challenge,
- * no response_type=code, no scope): admin consent GRANTS permissions, it exchanges no code, so
- * there is no verifier to bind (spec §1.5). The tenant + client_id come ONLY from server-side env
+ * client_id + redirect_uri + state carried through, plus the Graph-qualified Phase-1 data scopes
+ * needed by Microsoft's v2.0 admin-consent endpoint. It carries **NO PKCE** (no code_challenge or
+ * response_type=code): admin consent GRANTS permissions, it exchanges no code, so there is no
+ * verifier to bind (spec §1.5). The tenant + client_id come ONLY from server-side env
  * — never caller input — so approve and connect can never disagree about which app is being
  * approved (FR-M365SEP-006, enforced in the handler that calls this).
  */
@@ -129,5 +133,9 @@ export function buildAdminConsentUrl(params: AdminConsentUrlParams): string {
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('redirect_uri', params.redirectUri);
   url.searchParams.set('state', params.state);
+  url.searchParams.set(
+    'scope',
+    M365_PHASE1_DATA_SCOPES.map((scope) => `https://graph.microsoft.com/${scope}`).join(' '),
+  );
   return url.toString();
 }
