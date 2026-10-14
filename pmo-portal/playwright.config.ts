@@ -6,12 +6,6 @@ import path from 'node:path';
 // local runs that don't touch those specs (scripts/e2e-local.sh sets it). CI never sets it.
 const consentLane = process.env.E2E_CONSENT_LANE !== '0';
 
-// E2E_PORT mirrors vite.config.ts server.port so a second worktree can run e2e while a sibling's
-// dev server holds 3000. The port-3000 default and reuseExistingServer:false stay canonical: this
-// checkout's own server must serve the run, never another worktree's.
-const e2ePort = Number(process.env.E2E_PORT ?? 3000);
-const e2eBaseURL = `http://localhost:${e2ePort}`;
-
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({
   testDir: './e2e',
@@ -34,7 +28,7 @@ export default defineConfig({
   //      the watched tree stops the restart churn and stabilizes AC-INV-001 (and every other spec).
   outputDir: path.join(os.tmpdir(), 'pmo-portal-test-results'),
   use: {
-    baseURL: e2eBaseURL,
+    baseURL: 'http://localhost:3000',
     // With retries 0, 'on-first-retry' would never record; keep the trace of every failure.
     trace: 'retain-on-failure',
     // Retained only on failure so local/CI runs stay light; these are the CI diagnostics that let
@@ -96,7 +90,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'npm run dev',
-      url: e2eBaseURL,
+      url: 'http://localhost:3000',
       // The authoritative CI/local-promotion lane must serve this checkout, never
       // silently attach to port 3000 from another worktree.
       reuseExistingServer: false,
