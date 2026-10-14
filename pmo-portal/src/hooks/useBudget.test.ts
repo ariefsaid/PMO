@@ -179,6 +179,10 @@ describe('useBudgetMutations', () => {
     // Order matters: catches a swapped/dropped arg like createLineItem(item, versionId).
     expect(createLineItem).toHaveBeenCalledWith('v-draft', item);
     expectBothKeysInvalidated(invalidateSpy);
+    expect(invalidateSpy.mock.calls.some(([filters]) => {
+      const key = (filters as { queryKey?: unknown[] }).queryKey;
+      return key?.[0] === 'project-finances' && key[1] === 'org-1' && key[2] === 'p-1';
+    })).toBe(true);
   });
 
   it('updateLineItem calls updateLineItem(id, patch) in that arg order and invalidates both keys (T13)', async () => {
