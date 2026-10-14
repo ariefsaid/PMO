@@ -4,44 +4,45 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-09) — v0.17.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-14) — v0.18.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-09):** release **v0.17.0** — `production` == `main` == `dev` == `97c00cf7`; hosted DB at
-**0282**; all 24 edge functions stamped `97c00cf7` (`/functions/v1/health`). Production went straight from v0.15.0
-(v0.16.0 was cut but never deployed). After-push probes, all green: anon-executable definers = the 4 RLS helpers ·
-`second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe` 238 checks / 0 leaks (smoke org vs the
-RIS org). Probe coverage gaps → #965.
+**Live (owner yes, 2026-10-14):** release **v0.18.0** — `production` == `main` == `9c9dc56b` (tag `v0.18.0`); hosted DB
+at **0284**; all 24 edge functions stamped `528344dd` (`/functions/v1/health`). After-push probes (owner-run
+`run-prod-probes`): anon-executable definers = the 4 RLS helpers · `second-org-smoke` 20/0 ·
+`second-org-roles-smoke` 81/0 · `isolation-probe` 236 checks / 0 leaks (189 skips need a disposable tenant A).
+`dev` is ahead of `main` by #996 (import rows say why they failed) and #1003 (`scripts/prod-read.sh`).
 
-**What v0.16.0 + v0.17.0 carry:** invoicing and receipts for orgs without an ERP (#784, 0275) and invoicing a work
-order directly (#913) · bill by work order (#785/#786) · e-Faktur number/date (#893, 0272) · the ERP invoice PDF
-(#912, `external-invoice-pdf`) · vendor withholding on bills + vendor tax defaults (#876, 0269/0273) and the
-withholding slip / bukti potong register (#911, 0281/0282) · expense claims + cash advances posting to ERPNext
-(#775) · paying a vendor bill from PMO when ERP-connected (#910) · budget activation by someone other than its
-drafter or editors (#922/#957, 0271/0280) · four role gates tightened (#909, 0268) · change history on invoices,
-vendor bills and procurement documents (#920/#878/#880, 0277/0278) · readable, reliably announced toasts (#952) ·
-ERP client/sweep hardening (#916/#918/#919/#921/#901) · the v0.17.0 design-critique polish (#959/#960/#962).
+**What v0.18.0 carries (over v0.17.0):** UX Discover wave 1 — eight slices (#983–#992: one approvals population,
+receipt preview, prerequisites before dead ends, addressable invoices, accountable personal work, discoverable homes
+and one shell vocabulary, actionable dashboards, phone week completion) · procurement money consistency (#979, 0284:
+one amount basis, payable settlement, quote selection through comparison) · PPN invoice correction (#956, 0283) · the
+ERPNext sweep now polls non-submittable doctypes (#999 — Customer/Supplier/Employee had never synced since connect) ·
+the classification location filter keeps typed text (#1000) · e2e repairs after the slices combined (#993 #995 #997
+#1001). Withholding-slip screens, probe coverage and toast fixes (#961 #965 #966 #953) closed.
 
-**Next (build queue, in order):** #961 (withholding-slip screens: history labels, scroll to bill, pin cosmetic
-fixes — v0.17.1) · #965 (probe coverage + a tracked one-command post-deploy probe) · #966 (latent toast locators
-in e2e) · #953 (toasts vs mobile action bars / modal focus traps) · #956 (invoice change after PPN — **needs the
-owner's spec sign-off** on `docs/specs/ppn-invoice-change.spec.md`; its spike runs on the ERPNext bench only when
-the shared Mac is free). Larger programs, not started: roles & permissions (#902, children #905–#908) and
-month-end close without an ERP (#894, children #895–#900).
+**RIS:** seeded on prod 2026-10-14 (owner "go") — starting data loaded through `pmo load` (projects, contract
+values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app
+operator work (outcomes, budget account map, budget activation by a second person, ERPNext project links).
 
-**Owner-held (do not build around them):** #956 spec sign-off · ERPNext print setup on RIS's v16 instance before
-RIS uses the invoice PDF (checklist on #912) · builder-provider credit top-up (the build ladder falls back until
-then) · **RIS seeding is on HOLD** (owner 2026-10-06: no data load into the RIS org until the owner says go) ·
-#806 redesign grill (after the first client is live).
+**Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
+#986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
+request-review handoff (**needs a spec**) · #981 zero-credit help (**blocked on an owner fact**). Larger programs,
+not started: roles & permissions (#902) and month-end close without an ERP (#894).
 
-**How work runs right now (2026-10-09):** the owner talks to ONE session, the Director, which is also the
-orchestrator (the separate orchestrator session froze and was retired). Builds, fixes and reviews go to pi
-(`pi-dispatch build|review|review-money|plan`, routing at the top of `docs/pi-delegation.md`) or the factory
-(`adws/adw_simple_sdlc.py` for FE slices) — ONE reviewer per PR; Claude orchestrates, merges and deploys.
-**Watch the release PR's `integration` lane after every merge to `dev`** — v0.17.0 sat red for six runs on one
-stale e2e locator because no session owned that lane. The Mac is shared with the MOS project: at most 2 heavy
-lanes (vite/vitest/Playwright) per project, kill only your own PIDs, heads-up before a heavy e2e; if free memory
-stays under 22% for 10 min, the side with more lanes pauses one. Production deploys: see
-`docs/environments.md` § *Prod deploy of the edge functions* for which steps the owner runs.
+**Owner-held:** #806 redesign grill · ERPNext print setup before RIS uses the invoice PDF (checklist on #912) ·
+demo-login panel off the prod URL · RIS Microsoft sign-in (Option B registration) · a disposable tenant A for the
+isolation probe's write checks.
+
+**How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator. Builds,
+fixes and reviews go to pi (`pi-dispatch build|review|review-money|plan`, routing at the top of
+`docs/pi-delegation.md`) or the factory (`adws/adw_simple_sdlc.py`) — ONE reviewer per PR; Claude orchestrates,
+merges and deploys. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
+**serial** lane: a red chromium lane stops the run before the serial lane, so serial breakage surfaces one release
+run later (2026-10-13: run the full serial lane locally once chromium is green). Re-running a failed CI run needs
+the owner's OK and goes through `scripts/ci-e2e.sh --owner-ok`; that dispatch is not attached to the PR's checks, so
+a release PR then merges with `--admin` (note it on the PR). Production reads: `scripts/prod-read.sh` only (owner
+allow-list). The Mac is shared with the MOS project: at most 2 heavy lanes per project, kill only your own PIDs.
+Production deploys: `docs/environments.md` § *Prod deploy of the edge functions*.
 
 ### Deployment state — ⛔ DO NOT READ THE NUMBERS BELOW AS CURRENT. RUN THE COMMANDS.
 

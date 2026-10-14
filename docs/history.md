@@ -1079,6 +1079,29 @@ parked reseller conversation).
 </details>
 
 
+## Release chronicle, 2026-10-06 → 2026-10-14 (moved from `docs/backlog.md` 2026-10-14)
+
+- **v0.18.0 — LIVE 2026-10-14** (owner "deploy when green"). `production == main == 9c9dc56b`; hosted DB 0283–0284;
+  all 24 edge functions stamped `528344dd`; probes: org smoke 20/0, roles 81/0, isolation 236 checks / 0 leaks.
+  Carries UX Discover wave 1 (eight slices, #983–#992), procurement money consistency (#979, 0284), PPN invoice
+  correction (#956, 0283), the ERPNext sweep fix for non-submittable doctypes (#999 — Customer/Supplier/Employee had
+  never synced since connect; errors were invisible, #998), the location-filter race (#1000) and the e2e repairs
+  after the slices combined (#993 #995 #997 #1001). Release PR #978 merged with `--admin` after an owner-OK'd
+  re-run passed on the same commit via `scripts/ci-e2e.sh` (dispatch runs are not attached to the PR's checks).
+  Same day: **RIS seeded on prod** — parties created in ERPNext and synced in, then `pmo load` (projects, contract
+  values, stages, draft budgets).
+- **v0.17.0 — LIVE 2026-10-09** (v0.16.0 was cut but never deployed; prod went v0.15.0 → v0.17.0). DB 0261→0282.
+  Carries: invoicing and receipts without an ERP (#784, 0275) and invoicing a work order directly (#913) · bill by
+  work order (#785/#786) · e-Faktur number/date (#893, 0272) · the ERP invoice PDF (#912) · vendor withholding +
+  vendor tax defaults (#876, 0269/0273) and the withholding-slip register (#911, 0281/0282) · expense claims + cash
+  advances posting to ERPNext (#775) · paying a vendor bill from PMO when ERP-connected (#910) · budget activation
+  by someone other than its drafter or editors (#922/#957, 0271/0280) · four role gates tightened (#909, 0268) ·
+  change history on invoices, bills and procurement documents (#920/#878/#880) · readable toasts (#952) · ERP
+  client/sweep hardening (#916/#918/#919/#921/#901) · design-critique polish (#959/#960/#962). Probe gaps → #965.
+- **v0.15.0 — LIVE 2026-10-07** (DB 0245→0261) and **v0.14.0 — LIVE 2026-10-06** (DB 0225→0245): the go-live drive
+  (approval routing #803, receipt due date #767, management pack #765, budget account map #768, expense claims
+  #775, progress billing #766, comments #790 and the rest of the 2026-10-06 batch).
+
 ## Backlog status chronicle, 2026-09-08 → 2026-10-05 (moved from `docs/backlog.md` 2026-10-09)
 
 ### ⚑ 2026-10-05 — promote #779 + production (owner yes): **production == main == `0fb733c1`**; hosted DB at 0224

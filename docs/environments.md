@@ -296,13 +296,13 @@ frontend (`git push origin <main sha>:refs/heads/production`) — DB-ahead-of-FE
 Then the hosted-grant sweep (§ Prod migration state). State of what is deployed: `supabase functions list`
 and the health endpoint, never this file.
 
-**Who runs which step (since 2026-10-09).** The Claude session's auto-mode safety check refuses the function
-deploy and any command that reads the management token, even with the owner's yes. So the Director runs
-`scripts/db-push-prod.sh` (it resolves its own secret) and then hands the owner ready-to-paste commands for:
-the function deploy (from a clean worktree at `origin/main`, token resolved inline in the same command — never
-written to a file), the health check, the `main` → `production` push, the hosted-grant sweep query, and the
-three after-push probes. The probe secrets (anon + service keys, the smoke-org Admin password rotated per run)
-must stay inside the one process the owner runs; making that a tracked one-command script is #965.
+**Who runs which step (updated 2026-10-14).** The auto-mode safety check has varied: on 2026-10-09 it refused the
+function deploy and the management-token read even with the owner's yes; on 2026-10-14, with the owner's
+"deploy when green", it allowed the whole sequence. So the Director runs `scripts/db-push-prod.sh`, the function
+deploy (token resolved inline, never written to a file), the health check, the `main` → `production` push and the
+hosted-grant sweep — and if a step is refused, stops there and hands the owner that exact command (never
+work around a refusal). The after-push probes stay **owner-run**: the probe driver rotates the smoke-org Admin
+password and keeps the probe secrets inside the one process the owner runs.
 ⚑ GoTrue throttles password sign-ins right after the two smokes — wait a minute before the isolation probe's
 sign-in. ⚑ `supabase db query --linked` works only from the linked main checkout (a worktree has no
 `supabase/.temp/project-ref`).
