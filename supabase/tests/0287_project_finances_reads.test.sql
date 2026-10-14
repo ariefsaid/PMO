@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(14);
 
 insert into public.organizations (id,name) values
   ('02870000-0000-0000-0000-000000000001','Project finance read test org');
@@ -91,6 +91,10 @@ select is((select actuals_to_date from public.project_mapped_actuals('02870000-0
           null::numeric,'AC-PFIN-011 project without a current reading does not inherit another project reading');
 select is((select actuals_to_date from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d1',null) where category='Contingency'),
           null::numeric,'AC-PFIN-011 a mapped category with a NULL net withholds its total');
+select is((select source_sum from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d1','FY-2026') where category='Labor'),
+          50::numeric,'AC-PFIN-018 explicit-year mapped actuals exclude NULL-year and other-year facts');
+select ok(pg_get_functiondef('public.get_budget_projection(uuid,text)'::regprocedure) like '%project_mapped_actuals%',
+          'AC-PFIN-018 projection delegates its shared account mapping and reading definition');
 
 select * from finish();
 rollback;
