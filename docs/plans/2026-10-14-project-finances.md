@@ -1,7 +1,7 @@
 # Project finances — executable TDD design and plan (#1008)
 
 Date: 2026-10-14. Spec: `docs/specs/project-finances.spec.md` (**Ready for owner sign-off**).
-Lane: money-path, Director-dispatched. **48 tasks**, each 2–5 minutes of focused editing/testing (lock waits and suite runtime are not estimates of editing time). No implementation before owner sign-off. Migration **0287 only**; 0286 remains reserved.
+Lane: money-path, Director-dispatched. **48 tasks**, each 2–5 minutes of focused editing/testing (lock waits and suite runtime are not estimates of editing time). No implementation before owner sign-off. Migration **0290 only**; 0286 remains reserved.
 
 ## 1. Decisions and design
 
@@ -144,7 +144,7 @@ Query keys:
 ['project-vat-editability']                    // attribution moves invoice-related eligibility
 ```
 
-## 3. Executable migration blocks (append in task order to 0287)
+## 3. Executable migration blocks (append in task order to 0290)
 
 These blocks are actual forward SQL. Existing definitions copied below by exact extraction are intentionally retained instead of restating/changing their unrelated logic. Run SQL through local migration reset only; never against a cloud environment during this build.
 
@@ -449,16 +449,16 @@ begin
      or not has_function_privilege('service_role','public.fill_sales_invoice_project(uuid,uuid,uuid,text)','EXECUTE')
      or has_function_privilege('anon','public.get_project_finances(uuid)','EXECUTE')
      or has_function_privilege('anon','public.project_mapped_actuals(uuid,text)','EXECUTE') then
-    raise exception '0287 grants do not match the project finance contract';
+    raise exception '0290 grants do not match the project finance contract';
   end if;
   if exists(select 1 from pg_class where oid in ('public.sales_invoices'::regclass,
        'public.erp_actuals_snapshot'::regclass,'public.record_changes'::regclass)
        and (not relrowsecurity or not relforcerowsecurity)) then
-    raise exception '0287 requires existing forced RLS';
+    raise exception '0290 requires existing forced RLS';
   end if;
   if exists(select 1 from pg_proc where oid in ('public.get_project_finances(uuid)'::regprocedure,
        'public.project_mapped_actuals(uuid,text)'::regprocedure) and prosecdef) then
-    raise exception '0287 read surfaces must be invoker';
+    raise exception '0290 read surfaces must be invoker';
   end if;
 end $$;
 ```
@@ -467,7 +467,7 @@ No new business table and no RLS policy widening. Existing table/org defaults re
 
 ### Rollback — preserve operator attribution/history, refuse provenance loss
 
-File: `supabase/migrations/rollback/0287_project_finances_down.sql`.
+File: `supabase/migrations/rollback/0290_project_finances_down.sql`.
 
 Execute this exact assembly recipe after Tasks 03–23; the generated file contains complete prior function bodies and correctly ordered SQL, not restoration comments:
 
@@ -486,7 +486,7 @@ guard=body('supabase/migrations/0275_native_revenue.sql','sales_invoices_native_
 down='''begin;
 do $$ begin
   if exists(select 1 from public.sales_invoices where erp_project is not null) then
-    raise exception 'export ERP project provenance before removing 0287; rollback refused';
+    raise exception 'export ERP project provenance before removing 0290; rollback refused';
   end if;
 end $$;
 drop function public.get_project_finances(uuid);
@@ -505,10 +505,10 @@ update public.record_history_config set omit_cols = array_remove(omit_cols,'erp_
 where entity_type = 'sales_invoice';
 commit;
 '''
-Path('supabase/migrations/rollback/0287_project_finances_down.sql').write_text(down)
+Path('supabase/migrations/rollback/0290_project_finances_down.sql').write_text(down)
 # A transaction-local test runner exercises the ACTUAL rollback body, without committing fixtures.
 inner=down.removeprefix('begin;\n').removesuffix('commit;\n')
-Path('supabase/tests/0287_project_finances_down_runner.sql').write_text(
+Path('supabase/tests/0290_project_finances_down_runner.sql').write_text(
   "create function pg_temp.run_pfin_down() returns void language plpgsql as $runner$\n"
   "begin execute $down$"+inner+"$down$; end $runner$;\n")
 print('Complete rollback and transaction-local runner written')
@@ -560,10 +560,10 @@ d=json.loads(p.read_text())
 for signature in ['assign_sales_invoice_project(uuid,uuid)','fill_sales_invoice_project(uuid,uuid,uuid,text)']:
     assert signature not in d['definer_functions']
     d['definer_functions'].append(signature)
-sql=Path('supabase/migrations/0287_project_finances.sql').read_text().splitlines()
+sql=Path('supabase/migrations/0290_project_finances.sql').read_text().splitlines()
 a=next(i for i,line in enumerate(sql) if line.startswith('create function public.assign_sales_invoice_project('))
 b=next(i for i in range(a+1,len(sql)) if sql[i].startswith('end $$;'))
-sources=['supabase/migrations/0287_project_finances.sql:'+str(i+1)
+sources=['supabase/migrations/0290_project_finances.sql:'+str(i+1)
          for i in range(a,b+1) if "errcode = '42501'" in sql[i] or "errcode = 'P0002'" in sql[i]]
 assert sources
 assert not any(r['name']=='assign_sales_invoice_project' for r in d['rpcs'])
@@ -874,20 +874,20 @@ scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run src/lib/db/pr
 # V-WRITER
 (cd supabase/functions/adapter-dispatch && deno test --allow-env --allow-net readModelWriters.test.ts)
 # V-ASSIGN (migration edit => reset and test within ONE lock)
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_assign_invoice_project.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_assign_invoice_project.test.sql'
 # V-FILL
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_project_invoice_backfill.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_project_invoice_backfill.test.sql'
 # V-READ
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_project_finances_reads.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_project_finances_reads.test.sql'
 # V-COMPAT
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_project_finances_reads.test.sql supabase/tests/budget_projection_rpc.test.sql supabase/tests/bfy_projection_null_lines.test.sql supabase/tests/bfy_projection_refused_push.test.sql supabase/tests/bfy_map_edit_reinterprets_history.test.sql supabase/tests/erp_snapshot_generation_honesty.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_project_finances_reads.test.sql supabase/tests/budget_projection_rpc.test.sql supabase/tests/bfy_projection_null_lines.test.sql supabase/tests/bfy_projection_refused_push.test.sql supabase/tests/bfy_map_edit_reinterprets_history.test.sql supabase/tests/erp_snapshot_generation_honesty.test.sql'
 # V-ACL
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_assign_invoice_project.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_assign_invoice_project.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql'
 # V-TYPE
 scripts/with-test-lock.sh bash -c 'cd pmo-portal && npm run typecheck'
 ```
 
-Test scaffolds: pgTAP uses `begin; select no_plan();` / `select * from finish(); rollback;` and namespaced synthetic `02870000-...` UUIDs, per `0278_invoice_change_history.test.sql`; insert auth/profile/project/reference fixtures as owner/service, clear retained JWT claims before service writes, then set authenticated claims for each assertion. Do not print real fixtures or credentials. Use `example.test` dummy addresses only where schema requires one. SQL snippets' expected figures compare `numeric`/`jsonb`/strings, not float tolerances. The canonical test descriptions lead with the AC ID. Use parameterized cases with individual ID-tagged descriptions.
+Test scaffolds: pgTAP uses `begin; select no_plan();` / `select * from finish(); rollback;` and namespaced synthetic `02900000-...` UUIDs, per `0278_invoice_change_history.test.sql`; insert auth/profile/project/reference fixtures as owner/service, clear retained JWT claims before service writes, then set authenticated claims for each assertion. Do not print real fixtures or credentials. Use `example.test` dummy addresses only where schema requires one. SQL snippets' expected figures compare `numeric`/`jsonb`/strings, not float tolerances. The canonical test descriptions lead with the AC ID. Use parameterized cases with individual ID-tagged descriptions.
 
 ## 5. Bite-sized implementation tasks
 
@@ -916,9 +916,9 @@ Append `'project'` to `SI_FROM_DOC_FIELDS`. Outbound `siToBody` remains unchange
 
 ### Task 03 (4 min) — Provenance/org seam migration; AC-PFIN-001/007
 
-**RED:** start `supabase/tests/0287_assign_invoice_project.test.sql`: `has_column` nullable `erp_project`; assert sales-invoice RLS remains forced, authenticated cannot write provenance in either ownership state; service-role insert/update with a foreign project raises `P0002`. Verify V-ASSIGN.
+**RED:** start `supabase/tests/0290_assign_invoice_project.test.sql`: `has_column` nullable `erp_project`; assert sales-invoice RLS remains forced, authenticated cannot write provenance in either ownership state; service-role insert/update with a foreign project raises `P0002`. Verify V-ASSIGN.
 
-**GREEN:** create `supabase/migrations/0287_project_finances.sql`, append SQL A. Append the existing guard with the precise change in SQL B (including provenance comparison). Native/DAL grants and all other guard clauses are unchanged. Keep 0286 untouched.
+**GREEN:** create `supabase/migrations/0290_project_finances.sql`, append SQL A. Append the existing guard with the precise change in SQL B (including provenance comparison). Native/DAL grants and all other guard clauses are unchanged. Keep 0286 untouched.
 
 ### Task 04 (4 min) — Checked operator assignment; AC-PFIN-006/007
 
@@ -940,7 +940,7 @@ Append `'project'` to `SI_FROM_DOC_FIELDS`. Outbound `siToBody` remains unchange
 
 ### Task 07 (4 min) — NULL-only machine fill; AC-PFIN-003/004
 
-**RED:** `supabase/tests/0287_project_invoice_backfill.test.sql`: first service fill returns true, second returns false; existing P2 correction stays P2 when machine asks for P1; wrong org/nonexistent project/stale provenance/native row/ref mismatch return false; authenticated/anon cannot execute. Verify V-FILL.
+**RED:** `supabase/tests/0290_project_invoice_backfill.test.sql`: first service fill returns true, second returns false; existing P2 correction stays P2 when machine asks for P1; wrong org/nonexistent project/stale provenance/native row/ref mismatch return false; authenticated/anon cannot execute. Verify V-FILL.
 
 **GREEN:** append SQL C. Add pgTAP `is(project_id,...)` after every no-op, and assert the exact UPDATE predicate mechanism via `pg_get_functiondef` contains `si.project_id is null` (concurrency cannot be proved by single-session scheduling alone).
 
@@ -1085,7 +1085,7 @@ Skip fill after a lost CAS. If the source project is null, perform no redundant 
 
 ### Task 15 (3 min) — Receipt identity follows invoice; AC-PFIN-005
 
-**RED:** begin `supabase/tests/0287_project_finances_reads.test.sql`: linked payment joins invoice NULL→P1→P2 after operator corrections; on-account payment remains no project. Assert no `incoming_payments.project_id` column and no allocation relation is introduced. Verify V-READ (assignment migration available).
+**RED:** begin `supabase/tests/0290_project_finances_reads.test.sql`: linked payment joins invoice NULL→P1→P2 after operator corrections; on-account payment remains no project. Assert no `incoming_payments.project_id` column and no allocation relation is introduced. Verify V-READ (assignment migration available).
 
 **GREEN:** no payment schema or writer changes. The proof query is `incoming_payments ip left join sales_invoices si on si.id=ip.sales_invoice_id and si.org_id=ip.org_id`; assert `si.project_id` follows the invoice. Keep payment caches in the mutation invalidation list for derived displays.
 
@@ -1139,10 +1139,10 @@ Skip fill after a lost CAS. If the source project is null, perform no redundant 
 
 ### Task 24 (4 min) — Reversible down migration; AC-PFIN-006/008
 
-**RED:** `supabase/tests/0287_project_finances_rollback.test.sql` runs transaction fixtures: non-null provenance causes `P0001` before DDL; an exported/cleared-provenance fixture permits rollback; existing assigned project and two `record_changes` survive; prior guard and projection are restored. Include `\ir 0287_project_finances_down_runner.sql` and use `throws_ok('select pg_temp.run_pfin_down()','P0001',null,'AC-PFIN-008 rollback refuses provenance loss')`. Dynamic DDL is transactional: the failed call must leave all 0287 surfaces intact. Verify:
-` scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_project_finances_rollback.test.sql' `.
+**RED:** `supabase/tests/0290_project_finances_rollback.test.sql` runs transaction fixtures: non-null provenance causes `P0001` before DDL; an exported/cleared-provenance fixture permits rollback; existing assigned project and two `record_changes` survive; prior guard and projection are restored. Include `\ir 0290_project_finances_down_runner.sql` and use `throws_ok('select pg_temp.run_pfin_down()','P0001',null,'AC-PFIN-008 rollback refuses provenance loss')`. Dynamic DDL is transactional: the failed call must leave all 0290 surfaces intact. Verify:
+` scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_project_finances_rollback.test.sql' `.
 
-**GREEN:** write the complete down file in the binding order above with exact 0153 projection and 0275 guard bodies embedded. The assembly recipe creates `supabase/tests/0287_project_finances_down_runner.sql` from the exact down-file body, removing only its outer transaction boundary for the test function. After clearing synthetic provenance call `lives_ok('select pg_temp.run_pfin_down()', 'AC-PFIN-006 rollback preserves attribution')`, then assert old assignments/history, helper/RPC absence and restored function bodies; end the owning pgTAP file with `rollback` so DDL/fixtures are undone. The `_runner.sql` suffix intentionally does not match `*.test.sql` discovery. Catalog assertions verify restored function body/columns. Preserve assignments and audit classifications.
+**GREEN:** write the complete down file in the binding order above with exact 0153 projection and 0275 guard bodies embedded. The assembly recipe creates `supabase/tests/0290_project_finances_down_runner.sql` from the exact down-file body, removing only its outer transaction boundary for the test function. After clearing synthetic provenance call `lives_ok('select pg_temp.run_pfin_down()', 'AC-PFIN-006 rollback preserves attribution')`, then assert old assignments/history, helper/RPC absence and restored function bodies; end the owning pgTAP file with `rollback` so DDL/fixtures are undone. The `_runner.sql` suffix intentionally does not match `*.test.sql` discovery. Catalog assertions verify restored function body/columns. Preserve assignments and audit classifications.
 
 ### Task 25 (2 min) — Regenerate types; AC-PFIN-010/014
 
@@ -1424,12 +1424,12 @@ Record the actual failed/passed assertion names and coverage output in `docs/ver
 
 ### Task 47 (5 min) — Mutation proof of the assign RPC role check; AC-PFIN-007
 
-Write/verify denied-role pgTAP cases first (Task 04); normal V-ASSIGN must be GREEN. Mutate **only** the marked assignment-role predicate in migration 0287, leaving org/membership/row checks intact. In an isolated build worktree, run this exact experiment from root (never commit mutant):
+Write/verify denied-role pgTAP cases first (Task 04); normal V-ASSIGN must be GREEN. Mutate **only** the marked assignment-role predicate in migration 0290, leaving org/membership/row checks intact. In an isolated build worktree, run this exact experiment from root (never commit mutant):
 
 ```bash
 python3 - <<'PY'
 from pathlib import Path
-p=Path('supabase/migrations/0287_project_finances.sql')
+p=Path('supabase/migrations/0290_project_finances.sql')
 s=p.read_text()
 needle="-- PFIN_ASSIGN_ROLE_CHECK: mutation target; keep this exact marker and predicate.\n  if v_role is null or v_role not in ('Admin','Finance') then"
 assert s.count(needle)==1
@@ -1438,7 +1438,7 @@ assert not backup.exists(), 'preserve an existing backup; do not overwrite'
 backup.write_text(s)
 p.write_text(s.replace(needle,"-- PFIN_ASSIGN_ROLE_CHECK: mutation target; keep this exact marker and predicate.\n  if false then"))
 PY
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_assign_invoice_project.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_assign_invoice_project.test.sql'
 ```
 
 **Require RED for Executive, PM and Engineer assignment assertions**, not an unrelated reset/parser failure. Read pgTAP body; command exit alone is not proof. Restore immediately, including on exception/interruption:
@@ -1446,13 +1446,13 @@ scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/
 ```bash
 python3 - <<'PY'
 from pathlib import Path
-p=Path('supabase/migrations/0287_project_finances.sql')
+p=Path('supabase/migrations/0290_project_finances.sql')
 backup=Path('/tmp/1008-project-finances-role-check.sql')
 assert backup.exists()
 p.write_text(backup.read_text())
 backup.unlink()
 PY
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_assign_invoice_project.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_assign_invoice_project.test.sql'
 git diff --check
 ```
 
@@ -1467,7 +1467,7 @@ scripts/with-test-lock.sh bash -c 'cd pmo-portal && npm run typecheck'
 { git diff --name-only -z origin/dev -- pmo-portal; git ls-files --others --exclude-standard -z -- pmo-portal; } | \
   python3 -c 'import sys,subprocess; from pathlib import Path; paths=sorted({p.removeprefix("pmo-portal/") for p in sys.stdin.buffer.read().decode().split("\0") if p.endswith((".ts",".tsx",".js",".jsx",".mjs")) and Path(p).is_file()}); sys.exit(subprocess.call(["npx","eslint","--max-warnings=0",*paths],cwd="pmo-portal") if paths else 0)'
 scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run --changed origin/dev'
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_assign_invoice_project.test.sql supabase/tests/0287_project_invoice_backfill.test.sql supabase/tests/0287_project_finances_reads.test.sql supabase/tests/0287_project_finances_rollback.test.sql supabase/tests/0278_invoice_change_history.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/budget_projection_rpc.test.sql supabase/tests/bfy_projection_null_lines.test.sql supabase/tests/bfy_projection_refused_push.test.sql supabase/tests/bfy_map_edit_reinterprets_history.test.sql supabase/tests/erp_snapshot_generation_honesty.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0290_assign_invoice_project.test.sql supabase/tests/0290_project_invoice_backfill.test.sql supabase/tests/0290_project_finances_reads.test.sql supabase/tests/0290_project_finances_rollback.test.sql supabase/tests/0278_invoice_change_history.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/budget_projection_rpc.test.sql supabase/tests/bfy_projection_null_lines.test.sql supabase/tests/bfy_projection_refused_push.test.sql supabase/tests/bfy_map_edit_reinterprets_history.test.sql supabase/tests/erp_snapshot_generation_honesty.test.sql'
 scripts/e2e-local.sh --reset AC-PFIN-016-project-finances
 node scripts/check-edge-fn-test-binding.mjs
 scripts/check-e2e-isolation.sh
@@ -1486,21 +1486,21 @@ Each criterion has **one owning layer**; support tests listed in tasks do not re
 | 002 | Deno `supabase/functions/erpnext-sweep/projectInvoiceAttribution.test.ts` | 01,08,09 |
 | 003 | Deno `supabase/functions/erpnext-sweep/projectInvoiceAttribution.test.ts` | 02,07,10,11 |
 | 004 | Deno `supabase/functions/erpnext-sweep/projectInvoiceBackfill.test.ts` | 07,12,13,14,46 |
-| 005 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 15 |
-| 006 | pgTAP `supabase/tests/0287_assign_invoice_project.test.sql` | 04,05,24 |
-| 007 | pgTAP `supabase/tests/0287_assign_invoice_project.test.sql` | 03,04,05,23,47 |
-| 008 | pgTAP `supabase/tests/0287_assign_invoice_project.test.sql` | 06,24 |
+| 005 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 15 |
+| 006 | pgTAP `supabase/tests/0290_assign_invoice_project.test.sql` | 04,05,24 |
+| 007 | pgTAP `supabase/tests/0290_assign_invoice_project.test.sql` | 03,04,05,23,47 |
+| 008 | pgTAP `supabase/tests/0290_assign_invoice_project.test.sql` | 06,24 |
 | 009 | RTL `pmo-portal/pages/__tests__/SalesInvoices.assignProject.test.tsx` | 33,34,35,36,37,42,46 |
 | 010 | RTL `pmo-portal/src/hooks/useRevenue.assignProject.test.tsx` | 25,29,31 |
-| 011 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 16,45 |
-| 012 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 20 |
+| 011 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 16,45 |
+| 012 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 20 |
 | 013 | Vitest `pmo-portal/src/lib/projectFinances.test.ts` | 26,27,30,40 |
-| 014 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 21,23,25,29 |
+| 014 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 21,23,25,29 |
 | 015 | RTL `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` — `AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys`; loading, error/retry, empty, exact-money, and narrow semantic-field cases are additional support oracles in this owning suite | 27,28,38,39,40,42,44,46 |
 | 016 | E2E `pmo-portal/e2e/AC-PFIN-016-project-finances.spec.ts` — `AC-PFIN-016: Finance assigns an adopted invoice to a project — attribution persists, the section reads USD 100/75/25, no budget, and no ERP command is dispatched` | 43 |
-| 017 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 18,39 |
-| 018 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 17,19,45 |
+| 017 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 18,39 |
+| 018 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 17,19,45 |
 | 019 | RTL `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` | 32,41 |
-| 020 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 22,41 |
+| 020 | pgTAP `supabase/tests/0290_project_finances_reads.test.sql` | 22,41 |
 
 Task 48 is the final gate for **all 20 criteria**; it records evidence, not new behavior. The Director accepts only a green owning-test matrix, restored mutation proof, ≥80% changed-line coverage, three reviews and UI Discover graduation evidence. This document is a plan, not a report that those runtime checks have already passed.

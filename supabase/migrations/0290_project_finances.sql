@@ -1,5 +1,5 @@
--- 0287_project_finances.sql — #1008 project attribution and project-scoped finance readings.
--- Rollback: migrations/rollback/0287_project_finances_down.sql.
+-- 0290_project_finances.sql — #1008 project attribution and project-scoped finance readings.
+-- Rollback: migrations/rollback/0290_project_finances_down.sql.
 
 alter table public.sales_invoices add column erp_project text;
 comment on column public.sales_invoices.erp_project is
@@ -577,15 +577,15 @@ begin
      or not has_function_privilege('service_role','public.fill_sales_invoice_project(uuid,uuid,uuid,text)','EXECUTE')
      or has_function_privilege('anon','public.get_project_finances(uuid)','EXECUTE')
      or has_function_privilege('anon','public.project_mapped_actuals(uuid,text)','EXECUTE') then
-    raise exception '0287 grants do not match the project finance contract';
+    raise exception '0290 grants do not match the project finance contract';
   end if;
   if exists(select 1 from pg_class where oid in ('public.sales_invoices'::regclass,
        'public.erp_actuals_snapshot'::regclass,'public.record_changes'::regclass)
        and (not relrowsecurity or not relforcerowsecurity)) then
-    raise exception '0287 requires existing forced RLS';
+    raise exception '0290 requires existing forced RLS';
   end if;
   if exists(select 1 from pg_proc where oid in ('public.get_project_finances(uuid)'::regprocedure,
        'public.project_mapped_actuals(uuid,text)'::regprocedure) and prosecdef) then
-    raise exception '0287 read surfaces must be invoker';
+    raise exception '0290 read surfaces must be invoker';
   end if;
 end $$;

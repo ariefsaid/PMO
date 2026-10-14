@@ -6,7 +6,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: vi.f
 import { AppError } from '@/src/lib/appError';
 import { getProjectFinances, setSalesInvoiceProject } from './revenue';
 
-const projectId = '02870000-0000-0000-0000-000000000001';
+const projectId = '02900000-0000-0000-0000-000000000001';
 const financePayload = {
   project_id: projectId,
   contract_invoiced: null,
@@ -40,7 +40,7 @@ describe('project finance DAL', () => {
     await expect(getProjectFinances(projectId)).rejects.toBeInstanceOf(AppError);
     h.rpc.mockResolvedValueOnce({ data: { ...financePayload, actuals: [] }, error: null });
     await expect(getProjectFinances(projectId)).rejects.toMatchObject({ code: 'invalid-project-finances' });
-    h.rpc.mockResolvedValueOnce({ data: { ...financePayload, project_id: '02870000-0000-0000-0000-000000000002' }, error: null });
+    h.rpc.mockResolvedValueOnce({ data: { ...financePayload, project_id: '02900000-0000-0000-0000-000000000002' }, error: null });
     await expect(getProjectFinances(projectId)).rejects.toMatchObject({ code: 'invalid-project-finances' });
   });
 });

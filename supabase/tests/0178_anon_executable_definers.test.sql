@@ -59,9 +59,9 @@
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
--- ⚑ AMENDED BY 0287 (#1008): `assign_sales_invoice_project` joins the retained set (+1, count 70).
+-- ⚑ AMENDED BY 0290 (#1008): `assign_sales_invoice_project` joins the retained set (+1, count 70).
 -- It is a SECURITY DEFINER PMO-attribution writer called under authenticated JWT and asserts active
--- membership, role, org/project/invoice scope, and billing context; paired with 0287 assignment pgTAP.
+-- membership, role, org/project/invoice scope, and billing context; paired with 0290 assignment pgTAP.
 -- `fill_sales_invoice_project` is service-role-only and deliberately NOT retained.
 -- ⚑ AMENDED BY 0275 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
 -- and `cancel_native_receipt` join the retained set, taking the count to 66 after the dev merge (dev's 62 + 4, re-derived by hand from the list).

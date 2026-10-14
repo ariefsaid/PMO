@@ -1,6 +1,6 @@
 # 1008 Project finances — verification evidence (plan Task 45)
 
-Synthetic fixtures only (org `02870000-…-0001`, projects `…0d1/0d2/0d7`, invoice ids `…60001+`),
+Synthetic fixtures only (org `02900000-…-0001`, projects `…0d1/0d2/0d7`, invoice ids `…60001+`),
 inserted in one transaction against `supabase db reset`, all queries as an authenticated Finance
 profile via JWT claims, transaction rolled back afterwards. No real client data anywhere.
 
@@ -25,7 +25,7 @@ Required properties and where each is visible:
 | EXPLAIN 3 — latest-generation selection | 0.98 ms | 13 |
 | EXPLAIN 4 — mapped-account category aggregate | 1.8 ms | 54 |
 
-Completeness companions (pgTAP, `0287_project_finances_reads.test.sql`, 43/43 green): the RPC returns
+Completeness companions (pgTAP, `0290_project_finances_reads.test.sql`, 43/43 green): the RPC returns
 `invoiced 2100.00 / outstanding 1050.00 / settled 1050.00`, `invoice_count 1050` — the exact known
 sums of the full >1000-row set, i.e. nothing is truncated to a PostgREST page and nothing is
 computed client-side.
@@ -54,14 +54,14 @@ Execution Time: 89.127 ms
 GroupAggregate  (actual time=30.415..30.606 rows=1 loops=1)
   ->  Sort (rows=1050)
         ->  Index Scan using sales_invoices_vat_project_idx on sales_invoices si
-              Index Cond: ((org_id = '02870000-…-0001') AND (project_id = '02870000-…-0d7'))
+              Index Cond: ((org_id = '02900000-…-0001') AND (project_id = '02900000-…-0d7'))
               Filter: ((status = ANY ('{Submitted,Unpaid,Paid}')) AND is_active_member())
 Execution Time: 30.609 ms
 
 === EXPLAIN 3: one-generation selection ===
 Limit  (actual time=0.943..0.944 rows=1 loops=1)
   ->  Index Only Scan using erp_actuals_snapshot_latest_read_idx on erp_actuals_snapshot s
-        Index Cond: (org_id = '02870000-…-0001')
+        Index Cond: (org_id = '02900000-…-0001')
 Execution Time: 0.975 ms
 
 === EXPLAIN 4: mapped-account category aggregate ===
@@ -152,7 +152,7 @@ quirk, recorded here so the false LOW rows are not mistaken for missing tests.
 
 Mutating ONLY the marked predicate (`-- PFIN_ASSIGN_ROLE_CHECK: …` → `if false then`, backup held at
 `/tmp/1008-project-finances-role-check.sql`, never committed) and re-running
-`supabase db reset && supabase test db 0287_assign_invoice_project.test.sql` produced the required
+`supabase db reset && supabase test db 0290_assign_invoice_project.test.sql` produced the required
 role-assertion failures (not a reset/parser error):
 
 ```

@@ -38,13 +38,13 @@ describe('exact project-finance money', () => {
 
   it('AC-PFIN-015 validates a complete project-finance payload including nullable readings', () => {
     const valid = {
-      project_id: '02870000-0000-0000-0000-000000000001',
+      project_id: '02900000-0000-0000-0000-000000000001',
       contract_invoiced: null,
       remaining_to_invoice: null,
       invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '10.00', settled: null,
         outstanding: null, missing_amount: 0, missing_outstanding: 1, missing_work: 0,
         tax_basis: 'inclusive', work_revenue: null }],
-      budget: { id: '02870000-0000-0000-0000-000000000002', name: 'Budget', version: 1,
+      budget: { id: '02900000-0000-0000-0000-000000000002', name: 'Budget', version: 1,
         status: 'Active', currency: 'USD', amount: '10.00' },
       actuals: { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: null,
         excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: null }] },
@@ -57,11 +57,11 @@ describe('exact project-finance money', () => {
   it.each([
     null,
     [],
-    { project_id: '02870000-0000-0000-0000-000000000001', invoices: [], budget: null },
-    { project_id: '02870000-0000-0000-0000-000000000001', contract_invoiced: 10, remaining_to_invoice: null,
+    { project_id: '02900000-0000-0000-0000-000000000001', invoices: [], budget: null },
+    { project_id: '02900000-0000-0000-0000-000000000001', contract_invoiced: 10, remaining_to_invoice: null,
       invoices: [], budget: null, actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } },
-    { project_id: '02870000-0000-0000-0000-000000000001', contract_invoiced: null, remaining_to_invoice: null,
-      invoices: [], budget: { id: '02870000-0000-0000-0000-000000000002', name: 'Budget', version: 1,
+    { project_id: '02900000-0000-0000-0000-000000000001', contract_invoiced: null, remaining_to_invoice: null,
+      invoices: [], budget: { id: '02900000-0000-0000-0000-000000000002', name: 'Budget', version: 1,
         status: 'Archived', currency: 'USD', amount: null },
       actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } },
   ])('AC-PFIN-015 rejects malformed top-level project-finance data', (value) => {
@@ -95,7 +95,7 @@ describe('exact project-finance money', () => {
 
   it('AC-PFIN-015 rejects non-integer counts, non-string money, and malformed categories', () => {
     const valid = {
-      project_id: '02870000-0000-0000-0000-000000000001', contract_invoiced: null, remaining_to_invoice: null,
+      project_id: '02900000-0000-0000-0000-000000000001', contract_invoiced: null, remaining_to_invoice: null,
       invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '10.00', settled: null, outstanding: null,
         missing_amount: 0, missing_outstanding: 0, missing_work: 0, tax_basis: 'inclusive', work_revenue: null }],
       budget: null,

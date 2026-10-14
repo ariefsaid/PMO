@@ -96,7 +96,7 @@ No claim is made that editing this header reattributes posted GL entries.
 ## 5. Non-functional requirements — EARS
 
 - **NFR-PFIN-001:** The system shall preserve RLS, active-member checks and the `org_id` seam on every new read/write surface, including service-role attribution writes; no browser shall supply tenancy authority.
-- **NFR-PFIN-002:** Every schema change shall use migration **0287**, with a reviewed down migration, grants, indexes and catalog assertions; **0286 is reserved and shall not be used**. Rollback shall preserve operator assignments and audit history or explicitly stop rather than silently discard them.
+- **NFR-PFIN-002:** Every schema change shall use migration **0290**, with a reviewed down migration, grants, indexes and catalog assertions; **0286 is reserved and shall not be used**. Rollback shall preserve operator assignments and audit history or explicitly stop rather than silently discard them.
 - **NFR-PFIN-003:** The system shall aggregate persisted money with SQL numeric or exact integer-unit arithmetic and transport exact figures; absent or malformed money shall not become a successful zero.
 - **NFR-PFIN-004:** The system shall use bounded/keyset reads for historical repair and server-side project-scoped aggregation for finance totals, with indexed org/project/invoice joins; totals shall not depend on a truncated PostgREST page or per-invoice N+1 reads.
 - **NFR-PFIN-005:** The system shall reuse one inverse project resolver and one category-mapping aggregate; refactoring the existing projection shall preserve its Active/year/attribution/ETC behavior and RPC return shape.
@@ -137,23 +137,23 @@ These are concrete requirements to prove, not claims of passing coverage. `Submi
 |---|---|---|---|
 | 001–003 | 001–004 | Unit: Deno handler-bound feed test | `supabase/functions/erpnext-sweep/projectInvoiceAttribution.test.ts` |
 | 004 | 005 | Unit: handler-bound Deno historical repair | `supabase/functions/erpnext-sweep/projectInvoiceBackfill.test.ts` |
-| 005 | 006 | Integration: pgTAP invoice/payment join | `supabase/tests/0287_project_finances_reads.test.sql` |
-| 006–008 | 007–009 | Integration: pgTAP RPC/RLS/history | `supabase/tests/0287_assign_invoice_project.test.sql` |
+| 005 | 006 | Integration: pgTAP invoice/payment join | `supabase/tests/0290_project_finances_reads.test.sql` |
+| 006–008 | 007–009 | Integration: pgTAP RPC/RLS/history | `supabase/tests/0290_assign_invoice_project.test.sql` |
 | 009 | 010–011 | Unit: RTL form and entry points | `pmo-portal/pages/__tests__/SalesInvoices.assignProject.test.tsx` |
 | 010 | 012 | Unit: repository/hook transport | `pmo-portal/src/hooks/useRevenue.assignProject.test.tsx` |
-| 011 | 014 | Integration: pgTAP actuals aggregate | `supabase/tests/0287_project_finances_reads.test.sql` |
-| 012 | 015, 021 | Integration: selected-version aggregate | `supabase/tests/0287_project_finances_reads.test.sql` |
+| 011 | 014 | Integration: pgTAP actuals aggregate | `supabase/tests/0290_project_finances_reads.test.sql` |
+| 012 | 015, 021 | Integration: selected-version aggregate | `supabase/tests/0290_project_finances_reads.test.sql` |
 | 013 | 016–017 | Unit: exact margin derivation | `pmo-portal/src/lib/projectFinances.test.ts` |
-| 014 | 018 | Integration: pgTAP read visibility | `supabase/tests/0287_project_finances_reads.test.sql` |
+| 014 | 018 | Integration: pgTAP read visibility | `supabase/tests/0290_project_finances_reads.test.sql` |
 | 015 | 013, 019 | Unit: RTL section | `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` |
 | 016 | 010, 012–013 | E2E: one curated persisted assignment journey | `pmo-portal/e2e/AC-PFIN-016-project-finances.spec.ts` |
-| 017 | 013, 020 | Integration: exact settlement aggregate | `supabase/tests/0287_project_finances_reads.test.sql` |
-| 018 | 014, 021; NFR-005 | Integration: lifetime/projection compatibility | `supabase/tests/0287_project_finances_reads.test.sql` |
+| 017 | 013, 020 | Integration: exact settlement aggregate | `supabase/tests/0290_project_finances_reads.test.sql` |
+| 018 | 014, 021; NFR-005 | Integration: lifetime/projection compatibility | `supabase/tests/0290_project_finances_reads.test.sql` |
 | 019 | 013, 018 | Unit: RTL audience/mounting | `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` |
-| 020 | NFR-005; existing contract comparison | Integration: contract-basis aggregate | `supabase/tests/0287_project_finances_reads.test.sql` |
+| 020 | NFR-005; existing contract comparison | Integration: contract-basis aggregate | `supabase/tests/0290_project_finances_reads.test.sql` |
 
 Every range denotes individually tagged test descriptions, not an untagged broad test. The companion plan fixes all signatures, oracles, migration/rollback changes and verification commands.
 
 ## 7. Sign-off boundary
 
-All three Director questions are resolved; no product question remains open. Owner spec sign-off is the remaining approval before a builder is dispatched. D1–D3 and existing ADR-0010, ADR-0048, ADR-0055, ADR-0080 and ADR-0082 govern this implementation; these rulings reuse the existing ledger oracle, revenue audience and repository seams rather than introducing a new ledger, receipt schema, tenancy model or architectural dependency. Migration 0287 is the sole new forward migration.
+All three Director questions are resolved; no product question remains open. Owner spec sign-off is the remaining approval before a builder is dispatched. D1–D3 and existing ADR-0010, ADR-0048, ADR-0055, ADR-0080 and ADR-0082 govern this implementation; these rulings reuse the existing ledger oracle, revenue audience and repository seams rather than introducing a new ledger, receipt schema, tenancy model or architectural dependency. Migration 0290 is the sole new forward migration.

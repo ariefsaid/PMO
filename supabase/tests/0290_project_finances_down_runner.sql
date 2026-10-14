@@ -8,7 +8,7 @@ select * from finish();
 create function pg_temp.run_pfin_down() returns void language plpgsql as $runner$
 begin execute $down$do $$ begin
   if exists(select 1 from public.sales_invoices where erp_project is not null) then
-    raise exception 'export ERP project provenance before removing 0287; rollback refused' using errcode = 'P0001';
+    raise exception 'export ERP project provenance before removing 0290; rollback refused' using errcode = 'P0001';
   end if;
 end $$;
 drop function public.get_project_finances(uuid);
