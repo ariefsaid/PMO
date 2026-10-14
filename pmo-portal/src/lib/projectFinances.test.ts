@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moneyText, moneyUnits } from './projectFinances';
+import { formatExactMoney, moneyText, moneyUnits } from './projectFinances';
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {
@@ -23,5 +23,16 @@ describe('exact project-finance money', () => {
   it('AC-PFIN-013 formats negative minor-unit values with a stable scale', () => {
     expect(moneyText(-1n)).toBe('-0.01');
     expect(moneyText(-12345n)).toBe('-123.45');
+  });
+
+  it('AC-PFIN-013 formats large exact amounts with localized cents and preserved precision', () => {
+    expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US')).toBe('$9,007,199,254,740,993.99');
+    expect(formatExactMoney('100.25', 'USD', 'id-ID')).toBe('US$100,25');
+  });
+
+  it('AC-PFIN-015 returns unavailable for invalid money, currency, or locale', () => {
+    expect(formatExactMoney('bad', 'USD', 'en-US')).toBeNull();
+    expect(formatExactMoney('1.00', 'usd', 'en-US')).toBeNull();
+    expect(formatExactMoney('1.00', 'USD', 'not_a_locale')).toBeNull();
   });
 });

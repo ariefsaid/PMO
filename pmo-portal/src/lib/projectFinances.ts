@@ -61,3 +61,20 @@ export function moneyText(units: bigint): ExactMoney {
   const n = units < 0n ? -units : units;
   return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
 }
+
+export function formatExactMoney(value: ExactMoney | null, currency: string, locale: string): string | null {
+  const units = moneyUnits(value);
+  if (units === null || !/^[A-Z]{3}$/.test(currency)) return null;
+  const absolute = units < 0n ? -units : units;
+  try {
+    const parts = new Intl.NumberFormat(locale, {
+      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).formatToParts(absolute / 100n);
+    const body = parts.map((part) => part.type === 'fraction'
+      ? String(absolute % 100n).padStart(2, '0')
+      : part.value).join('');
+    return units < 0n ? `−${body}` : body;
+  } catch {
+    return null;
+  }
+}
