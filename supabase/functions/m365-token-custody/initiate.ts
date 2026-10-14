@@ -5,7 +5,12 @@
 import type { HandlerDeps, HandlerResult, InitiateConnectResponse } from './types.ts';
 import { resolveOrgOrResult } from './auth.ts';
 import { storePkceState } from './stateStore.ts';
-import { generateCodeVerifier, codeChallengeS256, buildAuthorizeUrl } from './pkce.ts';
+import {
+  generateCodeVerifier,
+  codeChallengeS256,
+  buildAuthorizeUrl,
+  M365_PHASE1_DATA_SCOPES,
+} from './pkce.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
 
@@ -18,7 +23,12 @@ import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
  * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
  * only the signed-in user's OneDrive, not shared sites). All three are read scopes (ADR-0060 §1/§5).
  */
-export const M365_PHASE1_SCOPES = ['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'offline_access', 'openid', 'profile'];
+export const M365_PHASE1_SCOPES = [
+  ...M365_PHASE1_DATA_SCOPES,
+  'offline_access',
+  'openid',
+  'profile',
+];
 
 /**
  * AC-M365-101/102: authorize (active member + entitled) → generate PKCE → store state (single-use, 10-min

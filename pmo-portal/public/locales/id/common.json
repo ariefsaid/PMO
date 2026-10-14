@@ -1,4 +1,5 @@
 {
+  "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" } },
   "toast": {
     "dismiss": "Tutup notifikasi",
     "more": "+{{count}} lainnya"
@@ -985,6 +986,31 @@
     }
   },
   "dashboard": {
+    "winRate": {
+      "title": "Tingkat kemenangan", "basisCount": "Menurut jumlah", "basisValue": "Menurut nilai", "basis": "Dasar tingkat kemenangan", "periodAll": "Sepanjang waktu", "periodYtd": "Tahun ini", "periodQuarter": "Kuartal terakhir", "periodTrailing": "12 bulan terakhir", "period": "Periode",
+      "errorTitle": "Gagal memuat tingkat kemenangan", "errorSub": "Terjadi kesalahan. Coba lagi.", "emptyTitle": "Tidak ada proyek selesai dalam periode ini", "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
+      "result": "{{wins}} menang dari {{total}} proyek selesai", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    },
+    "bva": { "group": "Anggaran vs realisasi menurut proyek", "atRisk": "Berisiko", "barLabel": "{{name}}: {{percent}}% dari kontrak" },
+    "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
+    "procurementStatus": { "draft": "Draf", "requested": "Diminta", "approved": "Disetujui", "vendorQuoted": "Penawaran vendor", "ordered": "Dipesan", "received": "Diterima", "vendorInvoiced": "Invoice vendor", "paid": "Dibayar", "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
+    "pm": {
+      "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
+      "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya", "myProjectsHelp": "Proyek yang ditetapkan kepada Anda sebagai manajer proyek.",
+      "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
+      "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
+      "bvaTitle": "Anggaran vs Realisasi — Proyek Saya", "loadError": "Gagal memuat proyek Anda", "noProjects": "Belum ada proyek yang ditetapkan kepada Anda", "noProjectsSub": "Proyek yang Anda kelola akan muncul di sini.",
+      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan", "notSet": "Belum ditetapkan"
+    },
+    "delivery": { "percent": "Progres {{rounded}}%" },
+    "engineer": {
+      "title": "Dashboard saya", "subtitle": "Jam kerja minggu ini dan status timesheet Anda.", "logHours": "Catat jam kerja minggu ini", "logHoursShort": "Catat jam kerja", "kpiBand": "KPI saya",
+      "hoursThisWeek": "Jam minggu ini", "weeklyHoursCardTitle": "Jam Kerja Minggu Ini", "weekOf": "minggu mulai {{date}}", "openTimesheetsLog": "Buka timesheet untuk mencatat jam kerja minggu ini", "hoursHelp": "Total jam pada timesheet terbaru Anda.",
+      "timesheetStatus": "Status timesheet", "noneThisPeriod": "Tidak ada untuk periode ini", "openTimesheetsStatus": "Buka timesheet untuk melihat status terbaru", "statusHelp": "Status timesheet terbaru Anda.",
+      "loadError": "Gagal memuat timesheet Anda", "recentError": "Gagal memuat entri terbaru", "noHours": "Belum ada jam kerja minggu ini", "noHoursSub": "Catat jam kerja untuk melihat ringkasan mingguan.", "projectBreakdownSub": "Catat jam kerja untuk melihat rincian proyek.",
+      "hoursByDay": "Jam minggu ini menurut hari", "dayHours": "{{day}}: {{hours}} jam", "byProject": "Minggu ini menurut proyek", "recentEntries": "Entri terbaru", "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam",
+      "day": { "sun": "Min", "mon": "Sen", "tue": "Sel", "wed": "Rab", "thu": "Kam", "fri": "Jum", "sat": "Sab" }
+    },
     "approvals": {
       "label": "Persetujuan"
     },
@@ -1031,6 +1057,11 @@
       "title": "Gagal memuat dashboard"
     },
     "kpi": {
+      "awaitingApproval": {
+        "label": "Menunggu persetujuan Anda", "helpWithTimesheets": "Permintaan pengadaan dan timesheet menunggu keputusan Anda. Buka kotak masuk persetujuan.", "helpProcurementOnly": "Permintaan pengadaan menunggu keputusan Anda. Buka kotak masuk persetujuan.",
+        "unavailable": "tidak tersedia — periksa koneksi", "zero": "Tidak ada yang menunggu", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
+        "linkUnavailable": "{{label}}: tidak tersedia", "linkOne": "{{label}}: {{count}} item menunggu", "linkMany": "{{label}}: {{count}} item menunggu", "review": "Tinjau"
+      },
       "activeProjects": {
         "help": "Proyek yang sedang dalam pelaksanaan.",
         "label": "Proyek aktif",
@@ -1109,10 +1140,7 @@
       "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
       "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
     },
-    "title": "Dashboard Eksekutif",
-    "winRate": {
-      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
-    }
+    "title": "Dashboard Eksekutif"
   },
   "decisionContext": {
     "amount": "Jumlah",
@@ -2278,49 +2306,53 @@
       "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai."
     },
     "milestoneForm": {
-      "create": "Buat milestone",
+      "create": "Buat fase",
       "detailsLegend": "Detail",
-      "editSubtitle": "Perbarui milestone ini",
-      "editTitle": "Edit milestone",
+      "editSubtitle": "Perbarui fase ini",
+      "editTitle": "Edit fase",
       "errors": {
-        "nameRequired": "Nama milestone wajib diisi",
+        "nameRequired": "Nama fase wajib diisi",
         "progressRange": "Progres harus antara 0 dan 100",
-        "weight": "Bobot harus 0 atau lebih"
+        "weight": "Bobot relatif harus 0 atau lebih"
       },
-      "inputPct": "% input PM (opsional)",
-      "inputPctPlaceholder": "Kosongkan untuk memakai nilai terhitung",
-      "name": "Nama milestone",
+      "inputPct": "Progres penggantian (opsional)",
+      "inputPctPlaceholder": "Kosongkan untuk menggunakan progres tugas terkait",
+      "name": "Nama fase",
       "namePlaceholder": "mis. Desain engineering",
-      "newSubtitle": "Tambahkan milestone pelaksanaan ke proyek ini",
-      "newTitle": "Milestone baru",
-      "save": "Simpan milestone",
-      "sortOrder": "Urutan",
+      "newSubtitle": "Tambahkan fase pelaksanaan ke proyek ini",
+      "newTitle": "Fase baru",
+      "save": "Simpan fase",
+      "sortOrder": "Posisi",
+      "sortOrderHelper": "Menentukan urutan fase ini.",
       "targetDate": "Tanggal target",
-      "weight": "Bobot"
+      "weight": "Bobot relatif",
+      "weightHelper": "Menentukan porsi fase ini dalam progres proyek.",
+      "progressHelper": "Kosongkan untuk menggunakan progres tugas terkait. Nilai yang dimasukkan akan menggantikannya.",
+      "progressCreateHelper": "Progres diambil dari tugas terkait fase ini. Anda dapat menetapkan nilai pengganti setelah fase dibuat."
     },
     "milestones": {
       "addFirstPhase": "Tambah fase pertama",
-      "addMilestone": "Tambah milestone",
+      "addMilestone": "Tambah fase",
       "cancel": "Batal",
       "current": "Saat ini",
       "deleteConfirm": {
-        "body": "Tugas di bawah milestone ini menjadi tanpa grup; tugas tidak dihapus.",
-        "confirm": "Hapus milestone",
+        "body": "Tugas di bawah fase ini menjadi tanpa grup; tugas tidak dihapus.",
+        "confirm": "Hapus fase",
         "title": "Hapus \"{{name}}\"?",
-        "titleFallback": "Hapus milestone ini?"
+        "titleFallback": "Hapus fase ini?"
       },
-      "deleteMilestone": "Hapus milestone",
+      "deleteMilestone": "Hapus fase",
       "edit": "Edit",
-      "editInputPct": "Edit % input PM",
-      "editMilestone": "Edit milestone",
+      "editInputPct": "Ubah progres penggantian",
+      "editMilestone": "Edit fase",
       "editProgress": "Ubah progres",
       "editProgressForName": "Ubah progres untuk {{name}}",
       "emptyReadOnly": "Belum ada fase pelaksanaan",
-      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari milestone tertimbang.",
+      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari fase berbobot.",
       "emptyTitle": "Rencanakan fase pelaksanaan proyek ini",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
-      "errorTitle": "Gagal memuat milestone",
-      "fallbackName": "Milestone",
+      "errorTitle": "Gagal memuat fase",
+      "fallbackName": "Fase",
       "heading": "Fase pelaksanaan",
       "moreActionsFor": "Tindakan lainnya untuk",
       "currentPhase": "Fase saat ini: {{name}}",
@@ -2334,10 +2366,10 @@
       "save": "Simpan",
       "targetDate": "Target",
       "toast": {
-        "created": "Milestone dibuat",
-        "deleted": "Milestone dihapus",
+        "created": "Fase dibuat",
+        "deleted": "Fase dihapus",
         "progressUpdated": "Progres diperbarui",
-        "updated": "Milestone diperbarui"
+        "updated": "Fase diperbarui"
       },
       "viewBlockingTasks": "Lihat tugas penghambat",
       "weightShare": "{{pct}}% dari proyek"
@@ -2958,6 +2990,11 @@
       "cards": "Kartu",
       "table": "Tabel"
     },
+    "calendar": {
+      "phaseEventLabel": "{{project}} · {{phase}}",
+      "phaseEventAriaLabel": "{{project}} — Fase: {{phase}}",
+      "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini."
+    },
     "unnamedUser": "Pengguna tanpa nama",
     "export": "Ekspor",
     "import": "Impor",
@@ -3003,7 +3040,7 @@
       "quotationSubmitted": "Penawaran diajukan",
       "tenderSubmitted": "Tender diajukan",
       "negotiation": "Negosiasi",
-      "wonPendingKom": "Menang, menunggu KoM",
+      "wonPendingKom": "Menang — menunggu rapat awal",
       "ongoingProject": "Proyek berjalan",
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
@@ -3168,7 +3205,7 @@
       "projects": "Proyek",
       "revenueByProject": "Pendapatan per Proyek",
       "sales": "Pipeline Penjualan",
-      "salesInvoices": "Invoice Penjualan",
+      "salesInvoices": "Faktur Penjualan",
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",

@@ -43,19 +43,9 @@ function buildWinRateRange(period: PeriodKey): WinRateRange {
   }
 }
 
-const BASIS_OPTIONS: ViewOption<'count' | 'value'>[] = [
-  { value: 'count', label: 'By count', testId: 'win-rate-toggle-count' },
-  { value: 'value', label: 'By value', testId: 'win-rate-toggle-value' },
-];
-
 // Keep the live four real options (RPC-backed, AC-1117) — do NOT drop YTD to
 // match the mockup's three frames (plan Open Q3, default = keep the four).
-const PERIOD_OPTIONS: ViewOption<PeriodKey>[] = [
-  { value: 'all', label: 'All time', testId: 'win-rate-period-all' },
-  { value: 'ytd', label: 'YTD', testId: 'win-rate-period-ytd' },
-  { value: 'q', label: 'Last quarter', testId: 'win-rate-period-q' },
-  { value: 't12', label: 'Trailing 12 mo', testId: 'win-rate-period-t12' },
-];
+
 
 /**
  * Win Rate — count/value basis + period frame, re-skinned to DESIGN.md `seg`
@@ -70,6 +60,16 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const range = useMemo(() => buildWinRateRange(period), [period]);
   const { data: wr, isError, refetch } = useWinRate(range);
   const { t } = useTranslation();
+  const basisOptions: ViewOption<'count' | 'value'>[] = [
+    { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
+    { value: 'value', label: t('dashboard.winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
+  ];
+  const periodOptions: ViewOption<PeriodKey>[] = [
+    { value: 'all', label: t('dashboard.winRate.periodAll', 'All time'), testId: 'win-rate-period-all' },
+    { value: 'ytd', label: t('dashboard.winRate.periodYtd', 'YTD'), testId: 'win-rate-period-ytd' },
+    { value: 'q', label: t('dashboard.winRate.periodQuarter', 'Last quarter'), testId: 'win-rate-period-q' },
+    { value: 't12', label: t('dashboard.winRate.periodTrailing', 'Trailing 12 mo'), testId: 'win-rate-period-t12' },
+  ];
   // #774: declined-to-bid deals are outside both win-rate denominators, so they are reported
   // beside the rate — including when they are the ONLY decided deals in the window.
   const declined = wr?.declined_count ?? 0;
@@ -88,18 +88,18 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const fmt = (n: number) => (mode === 'count' ? String(n) : formatCurrency(n, currency));
 
   return (
-    <section aria-label="Win rate" className="rounded-lg border border-border bg-card p-4">
+    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
-        <span className="text-[13.5px] font-semibold">Win Rate</span>
+        <span className="text-[13.5px] font-semibold">{t('dashboard.winRate.title', 'Win Rate')}</span>
         <span className="flex-1" />
-        <ViewToggle<'count' | 'value'> options={BASIS_OPTIONS} value={mode} onChange={setMode} ariaLabel="Win-rate basis" semantics="toggle" />
+        <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
 
       <ViewToggle<PeriodKey>
-        options={PERIOD_OPTIONS}
+        options={periodOptions}
         value={period}
         onChange={setPeriod}
-        ariaLabel="Time frame"
+        ariaLabel={t('dashboard.winRate.period', 'Time frame')}
         className="mb-3.5 flex-wrap"
         semantics="toggle"
       />
@@ -107,8 +107,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       {isError ? (
         <ListState
           variant="error"
-          title="Couldn't load win rate"
-          sub="Something went wrong. Try again."
+          title={t('dashboard.winRate.errorTitle', "Couldn't load win rate")}
+          sub={t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}
           onRetry={() => refetch()}
         />
       ) : total === 0 ? (
@@ -116,8 +116,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           <ListState
             variant="empty"
             icon="pipe"
-            title="No closed projects in this window"
-            sub="Try a wider time frame to see your win rate."
+            title={t('dashboard.winRate.emptyTitle', 'No closed projects in this window')}
+            sub={t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
           />
           {declinedNote}
         </>
@@ -132,13 +132,13 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               {rate !== null ? `${(rate * 100).toFixed(1)}%` : '—'}
             </span>
             <span className="text-xs text-muted-foreground">
-              {fmt(wins)} won of {fmt(total)} closed
+              {t('dashboard.winRate.result', '{{wins}} won of {{total}} closed', { wins: fmt(wins), total: fmt(total) })}
             </span>
           </div>
 
           <span
             role="progressbar"
-            aria-label={`Win rate ${rate !== null ? (rate * 100).toFixed(1) : 0}%`}
+            aria-label={t('dashboard.winRate.progress', 'Win rate {{percent}}%', { percent: rate !== null ? (rate * 100).toFixed(1) : 0 })}
             aria-valuenow={wonPct}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -150,11 +150,11 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-success" />
-              Won
+              {t('dashboard.winRate.won', 'Won')}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-secondary-foreground/40" />
-              Lost
+              {t('dashboard.winRate.lost', 'Lost')}
             </span>
           </div>
           {declinedNote}

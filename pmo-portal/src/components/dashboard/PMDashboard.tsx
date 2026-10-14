@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -29,6 +31,8 @@ import { pillVariantForProjectStatus } from '@/components/projects';
  * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
+  const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   const { currentUser } = useAuth();
   const { data: projects, isPending, isError, refetch } = useProjects();
   // Cross-project aggregate (TopProject-shaped) — org-denominated (FR-L10N-020).
@@ -57,42 +61,42 @@ export const PMDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <DashPageHead title="My Dashboard" sub="Your projects, budget health, and approvals queue." />
+      <DashPageHead title={t('dashboard.pm.title', 'My Dashboard')} sub={t('dashboard.pm.subtitle', 'Your projects, budget health, and approvals queue.')} />
 
-      <section aria-label="My KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
+      <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
-        <KPITile testId="kpi-my-projects" tone="violet" icon="folder" label="My projects"
+        <KPITile testId="kpi-my-projects" tone="violet" icon="folder" label={t('dashboard.pm.myProjects', 'My projects')}
           value={String(mine.length)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
-          linkLabel="Open my projects"
-          help="Projects where you are the assigned project manager." />
+          linkLabel={t('dashboard.pm.openMyProjects', 'Open my projects')}
+          help={t('dashboard.pm.myProjectsHelp', 'Projects where you are the assigned project manager.')} />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
-        <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label="My contract value"
+        <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
           value={formatCurrency(contractValue, orgCurrency)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
-          linkLabel="Open my projects to see contract value"
-          help="Total contract value across your projects." />
+          linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
+          help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
-        <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label="At risk"
-          value={String(atRiskCount)} loading={isPending} error={isError} vs="budget usage > 90%"
+        <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
+          value={String(atRiskCount)} loading={isPending} error={isError} vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
           to="/projects?filter=at-risk"
-          linkLabel="Open my at-risk projects"
-          help="Your projects whose actual spend exceeds 90% of budget." />
+          linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
+          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />
         {/* N15: real combined approvals shortcut (PRs you can approve + timesheets) → /approvals. */}
         <AwaitingApprovalTile includeTimesheets />
       </section>
 
       <DashGrid>
         <Card>
-          <CardHead>Budget vs Actual — My Projects</CardHead>
+          <CardHead>{t('dashboard.pm.bvaTitle', 'Budget vs Actual — My Projects')}</CardHead>
           <div className="px-4 pb-3.5">
             {isError ? (
-              <ListState variant="error" title="Couldn't load your projects" onRetry={() => refetch()} />
+              <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
             ) : isPending ? (
               <ListState variant="loading" />
             ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title="No projects assigned to you yet"
-                sub="Projects you manage will appear here." />
+              <ListState variant="empty" icon="folder" title={t('dashboard.pm.noProjects', 'No projects assigned to you yet')}
+                sub={t('dashboard.pm.noProjectsSub', 'Projects you manage will appear here.')} />
             ) : (
               <BvACard projects={bvaProjects} currency={orgCurrency} />
             )}
@@ -100,14 +104,14 @@ export const PMDashboard: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHead>Project Status</CardHead>
+          <CardHead>{t('dashboard.pm.statusTitle', 'Project Status')}</CardHead>
           <div className="px-4 pb-3.5">
             {isPending ? (
               <ListState variant="loading" />
             ) : isError ? (
-              <ListState variant="error" title="Couldn't load your projects" onRetry={() => refetch()} />
+              <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
             ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title="Nothing to show yet" />
+              <ListState variant="empty" icon="folder" title={t('dashboard.pm.nothingToShow', 'Nothing to show yet')} />
             ) : (
               <ul className="divide-y divide-border/70">
                 {mineSorted.map((p) => {
@@ -136,14 +140,14 @@ export const PMDashboard: React.FC = () => {
                         {p.name}
                       </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
-                      {projectAtRisk && <StatusPill variant="warn">At risk</StatusPill>}
+                      {projectAtRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
                       <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
-                      <StatusPill variant={pillVariantForProjectStatus(p.status)}>{p.status}</StatusPill>
+                      <StatusPill variant={pillVariantForProjectStatus(p.status)}>{statusLabel(p.status)}</StatusPill>
                       <span
                         className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
                       >
-                        {margin !== null ? `${margin.toFixed(1)}%` : 'Not set'}
+                        {margin !== null ? `${margin.toFixed(1)}%` : t('dashboard.pm.notSet', 'Not set')}
                       </span>
                     </li>
                   );

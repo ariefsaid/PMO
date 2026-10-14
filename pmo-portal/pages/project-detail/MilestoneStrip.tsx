@@ -87,15 +87,15 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
 
   const handleModalCreate = async (input: MilestoneInput) => {
     await create.mutateAsync({ input });
-    toast(t('projectDetail.milestones.toast.created', 'Milestone created'), input.name, 'success');
+    toast(t('projectDetail.milestones.toast.created', 'Phase created'), input.name, 'success');
     setFormTarget(null);
   };
 
   const handleModalUpdate = async (id: string, patch: MilestonePatch) => {
     await update.mutateAsync({ id, patch });
     toast(
-      t('projectDetail.milestones.toast.updated', 'Milestone updated'),
-      patch.name ?? t('projectDetail.milestones.fallbackName', 'Milestone'),
+      t('projectDetail.milestones.toast.updated', 'Phase updated'),
+      patch.name ?? t('projectDetail.milestones.fallbackName', 'Phase'),
       'success',
     );
     setFormTarget(null);
@@ -111,7 +111,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast(t('projectDetail.milestones.toast.deleted', 'Milestone deleted'), target.name, 'success');
+      toast(t('projectDetail.milestones.toast.deleted', 'Phase deleted'), target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -130,7 +130,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           <span role="status">{t('projectDetail.milestones.heading', 'Delivery phases')}…</span>
         ) : isError ? (
           <>
-            <span role="alert">{t('projectDetail.milestones.errorTitle', "Couldn't load milestones")}</span>
+            <span role="alert">{t('projectDetail.milestones.errorTitle', "Couldn't load phases")}</span>
             <Button variant="ghost" size="sm" onClick={() => refetch()}>
               {t('projectDetail.loadError.retry', 'Retry')}
             </Button>
@@ -182,7 +182,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
     return (
       <ListState
         variant="error"
-        title={t('projectDetail.milestones.errorTitle', "Couldn't load milestones")}
+        title={t('projectDetail.milestones.errorTitle', "Couldn't load phases")}
         sub={t(
           'projectDetail.milestones.errorSub',
           'The request failed. Check your connection and try again.',
@@ -202,7 +202,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             className="flex items-center gap-2 py-1"
           >
             <span className="flex-1 text-[13px] text-muted-foreground">
-              {t('projectDetail.milestones.prewinPlaceholder', 'Delivery planning starts once this is won')}
+              {t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')}
             </span>
             {canCreate && (
               <button
@@ -245,7 +245,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             </div>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
-                {t('projectDetail.milestones.addMilestone', 'Add milestone')}
+                {t('projectDetail.milestones.addMilestone', 'Add phase')}
               </Button>
             )}
           </div>
@@ -349,13 +349,13 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             ? t('projectDetail.milestones.deleteConfirm.title', 'Delete "{{name}}"?', {
                 name: deleteTarget.name,
               })
-            : t('projectDetail.milestones.deleteConfirm.titleFallback', 'Delete milestone?')
+            : t('projectDetail.milestones.deleteConfirm.titleFallback', 'Delete phase?')
         }
         description={t(
           'projectDetail.milestones.deleteConfirm.body',
-          'Tasks under this milestone become ungrouped; they are not deleted.',
+          'Tasks under this phase become ungrouped; they are not deleted.',
         )}
-        confirmLabel={t('projectDetail.milestones.deleteConfirm.confirm', 'Delete milestone')}
+        confirmLabel={t('projectDetail.milestones.deleteConfirm.confirm', 'Delete phase')}
         loading={remove.isPending}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -469,7 +469,7 @@ const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) =
       <p className="max-w-[52ch] text-[13px] text-muted-foreground">
         {t(
           'projectDetail.milestones.emptySub',
-          'Add the key phases for this project so delivery progress can roll up from weighted milestones.',
+          'Add the key phases for this project so delivery progress can roll up from weighted phases.',
         )}
       </p>
     </div>
@@ -609,7 +609,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                       onEditDetails();
                     }}
                   >
-                    {t('projectDetail.milestones.editMilestone', 'Edit milestone')}
+                    {t('projectDetail.milestones.editMilestone', 'Edit phase')}
                   </button>
                 )}
                 {canDelete && (
@@ -618,14 +618,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                     className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
                     aria-label={`${t(
                       'projectDetail.milestones.deleteMilestone',
-                      'Delete milestone',
+                      'Delete phase',
                     )} ${milestone.name}`}
                     onClick={() => {
                       setMenuOpen(false);
                       onDelete();
                     }}
                   >
-                    {t('projectDetail.milestones.deleteMilestone', 'Delete milestone')}
+                    {t('projectDetail.milestones.deleteMilestone', 'Delete phase')}
                   </button>
                 )}
               </div>
@@ -641,7 +641,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               type="number"
               min={0}
               max={100}
-              aria-label={t('projectDetail.milestones.editInputPct', 'Edit PM input %')}
+              aria-label={t('projectDetail.milestones.editInputPct', 'Edit progress override')}
               className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {

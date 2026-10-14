@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // Force the desktop month grid for the event-placement assertions.
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
@@ -31,6 +35,26 @@ function project(over: Partial<ProjectWithRefs>): ProjectWithRefs {
 }
 
 const JUNE = { year: 2026, month: 5 };
+const catalogues = {
+  en: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')),
+  id: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')),
+};
+
+async function renderLocalizedCalendar(locale: 'en' | 'id', props: React.ComponentProps<typeof ProjectCalendarView>) {
+  const i18n = i18next.createInstance();
+  await i18n.init({
+    lng: locale,
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    resources: { en: { common: catalogues.en }, id: { common: catalogues.id } },
+    initImmediate: false,
+  });
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <ProjectCalendarView {...props} />
+    </I18nextProvider>,
+  );
+}
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -64,6 +88,49 @@ describe('ProjectCalendarView — event placement', () => {
     );
     const day12 = screen.getByTestId('calendar-cell-2026-06-12');
     expect(within(day12).getByText(/Kickoff/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', 'Phase'],
+    ['id', 'Fase'],
+  ] as const)(
+    'AC-UXP-003: phase events visibly lead with project identity and name the phase in %s',
+    async (locale, phaseLabel) => {
+      const phaseDates: MilestoneDate[] = [
+        { id: 'm1', projectId: 'p1', name: 'Mobilization', targetDate: '2026-06-12' },
+        { id: 'm2', projectId: 'p2', name: 'Mobilization', targetDate: '2026-06-12' },
+      ];
+      await renderLocalizedCalendar(locale, {
+        projects: [
+          project({ id: 'p1', name: 'Northstar Fitout' }),
+          project({ id: 'p2', name: 'Harbor Renewal' }),
+        ],
+        milestoneDates: phaseDates,
+        onOpenProject: () => {},
+        initialCursor: JUNE,
+      });
+
+      const day = screen.getByTestId('calendar-cell-2026-06-12');
+      const entries = within(day).getAllByRole('button');
+      expect(entries).toHaveLength(2);
+      expect(entries[0]).toHaveTextContent(/^Northstar Fitout · Mobilization$/);
+      expect(entries[0]).toHaveAccessibleName(new RegExp(`Northstar Fitout.*${phaseLabel}.*Mobilization`));
+      expect(entries[1]).toHaveTextContent(/^Harbor Renewal · Mobilization$/);
+      expect(entries[1]).toHaveAccessibleName(new RegExp(`Harbor Renewal.*${phaseLabel}.*Mobilization`));
+      expect(day).not.toHaveTextContent(/milestone|tonggak/i);
+    },
+  );
+
+  it('AC-UXP-001: Indonesian calendar empty copy uses Fase and no milestone vocabulary', async () => {
+    await renderLocalizedCalendar('id', {
+      projects: [],
+      milestoneDates: [],
+      onOpenProject: () => {},
+      initialCursor: JUNE,
+    });
+
+    expect(screen.getByText('Tidak ada tanggal target proyek atau fase pada bulan ini.')).toBeInTheDocument();
+    expect(screen.getByText('Tidak ada tanggal target proyek atau fase pada bulan ini.')).not.toHaveTextContent(/milestone|tonggak/i);
   });
 
   it('AC-CAL-004: activating a project event fires onOpenProject with the project id', async () => {

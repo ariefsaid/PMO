@@ -80,7 +80,7 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
   // real i18n key), so a direct deep-link never falls through to the "Not found" fallback.
   it('AC-FIN-002: each Finance route renders its own Bahasa shell label, never "Not found"', () => {
     const cases = [
-      ['/sales-invoices', 'Invoice Penjualan'],
+      ['/sales-invoices', 'Faktur Penjualan'],
       ['/incoming-payments', 'Pembayaran Masuk'],
       ['/revenue-by-project', 'Pendapatan per Proyek'],
     ] as const;
