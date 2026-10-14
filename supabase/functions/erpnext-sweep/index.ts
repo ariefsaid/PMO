@@ -61,6 +61,7 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 // HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
 import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
+import { resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
@@ -1184,6 +1185,7 @@ export async function repairInvoiceProjectsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   afterId: string | null,
+  cache?: ErpAuthPairCache,
 ): Promise<{ scanned: number; repaired: number; unresolved: number; failedIds: string[]; nextCursor: string | null; done: boolean }> {
   if (!org.ownedDomains.includes('revenue')) {
     return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
@@ -1196,16 +1198,95 @@ export async function repairInvoiceProjectsLive(
     error: { message: string; code?: string } | null;
   };
   const { data, error } = candidateResult;
-  if (error) throw new Error(`project invoice candidates: ${error.message}`);
+  if (error) throw new AppError(error.message, error.code);
   const rows = data ?? [];
-  if (rows.length > 0) {
-    const { error: refsError } = await serviceClient.from('external_refs').select('org_id,domain,pmo_record_id,external_record_id')
-      .eq('org_id', org.orgId).eq('domain', 'revenue').in('pmo_record_id', rows.map((row) => row.id));
-    if (refsError) throw new Error(`project invoice refs: ${refsError.message}`);
+  if (rows.length === 0) {
+    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
   }
+  const refsResult = await serviceClient.from('external_refs').select('pmo_record_id,external_record_id')
+    .eq('org_id', org.orgId).eq('domain', 'revenue').in('pmo_record_id', rows.map((row) => row.id)) as unknown as {
+      data: Array<{ pmo_record_id: string; external_record_id: string }> | null;
+      error: { message: string; code?: string } | null;
+    };
+  if (refsResult.error) throw new AppError(refsResult.error.message, refsResult.error.code);
+  const refs = new Map((refsResult.data ?? []).map((ref) => [ref.pmo_record_id, ref.external_record_id]));
+  let erpClient: ErpClientDeps | null = null;
+  const getErpClient = async () => erpClient ??= await erpClientForOrg(serviceClient, org, cache);
+  const sources: Array<{ row: (typeof rows)[number]; erpProject: string }> = [];
+  const failedIds: string[] = [];
+  let processed = 0;
+  let fetched = 0;
+  let unresolved = 0;
+  for (const row of rows) {
+    if (row.erp_project !== null) {
+      sources.push({ row, erpProject: row.erp_project });
+      processed++;
+      continue;
+    }
+    const erpName = refs.get(row.id);
+    if (!erpName || erpName !== row.si_number) {
+      unresolved++;
+      processed++;
+      continue;
+    }
+    if (fetched >= 10) break;
+    fetched++;
+    try {
+      const doc = await fetchErpDoc(await getErpClient(), DOCTYPE_REGISTRY['sales-invoice'].doctype, erpName);
+      if (doc.name !== erpName || !admitsDocForBindingCompany('sales-invoice', doc, org.company)) {
+        unresolved++;
+        processed++;
+        continue;
+      }
+      const canonical = DOCTYPE_BODIES['sales-invoice']!.fromDoc(doc);
+      const erpProject = typeof canonical.erp_project === 'string' ? canonical.erp_project : null;
+      if (erpProject !== null) {
+        let hydration = serviceClient.from('sales_invoices').update({ erp_project: erpProject })
+          .eq('org_id', org.orgId).eq('id', row.id).is('project_id', null).is('erp_project', null);
+        hydration = row.erp_modified === null
+          ? hydration.is('erp_modified', null)
+          : hydration.eq('erp_modified', row.erp_modified);
+        const { data: hydrated, error: hydrationError } = await hydration.select('id') as unknown as {
+          data: Array<{ id: string }> | null; error: { message: string; code?: string } | null;
+        };
+        if (hydrationError) throw new AppError(hydrationError.message, hydrationError.code);
+        if (!hydrated?.some((entry) => entry.id === row.id)) {
+          unresolved++;
+          processed++;
+          continue;
+        }
+        sources.push({ row, erpProject });
+      } else {
+        unresolved++;
+      }
+      processed++;
+    } catch {
+      failedIds.push(row.id);
+      break;
+    }
+  }
+  let repaired = 0;
+  try {
+    const resolution = await resolveInvoiceProjects(serviceClient, org.orgId, sources.map((source) => source.erpProject));
+    for (const source of sources) {
+      const projectId = resolution.get(source.erpProject);
+      if (!projectId) { unresolved++; continue; }
+      const { data: filled, error: fillError } = await serviceClient.rpc('fill_sales_invoice_project', {
+        p_org_id: org.orgId, p_si_id: source.row.id, p_project_id: projectId, p_erp_project: source.erpProject,
+      });
+      if (fillError) throw new AppError(fillError.message, fillError.code);
+      if (filled === true) repaired++;
+      else unresolved++;
+    }
+  } catch {
+    failedIds.push(...sources.map((source) => source.row.id));
+  }
+  const failed = failedIds.length > 0;
+  const capped = fetched >= 10 && processed < rows.length && !failed;
   return {
-    scanned: rows.length, repaired: 0, unresolved: rows.length, failedIds: [],
-    nextCursor: rows.at(-1)?.id ?? afterId, done: rows.length < 100,
+    scanned: rows.length, repaired, unresolved, failedIds: [...new Set(failedIds)],
+    nextCursor: failed ? afterId : capped ? rows[processed - 1]?.id ?? afterId : rows.at(-1)?.id ?? afterId,
+    done: !failed && !capped && rows.length < 100,
   };
 }
 
