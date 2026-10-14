@@ -40,26 +40,32 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow }> = (
         ))}
       </dl>
 
-      <section>
-        <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
-        <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
-          {lines.map((line, i) => (
-            <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-[13px]">
-              {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
-              <span className="min-w-[12rem] flex-1 break-words">
-                <span className="block">{line.description ?? line.item_code ?? '—'}</span>
-                {line.description && line.item_code && (
-                  <span className="block font-mono text-[12px] text-muted-foreground">{line.item_code}</span>
-                )}
-              </span>
-              <span className="ml-auto shrink-0 tabular text-muted-foreground">
-                {line.qty} × {money(line.rate)} ={' '}
-                <span className="font-medium text-foreground">{money(line.amount)}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {inv.pmo_native ? (
+        <section>
+          <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
+          <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
+            {lines.map((line, i) => (
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-[13px]">
+                {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
+                <span className="min-w-[12rem] flex-1 break-words">
+                  <span className="block">{line.description ?? line.item_code ?? '—'}</span>
+                  {line.description && line.item_code && (
+                    <span className="block font-mono text-[12px] text-muted-foreground">{line.item_code}</span>
+                  )}
+                </span>
+                <span className="ml-auto shrink-0 tabular text-muted-foreground">
+                  {line.qty} × {money(line.rate)} ={' '}
+                  <span className="font-medium text-foreground">{money(line.amount)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
+        </p>
+      )}
 
       <dl className="space-y-1 text-[13px]">
         <div className="flex items-baseline justify-between gap-3">

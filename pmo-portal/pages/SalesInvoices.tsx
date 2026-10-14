@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
@@ -189,10 +189,20 @@ const SalesInvoices: React.FC = () => {
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
-  const requestedStatus = searchParams.get('status') as StatusFilter | null;
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    requestedStatus && [...ERP_STATUS_FILTERS, ...NATIVE_STATUS_FILTERS].includes(requestedStatus) ? requestedStatus : 'All',
-  );
+  const requestedStatus = searchParams.get('status');
+  const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
+    ? requestedStatus as StatusFilter
+    : 'All';
+  useEffect(() => {
+    if (mode === undefined) return;
+    const requested = searchParams.get('status');
+    if (requested === null || (requested !== 'All' && statusFilters.includes(requested as StatusFilter))) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('status');
+      return next;
+    }, { replace: true });
+  }, [mode, searchParams, setSearchParams, statusFilters]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
 
   const updateListParam = (key: 'q' | 'status', value: string) => {
@@ -585,7 +595,6 @@ const SalesInvoices: React.FC = () => {
               options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
               value={statusFilter}
               onChange={(v) => {
-                setStatusFilter(v);
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
