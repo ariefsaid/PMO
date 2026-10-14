@@ -3902,6 +3902,7 @@
     "budgetProjectionActualsProvenance": "Actuals come from the posted ERP ledger and may differ from the Actual column on the Budget tab, which records PMO expenses. Budget and estimate to complete values are recorded in PMO.",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
+    "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
     "invoiceCount_other": "{{count}} invoices",

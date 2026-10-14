@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -89,23 +89,29 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>, row: HTMLEleme
 let queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 beforeEach(() => { queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }); });
 
-const page = () => (
+const LocationProbe = () => {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+};
+
+const page = (initialEntry = '/sales-invoices') => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole={h.role}>
-      <MemoryRouter initialEntries={['/sales-invoices']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Routes>
             <Route path="/sales-invoices" element={<SalesInvoices />} />
             <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
           </Routes>
+          <LocationProbe />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>
   </FinanceI18nTestProvider>
   </QueryClientProvider>
 );
-const renderPage = () => render(page());
+const renderPage = (initialEntry?: string) => render(page(initialEntry));
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
@@ -191,6 +197,92 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', 'Line items are kept in ERPNext for this invoice.', 'Line items'],
+    ['id', 'Rincian item untuk faktur ini disimpan di ERPNext.', 'Item faktur'],
+  ])('AC-991-001 ERP-owned invoice record explains where its line items live (%s)', async (language, note, sectionLabel) => {
+    h.route = 'external';
+    h.invoices.data = [nativeInvoice({
+      id: 'si-erp-record', pmo_native: false, si_number: 'ACC-SINV-11', pmo_number: null, native_lines: null,
+    })];
+    await financeTestI18n.changeLanguage(language);
+    try {
+      renderPage('/sales-invoices/si-erp-record');
+      expect(screen.getByText(note)).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: sectionLabel })).toBeNull();
+      expect(screen.queryByRole('list', { name: sectionLabel })).toBeNull();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('AC-991-001 PMO-native invoice record keeps its line-items heading and accessible list', () => {
+    h.invoices.data = [nativeInvoice({ id: 'si-native-record' })];
+    renderPage('/sales-invoices/si-native-record');
+    expect(screen.getByRole('heading', { name: 'Line items' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Line items' })).toHaveTextContent('Site survey');
+  });
+
+  it.each([
+    ['PMO', 'pmo'],
+    ['ERP', 'external'],
+  ] as const)('AC-991-002 %s mode represents All without a status query parameter', async (_label, route) => {
+    h.route = route;
+    renderPage('/sales-invoices?status=All&q=INV');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=INV'));
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('AC-991-002 PMO mode keeps a valid status query selected and filters the list', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-pmo-unpaid', pmo_number: 'INV-PMO-UNPAID', status: 'Unpaid' }),
+      nativeInvoice({ id: 'si-pmo-paid', pmo_number: 'INV-PMO-PAID', status: 'Paid', erp_outstanding_amount: 0 }),
+    ];
+    renderPage('/sales-invoices?status=Unpaid');
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?status=Unpaid');
+    expect(screen.getByRole('tab', { name: 'Unpaid' })).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('INV-PMO-UNPAID')).toBeInTheDocument();
+    expect(screen.queryByText('INV-PMO-PAID')).toBeNull();
+  });
+
+  it('AC-991-002 PMO mode normalizes an ERP-only status to All and preserves other query parameters', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-pmo-unpaid', pmo_number: 'INV-PMO-UNPAID', status: 'Unpaid' }),
+      nativeInvoice({ id: 'si-pmo-paid', pmo_number: 'INV-PMO-PAID', status: 'Paid', erp_outstanding_amount: 0 }),
+    ];
+    renderPage('/sales-invoices?status=Submitted&q=INV&preserve=yes');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=INV&preserve=yes'));
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('INV-PMO-UNPAID')).toBeInTheDocument();
+    expect(rowFor('INV-PMO-PAID')).toBeInTheDocument();
+  });
+
+  it('AC-991-002 ERP mode keeps a valid status query selected and filters the list', () => {
+    h.route = 'external';
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-erp-submitted', pmo_native: false, si_number: 'ERP-INV-SUBMITTED', status: 'Submitted' }),
+      nativeInvoice({ id: 'si-erp-paid', pmo_native: false, si_number: 'ERP-INV-PAID', status: 'Paid' }),
+    ];
+    renderPage('/sales-invoices?status=Submitted');
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?status=Submitted');
+    expect(screen.getByRole('tab', { name: 'Submitted' })).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('ERP-INV-SUBMITTED')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-INV-PAID')).toBeNull();
+  });
+
+  it('AC-991-002 ERP mode normalizes a PMO-only status to All and preserves other query parameters', async () => {
+    h.route = 'external';
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-erp-submitted', pmo_native: false, si_number: 'ERP-INV-SUBMITTED', status: 'Submitted' }),
+      nativeInvoice({ id: 'si-erp-paid', pmo_native: false, si_number: 'ERP-INV-PAID', status: 'Paid' }),
+    ];
+    renderPage('/sales-invoices?status=PartlyPaid&q=ERP-INV&preserve=yes');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ERP-INV&preserve=yes'));
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('ERP-INV-SUBMITTED')).toBeInTheDocument();
+    expect(rowFor('ERP-INV-PAID')).toBeInTheDocument();
   });
 
   it('AC-NAR-002 the author of a PMO Draft is not offered "Approve"', async () => {
