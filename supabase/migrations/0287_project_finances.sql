@@ -72,3 +72,41 @@ begin
   end if;
   return new;
 end; $$;
+
+create function public.assign_sales_invoice_project(p_si_id uuid,p_project_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_si public.sales_invoices; v_role public.user_role := public.auth_role();
+begin
+  perform public.assert_is_active_member();
+  -- PFIN_ASSIGN_ROLE_CHECK: mutation target; keep this exact marker and predicate.
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select * into v_si from public.sales_invoices where id = p_si_id for update;
+  if not found then raise exception 'invoice not found' using errcode = 'P0002'; end if;
+  if v_si.org_id is distinct from public.auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if p_project_id is null or not exists (
+    select 1 from public.projects p where p.id = p_project_id and p.org_id = v_si.org_id
+  ) then raise exception 'project not found' using errcode = 'P0002'; end if;
+  if v_si.pmo_native or v_si.si_number is null or v_si.author_user_id is not null
+     or exists (select 1 from public.sales_invoice_authors a where a.sales_invoice_id = p_si_id)
+     or not exists (select 1 from public.external_refs r where r.org_id = v_si.org_id
+                    and r.domain = 'revenue' and r.pmo_record_id = p_si_id::text
+                    and r.external_record_id = v_si.si_number) then
+    raise exception 'only an adopted ERP invoice can be attributed here' using errcode = '23514';
+  end if;
+  if (v_si.work_order_id is not null and not exists (
+        select 1 from public.work_orders w where w.id = v_si.work_order_id
+          and w.org_id = v_si.org_id and w.project_id = p_project_id))
+     or exists (select 1 from public.progress_claims c where c.id = p_si_id
+                and (c.org_id is distinct from v_si.org_id or c.project_id is distinct from p_project_id)) then
+    raise exception 'project conflicts with the invoice billing context' using errcode = '23514';
+  end if;
+  if v_si.project_id is not distinct from p_project_id then return; end if;
+  update public.sales_invoices set project_id = p_project_id where id = p_si_id;
+end $$;
+alter function public.assign_sales_invoice_project(uuid,uuid) owner to postgres;
+revoke all on function public.assign_sales_invoice_project(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.assign_sales_invoice_project(uuid,uuid) to authenticated;
