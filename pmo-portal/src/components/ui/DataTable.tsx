@@ -138,6 +138,48 @@ function useNarrowerThan(ref: React.RefObject<HTMLElement | null>, below: number
   return narrow;
 }
 
+function useStickyRowMenuSeam(
+  scrollportRef: React.RefObject<HTMLDivElement | null>,
+  tableRef: React.RefObject<HTMLTableElement | null>,
+  enabled: boolean,
+): boolean {
+  const [hasHiddenRightContent, setHasHiddenRightContent] = useState(false);
+
+  useLayoutEffect(() => {
+    const scrollport = scrollportRef.current;
+    const table = tableRef.current;
+    if (!enabled || !scrollport || !table) {
+      setHasHiddenRightContent(false);
+      return;
+    }
+
+    const measure = () => {
+      const overflowing = scrollport.scrollWidth - scrollport.clientWidth - scrollport.scrollLeft > 1;
+      setHasHiddenRightContent((current) => current === overflowing ? current : overflowing);
+    };
+
+    measure();
+    scrollport.addEventListener('scroll', measure, { passive: true });
+
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(measure);
+      observer.observe(scrollport);
+      observer.observe(table);
+    } else {
+      window.addEventListener('resize', measure);
+    }
+
+    return () => {
+      scrollport.removeEventListener('scroll', measure);
+      if (observer) observer.disconnect();
+      else window.removeEventListener('resize', measure);
+    };
+  }, [enabled, scrollportRef, tableRef]);
+
+  return hasHiddenRightContent;
+}
+
 function alignClass(align?: ColAlign) {
   if (align === 'num') return 'text-right';
   if (align === 'center') return 'text-center';
@@ -204,6 +246,8 @@ export function DataTable<Row>({
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
+  const tableBranchRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const accessibleRowLabel = (row: Row) => {
     const label = rowLabel?.(row);
     const openLabel = label?.match(/^Open (.+)$/);
@@ -214,6 +258,7 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
+  const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
   // Shared ListState node — rendered once and reused in both branches via a
@@ -247,8 +292,13 @@ export function DataTable<Row>({
       // `relative` makes this scroller the containing block for the absolutely-positioned
       // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
       // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
-      <div data-testid="dt-table-branch" className="relative overflow-x-auto">
-        <table className="w-full border-collapse text-[13.5px]">
+      <div
+        ref={tableBranchRef}
+        data-testid="dt-table-branch"
+        data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
+        className="relative overflow-x-auto"
+      >
+        <table ref={tableRef} className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
               {columns.map((col) => {
@@ -290,7 +340,7 @@ export function DataTable<Row>({
               })}
               {rowMenu && (
                 <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b')} scope="col">
-                  <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />
+                  {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
                   <span className="sr-only">{t('table.actions', 'Actions')}</span>
                 </th>
               )}
@@ -380,7 +430,7 @@ export function DataTable<Row>({
                     })}
                     {rowMenu && (
                       <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle')}>
-                        <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />
+                        {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
                         {(() => {
                           const items = rowMenu(row) ?? [];
                           return items.length > 0 ? <RowMenu items={items} /> : null;
