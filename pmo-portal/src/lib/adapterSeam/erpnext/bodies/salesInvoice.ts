@@ -46,6 +46,9 @@ export function siToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
 export function siFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
   return {
+    ...(Object.prototype.hasOwnProperty.call(d, 'project')
+      ? { erp_project: typeof d.project === 'string' ? d.project : null }
+      : {}),
     // #767: ERP's due_date + our custom receipt field, mapped back. Keys are present only when the doc
     // carries them, so a doc without the custom field leaves the mirrored value untouched.
     ...(d.due_date ? { erp_due_date: String(d.due_date) } : {}),
@@ -83,4 +86,4 @@ export function siFromDoc(doc: unknown): PmoRecord {
  */
 // `custom_received_date` is deliberately NOT listed: it is a site-level custom field, and a list query that
 // names an unknown column fails the WHOLE sweep. `siFromDoc` still maps it from any full-document read-back.
-export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges', 'due_date'] as const;
+export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges', 'due_date', 'project'] as const;
