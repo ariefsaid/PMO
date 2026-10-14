@@ -97,5 +97,57 @@ scripts/with-db-lock.sh bash -c \
 The evidence script: fixture inserts (service role) → `ANALYZE` → `set local role authenticated` +
 Finance JWT claims → EXPLAIN 1–5 → `pg_get_functiondef` → `rollback` (no fixtures persist).
 
+## Task 46 — edge/test binding and changed-code coverage evidence
+
+Commands run (actual outputs, 2026-10-14):
+
+- `node scripts/check-edge-fn-test-binding.mjs` → `✓ edge-fn tests bind to shipped handlers (11/11)` —
+  the guard sees the new erpnext-sweep/adapter-dispatch test imports (projectInvoiceAttribution,
+  projectInvoiceBackfill, projectInvoiceMaintenance, readModelWriters) and they import the shipped
+  `./index.ts` handlers.
+- `deno test --allow-env --allow-net projectInvoiceAttribution.test.ts projectInvoiceBackfill.test.ts`
+  → `ok | 6 passed | 0 failed`; with `projectInvoiceMaintenance.test.ts` → `ok | 9 passed | 0 failed`
+  (assertions: `AC-PFIN-004 historical candidate scan is capped, keyset ordered, and scoped to
+  current revenue refs`, `AC-PFIN-004 hydrates current ERP provenance with CAS before resolving and
+  filling an invoice`, `AC-PFIN-004 authorized maintenance request runs one explicit repair batch…`,
+  `AC-PFIN-004 invalid non-empty maintenance modes return 400…`).
+- `deno test --allow-env --allow-net readModelWriters.test.ts` (adapter-dispatch) → `ok | 24 passed | 0 failed`.
+- Coverage (the issue's 17 owning test files, v8 json) scored by the repo's diff-aware gate
+  `node scripts/changed-lines-coverage.mjs --base <merge-base 9325eb45> --min 80`:
+
+```
+  [ok] pages/project-detail/ProjectFinancesSection.tsx: 131/131 = 100%
+  [ok] pages/SalesInvoices.tsx: 49/49 = 100%
+  [ok] src/auth/policy.ts: 2/2 = 100%
+  [ok] src/components/InvoiceProjectModal.tsx: 89/89 = 100%
+  [ok] src/hooks/useProjectFinances.ts: 8/8 = 100%
+  [ok] src/hooks/useRevenue.ts: 22/22 = 100%
+  [ok] src/lib/db/revenue.ts: 11/11 = 100%
+  [ok] src/lib/invoiceProjectAssignment.ts: 2/2 = 100%
+  [ok] src/lib/projectFinances.ts: 48/48 = 100%
+  [ok] src/lib/repositories/index.ts: 2/2 = 100%
+  [ok] src/lib/repositories/recordHistory.ts: 9/9 = 100%
+  [LOW] pages/project-detail/tabs/OverviewTab.tsx: 0/2
+  [LOW] pages/RevenueByProject.tsx: 0/38
+  [LOW] src/components/history/{historyFields,RecordHistory,useHistoryRefs}: 0/2, 0/6, 0/1
+  [LOW] src/hooks/useBudget.ts: 0/1
+  [LOW] src/lib/adapterSeam/erpnext/{bodies/salesInvoice,projectMap}: 0/4, 0/6
+changed-lines coverage: 373/433 = 86.1% (min 80%) — PASS
+```
+
+Every `[LOW]` row is a vitest-4 v8-remap attribution artifact, not an uncovered line: the coverage
+json records **0 of ALL statements** for those whole files (e.g. RecordHistory.tsx 0/88,
+RevenueByProject.tsx 0/50, projectMap.ts 0/6) even though their owning tests execute exactly those
+lines and pass — `RevenueByProject.honesty.test.tsx` clicks `Assign project` and asserts the
+`/sales-invoices?attribution=unassigned` navigation (line 160–170); `OverviewTab.test.tsx` asserts
+`getAllByTestId('project-finances')` renders exactly once through the `may('view','salesInvoice') &&`
+mount (line 218); `useBudget.test.ts` asserts the mutation invalidation calls (line 92–108);
+`RecordHistory.test.tsx` renders project_id old/new as names (line 137/376); `projectMap.test.ts`
+asserts `invertProjectMap` outputs. Tests importing modules with an explicit `.ts` suffix
+(projectMap, actualsSnapshot, bodies/salesInvoice) reproducibly receive zeroed v8 counts while the
+same module imported extensionless attributes correctly (policy.ts 2/2) — a vitest v4 sourcemap
+quirk, recorded here so the false LOW rows are not mistaken for missing tests.
+
 Also run in the final targeted pgTAP set per the plan: `0278_invoice_change_history.test.sql` and
 `record_changes_catalog_gate.test.sql` (invoice history + record-history inventory).
+
