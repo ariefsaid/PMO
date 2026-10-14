@@ -1,4 +1,5 @@
 import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
+export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 /**
  * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
  *
