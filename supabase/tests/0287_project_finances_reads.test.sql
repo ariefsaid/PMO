@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(43);
 
 insert into public.organizations (id,name) values
   ('02870000-0000-0000-0000-000000000001','Project finance read test org');
@@ -190,6 +190,46 @@ select is((select (value->>'invoiced')::numeric from jsonb_array_elements(public
           100::numeric,'AC-PFIN-020 Invoiced card remains the source amount, not normalized contract comparison');
 select is(public.get_project_finances('02870000-0000-0000-0000-0000000000d1')->>'contract_invoiced',null,
           'AC-PFIN-020 foreign-currency invoice makes contract comparison unavailable without changing currency totals');
+
+-- ── AC-PFIN-011/018 evidence (plan Task 45): server-side completeness over >1000 submitted
+-- invoices and current-generation isolation. The RPC must aggregate the whole set in ONE SQL
+-- statement (no client-side scan, no truncated PostgREST page), and mapped actuals must read ONLY
+-- the latest org generation — never mixing an older generation's rows for the same project.
+set local role service_role;
+set local request.jwt.claims='{}';
+insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,
+                             tax_base_numerator,tax_base_denominator,subject_to_vat,customer_contract_ref)
+values ('02870000-0000-0000-0000-0000000000d7','02870000-0000-0000-0000-000000000001','Volume',
+        'Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'READ-VOLUME');
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,
+                                   tax_treatment,tax_amount,currency,status,erp_docstatus)
+select ('02870000-0000-0000-0000-' || lpad((60000+g)::text,12,'0'))::uuid,
+       '02870000-0000-0000-0000-000000000001','02870000-0000-0000-0000-0000000000d7',
+       'SI-VOL-' || g,'2026-03-01',2,1,'exclusive',0,'USD','Submitted',1
+from generate_series(1,1050) g;
+-- Latest generation (newest created_at) lives ONLY on another project (d2). Case 2 asserts that
+-- generation's rows are what its own project reads; case 1 asserts the original project does NOT
+-- fall back to its older-generation rows.
+insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at)
+values ('02870000-0000-0000-0000-000000000001','02870000-0000-0000-0000-0000000000d2','ACC-LABOR-A','FY-2026',12,
+        '2026-11-01','02870000-0000-0000-0000-0000000000b4','2026-11-01');
+reset role;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"02870000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select (value->>'invoiced')::numeric from jsonb_array_elements(public.get_project_finances('02870000-0000-0000-0000-0000000000d7')->'invoices') value where value->>'currency'='USD'),
+          2100::numeric,'AC-PFIN-018 RPC aggregates the exact sum of 1050 submitted invoices in one server-side statement');
+select is((select value->>'invoice_count' from jsonb_array_elements(public.get_project_finances('02870000-0000-0000-0000-0000000000d7')->'invoices') value where value->>'currency'='USD'),
+          '1050','AC-PFIN-018 invoice count is complete beyond a PostgREST page size');
+select is((select (value->>'settled')::numeric from jsonb_array_elements(public.get_project_finances('02870000-0000-0000-0000-0000000000d7')->'invoices') value where value->>'currency'='USD'),
+          1050::numeric,'AC-PFIN-018 settled derives exactly across the full 1050-invoice set');
+select is((select actuals_to_date from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d2',null) where category='Labor'),
+          12::numeric,'AC-PFIN-011 latest generation in another project reads only that generation''s rows (12, not 6012)');
+select is((select actuals_as_of from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d2',null) limit 1),
+          '2026-11-01'::timestamptz,'AC-PFIN-011 reading date follows the latest generation');
+select is((select actuals_to_date from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d1',null) where category='Labor'),
+          null,'AC-PFIN-011 a project absent from the latest generation withholds actuals instead of mixing old-generation rows');
+select is((select has_rows from public.project_mapped_actuals('02870000-0000-0000-0000-0000000000d1',null) where category='Labor'),
+          false,'AC-PFIN-011 stale-generation reading reports no rows rather than stale amounts');
 
 select * from finish();
 rollback;
