@@ -178,6 +178,11 @@ irrelevant.) Adjust `supabase/op.prod.env` if you name the item/field differentl
 scripts/db-push-prod.sh --check      # → "✓ PROD is usable (1Password resolved + DB reachable)."
 ```
 
+**Read-only prod queries (agents and humans):** `scripts/prod-read.sh -c "<sql>"` (or `-f file.sql`, or stdin).
+Same 1Password coordinates, URL never printed, session forced read-only (SQL that tries to undo that is refused),
+psql in a throwaway `postgres:17-alpine` container. Auto mode blocks ad-hoc prod reads, and a chat OK does not
+unlock them — the owner allow-lists this one script (`Bash(scripts/prod-read.sh:*)` in `.claude/settings.local.json`).
+
 **Fallback (no 1Password):** the gitignored `supabase/.env.prod` may hold `SUPABASE_PROD_DB_URL=…` instead;
 the script uses it only when `op-get.sh` is unavailable. Never commit it.
 
