@@ -73,7 +73,7 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     renderPane();
     const tile = screen.getByTestId('kpi-awaiting-approval');
     expect(tile).toHaveTextContent('3');
-    expect(tile).toHaveAttribute('href', '/approvals');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
   });
   it('does NOT render a procurement-approvals coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();
