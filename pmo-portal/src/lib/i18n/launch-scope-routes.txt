@@ -43,14 +43,14 @@
 #   (not recursive) and skips `*.test.tsx`. `#` starts a comment. Blank lines are ignored.
 
 # ── The screen every session opens on. English here is the first thing a client sees.
-/                              pages/ExecutiveDashboard.tsx
+/                              pages/ExecutiveDashboard.tsx src/components/dashboard/PMDashboard.tsx src/components/dashboard/EngineerDashboard.tsx src/components/dashboard/AwaitingApprovalTile.tsx src/components/dashboard/MobileExecutiveDashboard.tsx src/components/dashboard/WinRateCard.tsx src/components/dashboard/BvACard.tsx src/components/dashboard/ProjectedMarginBars.tsx src/components/dashboard/StatusBarChart.tsx src/components/dashboard/StillToInvoiceCard.tsx src/components/dashboard/AtRiskProjectsLink.tsx src/components/reports/BoardPackAction.tsx src/components/ui/EntryList.tsx src/components/ui/HoursBar.tsx src/components/ui/ListState.tsx components/DeliveryPctChip.tsx
 
 # ── Projects: a project IS the client's commitment, so this is the spine of daily delivery.
 #    `TaxBasisLabel` is named here because it is where the "incl. PPN" / "excl. PPN" strings live
 #    (OD-TAX-1 §2): it renders on this list, on the project detail header and overview, on the
 #    procurement ledger and on the sales-invoice list, and a shared component rendered BY a
 #    launch-scope screen is not checked unless the screen's line names it.
-/projects                      pages/Projects.tsx components/ProjectCard.tsx components/ProjectKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/TaxBasisLabel.tsx
+/projects                      pages/Projects.tsx components/ProjectCard.tsx components/ProjectKanbanBoard.tsx components/ProjectFormModal.tsx components/ProjectCalendarView.tsx src/components/ui/TaxBasisLabel.tsx
 
 # ── The daily work surface. Both routes render the same component; the `:tab` route also
 #    carries the launch-scope `tasks` strings, because TasksTab is where tasks live — there is
@@ -90,8 +90,8 @@
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
 #    leave a tab of English inside an otherwise gated screen.
 /procurement                   pages/Procurement.tsx pages/procurement/ProcurementListRow.tsx
-/procurement/:procurementId    pages/ProcurementDetails.tsx
-/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx
+/procurement/:procurementId    pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
+/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
 
 # ── Pre-win stages of the SAME project record (Model B). A client working a project through to
 #    won passes through here, so leaving it out would split one journey across the gate boundary.
@@ -99,7 +99,7 @@
 #    lives in the shared component, and it also renders on this screen.
 /sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
 # ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
-/sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
+/sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts src/components/EfakturModal.tsx
 /incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { KPITile } from '../KPITile';
 
 describe('KPITile', () => {
@@ -54,9 +54,9 @@ describe('KPITile', () => {
     expect(screen.getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
-  // ── Link variant (Wave-5 N15: tile-as-shortcut, no fork) ──────────────────
+  // ── Link variant (Wave-5 N15: tile shortcut + independent help) ───────────
   describe('link variant (to=)', () => {
-    it('renders the whole tile as a single <a> link to the route', () => {
+    it('keeps the destination link as the tile doorway', () => {
       render(
         <MemoryRouter>
           <KPITile
@@ -66,31 +66,60 @@ describe('KPITile', () => {
             value="3"
             to="/approvals"
             linkLabel="Awaiting your approval: 3 items"
+            testId="approval-tile"
           />
         </MemoryRouter>,
       );
-      const link = screen.getByRole('link', { name: 'Awaiting your approval: 3 items' });
+      const tile = screen.getByTestId('approval-tile');
+      const link = within(tile).getByRole('link', { name: 'Awaiting your approval: 3 items' });
       expect(link).toHaveAttribute('href', '/approvals');
-      // the value lives inside the single link
-      expect(link).toHaveTextContent('3');
+      expect(tile).toHaveTextContent('3');
     });
 
-    it('does NOT nest a focusable interactive inside the link (help is not a tab stop)', () => {
+    it('AC-986-003: linked help is independently keyboard/touch reachable and never navigates', async () => {
+      const user = userEvent.setup();
+      function CurrentPath() {
+        const location = useLocation();
+        return <output data-testid="current-path">{location.pathname}</output>;
+      }
+
       render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={['/']}>
+          <CurrentPath />
           <KPITile
             icon="check"
             tone="amber"
             label="Awaiting your approval"
             value="3"
             to="/approvals"
+            linkLabel="Approval destination"
             help="Items waiting on your decision"
+            helpLabel="Approval help"
+            testId="approval-tile"
           />
         </MemoryRouter>,
       );
-      // the link is the ONLY interactive in the tile
-      expect(screen.getAllByRole('link')).toHaveLength(1);
-      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+
+      const tile = screen.getByTestId('approval-tile');
+      const link = within(tile).getByRole('link', { name: 'Approval destination' });
+      const help = within(tile).getByRole('button', { name: 'Approval help: Awaiting your approval' });
+      expect(link).toHaveAttribute('href', '/approvals');
+      expect(link.contains(help)).toBe(false);
+      expect(help).toHaveClass('touch-target');
+
+      await user.tab();
+      expect(link).toHaveFocus();
+      await user.tab();
+      expect(help).toHaveFocus();
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Items waiting on your decision');
+
+      await user.keyboard('{Enter}');
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/');
+      await user.click(help);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/');
+
+      await user.click(link);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/approvals');
     });
 
     it('non-link tile is a div (no router needed)', () => {

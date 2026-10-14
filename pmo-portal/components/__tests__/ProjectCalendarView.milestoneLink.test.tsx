@@ -111,9 +111,9 @@ describe('ProjectCalendarView — AC-IFW-CAL-01: milestone chips are interactive
         initialCursor={JUNE}
       />,
     );
-    // The aria-label on the milestone chip includes both the milestone name and project context
+    // The accessible name leads with the canonical project identity and names the phase.
     const cell = screen.getByTestId('calendar-cell-2026-06-10');
-    const chip = within(cell).getByRole('button', { name: /KoM.*Meridian HQ/i });
+    const chip = within(cell).getByRole('button', { name: /Meridian HQ.*Phase.*KoM/i });
     expect(chip).toBeInTheDocument();
   });
 

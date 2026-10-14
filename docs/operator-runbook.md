@@ -55,6 +55,11 @@ For each power, **Does** says what it changes or reads, **Invoke** says the supp
 - **Who may:** An active platform Operator only; the RPC validates the target organization.
 - **Audited today:** **Not currently audited** for this direct RPC. The separate integration path below has its own audit events and is not interchangeable with this entry point.
 - **ERPNext note:** ERPNext activation (Company selection, `external-set-company`) checks that the integration user can read the doctypes of the domains the organization owns **at activation time** (plus the ledgers); a domain employed after activation is not checked, so grant that user read access to the new domain's doctypes first.
+- **ERPNext party creation (learned 2026-10-13):** activation checks READ only. When the organization owns the
+  `companies` domain, PMO also CREATES Customers/Suppliers, so the integration user needs **Sales Master Manager**
+  and **Purchase Master Manager** (Sales/Purchase *Manager* can read parties but not create them). If the site uses
+  numbered party IDs, the global defaults `cust_master_name` / `supp_master_name` must be `Naming Series` — saving
+  Selling/Buying Settings sets them; property setters alone do not, and new parties are then named by their name.
 
 ### Organization creation
 

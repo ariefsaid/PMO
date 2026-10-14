@@ -173,12 +173,13 @@ Deno.test({
     const writer = getReadModelWriter('companies');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' },
-      { id: 'pmo-co-1', name: 'Acme Co Renamed', type: 'Vendor', erp_party_type: 'Vendor', erp_supplier_name: 'Acme Co Renamed', erp_tax_id: null },
+      { id: 'pmo-co-1', name: 'Acme Co Renamed', type: 'Vendor', erp_party_type: 'Vendor', erp_supplier_name: 'Acme Co Renamed', erp_tax_id: null, erp_modified: '2026-07-20T12:00:00.000Z' },
       { domain: 'companies', operation: 'update', record: { id: 'pmo-co-1', erp_doc_kind: 'supplier' } },
     );
     const updateCall = calls.find((c) => c.method === 'update');
     assert(updateCall !== undefined, 'expected an update call for a companies update');
     const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals(patch.erp_modified, '2026-07-20T12:00:00.000Z');
     assert(!('archived_at' in patch), 'the companies mirror writer must never set archived_at (PMO-owned enhancement)');
     const eqCalls = calls.filter((c) => c.method === 'update.eq');
     assertEquals(eqCalls.length, 2, 'expected two scoping .eq() calls (org_id, id)');

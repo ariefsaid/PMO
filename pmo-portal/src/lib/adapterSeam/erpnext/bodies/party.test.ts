@@ -31,9 +31,10 @@ describe('erpnext/bodies/supplier.ts (R9 §0 minimal, FR-ENA-090/092)', () => {
     });
   });
 
-  it('supplierFromDoc falls back to ERP `name` when supplier_name is absent', () => {
-    const canonical = supplierFromDoc({ name: 'Acme Co' });
-    expect(canonical.name).toBe('Acme Co');
+  it('supplierFromDoc falls back to ERP `name` for canonical name but does not stamp it as supplier_name', () => {
+    const canonical = supplierFromDoc({ name: 'S-000001' });
+    expect(canonical.name).toBe('S-000001');
+    expect(canonical.erp_supplier_name).toBeUndefined();
     expect(canonical.erp_tax_id).toBeNull();
   });
 
@@ -60,6 +61,12 @@ describe('erpnext/bodies/customer.ts (FR-ENA-090/092/094)', () => {
       erp_customer_name: 'Acme Co',
       erp_tax_id: null,
     });
+  });
+
+  it('customerFromDoc falls back to ERP `name` for canonical name but does not stamp it as customer_name', () => {
+    const canonical = customerFromDoc({ name: 'C-000001' });
+    expect(canonical.name).toBe('C-000001');
+    expect(canonical.erp_customer_name).toBeUndefined();
   });
 
   it('customerFromDoc defaults erp_payment_terms_days to 30 absent a resolved template (FR-ENA-094)', () => {

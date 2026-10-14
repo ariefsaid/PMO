@@ -352,6 +352,9 @@ Owner insight: the **PO/commitment** approval is the business-critical gate (act
 Owner mandate "proceed until wave 5 & wave 4 completion" → Director adopts the design-architect's recommendations (all within the signed Wave-5 direction + the locked honest-dashboard rule):
 ### OD-W5-C2-A — "at-risk" = the existing `spent/budget ≥ 0.9` (one shared constant)
 Reuse the canonical threshold already in `get_executive_dashboard`/BvACard/PMDashboard. No schedule/aging signal (would need a data domain that doesn't exist). Pin it as one shared constant consumed by the at-risk filter + PM risk-sort.
+
+### DD-RISK-1 — at-risk population = active delivery set (Director, 2026-10-14, #986)
+Count projects whose spend can still grow against budget: `Ongoing Project`, `Won, Pending KoM`, `On Hold`, and `Internal Project`; exclude `Close Out`. The Executive dashboard RPC aligns its membership with the existing frontend `ACTIVE_PROJECT_STATUSES` rule. The `>= 0.9` threshold and committed-spend budget basis remain unchanged, as do rankings and all other dashboard figures.
 ### OD-W5-C2-B — J4 finance-console = RESTRAINED reframe
 Tabular-nums, right-aligned money, variance-first framing, existing tokens only — NOT a redesign (a bigger one risks DESIGN.md-banned chrome). No new DESIGN.md token.
 ### OD-W5-C2-C — N16 invoice-ready in BOTH places
@@ -3147,3 +3150,30 @@ keyboard-reachable dismiss control. The provider keeps one polite `role="status"
 assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
 creating the live region and populated text together is not reliable for screen-reader announcements.
 Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.
+
+## DD-VOCAB-1 — users see "Phase", the model keeps "milestone" (Director, 2026-10-14, UXS-034)
+
+The delivery work-chunk is shown to users as **Phase** (en) / **Fase** (id) everywhere; `project_milestones`,
+`milestone_id`, code and specs keep "milestone" internally. Why: most screens already said "phase"
+(planner, empty states, slice 3), and in contracting "milestone" reads as a *payment* milestone — the very
+thing OD-BILL-1 rejected (billing is by work order, not tracker milestones). One visible noun removes that
+ambiguity. `docs/glossary.md` carries the same note. Owner may override.
+
+## UXS-031 — Tax-evidence recognition (graduation notes, 2026-10-14)
+
+- **AC-UXT-001** — External recognition and immutable linkage are separate. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipModal.test.tsx`; cell: `/procurement/:id/documents` candidates × job-fit Finance + a11y labels.
+- **AC-UXT-002** — Labels/page arrival cannot change selection. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipModal.test.tsx`; cell: `/procurement/:id/documents` slip capture × state-coverage/data-correctness.
+- **AC-UXT-003** — Picker labels carry reference/context; values stay IDs. Owner: `pmo-portal/pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx`; cell: `/procurement/:id/documents` payment picker × cross-screen consistency.
+- **AC-UXT-004** — The recognizable bill keeps its canonical destination. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipDetails.test.tsx`; cell: `/procurement/:id/documents` linked bills × action-completeness.
+- **AC-UXT-005** — Vendor tax evidence uses the same identity block. Owner: `pmo-portal/pages/procurement/ProcurementLedger.labels.test.tsx`; cell: `/procurement/:id/documents` e-Faktur × job-fit Finance.
+- **AC-UXT-006** — Retain the human draft fallback; no UUID-only subtitle. Owner: `pmo-portal/pages/__tests__/SalesInvoices.efaktur.test.tsx`; cell: `/sales-invoices/:invoiceId` × state-coverage/recognition.
+- **AC-UXT-007** — Resolve context in batches through the repository/cache seam. Owner: `pmo-portal/src/hooks/useVendorWithholdingSlips.context.test.tsx`; cell: candidate source for `/procurement/:id/documents` × data-correctness.
+
+### A1 — Bahasa dashboard localization retention (implementation contract, 2026-10-14)
+
+- Dashboard role copy includes headings, help, accessible names, and existing loading/empty/error states; user-authored names, notes, codes, values, and stored status enums remain data.
+- Engineer day/week/status and spoken hour labels share the active locale; number formatting and values remain unchanged.
+- The `/` launch scope includes delegated Executive widgets alongside PM and Engineer dashboards.
+- Approval copy uses neutral `dashboard.kpi.awaitingApproval.*` keys; unavailable remains an em dash/unavailable state, not zero, and explicit label overrides remain verbatim.
+- `Faktur Penjualan` is the shared Sales Invoices noun; rail and Finance breadcrumbs resolve through the shell key, aligned with the page's existing finance-copy key.
+

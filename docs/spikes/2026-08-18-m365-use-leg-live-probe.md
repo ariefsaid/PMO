@@ -44,3 +44,19 @@ Graph processed it — the rejection is about the tenant's licensing, not our re
 - Product note for doc-linking (M2 spec): a client tenant without SPO licensing will produce
   exactly this failure — the integration UX needs a legible "your Microsoft plan has no
   SharePoint" state, not a generic error. Graduated from a live finding, per the QA portfolio.
+
+## Closure (2026-10-14) — AC-M1 closed on the first client tenant
+
+The first client tenant (SharePoint Online licensed; app registered in the client's own tenant per
+ADR-0064 Option B; org-wide admin consent; one member connected through PMO) returned data on every
+use-leg path through `graph_proxy`, read-only:
+
+| Graph path | Result |
+|---|---|
+| `GET /me/drive` | 200 (`driveType: business`) |
+| `GET /me/drive/root/children` | 200, items listed |
+| `GET /sites?search=*` | 200, sites listed |
+| `GET /me/drive/items/{id}/versions` | 200, versions listed |
+
+The custody chain (consent → connect → encrypted store → decrypt → Graph) is now proven with data.
+M3 (doc-linking build) is unblocked. Defects found during the ceremony: #1014, #1016; product gap: #1017.

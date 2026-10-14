@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const m = vi.hoisted(() => ({ recordSlip: vi.fn(), correctSlip: vi.fn(), voidSlip: vi.fn(), listSlips: vi.fn(), listBills: vi.fn(), getSlip: vi.fn() }));
+const m = vi.hoisted(() => ({ recordSlip: vi.fn(), correctSlip: vi.fn(), voidSlip: vi.fn(), listSlips: vi.fn(), listBills: vi.fn(), getSlip: vi.fn(), readBillContexts: vi.fn() }));
 vi.mock('@/src/lib/db/vendorWithholdingSlips', () => m);
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'external') }));
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
@@ -8,6 +8,16 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import { vendorWithholdingSlipsRepository as repo } from '../vendorWithholdingSlips';
 
 beforeEach(() => { vi.clearAllMocks(); m.listSlips.mockResolvedValue({ rows: [], nextCursor: null }); m.listBills.mockResolvedValue({ rows: [], nextCursor: null }); });
+it('AC-UXT-007 delegates batched bill-context reads and wraps repository failures', async () => {
+  const input = { procurementIds: ['case-a'], projectIds: ['project-a'] };
+  const result = { procurements: { 'case-a': 'Case North' }, projects: {} };
+  m.readBillContexts.mockResolvedValueOnce(result);
+  await expect(repo.readBillContexts(input)).resolves.toEqual(result);
+  expect(m.readBillContexts).toHaveBeenCalledExactlyOnceWith(input);
+  m.readBillContexts.mockRejectedValueOnce(new Error('read unavailable'));
+  await expect(repo.readBillContexts(input)).rejects.toMatchObject({ message: 'read unavailable' });
+});
+
 it('AC-BUPOT-014 uses only PMO DAL readers/writers even under external ownership', async () => {
   await repo.record({ slipId: 's', vendorId: 'v', slipNumber: 'n', slipDate: '2026-10-01', taxPeriod: '2026-10-01', pphType: 'pph23', taxBase: '2.00', withheldAmount: '1.00', invoiceIds: ['i'], declaredInvoiceIds: [] });
   await repo.correct({ slipId: 's', expectedRevision: 1, slipNumber: 'n', slipDate: '2026-10-01', taxPeriod: '2026-10-01', reason: 'reason' });

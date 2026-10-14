@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
@@ -117,7 +117,7 @@ describe('ExecutiveDashboard (real data)', () => {
   it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(tile).toHaveAttribute('href', '/approvals');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
     expect(tile).toHaveTextContent(/Review/i);
   });
   it('budget-vs-actual region surfaces the active project count (AC-703)', () => {

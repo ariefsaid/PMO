@@ -122,6 +122,36 @@ describe('useImportWizard', () => {
     expect(result.current.result?.failed[0].index).toBe(2); // the "Dup Co" row index
   });
 
+  it('includes the classified detail in failed row reasons without dangling separators', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [
+        ['Duplicate Co', 'Client'],
+        ['Empty detail', 'Vendor'],
+        ['Repeated detail', 'Vendor'],
+      ],
+    });
+    const create = vi.fn()
+      .mockRejectedValueOnce(new AppError('duplicate key', '23505'))
+      .mockRejectedValueOnce(new AppError('', 'unclassified'))
+      .mockRejectedValueOnce(new AppError('Update failed', 'unclassified'));
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+    await act(async () => {
+      await result.current.commit();
+    });
+
+    await waitFor(() => expect(result.current.step).toBe('result'));
+    expect(result.current.result?.failed.map((row) => row.reason)).toEqual([
+      'That already exists.: Another record already uses one of these values. Change it and try again.',
+      'Update failed',
+      'Update failed',
+    ]);
+  });
+
   it('AC-BIMP-011: rows the descriptor SKIPS are counted apart from created, never as created', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],

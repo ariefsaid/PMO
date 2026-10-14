@@ -7,7 +7,7 @@ describe('EfakturModal', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <EfakturModal
-        recordLabel="SI-2610070001"
+        recordContext={<span>SI-2610070001</span>}
         number=""
         date={null}
         loading={false}
@@ -29,7 +29,7 @@ describe('EfakturModal', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <EfakturModal
-        recordLabel="SI-2610070001"
+        recordContext={<span>SI-2610070001</span>}
         number={null}
         date={null}
         loading={false}
@@ -39,7 +39,7 @@ describe('EfakturModal', () => {
     );
     // the subtitle names the record being edited and states the both-or-neither rule
     expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
-      'For SI-2610070001. Record the number and its date together, or leave both empty for a non-VAT document.',
+      'Record the number and its date together, or leave both empty for a non-VAT document.',
     );
     const date = screen.getByLabelText('e-Faktur date');
     const tomorrow = new Date();
@@ -54,7 +54,7 @@ describe('EfakturModal', () => {
   it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the local today', () => {
     render(
       <EfakturModal
-        recordLabel="SI-2610070001"
+        recordContext={<span>SI-2610070001</span>}
         number="010-01"
         date="2026-10-01"
         loading={false}
@@ -74,7 +74,7 @@ describe('EfakturModal', () => {
   it('DD-EFK-2 refuses a number without its date (and a date without its number) inline, naming why Save is off', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
-      <EfakturModal recordLabel="VI-1" number={null} date={null} loading={false} onClose={vi.fn()} onSave={onSave} />,
+      <EfakturModal recordContext={<span>VI-1</span>} number={null} date={null} loading={false} onClose={vi.fn()} onSave={onSave} />,
     );
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010-01' } });
     expect(screen.getByLabelText('e-Faktur date')).toHaveAccessibleDescription(
@@ -101,7 +101,7 @@ describe('EfakturModal', () => {
   ])('AC-EFK-004 maps the server refusal %s to its own message in the dialog', async (details, message) => {
     const onSave = vi.fn().mockRejectedValue(Object.assign(new Error('raw server text'), { code: '23514', details }));
     render(
-      <EfakturModal recordLabel="VI-1" number="010-01" date="2026-10-01" loading={false} onClose={vi.fn()} onSave={onSave} />,
+      <EfakturModal recordContext={<span>VI-1</span>} number="010-01" date="2026-10-01" loading={false} onClose={vi.fn()} onSave={onSave} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     const alert = await screen.findByRole('alert', { name: 'Save failed' });
@@ -113,7 +113,7 @@ describe('EfakturModal', () => {
   it('AC-EFK-004 a dirty Cancel asks with e-Faktur-specific discard copy', () => {
     const onClose = vi.fn();
     render(
-      <EfakturModal recordLabel="VI-1" number={null} date={null} loading={false} onClose={onClose} onSave={vi.fn()} />,
+      <EfakturModal recordContext={<span>VI-1</span>} number={null} date={null} loading={false} onClose={onClose} onSave={vi.fn()} />,
     );
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));

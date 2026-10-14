@@ -1,8 +1,9 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type { BillCursor } from '@/src/lib/db/vendorWithholdingSlips';
-import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
+import type { BillContextLabels, BillRow } from '@/src/lib/db/vendorWithholdingSlips';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
 
 const prefix = (orgId?: string) => ['vendorWithholdingSlips', orgId] as const;
@@ -33,6 +34,46 @@ export function useVendorWithholdingSlip(slipId?: string) {
     queryFn: () => repositories.vendorWithholdingSlips.get(slipId!),
     enabled: Boolean(orgId && slipId),
   });
+}
+
+export interface VendorWithholdingBillContextRow {
+  invoice_id: string | null;
+  procurement_id?: string | null;
+  project_id?: string | null;
+}
+
+export function useVendorWithholdingBillContexts(pages: readonly (readonly VendorWithholdingBillContextRow[])[]) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const queries = useQueries({
+    queries: pages.map((page) => {
+      const procurementIds = [...new Set(page.map((bill) => bill.procurement_id).filter((id): id is string => Boolean(id)))].sort();
+      const projectIds = [...new Set(page.map((bill) => bill.project_id).filter((id): id is string => Boolean(id)))].sort();
+      return {
+        queryKey: [...prefix(orgId), 'bill-context', procurementIds, projectIds] as const,
+        queryFn: () => repositories.vendorWithholdingSlips.readBillContexts({ procurementIds, projectIds }),
+        enabled: Boolean(orgId && (procurementIds.length || projectIds.length)),
+        staleTime: 5 * 60_000,
+      };
+    }),
+  });
+  const contexts: Record<string, VendorInvoiceContext> = {};
+  pages.forEach((page, index) => {
+    const query = queries[index];
+    for (const bill of page) {
+      const labels: BillContextLabels | undefined = query?.data;
+      const caseTitle = bill.procurement_id ? labels?.procurements[bill.procurement_id] : undefined;
+      const project = bill.project_id ? labels?.projects[bill.project_id] : undefined;
+      const caseState = !bill.procurement_id ? 'ready' : query?.isPending ? 'pending' : query?.isError || !caseTitle ? 'unavailable' : 'ready';
+      const projectState = !bill.project_id ? 'ready' : query?.isPending ? 'pending' : query?.isError || !project ? 'unavailable' : 'ready';
+      const state = caseState === 'pending' || projectState === 'pending' ? 'pending'
+        : caseState === 'unavailable' || projectState === 'unavailable' ? 'unavailable' : 'ready';
+      contexts[bill.invoice_id ?? ''] = {
+        state, caseState, projectState, caseTitle, projectName: project?.name, pmoProjectNumber: project?.pmoProjectNumber,
+      };
+    }
+  });
+  return contexts;
 }
 
 export function useVendorWithholdingCandidates(params: { vendorId: string; pphType: string; currency: string; enabled?: boolean }) {

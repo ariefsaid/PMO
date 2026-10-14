@@ -73,7 +73,7 @@ const render$ = () =>
 
 const openEdit = async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Edit progress for Engineering design' }));
-  return screen.findByLabelText('Edit PM input %');
+  return screen.findByLabelText('Edit progress override');
 };
 
 describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
@@ -100,7 +100,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     mockRole = 'Engineer';
     render$();
     expect(screen.queryByRole('button', { name: /Edit progress/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Edit progress override')).not.toBeInTheDocument();
   });
 
   it('Saving calls update.mutateAsync with { input_pct }', async () => {
@@ -161,7 +161,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     fireEvent.change(inputEl, { target: { value: '55' } });
     fireEvent.keyDown(inputEl, { key: 'Escape' });
     await waitFor(() => {
-      expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Edit progress override')).not.toBeInTheDocument();
     });
     expect(updateSpy).not.toHaveBeenCalled();
   });
@@ -186,7 +186,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     fireEvent.mouseDown(cancelBtn);
     fireEvent.click(cancelBtn);
     await waitFor(() => {
-      expect(screen.queryByLabelText('Edit PM input %')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Edit progress override')).not.toBeInTheDocument();
     });
     expect(updateSpy).not.toHaveBeenCalled();
   });

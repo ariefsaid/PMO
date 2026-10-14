@@ -513,17 +513,26 @@ async function mintMirrorRow(
   );
 }
 
-/** The `erp_*` lifecycle/status columns the inbound feed stamps on a normal upsert (the per-row
- *  source-mod guard already gated the write). Native ERP-derived fields synced by the dispatch
- *  read-model writer on the outbound commit are left untouched here. */
+/** The inbound feed's lifecycle/status patch for a normal upsert, after its per-row source-mod
+ *  guard. Amend-convergence writes use a separate path and are not covered by that guard.
+ *  Customer/Supplier legal names are ERP-owned on this path; all other PMO-owned company columns
+ *  stay untouched. */
 function mirrorStatusPatch(kind: ErpDocKind, canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
   if (kind === 'contact') return {full_name: canonical.full_name, email: canonical.email ?? null, phone: canonical.phone ?? null, company_id: canonical.company_id, erp_modified: new Date(sourceModMs).toISOString()};
+  const partyNameField = kind === 'customer' ? 'erp_customer_name' : kind === 'supplier' ? 'erp_supplier_name' : null;
+  const patch: Record<string, unknown> = { erp_modified: new Date(sourceModMs).toISOString() };
+  if (partyNameField) {
+    const partyName = canonical[partyNameField];
+    if (typeof partyName === 'string' && partyName.trim().length > 0) {
+      patch.name = partyName;
+      patch[partyNameField] = partyName;
+    }
+  }
   const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? null;
   // erp_modified always advances. The lifecycle columns follow putIfPresent discipline: a partial
   // webhook that omits docstatus must not clear a real erp_docstatus, nor wipe a genuine
   // erp_cancelled_at stamp back to null. Only a payload that actually carries docstatus writes them,
   // and only docstatus===2 stamps the cancellation time.
-  const patch: Record<string, unknown> = { erp_modified: new Date(sourceModMs).toISOString() };
   putIfPresent(patch, 'erp_amended_from', (canonical.erp_amended_from as string | null | undefined));
   if (docstatus != null) {
     patch.erp_docstatus = docstatus;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
 import { FinanceDashboard } from './FinanceDashboard';
@@ -88,7 +88,7 @@ describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
   it('renders an approvals tile linking to /approvals (Finance has no timesheet approval)', () => {
     renderPane();
     const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(tile).toHaveAttribute('href', '/approvals');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
     // procurements fixture has NO Requested rows → 0 awaiting (Finance can approve but none pending)
     expect(tile).toHaveTextContent('0');
   });

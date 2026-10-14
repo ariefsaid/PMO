@@ -241,6 +241,25 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.getByText('Draft created. A different Finance or Admin user must submit it.')).toBeInTheDocument();
   });
 
+  it('AC-991-003 Indonesian ERP draft handoff names the invoice submission action', async () => {
+    await financeTestI18n.changeLanguage('id');
+    try {
+      h.role = 'Finance';
+      render(
+        <FinanceI18nTestProvider>
+          <MemoryRouter>
+            <ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider>
+          </MemoryRouter>
+        </FinanceI18nTestProvider>,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Tagih' }));
+      await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
+      expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan faktur ini.')).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
   it('#913 a PMO-native draft is named by its work order and routed to a second person for approval', async () => {
     h.mode = 'native';
     renderTab();

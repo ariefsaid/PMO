@@ -12,6 +12,11 @@ export type BillCursor = { date: string | null; id: string; nullDate: boolean };
 export type SlipDetail = { header: Record<string, unknown>; bills: Array<Record<string, unknown>> };
 export type SlipPage = { rows: SlipRow[]; nextCursor: SlipCursor | null };
 export type BillPage = { rows: BillRow[]; nextCursor: BillCursor | null };
+export interface ReadBillContextsInput { procurementIds: string[]; projectIds: string[] }
+export interface BillContextLabels {
+  procurements: Record<string, string>;
+  projects: Record<string, { name: string; pmoProjectNumber: string | null }>;
+}
 
 function first<T>(rows: T[] | null): T {
   if (!rows?.[0]) throw new Error('Withholding slip write returned no result');
@@ -83,6 +88,25 @@ export async function listBills(params: Omit<BillArgs, 'p_limit'> & { limit?: nu
     nextCursor: rows.length === limit && last
       ? { date: last.invoice_date, id: last.invoice_id, nullDate: last.invoice_date === null }
       : null,
+  };
+}
+
+export async function readBillContexts(input: ReadBillContextsInput): Promise<BillContextLabels> {
+  const procurementIds = [...new Set(input.procurementIds.filter(Boolean))].sort();
+  const projectIds = [...new Set(input.projectIds.filter(Boolean))].sort();
+  const [procurementResult, projectResult] = await Promise.all([
+    procurementIds.length
+      ? supabase.from('procurements').select('id,title').in('id', procurementIds)
+      : Promise.resolve({ data: [], error: null }),
+    projectIds.length
+      ? supabase.from('projects').select('id,name,pmo_project_number').in('id', projectIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (procurementResult.error) throw procurementResult.error;
+  if (projectResult.error) throw projectResult.error;
+  return {
+    procurements: Object.fromEntries((procurementResult.data ?? []).map((row) => [row.id, row.title])),
+    projects: Object.fromEntries((projectResult.data ?? []).map((row) => [row.id, { name: row.name, pmoProjectNumber: row.pmo_project_number }])),
   };
 }
 

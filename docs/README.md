@@ -7,13 +7,12 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | File | Holds |
 |---|---|
 | **`backlog.md`** | **The living status** — current state, the active program, open/deferred items. Start here. (Lean by design; shipped-program *history* is in `history.md`.) |
-| **`kanna-program.md`** | ⚠ **COMPLETED / ARCHIVED 2026-06-16 — not an active program.** Historical execution plan — wave sequencing, the parallel-build/serialized-owner operating model, per-wave cadence. The active program's playbook (backlog tracks its status). |
 | **`decisions.md`** | Every locked owner decision (`OD-*`) — the binding product/scope calls. Grep by id. |
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
 | **`factory-workflow.md`** | **The operating model** — three actors (owner · Director · factory), executor routing, decision rights, the drive loop. Read before starting any build. |
 | **`operator-runbook.md`** | Operator (platform) procedures — org creation, lifecycle, membership, the RIS provisioning sequence. |
 | **`pi-delegation.md`** | **How role-agent work is currently dispatched** — the pi CLI (GLM/codex) trial: model routing, invocation, dispatch mechanics, resource isolation, rendered-UI verification. |
-| **`adr/`** | Architecture Decision Records. ⚑ Do NOT enumerate counts or ranges here — this row rotted twice by trying to; the id-collision class is gated by `scripts/check-adr-collisions.sh`. `ls docs/adr/` is the index and `grep -r ADR-00NN` finds citations. ⚑ Known id collisions to fix: **`0058`×2**, **`0059`×3** — `grep ADR-0059` currently resolves to three unrelated documents (tracked in `backlog.md`). The durable "why" of every architectural choice. |
+| **`adr/`** | Architecture Decision Records. ⚑ Do NOT enumerate counts or ranges here — this row rotted twice by trying to; the id-collision class is gated by `scripts/check-adr-collisions.sh`. `ls docs/adr/` is the index and `grep -r ADR-00NN` finds citations. The durable "why" of every architectural choice. |
 | **`pmo-portal/CHANGELOG.md`** | Per-release notes + deploy manifest (app sha · migration high-water · edge-fn state). ⚑ It is under `pmo-portal/`, NOT the repo root. Versioning convention is **ADR-0042** (SemVer, pre-1.0). Current version: read `pmo-portal/package.json` / the latest `v*` tag, never this row. |
 
 ## Durable reference (the contracts the code follows)
@@ -27,6 +26,10 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`product-expectations.md`** | The product charter + per-layer Definition of Done (binding on all agents). |
 | **`qa-portfolio.md`** | **The QA model (ADR-0030):** Discover→Graduate→Cover, the layer table, the `routes×oracles` denominator, the vendoring (buy-the-engine/build-the-skin) backlog. Supersedes the 4-lens ×2 battery. |
 | **`director-playbook.md`** | The Director's per-issue orchestration loop, gates, grading rubric. |
+| **`e2e-parallel-conventions.md`** | Read before authoring any e2e spec — isolation classes, the `@e2e-isolation` tag, the guard-polarity rule. |
+| **`runbooks/`** | Operational runbooks: `pmo-cli.md` (the client CLI and `pmo load`), `incident-response.md`, `restore-drill.md`, `entra-option-b-setup.md`, `agent-cost-measurement.md`, `integration-trap-state-recovery.md`. |
+| **`microsoft-365-integration.md`** · **`posthog-dashboards.md`** | M365 integration reference · the PostHog dashboard set. |
+| **`agents/`** | Config the vendored skills read (issue tracker, triage labels, domain, skills map). |
 | **`design-workflow.md`** | The UI/UX cycle (Foundation → per-UI-issue loop) + the standing **4-lens** rendered design-review battery (A visual / B flow / C structure / **D intent**) + the design-agent→skill-command map. |
 | **`jtbd.md`** | **Lens D oracle** — the role × job-story map that `design-reviewer` grades every FE screen against. Living: each new feature adds its job story here during intake (before spec). Charter: `docs/reviews/2026-06-14-intent-lens-gap.md`. |
 | **`design/`** | `crud-components.md` (CRUD component architecture) + `rbac-visibility.md` (role×affordance gating map) — the spec the shipped CRUD/RBAC follows. Also: `delivery-feature-audit.md` (delivery UI findings, all resolved) + `delivery-redesign-plan.md` (the approved redesign task-plan; durable design record for PR #79). |
@@ -36,7 +39,10 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | Path | What it is |
 |---|---|
 | **`history.md`** | The shipped-program timeline (write-wave → CRUD/RBAC → UI realignment → UX-naturalness W1–6 → deploy → analytics → delivery → doc-upload). Was the bulk of `backlog.md`; not needed for status. |
-| **`reviews/`** | Committed competitor/feature analyses (e.g. the KANNA gap analysis). NB: `review/` (singular, no `s`) is gitignored local scratch — cite `docs/reviews/` for anything durable. |
+| **`kanna-program.md`** | The completed (2026-06-16) KANNA program plan — wave sequencing and the parallel-build model. |
+| **`handoffs/`** | Session handoffs; finished ones move to `handoffs/archive/`. `cloud-builder.md` is still read by cloud builders. |
+| **`spikes/`** · **`security/`** · **`legal/`** | Time-boxed spike write-ups · security notes for shipped fixes · legal drafts. |
+| **`reviews/`** | Committed reviews: competitor/feature analyses, UX Discover passes, dated cross-checks. NB: `review/` (singular, no `s`) is gitignored local scratch — cite `docs/reviews/` for anything durable. |
 | **`plans/`** | Implementation plans, one per shipped build (dated `YYYY-MM-DD-*`). All correspond to merged PRs; the backlog links several for traceability. Reference, not active. |
 | **`design-mockups/`** | The Phase-0 design exploration — IA/visual `proposal-*.html` (IA-3 + a visual were chosen) and the CRUD `crud-*.html` taste-gate mockups. Also `delivery-redesign.html` (the owner-approved delivery UI mockup for PR #79). Superseded by the live app + `DESIGN.md`; kept as the design-decision record. |
 

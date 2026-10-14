@@ -11,12 +11,13 @@
 -- (which would silently shift every Finance/exec dashboard number), this fails. Membership here is
 -- byte-for-byte the literals that lived in the RPC bodies before extraction (behavior-preserving).
 begin;
-select plan(6);
+select plan(8);
 
 -- ── helpers exist ───────────────────────────────────────────────────────────
 select has_function('public', 'committed_procurement_statuses', 'committed_procurement_statuses() exists');
 select has_function('public', 'on_hand_project_statuses',       'on_hand_project_statuses() exists');
 select has_function('public', 'pipeline_project_statuses',      'pipeline_project_statuses() exists');
+select has_function('public', 'active_delivery_project_statuses', 'active_delivery_project_statuses() exists');
 
 -- ── membership pinned (order-insensitive: compare as sorted arrays) ──────────
 select is(
@@ -33,6 +34,11 @@ select is(
   (select array(select unnest(pipeline_project_statuses()) order by 1)),
   array['Leads','Negotiation','PQ Submitted','Quotation Submitted','Tender Submitted']::text[],
   'pipeline_project_statuses() = the OD-SP-1 open-pipeline set (Leads / PQ / Quotation / Tender / Negotiation)');
+
+select is(
+  (select array(select unnest(active_delivery_project_statuses()) order by 1)),
+  array['Internal Project','On Hold','Ongoing Project','Won, Pending KoM']::text[],
+  'active_delivery_project_statuses() = the OD-W5-C2-A delivery set (Close Out excluded)');
 
 select * from finish();
 rollback;
