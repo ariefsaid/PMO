@@ -10,6 +10,25 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.19.0](https://github.com/ariefsaid/PMO/compare/v0.18.0...v0.19.0) (2026-10-14)
+
+
+### Features
+
+* **i18n:** Bahasa on the dashboards, approvals tile and sales-invoice noun (UXS-006 A1, [#1011](https://github.com/ariefsaid/PMO/issues/1011)) ([#1021](https://github.com/ariefsaid/PMO/issues/1021)) ([4e3ed64](https://github.com/ariefsaid/PMO/commit/4e3ed641271a3ef0e9dd5612cc9444b671e72492))
+* **ux:** phases — one visible noun, form guidance, project identity on calendar phases (UXS-034/035) ([#1015](https://github.com/ariefsaid/PMO/issues/1015)) ([f1aef58](https://github.com/ariefsaid/PMO/commit/f1aef588cb10bf58acf2c0e59742bc2be8c57314))
+* **ux:** tax evidence carries recognizable invoice and project labels (UXS-031) ([#1022](https://github.com/ariefsaid/PMO/issues/1022)) ([50d12a5](https://github.com/ariefsaid/PMO/commit/50d12a5cb8e7ecb781cf9ee414f5042418ca5539))
+
+
+### Bug Fixes
+
+* **dashboard:** Executive at-risk count matches the Projects at-risk list; KPI help reachable ([#1009](https://github.com/ariefsaid/PMO/issues/1009)) ([00ea5f1](https://github.com/ariefsaid/PMO/commit/00ea5f1273bd2e1d905095b26dcfa69813879ee6))
+* **erpnext:** a linked Customer/Supplier rename reaches PMO ([#1005](https://github.com/ariefsaid/PMO/issues/1005)) ([6071121](https://github.com/ariefsaid/PMO/commit/6071121067075c1f7d2f675a4b89e38dbb44ab90))
+* **import:** failed rows say why, not only "Update failed" ([#996](https://github.com/ariefsaid/PMO/issues/996)) ([356948e](https://github.com/ariefsaid/PMO/commit/356948ed69a69396414f52f986668e65e86e9b39))
+* **invoices:** record page follow-ups — ERP lines note, status URL validation, Bahasa verb ([#1010](https://github.com/ariefsaid/PMO/issues/1010)) ([ae37309](https://github.com/ariefsaid/PMO/commit/ae373094aeb4906590e6551ebcf75d4568c9720f))
+* **m365:** admin-consent URL carries the required scope ([#1014](https://github.com/ariefsaid/PMO/issues/1014)) ([#1019](https://github.com/ariefsaid/PMO/issues/1019)) ([e7675ad](https://github.com/ariefsaid/PMO/commit/e7675ad3dba8b07d0418e2546983286aea1953c8))
+* **ui:** row-actions shadow only when content scrolls under it; header rule uses the border token ([#1013](https://github.com/ariefsaid/PMO/issues/1013)) ([a79ee8a](https://github.com/ariefsaid/PMO/commit/a79ee8af45611b38a404d2d2a66840095ecd500e))
+
 ## [0.18.0](https://github.com/ariefsaid/PMO/compare/v0.17.0...v0.18.0) (2026-10-13)
 
 
