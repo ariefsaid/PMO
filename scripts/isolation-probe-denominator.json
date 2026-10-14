@@ -119,6 +119,7 @@
     "attest_timesheet_no_erp_document(uuid,text)",
     "audit_agent_denial(text,jsonb)",
     "audit_m365_event(text,uuid,uuid,uuid,jsonb)",
+    "assign_sales_invoice_project(uuid,uuid)",
     "auth_org_id()",
     "auth_role()",
     "can_read_meeting(uuid)",
@@ -146,6 +147,7 @@
     "delete_vault_secret(text)",
     "erpnext_sweep_tick()",
     "finalize_external_connect(uuid,text,text,boolean,boolean,uuid)",
+    "fill_sales_invoice_project(uuid,uuid,uuid,text)",
     "get_process_gates(uuid)",
     "get_project_vat_editability(uuid)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
@@ -260,6 +262,7 @@
     "project-documents"
   ],
   "rpcs": [
+    {"name":"assign_sales_invoice_project","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0287_project_finances.sql:83","supabase/migrations/0287_project_finances.sql:86","supabase/migrations/0287_project_finances.sql:88","supabase/migrations/0287_project_finances.sql:92"]},
     {"name":"org_credit_balance","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0067_org_credit_balance.sql:24"]},
     {"name":"operator_usage_summary","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:26"]},
     {"name":"operator_agent_run_stats","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:58"]},
