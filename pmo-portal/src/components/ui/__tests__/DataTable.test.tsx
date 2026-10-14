@@ -297,6 +297,9 @@ describe('DataTable', () => {
     expect(actionCell.className).not.toContain('border-l');
     expect(header.className).toContain('z-[3]');
     expect(actionCell.className).toContain('z-[1]');
+    // A bare `border-b` takes `currentColor` in Tailwind v4 — the sticky header's bottom rule
+    // must use the same `--border` token as every other header cell (owner report 2026-10-14).
+    expect(header.className).toContain('border-border');
   });
 
   it('AC-TBL-STICKY-001 renders the gradient in the header and every body sticky cell only while content remains hidden to the right', () => {

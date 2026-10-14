@@ -339,7 +339,7 @@ export function DataTable<Row>({
                 );
               })}
               {rowMenu && (
-                <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b')} scope="col">
+                <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b border-border')} scope="col">
                   {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
                   <span className="sr-only">{t('table.actions', 'Actions')}</span>
                 </th>
