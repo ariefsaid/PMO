@@ -2281,7 +2281,8 @@
       "targetDate": "Target date",
       "weight": "Relative weight",
       "weightHelper": "Sets this phase’s share of project progress.",
-      "progressHelper": "Leave blank to use linked-task progress. A typed value overrides it."
+      "progressHelper": "Leave blank to use linked-task progress. A typed value overrides it.",
+      "progressCreateHelper": "Progress comes from this phase’s linked tasks. You can set an override after creating it."
     },
     "milestones": {
       "addFirstPhase": "Add the first phase",

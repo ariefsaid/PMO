@@ -2281,7 +2281,8 @@
       "targetDate": "Tanggal target",
       "weight": "Bobot relatif",
       "weightHelper": "Menentukan porsi fase ini dalam progres proyek.",
-      "progressHelper": "Kosongkan untuk menggunakan progres tugas terkait. Nilai yang dimasukkan akan menggantikannya."
+      "progressHelper": "Kosongkan untuk menggunakan progres tugas terkait. Nilai yang dimasukkan akan menggantikannya.",
+      "progressCreateHelper": "Progres diambil dari tugas terkait fase ini. Anda dapat menetapkan nilai pengganti setelah fase dibuat."
     },
     "milestones": {
       "addFirstPhase": "Tambah fase pertama",

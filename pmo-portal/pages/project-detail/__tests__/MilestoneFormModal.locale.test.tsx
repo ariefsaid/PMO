@@ -66,6 +66,7 @@ const copy = {
     weightHelper: 'Sets this phase’s share of project progress.',
     positionHelper: 'Sets this phase’s order.',
     linkedProgress: 'Leave blank to use linked-task progress. A typed value overrides it.',
+    createProgress: 'Progress comes from this phase’s linked tasks. You can set an override after creating it.',
   },
   id: {
     createTitle: 'Fase baru',
@@ -81,6 +82,7 @@ const copy = {
     weightHelper: 'Menentukan porsi fase ini dalam progres proyek.',
     positionHelper: 'Menentukan urutan fase ini.',
     linkedProgress: 'Kosongkan untuk menggunakan progres tugas terkait. Nilai yang dimasukkan akan menggantikannya.',
+    createProgress: 'Progres diambil dari tugas terkait fase ini. Anda dapat menetapkan nilai pengganti setelah fase dibuat.',
   },
 } as const;
 
@@ -119,8 +121,8 @@ describe('phase form localization and guidance', () => {
       expect(within(createDialog).getByRole('spinbutton', { name: words.position })).toBeInTheDocument();
       expect(within(createDialog).getByText(words.weightHelper)).toBeInTheDocument();
       expect(within(createDialog).getByText(words.positionHelper)).toBeInTheDocument();
-      expect(within(createDialog).getByText(words.linkedProgress)).toBeInTheDocument();
-      expect(within(createDialog).getByText(/Leave blank to use linked-task progress\.|Kosongkan untuk menggunakan progres tugas terkait\./)).toBeInTheDocument();
+      expect(within(createDialog).getByText(words.createProgress)).toBeInTheDocument();
+      expect(within(createDialog).queryByText(words.linkedProgress)).toBeNull();
       expect(within(createDialog).queryByRole('spinbutton', { name: words.progress })).not.toBeInTheDocument();
 
       unmount();

@@ -231,8 +231,8 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           {!isEdit && (
             <p className="col-span-full text-[12px] text-muted-foreground">
               {t(
-                'projectDetail.milestoneForm.progressHelper',
-                'Leave blank to use linked-task progress. A typed value overrides it.',
+                'projectDetail.milestoneForm.progressCreateHelper',
+                'Progress comes from this phase’s linked tasks. You can set an override after creating it.',
               )}
             </p>
           )}
