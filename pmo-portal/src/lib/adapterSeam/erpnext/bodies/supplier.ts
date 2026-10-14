@@ -29,7 +29,7 @@ export const supplierFromDoc = (doc: unknown): PmoRecord => {
     name,
     type: 'Vendor',
     erp_party_type: 'Vendor',
-    erp_supplier_name: name,
+    erp_supplier_name: d.supplier_name,
     erp_tax_id: d.tax_id ?? null,
   };
 };

@@ -36,7 +36,7 @@ export const customerFromDoc = (doc: unknown, paymentTermsDays?: number | null):
     name,
     type: 'Client',
     erp_party_type: 'Client',
-    erp_customer_name: name,
+    erp_customer_name: d.customer_name,
     erp_tax_id: d.tax_id ?? null,
     erp_payment_terms_days: deriveErpPaymentTermsDays(paymentTermsDays),
   };

@@ -708,6 +708,134 @@ function mappedMirrorClient(opts: { mirrorTable: string; lookupColumn: string; p
 
 const STORED_MOD = '2026-07-20T12:00:00.000Z';
 
+// #1004 — linked company party renames use the same source-mod guard as lifecycle updates.
+for (const [kind, nameField, canonicalName] of [
+  ['customer', 'erp_customer_name', 'Renamed Customer'],
+  ['supplier', 'erp_supplier_name', 'Renamed Supplier'],
+] as const) {
+  Deno.test(`#1004 ${kind} rename updates the linked company's legal name and matching ERP name, preserving PMO-owned columns`, async () => {
+    const { client, calls } = fakeServiceClient((table, query) => {
+      if (table === 'external_refs') return [{ pmo_record_id: 'company-1' }];
+      if (table === 'companies' && query.eq.some(([column, value]) => column === 'id' && value === 'company-1')) {
+        return [{ erp_modified: '2026-07-20T09:00:00.000Z' }];
+      }
+      return [];
+    });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'companies' },
+      `${kind === 'customer' ? 'C' : 'S'}-000001`,
+      { id: 'ignored', name: kind === 'customer' ? canonicalName : undefined, [nameField]: canonicalName, short_name: 'PMO alias', archived_at: null, type: kind === 'customer' ? 'Client' : 'Vendor', erp_docstatus: 0 },
+      Date.parse('2026-07-20T12:00:00.000Z'),
+      deps,
+    );
+    assert(outcome.kind === 'upserted', `expected linked ${kind} rename to upsert`);
+    const update = calls.find((call) => call.table === 'companies' && call.op === 'update');
+    assert(!!update, `expected companies update for ${kind}`);
+    assert(update!.patch!.name === canonicalName, `expected companies.name=${canonicalName}`);
+    assert(update!.patch![nameField] === canonicalName, `expected ${nameField}=${canonicalName}`);
+    for (const pmoField of ['short_name', 'archived_at', 'type', 'default_vat_rate', 'default_pph_type', 'default_pph_rate', 'client_number_segment']) {
+      assert(!(pmoField in update!.patch!), `must not patch PMO-owned ${pmoField}`);
+    }
+  });
+
+  Deno.test(`#1004 ${kind} partial webhook without display name preserves the linked company's legal name`, async () => {
+    const { client, calls } = fakeServiceClient((table, query) => {
+      if (table === 'external_refs') return [{ pmo_record_id: 'company-1' }];
+      if (table === 'companies' && query.eq.some(([column, value]) => column === 'id' && value === 'company-1')) {
+        return [{ erp_modified: '2026-07-20T09:00:00.000Z' }];
+      }
+      return [];
+    });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'companies' },
+      `${kind === 'customer' ? 'C' : 'S'}-000001`,
+      { id: 'ignored', name: `${kind === 'customer' ? 'C' : 'S'}-000001`, type: kind === 'customer' ? 'Client' : 'Vendor' },
+      Date.parse('2026-07-20T12:00:00.000Z'),
+      deps,
+    );
+    assert(outcome.kind === 'upserted', `expected partial ${kind} webhook to upsert`);
+    const update = calls.find((call) => call.table === 'companies' && call.op === 'update');
+    assert(!!update, `expected companies update for partial ${kind} webhook`);
+    assert(!('name' in update!.patch!), 'partial webhook must not write companies.name');
+    assert(!(nameField in update!.patch!), `partial webhook must not write ${nameField}`);
+  });
+
+  Deno.test(`#1004 ${kind} blank display name is ignored`, async () => {
+    const { client, calls } = fakeServiceClient((table, query) => {
+      if (table === 'external_refs') return [{ pmo_record_id: 'company-1' }];
+      if (table === 'companies' && query.eq.some(([column, value]) => column === 'id' && value === 'company-1')) {
+        return [{ erp_modified: '2026-07-20T09:00:00.000Z' }];
+      }
+      return [];
+    });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'companies' },
+      `${kind === 'customer' ? 'C' : 'S'}-000001`,
+      { id: 'ignored', [nameField]: '   ' },
+      Date.parse('2026-07-20T12:00:00.000Z'),
+      deps,
+    );
+    assert(outcome.kind === 'upserted', `expected blank-name ${kind} webhook to upsert`);
+    const update = calls.find((call) => call.table === 'companies' && call.op === 'update');
+    assert(!!update, `expected companies update for blank-name ${kind} webhook`);
+    assert(!('name' in update!.patch!), 'blank display name must not write companies.name');
+    assert(!(nameField in update!.patch!), `blank display name must not write ${nameField}`);
+  });
+
+  Deno.test(`#1004 stale ${kind} rename cannot overwrite the newer linked company`, async () => {
+    const { client, calls } = fakeServiceClient((table, query) => {
+      if (table === 'external_refs') return [{ pmo_record_id: 'company-1' }];
+      if (table === 'companies' && query.eq.some(([column, value]) => column === 'id' && value === 'company-1')) {
+        return [{ erp_modified: STORED_MOD }];
+      }
+      return [];
+    });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'companies' },
+      `${kind === 'customer' ? 'C' : 'S'}-000001`,
+      { id: 'ignored', name: 'Stale Name', [nameField]: 'Stale Name' },
+      Date.parse('2026-07-20T09:00:00.000Z'),
+      deps,
+    );
+    assert(outcome.kind === 'no-op', `expected stale ${kind} rename to be ignored`);
+    assert(!calls.some((call) => call.table === 'companies' && call.op === 'update'), 'stale rename must not write companies');
+  });
+}
+
+Deno.test('#1004 non-party sales-invoice status patch remains byte-for-byte stable', async () => {
+  const { client, calls } = fakeServiceClient((table, query) => {
+    if (table === 'external_refs') return [{ pmo_record_id: 'invoice-1' }];
+    if (table === 'sales_invoices' && query.eq.some(([column, value]) => column === 'id' && value === 'invoice-1')) {
+      return [{ erp_modified: '2026-07-20T09:00:00.000Z' }];
+    }
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  const outcome = await applyErpFeedEvent(
+    { tier: 'erpnext', domain: 'sales' },
+    'SI-000001',
+    { id: 'ignored', erp_docstatus: 0 },
+    Date.parse('2026-07-20T12:00:00.000Z'),
+    deps,
+  );
+  assert(outcome.kind === 'upserted', 'expected sales-invoice status update');
+  const update = calls.find((call) => call.table === 'sales_invoices' && call.op === 'update');
+  assert(!!update, 'expected sales-invoice update');
+  assert(
+    JSON.stringify(update!.patch) === JSON.stringify({
+      erp_modified: '2026-07-20T12:00:00.000Z',
+      erp_docstatus: 0,
+      erp_cancelled_at: null,
+      status: 'Draft',
+    }),
+    `unexpected sales-invoice patch: ${JSON.stringify(update!.patch)}`,
+  );
+});
+
 // The kind's REAL `pmoRecordLookupColumn`: `timesheet` is a Posture-B side mirror keyed by its own
 // uuid with the PMO id in `timesheet_id`; `employee` is keyed by `id` like every other mirror.
 for (const [label, kind, mirrorTable, lookupColumn] of [
