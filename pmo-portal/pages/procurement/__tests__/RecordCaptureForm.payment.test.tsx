@@ -34,12 +34,15 @@ const BILL: ProcurementInvoiceRow = {
   erp_outstanding_amount: 1090000,
 } as unknown as ProcurementInvoiceRow;
 
-function renderPayment(invoices: ProcurementInvoiceRow[] = [BILL]) {
+function renderPayment(
+  invoices: ProcurementInvoiceRow[] = [BILL],
+  invoiceIdentityContext = { state: 'ready' as const, caseTitle: 'Harbor bridge', projectName: 'North pier', pmoProjectNumber: 'PMO-26-0042' },
+) {
   const onCreate = vi.fn().mockResolvedValue(undefined);
   render(
     <FinanceI18nTestProvider>
       <ToastProvider>
-        <RecordCaptureForm kind="payment" invoices={invoices} onCreate={onCreate} onClose={vi.fn()} />
+        <RecordCaptureForm kind="payment" invoices={invoices} invoiceIdentityContext={invoiceIdentityContext} onCreate={onCreate} onClose={vi.fn()} />
       </ToastProvider>
     </FinanceI18nTestProvider>,
   );
@@ -105,6 +108,36 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     await userEvent.click(screen.getByTestId('payment-save-btn'));
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
     expect(onCreate.mock.calls[0][0]).toMatchObject({ referenceNumber: 'BANK-MEMO-1' });
+  });
+
+  it.each(['en', 'id'] as const)('AC-UXT-003 payment invoice options carry recognizable context in %s and submit the immutable id', async (locale) => {
+    await financeTestI18n.changeLanguage(locale);
+    const invoices = [
+      { ...BILL, id: 'inv-alpha', reference_number: 'SUP-INV-A', vi_number: 'VI-910', invoice_date: '2026-10-02', erp_outstanding_amount: 1090000 },
+      { ...BILL, id: 'inv-beta', reference_number: 'SUP-INV-B', vi_number: 'VI-911', invoice_date: '2026-10-03', erp_outstanding_amount: 720000 },
+    ] as ProcurementInvoiceRow[];
+    const onCreate = renderPayment(invoices);
+    const select = screen.getByTestId('payment-invoice-select');
+    const options = Array.from((select as HTMLSelectElement).options);
+    expect(options[1].textContent).toMatch(/SUP-INV-A/);
+    expect(options[1].textContent).toMatch(/VI-910/);
+    expect(options[1].textContent).toMatch(/Harbor bridge/);
+    expect(options[1].textContent).toMatch(/North pier/);
+    expect(options[1].textContent).toMatch(/PMO-26-0042/);
+    expect(options[2].textContent).toMatch(/SUP-INV-B/);
+
+    await userEvent.selectOptions(select, 'inv-alpha');
+    if (locale === 'id') {
+      expect(screen.getByLabelText('Tanggal')).toBeInTheDocument();
+    }
+    const selectedIdentity = screen.getByTestId('payment-selected-invoice-identity');
+    expect(selectedIdentity).toHaveTextContent('SUP-INV-A');
+    expect(selectedIdentity).toHaveTextContent('VI-910');
+    expect(selectedIdentity).toHaveTextContent('Harbor bridge');
+    expect(selectedIdentity).toHaveTextContent('North pier');
+    expect(selectedIdentity).toHaveTextContent('PMO-26-0042');
+    await userEvent.click(screen.getByTestId('payment-save-btn'));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'inv-alpha', amount: 1090000 })));
   });
 });
 

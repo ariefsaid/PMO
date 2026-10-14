@@ -99,6 +99,7 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
 
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: vi.fn(),
+  trackSearchUsed: vi.fn(),
 }));
 
 import SalesInvoices from '../../pages/SalesInvoices';

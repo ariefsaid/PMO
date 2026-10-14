@@ -167,7 +167,10 @@ const SalesInvoices: React.FC = () => {
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const recordContext = useRecordContext('/sales-invoices', invoiceId);
-  const { data: projectOptions } = useInvoiceProjectOptions();
+  const {
+    data: projectOptions,
+    isPending: projectOptionsPending,
+  } = useInvoiceProjectOptions();
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -219,6 +222,33 @@ const SalesInvoices: React.FC = () => {
     const project = projectOptions?.find((option) => option.value === inv.project_id)?.label;
     const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
     return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
+  };
+
+  const invoiceEfakturContext = (inv: SalesInvoiceRow): React.ReactNode => {
+    if (inv.si_number?.trim()) {
+      return (
+        <p className="min-w-0 break-words font-medium">
+          {t('efaktur.issuedSalesInvoice', 'Issued sales invoice number')}: <span className="font-mono">{inv.si_number}</span>
+        </p>
+      );
+    }
+    const project = projectOptions?.find((option) => option.value === inv.project_id)?.label;
+    const projectContext = project
+      ?? (inv.project_id
+        ? projectOptionsPending
+          ? t('financeCopy.projectLoading', 'Project details loading')
+          : t('financeCopy.projectUnavailable', 'Project details unavailable')
+        : t('financeCopy.projectNotRecorded', 'Project not recorded'));
+    const customerContext = inv.customer_name?.trim()
+      ? inv.customer_name
+      : t('financeCopy.customerNotRecorded', 'Customer not recorded');
+    return (
+      <div className="min-w-0 space-y-0.5 break-words">
+        <p className="font-medium">{t('financeCopy.draftInvoice', 'Draft invoice')}</p>
+        <p className="text-muted-foreground">{t('financeCopy.project', 'Project')}: {projectContext}</p>
+        <p className="text-muted-foreground">{t('financeCopy.customer', 'Customer')}: {customerContext}</p>
+      </div>
+    );
   };
 
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
@@ -694,7 +724,7 @@ const SalesInvoices: React.FC = () => {
 
       {efakturTarget && (
         <EfakturModal
-          recordLabel={invoiceDisplayLabel(efakturTarget)}
+          recordContext={invoiceEfakturContext(efakturTarget)}
           number={efakturTarget.efaktur_number}
           date={efakturTarget.efaktur_date}
           loading={setEfaktur.isPending}

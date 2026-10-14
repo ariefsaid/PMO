@@ -90,8 +90,8 @@
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
 #    leave a tab of English inside an otherwise gated screen.
 /procurement                   pages/Procurement.tsx pages/procurement/ProcurementListRow.tsx
-/procurement/:procurementId    pages/ProcurementDetails.tsx
-/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx
+/procurement/:procurementId    pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
+/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
 
 # ── Pre-win stages of the SAME project record (Model B). A client working a project through to
 #    won passes through here, so leaving it out would split one journey across the gate boundary.
@@ -99,7 +99,7 @@
 #    lives in the shared component, and it also renders on this screen.
 /sales                         pages/SalesPipeline.tsx components/SalesKanbanBoard.tsx components/ProjectFormModal.tsx src/components/ui/Funnel.tsx
 # ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
-/sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts
+/sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts src/components/EfakturModal.tsx
 /incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx

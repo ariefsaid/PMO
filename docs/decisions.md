@@ -3159,6 +3159,16 @@ The delivery work-chunk is shown to users as **Phase** (en) / **Fase** (id) ever
 thing OD-BILL-1 rejected (billing is by work order, not tracker milestones). One visible noun removes that
 ambiguity. `docs/glossary.md` carries the same note. Owner may override.
 
+## UXS-031 — Tax-evidence recognition (graduation notes, 2026-10-14)
+
+- **AC-UXT-001** — External recognition and immutable linkage are separate. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipModal.test.tsx`; cell: `/procurement/:id/documents` candidates × job-fit Finance + a11y labels.
+- **AC-UXT-002** — Labels/page arrival cannot change selection. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipModal.test.tsx`; cell: `/procurement/:id/documents` slip capture × state-coverage/data-correctness.
+- **AC-UXT-003** — Picker labels carry reference/context; values stay IDs. Owner: `pmo-portal/pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx`; cell: `/procurement/:id/documents` payment picker × cross-screen consistency.
+- **AC-UXT-004** — The recognizable bill keeps its canonical destination. Owner: `pmo-portal/pages/procurement/VendorWithholdingSlipDetails.test.tsx`; cell: `/procurement/:id/documents` linked bills × action-completeness.
+- **AC-UXT-005** — Vendor tax evidence uses the same identity block. Owner: `pmo-portal/pages/procurement/ProcurementLedger.labels.test.tsx`; cell: `/procurement/:id/documents` e-Faktur × job-fit Finance.
+- **AC-UXT-006** — Retain the human draft fallback; no UUID-only subtitle. Owner: `pmo-portal/pages/__tests__/SalesInvoices.efaktur.test.tsx`; cell: `/sales-invoices/:invoiceId` × state-coverage/recognition.
+- **AC-UXT-007** — Resolve context in batches through the repository/cache seam. Owner: `pmo-portal/src/hooks/useVendorWithholdingSlips.context.test.tsx`; cell: candidate source for `/procurement/:id/documents` × data-correctness.
+
 ### A1 — Bahasa dashboard localization retention (implementation contract, 2026-10-14)
 
 - Dashboard role copy includes headings, help, accessible names, and existing loading/empty/error states; user-authored names, notes, codes, values, and stored status enums remain data.

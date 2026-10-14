@@ -6,7 +6,9 @@ import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
 import type { PphType } from '@/src/lib/vendorWithholding';
 import { formatSlipCents, parsePositiveSlipMoney, parseDecimalCents, sumSlipMoney, bupotRefusal, type RecordSlipInput } from '@/src/lib/vendorWithholdingSlip';
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
-import { useVendorWithholdingCandidates } from '@/src/hooks/useVendorWithholdingSlips';
+import { useVendorWithholdingBillContexts, useVendorWithholdingCandidates } from '@/src/hooks/useVendorWithholdingSlips';
+import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 
 export interface VendorWithholdingSlipModalProps {
   invoice: ProcurementInvoiceRow;
@@ -36,7 +38,9 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const [submitError, setSubmitError] = useState<{ headline: string; detail?: string } | null>(null);
   const [intentId] = useState(() => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
   const candidateQuery = useVendorWithholdingCandidates({ vendorId, pphType, currency: invoice.currency, enabled: open });
-  const candidates = useMemo(() => (candidateQuery.data?.pages ?? []).flatMap((page) => page.rows), [candidateQuery.data]);
+  const candidatePages = useMemo(() => candidateQuery.data?.pages.map((page) => page.rows) ?? [], [candidateQuery.data]);
+  const candidates = useMemo(() => candidatePages.flatMap((page) => page), [candidatePages]);
+  const billContexts = useVendorWithholdingBillContexts(candidatePages);
   const starting = selected[invoice.id];
   useEffect(() => {
     if (!open) { initialized.current = false; return; }
@@ -75,8 +79,15 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     return { ...old, [bill.invoice_id]: { bill, declared: bill.withheld_pph_type !== null } };
   });
   const columns: Column<BillRow>[] = [
-    { key: 'select', header: t('bupot.select', 'Select'), cell: (bill) => <Checkbox className="max-[767px]:!size-11" checked={Boolean(selected[bill.invoice_id])} onChange={(checked) => toggle(bill, checked)} label={t('bupot.selectBill', 'Select bill {{bill}}', { bill: bill.vi_number ?? bill.invoice_id })} /> },
-    { key: 'bill', header: t('bupot.bill', 'Bill'), cell: (bill) => <span className="break-all">{bill.vi_number ?? bill.reference_number ?? bill.invoice_id}<span className="block break-words text-xs text-muted-foreground">{t('bupot.case', 'Case')}: {bill.procurement_id} · {t('bupot.billDate', 'Bill date')}: {bill.invoice_date ?? '—'}</span></span> },
+    { key: 'select', header: t('bupot.select', 'Select'), cell: (bill) => {
+      const context = billContexts[bill.invoice_id] ?? { state: 'pending' as const };
+      const identity = vendorInvoiceIdentityAccessibleLabel({ referenceNumber: bill.reference_number, viNumber: bill.vi_number, invoiceDate: bill.invoice_date, context, t });
+      return <Checkbox className="max-[767px]:!size-11" checked={Boolean(selected[bill.invoice_id])} onChange={(checked) => toggle(bill, checked)} label={t('bupot.selectBill', 'Select bill {{bill}}', { bill: identity })} />;
+    } },
+    { key: 'bill', header: t('bupot.bill', 'Bill'), cell: (bill) => <VendorInvoiceIdentity
+      referenceNumber={bill.reference_number} viNumber={bill.vi_number} invoiceDate={bill.invoice_date}
+      context={billContexts[bill.invoice_id] ?? { state: 'pending' }} className="max-w-full"
+    /> },
     { key: 'withheld', header: t('bupot.withheld', 'Withheld'), align: 'num', cell: (bill) => <span className="tabular-nums">{formatCurrencyCents(Number(bill.withheld_amount), bill.currency)}</span> },
     { key: 'type', header: t('bupot.type', 'PPh type'), cell: (bill) => bill.withheld_pph_type ? (bill.withheld_pph_type === 'pph23' ? 'PPh 23' : 'PPh 4(2)') : <span className="flex items-center gap-2"><Checkbox className="max-[767px]:!size-11" disabled={!selected[bill.invoice_id]} checked={selected[bill.invoice_id]?.declared ?? false} onChange={(checked) => selected[bill.invoice_id] && setSelected((old) => ({ ...old, [bill.invoice_id]: { bill, declared: checked } }))} label={t('bupot.confirmUnknown', 'Confirm as {{type}} from issued slip', { type: pphType === 'pph23' ? 'PPh 23' : 'PPh 4(2)' })} /><span className="cursor-pointer" onClick={(event) => { if ((event.target as HTMLElement).closest('[role=checkbox]')) return; if (selected[bill.invoice_id]) setSelected((old) => ({ ...old, [bill.invoice_id]: { bill, declared: !old[bill.invoice_id].declared } })); }} onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && selected[bill.invoice_id]) { event.preventDefault(); setSelected((old) => ({ ...old, [bill.invoice_id]: { bill, declared: !old[bill.invoice_id].declared } })); } }} role="button" tabIndex={selected[bill.invoice_id] ? 0 : -1}>{selected[bill.invoice_id] ? t('bupot.confirmUnknown', 'Confirm as {{type}} from issued slip', { type: pphType === 'pph23' ? 'PPh 23' : 'PPh 4(2)' }) : t('bupot.selectFirst', 'Select this bill first.')}</span></span> },
   ];
@@ -107,7 +118,9 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
       <SelectField label={t('bupot.type', 'PPh type')} value={pphType} onChange={(value) => {
         const next = value as PphType; setPphType(next);
         setSelected((old) => Object.fromEntries(Object.entries(old).flatMap(([id, entry]) => entry.bill.withheld_pph_type && entry.bill.withheld_pph_type !== next ? [] : [[id, { ...entry, declared: entry.bill.withheld_pph_type === null ? false : entry.declared }]])));
-      }} options={[{ value: 'pph23', label: 'PPh 23' }, { value: 'pph4_2', label: 'PPh 4(2)' }]} />
+      }}
+        options={/* i18n-exempt: PPh category identifiers are statutory labels and stay language-invariant. */ [{ value: 'pph23', label: 'PPh 23' }, { value: 'pph4_2', label: 'PPh 4(2)' }]}
+      />
       <TextField label={`${t('bupot.taxBase', 'Tax base')} (${invoice.currency})`} value={base} onChange={setBase} onBlur={() => setBaseTouched(true)} error={baseTouched && !parsedBase ? t('bupot.invalidAmount', 'Enter a positive amount with at most two decimal places.') : undefined} inputMode="decimal" required />
       <TextField label={`${t('bupot.withheldAmount', 'Issued withheld amount')} (${invoice.currency})`} value={amount} onChange={setAmount} onBlur={() => setAmountTouched(true)} error={amountTouched && !entered ? t('bupot.invalidAmount', 'Enter a positive amount with at most two decimal places.') : amountTouched && parsedBase && entered && (parseDecimalCents(entered) ?? -1) > (parseDecimalCents(parsedBase) ?? -1) ? t('bupot.amountExceedsBase', 'Issued withholding cannot exceed the tax base.') : undefined} inputMode="decimal" required />
       {!canSubmit && (period > `${today().slice(0, 7)}-01` || !parseMonth(period)) && <FieldError>{t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.')}</FieldError>}

@@ -13,6 +13,7 @@ import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
  * to none — captured by the user, not auto-wired.
  */
 import React, { useState } from 'react';
+import type { TFunction } from 'i18next';
 import { Button, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
@@ -35,6 +36,8 @@ import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { vendorInvoiceIdentityAccessibleLabel, type VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
+import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 
 // ---------------------------------------------------------------------------
 // Record-type config
@@ -50,46 +53,16 @@ export type RecordKind =
   | 'goods_receipt'
   | 'vendor_invoice';
 
-interface StatusOption {
-  value: string;
-  label: string;
-}
-
-const STATUS_OPTIONS: Record<RecordKind, StatusOption[]> = {
-  purchase_request: [
-    { value: 'Draft', label: 'Draft' },
-    { value: 'Requested', label: 'Requested' },
-    { value: 'Approved', label: 'Approved' },
-    { value: 'Rejected', label: 'Rejected' },
-  ],
-  rfq: [
-    { value: 'Draft', label: 'Draft' },
-    { value: 'Sent', label: 'Sent' },
-    { value: 'Received', label: 'Received' },
-    { value: 'Closed', label: 'Closed' },
-  ],
-  purchase_order: [
-    { value: 'Draft', label: 'Draft' },
-    { value: 'Issued', label: 'Issued' },
-    { value: 'Acknowledged', label: 'Acknowledged' },
-    { value: 'Closed', label: 'Closed' },
-  ],
-  payment: [
-    { value: 'Pending', label: 'Pending' },
-    { value: 'Processed', label: 'Processed' },
-    { value: 'Cleared', label: 'Cleared' },
-  ],
+const STATUS_OPTIONS: Record<RecordKind, string[]> = {
+  purchase_request: ['Draft', 'Requested', 'Approved', 'Rejected'],
+  rfq: ['Draft', 'Sent', 'Received', 'Closed'],
+  purchase_order: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
+  payment: ['Pending', 'Processed', 'Cleared'],
   // GR: default Complete (the field-config below sorts Partial first then Complete,
   // but the DEFAULT-selected value is Complete to preserve the prior inline form).
-  goods_receipt: [
-    { value: 'Partial', label: 'Partial' },
-    { value: 'Complete', label: 'Complete' },
-  ],
+  goods_receipt: ['Partial', 'Complete'],
   // N1 (AC-W3-N1): Paid is NOT offered here — "Mark as Paid" is the sole PR→Paid authority.
-  vendor_invoice: [
-    { value: 'Received', label: 'Received' },
-    { value: 'Scheduled', label: 'Scheduled' },
-  ],
+  vendor_invoice: ['Received', 'Scheduled'],
 };
 
 // ---------------------------------------------------------------------------
@@ -140,6 +113,38 @@ const KIND_LABEL: Record<RecordKind, string> = {
   vendor_invoice: 'Vendor Invoice',
 };
 
+function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
+  switch (kind) {
+    case 'purchase_request': return t('procurementLedger.types.purchaseRequest', 'Purchase Request');
+    case 'rfq': return t('procurementLedger.types.rfq', 'RFQ');
+    case 'purchase_order': return t('procurementLedger.types.purchaseOrder', 'Purchase Order');
+    case 'payment': return t('procurementLedger.types.payment', 'Payment');
+    case 'goods_receipt': return t('procurementDetail.recordKinds.goodsReceipt', 'Goods Receipt');
+    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Vendor Invoice');
+  }
+}
+
+function statusOptionLabel(value: string, t: (key: string, fallback: string) => string): string {
+  switch (value) {
+    case 'Draft': return t('procurementDetail.statusOption.draft', 'Draft');
+    case 'Requested': return t('procurementDetail.statusOption.requested', 'Requested');
+    case 'Approved': return t('procurementDetail.statusOption.approved', 'Approved');
+    case 'Rejected': return t('procurementDetail.statusOption.rejected', 'Rejected');
+    case 'Sent': return t('procurementDetail.statusOption.sent', 'Sent');
+    case 'Received': return t('procurementDetail.statusOption.received', 'Received');
+    case 'Closed': return t('procurementDetail.statusOption.closed', 'Closed');
+    case 'Issued': return t('procurementDetail.statusOption.issued', 'Issued');
+    case 'Acknowledged': return t('procurementDetail.statusOption.acknowledged', 'Acknowledged');
+    case 'Pending': return t('procurementDetail.statusOption.pending', 'Pending');
+    case 'Processed': return t('procurementDetail.statusOption.processed', 'Processed');
+    case 'Cleared': return t('procurementDetail.statusOption.cleared', 'Cleared');
+    case 'Partial': return t('procurementDetail.statusOption.partial', 'Partial');
+    case 'Complete': return t('procurementDetail.statusOption.complete', 'Complete');
+    case 'Scheduled': return t('procurementDetail.statusOption.scheduled', 'Scheduled');
+    default: return value;
+  }
+}
+
 function kindConfig(kind: RecordKind): KindConfig {
   if (kind === 'goods_receipt') {
     return {
@@ -183,10 +188,10 @@ function kindConfig(kind: RecordKind): KindConfig {
   }
   // The four generic ERP-canonical kinds — unchanged ids/labels.
   return {
-    defaultStatus: STATUS_OPTIONS[kind][0]?.value ?? '',
+    defaultStatus: STATUS_OPTIONS[kind][0] ?? '',
     refLabel: DEFAULT_REF_LABEL,
     refPlaceholder: DEFAULT_REF_PLACEHOLDER,
-    dateLabel: 'Date',
+    dateLabel: 'procurementDetail.dateLabel',
     showAmount: true,
     showInvoiceFk: kind === 'payment',
     saveLabel: `Save ${KIND_LABEL[kind]}`,
@@ -306,6 +311,8 @@ export interface RecordCaptureFormProps {
   busy?: boolean;
   /** Invoice rows for the Payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
+  /** Display-only case/project facts already loaded with the owning procurement. */
+  invoiceIdentityContext?: VendorInvoiceContext;
   /** Called when the form is dismissed (cancel). */
   onClose: () => void;
   /**
@@ -331,6 +338,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onCreate,
   busy = false,
   invoices = [],
+  invoiceIdentityContext,
   onClose,
   onStage,
   vendorId = null,
@@ -379,8 +387,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   // unmounts the form (`onClose`), so the next capture mints a fresh one.
   const intent = useCommandIntent();
 
-  const label = KIND_LABEL[kind];
-  const statusOptions = STATUS_OPTIONS[kind];
+  const label = localizedRecordKindLabel(kind, t);
+  const statusOptions = STATUS_OPTIONS[kind].map((value) => ({ value, label: statusOptionLabel(value, t) }));
   const formId = `record-capture-${kind}`;
   const isVendorInvoice = kind === 'vendor_invoice';
   // #505: the ONE predicate — null ⇒ incomplete tax facts ⇒ Save VI disabled AND submit refuses.
@@ -534,10 +542,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       data-testid={cfg.formTestId}
       onSubmit={(e) => void handleSubmit(e)}
       className="flex flex-col gap-3 rounded-md border border-border/60 bg-card p-3"
-      aria-label={`Capture ${label}`}
+      aria-label={t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
     >
       <p className="text-[12px] font-semibold text-muted-foreground">
-        Capture {label}
+        {t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
       </p>
 
       {/* Reference number — bounded at 64 chars (NFR-PR-SEC-003) */}
@@ -595,7 +603,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             htmlFor={`${formId}-date`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date') : cfg.dateLabel}
+            {kind === 'vendor_invoice'
+              ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')
+              : cfg.dateLabel === 'procurementDetail.dateLabel'
+                ? t('procurementDetail.dateLabel', 'Date')
+                : cfg.dateLabel}
           </label>
           <input
             id={`${formId}-date`}
@@ -733,7 +745,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         <div className="flex flex-col gap-1">
           <SelectField
             id={`${formId}-invoice`}
-            label={<>Links to invoice {!paymentBillRequired && <span className="font-normal">(optional)</span>}</>}
+            label={<>{t('procurementDetail.paymentLinksToInvoice', 'Links to invoice')} {!paymentBillRequired && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}</>}
             value={invoiceId}
             onChange={(next) => {
               setInvoiceId(next);
@@ -752,9 +764,31 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               }
             }}
             data-testid="payment-invoice-select"
-            placeholder="— none —"
-            options={invoices.map((inv) => ({ value: inv.id, label: inv.vi_number ?? inv.id }))}
+            placeholder={t('procurementDetail.noInvoiceSelected', '— none —')}
+            options={invoices.map((inv) => ({
+              value: inv.id,
+              label: vendorInvoiceIdentityAccessibleLabel({
+                t,
+                referenceNumber: inv.reference_number,
+                viNumber: inv.vi_number,
+                invoiceDate: inv.invoice_date,
+                context: invoiceIdentityContext ?? { state: 'unavailable' },
+              }),
+            }))}
           />
+          {invoiceId && (() => {
+            const selected = invoices.find((inv) => inv.id === invoiceId);
+            return selected ? (
+              <div data-testid="payment-selected-invoice-identity" className="mt-1 min-w-0 rounded-md border border-border/60 bg-muted/30 p-2">
+                <VendorInvoiceIdentity
+                  referenceNumber={selected.reference_number}
+                  viNumber={selected.vi_number}
+                  invoiceDate={selected.invoice_date}
+                  context={invoiceIdentityContext ?? { state: 'unavailable' }}
+                />
+              </div>
+            ) : null;
+          })()}
           <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
         </div>
       )}
@@ -809,10 +843,13 @@ export interface RecordCaptureTriggerProps {
 // `btn-create-gr` / `btn-create-vi` ids + "Record goods receipt" / "Record vendor
 // invoice" copy (the unit + e2e BDD layer keys off these); the four generic kinds
 // keep the `trigger-capture-${kind}` id + "Add <Kind>" copy.
-function triggerConfig(kind: RecordKind): { testId: string; label: string } {
-  if (kind === 'goods_receipt') return { testId: 'btn-create-gr', label: 'Record goods receipt' };
-  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: 'Record vendor invoice' };
-  return { testId: `trigger-capture-${kind}`, label: `Add ${KIND_LABEL[kind]}` };
+function triggerConfig(kind: RecordKind, t: TFunction): { testId: string; label: string } {
+  if (kind === 'goods_receipt') return { testId: 'btn-create-gr', label: t('procurementDetail.recordGoodsReceipt', 'Record goods receipt') };
+  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: t('procurementDetail.recordVendorInvoice', 'Record vendor invoice') };
+  return {
+    testId: `trigger-capture-${kind}`,
+    label: t('procurementDetail.addRecord', 'Add {{record}}', { record: localizedRecordKindLabel(kind, t) }),
+  };
 }
 
 export const RecordCaptureTrigger: React.FC<RecordCaptureTriggerProps> = ({
@@ -820,8 +857,9 @@ export const RecordCaptureTrigger: React.FC<RecordCaptureTriggerProps> = ({
   open,
   onOpen,
 }) => {
+  const { t } = useTranslation();
   if (open) return null;
-  const { testId, label } = triggerConfig(kind);
+  const { testId, label } = triggerConfig(kind, t);
   return (
     <button
       type="button"
