@@ -2305,6 +2305,16 @@ question is "which rate source, at what staleness, priced how" — an `OD-`, not
 
 ---
 
+## DD-FX-1 — JISDOR is stored for labelled display equivalents, not consolidated accounting (owner #1012, 2026-10-14)
+
+**Context.** DD-CUR-6 declined acquiring rates until an organization genuinely needed a home-currency view. The owner has now selected BI's manually uploaded USD/IDR JISDOR publications and ruled the date/source semantics.
+
+**Decision.** PMO stores org-scoped JISDOR history and shows an approximate rupiah equivalent **beside**, never instead of, the exact contract/invoice amount. Dated documents use the latest publication at or before their own date; open balances use the latest available publication as of the organization day. Missing rate/date and unsupported pair remain explicitly unavailable. Finance/Admin upload; Admin has the single-day correction UX. No automatic feed or accounting conversion is introduced.
+
+**Consequences.** Supersedes only DD-CUR-6's “PMO holds no exchange rates” and its blanket ban on **display-only equivalents**. Its exact per-currency procurement/revenue breakdown ruling remains in force. Stored original currencies/amounts, tax basis, exports, money transitions and margins remain unchanged. Changing a reference rate can change a labelled display approximation on a later read, never a document or ledger. Schema/API rationale is recorded in ADR-0085.
+
+---
+
 ## OD-XING-1 · OD-TAX-1 · OD-TASK-1 · OD-MTG-1..2 · OD-I18N-1 · OD-SEED-4 — the go-live owner batch (owner grill, 2026-08-21)
 
 Drained from the wayfinder owner frontier on [RIS goes live: first-client delivery route](https://github.com/ariefsaid/PMO/issues/450): #527 (nine rulings), #523 (the crossing), #518 (PPN), #499 (provisioning). Director calls made in the same session are `DD-` entries below.
