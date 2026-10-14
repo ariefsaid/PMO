@@ -335,7 +335,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         >
           P
         </span>
-        <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal</span>
+        <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
       </div>
 
       <nav

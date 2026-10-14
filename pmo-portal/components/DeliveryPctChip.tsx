@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface DeliveryPctChipProps {
   /** Delivery % for this project. null → renders nothing (project has no milestones). */
@@ -11,10 +12,11 @@ export interface DeliveryPctChipProps {
  * Accessible label: "Delivery {pct}%" so screen readers announce it correctly.
  */
 export const DeliveryPctChip: React.FC<DeliveryPctChipProps> = ({ pct }) => {
+  const { t } = useTranslation();
   if (pct == null) return null;
   const rounded = Math.round(pct);
   return (
-    <span aria-label={`Delivery ${rounded}%`} className="inline-flex items-center gap-2">
+    <span aria-label={t('dashboard.delivery.percent', 'Delivery {{rounded}}%', { rounded })} className="inline-flex items-center gap-2">
       <span className="h-1.5 w-12 overflow-hidden rounded-full bg-secondary">
         <span className="block h-full rounded-full bg-primary" style={{ width: `${rounded}%` }} />
       </span>

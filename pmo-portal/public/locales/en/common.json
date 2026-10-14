@@ -1,4 +1,5 @@
 {
+  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
   "toast": {
     "dismiss": "Dismiss notification",
     "more": "+{{count}} more"
@@ -981,6 +982,31 @@
     }
   },
   "dashboard": {
+    "winRate": {
+      "title": "Win rate", "basisCount": "By count", "basisValue": "By value", "basis": "Win-rate basis", "periodAll": "All time", "periodYtd": "YTD", "periodQuarter": "Last quarter", "periodTrailing": "Trailing 12 mo", "period": "Time frame",
+      "errorTitle": "Couldn't load win rate", "errorSub": "Something went wrong. Try again.", "emptyTitle": "No closed projects in this window", "emptySub": "Try a wider time frame to see your win rate.",
+      "result": "{{wins}} won of {{total}} closed", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
+    },
+    "bva": { "group": "Budget vs actual by project", "atRisk": "At risk", "barLabel": "{{name}}: {{percent}}% of contract" },
+    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
+    "procurementStatus": { "draft": "Draft", "requested": "Requested", "approved": "Approved", "vendorQuoted": "Vendor Quoted", "ordered": "Ordered", "received": "Received", "vendorInvoiced": "Vendor Invoiced", "paid": "Paid", "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
+    "pm": {
+      "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
+      "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",
+      "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
+      "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
+      "bvaTitle": "Budget vs Actual — My Projects", "loadError": "Couldn't load your projects", "noProjects": "No projects assigned to you yet", "noProjectsSub": "Projects you manage will appear here.",
+      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet", "notSet": "Not set"
+    },
+    "delivery": { "percent": "Delivery {{rounded}}%" },
+    "engineer": {
+      "title": "My Dashboard", "subtitle": "Your hours this week and timesheet status.", "logHours": "Log this week's hours", "logHoursShort": "Log hours", "kpiBand": "My KPIs",
+      "hoursThisWeek": "Hours this week", "weeklyHoursCardTitle": "Hours This Week", "weekOf": "week of {{date}}", "openTimesheetsLog": "Open your timesheets to log this week's hours", "hoursHelp": "Total hours on your most recent timesheet.",
+      "timesheetStatus": "Timesheet status", "noneThisPeriod": "None this period", "openTimesheetsStatus": "Open your timesheets to see your current status", "statusHelp": "The status of your most recent timesheet.",
+      "loadError": "Couldn't load your timesheets", "recentError": "Couldn't load recent entries", "noHours": "No hours logged this week", "noHoursSub": "Log your hours to see your weekly breakdown.", "projectBreakdownSub": "Log your hours to see a project breakdown.",
+      "hoursByDay": "Hours this week by day", "dayHours": "{{day}}: {{hours}} hours", "byProject": "This week by project", "recentEntries": "Recent entries", "entriesEmptySub": "Hours you log will show up here.", "noNote": "No note", "unknownProject": "Unknown", "hoursShort": "{{hours}}h", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "hours",
+      "day": { "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat" }
+    },
     "approvals": {
       "label": "Approvals"
     },
@@ -1027,6 +1053,11 @@
       "title": "Couldn't load the dashboard"
     },
     "kpi": {
+      "awaitingApproval": {
+        "label": "Awaiting your approval", "helpWithTimesheets": "Purchase requests and timesheets waiting on your decision. Open the approvals inbox.", "helpProcurementOnly": "Purchase requests waiting on your decision. Open the approvals inbox.",
+        "unavailable": "unavailable — check connection", "zero": "nothing waiting", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
+        "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
+      },
       "activeProjects": {
         "help": "Projects currently in delivery.",
         "label": "Active projects",
@@ -1105,10 +1136,7 @@
       "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
       "mobile": "What needs your attention across the contracting book."
     },
-    "title": "Executive Dashboard",
-    "winRate": {
-      "declined": "{{n}} declined to bid — not counted in the win rate"
-    }
+    "title": "Executive Dashboard"
   },
   "decisionContext": {
     "amount": "Amount",

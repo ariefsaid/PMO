@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { PMDashboard } from './PMDashboard';
+import { BahasaProvider } from '@/test/bahasa';
 
 const mine = [
   { id: 'p1', name: 'My Project A', contract_value: 4_000_000, budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
@@ -46,7 +47,11 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));
 
-const renderPane = () => render(<MemoryRouter><PMDashboard /></MemoryRouter>);
+const renderPane = (locale: 'en' | 'id' = 'en') => render(
+  <BahasaProvider locale={locale}>
+    <MemoryRouter><PMDashboard /></MemoryRouter>
+  </BahasaProvider>,
+);
 
 beforeEach(() => {
   projState.data = [...mine, other];
@@ -55,6 +60,41 @@ beforeEach(() => {
 });
 
 describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
+  it('AC-UXA-001: localizes PM copy and project statuses without changing values or destinations', () => {
+    renderPane('id');
+    expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
+    expect(screen.getByText('Proyek saya')).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'Bantuan: Proyek saya' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek yang ditetapkan kepada Anda sebagai manajer proyek.');
+    expect(screen.getByRole('link', { name: 'Buka proyek saya' })).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
+    expect(screen.getByText('Anggaran vs Realisasi — Proyek Saya')).toBeInTheDocument();
+    expect(screen.getByText('Status Proyek')).toBeInTheDocument();
+    expect(screen.getAllByText('Belum ditetapkan').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000');
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+    expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
+    expect(mine.find((project) => project.id === 'p2')?.status).toBe('Won, Pending KoM');
+
+    cleanup();
+    projState.data = undefined; projState.isPending = true; projState.isError = false;
+    renderPane('id');
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Memuat…').length).toBeGreaterThan(0);
+
+    cleanup();
+    projState.data = undefined; projState.isPending = false; projState.isError = true;
+    renderPane('id');
+    expect(screen.getAllByText('Gagal memuat proyek Anda').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Coba lagi' }).length).toBeGreaterThan(0);
+
+    cleanup();
+    projState.data = [other]; projState.isPending = false; projState.isError = false;
+    renderPane('id');
+    expect(screen.getByText('Belum ada proyek yang ditetapkan kepada Anda')).toBeInTheDocument();
+    expect(screen.getByText('Proyek yang Anda kelola akan muncul di sini.')).toBeInTheDocument();
+  });
   it('counts only my projects (5 of 6)', () => {
     renderPane();
     expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('5');
