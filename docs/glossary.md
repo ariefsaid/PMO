@@ -20,6 +20,7 @@ is self-evident. A project's overall delivery progress is the weight-weighted ro
 milestones' effective percent.
 ⚠ Deliberate deviation from strict PM vocabulary: here a milestone is a *work chunk that
 progresses*, not a zero-duration checkpoint event.
+**Shown to users as "Phase" / "Fase"** (DD-VOCAB-1); "milestone" stays the model, code and spec term.
 
 **Task** — the smallest unit of tracked work. Belongs to a project; may optionally be grouped
 under exactly one milestone. The delivery hierarchy is two levels only: milestone → tasks

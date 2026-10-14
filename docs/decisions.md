@@ -3150,3 +3150,12 @@ keyboard-reachable dismiss control. The provider keeps one polite `role="status"
 assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
 creating the live region and populated text together is not reliable for screen-reader announcements.
 Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.
+
+## DD-VOCAB-1 — users see "Phase", the model keeps "milestone" (Director, 2026-10-14, UXS-034)
+
+The delivery work-chunk is shown to users as **Phase** (en) / **Fase** (id) everywhere; `project_milestones`,
+`milestone_id`, code and specs keep "milestone" internally. Why: most screens already said "phase"
+(planner, empty states, slice 3), and in contracting "milestone" reads as a *payment* milestone — the very
+thing OD-BILL-1 rejected (billing is by work order, not tracker milestones). One visible noun removes that
+ambiguity. `docs/glossary.md` carries the same note. Owner may override.
+
