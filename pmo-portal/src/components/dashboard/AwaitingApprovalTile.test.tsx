@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 
@@ -58,29 +58,29 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
   it('PM combined count = approvable PRs (not-self, Requested) + timesheets', () => {
     renderTile(true);
     // 2 approvable PRs + 3 timesheets = 5
-    const link = screen.getByRole('link');
-    expect(link).toHaveTextContent('5');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent('5');
   });
 
   it('Finance count = PRs only (no timesheet approval)', () => {
     roleState.realRole = 'Finance';
     renderTile(false);
     // 2 approvable PRs, timesheets NOT added
-    expect(screen.getByRole('link')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-awaiting-approval')).toHaveTextContent('2');
   });
 
   it('excludes my own request from the PR count (SoD)', () => {
     tsState.data = [];
     renderTile(false);
     // 2 (pr1, pr2) — pr3 is mine, pr4 is not Requested
-    expect(screen.getByRole('link')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-awaiting-approval')).toHaveTextContent('2');
   });
 
   it('routes to /approvals as a single link and surfaces a visible Review CTA', () => {
     renderTile(true);
-    const link = screen.getByRole('link');
-    expect(link).toHaveAttribute('href', '/approvals');
-    expect(link).toHaveTextContent(/Review/i);
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
+    expect(tile).toHaveTextContent(/Review/i);
   });
 
   it('a non-approver role (Engineer) contributes zero PRs even if rows exist', () => {
@@ -88,25 +88,25 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
     tsState.data = [];
     renderTile(false);
     // Engineer cannot transition procurement → 0
-    expect(screen.getByRole('link')).toHaveTextContent('0');
+    expect(screen.getByTestId('kpi-awaiting-approval')).toHaveTextContent('0');
   });
 
   it('zero-state shows 0 and "nothing waiting"', () => {
     procState.data = [];
     tsState.data = [];
     renderTile(true);
-    const link = screen.getByRole('link');
-    expect(link).toHaveTextContent('0');
-    expect(link).toHaveTextContent(/nothing waiting/i);
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent('0');
+    expect(tile).toHaveTextContent(/nothing waiting/i);
   });
 
   it('pluralizes correctly: 1 item (singular), not 1 items', () => {
     procState.data = [{ id: 'pr1', status: 'Requested', requested_by_id: 'other-1' }];
     tsState.data = [];
     renderTile(false);
-    const link = screen.getByRole('link');
-    expect(link).toHaveTextContent(/1 item\b/);
-    expect(link.textContent).not.toMatch(/1 items/);
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent(/1 item\b/);
+    expect(tile.textContent).not.toMatch(/1 items/);
   });
 
   it('loading shows the KPI skeleton', () => {
@@ -122,28 +122,28 @@ describe('AC-B-0-5: AwaitingApprovalTile surfaces error tone on query failure', 
     procState.isError = true;
     procState.data = undefined;
     renderTile(false);
-    const link = screen.getByRole('link');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
     // Must show "—" (em dash), NOT the false-zero "0"
-    expect(link).toHaveTextContent('—');
-    expect(link.textContent).not.toMatch(/\b0\b/);
+    expect(tile).toHaveTextContent('—');
+    expect(tile.textContent).not.toMatch(/\b0\b/);
   });
 
   it('AC-B-0-5: procurement error → "unavailable" sub-text (not "nothing waiting")', () => {
     procState.isError = true;
     procState.data = undefined;
     renderTile(false);
-    const link = screen.getByRole('link');
-    expect(link).toHaveTextContent(/unavailable/i);
-    expect(link.textContent).not.toMatch(/nothing waiting/i);
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent(/unavailable/i);
+    expect(tile.textContent).not.toMatch(/nothing waiting/i);
   });
 
   it('AC-B-0-5: timesheet error (includeTimesheets=true) → shows "—" value', () => {
     tsState.isError = true;
     tsState.data = undefined;
     renderTile(true);
-    const link = screen.getByRole('link');
-    expect(link).toHaveTextContent('—');
-    expect(link.textContent).not.toMatch(/\b0\b/);
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent('—');
+    expect(tile.textContent).not.toMatch(/\b0\b/);
   });
 
   it('AC-B-0-5: no error when only timesheets error but includeTimesheets=false', () => {
@@ -152,8 +152,8 @@ describe('AC-B-0-5: AwaitingApprovalTile surfaces error tone on query failure', 
     // Finance role: includeTimesheets=false — timesheet error is irrelevant
     roleState.realRole = 'Finance';
     renderTile(false);
-    const link = screen.getByRole('link');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
     // Should show the procCount (2) not error dash
-    expect(link).toHaveTextContent('2');
+    expect(tile).toHaveTextContent('2');
   });
 });

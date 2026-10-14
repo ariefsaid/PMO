@@ -52,10 +52,8 @@ export interface KPITileProps<L extends string = string> {
   /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
   dual?: KPIDualLens<L>;
   /**
-   * When set, the ENTIRE tile becomes a single router `<Link>` to this route — a
-   * shortcut tile (Wave-5 N15). The tile keeps every visual token; only the root
-   * element + the help affordance change (a11y: ONE interactive, no nested button
-   * inside a link). Reuses this component rather than forking the tile markup.
+   * When set, the tile has a full-surface router `<Link>` doorway (Wave-5 N15).
+   * Help remains an independent button above the link, never nested in the anchor.
    */
   to?: string;
   /** Accessible name for the link variant (e.g. "Awaiting your approval: 3 items"). */
@@ -114,79 +112,64 @@ export function KPITile<L extends string = string>({
         <Icon name={icon} />
       </span>
       <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
-      {help &&
-        (isLink ? (
-          // In the link variant the help glyph is decorative-only (tabIndex=-1,
-          // aria-hidden) so the tile stays a SINGLE focusable control — never a
-          // <button> nested inside an <a>. The tooltip still shows on hover.
-          <Tooltip content={help} title={helpLabel}>
-            <span
-              tabIndex={-1}
-              aria-hidden="true"
-              className="ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 [&_svg]:size-3.5"
-            >
-              <Icon name="help" />
-            </span>
-          </Tooltip>
-        ) : (
-          <Tooltip content={help} title={helpLabel}>
-            <button
-              type="button"
-              aria-label={helpLabel ? `${helpLabel}: ${label}` : t('dashboard.kpi.helpLabel', 'Help: {{label}}', { label })}
-              className="touch-target ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
-            >
-              <Icon name="help" />
-            </button>
-          </Tooltip>
-        ))}
+      {help && (
+        <Tooltip content={help} title={helpLabel}>
+          <button
+            type="button"
+            aria-label={helpLabel ? `${helpLabel}: ${label}` : t('dashboard.kpi.helpLabel', 'Help: {{label}}', { label })}
+            className="touch-target pointer-events-auto relative z-10 ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
+          >
+            <Icon name="help" />
+          </button>
+        </Tooltip>
+      )}
     </div>
   );
 
-  // Link variant: the entire tile is one <Link>. Routing tiles never host a
-  // dual-lens toggle (a tile is either a shortcut or an interactive lens, never both).
+  // Linked tiles retain one full-surface navigation target. Presentation sits
+  // outside the link so the help button is an independent, accessible control.
   if (isLink) {
     return (
-      <Link
-        to={to}
-        data-testid={testId}
-        aria-label={linkLabel ?? label}
-        className={cn(
-          rootClass,
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-        )}
-      >
-        {head}
-        {loading ? (
-          <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
-        ) : error ? (
-          <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
-            —
-          </span>
-        ) : (
-          <div
-            className={cn(
-              'text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
-              negative && 'text-destructive'
-            )}
-          >
-            {value}
-          </div>
-        )}
-        {(vs || ctaLabel) && (
-          <div className="flex items-center gap-2 text-[12px]">
-            {vs && <span className="text-muted-foreground">{vs}</span>}
-            {ctaLabel && (
-              <span
-                aria-hidden="true"
-                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-[13px] font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
-              >
-                {ctaLabel}
-                <Icon name="chev" />
-              </span>
-            )}
-          </div>
-        )}
-      </Link>
+      <div data-testid={testId} className={rootClass}>
+        <Link
+          to={to}
+          aria-label={linkLabel ?? label}
+          className="absolute inset-0 z-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        />
+        <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
+          {head}
+          {loading ? (
+            <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
+          ) : error ? (
+            <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
+              —
+            </span>
+          ) : (
+            <div
+              className={cn(
+                'text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+                negative && 'text-destructive'
+              )}
+            >
+              {value}
+            </div>
+          )}
+          {(vs || ctaLabel) && (
+            <div className="flex items-center gap-2 text-[12px]">
+              {vs && <span className="text-muted-foreground">{vs}</span>}
+              {ctaLabel && (
+                <span
+                  aria-hidden="true"
+                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-[13px] font-semibold text-primary-foreground shadow-[0_1px_2px_hsl(var(--primary)/0.25)]"
+                >
+                  {ctaLabel}
+                  <Icon name="chev" />
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
