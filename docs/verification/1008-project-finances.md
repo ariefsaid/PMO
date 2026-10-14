@@ -148,6 +148,33 @@ asserts `invertProjectMap` outputs. Tests importing modules with an explicit `.t
 same module imported extensionless attributes correctly (policy.ts 2/2) — a vitest v4 sourcemap
 quirk, recorded here so the false LOW rows are not mistaken for missing tests.
 
+## Task 47 — mutation proof of the assign RPC role check (AC-PFIN-007)
+
+Mutating ONLY the marked predicate (`-- PFIN_ASSIGN_ROLE_CHECK: …` → `if false then`, backup held at
+`/tmp/1008-project-finances-role-check.sql`, never committed) and re-running
+`supabase db reset && supabase test db 0287_assign_invoice_project.test.sql` produced the required
+role-assertion failures (not a reset/parser error):
+
+```
+# Failed test 11: "AC-PFIN-007 Executive cannot assign an invoice project"  — caught: no exception, wanted: 42501
+# Failed test 12: "AC-PFIN-007 Project Manager cannot assign an invoice project" — caught: no exception, wanted: 42501
+# Failed test 13: "AC-PFIN-007 Engineer cannot assign an invoice project" — caught: no exception, wanted: 42501
+# Failed test 26: "AC-PFIN-006 repeated assignment is a no-op" (row mutated by the now-open gate)
+# Failed test 27: "AC-PFIN-008 two actual project changes create exactly two history events" (4 vs 2)
+Result: FAIL  (5 of 32 failed)
+```
+
+After restoring the migration from the backup (backup unlinked, `git diff --check` clean, mutant
+absent from the tree), the same file is green:
+
+```
+Files=1, Tests=32, Result: PASS
+```
+
+The suite binds to the shipped role predicate: breaking it turns the Executive/PM/Engineer denial
+assertions red, and only their knock-on effects red alongside.
+
 Also run in the final targeted pgTAP set per the plan: `0278_invoice_change_history.test.sql` and
 `record_changes_catalog_gate.test.sql` (invoice history + record-history inventory).
+
 
