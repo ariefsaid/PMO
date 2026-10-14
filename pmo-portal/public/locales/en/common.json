@@ -2260,49 +2260,52 @@
       "vatStaleSave": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled."
     },
     "milestoneForm": {
-      "create": "Create milestone",
+      "create": "Create phase",
       "detailsLegend": "Details",
-      "editSubtitle": "Update this milestone",
-      "editTitle": "Edit milestone",
+      "editSubtitle": "Update this phase",
+      "editTitle": "Edit phase",
       "errors": {
-        "nameRequired": "Milestone name is required",
+        "nameRequired": "Phase name is required",
         "progressRange": "Progress must be between 0 and 100",
-        "weight": "Weight must be 0 or greater"
+        "weight": "Relative weight must be 0 or greater"
       },
-      "inputPct": "PM input % (optional)",
-      "inputPctPlaceholder": "Leave blank to use calculated",
-      "name": "Milestone name",
+      "inputPct": "Progress override (optional)",
+      "inputPctPlaceholder": "Leave blank to use linked-task progress",
+      "name": "Phase name",
       "namePlaceholder": "e.g. Engineering design",
-      "newSubtitle": "Add a delivery milestone to this project",
-      "newTitle": "New milestone",
-      "save": "Save milestone",
-      "sortOrder": "Sort order",
+      "newSubtitle": "Add a delivery phase to this project",
+      "newTitle": "New phase",
+      "save": "Save phase",
+      "sortOrder": "Position",
+      "sortOrderHelper": "Sets this phase’s order.",
       "targetDate": "Target date",
-      "weight": "Weight"
+      "weight": "Relative weight",
+      "weightHelper": "Sets this phase’s share of project progress.",
+      "progressHelper": "Leave blank to use linked-task progress. A typed value overrides it."
     },
     "milestones": {
       "addFirstPhase": "Add the first phase",
-      "addMilestone": "Add milestone",
+      "addMilestone": "Add phase",
       "cancel": "Cancel",
       "current": "Current",
       "deleteConfirm": {
-        "body": "Tasks under this milestone become ungrouped; they are not deleted.",
-        "confirm": "Delete milestone",
+        "body": "Tasks under this phase become ungrouped; they are not deleted.",
+        "confirm": "Delete phase",
         "title": "Delete \"{{name}}\"?",
-        "titleFallback": "Delete milestone?"
+        "titleFallback": "Delete phase?"
       },
-      "deleteMilestone": "Delete milestone",
+      "deleteMilestone": "Delete phase",
       "edit": "Edit",
-      "editInputPct": "Edit PM input %",
-      "editMilestone": "Edit milestone",
+      "editInputPct": "Edit progress override",
+      "editMilestone": "Edit phase",
       "editProgress": "Edit progress",
       "editProgressForName": "Edit progress for {{name}}",
       "emptyReadOnly": "No delivery phases yet",
-      "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted milestones.",
+      "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted phases.",
       "emptyTitle": "Plan this project's delivery phases",
       "errorSub": "The request failed. Check your connection and try again.",
-      "errorTitle": "Couldn't load milestones",
-      "fallbackName": "Milestone",
+      "errorTitle": "Couldn't load phases",
+      "fallbackName": "Phase",
       "heading": "Delivery phases",
       "moreActionsFor": "More actions for",
       "currentPhase": "Current: {{name}}",
@@ -2316,10 +2319,10 @@
       "save": "Save",
       "targetDate": "Target",
       "toast": {
-        "created": "Milestone created",
-        "deleted": "Milestone deleted",
+        "created": "Phase created",
+        "deleted": "Phase deleted",
         "progressUpdated": "Progress updated",
-        "updated": "Milestone updated"
+        "updated": "Phase updated"
       },
       "viewBlockingTasks": "View blocking tasks",
       "weightShare": "{{pct}}% of project"
@@ -2939,6 +2942,11 @@
       "calendar": "Calendar",
       "cards": "Cards",
       "table": "Table"
+    },
+    "calendar": {
+      "phaseEventLabel": "{{project}} · {{phase}}",
+      "phaseEventAriaLabel": "{{project}} — Phase: {{phase}}",
+      "noEventsSub": "No project or phase target dates fall in this month."
     },
     "unnamedUser": "Unnamed user",
     "export": "Export",

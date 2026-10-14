@@ -28,11 +28,11 @@ const validate = (
 ): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.name.trim()) {
-    errors.name = t('projectDetail.milestoneForm.errors.nameRequired', 'Milestone name is required');
+    errors.name = t('projectDetail.milestoneForm.errors.nameRequired', 'Phase name is required');
   }
   const w = v.weight.trim() !== '' ? Number(v.weight) : 1;
   if (isNaN(w) || w < 0) {
-    errors.weight = t('projectDetail.milestoneForm.errors.weight', 'Weight must be 0 or greater');
+    errors.weight = t('projectDetail.milestoneForm.errors.weight', 'Relative weight must be 0 or greater');
   }
   if (v.input_pct.trim() !== '') {
     const p = Number(v.input_pct);
@@ -141,21 +141,21 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
       open
       title={
         isEdit
-          ? t('projectDetail.milestoneForm.editTitle', 'Edit milestone')
-          : t('projectDetail.milestoneForm.newTitle', 'New milestone')
+          ? t('projectDetail.milestoneForm.editTitle', 'Edit phase')
+          : t('projectDetail.milestoneForm.newTitle', 'New phase')
       }
       subtitle={
         isEdit
-          ? t('projectDetail.milestoneForm.editSubtitle', 'Update this milestone')
+          ? t('projectDetail.milestoneForm.editSubtitle', 'Update this phase')
           : t(
               'projectDetail.milestoneForm.newSubtitle',
-              'Add a delivery milestone to this project',
+              'Add a delivery phase to this project',
             )
       }
       submitLabel={
         isEdit
-          ? t('projectDetail.milestoneForm.save', 'Save milestone')
-          : t('projectDetail.milestoneForm.create', 'Create milestone')
+          ? t('projectDetail.milestoneForm.save', 'Save phase')
+          : t('projectDetail.milestoneForm.create', 'Create phase')
       }
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -169,7 +169,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
         <FormGrid>
           <TextField
             id={nameField.id}
-            label={t('projectDetail.milestoneForm.name', 'Milestone name')}
+            label={t('projectDetail.milestoneForm.name', 'Phase name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
@@ -188,36 +188,53 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
           />
           <TextField
             id={sortField.id}
-            label={t('projectDetail.milestoneForm.sortOrder', 'Sort order')}
+            label={t('projectDetail.milestoneForm.sortOrder', 'Position')}
             type="number"
             value={sortField.value}
             onChange={sortField.onChange}
             onBlur={sortField.onBlur}
             error={sortField.error}
+            helper={t('projectDetail.milestoneForm.sortOrderHelper', 'Sets this phase’s order.')}
           />
           <TextField
             id={weightField.id}
-            label={t('projectDetail.milestoneForm.weight', 'Weight')}
+            label={t('projectDetail.milestoneForm.weight', 'Relative weight')}
             type="number"
             value={weightField.value}
             onChange={weightField.onChange}
             onBlur={weightField.onBlur}
             error={weightField.error}
+            helper={t(
+              'projectDetail.milestoneForm.weightHelper',
+              'Sets this phase’s share of project progress.',
+            )}
           />
           {isEdit && (
             <TextField
               id={pctField.id}
-              label={t('projectDetail.milestoneForm.inputPct', 'PM input % (optional)')}
+              label={t('projectDetail.milestoneForm.inputPct', 'Progress override (optional)')}
               type="number"
               value={pctField.value}
               onChange={pctField.onChange}
               onBlur={pctField.onBlur}
               error={pctField.error}
+              helper={t(
+                'projectDetail.milestoneForm.progressHelper',
+                'Leave blank to use linked-task progress. A typed value overrides it.',
+              )}
               placeholder={t(
                 'projectDetail.milestoneForm.inputPctPlaceholder',
-                'Leave blank to use calculated',
+                'Leave blank to use linked-task progress',
               )}
             />
+          )}
+          {!isEdit && (
+            <p className="col-span-full text-[12px] text-muted-foreground">
+              {t(
+                'projectDetail.milestoneForm.progressHelper',
+                'Leave blank to use linked-task progress. A typed value overrides it.',
+              )}
+            </p>
           )}
         </FormGrid>
       </FormSection>
