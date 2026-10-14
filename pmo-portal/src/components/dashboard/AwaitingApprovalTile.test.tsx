@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ── Mocked data sources ──────────────────────────────────────────────────────
 const procState: { data: unknown[] | undefined; isPending: boolean; isError: boolean } = {
@@ -29,11 +30,13 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: roleState.realRole }),
 }));
 
-const renderTile = (includeTimesheets: boolean) =>
+const renderTile = (includeTimesheets: boolean, locale: 'en' | 'id' = 'en', label?: string) =>
   render(
-    <MemoryRouter>
-      <AwaitingApprovalTile includeTimesheets={includeTimesheets} />
-    </MemoryRouter>,
+    <BahasaProvider locale={locale}>
+      <MemoryRouter>
+        <AwaitingApprovalTile includeTimesheets={includeTimesheets} label={label} />
+      </MemoryRouter>
+    </BahasaProvider>,
   );
 
 // Three Requested PRs: one raised by me (SoD-excluded), two by others.
@@ -55,6 +58,76 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () => {
+  it('AC-UXA-004: localizes both approval modes across loading, error, zero/one/many and label override states', () => {
+    for (const includeTimesheets of [false, true]) {
+      cleanup();
+      procState.data = []; procState.isPending = true; procState.isError = false;
+      tsState.data = []; tsState.isPending = false; tsState.isError = false;
+      renderTile(includeTimesheets, 'id');
+      expect(screen.getByTestId('kpi-skeleton')).toBeInTheDocument();
+
+      cleanup();
+      procState.data = undefined; procState.isPending = false; procState.isError = true;
+      renderTile(includeTimesheets, 'id');
+      let tile = screen.getByTestId('kpi-awaiting-approval');
+      expect(tile).toHaveTextContent('—');
+      expect(tile.textContent).not.toMatch(/\b0\b/);
+      expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: tidak tersedia' })).toHaveAttribute('href', '/approvals');
+      expect(tile).toHaveTextContent('Tinjau');
+
+      cleanup();
+      procState.data = []; procState.isPending = false; procState.isError = false;
+      tsState.data = []; tsState.isError = false;
+      renderTile(includeTimesheets, 'id');
+      tile = screen.getByTestId('kpi-awaiting-approval');
+      expect(tile).toHaveTextContent('Tidak ada yang menunggu');
+      expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: 0 item menunggu' })).toHaveAttribute('href', '/approvals');
+      fireEvent.focus(within(tile).getByRole('button', { name: 'Bantuan: Menunggu persetujuan Anda' }));
+      expect(screen.getByRole('tooltip')).toHaveTextContent(includeTimesheets
+        ? 'Permintaan pengadaan dan timesheet menunggu keputusan Anda. Buka kotak masuk persetujuan.'
+        : 'Permintaan pengadaan menunggu keputusan Anda. Buka kotak masuk persetujuan.');
+
+      cleanup();
+      procState.data = [{ id: 'one', status: 'Requested', requested_by_id: 'other' }];
+      tsState.data = [];
+      renderTile(includeTimesheets, 'id');
+      tile = screen.getByTestId('kpi-awaiting-approval');
+      expect(tile).toHaveTextContent('1 item menunggu');
+      expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: 1 item menunggu' })).toHaveAttribute('href', '/approvals');
+
+      cleanup();
+      procState.data = procRows.filter((row) => row.requested_by_id !== 'me');
+      tsState.data = [{ id: 't1' }, { id: 't2' }];
+      renderTile(includeTimesheets, 'id');
+      tile = screen.getByTestId('kpi-awaiting-approval');
+      const total = includeTimesheets ? '4' : '2';
+      expect(tile).toHaveTextContent(total);
+      expect(within(tile).getByRole('link', { name: `Menunggu persetujuan Anda: ${total} item menunggu` })).toHaveAttribute('href', '/approvals');
+      expect(tile).toHaveTextContent('Tinjau');
+
+      cleanup();
+      procState.data = procRows; procState.isPending = false; procState.isError = false;
+      tsState.data = undefined; tsState.isError = true;
+      renderTile(includeTimesheets, 'id');
+      tile = screen.getByTestId('kpi-awaiting-approval');
+      if (includeTimesheets) {
+        expect(tile).toHaveTextContent('—');
+        expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: tidak tersedia' })).toHaveAttribute('href', '/approvals');
+      } else {
+        expect(tile).toHaveTextContent('2');
+        expect(tile.textContent).not.toContain('tidak tersedia');
+      }
+    }
+
+    cleanup();
+    procState.data = [{ id: 'one', status: 'Requested', requested_by_id: 'other' }];
+    procState.isPending = false; procState.isError = false;
+    tsState.data = [{ id: 't1' }, { id: 't2' }]; tsState.isError = false;
+    renderTile(true, 'id', 'Persetujuan khusus');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(tile).toHaveTextContent('Persetujuan khusus');
+    expect(within(tile).getByRole('link', { name: 'Persetujuan khusus: 3 item menunggu' })).toHaveAttribute('href', '/approvals');
+  });
   it('PM combined count = approvable PRs (not-self, Requested) + timesheets', () => {
     renderTile(true);
     // 2 approvable PRs + 3 timesheets = 5

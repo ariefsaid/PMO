@@ -68,6 +68,14 @@ const ExecutiveDashboard: React.FC = () => {
     [data?.procurements_by_status],
   );
 
+  const procurementStatusLabels: Record<string, string> = {
+    Draft: t('dashboard.procurementStatus.draft', 'Draft'),
+    Requested: t('dashboard.procurementStatus.requested', 'Requested'),
+    'Vendor Quoted': t('dashboard.procurementStatus.vendorQuoted', 'Vendor Quoted'),
+    Ordered: t('dashboard.procurementStatus.ordered', 'Ordered'),
+    Paid: t('dashboard.procurementStatus.paid', 'Paid'),
+  };
+
   const renderExecutiveView = () => {
     if (isPending) {
       return (
@@ -154,6 +162,7 @@ const ExecutiveDashboard: React.FC = () => {
                   label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
                   noun={t('dashboard.chart.procStatus.noun', 'requests')}
                   hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`}
+                  labelFor={(status) => procurementStatusLabels[status] ?? status}
                 />
               )}
             </div>

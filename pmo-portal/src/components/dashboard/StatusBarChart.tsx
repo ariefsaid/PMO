@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -29,6 +30,8 @@ export interface StatusBarChartProps<S extends string> {
    * no behavior change for other callers (AC-JR-W1-10).
    */
   hrefFor?: (status: S) => string;
+  /** Display-only status label; data identity and hrefs continue to use the raw enum. */
+  labelFor?: (status: S) => string;
   /**
    * Item 4 (F2, review-remediation): opt-in for a very narrow CONTAINER
    * (independent of viewport width — e.g. the ~365px agent panel, which
@@ -57,8 +60,10 @@ export function StatusBarChart<S extends string>({
   noun,
   height = 260,
   hrefFor,
+  labelFor,
   compactYAxis,
 }: StatusBarChartProps<S>) {
+  const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
 
@@ -71,7 +76,10 @@ export function StatusBarChart<S extends string>({
     return { total: sum, topStatus: top?.status ?? '—' };
   }, [data]);
 
-  const summary = `${label}, ${total} ${noun}, most in ${topStatus}.`;
+  const displayStatus = labelFor?.(topStatus as S) ?? topStatus;
+  const summary = labelFor
+    ? t('dashboard.procurementStatus.summary', '{{label}}, {{total}} {{noun}}, most in {{status}}.', { label, total, noun, status: displayStatus })
+    : `${label}, ${total} ${noun}, most in ${topStatus}.`;
 
   return (
     <figure className="m-0">
@@ -85,6 +93,7 @@ export function StatusBarChart<S extends string>({
               keeps the original rotated-label config unchanged. */}
           <XAxis
             dataKey="status"
+            tickFormatter={(status: S) => labelFor?.(status) ?? status}
             tickLine={false}
             axisLine={{ stroke: chartTheme.grid }}
             interval={0}
@@ -107,6 +116,7 @@ export function StatusBarChart<S extends string>({
             domain={compactYAxis ? [0, 'dataMax'] : undefined}
           />
           <Tooltip
+            labelFormatter={(status) => labelFor?.(status as S) ?? status}
             contentStyle={tooltipContentStyle}
             labelStyle={tooltipLabelStyle}
             cursor={tooltipCursorFill}
@@ -132,7 +142,7 @@ export function StatusBarChart<S extends string>({
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ background: toneFor(d.status) }}
               />
-              {d.status}
+              {labelFor?.(d.status) ?? d.status}
               <span className="tabular font-semibold text-foreground">{d.count}</span>
             </>
           );

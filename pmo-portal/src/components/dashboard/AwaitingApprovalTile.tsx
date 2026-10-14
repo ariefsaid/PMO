@@ -18,6 +18,7 @@
  * (the PR-2 reviewer flagged the fork as drift-risk). Strictly DESIGN.md tokens.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
@@ -36,9 +37,11 @@ export interface AwaitingApprovalTileProps {
 
 export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   includeTimesheets,
-  label = 'Awaiting your approval',
+  label,
   testId = 'kpi-awaiting-approval',
 }) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('dashboard.kpi.awaitingApproval.label', 'Awaiting your approval');
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
   const selfId = currentUser?.id;
@@ -63,28 +66,36 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const total = procCount + tsCount;
 
   const help = includeTimesheets
-    ? 'Purchase requests and timesheets waiting on your decision. Open the approvals inbox.'
-    : 'Purchase requests waiting on your decision. Open the approvals inbox.';
+    ? t('dashboard.kpi.awaitingApproval.helpWithTimesheets', 'Purchase requests and timesheets waiting on your decision. Open the approvals inbox.')
+    : t('dashboard.kpi.awaitingApproval.helpProcurementOnly', 'Purchase requests waiting on your decision. Open the approvals inbox.');
 
   const vs = hasError
-    ? 'unavailable — check connection'
+    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable — check connection')
     : total === 0
-      ? 'nothing waiting'
-      : `${total === 1 ? '1 item' : `${total} items`} waiting`;
+      ? t('dashboard.kpi.awaitingApproval.zero', 'nothing waiting')
+      : total === 1
+        ? t('dashboard.kpi.awaitingApproval.one', '{{count}} item waiting', { count: total })
+        : t('dashboard.kpi.awaitingApproval.many', '{{count}} items waiting', { count: total });
+
+  const linkLabel = hasError
+    ? t('dashboard.kpi.awaitingApproval.linkUnavailable', '{{label}}: unavailable', { label: resolvedLabel })
+    : total === 1
+      ? t('dashboard.kpi.awaitingApproval.linkOne', '{{label}}: {{count}} item awaiting', { label: resolvedLabel, count: total })
+      : t('dashboard.kpi.awaitingApproval.linkMany', '{{label}}: {{count}} items awaiting', { label: resolvedLabel, count: total });
 
   return (
     <KPITile
       testId={testId}
       tone={hasError ? 'red' : 'amber'}
       icon="check"
-      label={label}
+      label={resolvedLabel}
       value={hasError ? '—' : String(total)}
       vs={vs}
       help={help}
       loading={loading}
       to="/approvals"
-      linkLabel={`${label}: ${hasError ? 'unavailable' : `${total} ${total === 1 ? 'item' : 'items'} awaiting`}`}
-      ctaLabel="Review"
+      linkLabel={linkLabel}
+      ctaLabel={t('dashboard.kpi.awaitingApproval.review', 'Review')}
     />
   );
 };

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
@@ -53,7 +54,7 @@ export const ListState: React.FC<ListStateProps> = ({
   icon = 'inbox',
   action,
   onRetry,
-  retryLabel = 'Retry',
+  retryLabel,
   rows = 5,
   className,
   testId,
@@ -61,6 +62,8 @@ export const ListState: React.FC<ListStateProps> = ({
   role,
   module,
 }) => {
+  const { t } = useTranslation();
+  const resolvedRetryLabel = retryLabel ?? t('ui.listState.retry', 'Retry');
   // empty_state_seen (2026-07-13 wiring plan) — fired once on mount, only for the
   // rendered "empty" variant, only when the caller opted in with all three ids. Must
   // run unconditionally (Rules of Hooks) ahead of the loading/error early returns below.
@@ -79,7 +82,7 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-live="polite"
         className={cn('p-4', className)}
       >
-        <span className="sr-only">Loading…</span>
+        <span className="sr-only">{t('ui.listState.loading', 'Loading…')}</span>
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="skel skel-line" style={{ width: `${90 - (i % 3) * 12}%` }} />
         ))}
@@ -109,7 +112,7 @@ export const ListState: React.FC<ListStateProps> = ({
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>
             <Icon name="refresh" />
-            {retryLabel}
+            {resolvedRetryLabel}
           </Button>
         )}
       </div>

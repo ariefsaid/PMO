@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
@@ -23,8 +24,10 @@ export interface BvACardProps {
  * committed aggregate is a deferred backend slice (plan Open Q1), so we render
  * the real Actual/Contract bar only — never a fabricated committed value.
  */
-export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => (
-  <div role="group" aria-label="Budget vs actual by project" className="flex flex-col">
+export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
+  const { t } = useTranslation();
+  return (
+  <div role="group" aria-label={t('dashboard.bva.group', 'Budget vs actual by project')} className="flex flex-col">
     {projects.map((p, i) => {
       const contract = p.contract_value || 0;
       const pct = contract > 0 ? Math.round((p.spent / contract) * 100) : 0;
@@ -51,7 +54,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => (
             >
               {p.name}
             </Link>
-            {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
+            {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
               {formatCurrency(p.spent, currency)} / {formatCurrency(contract, currency)}
             </span>
@@ -66,10 +69,11 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => (
             value={pct}
             widthless
             className="w-full [&>span:first-child]:flex-1"
-            aria-label={`${p.name}: ${pct}% of contract`}
+            aria-label={t('dashboard.bva.barLabel', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
           />
         </div>
       );
     })}
   </div>
-);
+  );
+};

@@ -3159,3 +3159,11 @@ The delivery work-chunk is shown to users as **Phase** (en) / **Fase** (id) ever
 thing OD-BILL-1 rejected (billing is by work order, not tracker milestones). One visible noun removes that
 ambiguity. `docs/glossary.md` carries the same note. Owner may override.
 
+### A1 — Bahasa dashboard localization retention (implementation contract, 2026-10-14)
+
+- Dashboard role copy includes headings, help, accessible names, and existing loading/empty/error states; user-authored names, notes, codes, values, and stored status enums remain data.
+- Engineer day/week/status and spoken hour labels share the active locale; number formatting and values remain unchanged.
+- The `/` launch scope includes delegated Executive widgets alongside PM and Engineer dashboards.
+- Approval copy uses neutral `dashboard.kpi.awaitingApproval.*` keys; unavailable remains an em dash/unavailable state, not zero, and explicit label overrides remain verbatim.
+- `Faktur Penjualan` is the shared Sales Invoices noun; rail and Finance breadcrumbs resolve through the shell key, aligned with the page's existing finance-copy key.
+

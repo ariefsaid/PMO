@@ -5,6 +5,7 @@
  * Used by Engineer "Recent entries" and Timesheet "Recent entries this week".
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FlatEntry } from '@/src/lib/timesheet-derive';
 import { formatMonthDay } from '@/src/lib/format';
 
@@ -21,13 +22,14 @@ function formatEntryDate(iso: string): string {
 }
 
 export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
+  const { t } = useTranslation();
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
         {/* Standardized to match the sibling cards' empty copy (item J). */}
-        <div className="text-[14px] font-semibold text-foreground">No hours logged this week</div>
+        <div className="text-[14px] font-semibold text-foreground">{t('dashboard.engineer.noHours', 'No hours logged this week')}</div>
         <div className="max-w-[40ch] text-[12px] text-muted-foreground">
-          Hours you log will show up here.
+          {t('dashboard.engineer.entriesEmptySub', 'Hours you log will show up here.')}
         </div>
       </div>
     );
@@ -36,7 +38,7 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
   return (
     <ul className="divide-y divide-border/70">
       {entries.map((entry) => {
-        const noteText = entry.notes?.trim() || 'No note';
+        const noteText = entry.notes?.trim() || t('dashboard.engineer.noNote', 'No note');
         return (
           <li key={entry.id} className="flex items-start gap-3 px-4 py-[9px]">
             <span className="w-[52px] shrink-0 pt-px text-[11px] text-muted-foreground">
@@ -44,7 +46,7 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className="truncate text-[13px] font-semibold">{entry.project?.name ?? 'Unknown'}</span>
+                <span className="truncate text-[13px] font-semibold">{entry.project?.name ?? t('dashboard.engineer.unknownProject', 'Unknown')}</span>
                 {entry.project?.code && (
                   <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                     {entry.project.code}

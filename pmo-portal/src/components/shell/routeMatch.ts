@@ -28,11 +28,12 @@ export interface ModuleDef {
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
 export const MODULES: ModuleDef[] = [
   // Dashboard: every authenticated role (no roles restriction = all).
-  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', labelKey: 'shell.nav.dashboard', path: '/' },
+  { module: 'dashboard', icon: 'dashboard', label: 'Dashboard', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.dashboard', path: '/' },
   {
     module: 'sales',
     icon: 'pipeline',
-    label: 'Sales Pipeline',
+    label: 'Sales Pipeline', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.sales',
     path: '/sales',
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
@@ -42,7 +43,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'procurement',
     icon: 'procurement',
-    label: 'Procurement',
+    label: 'Procurement', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
@@ -52,7 +53,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'projects',
     icon: 'projects',
-    label: 'Projects',
+    label: 'Projects', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.projects',
     path: '/projects',
     detail: { pattern: '/projects/:projectId', param: 'projectId' },
@@ -61,7 +62,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'timesheets',
     icon: 'clock',
-    label: 'Timesheets',
+    label: 'Timesheets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.timesheets',
     path: '/timesheets',
     // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
@@ -72,7 +73,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'companies',
     icon: 'companies',
-    label: 'Companies',
+    label: 'Companies', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.companies',
     path: '/companies',
     // CW-4b: /companies/:id is a routable detail page (retires the drawer-as-record) — the detail
@@ -84,7 +85,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'vendors',
     icon: 'companies',
-    label: 'Vendors',
+    label: 'Vendors', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
@@ -92,7 +93,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'contacts',
     icon: 'contacts',
-    label: 'Contacts',
+    label: 'Contacts', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.contacts',
     path: '/contacts',
     // CW-4b: /contacts/:id is a routable detail page (retires the drawer-as-record) — the detail
@@ -104,7 +105,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'incidents',
     icon: 'alert',
-    label: 'Incidents',
+    label: 'Incidents', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.incidents',
     path: '/incidents',
     // CW-4a: /incidents/:id is a routable detail page (fixes the Incidents dead-end) — the
@@ -117,19 +118,20 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'meetings',
     icon: 'cal',
-    label: 'Meetings',
+    label: 'Meetings', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.meetings',
     path: '/meetings',
     detail: { pattern: '/meetings/:meetingId', param: 'meetingId' },
   },
   // #775: Expenses — every role (own claims); RLS scopes reads.
-  { module: 'expenses', icon: 'expenses', label: 'Expenses', labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
+  { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
     icon: 'tasks',
-    label: 'My Tasks',
+    label: 'My Tasks', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
     roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
@@ -140,7 +142,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'approvals',
     icon: 'approvals',
-    label: 'Approvals',
+    label: 'Approvals', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.approvals',
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
@@ -149,7 +151,7 @@ export const MODULES: ModuleDef[] = [
   {
     module: 'administration',
     icon: 'admin',
-    label: 'Administration',
+    label: 'Administration', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.administration',
     path: '/administration',
     roles: [UserRole.Executive, UserRole.Admin],
@@ -362,10 +364,10 @@ export function breadcrumbForPath(
     // states localize like every other breadcrumb label (UXS-006).
     const viewCrumb = recordResolved || recordLabel
       ? { label: recordLabel || 'Not found', ...(recordLabel ? {} : { i18nKey: 'shell.breadcrumb.recordNotFound' }) }
-      : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
+      : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
     return [
       {
-        label: 'My Views',
+        label: 'My Views', // i18n-exempt: /views breadcrumb is outside the AC-UXA-017 invoice route scope
         href: '/',
         onClick: () => navigate?.('/'),
         ariaLabel: 'My Views — back to Dashboard',
@@ -399,8 +401,8 @@ export function breadcrumbForPath(
         const recordCrumb = recordLabel
           ? { label: recordLabel }
           : recordResolved
-            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }
-            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' };
+            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -431,7 +433,7 @@ export function breadcrumbForPath(
   }
 
   // Unknown route → "Not found" (C-MIN-4: the `*` route renders the 404 page, not the dashboard).
-  return [{ label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }];
+  return [{ label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' }]; // i18n-exempt: fallback label is replaced from i18nKey at render
 }
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
