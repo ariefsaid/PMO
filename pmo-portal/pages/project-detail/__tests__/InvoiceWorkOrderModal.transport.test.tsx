@@ -15,6 +15,7 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
  */
 const h = vi.hoisted(() => ({ invoke: vi.fn(), mode: 'erp' as 'erp' | 'native' }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke: h.invoke } } }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'test-user', org_id: 'test-org' }, role: 'Finance' }) }));
 // The ERP item picker is not on the write path: the free-text item code keeps the test to the transport.
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: async () => [] }) }));
 // The dialog's mode branch is copy-only; the write-time routing under test here is the repository's (ownership cache).

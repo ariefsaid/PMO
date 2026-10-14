@@ -27,6 +27,7 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));

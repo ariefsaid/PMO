@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
