@@ -873,6 +873,18 @@ describe('M-4: an ERP error is redacted + bounded before it is persisted to the 
     expect(out.length).toBeLessThanOrEqual(241);
   });
 
+  it('AC-998-004 scrubs URLs and token-shaped material with an overridable bound', () => {
+    const secret = 'sensitive_token_abcdef0123456789abcdef0123456789';
+    const url = 'https://erp.example.test/api?token=never-store-this#private';
+    const out = redactErrorForOutbox(new Error(`${url} ${secret} ${'x'.repeat(700)}`), 500);
+    expect(out).not.toContain(url);
+    expect(out).not.toContain(secret);
+    expect(out).toContain('[redacted-url]');
+    expect(out).toContain('[redacted]');
+    expect(out.length).toBeLessThanOrEqual(500);
+    expect(redactErrorForOutbox(new Error('x'.repeat(1000))).length).toBeLessThanOrEqual(241);
+  });
+
   it('the failed-mark path persists the REDACTED message (not the raw ERP body)', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');

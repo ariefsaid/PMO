@@ -84,10 +84,11 @@ import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchMoneyWrite, redactErrorForOutbox, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps, type ErpFilter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
+import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
 import {
   lookupConfirmedErpEmployee,
   readBudgetLineItems,
@@ -962,6 +963,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
             external_tier: ERPNEXT_TIER,
             domain: wmDomain,
             watermark_cursor: cursor,
+            last_error: null,
+            last_error_at: null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'org_id,external_tier,domain' },
@@ -980,12 +983,14 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     const hydrateDoc = KINDS_NEEDING_FULL_DOC.includes(kind)
       ? (name: string) => fetchErpDoc(client, doctype, name)
       : undefined;
+    let priorErrorAt: string | null = null;
     try {
       // Stamp the ATTEMPT, not only successful cursor advances: a halted doctype spent this tick's
       // listing budget too, and must yield priority to siblings on the next invocation.
       const { data: priorWatermark, error: priorWatermarkError } = await serviceClient.from('external_sync_watermarks')
-        .select('watermark_cursor').eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).maybeSingle();
+        .select('watermark_cursor, last_error_at').eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain).maybeSingle();
       if (priorWatermarkError) throw new AppError(priorWatermarkError.message, priorWatermarkError.code);
+      priorErrorAt = (priorWatermark as { last_error_at?: string | null } | null)?.last_error_at ?? null;
       const { error: attemptError } = await serviceClient.from('external_sync_watermarks').upsert({
         org_id: org.orgId, external_tier: ERPNEXT_TIER, domain: wmDomain,
         watermark_cursor: (priorWatermark as { watermark_cursor?: string | null } | null)?.watermark_cursor ?? '',
@@ -1048,9 +1053,32 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
         console.warn(`[erpnext-sweep] org ${org.orgId} ${doctype} ${s.externalRecordId}: acked+skipped — ${s.error}`);
       }
     } catch (err) {
+      // Persist a member-readable error only after scrubbing URL and token-shaped material. The
+      // cooldown stamp is retained during an active alert window so a later failure can alert again.
+      const safeError = redactErrorForOutbox(err, 500);
+      const priorErrorAtMs = priorErrorAt === null ? Number.NaN : Date.parse(priorErrorAt);
+      const shouldAlert = !Number.isFinite(priorErrorAtMs) || nowMs() - priorErrorAtMs >= 3_600_000;
+      const errorStatus: { last_error: string; last_error_at?: string } = { last_error: safeError };
+      if (shouldAlert) errorStatus.last_error_at = new Date(nowMs()).toISOString();
+      try {
+        const { error } = await serviceClient.from('external_sync_watermarks').update(errorStatus)
+          .eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', wmDomain);
+        if (error) console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
+      } catch {
+        // Operational state is best-effort; never block sibling doctypes or leak raw DB diagnostics.
+        console.error('[erpnext-sweep] SWEEP_ERROR_WATERMARK_WRITE_FAILED');
+      }
+      if (shouldAlert) {
+        await recordErrorEvent(serviceClient as unknown as ErrorEventSupabaseLike, {
+          fn: 'erpnext-sweep',
+          errorCode: 'sweep-doctype-failed',
+          contextId: wmDomain,
+          orgId: org.orgId,
+        });
+      }
       // An unreachable adapter (or one doctype's failure) is recorded but does NOT abort the other
       // doctypes/orgs (AC-CUA-044 sibling: the next schedule retries).
-      doctypeErrors.push(`${doctype}:${err instanceof Error ? err.message : String(err)}`);
+      doctypeErrors.push(`${doctype}: sweep failed`);
       continue;
     }
   }
