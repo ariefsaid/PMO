@@ -156,6 +156,19 @@ export interface CommandIntent {
   idempotencyKey: string;
 }
 
+export type FxRateRow = Tables<'fx_rates'>;
+export type FxRateInput = { rate_date: string; rate: number };
+export type FxRateMatch = Pick<FxRateRow, 'rate' | 'rate_date'>;
+export type FxRatePage = { rows: FxRateRow[]; nextCursor: string | null };
+export type FxCommitCounts = { new: number; changed: number; unchanged: number };
+export interface FxRatesRepository {
+  list(before?: string): Promise<FxRatePage>;
+  existing(dates: string[]): Promise<Pick<FxRateRow, 'rate_date' | 'rate'>[]>;
+  onDate(base: string, quote: string, onDate: string): Promise<FxRateMatch | null>;
+  upsert(rows: FxRateInput[]): Promise<FxCommitCounts>;
+  context(): Promise<{ currency: string; timezone: string }>;
+}
+
 export interface ProjectRepository {
   list(
     params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
@@ -756,6 +769,7 @@ export interface VendorWithholdingSlipsRepository {
 }
 
 export interface Repositories {
+  fxRates: FxRatesRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
