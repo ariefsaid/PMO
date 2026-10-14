@@ -24,7 +24,11 @@ const dashboard = {
   active_projects: 2, total_contract_value: 8_000_000, on_hand_margin: 0.949375, on_hand_value: 8_000_000,
   pipeline_weighted_value: 800_000, pipeline_projected_margin: 0.2, pipeline_total_value: 2_000_000, projects_at_risk: 1,
   projects_by_status: [],
-  procurements_by_status: [{ status: 'Draft', count: 1 }, { status: 'Requested', count: 2 }, { status: 'Vendor Quoted', count: 1 }],
+  procurements_by_status: [
+    { status: 'Draft', count: 1 }, { status: 'Requested', count: 2 }, { status: 'Approved', count: 1 },
+    { status: 'Vendor Quoted', count: 1 }, { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 },
+    { status: 'Vendor Invoiced', count: 1 }, { status: 'Paid', count: 1 },
+  ],
   top_projects: [{ id: 'p1', name: 'Project North', client_name: 'Client North', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project' }],
 };
 vi.mock('@/src/hooks/useDashboard', () => ({
@@ -82,7 +86,10 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('group', { name: 'Margin proyeksi pipeline' })).toBeInTheDocument();
     expect(screen.getByText('Tender diajukan')).toBeInTheDocument();
     expect(screen.getByText('Negosiasi')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /Pengadaan menurut status, 4 permintaan, terbanyak pada Diminta/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Pengadaan menurut status, 9 permintaan, terbanyak pada Diminta/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Disetujui/ })).toHaveAttribute('href', '/procurement?status=Approved');
+    expect(screen.getByRole('link', { name: /Diterima/ })).toHaveAttribute('href', '/procurement?status=Received');
+    expect(screen.getByRole('link', { name: /Invoice vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
     expect(screen.getByRole('link', { name: /Penawaran vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
     expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
 

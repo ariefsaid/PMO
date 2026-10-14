@@ -989,7 +989,7 @@
     },
     "bva": { "group": "Budget vs actual by project", "atRisk": "At risk", "barLabel": "{{name}}: {{percent}}% of contract" },
     "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
-    "procurementStatus": { "draft": "Draft", "requested": "Requested", "vendorQuoted": "Vendor Quoted", "ordered": "Ordered", "paid": "Paid", "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
+    "procurementStatus": { "draft": "Draft", "requested": "Requested", "approved": "Approved", "vendorQuoted": "Vendor Quoted", "ordered": "Ordered", "received": "Received", "vendorInvoiced": "Vendor Invoiced", "paid": "Paid", "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
       "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",

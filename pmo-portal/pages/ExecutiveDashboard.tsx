@@ -71,8 +71,11 @@ const ExecutiveDashboard: React.FC = () => {
   const procurementStatusLabels: Record<string, string> = {
     Draft: t('dashboard.procurementStatus.draft', 'Draft'),
     Requested: t('dashboard.procurementStatus.requested', 'Requested'),
+    Approved: t('dashboard.procurementStatus.approved', 'Approved'),
     'Vendor Quoted': t('dashboard.procurementStatus.vendorQuoted', 'Vendor Quoted'),
     Ordered: t('dashboard.procurementStatus.ordered', 'Ordered'),
+    Received: t('dashboard.procurementStatus.received', 'Received'),
+    'Vendor Invoiced': t('dashboard.procurementStatus.vendorInvoiced', 'Vendor Invoiced'),
     Paid: t('dashboard.procurementStatus.paid', 'Paid'),
   };
 
