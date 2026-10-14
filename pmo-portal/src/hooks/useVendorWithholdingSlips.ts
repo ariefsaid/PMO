@@ -37,7 +37,7 @@ export function useVendorWithholdingSlip(slipId?: string) {
 }
 
 export interface VendorWithholdingBillContextRow {
-  invoice_id: string;
+  invoice_id: string | null;
   procurement_id?: string | null;
   project_id?: string | null;
 }
