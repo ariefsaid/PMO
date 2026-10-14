@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(32);
 
 insert into public.organizations (id,name) values
   ('02870000-0000-0000-0000-000000000001','Project finance test org'),
@@ -10,13 +10,15 @@ insert into auth.users (id,email) values
   ('02870000-0000-0000-0000-0000000000a2','admin@example.test'),
   ('02870000-0000-0000-0000-0000000000a3','executive@example.test'),
   ('02870000-0000-0000-0000-0000000000a4','manager@example.test'),
-  ('02870000-0000-0000-0000-0000000000a5','engineer@example.test');
+  ('02870000-0000-0000-0000-0000000000a5','engineer@example.test'),
+  ('02870000-0000-0000-0000-0000000000a6','inactive-finance@example.test');
 insert into public.profiles (id,org_id,full_name,email,role,status) values
   ('02870000-0000-0000-0000-0000000000a1','02870000-0000-0000-0000-000000000001','Finance','finance@example.test','Finance','active'),
   ('02870000-0000-0000-0000-0000000000a2','02870000-0000-0000-0000-000000000001','Admin','admin@example.test','Admin','active'),
   ('02870000-0000-0000-0000-0000000000a3','02870000-0000-0000-0000-000000000001','Executive','executive@example.test','Executive','active'),
   ('02870000-0000-0000-0000-0000000000a4','02870000-0000-0000-0000-000000000001','Manager','manager@example.test','Project Manager','active'),
-  ('02870000-0000-0000-0000-0000000000a5','02870000-0000-0000-0000-000000000001','Engineer','engineer@example.test','Engineer','active');
+  ('02870000-0000-0000-0000-0000000000a5','02870000-0000-0000-0000-000000000001','Engineer','engineer@example.test','Engineer','active'),
+  ('02870000-0000-0000-0000-0000000000a6','02870000-0000-0000-0000-000000000001','Inactive Finance','inactive-finance@example.test','Finance','disabled');
 insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,
                              tax_base_numerator,tax_base_denominator,subject_to_vat,customer_contract_ref)
 values
@@ -31,8 +33,9 @@ select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid
 select ok(not exists (select 1 from information_schema.columns where table_schema='public'
                        and table_name='incoming_payments' and column_name='project_id'),
           'AC-PFIN-005 receipts do not gain a project attribution column');
-select ok(not exists (select 1 from pg_proc where oid = to_regprocedure('public.fill_sales_invoice_project(uuid,uuid,uuid,text)')),
-          'AC-PFIN-007 machine fill is not exposed before its implementation');
+select ok(not has_function_privilege('authenticated','public.fill_sales_invoice_project(uuid,uuid,uuid,text)','EXECUTE')
+          and not has_function_privilege('anon','public.fill_sales_invoice_project(uuid,uuid,uuid,text)','EXECUTE'),
+          'AC-PFIN-007 machine fill is not executable by client roles');
 select ok(not has_column_privilege('authenticated','public.sales_invoices','erp_project','UPDATE')
           and not has_column_privilege('authenticated','public.sales_invoices','erp_project','INSERT'),
           'AC-PFIN-007 authenticated cannot write ERP provenance');
@@ -44,6 +47,24 @@ insert into public.external_domain_ownership (org_id,external_tier,domain)
 values ('02870000-0000-0000-0000-000000000001','erpnext','revenue');
 insert into public.external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id)
 values ('02870000-0000-0000-0000-000000000001','revenue','02870000-0000-0000-0000-0000000000e1','erpnext','SI-TEST');
+insert into public.work_orders (id,org_id,project_id,title,status,wo_number,order_value,tax_treatment,tax_amount)
+values ('02870000-0000-0000-0000-0000000000f1','02870000-0000-0000-0000-000000000001',
+        '02870000-0000-0000-0000-0000000000d1','Matching work order','Issued','WO-TEST',10,'exclusive',0);
+insert into public.sales_invoices (id,org_id,project_id,work_order_id,si_number,invoice_date,amount,tax_treatment,tax_amount,
+                                   currency,status,erp_docstatus)
+values ('02870000-0000-0000-0000-0000000000e4','02870000-0000-0000-0000-000000000001',
+        '02870000-0000-0000-0000-0000000000d1','02870000-0000-0000-0000-0000000000f1','SI-WO-CONFLICT','2026-01-01',10,'exclusive',0,'USD','Unpaid',1),
+       ('02870000-0000-0000-0000-0000000000e5','02870000-0000-0000-0000-000000000001',
+        '02870000-0000-0000-0000-0000000000d1','02870000-0000-0000-0000-0000000000f1','SI-WO-MATCH','2026-01-01',10,'exclusive',0,'USD','Unpaid',1),
+       ('02870000-0000-0000-0000-0000000000e6','02870000-0000-0000-0000-000000000001',
+        '02870000-0000-0000-0000-0000000000d1',null,'SI-CLAIM-CONFLICT','2026-01-01',10,'exclusive',0,'USD','Unpaid',1);
+insert into public.external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id)
+values ('02870000-0000-0000-0000-000000000001','revenue','02870000-0000-0000-0000-0000000000e4','erpnext','SI-WO-CONFLICT'),
+       ('02870000-0000-0000-0000-000000000001','revenue','02870000-0000-0000-0000-0000000000e5','erpnext','SI-WO-MATCH'),
+       ('02870000-0000-0000-0000-000000000001','revenue','02870000-0000-0000-0000-0000000000e6','erpnext','SI-CLAIM-CONFLICT');
+insert into public.progress_claims (id,org_id,project_id,kind,currency,gross_amount,created_by)
+values ('02870000-0000-0000-0000-0000000000e6','02870000-0000-0000-0000-000000000001',
+        '02870000-0000-0000-0000-0000000000d1','progress','USD',10,'02870000-0000-0000-0000-0000000000a1');
 insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,tax_treatment,tax_amount,
                                    currency,status,erp_docstatus,native_lines,pmo_native,author_user_id)
 values ('02870000-0000-0000-0000-0000000000e2','02870000-0000-0000-0000-000000000001',null,
@@ -80,6 +101,9 @@ select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-000
 set local request.jwt.claims='{"sub":"02870000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e1','02870000-0000-0000-0000-0000000000d1')$$,
                  '42501',null,'AC-PFIN-007 Engineer cannot assign an invoice project');
+set local request.jwt.claims='{"sub":"02870000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e1','02870000-0000-0000-0000-0000000000d1')$$,
+                 '42501',null,'AC-PFIN-007 inactive Finance member cannot assign an invoice project');
 reset role;
 select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e1','02870000-0000-0000-0000-0000000000d1')$$,
                  '42501',null,'AC-PFIN-007 anonymous role cannot assign an invoice project');
@@ -100,6 +124,12 @@ select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-000
                  '23514',null,'AC-PFIN-007 missing current ERP reference is refused');
 insert into public.external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id)
 values ('02870000-0000-0000-0000-000000000001','revenue','02870000-0000-0000-0000-0000000000e1','erpnext','SI-TEST');
+select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e4','02870000-0000-0000-0000-0000000000d2')$$,
+                 '23514',null,'AC-PFIN-006 conflicting work-order project is refused');
+select lives_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e5','02870000-0000-0000-0000-0000000000d1')$$,
+                'AC-PFIN-006 matching work-order project retains its billing context');
+select throws_ok($$select public.assign_sales_invoice_project('02870000-0000-0000-0000-0000000000e6','02870000-0000-0000-0000-0000000000d2')$$,
+                 '23514',null,'AC-PFIN-006 conflicting claim project is refused');
 create temp table before_noop as select to_jsonb(si) as row_data from public.sales_invoices si
 where id='02870000-0000-0000-0000-0000000000e1';
 grant select on before_noop to authenticated;
