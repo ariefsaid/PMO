@@ -2580,6 +2580,8 @@ export type Database = {
           domain: string
           external_tier: string
           id: string
+          last_error: string | null
+          last_error_at: string | null
           org_id: string
           updated_at: string
           watermark_cursor: string
@@ -2588,6 +2590,8 @@ export type Database = {
           domain: string
           external_tier: string
           id?: string
+          last_error?: string | null
+          last_error_at?: string | null
           org_id?: string
           updated_at?: string
           watermark_cursor?: string
@@ -2596,6 +2600,8 @@ export type Database = {
           domain?: string
           external_tier?: string
           id?: string
+          last_error?: string | null
+          last_error_at?: string | null
           org_id?: string
           updated_at?: string
           watermark_cursor?: string
@@ -5559,6 +5565,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
@@ -5597,6 +5604,7 @@ export type Database = {
           erp_opening_amount?: number | null
           erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
+          erp_project?: string | null
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
@@ -5635,6 +5643,7 @@ export type Database = {
           erp_opening_amount?: number | null
           erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
+          erp_project?: string | null
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
@@ -6691,6 +6700,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      assign_sales_invoice_project: {
+        Args: { p_project_id: string; p_si_id: string }
+        Returns: undefined
+      }
       attach_claim_evidence: {
         Args: { p_claim_id: string; p_document_id: string }
         Returns: undefined
@@ -7226,6 +7239,15 @@ export type Database = {
         Args: { p_mirror_id: string; p_org_id: string }
         Returns: Json
       }
+      fill_sales_invoice_project: {
+        Args: {
+          p_erp_project: string
+          p_org_id: string
+          p_project_id: string
+          p_si_id: string
+        }
+        Returns: boolean
+      }
       finalize_external_connect: {
         Args: {
           p_actor_id: string
@@ -7326,6 +7348,7 @@ export type Database = {
           draft: number
         }[]
       }
+      get_project_finances: { Args: { p_project_id: string }; Returns: Json }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -7387,6 +7410,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
@@ -7712,6 +7736,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
@@ -7953,6 +7978,17 @@ export type Database = {
         Args: { p_org: string; p_project: string }
         Returns: string
       }
+      project_mapped_actuals: {
+        Args: { p_fiscal_year?: string; p_project_id: string }
+        Returns: {
+          actuals_as_of: string
+          actuals_to_date: number
+          category: Database["public"]["Enums"]["budget_category"]
+          has_rows: boolean
+          mapped: boolean
+          source_sum: number
+        }[]
+      }
       project_number_null_insert_default: { Args: never; Returns: string }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }
       purge_error_events: {
@@ -7995,6 +8031,7 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
+      reconcile_procurement_line_totals: { Args: never; Returns: undefined }
       record_expense_advance_return: {
         Args: { p_amount: number; p_id: string; p_reference?: string }
         Returns: undefined
@@ -8238,6 +8275,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
@@ -8285,6 +8323,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
@@ -8410,6 +8449,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_project: string | null
           id: string
           invoice_date: string | null
           native_lines: Json | null
