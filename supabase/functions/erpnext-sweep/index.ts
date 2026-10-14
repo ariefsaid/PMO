@@ -1180,6 +1180,35 @@ const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
 
 /** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
  *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
+export async function repairInvoiceProjectsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  afterId: string | null,
+): Promise<{ scanned: number; repaired: number; unresolved: number; failedIds: string[]; nextCursor: string | null; done: boolean }> {
+  if (!org.ownedDomains.includes('revenue')) {
+    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
+  }
+  const candidateQuery = serviceClient.from('sales_invoices').select('id,si_number,erp_project,erp_modified')
+    .eq('org_id', org.orgId).is('project_id', null).eq('pmo_native', false)
+    .not('si_number', 'is', null).order('id', { ascending: true }).limit(100);
+  const candidateResult = await (afterId ? candidateQuery.gt('id', afterId) : candidateQuery) as unknown as {
+    data: Array<{ id: string; si_number: string | null; erp_project: string | null; erp_modified: string | null }> | null;
+    error: { message: string; code?: string } | null;
+  };
+  const { data, error } = candidateResult;
+  if (error) throw new Error(`project invoice candidates: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length > 0) {
+    const { error: refsError } = await serviceClient.from('external_refs').select('org_id,domain,pmo_record_id,external_record_id')
+      .eq('org_id', org.orgId).eq('domain', 'revenue').in('pmo_record_id', rows.map((row) => row.id));
+    if (refsError) throw new Error(`project invoice refs: ${refsError.message}`);
+  }
+  return {
+    scanned: rows.length, repaired: 0, unresolved: rows.length, failedIds: [],
+    nextCursor: rows.at(-1)?.id ?? afterId, done: rows.length < 100,
+  };
+}
+
 async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
