@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
 import { GateNotice, ListState, SectionHeader } from '@/src/components/ui';
@@ -12,6 +13,7 @@ import AdminUsers from './AdminUsers';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
+import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import OrgTaxDefault from './admin/OrgTaxDefault';
@@ -30,11 +32,12 @@ export type AdministrationSection =
   | 'accounting'
   | 'projects'
   | 'credits'
+  | 'exchange-rates'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
 
@@ -45,6 +48,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   accounting: 'Accounting setup',
   projects: 'Project setup',
   credits: 'Credits',
+  'exchange-rates': 'Exchange rates',
   usage: 'Usage',
   features: 'Features',
 };
@@ -60,6 +64,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
+  'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
 });
@@ -91,9 +96,10 @@ const AdministrationHeader: React.FC = () => {
 
 const AdministrationNavigation: React.FC<{
   section: AdministrationSection;
+  sections: AdministrationSection[];
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
-}> = ({ section, isOperator, label }) => {
+}> = ({ section, sections, isOperator, label }) => {
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
@@ -119,7 +125,7 @@ const AdministrationNavigation: React.FC<{
   return (
     <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
       <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
-        {links(ORGANIZATION_SECTIONS)}
+        {links(ORGANIZATION_SECTIONS.filter((id) => sections.includes(id)))}
         {isOperator && (
           <>
             <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
@@ -219,6 +225,12 @@ const SelectedAdministrationPanel: React.FC<{
           <AdministrationCredits isOperator={isOperator} orgId={orgId} />
         </div>
       );
+    case 'exchange-rates':
+      return (
+        <div data-testid="administration-panel-exchange-rates" className="min-w-0">
+          <AdministrationExchangeRates />
+        </div>
+      );
     case 'usage':
       return (
         <div data-testid="administration-panel-usage" className="min-w-0">
@@ -241,25 +253,34 @@ const Administration: React.FC = () => {
   const { pathname, hash } = useLocation();
   const may = usePermission();
   const { currentUser } = useAuth();
+  const { realRole } = useEffectiveRole();
   const operatorMembership = useOperatorMembership();
   const section = administrationSectionForPath(pathname);
   const isAdminViewer = may('view', 'user');
+  const canFx = may('view', 'fxRate');
+  const isFinance = realRole === 'Finance';
   const isOperator = operatorMembership.isOperator;
-  const canEnterAdministration = isAdminViewer || isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
-  const needsOperatorCheck = operatorRoute || !isAdminViewer;
+  const fxRoute = section === 'exchange-rates';
+  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx);
+  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
+  const navigationSections: AdministrationSection[] = isFinance
+    ? ['exchange-rates']
+    : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
 
   if (pathname === '/administration') {
     const target = hash === '#budget-account-map'
       ? '/administration/accounting#budget-account-map'
-      : '/administration/users';
+      : isFinance
+        ? '/administration/exchange-rates'
+        : '/administration/users';
     return <Navigate to={target} replace />;
   }
 
   if (!section) {
-    return <Navigate to="/administration/users" replace />;
+    return <Navigate to={isFinance ? '/administration/exchange-rates' : '/administration/users'} replace />;
   }
 
   return (
@@ -270,7 +291,7 @@ const Administration: React.FC = () => {
         <OperatorMembershipPending />
       ) : operatorMembership.isError && needsOperatorCheck ? (
         <>
-          {isAdminViewer && <AdministrationNavigation section={section} isOperator={false} label={label} />}
+          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />}
           <ListState
             variant="error"
             title={t('admin.access.verifyError', 'Could not verify access')}
@@ -285,9 +306,16 @@ const Administration: React.FC = () => {
             "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
           )}
         </GateNotice>
+      ) : fxRoute && !canFx ? (
+        <>
+          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+          <GateNotice variant="blocked">
+            {t('fx.denied', 'Exchange rates are available to Finance and Admin.')}
+          </GateNotice>
+        </>
       ) : operatorRoute && !isOperator ? (
         <>
-          <AdministrationNavigation section={section} isOperator={false} label={label} />
+          <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />
           <GateNotice variant="blocked">
             {t(
               'admin.access.operatorOnly',
@@ -297,7 +325,7 @@ const Administration: React.FC = () => {
         </>
       ) : (
         <>
-          <AdministrationNavigation section={section} isOperator={isOperator} label={label} />
+          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />
           <SelectedAdministrationPanel
             section={section}
             orgId={currentUser?.org_id ?? ''}

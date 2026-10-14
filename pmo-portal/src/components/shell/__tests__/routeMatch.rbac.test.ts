@@ -56,12 +56,20 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(vendors).toMatchObject({ path: '/companies?type=Vendor', labelKey: 'shell.nav.vendors' });
   });
 
-  it('AC-W3-N3: Finance sees Sales, Procurement, Companies but NOT My Tasks', () => {
-    const modules = modulesForRole(UserRole.Finance).map((m) => m.module);
+  it('AC-W3-N3: Finance sees Sales, Procurement, Companies and FX Administration, but NOT My Tasks', () => {
+    const items = modulesForRole(UserRole.Finance);
+    const modules = items.map((m) => m.module);
     expect(modules).toContain('sales');
     expect(modules).toContain('procurement');
     expect(modules).toContain('companies');
+    expect(modules).toContain('administration');
+    expect(items.find((m) => m.module === 'administration')?.path).toBe('/administration/exchange-rates');
     expect(modules).not.toContain('my-tasks');
+  });
+
+  it('AC-FX-010: Admin and Executive retain the existing Administration palette entry', () => {
+    expect(modulesForRole(UserRole.Admin).find((m) => m.module === 'administration')?.path).toBe('/administration');
+    expect(modulesForRole(UserRole.Executive).find((m) => m.module === 'administration')?.path).toBe('/administration');
   });
 
   // ── AC-W3-N4 ─────────────────────────────────────────────────────────────

@@ -54,6 +54,12 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 
+  it('AC-FX-013: the exchange-rate section crumb reads the Bahasa catalogue label', () => {
+    renderBreadcrumb('/administration/exchange-rates');
+    expect(screen.getByText('Administrasi')).toBeInTheDocument();
+    expect(screen.getByText('Kurs mata uang')).toBeInTheDocument();
+  });
+
   it('AC-ADMIA-004: every section crumb uses the translated shell label', () => {
     const cases = [
       ['/administration/users', 'Pengguna'],

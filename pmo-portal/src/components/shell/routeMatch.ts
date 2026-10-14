@@ -154,7 +154,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Administration', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.administration',
     path: '/administration',
-    roles: [UserRole.Executive, UserRole.Admin],
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
 ];
 
@@ -168,7 +168,13 @@ export const MODULES: ModuleDef[] = [
  * never sees a Navigate item for a module the rail hides from them.
  */
 export function modulesForRole(role: UserRole): ModuleDef[] {
-  return MODULES.filter((m) => !m.roles || m.roles.includes(role));
+  const visible = MODULES.filter((m) => !m.roles || m.roles.includes(role));
+  if (role !== UserRole.Finance) return visible;
+  return visible.map((module) =>
+    module.module === 'administration'
+      ? { ...module, path: '/administration/exchange-rates' }
+      : module,
+  );
 }
 
 /**
@@ -234,6 +240,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   credits: 'Credits',
   usage: 'Usage',
   features: 'Features',
+  'exchange-rates': 'Exchange rates',
 } as const;
 
 /**
@@ -253,6 +260,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   credits: 'admin.nav.credits',
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
+  'exchange-rates': 'admin.nav.exchangeRates',
 };
 
 const administrationBreadcrumbForPath = (
@@ -270,12 +278,13 @@ const administrationBreadcrumbForPath = (
   const sectionKey =
     ADMINISTRATION_SECTION_I18N_KEY[section as keyof typeof ADMINISTRATION_SECTION_I18N_KEY] ??
     ADMINISTRATION_SECTION_I18N_KEY.users;
+  const parentPath = section === 'exchange-rates' ? '/administration/exchange-rates' : '/administration/users';
   return [
     {
       label: parentLabel,
       i18nKey: 'shell.nav.administration',
-      href: '/administration/users',
-      onClick: () => navigate?.('/administration/users'),
+      href: parentPath,
+      onClick: () => navigate?.(parentPath),
     },
     { label: sectionLabel, i18nKey: sectionKey },
   ];

@@ -203,7 +203,7 @@ describe('Administration route-backed shell', () => {
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link')).toHaveLength(5);
+    expect(screen.getAllByRole('link')).toHaveLength(6);
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
@@ -217,11 +217,11 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.features).toBe(0);
   });
 
-  it('AC-ADMIA-002: an Operator sees all seven destinations and only mounts the requested panel', async () => {
+  it('AC-ADMIA-002: an Operator sees all eight destinations and only mounts the requested panel', async () => {
     const usageView = renderShell('/administration/usage', 'Admin', true);
 
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
-    expect(screen.getAllByRole('link')).toHaveLength(7);
+    expect(screen.getAllByRole('link')).toHaveLength(8);
     expect(screen.getByRole('link', { name: 'Usage' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-features')).not.toBeInTheDocument();
@@ -347,7 +347,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(5);
+    expect(links).toHaveLength(6);
     for (const link of links) {
       // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
       expect(link.getAttribute('href')).toMatch(/^\/administration\//);
@@ -390,6 +390,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
       '/administration/accounting',
       '/administration/projects',
       '/administration/credits',
+      '/administration/exchange-rates',
     ]);
 
     // Focus the first section link, then Tab to each subsequent destination.
@@ -427,7 +428,7 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     renderShell('/administration/usage', 'Admin', true);
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(7);
+    expect(links).toHaveLength(8);
     for (const link of links) {
       expect(link.className).toContain('touch-target');
     }
