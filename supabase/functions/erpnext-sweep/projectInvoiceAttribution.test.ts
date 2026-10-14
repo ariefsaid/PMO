@@ -3,7 +3,7 @@ const { resolveInvoiceProjects, sweepOrgDoctypesLive } = await import('./index.t
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { contactDb } from '../_shared/erpnextContacts.fixtures.ts';
 
-function assert(condition: boolean, message: string): void {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
@@ -102,6 +102,49 @@ Deno.test('AC-PFIN-001/002 Sales Invoice adoption stores its resolved project af
     const invoiceIndex = db.writes.findIndex((write) => write.table === 'sales_invoices' && write.op === 'insert');
     assert(claimIndex >= 0 && invoiceIndex > claimIndex, 'external reference claim precedes invoice insert');
     assert(db.rows.notifications.length === 0, 'resolved adoption does not raise unassigned-project notification');
+  } finally {
+    globalThis.fetch = originalFetch;
+    (Deno.env as unknown as { get: unknown }).get = originalEnv;
+  }
+});
+
+Deno.test('AC-PFIN-003 refresh updates provenance and NULL-fills without changing an existing PMO assignment', async () => {
+  const db = contactDb({
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', activated_at: '2026-10-01', config: { project_map: { [P1]: 'ERP-A' } } }],
+    projects: [{ id: P1, org_id: ORG }],
+    sales_invoices: [{ id: 'invoice-1', org_id: ORG, project_id: P2, erp_project: 'ERP-OLD', pmo_native: false, si_number: 'SINV-REFRESH', erp_modified: '2026-10-01T00:00:00.000Z' }],
+    external_refs: [{ org_id: ORG, domain: 'revenue', pmo_record_id: 'invoice-1', external_record_id: 'SINV-REFRESH' }],
+  });
+  const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  (db.client as unknown as { rpc: (name: string, args: Record<string, unknown>) => Promise<unknown> }).rpc = async (name, args) => {
+    rpcCalls.push({ name, args });
+    return { data: false, error: null };
+  };
+  const originalEnv = Deno.env.get;
+  const originalFetch = globalThis.fetch;
+  (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) =>
+    ({ PROJECT_FINANCE_KEY: 'synthetic-key', PROJECT_FINANCE_SECRET: 'synthetic-secret' } as Record<string, string>)[key];
+  globalThis.fetch = (async (input) => {
+    const url = new URL(String(input instanceof Request ? input.url : input));
+    const data = url.pathname.endsWith('/Sales%20Invoice') || url.pathname.endsWith('/Sales Invoice')
+      ? [{ name: 'SINV-REFRESH', modified: '2026-10-10 09:00:00', docstatus: 1, company: 'Example Company', project: 'ERP-A', grand_total: '125.00', outstanding_amount: '25.00', currency: 'USD' }]
+      : [];
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    const result = await sweepOrgDoctypesLive(db.client, {
+      orgId: ORG, siteUrl: 'https://erp.example.test', secretRef: 'project-finance', company: 'Example Company',
+      config: { project_map: { [P1]: 'ERP-A' } }, ownedDomains: ['revenue'], versionMajor: 15,
+    });
+    assert(!result.error, `Sales Invoice refresh succeeds: ${JSON.stringify(result)}; writes=${JSON.stringify(db.writes)}`);
+    const mirrorUpdate = db.writes.find((write) => write.table === 'sales_invoices' && write.op === 'update');
+    assert(mirrorUpdate, `existing invoice is refreshed; result=${JSON.stringify(result)}; writes=${JSON.stringify(db.writes)}`);
+    assert(mirrorUpdate.row.erp_project === 'ERP-A', 'source provenance advances');
+    assert(!Object.hasOwn(mirrorUpdate.row, 'project_id'), 'general refresh never writes PMO attribution');
+    assert(rpcCalls.length === 1 && rpcCalls[0].name === 'fill_sales_invoice_project', 'mapped source invokes NULL-only fill RPC');
+    assert(rpcCalls[0].args.p_project_id === P1 && rpcCalls[0].args.p_erp_project === 'ERP-A', 'fill carries same-org mapping and provenance');
+    assert(!Object.keys(rpcCalls[0].args).some((key) => /amount|status|body/i.test(key)), 'fill RPC carries no financial/body fields');
+    assert(db.rows.sales_invoices[0].project_id === P2, 'existing PMO assignment remains unchanged');
   } finally {
     globalThis.fetch = originalFetch;
     (Deno.env as unknown as { get: unknown }).get = originalEnv;

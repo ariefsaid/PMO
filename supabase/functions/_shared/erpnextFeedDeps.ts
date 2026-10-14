@@ -167,6 +167,15 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         error: { message: string; code?: string } | null;
       }>);
       if (error) throw new AppError(error.message, error.code);
+      if (kind === 'sales-invoice' && typeof canonical.erp_project === 'string') {
+        const projectId = await resolveInvoiceProject(serviceClient, orgId, canonical.erp_project);
+        if (projectId) {
+          const { error: fillError } = await serviceClient.rpc('fill_sales_invoice_project', {
+            p_org_id: orgId, p_si_id: pmoRecordId, p_project_id: projectId, p_erp_project: canonical.erp_project,
+          });
+          if (fillError) throw new AppError(fillError.message, fillError.code);
+        }
+      }
     },
     // Luna BLOCK 7: adopt CLAIM-FIRST. `applyInboundChange` takes the `external_refs` claim for
     // `newPmoRecordId()` BEFORE `mintWithId` runs, so a concurrent webhook/sweep adopt that loses the
@@ -657,6 +666,7 @@ async function revenueFieldPatch(
   putIfPresent(patch, 'amount', (canonical as { amount?: unknown }).amount);
 
   if (kind === 'sales-invoice') {
+    if (Object.prototype.hasOwnProperty.call(canonical, 'erp_project')) patch.erp_project = canonical.erp_project;
     const outstanding = (canonical as { erp_outstanding_amount?: string | number | null }).erp_outstanding_amount;
     putIfPresent(patch, 'si_number', (canonical as { si_number?: unknown }).si_number);
     putIfPresent(patch, 'invoice_date', (canonical as { invoice_date?: unknown }).invoice_date);
