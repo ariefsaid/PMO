@@ -116,7 +116,7 @@ test('AC-BUPOT-021 #961 F18 keeps reconciliation visible above the modal footer 
         }
         const details = page.getByLabel(/Bukti potong details|Detail bukti potong/i);
         await expect(details.getByText(slipNumber)).toBeVisible();
-        await expect(details.getByText(viNumber, { exact: true })).toBeVisible();
+        await expect(details.getByText(locale === 'en' ? `System VI number: ${viNumber}` : `Nomor VI sistem: ${viNumber}`, { exact: true })).toBeVisible();
         const historyLinkLabel = locale === 'en' ? 'Bukti potong bill link' : 'Tautan tagihan bukti potong';
         await expect(details.getByText(new RegExp(`${historyLinkLabel} · ${viNumber}`))).toBeVisible();
         await assertRendered(page, width);
