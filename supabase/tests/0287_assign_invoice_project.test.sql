@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(28);
 
 insert into public.organizations (id,name) values
   ('02870000-0000-0000-0000-000000000001','Project finance test org'),
@@ -54,6 +54,7 @@ insert into public.sales_invoice_authors (org_id,sales_invoice_id,user_id)
 values ('02870000-0000-0000-0000-000000000001','02870000-0000-0000-0000-0000000000e3',
         '02870000-0000-0000-0000-0000000000a1');
 update public.sales_invoices set project_id=null where id='02870000-0000-0000-0000-0000000000e1';
+delete from public.record_changes where entity_type='sales_invoice' and entity_id='02870000-0000-0000-0000-0000000000e1';
 create temp table before_assignment as
 select to_jsonb(si)-'project_id' as row_data from public.sales_invoices si
 where id='02870000-0000-0000-0000-0000000000e1';
@@ -106,6 +107,19 @@ select lives_ok($$select public.assign_sales_invoice_project('02870000-0000-0000
                 'AC-PFIN-006 repeated assignment to the same project succeeds');
 select is((select to_jsonb(si) from public.sales_invoices si where id='02870000-0000-0000-0000-0000000000e1'),
           (select row_data from before_noop),'AC-PFIN-006 repeated assignment is a no-op');
+select is((select count(*)::int from public.record_changes where entity_type='sales_invoice'
+            and entity_id='02870000-0000-0000-0000-0000000000e1' and op='update'),
+          2,'AC-PFIN-008 two actual project changes create exactly two history events');
+select is((select actor_id from public.record_changes where entity_type='sales_invoice'
+            and entity_id='02870000-0000-0000-0000-0000000000e1' order by seq desc limit 1),
+          '02870000-0000-0000-0000-0000000000a2'::uuid,'AC-PFIN-008 history retains the authenticated operator actor');
+select is((select changes->'project_id' from public.record_changes where entity_type='sales_invoice'
+            and entity_id='02870000-0000-0000-0000-0000000000e1' order by seq desc limit 1),
+          '{"old":"02870000-0000-0000-0000-0000000000d1","new":"02870000-0000-0000-0000-0000000000d2"}'::jsonb,
+          'AC-PFIN-008 latest event records old and new project references');
+select is((select parent_id::text from public.record_changes where entity_type='sales_invoice'
+            and entity_id='02870000-0000-0000-0000-0000000000e1' order by seq desc limit 1),
+          '02870000-0000-0000-0000-0000000000d2','AC-PFIN-008 latest history parent is the new project');
 
 select throws_ok($$update public.sales_invoices set project_id='02870000-0000-0000-0000-0000000000d3'
                   where id='02870000-0000-0000-0000-0000000000e1'$$,

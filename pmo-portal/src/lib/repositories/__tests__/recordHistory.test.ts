@@ -112,6 +112,23 @@ describe('recordHistoryRepository.list', () => {
     expect(names.purchase_request?.get('child-75')).toBe('PR-child-75');
   });
 
+  it('AC-PFIN-008 resolves project names in bounded 200-id batches, including archived rows', async () => {
+    const ids = Array.from({ length: 401 }, (_, i) => `project-${i}`);
+    const requested: string[][] = [];
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn((_column: string, values: string[]) => {
+        requested.push(values);
+        return Promise.resolve({ data: values.map((id) => ({ id, name: `Name ${id}`, archived_at: '2026-01-01' })), error: null });
+      }),
+    };
+    from.mockReturnValue(query);
+    const names = await recordHistoryRepository.lookupNames({ project: ids });
+    expect(requested.map((batch) => batch.length)).toEqual([200, 200, 1]);
+    expect(query.select).toHaveBeenCalledWith('id,name');
+    expect(names.project?.get('project-400')).toBe('Name project-400');
+  });
+
   it('#961 history-bill-label resolves a withholding-link id to its vendor bill number', async () => {
     const query = {
       select: vi.fn().mockReturnThis(),

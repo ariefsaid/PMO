@@ -39,7 +39,7 @@ export interface HistoryPage {
 
 const DEFAULT_LIMIT = 50;
 
-export type HistoryNameKind = 'purchase_request' | 'rfq' | 'purchase_order' | 'payment' | 'sales_invoice' | 'procurement_invoice' | 'vendor_withholding_slip_bill';
+export type HistoryNameKind = 'purchase_request' | 'rfq' | 'purchase_order' | 'payment' | 'sales_invoice' | 'procurement_invoice' | 'vendor_withholding_slip_bill' | 'project';
 export interface RecordHistoryRepository {
   list(q: RecordHistoryQuery): Promise<HistoryPage>;
   /** Resolve only event IDs on the visible history page; RLS scopes every query to the caller's org. */
@@ -67,6 +67,15 @@ export const recordHistoryRepository: RecordHistoryRepository = {
         return typeof value === 'string' && value ? [[row.id, value]] : [];
       }));
     }));
+    const projectIds = [...new Set(ids.project ?? [])].filter(Boolean);
+    const projectNames = new Map<string, string>();
+    for (let start = 0; start < projectIds.length; start += 200) {
+      const { data, error } = await supabase.from('projects').select('id,name')
+        .in('id', projectIds.slice(start, start + 200));
+      if (error) throw toAppError(error);
+      for (const row of data ?? []) projectNames.set(row.id, row.name);
+    }
+    if (projectIds.length > 0) result.project = projectNames;
     const linkIds = bounded(ids.vendor_withholding_slip_bill);
     if (linkIds.length > 0) {
       const { data, error } = await supabase.from('vendor_withholding_slip_bills')

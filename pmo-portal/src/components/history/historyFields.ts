@@ -34,7 +34,7 @@ export const FIELD_KINDS: Record<string, Record<string, HistoryKind>> = {
   purchase_order: { ...PURCHASE_DOC, po_number: 'text' },
   payment: { ...PURCHASE_DOC, invoice_id: 'ref', pay_number: 'text' },
   sales_invoice: {
-    efaktur_number: 'text', efaktur_date: 'date', received_date: 'date', author_user_id: 'ref',
+    project_id: 'ref', efaktur_number: 'text', efaktur_date: 'date', received_date: 'date', author_user_id: 'ref',
     approved_by_id: 'ref', approved_at: 'timestamp', pmo_native: 'bool', pmo_number: 'text', native_lines: 'text',
   },
   procurement_invoice: {
@@ -55,7 +55,7 @@ export function fieldKind(entityType: string, column: string): HistoryKind {
 }
 
 /** Where a resolvable ref column's display name comes from. */
-export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'procurements';
+export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'procurements' | 'projects';
 
 /**
  * Ref column → the list that names it: people and companies from the org lists, milestone / procurement /
@@ -63,6 +63,7 @@ export type RefSource = 'profiles' | 'companies' | 'tasks' | 'milestones' | 'pro
  * budget_version_id, meeting_id, invoice_id) has no cheap name source, so it renders "<Field> changed".
  */
 export const REF_SOURCE: Record<string, RefSource> = {
+  project_id: 'projects',
   project_manager_id: 'profiles',
   requested_by_id: 'profiles',
   author_user_id: 'profiles',
