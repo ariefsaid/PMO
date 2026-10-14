@@ -43,7 +43,7 @@
     "unchangedCount": "{{count}} unchanged",
     "duplicates": "{{count}} identical duplicates ignored",
     "rejectedRows": "Rejected rows",
-    "rejected": "Row {{row}}: {{reason}}",
+    "rejected": "Row {{row}}: {{value}} — {{reason}}",
     "previewRows": "Normalized rate preview",
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR — {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
@@ -51,7 +51,7 @@
     "checkingOrgDay": "Checking today’s JISDOR date…",
     "checkingRate": "Checking JISDOR rate…",
     "unsupportedPair": "JISDOR equivalents are available for USD contracts in IDR organizations only.",
-    "missingDate": "No publication date is available for this amount.",
+    "missingDate": "No document date — no JISDOR equivalent.",
     "orgDayError": "Could not resolve the organization’s local date.",
     "rateError": "Could not load JISDOR rate.",
     "noRateForDate": "No JISDOR rate for {{date}}."

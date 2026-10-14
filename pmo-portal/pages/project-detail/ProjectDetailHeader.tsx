@@ -187,8 +187,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
           <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
-          <div className="basis-full">
-            <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
+          <div className="basis-full min-w-0">
+            <FxEquivalent
+              amount={project.contract_value}
+              currency={project.currency}
+              date={project.contract_date}
+              compact
+            />
           </div>
           {!valueEditing && canEditValue && isFinanceForward && (
             <Button variant="outline" size="sm" onClick={() => beginValueEdit()}

@@ -2,7 +2,7 @@ import { ImportParseError } from './types';
 import { readCsvGrid } from './readCsvGrid';
 import { readWorkbookGrid, type WorkbookCell, type WorkbookGrid } from './readWorkbookGrid';
 
-export type FxRejected = { row: number; reason: string };
+export type FxRejected = { row: number; value?: string; reason: string };
 export type FxRateInput = { rate_date: string; rate: number };
 export type FxParsed = { rows: FxRateInput[]; rejected: FxRejected[]; duplicates: number };
 
@@ -196,7 +196,12 @@ export function parseFxRows(grid: WorkbookGrid, today: string): FxParsed {
     return { rows: [], rejected: [{ row: header.row, reason: 'ambiguousHeader' }], duplicates: 0 };
 
   const rejected: FxRejected[] = [];
-  const byDate = new Map<string, { rate: number; sourceRows: number[]; conflict: boolean }>();
+  const displayValue = (cell: WorkbookCell | undefined): string =>
+    cell?.text ?? (cell?.value == null ? '' : String(cell.value));
+  const byDate = new Map<
+    string,
+    { rate: number; sourceRows: Array<{ row: number; value: string }>; conflict: boolean }
+  >();
   let duplicates = 0;
   let nonblankRows = 0;
   for (let index = header.row; index < grid.rows.length; index += 1) {
@@ -209,19 +214,19 @@ export function parseFxRows(grid: WorkbookGrid, today: string): FxParsed {
         'too_many_rows',
         `Import at most ${MAX_DATA_ROWS} data rows at a time.`,
       );
-    if (row.some((cell) => cell.formula)) {
-      rejected.push({ row: physicalRow, reason: 'formula' });
-      continue;
-    }
     const dateCell = row[dateColumn];
     const rateCell = row[rateColumn];
+    if (row.some((cell) => cell.formula)) {
+      rejected.push({ row: physicalRow, value: displayValue(rateCell ?? dateCell), reason: 'formula' });
+      continue;
+    }
     if (!dateCell || !rateCell || dateCell.value == null || rateCell.value == null) {
-      rejected.push({ row: physicalRow, reason: 'invalidDate' });
+      rejected.push({ row: physicalRow, value: displayValue(dateCell ?? rateCell), reason: 'invalidDate' });
       continue;
     }
     const { date, reason } = rowDateReason(dateCell.value, grid.date1904, today);
     if (!date) {
-      rejected.push({ row: physicalRow, reason });
+      rejected.push({ row: physicalRow, value: displayValue(dateCell), reason });
       continue;
     }
     const rate =
@@ -229,13 +234,14 @@ export function parseFxRows(grid: WorkbookGrid, today: string): FxParsed {
         ? parseFxRate(rateCell.value)
         : null;
     if (rate === null) {
-      rejected.push({ row: physicalRow, reason: 'invalidRate' });
+      rejected.push({ row: physicalRow, value: displayValue(rateCell), reason: 'invalidRate' });
       continue;
     }
     const existing = byDate.get(date);
-    if (!existing) byDate.set(date, { rate, sourceRows: [physicalRow], conflict: false });
+    const sourceRow = { row: physicalRow, value: displayValue(rateCell) };
+    if (!existing) byDate.set(date, { rate, sourceRows: [sourceRow], conflict: false });
     else {
-      existing.sourceRows.push(physicalRow);
+      existing.sourceRows.push(sourceRow);
       if (existing.rate === rate) duplicates += 1;
       else existing.conflict = true;
     }
@@ -244,7 +250,9 @@ export function parseFxRows(grid: WorkbookGrid, today: string): FxParsed {
   const rows: FxRateInput[] = [];
   for (const [rate_date, candidate] of byDate) {
     if (candidate.conflict)
-      candidate.sourceRows.forEach((row) => rejected.push({ row, reason: 'duplicateDate' }));
+      candidate.sourceRows.forEach(({ row, value }) =>
+        rejected.push({ row, value, reason: 'duplicateDate' }),
+      );
     else rows.push({ rate_date, rate: candidate.rate });
   }
   rejected.sort((a, b) => a.row - b.row);

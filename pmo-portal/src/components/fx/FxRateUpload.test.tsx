@@ -100,13 +100,17 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });
 
-  it('normalizes a selected file into a preview without writing and disables commit for rejected rows', async () => {
+  it('shows the selected filename and rejected value once beside the row number and reason', async () => {
     h.parseFile.mockResolvedValueOnce(
-      parsed('2026-10-12', 16234.56, [{ row: 7, reason: 'invalidRate' }]),
+      parsed('2026-10-12', 16234.56, [{ row: 7, value: '999999', reason: 'invalidRate' }]),
     );
     renderUpload();
+    const input = screen.getByLabelText(/Choose BI Excel or date,rate CSV/);
     selectFile();
-    expect(await screen.findByText(/Row 7: Enter a rate/i)).toBeInTheDocument();
+    expect(await screen.findByText('rates.csv')).toBeInTheDocument();
+    expect(input).toHaveAccessibleName('Choose BI Excel or date,rate CSV');
+    expect(await screen.findByText(/Row 7: 999999 — Enter a rate/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Correct rejected rows and upload again/i)).toHaveLength(1);
     expect(screen.getByText(/1 new/i)).toBeInTheDocument();
     expect(screen.getByText(/1 identical duplicate/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();

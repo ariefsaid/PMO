@@ -2,7 +2,14 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { FxRateMatch } from '@/src/lib/repositories/types';
+
+const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'));
+const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
 
 const h = vi.hoisted(() => ({
   user: { currentUser: { org_id: 'org-1' } },
@@ -96,6 +103,14 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(amount).toBe(100);
   });
 
+  it('keeps a compact equivalent to one visual line with a full accessible name', () => {
+    renderEquivalent({ compact: true });
+    const clipped = screen.getByText('≈ Rp 1,623,456 (JISDOR 2026-10-09)', { selector: '[aria-hidden="true"]' });
+    expect(clipped).toHaveClass('truncate', 'whitespace-nowrap');
+    expect(clipped).toHaveAttribute('title', clipped.textContent);
+    expect(screen.getByText(clipped.textContent ?? '', { selector: '.sr-only' })).toBeInTheDocument();
+  });
+
   it.each(['EUR', 'IDR'])('does not offer JISDOR for unsupported currency %s', (currency) => {
     h.currency = { currency: 'IDR', isResolved: true, isError: false };
     renderEquivalent({ currency });
@@ -111,9 +126,21 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expectRateEnabled(false);
   });
 
-  it('shows a missing-date message and does not query for a dated record without a date', () => {
-    renderEquivalent({ date: null });
-    expect(screen.getByText(/publication date is available/i)).toBeInTheDocument();
+  it.each([
+    ['en', 'No document date — no JISDOR equivalent.'],
+    ['id', 'Tidak ada tanggal dokumen — tidak ada ekuivalen JISDOR.'],
+  ])('explains the missing document date in %s', (language, message) => {
+    const i18n = i18next.createInstance();
+    void i18n.init({ lng: language, fallbackLng: false, defaultNS: 'common', resources: { en: { common: enCatalogue }, id: { common: idCatalogue } }, initImmediate: false });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={client}>
+          <FxEquivalent amount={100} currency="USD" date={null} />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(message)).toBeInTheDocument();
     expectRateEnabled(false);
   });
 

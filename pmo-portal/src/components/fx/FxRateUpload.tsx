@@ -86,6 +86,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
   const [preview, setPreview] = useState<FxPreview | null>(null);
   const [error, setError] = useState<UploadError | null>(null);
   const [selected, setSelected] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const columns: Column<FxRateInput>[] = [
     {
       key: 'rate_date',
@@ -121,6 +122,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
   const selectFile = async (file: File) => {
     const request = ++generation.current;
     setSelected(true);
+    setSelectedFileName(file.name);
     setParsed(null);
     setPreview(null);
     setError(null);
@@ -148,6 +150,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
     setSubmitError(null);
     setConfirmOpen(false);
     setState('choose');
+    setSelectedFileName(null);
     onClose();
   };
 
@@ -180,6 +183,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
       setParsed(null);
       setPreview(null);
       setSelected(false);
+      setSelectedFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCommitted(counts);
     } catch (cause) {
@@ -216,10 +220,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             preview.rows.length === 0 ||
             preview.rejected.length > 0
           }
-          disabledReason={t(
-            'fx.fixRejected',
-            'Correct rejected rows and upload again; nothing has been saved.',
-          )}
           dirty={selected}
           loading={state === 'committing'}
           submitError={submitError}
@@ -244,6 +244,11 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                 }}
                 className="block min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium"
               />
+              {selectedFileName && (
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                  {selectedFileName}
+                </p>
+              )}
             </div>
 
             {state === 'parsing' && (
@@ -315,8 +320,9 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                       <ul className="space-y-1 text-sm">
                         {preview.rejected.map((item) => (
                           <li key={`${item.row}:${item.reason}`}>
-                            {t('fx.rejected', 'Row {{row}}: {{reason}}', {
+                            {t('fx.rejected', 'Row {{row}}: {{value}} — {{reason}}', {
                               row: item.row,
+                              value: item.value ?? '',
                               reason: reasonCopy(item.reason, t),
                             })}
                           </li>

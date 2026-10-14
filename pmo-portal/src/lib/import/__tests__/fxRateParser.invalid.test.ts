@@ -33,6 +33,14 @@ describe('JISDOR import rejection and CSV contract', () => {
     });
   });
 
+  it('retains the original rejected rate value for actionable preview feedback', async () => {
+    const result = await parseFxFile(
+      textFile('rates.csv', 'date,rate\n2026-10-09,999999'),
+      '2026-10-14',
+    );
+    expect(result.rejected).toEqual([{ row: 2, value: '999999', reason: 'invalidRate' }]);
+  });
+
   it('dispatches CSV extension case-insensitively and requires exact date,rate columns', async () => {
     const parsed = await parseFxFile(
       textFile('Rates.CSV', 'date,rate\n2026-10-09,16234.56'),

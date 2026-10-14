@@ -14,9 +14,10 @@ export interface FxEquivalentProps {
   amount: number | null;
   currency: string | null | undefined;
   date: FxEquivalentDate;
+  compact?: boolean;
 }
 
-const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date }) => {
+const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, compact = false }) => {
   const { t } = useTranslation();
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -141,9 +142,20 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date }) =
     );
   }
   try {
+    const equivalent = formatFxEquivalent(amount, rate.data);
+    if (compact) {
+      return (
+        <span className="block min-w-0 text-xs font-normal tabular text-muted-foreground">
+          <span aria-hidden="true" title={equivalent} className="block truncate whitespace-nowrap">
+            {equivalent}
+          </span>
+          <span className="sr-only">{equivalent}</span>
+        </span>
+      );
+    }
     return (
       <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
-        {formatFxEquivalent(amount, rate.data)}
+        {equivalent}
       </span>
     );
   } catch {
