@@ -64,7 +64,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     milestoneState.isPending = false;
     milestoneState.isError = true;
     const failed = render$(true);
-    expect(within(screen.getByTestId('milestone-summary')).getByRole('alert')).toHaveTextContent("Couldn't load milestones");
+    expect(within(screen.getByTestId('milestone-summary')).getByRole('alert')).toHaveTextContent("Couldn't load phases");
     fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
     expect(milestoneState.refetch).toHaveBeenCalledTimes(1);
     failed.unmount();
@@ -135,7 +135,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('non-empty state + clicking "Add milestone" opens CREATE modal (formTarget with null milestone)', () => {
+  it('non-empty state + clicking "Add phase" opens CREATE modal (formTarget with null milestone)', () => {
     milestoneState.data = [
       {
         id: 'm1',
@@ -151,11 +151,11 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
       },
     ];
     render$();
-    fireEvent.click(screen.getByRole('button', { name: /add milestone/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add phase/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('clicking "Edit milestone" in row menu opens EDIT modal (formTarget with milestone)', () => {
+  it('clicking "Edit phase" in row menu opens EDIT modal (formTarget with milestone)', () => {
     milestoneState.data = [
       {
         id: 'm1',
@@ -172,7 +172,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     ];
     render$();
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Engineering design' }));
-    fireEvent.click(screen.getByRole('button', { name: /edit milestone/i }));
+    fireEvent.click(screen.getByRole('button', { name: /edit phase/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

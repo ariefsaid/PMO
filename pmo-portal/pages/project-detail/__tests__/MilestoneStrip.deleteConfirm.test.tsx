@@ -65,12 +65,12 @@ describe('MilestoneStrip delete confirm', () => {
     render$();
 
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Engineering design' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete milestone Engineering design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete phase Engineering design' }));
 
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(screen.getByText('Delete "Engineering design"?')).toBeInTheDocument();
     expect(
-      screen.getByText('Tasks under this milestone become ungrouped; they are not deleted.'),
+      screen.getByText('Tasks under this phase become ungrouped; they are not deleted.'),
     ).toBeInTheDocument();
   });
 
@@ -78,9 +78,9 @@ describe('MilestoneStrip delete confirm', () => {
     render$();
 
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Engineering design' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete milestone Engineering design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete phase Engineering design' }));
 
-    const confirmBtn = screen.getByRole('button', { name: 'Delete milestone' });
+    const confirmBtn = screen.getByRole('button', { name: 'Delete phase' });
     fireEvent.click(confirmBtn);
 
     await waitFor(() => {
