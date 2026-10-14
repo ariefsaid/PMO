@@ -48,6 +48,8 @@ import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSlips';
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import type { BillRow } from '@/src/lib/db/vendorWithholdingSlips';
+import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -67,13 +69,12 @@ type LedgerFilter = 'all' | 'financial' | 'has-file';
 
 interface FilterChipDef {
   value: LedgerFilter;
-  label: string;
 }
 
 const FILTER_CHIPS: FilterChipDef[] = [
-  { value: 'all', label: 'All' },
-  { value: 'financial', label: 'Financial' },
-  { value: 'has-file', label: 'Has file' },
+  { value: 'all' },
+  { value: 'financial' },
+  { value: 'has-file' },
 ];
 const LedgerHeader: React.FC<{ translationKey: string; fallback: string }> = ({ translationKey, fallback }) => {
   const { t } = useTranslation();
@@ -82,7 +83,8 @@ const LedgerHeader: React.FC<{ translationKey: string; fallback: string }> = ({ 
       : translationKey === 'procurementLedger.systemNumber' ? t('procurementLedger.systemNumber', 'System #')
         : translationKey === 'procurementLedger.externalRef' ? t('procurementLedger.externalRef', 'External ref')
           : translationKey === 'procurementLedger.amount' ? t('procurementLedger.amount', 'Amount')
-            : t('procurementLedger.file', 'File');
+            : translationKey === 'procurementLedger.status' ? t('procurementLedger.status', 'Status')
+              : t('procurementLedger.file', 'File');
   return <>{value || fallback}</>;
 };
 const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
@@ -168,7 +170,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'status',
-    header: 'Status',
+    header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
     cell: (row) => (
       <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
     ),
@@ -261,6 +263,13 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation();
+  const invoiceIdentityContext = useMemo<VendorInvoiceContext>(() => ({
+    state: 'ready',
+    caseTitle: detail.title,
+    projectState: detail.project_id ? (detail.project ? 'ready' : 'unavailable') : 'ready',
+    projectName: detail.project?.name,
+    pmoProjectNumber: detail.project?.pmo_project_number,
+  }), [detail.project, detail.project_id, detail.title]);
   const resolvedWithholdingCoverage = withholdingCoverage;
   const slipCoverageLoading = withholdingCoverageLoading;
   const slipCoverageError = withholdingCoverageError;
@@ -448,7 +457,14 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal
-          recordLabel={efakturTarget.systemNumber ?? efakturTarget.recordId}
+          recordContext={(
+            <VendorInvoiceIdentity
+              referenceNumber={efakturTarget.externalRef}
+              viNumber={efakturTarget.systemNumber}
+              invoiceDate={efakturTarget.date.slice(0, 10)}
+              context={invoiceIdentityContext}
+            />
+          )}
           number={efakturTarget.efakturNumber ?? null}
           date={efakturTarget.efakturDate ?? null}
           loading={efakturSaving}
@@ -472,6 +488,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           existingTypes={existingTypes}
           canWrite={canWrite}
           invoices={invoices}
+          invoiceIdentityContext={invoiceIdentityContext}
           isApprover={isApprover}
           busy={captureBusy}
           onCreate={handleCreate}

@@ -22,6 +22,7 @@ import { RecordCaptureForm, type RecordKind } from './RecordCaptureForm';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import type { RecordType } from '@/src/lib/db/procurementLedger';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 // nextExpectedType is the DATA-DRIVEN capture gate (status-unlock AND not-already-
 // present). Extracted to a sibling module so it stays unit-testable directly (no
 // mirror → no drift) without a react-refresh component-export lint violation.
@@ -58,6 +59,8 @@ export interface LedgerCaptureRowProps {
   onCreate: (kind: RecordKind, input: unknown) => Promise<unknown>;
   /** Invoice rows for the payment predecessor-FK dropdown ([PD-5]). */
   invoices?: ProcurementInvoiceRow[];
+  /** Display-only case/project facts already loaded with the owning procurement. */
+  invoiceIdentityContext?: VendorInvoiceContext;
   /** Whether the capture affordance is active. Derived from real JWT role. */
   canWrite: boolean;
   /** Whether any mutation is in flight (busy state). */
@@ -75,6 +78,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   existingTypes,
   onCreate,
   invoices = [],
+  invoiceIdentityContext,
   canWrite,
   busy = false,
   isApprover = false,
@@ -98,6 +102,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
         <RecordCaptureForm
           kind={nextKind}
           invoices={invoices}
+          invoiceIdentityContext={invoiceIdentityContext}
           busy={busy}
           onCreate={(input) => onCreate(nextKind, input)}
           onClose={() => setOpen(false)}

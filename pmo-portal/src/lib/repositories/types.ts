@@ -139,7 +139,7 @@ import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput, SlipWriteResult } from '@/src/lib/vendorWithholdingSlip';
-import type { BillCursor, BillPage, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
+import type { BillContextLabels, BillCursor, BillPage, ReadBillContextsInput, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
 
 /**
  * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
@@ -751,6 +751,7 @@ export interface VendorWithholdingSlipsRepository {
   listSlips(params?: { vendorId?: string; taxPeriod?: string; invoiceId?: string; cursor?: SlipCursor; limit?: number }): Promise<SlipPage>;
   listBills(params?: { vendorId?: string; pphType?: string; currency?: string; invoiceIds?: string[]; candidatesOnly?: boolean; cursor?: BillCursor; limit?: number }): Promise<BillPage>;
   coverage(invoiceIds: string[]): Promise<BillPage['rows']>;
+  readBillContexts(input: ReadBillContextsInput): Promise<BillContextLabels>;
   get(slipId: string): Promise<SlipDetail>;
 }
 

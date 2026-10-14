@@ -6,10 +6,12 @@ import { financeTestI18n, financeTestI18nReady } from '../__tests__/financeI18nT
 
 const state = vi.hoisted(() => ({
   detail: { isLoading: false, isError: false, data: null as unknown, refetch: vi.fn() },
+  contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>,
   correct: vi.fn(), voidSlip: vi.fn(),
 }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlip: () => state.detail,
+  useVendorWithholdingBillContexts: () => state.contexts,
   useVendorWithholdingSlipMutations: () => ({ correct: { mutateAsync: state.correct, isPending: false }, void: { mutateAsync: state.voidSlip, isPending: false } }),
 }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Slip change history</div> }));
@@ -21,16 +23,42 @@ const header = {
   pph_type: 'pph23', currency: 'IDR', tax_base: '500000.00', withheld_amount: '20000.00',
   status: 'active', validation_state: 'reconciled', revision: 7, void_reason: null,
 };
-const detail = (overrides: Record<string, unknown> = {}) => ({ header: { ...header, ...overrides }, bills: [{ invoice_id: 'invoice-1', procurement_id: 'case-2', vi_number: 'VI-002', withheld_at_record: '20000.00', currency: 'IDR' }] });
+const detail = (overrides: Record<string, unknown> = {}) => ({ header: { ...header, ...overrides }, bills: [{ invoice_id: 'invoice-1', procurement_id: 'case-2', project_id: 'project-2', reference_number: 'SUP-INV-002', invoice_date: '2026-09-21', vi_number: 'VI-002', withheld_at_record: '20000.00', currency: 'IDR' }] });
 const renderPanel = (canWrite = true) => render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={canWrite} onClose={vi.fn()} />);
 
 beforeEach(() => {
   state.detail = { isLoading: false, isError: false, data: detail(), refetch: vi.fn() };
+  state.contexts = { 'invoice-1': { state: 'ready', caseTitle: 'Case two', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2642' } };
   state.correct.mockReset(); state.correct.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
   state.voidSlip.mockReset(); state.voidSlip.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
 });
 
 describe('AC-BUPOT-018 withholding-slip details', () => {
+  it.each(['en', 'id'] as const)('AC-UXT-004 renders linked-bill identity and preserves its case/slip destination in %s', async (locale) => {
+    await financeTestI18nReady;
+    await act(async () => { await financeTestI18n.changeLanguage(locale); });
+    state.detail.data = { header, bills: [
+      { invoice_id: 'invoice-1', procurement_id: 'case-2', project_id: 'project-2', reference_number: 'SUP-INV-002', vi_number: 'VI-002', invoice_date: '2026-09-21', withheld_at_record: '20000.00', currency: 'IDR' },
+      { invoice_id: 'invoice-2', procurement_id: 'case-3', project_id: 'project-3', reference_number: null, vi_number: null, invoice_date: null, withheld_at_record: '10000.00', currency: 'IDR' },
+    ] };
+    state.contexts = {
+      'invoice-1': { state: 'ready', caseTitle: 'Case two', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2642' },
+      'invoice-2': { state: 'unavailable' },
+    };
+    const onOpenProcurement = vi.fn();
+    render(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} /></FinanceI18nTestProvider>);
+    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference: SUP-INV-002' : 'Referensi faktur vendor: SUP-INV-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'System VI number: VI-002' : 'Nomor VI sistem: VI-002')).toBeInTheDocument();
+    expect(document.body).toHaveTextContent(locale === 'en' ? 'Case: Case two' : 'Kasus: Case two');
+    expect(document.body).toHaveTextContent('Harbor works');
+    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference not recorded' : 'Referensi faktur vendor belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Case: Details unavailable' : 'Kasus: Detail tidak tersedia')).toBeInTheDocument();
+    const open = screen.getByRole('button', { name: /SUP-INV-002.*VI-002.*Case two/ });
+    fireEvent.click(open);
+    expect(onOpenProcurement).toHaveBeenCalledWith('case-2', 'slip-1', 'invoice-1');
+    await act(async () => { await financeTestI18n.changeLanguage('en'); });
+  });
+
   it.each([
     ['active', { status: 'active', validation_state: 'reconciled' }],
     ['void', { status: 'void', validation_state: 'void', void_reason: 'Duplicate entry' }],
@@ -43,7 +71,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(screen.queryAllByText(/^(needs-review|reconciled|active|void|pph23)$/i, { selector: 'dd' })).toHaveLength(0);
     if (overrides.status === 'active') expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getAllByText(/IDR.?20,000\.00/)).toHaveLength(2);
-    expect(screen.getByText('VI-002')).toBeInTheDocument();
+    expect(screen.getByText('System VI number: VI-002')).toBeInTheDocument();
     expect(screen.getByText('Slip change history')).toBeInTheDocument();
     if (overrides.status === 'void') expect(screen.getByText(/Duplicate entry/)).toBeInTheDocument();
     if (overrides.validation_state === 'needs-review') { expect(screen.getByText('Needs review')).toBeInTheDocument(); expect(screen.getByText(/Verify the source/)).toBeInTheDocument(); }
@@ -73,7 +101,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
   it('#961 F13 makes Open bill in case at least 44px on phone', () => {
     const onOpenProcurement = vi.fn();
     render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} />);
-    const open = screen.getByRole('button', { name: 'Open bill VI-002 in case case-2' });
+    const open = screen.getByRole('button', { name: /SUP-INV-002.*VI-002.*Case: Case two.*Harbor works.*PRJ-2642/ });
     expect(open.className).toContain('touch-target');
     expect(open.className).toContain('max-[767px]:min-h-11');
     fireEvent.click(open);

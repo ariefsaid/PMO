@@ -52,20 +52,20 @@ Run commands from the repository root unless a command explicitly changes direct
 ### Task 1 — Lock the linked-bill read projection before changing it
 
 **Files**
-- Create `supabase/tests/0287_tax_evidence_context_labels.test.sql`
-- Create `supabase/migrations/0287_tax_evidence_context_labels.sql`
-- Create `supabase/migrations/rollback/0287_tax_evidence_context_labels_down.sql`
+- Create `supabase/tests/0289_tax_evidence_context_labels.test.sql`
+- Create `supabase/migrations/0289_tax_evidence_context_labels.sql`
+- Create `supabase/migrations/rollback/0289_tax_evidence_context_labels_down.sql`
 
 **TDD (red first)**
 1. Add a pgTAP fixture with one readable withholding slip/bill that has a supplier `reference_number`, `procurement_id`, and `project_id`; call the shipped `get_vendor_withholding_slip(uuid)` as an authenticated readable Finance fixture.
 2. Assert the returned linked-bill JSON contains the correct `reference_number` and `project_id`, retains `invoice_id`, `procurement_id`, `vi_number`, date/money/coverage fields, and does not contain the slip write payload. This is a supporting DB-contract test, not a second owner for AC-UXT-004.
 3. Confirm the test is red because the current 0282 envelope omits the two identity fields.
-4. In migration `0287_tax_evidence_context_labels.sql`, `create or replace` the existing `public.get_vendor_withholding_slip(uuid)` body only: add `r.reference_number` and `r.project_id` to each linked-bill `jsonb_build_object`; retain `SECURITY INVOKER`, `STABLE`, `search_path`, P0002 behavior, joins, grants, and all pre-existing envelope fields exactly.
+4. In migration `0289_tax_evidence_context_labels.sql`, `create or replace` the existing `public.get_vendor_withholding_slip(uuid)` body only: add `r.reference_number` and `r.project_id` to each linked-bill `jsonb_build_object`; retain `SECURITY INVOKER`, `STABLE`, `search_path`, P0002 behavior, joins, grants, and all pre-existing envelope fields exactly.
 5. In the down migration, restore the exact 0282 function body and ACLs, with no `CASCADE`.
 
 **Verify**
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_tax_evidence_context_labels.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0289_tax_evidence_context_labels.test.sql'
 ```
 
 **ACs:** supporting contract for AC-UXT-004.
@@ -261,7 +261,7 @@ cd pmo-portal && npm run check:i18n
 1. Run all owning and close-regression tests under the shared test lock:
 ```bash
 scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run src/lib/db/vendorWithholdingSlips.test.ts src/lib/repositories/__tests__/vendorWithholdingSlips.test.ts src/hooks/useVendorWithholdingSlips.test.tsx src/hooks/useVendorWithholdingSlips.context.test.tsx src/components/procurement/VendorInvoiceIdentity.test.tsx pages/procurement/VendorWithholdingSlipModal.test.tsx pages/procurement/VendorWithholdingSlipDetails.test.tsx pages/procurement/__tests__/RecordCaptureForm.payment.test.tsx pages/procurement/ProcurementLedger.labels.test.tsx pages/procurement/ProcurementLedger.efaktur.test.tsx pages/__tests__/SalesInvoices.efaktur.test.tsx'
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0287_tax_evidence_context_labels.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0289_tax_evidence_context_labels.test.sql'
 ```
 2. Run required local gates:
 ```bash

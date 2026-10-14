@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const h = vi.hoisted(() => ({ rpc: vi.fn(), result: { data: [] as unknown, error: null as unknown } }));
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
-import { correctSlip, getSlip, listBills, listSlips, recordSlip, voidSlip } from './vendorWithholdingSlips';
+const h = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), result: { data: [] as unknown, error: null as unknown } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
+import { correctSlip, getSlip, listBills, listSlips, readBillContexts, recordSlip, voidSlip } from './vendorWithholdingSlips';
 
 beforeEach(() => { vi.clearAllMocks(); h.result = { data: [{ slip_id: 'slip-1', revision: 1 }], error: null }; h.rpc.mockImplementation(async () => h.result); });
 const input = { slipId: 'slip-1', vendorId: 'vendor-1', slipNumber: ' BUPOT/1 ', slipDate: '2026-10-01', taxPeriod: '2026-10-01', pphType: 'pph23' as const, taxBase: '999999999999.99', withheldAmount: '0.01', invoiceIds: ['invoice-1'], declaredInvoiceIds: [] };
@@ -31,6 +31,35 @@ it('AC-BUPOT-014 DAL list readers preserve cursor DTOs and bind their server fil
   h.result.data = { header: {}, bills: [] };
   await expect(getSlip('s')).resolves.toEqual({ header: {}, bills: [] });
 });
+it('AC-UXT-007 batches unique case and project labels in two RLS-scoped reads', async () => {
+  const calls: Array<{ table: string; columns: string; ids: string[] }> = [];
+  const rows = {
+    procurements: [{ id: 'case-a', title: 'Case North' }],
+    projects: [{ id: 'project-a', name: 'Harbor works', pmo_project_number: 'PRJ-2641' }],
+  };
+  h.from.mockImplementation((table: 'procurements' | 'projects') => {
+    let columns = '';
+    let ids: string[] = [];
+    const builder = {
+      select: vi.fn((value: string) => { columns = value; return builder; }),
+      in: vi.fn((_column: string, value: string[]) => { ids = value; return builder; }),
+      then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
+        calls.push({ table, columns, ids });
+        return Promise.resolve({ data: rows[table], error: null }).then(resolve, reject);
+      },
+    };
+    return builder;
+  });
+  await expect(readBillContexts({ procurementIds: ['case-b', 'case-a', 'case-a'], projectIds: ['project-a', 'project-a'] })).resolves.toEqual({
+    procurements: { 'case-a': 'Case North' }, projects: { 'project-a': { name: 'Harbor works', pmoProjectNumber: 'PRJ-2641' } },
+  });
+  expect(calls).toEqual([
+    { table: 'procurements', columns: 'id,title', ids: ['case-a', 'case-b'] },
+    { table: 'projects', columns: 'id,name,pmo_project_number', ids: ['project-a'] },
+  ]);
+  expect(JSON.stringify(calls)).not.toMatch(/org_id|rpc|write/i);
+});
+
 it('AC-BUPOT-014 DAL keeps the database error code and stable DETAIL', async () => {
   const error = { message: 'opaque', code: '23514', details: 'bupot-amount-mismatch' };
   h.result = { data: null, error };

@@ -29,5 +29,6 @@ export const vendorWithholdingSlipsRepository: VendorWithholdingSlipsRepository 
     }
     return out;
   },
+  readBillContexts: (input) => wrap(() => dal.readBillContexts(input)),
   get: (slipId) => wrap(() => dal.getSlip(slipId)),
 };

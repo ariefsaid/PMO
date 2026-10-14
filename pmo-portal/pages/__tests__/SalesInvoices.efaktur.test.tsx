@@ -8,9 +8,14 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { formatDateOnly } from '@/src/lib/format';
+import { FinanceI18nTestProvider } from './financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance';
 
 const h = vi.hoisted(() => ({
   invoices: [] as SalesInvoiceRow[],
+  projectOptions: [{ value: 'project-1', label: 'Project North' }],
+  projectOptionsPending: false,
+  projectOptionsError: false,
   setEfaktur: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
@@ -27,7 +32,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-test', org_id: 'org-test' } }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Project North' }] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: h.projectOptions, isPending: h.projectOptionsPending, isError: h.projectOptionsError }) }));
 vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFailed: vi.fn() }));
 
 import SalesInvoices from '../SalesInvoices';
@@ -56,16 +61,23 @@ function cellOf(siNumber: string, header: string): HTMLElement {
 function renderAs(role: Role) {
   return render(
     // The page's PDF hook (#912) reads the query cache — give it the standard provider.
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ImpersonationProvider realRole={role}>
-        <MemoryRouter><ToastProvider><SalesInvoices /></ToastProvider></MemoryRouter>
-      </ImpersonationProvider>
-    </QueryClientProvider>,
+    <FinanceI18nTestProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ImpersonationProvider realRole={role}>
+          <MemoryRouter><ToastProvider><SalesInvoices /></ToastProvider></MemoryRouter>
+        </ImpersonationProvider>
+      </QueryClientProvider>
+    </FinanceI18nTestProvider>,
   );
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await financeTestI18nReady;
+  await financeTestI18n.changeLanguage('en');
   h.invoices = [invoice('one', 'Submitted', '010.001-26.12345678', '2026-09-28'), invoice('two', 'Draft', null, null)];
+  h.projectOptions = [{ value: 'project-1', label: 'Project North' }];
+  h.projectOptionsPending = false;
+  h.projectOptionsError = false;
   h.setEfaktur.mockReset().mockResolvedValue(undefined);
 });
 
@@ -117,13 +129,60 @@ describe('SalesInvoices e-Faktur details', () => {
     expect(screen.queryByRole('menuitem', { name: 'Approve' })).not.toBeInTheDocument();
   });
 
-  it('UXS-031 gives an unnumbered e-Faktur draft a project identity instead of exposing its UUID', () => {
-    h.invoices = [{ ...invoice('private-row-id', 'Draft', null, null), si_number: null, project_id: 'project-1' }];
-    renderAs('Finance');
-    fireEvent.click(screen.getByRole('button', { name: 'Row actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('For Draft invoice · Project North.');
-    expect(screen.getByRole('dialog')).not.toHaveTextContent('private-row-id');
+  it.each(['en', 'id'] as const)('AC-UXT-006 keeps sales e-Faktur identities human across project lookup states in %s', async (locale) => {
+    await financeTestI18n.changeLanguage(locale);
+    const copy = locale === 'en'
+      ? {
+          issued: 'Issued sales invoice number: SI-issued', draft: 'Draft invoice', project: 'Project: Project North',
+          pending: 'Project: Project details loading', unavailable: 'Project: Project details unavailable',
+          notRecorded: 'Project: Project not recorded', customer: 'Customer: Acme customer', customerResolved: 'Customer: Customer', customerMissing: 'Customer: Customer not recorded',
+          instruction: 'Copy the number from the issued e-Faktur document.',
+        }
+      : {
+          issued: 'Nomor faktur penjualan terbit: SI-issued', draft: 'Draf faktur', project: 'Proyek: Project North',
+          pending: 'Proyek: Detail proyek sedang dimuat', unavailable: 'Proyek: Detail proyek tidak tersedia',
+          notRecorded: 'Proyek: Proyek belum dicatat', customer: 'Pelanggan: Acme customer', customerResolved: 'Pelanggan: Customer', customerMissing: 'Pelanggan: Pelanggan belum dicatat',
+          instruction: 'Salin nomor dari dokumen e-Faktur yang diterbitkan.',
+        };
+    const scenarios = [
+      {
+        row: { ...invoice('f29c4a00-3929-4c13-a470-6d2aa43ae001', 'Submitted', '010.001-26.12345678', '2026-09-28'), si_number: 'SI-issued' },
+        options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.issued],
+      },
+      {
+        row: { ...invoice('resolved', 'Draft', null, null), si_number: null, project_id: 'project-1' },
+        options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.draft, copy.project, copy.customerResolved],
+      },
+      {
+        row: { ...invoice('pending-project', 'Draft', null, null), si_number: null, project_id: 'project-pending' },
+        options: [], pending: true, error: false, expected: [copy.draft, copy.pending],
+      },
+      {
+        row: { ...invoice('missing-project', 'Draft', null, null), si_number: null, project_id: 'project-missing', customer_name: 'Acme customer' },
+        options: [], pending: false, error: false, expected: [copy.draft, copy.unavailable, copy.customer],
+      },
+      {
+        row: { ...invoice('no-context', 'Draft', null, null), si_number: null, project_id: null, customer_name: null },
+        options: [], pending: false, error: false, expected: [copy.draft, copy.notRecorded, copy.customerMissing],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      h.invoices = [scenario.row];
+      h.projectOptions = scenario.options;
+      h.projectOptionsPending = scenario.pending;
+      h.projectOptionsError = scenario.error;
+      const rendered = renderAs('Finance');
+      const action = screen.getAllByRole('button').find((button) => button.getAttribute('aria-haspopup') === 'menu');
+      if (!action) throw new Error('No sales invoice row action');
+      fireEvent.click(action);
+      fireEvent.click(screen.getByRole('menuitem', { name: financeTestI18n.t('efaktur.record') }));
+      const dialog = screen.getByRole('dialog');
+      for (const text of scenario.expected) expect(dialog).toHaveTextContent(text);
+      expect(dialog).toHaveTextContent(copy.instruction);
+      expect(dialog).not.toHaveTextContent(scenario.row.id);
+      rendered.unmount();
+    }
   });
 
   it('AC-EFK-004 does not offer e-Faktur editing on cancelled invoices', () => {

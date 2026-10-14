@@ -14,8 +14,8 @@ export interface EfakturSaveValues {
  * the drafts seed from the props once and need no reset effect.
  */
 export interface EfakturModalProps {
-  /** The record's own number (SI / VI), named in the subtitle so the user knows which row they edit. */
-  recordLabel: string;
+  /** Display-only human identity for the invoice being edited; never an immutable database ID. */
+  recordContext: React.ReactNode;
   number: string | null;
   date: string | null;
   loading: boolean;
@@ -25,7 +25,7 @@ export interface EfakturModalProps {
 
 /** Shared, accessible PMO-owned e-Faktur editor for sales invoices and vendor bills. */
 export const EfakturModal: React.FC<EfakturModalProps> = ({
-  recordLabel, number, date, loading, onClose, onSave,
+  recordContext, number, date, loading, onClose, onSave,
 }) => {
   const { t } = useTranslation();
   const [numberDraft, setNumberDraft] = useState(number ?? '');
@@ -75,7 +75,7 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
     <EntityFormModal
       open
       title={t('efaktur.title', 'Record e-Faktur details')}
-      subtitle={t('efaktur.subtitle', 'For {{record}}. Record the number and its date together, or leave both empty for a non-VAT document.', { record: recordLabel })}
+      subtitle={t('efaktur.subtitle', 'Record the number and its date together, or leave both empty for a non-VAT document.')}
       submitLabel={t('financeCopy.save', 'Save')}
       cancelLabel={t('efaktur.cancel', 'Cancel')}
       disabledReason={t('efaktur.disabledReason', 'Fix the highlighted e-Faktur value to save.')}
@@ -93,6 +93,12 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
       submitError={saveError}
     >
       <div className="grid gap-4">
+        <div className="min-w-0 space-y-2">
+          <div className="min-w-0 break-words text-sm">{recordContext}</div>
+          <p className="break-words text-xs text-muted-foreground">
+            {t('efaktur.copyInstruction', 'Copy the number from the issued e-Faktur document.')}
+          </p>
+        </div>
         <TextField
           label={t('efaktur.number', 'e-Faktur number')}
           value={numberDraft}
