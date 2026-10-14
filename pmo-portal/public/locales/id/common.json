@@ -4384,5 +4384,27 @@
     "keepEditing": "Lanjut mengedit",
     "fixFields_one": "Perbaiki {{count}} kolom sebelum menyimpan",
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
+  },
+  "projectFinances": {
+    "title":"Keuangan proyek", "lifetime":"Sejak awal hingga kini", "contract":"Nilai kontrak",
+    "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
+    "settlementNote":"Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
+    "incomplete":"Belum lengkap — saldo belum dibayar dari ERP belum tersedia",
+    "work":"Pendapatan pekerjaan ditagihkan (neto pajak, tanpa uang muka)", "margin":"Margin",
+    "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
+    "draft":"Draf — belum aktif", "active":"Aktif", "noBudget":"Belum ada anggaran", "budget":"Anggaran",
+    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Pembacaan buku besar belum tersedia",
+    "mappingUnavailable":"Pemetaan akun belum tersedia", "mappedCosts":"Biaya buku besar terpetakan",
+    "category":"Kategori", "actuals":"Aktual buku besar", "unavailable":"Tidak tersedia",
+    "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
+    "noInvoices":"Belum ada tagihan yang diajukan", "mixedTaxBases":"Dasar pajak berbeda",
+    "contractInvoiced":"Ditagihkan terhadap kontrak", "remaining":"Sisa untuk ditagihkan"
+  },
+  "invoiceProject": {
+    "assign":"Tetapkan proyek", "change":"Ubah proyek", "project":"Proyek", "save":"Simpan proyek",
+    "scope":"Hanya atribusi PMO; tagihan ERP tidak berubah.", "required":"Pilih proyek.",
+    "current":"Proyek saat ini", "fromTo":"Dari {{old}} ke {{new}}. Hanya atribusi PMO; tagihan ERP tidak berubah.",
+    "discardTitle":"Buang pilihan proyek?", "discardDetail":"Proyek yang dipilih tidak akan disimpan.",
+    "discard":"Buang", "keep":"Lanjutkan mengedit", "unassignedFilter":"Tagihan tanpa proyek"
   }
 }

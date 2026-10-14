@@ -1,4 +1,9 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { axe } from 'jest-axe';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -24,6 +29,10 @@ const project = {
   tax_treatment: 'inclusive',
 } as unknown as ProjectWithRefs;
 
+const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
+const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
+const localeI18n = createInstance();
+
 const payload = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => ({
   project_id: project.id,
   contract_invoiced: '0.00',
@@ -42,6 +51,22 @@ beforeEach(() => {
 });
 
 describe('ProjectFinancesSection reading states', () => {
+  it('AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys', async () => {
+    await localeI18n.init({
+      lng: 'en', fallbackLng: 'en', defaultNS: 'common',
+      resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+      interpolation: { escapeValue: false }, react: { useSuspense: false },
+    });
+    h.query.data = payload();
+    for (const [language, expectedTitle] of [['en', 'Project finances'], ['id', 'Keuangan proyek']] as const) {
+      await localeI18n.changeLanguage(language);
+      const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
+      expect(screen.getByRole('region', { name: expectedTitle })).toBeInTheDocument();
+      expect(screen.queryByText(/^(projectFinances|invoiceProject)\./)).not.toBeInTheDocument();
+      expect(await axe(view.container)).toHaveNoViolations();
+      view.unmount();
+    }
+  });
   it('AC-PFIN-015 announces loading without presenting zero-valued finance', () => {
     h.query.isPending = true;
     render(<ProjectFinancesSection project={project} />);
@@ -51,8 +76,9 @@ describe('ProjectFinancesSection reading states', () => {
 
   it('AC-PFIN-015 shows an alert on failure and Retry calls the query refetch', async () => {
     h.query.isError = true;
-    render(<ProjectFinancesSection project={project} />);
+    const { container } = render(<ProjectFinancesSection project={project} />);
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project finances.");
+    expect(await axe(container)).toHaveNoViolations();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
   });
