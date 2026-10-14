@@ -303,7 +303,7 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     await expectNoBlockingViolations(document.body);
 
     fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-13,not-a-rate'], 'rejected.csv', { type: 'text/csv' })] } });
-    await screen.findByText(/Row 2: Enter a rate/i);
+    await screen.findByText(/Row 2: not-a-rate — Enter a rate/i);
     await expectNoBlockingViolations(document.body);
 
     fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-12,16300'], 'retry.csv', { type: 'text/csv' })] } });
