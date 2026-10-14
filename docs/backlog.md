@@ -1028,9 +1028,9 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > | Operator/client separation (#428) | on `main` (`AC-M365SEP-*`, pgTAP `0178`) |
 > | Migrations | `0112`–`0117`, `0151`, `0186` — on `main` and on the cloud DB (level `0210`); edge fn `m365-token-custody` deployed at `59f91bbf` |
 > | **M0** baseline verify | ✅ done 2026-08-16 |
-> | **M1** live use-leg proof | ⛔ **PARKED.** Connect leg proven live end-to-end incl. first auto-refresh — Graph accepts our token. The **vendor tenant has no SharePoint Online licence**, so a data-carrying 200 is impossible there. Owner: *"wait until RIS."* Record: `docs/spikes/2026-08-18-m365-use-leg-live-probe.md` |
+> | **M1** live use-leg proof | ✅ **CLOSED 2026-10-14** on the first client tenant (Option B, client-registered app): `/me/drive`, `/me/drive/root/children`, `/sites?search=*` and `/me/drive/items/{id}/versions` all returned data-carrying **200** through `graph_proxy`. Record: `docs/spikes/2026-08-18-m365-use-leg-live-probe.md` § Closure. Found on the way: #1014 (admin-consent URL lacked `scope`), #1016 (operator Features panel can't target another org), #1017 (client self-serve setup). |
 > | **M2** doc-linking spec | `docs/specs/m365-onedrive-doc-linking.spec.md` exists |
-> | **M3** doc-linking build | **not started, gated on M1** — the brief's build-follows-proof rule: the code waits on real Graph response shapes |
+> | **M3** doc-linking build | **not started — unblocked 2026-10-14 (M1 closed)** — the brief's build-follows-proof rule: the code waits on real Graph response shapes |
 > | **M4** coverage debt + promote | not started |
 >
 > ⚑ **`graph_proxy` has never decrypted a token in anger.** Custody is built and proven; *use* is not.
