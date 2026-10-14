@@ -62,6 +62,29 @@ export function moneyText(units: bigint): ExactMoney {
   return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
 }
 
+export function isProjectFinances(value: unknown): value is ProjectFinances {
+  const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const exact = (v: unknown) => v === null || (typeof v === 'string' && moneyUnits(v) !== null);
+  const count = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+  const currency = (v: unknown) => typeof v === 'string' && /^[A-Z]{3}$/.test(v);
+  const uuid = (v: unknown) => typeof v === 'string'
+    && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(v);
+  if (!object(value) || !uuid(value.project_id) || !exact(value.contract_invoiced) || !exact(value.remaining_to_invoice)
+    || !Array.isArray(value.invoices) || !value.invoices.every((v) => object(v) && currency(v.currency)
+      && count(v.invoice_count) && count(v.missing_amount) && count(v.missing_outstanding) && count(v.missing_work)
+      && ['inclusive', 'exclusive', 'mixed'].includes(String(v.tax_basis)) && exact(v.invoiced) && exact(v.settled)
+      && exact(v.outstanding) && exact(v.work_revenue))) return false;
+  const budget = value.budget;
+  if (budget !== null && (!object(budget) || !uuid(budget.id) || typeof budget.name !== 'string' || !count(budget.version)
+    || (budget.status !== 'Active' && budget.status !== 'Draft') || !currency(budget.currency) || !exact(budget.amount))) return false;
+  const actuals = value.actuals;
+  return object(actuals) && (actuals.currency === null || currency(actuals.currency))
+    && (actuals.as_of === null || (typeof actuals.as_of === 'string' && Number.isFinite(Date.parse(actuals.as_of))))
+    && exact(actuals.total) && typeof actuals.excludes_restricted_rows === 'boolean' && Array.isArray(actuals.categories)
+    && actuals.categories.every((v) => object(v) && typeof v.category === 'string'
+      && typeof v.mapped === 'boolean' && exact(v.amount));
+}
+
 export function formatExactMoney(value: ExactMoney | null, currency: string, locale: string): string | null {
   const units = moneyUnits(value);
   if (units === null || !/^[A-Z]{3}$/.test(currency)) return null;
