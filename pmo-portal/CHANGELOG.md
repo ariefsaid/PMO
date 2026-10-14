@@ -10,6 +10,37 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.18.0](https://github.com/ariefsaid/PMO/compare/v0.17.0...v0.18.0) (2026-10-13)
+
+
+### Features
+
+* **revenue:** PPN invoice correction via cancel + re-issue; unlock project VAT once all invoices are cancelled ([#956](https://github.com/ariefsaid/PMO/issues/956)) ([#973](https://github.com/ariefsaid/PMO/issues/973)) ([1111629](https://github.com/ariefsaid/PMO/commit/1111629d2f6cfb6336b5879a1a255f115280cc1d))
+* **ui:** compact clear queues, actionable PM rows, flat preferences card (UI polish slices 5+6) ([#974](https://github.com/ariefsaid/PMO/issues/974)) ([8873aab](https://github.com/ariefsaid/PMO/commit/8873aab006c9bbd1e1f35077e3dac65b1a46847e))
+* **ui:** one Lucide icon family + recognizable rail; fix page side-scroll (UI polish slice 1) ([#972](https://github.com/ariefsaid/PMO/issues/972)) ([20ffa6a](https://github.com/ariefsaid/PMO/commit/20ffa6aa0637a6fa32eca283d9bf9d4978d66669))
+* **ui:** procurement scan columns, readable approval identities, phone record headers (UI polish slice 4) ([#977](https://github.com/ariefsaid/PMO/issues/977)) ([cfaf538](https://github.com/ariefsaid/PMO/commit/cfaf53869b553163f4a005c40a68f03e152bf15b))
+* **ui:** project detail — compact context, tab work in the first viewport (UI polish slice 3) ([#975](https://github.com/ariefsaid/PMO/issues/975)) ([4057531](https://github.com/ariefsaid/PMO/commit/4057531cfbfe553dea04288eb0d4f42ee7923428))
+* **ui:** readable project lists — identity first, collapsed classification filters (UI polish slice 2) ([#976](https://github.com/ariefsaid/PMO/issues/976)) ([faca448](https://github.com/ariefsaid/PMO/commit/faca448e74b9da359ee34e4ebfbc75c6fa6067db))
+* **ux:** accountable meeting follow-ups and a focused My Tasks queue (UX Discover slice 5) ([#984](https://github.com/ariefsaid/PMO/issues/984)) ([93505a2](https://github.com/ariefsaid/PMO/commit/93505a202cabb029964d1bee66ce6131156fb947))
+* **ux:** addressable invoice records and a direct handoff to billed drafts (UX Discover slice 4) ([#990](https://github.com/ariefsaid/PMO/issues/990)) ([ae3984f](https://github.com/ariefsaid/PMO/commit/ae3984f9cc2a79f8e2030fbda09089a97bceaf09))
+* **ux:** dashboards that lead to the work — risk/budget links, realized-margin help, readable tooltips (UX Discover slice 7) ([#987](https://github.com/ariefsaid/PMO/issues/987)) ([1e42cd3](https://github.com/ariefsaid/PMO/commit/1e42cd3844bbc29d5fbc29fef604bd34b2273da9))
+* **ux:** discoverable homes and one shell vocabulary — PM My Tasks, Vendors doorway, localized nav (UX Discover slice 6) ([#989](https://github.com/ariefsaid/PMO/issues/989)) ([57e9afb](https://github.com/ariefsaid/PMO/commit/57e9afba2243af43871f579a6b8462780022b1e3))
+* **ux:** one pending approvals population, pending before history, receipt preview in the inbox (UX Discover slice 1) ([#988](https://github.com/ariefsaid/PMO/issues/988)) ([507103c](https://github.com/ariefsaid/PMO/commit/507103cce3d0a8876ad667f7626e43c8cb14cbb9))
+* **ux:** prerequisites before dead ends — vendor recovery, work-order issue gate, localized VAT refusals (UX Discover slice 3) ([#985](https://github.com/ariefsaid/PMO/issues/985)) ([cca8514](https://github.com/ariefsaid/PMO/commit/cca851469d63f378af3644c4416df21919c55335))
+* **ux:** reachable phone week completion and localized timesheet grid (UX Discover slice 8) ([#992](https://github.com/ariefsaid/PMO/issues/992)) ([4bd1c1c](https://github.com/ariefsaid/PMO/commit/4bd1c1c8dfbe992d50bbc299c47845dc4871f002))
+* **ux:** receipt preview, decision context in expense confirmations, dialog-safe warnings (UX Discover slice 2) ([#983](https://github.com/ariefsaid/PMO/issues/983)) ([2c04834](https://github.com/ariefsaid/PMO/commit/2c048348092209ef74fe92245ca041105de61e40))
+
+
+### Bug Fixes
+
+* **erpnext:** sweep polls non-submittable doctypes (Customer, Supplier, Employee) ([#999](https://github.com/ariefsaid/PMO/issues/999)) ([709e7ce](https://github.com/ariefsaid/PMO/commit/709e7cee6904a145f19f0be60a14702266a54c21))
+* **procurement:** one amount basis, payable settlement, quote selection through comparison ([#979](https://github.com/ariefsaid/PMO/issues/979)) ([#982](https://github.com/ariefsaid/PMO/issues/982)) ([be747b4](https://github.com/ariefsaid/PMO/commit/be747b420d089691c8dc66ad75447c2223ed687f))
+* **procurement:** withholding slip follow-ups — history labels, case scroll, pinned polish ([#961](https://github.com/ariefsaid/PMO/issues/961)) ([#970](https://github.com/ariefsaid/PMO/issues/970)) ([48050d0](https://github.com/ariefsaid/PMO/commit/48050d04739ab98018f1ec7fcdafd77941909674))
+* **projects:** phone list bleed; journeys follow the compact project header ([#995](https://github.com/ariefsaid/PMO/issues/995)) ([f41884d](https://github.com/ariefsaid/PMO/commit/f41884dece68fd0a280c8b38a38a78cb0dbc4766))
+* **shell:** My Tasks link name and phone drawer focus return ([#993](https://github.com/ariefsaid/PMO/issues/993)) ([de7ac6d](https://github.com/ariefsaid/PMO/commit/de7ac6dcffc4b115299ce3e8b8105cb8586545dd))
+* **ui:** classification filters keep typed location when another filter changes ([#1000](https://github.com/ariefsaid/PMO/issues/1000)) ([b501c2b](https://github.com/ariefsaid/PMO/commit/b501c2b12142006c4967272aee66da04535c2eb4))
+* **ui:** toasts clear mobile action bars; modal save errors stay inline ([#953](https://github.com/ariefsaid/PMO/issues/953)) ([#969](https://github.com/ariefsaid/PMO/issues/969)) ([0ffd1f9](https://github.com/ariefsaid/PMO/commit/0ffd1f9f2e0832e7a21cb85107667a48c6dbfa06))
+
 ## [0.17.0](https://github.com/ariefsaid/PMO/compare/v0.16.0...v0.17.0) (2026-10-09)
 
 
