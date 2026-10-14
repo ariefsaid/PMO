@@ -2405,10 +2405,27 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } });
   }
 
+  let maintenanceRequest: { org_id: string; after_id: string | null } | null = null;
+  const requestBody = await req.text();
+  if (requestBody.trim()) {
+    let payload: unknown;
+    try { payload = JSON.parse(requestBody); } catch { return json({ error: 'INVALID_REQUEST' }, 400); }
+    const object = payload !== null && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload as Record<string, unknown> : null;
+    const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if (!object || object.mode !== 'repair-invoice-projects' || typeof object.org_id !== 'string'
+        || !uuid.test(object.org_id) || !(object.after_id === null || (typeof object.after_id === 'string' && uuid.test(object.after_id)))) {
+      return json({ error: 'INVALID_REQUEST' }, 400);
+    }
+    maintenanceRequest = { org_id: object.org_id, after_id: object.after_id as string | null };
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }) as unknown as SupabaseClient;
 
   // #916: the whole invocation shares ONE elapsed-time budget for the doctype walk, stamped HERE (the
   // env-int reader is the sanctioned "clock/env read" DI — a missing/invalid value falls back).
@@ -2430,6 +2447,14 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   // isolate never holds one tenant's credential across ticks and a rotated credential never outlives the
   // tick (ADR-0072 decision 5).
   const erpAuth = createErpAuthPairCache();
+
+  if (maintenanceRequest) {
+    const orgs = await listEmployingOrgsLive(serviceClient);
+    const org = orgs.find((candidate) => candidate.orgId === maintenanceRequest!.org_id);
+    if (!org || !org.ownedDomains.includes('revenue')) return json({ error: 'ORG_NOT_ELIGIBLE' }, 404);
+    const result = await repairInvoiceProjectsLive(serviceClient, org, maintenanceRequest.after_id, erpAuth);
+    return json({ ok: result.failedIds.length === 0, ...result });
+  }
 
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
