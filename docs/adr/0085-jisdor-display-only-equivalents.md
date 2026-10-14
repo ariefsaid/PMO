@@ -14,7 +14,7 @@ The repository already provides a repository/DAL seam, RLS organization stamping
 
 ## Decision
 
-1. Add `fx_rates` in migration **0288**, keyed uniquely by organization, source, currency pair and publication date. Store a finite positive `numeric(18,6)` rate, server-owned creation/update witnesses, and audit actual changes through the existing audit-event mechanism. Restrict v1 to JISDOR USD/IDR; no delete surface.
+1. Add `fx_rates` in migration **0291**, keyed uniquely by organization, source, currency pair and publication date. Store a finite positive `numeric(18,6)` rate, server-owned creation/update witnesses, and audit actual changes through the existing audit-event mechanism. Restrict v1 to JISDOR USD/IDR; no delete surface.
 2. Force RLS: active members read their own organization, Finance/Admin insert/update their own organization. Revoke broad grants before issuing column-level mutation grants. Attach the existing org stamp. The manual correction UI is Admin-only per the owner's specific ruling; Finance can upload corrections. Operator status alone adds no FX authority.
 3. Centralize historical selection in STABLE SECURITY INVOKER `fx_rate_on(base,quote,on_date)`, returning the rate **and actual publication date**, with no row for absence. Latest means the same selector with the current organization-local calendar day. Null document date is not latest.
 4. Commit normalized, bounded files through SECURITY INVOKER `upsert_fx_rates(jsonb)` so RLS remains the authority and one failed row rolls back the file. Preserve no-op witnesses/audit counts and report actual new/changed/unchanged counts. Neither RPC accepts client organization or audit identity.
@@ -29,7 +29,7 @@ The repository already provides a repository/DAL seam, RLS organization stamping
 - Reference import has a small dedicated preview/commit controller instead of stretching the generic create-per-row wizard or introducing another spreadsheet engine.
 - Up to one historical request per distinct invoice date remains a bounded MVP cost; React Query coalesces repeated dates and all outstanding cells share the latest-day key. A future batch API requires observed volume and must reuse the selector's rule, not duplicate it.
 - The broad 1,000–100,000 plausibility band catches thousandfold separator errors; legitimate outside-band publications need a reviewed change. Six-place precision and 5 MiB/500-row input bounds are explicit engineering choices.
-- Rollback file `supabase/migrations/rollback/0288_fx_rates_jisdor_down.sql` removes only the new reference table/functions; reference history must be backed up before deliberate reversal. Existing audit events and document values remain.
+- Rollback file `supabase/migrations/rollback/0291_fx_rates_jisdor_down.sql` removes only the new reference table/functions; reference history must be backed up before deliberate reversal. Existing audit events and document values remain.
 
 ## Alternatives rejected
 

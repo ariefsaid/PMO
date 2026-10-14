@@ -1,6 +1,6 @@
 # JISDOR display equivalents — implementation design and TDD plan
 
-Issue #1012 · 2026-10-14 · migration **0288** (do not use 0286/0287).
+Issue #1012 · 2026-10-14 · migration **0291** (do not use 0286/0287).
 Spec: `docs/specs/fx-rates-jisdor.spec.md`. Architecture: ADR-0085.
 Status: build instructions for Director review, not evidence that implementation/tests have run.
 
@@ -81,11 +81,11 @@ D() { scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db "$@
 
 ### 01 — Schema contract test (3 min; AC-FX-002)
 
-Create `supabase/tests/0288_fx_rates_write.test.sql`. Begin transaction, create pgTAP extension, use `no_plan()` and `finish()`, rollback. First RED assertions: `has_table('public','fx_rates', 'AC-FX-002 table exists')`, `has_column` for each schema column listed in task 02, `col_type_is('public','fx_rates','rate','numeric(18,6)','AC-FX-002 rate precision')`. Insert a synthetic org with `insert into organizations(id,name) values(gen_random_uuid(),'FX Test Org') returning id`, capture the returned id and call `set_config('fx.org',id::text,true)`; no production identifiers/emails. As table owner, insert date `2026-10-09`, rate `16234.56`, that org. Assert stored rate with `is((select rate from fx_rates where org_id=current_setting('fx.org')::uuid),16234.56::numeric,'AC-FX-002 rate retained exactly')`. Use `throws_ok` SQL inserts for 0, -1, NaN, 999, 100001 and unsupported base/quote/source (23514); duplicate key must throw 23505. Keep each early `throws_ok` as the canonical constraint assertion so newly added schema cannot make a malformed fixture falsely GREEN. Verify RED: `D supabase/tests/0288_fx_rates_write.test.sql`.
+Create `supabase/tests/0291_fx_rates_write.test.sql`. Begin transaction, create pgTAP extension, use `no_plan()` and `finish()`, rollback. First RED assertions: `has_table('public','fx_rates', 'AC-FX-002 table exists')`, `has_column` for each schema column listed in task 02, `col_type_is('public','fx_rates','rate','numeric(18,6)','AC-FX-002 rate precision')`. Insert a synthetic org with `insert into organizations(id,name) values(gen_random_uuid(),'FX Test Org') returning id`, capture the returned id and call `set_config('fx.org',id::text,true)`; no production identifiers/emails. As table owner, insert date `2026-10-09`, rate `16234.56`, that org. Assert stored rate with `is((select rate from fx_rates where org_id=current_setting('fx.org')::uuid),16234.56::numeric,'AC-FX-002 rate retained exactly')`. Use `throws_ok` SQL inserts for 0, -1, NaN, 999, 100001 and unsupported base/quote/source (23514); duplicate key must throw 23505. Keep each early `throws_ok` as the canonical constraint assertion so newly added schema cannot make a malformed fixture falsely GREEN. Verify RED: `D supabase/tests/0291_fx_rates_write.test.sql`.
 
 ### 02 — Create constrained reference schema (4 min; AC-FX-002)
 
-Create `supabase/migrations/0288_fx_rates_jisdor.sql` with this first section. No alterations to document tables:
+Create `supabase/migrations/0291_fx_rates_jisdor.sql` with this first section. No alterations to document tables:
 
 ```sql
 create table public.fx_rates (
@@ -107,15 +107,15 @@ create trigger fx_rates_stamp_org_id before insert on public.fx_rates
  for each row execute function public.stamp_org_id();
 ```
 
-The org default is `auth_org_id()` instead of a seed-org literal; typegen still marks it optional and the shared org stamp remains attached. Table-owner test fixtures supply their synthetic org explicitly. Verify GREEN: `D supabase/tests/0288_fx_rates_write.test.sql`.
+The org default is `auth_org_id()` instead of a seed-org literal; typegen still marks it optional and the shared org stamp remains attached. Table-owner test fixtures supply their synthetic org explicitly. Verify GREEN: `D supabase/tests/0291_fx_rates_write.test.sql`.
 
 ### 03 — Active-member/RLS fixtures (5 min; AC-FX-001)
 
-Create `supabase/tests/0288_fx_rates_rls.test.sql`. Transaction with `no_plan()`. Generate two orgs and seven auth/profile actors using `gen_random_uuid()`; synthetic fixture labels only. Roles in org A: Admin, Finance, Executive, PM, Engineer, disabled Finance; org B: Admin. Seed one rate per org as owner. Store fixture IDs in transaction-local `fx.*` settings. Set `role authenticated` and `request.jwt.claims` with only synthetic subject and `role:authenticated`, as in `0245_management_pack.test.sql`. RED case matrix: five active A actors read exactly A's rate; disabled actor reads zero; B actor reads B only; anonymous select/write denied. Finance and Admin `lives_ok` inserts of distinct dates and rate-only updates; Executive/PM/Engineer/disabled insert `throws_ok` 42501 and update returning yields no rows. Own-org row's `org_id`, `created_by`, pair/source/date/stamps cannot be updated with authenticated grants (42501); reading foreign IDs returns zero. Revoke/examine `has_table_privilege` and `has_column_privilege` for delete and audit-column mutation; these assertions supplement real DML, never replace it. Verify RED: `D supabase/tests/0288_fx_rates_rls.test.sql`.
+Create `supabase/tests/0291_fx_rates_rls.test.sql`. Transaction with `no_plan()`. Generate two orgs and seven auth/profile actors using `gen_random_uuid()`; synthetic fixture labels only. Roles in org A: Admin, Finance, Executive, PM, Engineer, disabled Finance; org B: Admin. Seed one rate per org as owner. Store fixture IDs in transaction-local `fx.*` settings. Set `role authenticated` and `request.jwt.claims` with only synthetic subject and `role:authenticated`, as in `0245_management_pack.test.sql`. RED case matrix: five active A actors read exactly A's rate; disabled actor reads zero; B actor reads B only; anonymous select/write denied. Finance and Admin `lives_ok` inserts of distinct dates and rate-only updates; Executive/PM/Engineer/disabled insert `throws_ok` 42501 and update returning yields no rows. Own-org row's `org_id`, `created_by`, pair/source/date/stamps cannot be updated with authenticated grants (42501); reading foreign IDs returns zero. Revoke/examine `has_table_privilege` and `has_column_privilege` for delete and audit-column mutation; these assertions supplement real DML, never replace it. Verify RED: `D supabase/tests/0291_fx_rates_rls.test.sql`.
 
 ### 04 — RLS and explicit grants (3 min; AC-FX-001)
 
-Append to 0288:
+Append to 0291:
 
 ```sql
 alter table public.fx_rates enable row level security;
@@ -136,15 +136,15 @@ grant insert (rate_date,rate) on public.fx_rates to authenticated;
 grant update (rate) on public.fx_rates to authenticated;
 ```
 
-No table-level mutation grant; no DELETE policy. Verify GREEN: `D supabase/tests/0288_fx_rates_rls.test.sql supabase/tests/0288_fx_rates_write.test.sql`.
+No table-level mutation grant; no DELETE policy. Verify GREEN: `D supabase/tests/0291_fx_rates_rls.test.sql supabase/tests/0291_fx_rates_write.test.sql`.
 
 ### 05 — Stamp and audit behavior tests (4 min; AC-FX-002)
 
-Extend `0288_fx_rates_write.test.sql` using a generated active Finance actor. RED: inserting with only rate_date/rate stamps the actor's org, created/updated actor and nonnull times; a same-rate update preserves stamps and audit event count; a changed rate updates witness and increments `audit_events` for `fx_rate.change`, whose `detail` contains rate_date, old_rate and new_rate. Test rate_date later than org-local today raises 23514. Assert stamp fields cannot be supplied by authenticated insert. Use owner reads of audit_events after resetting role; assert database outcome, not function source. Verify RED: `D supabase/tests/0288_fx_rates_write.test.sql`.
+Extend `0291_fx_rates_write.test.sql` using a generated active Finance actor. RED: inserting with only rate_date/rate stamps the actor's org, created/updated actor and nonnull times; a same-rate update preserves stamps and audit event count; a changed rate updates witness and increments `audit_events` for `fx_rate.change`, whose `detail` contains rate_date, old_rate and new_rate. Test rate_date later than org-local today raises 23514. Assert stamp fields cannot be supplied by authenticated insert. Use owner reads of audit_events after resetting role; assert database outcome, not function source. Verify RED: `D supabase/tests/0291_fx_rates_write.test.sql`.
 
 ### 06 — Server-owned witnesses and audit (5 min; AC-FX-002)
 
-Append these triggers/functions to 0288:
+Append these triggers/functions to 0291:
 
 ```sql
 create function public.stamp_fx_rate() returns trigger language plpgsql
@@ -181,15 +181,15 @@ create trigger fx_rates_audit after insert or update on public.fx_rates
  for each row execute function public.audit_fx_rate();
 ```
 
-Stamp sorts after org stamp; audit uses the existing revocation/pinned-definer trigger pattern from 0243. Verify GREEN: `D supabase/tests/0288_fx_rates_write.test.sql supabase/tests/0288_fx_rates_rls.test.sql`.
+Stamp sorts after org stamp; audit uses the existing revocation/pinned-definer trigger pattern from 0243. Verify GREEN: `D supabase/tests/0291_fx_rates_write.test.sql supabase/tests/0291_fx_rates_rls.test.sql`.
 
 ### 07 — Date selector tests (4 min; AC-FX-003)
 
-Create `supabase/tests/0288_fx_rate_on.test.sql`, generated two-org actors, rates Friday `2026-10-09=16234.56`, Monday `2026-10-12=16300`, other-org Friday `18000`. RED assertions use `results_eq` on `select rate,rate_date from fx_rate_on('USD','IDR','2026-10-10')` versus `values(16234.56::numeric,'2026-10-09'::date)`; exact Friday and Monday select themselves; Thursday, null on_date, inverse pair and unsupported pair return zero rows. Other-org actor never receives A's rate. Verify `pg_proc.provolatile='s'` and `prosecdef=false`, then actual DML/lookup behavior. Verify RED: `D supabase/tests/0288_fx_rate_on.test.sql`.
+Create `supabase/tests/0291_fx_rate_on.test.sql`, generated two-org actors, rates Friday `2026-10-09=16234.56`, Monday `2026-10-12=16300`, other-org Friday `18000`. RED assertions use `results_eq` on `select rate,rate_date from fx_rate_on('USD','IDR','2026-10-10')` versus `values(16234.56::numeric,'2026-10-09'::date)`; exact Friday and Monday select themselves; Thursday, null on_date, inverse pair and unsupported pair return zero rows. Other-org actor never receives A's rate. Verify `pg_proc.provolatile='s'` and `prosecdef=false`, then actual DML/lookup behavior. Verify RED: `D supabase/tests/0291_fx_rate_on.test.sql`.
 
 ### 08 — One stable invoker lookup (2 min; AC-FX-003)
 
-Append to 0288:
+Append to 0291:
 
 ```sql
 create function public.fx_rate_on(base text, quote text, on_date date)
@@ -204,11 +204,11 @@ revoke all on function public.fx_rate_on(text,text,date) from public,anon;
 grant execute on function public.fx_rate_on(text,text,date) to authenticated;
 ```
 
-Zero rows means no match (not a manufactured row with zero). Verify GREEN: `D supabase/tests/0288_fx_rate_on.test.sql`.
+Zero rows means no match (not a manufactured row with zero). Verify GREEN: `D supabase/tests/0291_fx_rate_on.test.sql`.
 
 ### 09 — Atomic writer contract tests (4 min; AC-FX-001/002)
 
-Extend `0288_fx_rates_write.test.sql` and `0288_fx_rates_rls.test.sql`. RED: active Finance/Admin call `upsert_fx_rates('[{"rate_date":"2026-10-09","rate":16234.56}]')`, repeat, change: expect `{new:1,changed:0,unchanged:0}`, then `{0,0,1}`, then `{0,1,0}` and unchanged audit count on repeat. A payload with one good and one invalid row leaves **neither** written. Reject empty/501 rows, duplicate dates, null/unknown keys, noncanonical dates and >6 decimal precision. Disabled/wrong roles calling the function throw 42501. Verify RED: `D supabase/tests/0288_fx_rates_write.test.sql supabase/tests/0288_fx_rates_rls.test.sql`.
+Extend `0291_fx_rates_write.test.sql` and `0291_fx_rates_rls.test.sql`. RED: active Finance/Admin call `upsert_fx_rates('[{"rate_date":"2026-10-09","rate":16234.56}]')`, repeat, change: expect `{new:1,changed:0,unchanged:0}`, then `{0,0,1}`, then `{0,1,0}` and unchanged audit count on repeat. A payload with one good and one invalid row leaves **neither** written. Reject empty/501 rows, duplicate dates, null/unknown keys, noncanonical dates and >6 decimal precision. Disabled/wrong roles calling the function throw 42501. Verify RED: `D supabase/tests/0291_fx_rates_write.test.sql supabase/tests/0291_fx_rates_rls.test.sql`.
 
 ### 10 — Atomic invoker upsert (5 min; AC-FX-001/002)
 
@@ -265,11 +265,11 @@ revoke all on function public.upsert_fx_rates(jsonb) from public,anon;
 grant execute on function public.upsert_fx_rates(jsonb) to authenticated;
 ```
 
-Invalid date casts propagate as a classified validation failure; add the exact 22007/22008 error expectation to the noncanonical/impossible-date tests rather than pretending every cast emits 23514. All DML remains inside one function transaction. Verify GREEN: `D supabase/tests/0288_fx_rates_write.test.sql supabase/tests/0288_fx_rates_rls.test.sql`.
+Invalid date casts propagate as a classified validation failure; add the exact 22007/22008 error expectation to the noncanonical/impossible-date tests rather than pretending every cast emits 23514. All DML remains inside one function transaction. Verify GREEN: `D supabase/tests/0291_fx_rates_write.test.sql supabase/tests/0291_fx_rates_rls.test.sql`.
 
 ### 11 — Reversal, generated types and probe catalog (4 min; AC-FX-001/002/003)
 
-Create `supabase/migrations/rollback/0288_fx_rates_jisdor_down.sql`:
+Create `supabase/migrations/rollback/0291_fx_rates_jisdor_down.sql`:
 
 ```sql
 begin;
@@ -281,10 +281,10 @@ drop function if exists public.stamp_fx_rate();
 commit;
 ```
 
-The rollback destroys only reference rows/audit trigger attachment; existing immutable audit events remain. Back up the rate rows before a deliberate reversal; no automated production reversal here. First create `scripts/fx-rates-rollback.test.sql` (outside the full pgTAP directory so its intentional teardown cannot affect sibling tests): create pgTAP, `select plan(3);`, `\ir ../supabase/migrations/rollback/0288_fx_rates_jisdor_down.sql`, then `hasnt_table('public','fx_rates','AC-FX-002 rollback removes table')`, `ok(to_regprocedure('public.fx_rate_on(text,text,date)') is null,'AC-FX-003 rollback removes selector')`, `ok(to_regprocedure('public.upsert_fx_rates(jsonb)') is null,'AC-FX-002 rollback removes writer')`, `select * from finish();`. Missing rollback file is RED; actual file teardown followed by the three absence assertions is GREEN. Regenerate `src/lib/supabase/database.types.ts` and `scripts/isolation-probe-denominator.json` after restoring schema **in the same reset lock**:
+The rollback destroys only reference rows/audit trigger attachment; existing immutable audit events remain. Back up the rate rows before a deliberate reversal; no automated production reversal here. First create `scripts/fx-rates-rollback.test.sql` (outside the full pgTAP directory so its intentional teardown cannot affect sibling tests): create pgTAP, `select plan(3);`, `\ir ../supabase/migrations/rollback/0291_fx_rates_jisdor_down.sql`, then `hasnt_table('public','fx_rates','AC-FX-002 rollback removes table')`, `ok(to_regprocedure('public.fx_rate_on(text,text,date)') is null,'AC-FX-003 rollback removes selector')`, `ok(to_regprocedure('public.upsert_fx_rates(jsonb)') is null,'AC-FX-002 rollback removes writer')`, `select * from finish();`. Missing rollback file is RED; actual file teardown followed by the three absence assertions is GREEN. Regenerate `src/lib/supabase/database.types.ts` and `scripts/isolation-probe-denominator.json` after restoring schema **in the same reset lock**:
 
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db scripts/fx-rates-rollback.test.sql && supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && node scripts/check-isolation-denominator.mjs --write && supabase test db supabase/tests/0288_fx_rates_rls.test.sql supabase/tests/0288_fx_rates_write.test.sql supabase/tests/0288_fx_rate_on.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db scripts/fx-rates-rollback.test.sql && supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts && node scripts/check-isolation-denominator.mjs --write && supabase test db supabase/tests/0291_fx_rates_rls.test.sql supabase/tests/0291_fx_rates_write.test.sql supabase/tests/0291_fx_rate_on.test.sql'
 ```
 
 Review the manifest's `fx_rates` entry: org-scoped, primary key id, own-org-only read. Trigger-only functions are not new callable definer probes. Verify migrations/ADR collisions: `cd pmo-portal && npm run check:migrations && npm run check:adrs && npm run check:shadow-types`.
@@ -468,7 +468,7 @@ No gate on CI or live external ERP; these read-only invoice fixtures need no edg
 
 ### 37 — Query-plan and regression audit (3 min; supporting AC-FX-003/008/012)
 
-Extend DAL/hook tests to assert at most one onDate request per unique org/pair/date and one shared latest request for twenty outstanding cells. Preserve compatibility tests for shared workbook parser. In pgTAP lookup test add a large synthetic rate series and `EXPLAIN (ANALYZE,BUFFERS)` evidence in builder report for org/pair/date selector and keyset list; small fixtures can legitimately seq-scan, so do not assert the planner's node name in pgTAP. Expected predicates align with the two indexes; no unbounded rate fetches. Verify `V src/lib/db/__tests__/fxRates.test.ts src/hooks/useFxRates.test.tsx src/lib/import/__tests__/parseWorkbook.test.ts`; `D supabase/tests/0288_fx_rate_on.test.sql`.
+Extend DAL/hook tests to assert at most one onDate request per unique org/pair/date and one shared latest request for twenty outstanding cells. Preserve compatibility tests for shared workbook parser. In pgTAP lookup test add a large synthetic rate series and `EXPLAIN (ANALYZE,BUFFERS)` evidence in builder report for org/pair/date selector and keyset list; small fixtures can legitimately seq-scan, so do not assert the planner's node name in pgTAP. Expected predicates align with the two indexes; no unbounded rate fetches. Verify `V src/lib/db/__tests__/fxRates.test.ts src/hooks/useFxRates.test.tsx src/lib/import/__tests__/parseWorkbook.test.ts`; `D supabase/tests/0291_fx_rate_on.test.sql`.
 
 ### 38 — Write-policy mutation proof (4 min; AC-FX-001)
 
@@ -477,7 +477,7 @@ Keep mutation only local, never commit a weakened policy. Direct Executive/PM/En
 ```bash
 scripts/with-db-lock.sh bash <<'FX_MUTATION'
 set -eu
-migration=supabase/migrations/0288_fx_rates_jisdor.sql
+migration=supabase/migrations/0291_fx_rates_jisdor.sql
 saved=$(mktemp)
 report=$(mktemp)
 cp "$migration" "$saved"
@@ -496,21 +496,21 @@ assert section.count(old)==(3 if sys.argv[2]=='role' else 4)
 p.write_text(text[:a]+section.replace(old,'true')+text[b:])
 PY
   supabase db reset
-  supabase test db supabase/tests/0288_fx_rates_rls.test.sql >"$report" 2>&1 || true
+  supabase test db supabase/tests/0291_fx_rates_rls.test.sql >"$report" 2>&1 || true
   python3 - "$report" <<'PY'
 import pathlib,re,sys
 body=pathlib.Path(sys.argv[1]).read_text(); print(body)
 assert re.search(r'not ok[^\n]*AC-FX-001',body), 'mutation survived or did not exercise its AC'
 PY
   cp "$saved" "$migration"
-  supabase db reset && supabase test db supabase/tests/0288_fx_rates_rls.test.sql
+  supabase db reset && supabase test db supabase/tests/0291_fx_rates_rls.test.sql
  done
 trap - EXIT
 rm -f "$saved" "$report"
 FX_MUTATION
 ```
 
-Review **which direct DML assertion** became RED for each mutant, not merely the existence of a failing assertion. If either mutation survives, strengthen shipped-DML tests; never claim completion with a surviving mutant. Verify final `git diff -- supabase/migrations/0288_fx_rates_jisdor.sql` contains no weakened clause.
+Review **which direct DML assertion** became RED for each mutant, not merely the existence of a failing assertion. If either mutation survives, strengthen shipped-DML tests; never claim completion with a surviving mutant. Verify final `git diff -- supabase/migrations/0291_fx_rates_jisdor.sql` contains no weakened clause.
 
 ### 39 — Portfolio denominator and rendered Discover (4 min coordination; AC-FX-010/011/012/013)
 
@@ -525,7 +525,7 @@ scripts/with-test-lock.sh bash -c 'cd pmo-portal && npm run typecheck'
 # Only existing/new touched TS/TSX/JS files, paths relative to app:
 git diff --name-only --diff-filter=ACMR origin/dev -- pmo-portal | grep -E '\.(ts|tsx|js|mjs)$' | while IFS= read -r f; do printf '%s\0' "${f#pmo-portal/}"; done | (cd pmo-portal && xargs -0 npx eslint --max-warnings=0)
 scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run --changed origin/dev'
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0288_fx_rates_rls.test.sql supabase/tests/0288_fx_rates_write.test.sql supabase/tests/0288_fx_rate_on.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0291_fx_rates_rls.test.sql supabase/tests/0291_fx_rates_write.test.sql supabase/tests/0291_fx_rate_on.test.sql'
 scripts/e2e-local.sh AC-FX-015
 scripts/check-e2e-isolation.sh
 node scripts/check-i18n-completeness.mjs --id

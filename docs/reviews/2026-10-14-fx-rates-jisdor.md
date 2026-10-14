@@ -13,7 +13,7 @@ The settled accessibility snapshot exposed the Administration page heading, Exch
 
 ## Follow-up rendered check
 
-After restoring the local schema with migration 0288, I re-rendered the Finance empty state and upload chooser using `agent-browser` against the running app on port 3112, then opened—but did not submit—the Admin **New rate** form. The full accessibility snapshots showed the Administration level-1 heading, Exchange rates navigation and region heading, one page-level Upload action, and a named modal. The upload chooser exposed its file-selection label and disabled Continue; the Admin form exposed the Publication date label, required IDR-per-USD textbox, Cancel, and disabled Save rate. The current route returned no browser errors.
+After restoring the local schema with migration 0291, I re-rendered the Finance empty state and upload chooser using `agent-browser` against the running app on port 3112, then opened—but did not submit—the Admin **New rate** form. The full accessibility snapshots showed the Administration level-1 heading, Exchange rates navigation and region heading, one page-level Upload action, and a named modal. The upload chooser exposed its file-selection label and disabled Continue; the Admin form exposed the Publication date label, required IDR-per-USD textbox, Cancel, and disabled Save rate. The current route returned no browser errors.
 
 Additional screenshots are in the same handoff directory:
 

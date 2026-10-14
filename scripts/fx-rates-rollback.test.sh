@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Applies the shipped FX rollback through the local Supabase API, then verifies its
-# schema effects with pgTAP. Run under scripts/with-db-lock.sh after migration 0288
+# schema effects with pgTAP. Run under scripts/with-db-lock.sh after migration 0291
 # is applied; callers must reset the database after this intentionally destructive test.
 set -euo pipefail
 
@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import subprocess
 
-path = Path('supabase/migrations/rollback/0288_fx_rates_jisdor_down.sql')
+path = Path('supabase/migrations/rollback/0291_fx_rates_jisdor_down.sql')
 source = path.read_text()
 source = re.sub(r'(?im)^\s*(?:begin|commit)\s*;\s*$', '', source)
 statements = [statement.strip() for statement in source.split(';') if statement.strip()]

@@ -70,7 +70,7 @@ Absent historical rate: `no rate for 2026-10-10` / `tidak ada kurs untuk 2026-10
 | NFR-FX-004 | The system shall use indexed bounded reads: 50-row management pages and at most one lookup per distinct `(org, base, quote, requested date)` per mounted working set, shared through React Query; amounts shall not be part of rate query keys. |
 | NFR-FX-005 | The system shall load ExcelJS only when a file is selected, enforce file/row limits, discard file buffers after parsing/closing, and introduce no dependency or lockfile change. |
 | NFR-FX-006 | The system shall follow DESIGN.md responsive/token/keyboard conventions and pass composed-page Layer-1 axe checks; state reasons shall be visible rather than color-only or tooltip-only. |
-| NFR-FX-007 | The implementation shall use reversible migration **0288**, regenerate Supabase types, register the new isolation-probe surface, and pass the named local and CI gates with at least 80% coverage of changed code. |
+| NFR-FX-007 | The implementation shall use reversible migration **0291**, regenerate Supabase types, register the new isolation-probe surface, and pass the named local and CI gates with at least 80% coverage of changed code. |
 
 ## Acceptance criteria (Given / When / Then)
 
@@ -98,9 +98,9 @@ Each listed test file contains one AC-leading canonical test/case group for the 
 
 | AC | Requirements | Owning layer | Canonical test artifact |
 |---|---|---|---|
-| AC-FX-001 | FR-001/002; NFR-002 | pgTAP | `supabase/tests/0288_fx_rates_rls.test.sql` |
-| AC-FX-002 | FR-001/010/012; NFR-002 | pgTAP | `supabase/tests/0288_fx_rates_write.test.sql` |
-| AC-FX-003 | FR-003/004; NFR-003/004 | pgTAP | `supabase/tests/0288_fx_rate_on.test.sql` |
+| AC-FX-001 | FR-001/002; NFR-002 | pgTAP | `supabase/tests/0291_fx_rates_rls.test.sql` |
+| AC-FX-002 | FR-001/010/012; NFR-002 | pgTAP | `supabase/tests/0291_fx_rates_write.test.sql` |
+| AC-FX-003 | FR-003/004; NFR-003/004 | pgTAP | `supabase/tests/0291_fx_rate_on.test.sql` |
 | AC-FX-004 | FR-003..006; NFR-001/003 | Unit | `pmo-portal/src/components/fx/FxEquivalent.test.tsx` |
 | AC-FX-005 | FR-009/010; NFR-005 | Unit | `pmo-portal/src/lib/import/__tests__/fxRateParser.test.ts` |
 | AC-FX-006 | FR-009/010/011; NFR-005 | Unit | `pmo-portal/src/lib/import/__tests__/fxRateParser.invalid.test.ts` |
