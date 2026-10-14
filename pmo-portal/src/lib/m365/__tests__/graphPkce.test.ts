@@ -11,6 +11,7 @@ import {
   codeChallengeS256,
   buildAuthorizeUrl,
   buildAdminConsentUrl,
+  M365_PHASE1_DATA_SCOPES,
 } from '../graphPkce';
 
 // RFC 7636 §4.1 unreserved charset: ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -161,12 +162,24 @@ describe('buildAdminConsentUrl (step 2 — org approval)', () => {
     expect(url.searchParams.get('state')).toBe('opaque-csrf-state-value');
   });
 
+  it('AC-M365SEP-013: includes the Graph-qualified Phase-1 data scopes, excluding OIDC protocol scopes', () => {
+    const url = new URL(buildAdminConsentUrl(baseParams));
+    expect(url.searchParams.get('scope')).toBe(
+      'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All',
+    );
+  });
+
+  it('AC-M365SEP-013: derives consent scopes from the shared data-scope list', () => {
+    const url = new URL(buildAdminConsentUrl(baseParams));
+    const expected = M365_PHASE1_DATA_SCOPES.map((scope) => `https://graph.microsoft.com/${scope}`).join(' ');
+    expect(url.searchParams.get('scope')).toBe(expected);
+  });
+
   it('AC-M365SEP-013: carries NO PKCE — admin consent grants permissions, it exchanges no code', () => {
     const url = new URL(buildAdminConsentUrl(baseParams));
     expect(url.searchParams.get('response_type')).toBeNull();
     expect(url.searchParams.get('code_challenge')).toBeNull();
     expect(url.searchParams.get('code_challenge_method')).toBeNull();
-    expect(url.searchParams.get('scope')).toBeNull();
   });
 
   it('AC-M365SEP-013: accepts the valid tenant forms (GUID, common/organizations/consumers, verified domain)', () => {

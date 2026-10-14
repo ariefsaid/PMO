@@ -181,6 +181,44 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getByText('Overdue: Construction')).toBeInTheDocument();
   });
 
+  it('AC-UXP-004: task-derived progress is effective when input_pct is null and typed input_pct remains effective', () => {
+    milestoneState.data = [
+      {
+        id: 'm-task-derived',
+        project_id: 'p1',
+        name: 'Linked-task phase',
+        sort_order: 0,
+        target_date: null,
+        weight: 2,
+        input_pct: null,
+        task_count: 3,
+        calculated_pct: 45,
+        effective_pct: 45,
+      },
+      {
+        id: 'm-override',
+        project_id: 'p1',
+        name: 'Overridden phase',
+        sort_order: 1,
+        target_date: null,
+        weight: 3,
+        input_pct: 80,
+        task_count: 4,
+        calculated_pct: 20,
+        effective_pct: 80,
+      },
+    ];
+
+    render$();
+    const cards = screen.getByTestId('milestone-card-grid');
+    expect(cards).toHaveTextContent('Linked-task phase');
+    expect(cards).toHaveTextContent('45%');
+    expect(cards).toHaveTextContent('Overridden phase');
+    expect(cards).toHaveTextContent('80%');
+    expect(cards).not.toHaveTextContent('20%');
+    expect(screen.getByLabelText('Project delivery 66%')).toBeInTheDocument();
+  });
+
   it('compact summary omits overdue state when all active phases are on time', () => {
     milestoneState.data = [{
       id: 'm1', project_id: 'p1', name: 'Procurement', sort_order: 0,

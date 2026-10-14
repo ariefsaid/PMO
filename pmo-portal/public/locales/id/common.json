@@ -2288,49 +2288,53 @@
       "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai."
     },
     "milestoneForm": {
-      "create": "Buat milestone",
+      "create": "Buat fase",
       "detailsLegend": "Detail",
-      "editSubtitle": "Perbarui milestone ini",
-      "editTitle": "Edit milestone",
+      "editSubtitle": "Perbarui fase ini",
+      "editTitle": "Edit fase",
       "errors": {
-        "nameRequired": "Nama milestone wajib diisi",
+        "nameRequired": "Nama fase wajib diisi",
         "progressRange": "Progres harus antara 0 dan 100",
-        "weight": "Bobot harus 0 atau lebih"
+        "weight": "Bobot relatif harus 0 atau lebih"
       },
-      "inputPct": "% input PM (opsional)",
-      "inputPctPlaceholder": "Kosongkan untuk memakai nilai terhitung",
-      "name": "Nama milestone",
+      "inputPct": "Progres penggantian (opsional)",
+      "inputPctPlaceholder": "Kosongkan untuk menggunakan progres tugas terkait",
+      "name": "Nama fase",
       "namePlaceholder": "mis. Desain engineering",
-      "newSubtitle": "Tambahkan milestone pelaksanaan ke proyek ini",
-      "newTitle": "Milestone baru",
-      "save": "Simpan milestone",
-      "sortOrder": "Urutan",
+      "newSubtitle": "Tambahkan fase pelaksanaan ke proyek ini",
+      "newTitle": "Fase baru",
+      "save": "Simpan fase",
+      "sortOrder": "Posisi",
+      "sortOrderHelper": "Menentukan urutan fase ini.",
       "targetDate": "Tanggal target",
-      "weight": "Bobot"
+      "weight": "Bobot relatif",
+      "weightHelper": "Menentukan porsi fase ini dalam progres proyek.",
+      "progressHelper": "Kosongkan untuk menggunakan progres tugas terkait. Nilai yang dimasukkan akan menggantikannya.",
+      "progressCreateHelper": "Progres diambil dari tugas terkait fase ini. Anda dapat menetapkan nilai pengganti setelah fase dibuat."
     },
     "milestones": {
       "addFirstPhase": "Tambah fase pertama",
-      "addMilestone": "Tambah milestone",
+      "addMilestone": "Tambah fase",
       "cancel": "Batal",
       "current": "Saat ini",
       "deleteConfirm": {
-        "body": "Tugas di bawah milestone ini menjadi tanpa grup; tugas tidak dihapus.",
-        "confirm": "Hapus milestone",
+        "body": "Tugas di bawah fase ini menjadi tanpa grup; tugas tidak dihapus.",
+        "confirm": "Hapus fase",
         "title": "Hapus \"{{name}}\"?",
-        "titleFallback": "Hapus milestone ini?"
+        "titleFallback": "Hapus fase ini?"
       },
-      "deleteMilestone": "Hapus milestone",
+      "deleteMilestone": "Hapus fase",
       "edit": "Edit",
-      "editInputPct": "Edit % input PM",
-      "editMilestone": "Edit milestone",
+      "editInputPct": "Ubah progres penggantian",
+      "editMilestone": "Edit fase",
       "editProgress": "Ubah progres",
       "editProgressForName": "Ubah progres untuk {{name}}",
       "emptyReadOnly": "Belum ada fase pelaksanaan",
-      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari milestone tertimbang.",
+      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari fase berbobot.",
       "emptyTitle": "Rencanakan fase pelaksanaan proyek ini",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
-      "errorTitle": "Gagal memuat milestone",
-      "fallbackName": "Milestone",
+      "errorTitle": "Gagal memuat fase",
+      "fallbackName": "Fase",
       "heading": "Fase pelaksanaan",
       "moreActionsFor": "Tindakan lainnya untuk",
       "currentPhase": "Fase saat ini: {{name}}",
@@ -2344,10 +2348,10 @@
       "save": "Simpan",
       "targetDate": "Target",
       "toast": {
-        "created": "Milestone dibuat",
-        "deleted": "Milestone dihapus",
+        "created": "Fase dibuat",
+        "deleted": "Fase dihapus",
         "progressUpdated": "Progres diperbarui",
-        "updated": "Milestone diperbarui"
+        "updated": "Fase diperbarui"
       },
       "viewBlockingTasks": "Lihat tugas penghambat",
       "weightShare": "{{pct}}% dari proyek"
@@ -2967,6 +2971,11 @@
       "calendar": "Kalender",
       "cards": "Kartu",
       "table": "Tabel"
+    },
+    "calendar": {
+      "phaseEventLabel": "{{project}} · {{phase}}",
+      "phaseEventAriaLabel": "{{project}} — Fase: {{phase}}",
+      "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini."
     },
     "unnamedUser": "Pengguna tanpa nama",
     "export": "Ekspor",

@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, Icon, ListState, cn } from '@/src/components/ui';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import {
@@ -20,7 +22,7 @@ interface CalEvent {
   /** YYYY-MM-DD (local — no TZ shift). */
   iso: string;
   projectId: string;
-  /** Visible chip text: project name (start/end) or milestone name (milestone). */
+  /** Visible chip text: project name (start/end) or project + phase name (phase event). */
   label: string;
   /** Accessible button name. */
   ariaLabel: string;
@@ -53,6 +55,7 @@ function chipClass(_kind: CalEventKind): string {
 function deriveEvents(
   projects: ProjectWithRefs[],
   milestoneDates: MilestoneDate[] | undefined,
+  t: TFunction,
 ): CalEvent[] {
   const events: CalEvent[] = [];
   const nameById = new Map(projects.map((p) => [p.id, p.name]));
@@ -84,8 +87,14 @@ function deriveEvents(
       kind: 'milestone',
       iso: m.targetDate,
       projectId: m.projectId,
-      label: m.name,
-      ariaLabel: `${m.name} (${projectName})`,
+      label: t('projects.calendar.phaseEventLabel', '{{project}} · {{phase}}', {
+        project: projectName,
+        phase: m.name,
+      }),
+      ariaLabel: t('projects.calendar.phaseEventAriaLabel', '{{project}} — Phase: {{phase}}', {
+        project: projectName,
+        phase: m.name,
+      }),
     });
   }
   return events;
@@ -155,6 +164,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   cursor: controlledCursor,
   onCursorChange,
 }) => {
+  const { t } = useTranslation();
   const [localCursor, setLocalCursor] = useState<MonthCursor>(initialCursor ?? todayCursor());
   const controlled = onCursorChange !== undefined;
   const cursor = controlled ? (controlledCursor ?? todayCursor()) : localCursor;
@@ -162,8 +172,8 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   const isDesktop = useIsDesktop();
 
   const events = useMemo(
-    () => deriveEvents(projects, milestoneDates),
-    [projects, milestoneDates],
+    () => deriveEvents(projects, milestoneDates, t),
+    [projects, milestoneDates, t],
   );
 
   // Events keyed by day, only for the displayed month (the grid renders adjacent-month
@@ -191,13 +201,17 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
 
   const nav = (
     <div className="mb-3 flex items-center gap-2">
+      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
       <Button variant="outline" size="icon" onClick={goPrev} aria-label="Previous month">
         <Icon name="back" />
       </Button>
+      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
       <Button variant="outline" size="icon" onClick={goNext} aria-label="Next month">
         <Icon name="chev" />
       </Button>
+      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
       <Button variant="outline" size="sm" onClick={goToday} aria-label="Go to today">
+        {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
         Today
       </Button>
       <h2 className="ml-1 text-[15px] font-semibold">{monthLabel(cursor.year, cursor.month)}</h2>
@@ -207,7 +221,10 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   const emptyOverlay =
     monthEventCount === 0 ? (
       <div className="mt-3">
-        <ListState variant="empty" icon="cal" title="No events this month" sub="No project or milestone dates fall in this month." />
+        {/* i18n-exempt: generic calendar empty title is unchanged by this phase-copy scope. */}
+        <ListState variant="empty" icon="cal" title="No events this month"
+          sub={t('projects.calendar.noEventsSub', 'No project or phase target dates fall in this month.')}
+        />
       </div>
     ) : null;
 

@@ -1,11 +1,44 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { DataTable, type Column } from '../DataTable';
 
 afterEach(() => vi.unstubAllGlobals());
+
+class TestResizeObserver {
+  static instances: TestResizeObserver[] = [];
+  readonly observedElements: Element[] = [];
+
+  constructor(private readonly callback: ResizeObserverCallback) {
+    TestResizeObserver.instances.push(this);
+  }
+
+  observe(target: Element) {
+    this.observedElements.push(target);
+  }
+
+  disconnect() {}
+
+  trigger() {
+    this.callback([], this as unknown as ResizeObserver);
+  }
+}
+
+function stubScrollMetrics(
+  scrollport: HTMLElement,
+  initial: { scrollWidth: number; clientWidth: number; scrollLeft: number },
+) {
+  const metrics = { ...initial };
+  for (const key of ['scrollWidth', 'clientWidth', 'scrollLeft'] as const) {
+    Object.defineProperty(scrollport, key, {
+      configurable: true,
+      get: () => metrics[key],
+    });
+  }
+  return metrics;
+}
 
 interface Row {
   id: string;
@@ -264,9 +297,18 @@ describe('DataTable', () => {
     expect(actionCell.className).not.toContain('border-l');
     expect(header.className).toContain('z-[3]');
     expect(actionCell.className).toContain('z-[1]');
+    // A bare `border-b` takes `currentColor` in Tailwind v4 — the sticky header's bottom rule
+    // must use the same `--border` token as every other header cell (owner report 2026-10-14).
+    expect(header.className).toContain('border-border');
   });
 
-  it('AC-TBL-STICKY-001 renders the left-cast separation gradient in BOTH sticky cells — outset box-shadows do not paint on sticky table cells, so the strip is a positioned element', () => {
+  it('AC-TBL-STICKY-001 renders the gradient in the header and every body sticky cell only while content remains hidden to the right', () => {
+    TestResizeObserver.instances = [];
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('min-width: 768px'), media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
     render(
       <DataTable
         rows={rows}
@@ -276,8 +318,21 @@ describe('DataTable', () => {
       />
     );
 
+    const scrollport = screen.getByTestId('dt-table-branch');
+    const metrics = stubScrollMetrics(scrollport, { scrollWidth: 500, clientWidth: 300, scrollLeft: 0 });
+    const observer = TestResizeObserver.instances[0];
+    expect(observer.observedElements).toContain(scrollport);
+    expect(observer.observedElements).toContain(scrollport.querySelector('table'));
+    act(() => observer.trigger());
+
+    expect(scrollport).toHaveAttribute('data-dt-overflowing', '');
     const seams = document.querySelectorAll<HTMLSpanElement>('[data-dt-seam]');
-    expect(seams.length).toBeGreaterThanOrEqual(2); // one in the header th, one in each body td
+    expect(seams).toHaveLength(3);
+    const header = screen.getByRole('columnheader', { name: 'Actions' });
+    const actionCells = screen.getAllByRole('button', { name: /row actions/i }).map((button) => button.closest('td'));
+    expect(header.querySelector('[data-dt-seam]')).toBeInTheDocument();
+    expect(actionCells).toHaveLength(rows.length);
+    for (const cell of actionCells) expect(cell?.querySelector('[data-dt-seam]')).toBeInTheDocument();
     for (const seam of seams) {
       expect(seam.getAttribute('aria-hidden')).toBe('true');
       expect(seam.className).toContain('absolute');
@@ -286,6 +341,54 @@ describe('DataTable', () => {
       expect(seam.className).toContain('from-[hsl(var(--foreground)/0.16)]');
       expect(seam.className).toContain('pointer-events-none');
     }
+    expect(metrics.scrollWidth - metrics.clientWidth - metrics.scrollLeft).toBeGreaterThan(1);
+
+    metrics.scrollLeft = 199;
+    fireEvent.scroll(scrollport);
+    expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
+    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
+
+    metrics.scrollLeft = 200;
+    fireEvent.scroll(scrollport);
+    expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
+  });
+
+  it('AC-TBL-STICKY-001 omits the gradient when the table fits or the scrollport reaches its right end', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('min-width: 768px'), media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />
+    );
+
+    const scrollport = screen.getByTestId('dt-table-branch');
+    const metrics = stubScrollMetrics(scrollport, { scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+    const header = screen.getByRole('columnheader', { name: 'Actions' });
+    const actionCell = screen.getAllByRole('button', { name: /row actions/i })[0].closest('td')!;
+    expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
+    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
+    expect(header.className).toContain('shadow-[inset_1px_0_0_hsl(var(--border))]');
+    expect(actionCell.className).toContain('shadow-[inset_1px_0_0_hsl(var(--border))]');
+
+    metrics.scrollWidth = 500;
+    metrics.clientWidth = 300;
+    metrics.scrollLeft = 199;
+    fireEvent.scroll(scrollport);
+    expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
+    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
+
+    metrics.scrollLeft = 200;
+    fireEvent.scroll(scrollport);
+    expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
+    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
+    expect(header.className).toContain('shadow-[inset_1px_0_0_hsl(var(--border))]');
+    expect(actionCell.className).toContain('shadow-[inset_1px_0_0_hsl(var(--border))]');
   });
 
   it('per-row rowMenu returning undefined ("no menu for this row") skips that row\'s trigger, other rows unaffected', () => {
