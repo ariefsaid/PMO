@@ -302,6 +302,16 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
 });
 
 describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('AC-PFIN-009 assign_project on salesInvoice is Admin and Finance only under the real role', () => {
+    expect(allowedRoles('assign_project', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Admin', record: { viewOnly: true } })).toBe(true);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Finance', record: { viewOnly: true } })).toBe(true);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Engineer' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: null })).toBe(false);
+  });
+
   it('P3a: create salesInvoice = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
     expect(allowedRoles('create', 'salesInvoice')).toEqual(['Admin', 'Finance']);
     expect(can('create', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
