@@ -153,9 +153,10 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (outcome === IMPORT_SKIPPED) skipped += 1;
         else created += 1;
       } catch (err) {
-        const { headline, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
         classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
-        failed.push({ index, reason: headline });
+        const reason = detail && detail !== headline ? `${headline}: ${detail}` : headline;
+        failed.push({ index, reason });
       }
       setProgress({ done: i + 1, total: validRows.length });
     }
