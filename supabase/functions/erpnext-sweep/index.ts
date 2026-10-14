@@ -1278,7 +1278,9 @@ export async function repairInvoiceProjectsLive(
       if (filled === true) repaired++;
       else unresolved++;
     }
-  } catch {
+  } catch (err) {
+    // A persistent fill error is retried next tick; log it so a systematic DB failure is visible.
+    console.error('invoice project backfill fill failed', { orgId: org.orgId, error: err instanceof Error ? err.message : String(err) });
     failedIds.push(...sources.map((source) => source.row.id));
   }
   const failed = failedIds.length > 0;

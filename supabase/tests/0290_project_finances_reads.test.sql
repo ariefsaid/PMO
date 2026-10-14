@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(44);
 
 insert into public.organizations (id,name) values
   ('02900000-0000-0000-0000-000000000001','Project finance read test org');
@@ -169,6 +169,8 @@ set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a2","rol
 select lives_ok($$select public.get_project_finances('02900000-0000-0000-0000-0000000000d1')$$,'AC-PFIN-014 Admin can read project finances');
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$select public.get_project_finances('02900000-0000-0000-0000-0000000000d1')$$,'AC-PFIN-014 Finance can read project finances');
+select is((public.get_project_finances('02900000-0000-0000-0000-0000000000d1')->'actuals'->>'excludes_restricted_rows')::boolean,false,
+          'AC-PFIN-014 Finance (spend-approval rank) sees totals that do not exclude restricted rows');
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$select public.get_project_finances('02900000-0000-0000-0000-0000000000d1')$$,'AC-PFIN-014 Executive can read project finances');
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a4","role":"authenticated"}';
