@@ -218,19 +218,16 @@ function isRetryableTransport(error: unknown): boolean {
 }
 
 /** M-4 (audit): bound + scrub an error before it is PERSISTED to the outbox `last_error`. A raw ERP
- *  response body can carry secret_ref/env names, tokens, URLs, or a verbose traceback — never store it
+ *  response body can carry secret_ref/env names, tokens, or a verbose traceback — never store it
  *  verbatim. Keeps the classified code + a short snippet with long token-shaped runs redacted. */
-export function redactErrorForOutbox(error: unknown, maxLength = 240): string {
+export function redactErrorForOutbox(error: unknown): string {
   const raw = error instanceof AdapterError
     ? `${error.code}: ${error.message}`
     : error instanceof Error
       ? error.message
       : String(error);
-  const scrubbed = raw
-    .replace(/https?:\/\/[^\s"'<>]+/gi, '[redacted-url]')
-    .replace(/[A-Za-z0-9_+/=-]{24,}/g, '[redacted]');
-  if (scrubbed.length <= maxLength) return scrubbed;
-  return `${scrubbed.slice(0, Math.max(0, maxLength - 1))}…`;
+  const scrubbed = raw.replace(/[A-Za-z0-9_+/=-]{24,}/g, '[redacted]');
+  return scrubbed.length > 240 ? `${scrubbed.slice(0, 240)}…` : scrubbed;
 }
 
 /** Postgres unique-violation — the mirror row for this PMO record id already exists. */
