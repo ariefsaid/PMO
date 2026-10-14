@@ -10,20 +10,18 @@
 > The historical 2026-07-29 "connect-only / use-leg blocked" header is **superseded**, not a current gate.
 > Feature implementation and owner sign-off remain separate from that runtime proof.
 >
-> **Blocking owner questions (before the affected controlled-document build):**
-> - **OQ-M365DOC-001 — folder lifecycle:** approve the proposed rule in FR-M365DOC-057: project
->   folder links are reference-only Draft entries, not issuable/approvable controlled content. A folder
->   has no single file content tag/version; claiming an approved folder would attest to a changing set
->   of files. Procurement folders and budget evidence are references, not new approval objects. If the
->   owner wants controlled folders, a separate snapshot/manifest design is needed, outside this phase.
-> - **OQ-M365DOC-002 — approved-version navigation:** ADR-0071 requires approved/latest file actions.
->   The closure proves a 200 version list, **not** a browser-openable version URL. Confirm Microsoft's
->   supported browser navigation (or approve an explicit unavailable action where none exists) before
->   signing off controlled-file delivery. Do not substitute version-content download, copy bytes, or
->   silently open latest as "approved". The target-table decision below does not depend on this answer.
->
-> The supplied owner scope is the requirements input for this amendment; the two questions above are
-> the remaining stakeholder decisions, not assumed approvals.
+> **Decisions (Director, 2026-10-14 — were OQ-M365DOC-001/002):**
+> - **OQ-M365DOC-001 → folder links are references only.** FR-M365DOC-057 stands: a folder link is a
+>   reference-only entry, never issuable/approvable controlled content; procurement folders and budget
+>   evidence are references, not approval objects. What allowing it would break: an "approved" folder
+>   attests to a set of files that keeps changing. Controlled folders, if ever wanted, need a
+>   snapshot/manifest design outside this phase.
+> - **OQ-M365DOC-002 → approved version is shown, history is linked; latest is never passed off as
+>   approved.** Graph's version list carries no browser URL, so the approved-version action opens the
+>   file's SharePoint **version history** page (built from the item's `sharepointIds`: list id + list
+>   item id), with the approved version label shown beside it and the current version marked "changed
+>   since approval" when they differ (ADR-0071 drift). Where `sharepointIds` are absent, the action is
+>   shown as unavailable with that reason. No version-content download, no copied bytes.
 >
 > ⚠️ **Cite ADRs by filename, not number** — three ADRs share the number 0059 and two share 0058 (a
 > known repo-wide collision, see the M365 gotchas in the backlog).
