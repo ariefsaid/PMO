@@ -112,7 +112,9 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(buildTime),
   },
   server: {
-    port: 3000,
+    // E2E_PORT lets a second worktree run Playwright e2e while a sibling worktree's dev
+    // server holds 3000 (shared-Mac parallel agents); default stays the canonical 3000.
+    port: Number(process.env.E2E_PORT ?? 3000),
     host: '0.0.0.0',
   },
   plugins: [react(), tailwindcss()],
