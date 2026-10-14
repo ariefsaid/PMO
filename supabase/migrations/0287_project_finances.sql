@@ -210,3 +210,40 @@ end $$;
 alter function public.fill_sales_invoice_project(uuid,uuid,uuid,text) owner to postgres;
 revoke all on function public.fill_sales_invoice_project(uuid,uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.fill_sales_invoice_project(uuid,uuid,uuid,text) to service_role;
+
+create function public.project_mapped_actuals(p_project_id uuid,p_fiscal_year text default null)
+returns table(category public.budget_category,mapped boolean,has_rows boolean,
+              actuals_to_date numeric,actuals_as_of timestamptz,source_sum numeric)
+language sql stable security invoker set search_path = public,pg_temp as $$
+  with generation as (
+    select s.snapshot_id from public.erp_actuals_snapshot s
+    where s.org_id = public.auth_org_id()
+    order by s.created_at desc,s.id desc limit 1
+  ), reading as (
+    select s.* from public.erp_actuals_snapshot s
+    where s.org_id = public.auth_org_id() and s.project_id = p_project_id
+      and s.snapshot_id = (select snapshot_id from generation)
+      and (p_fiscal_year is null or s.fiscal_year = p_fiscal_year)
+      and exists (select 1 from public.projects p where p.id = p_project_id)
+  ), mapped_categories as (
+    select distinct m.category from public.budget_category_account_map m
+    where m.org_id = public.auth_org_id()
+  ), actuals as (
+    select m.category,count(*) as n,
+      case when count(*) filter(where r.net is null or r.net::text in ('NaN','Infinity','-Infinity')) > 0
+           then null else sum(r.net) end as amount,
+      sum(r.net) as source_sum
+    from reading r join public.budget_category_account_map m
+      on m.org_id = r.org_id and m.erp_account = r.account
+    group by m.category
+  )
+  select c.category,mc.category is not null,coalesce(a.n,0) > 0,
+    case when mc.category is null or (select max(as_of) from reading) is null then null
+         when a.n > 0 then a.amount else 0::numeric end,
+    (select max(as_of) from reading),a.source_sum
+  from unnest(enum_range(null::public.budget_category)) c(category)
+  left join mapped_categories mc on mc.category = c.category
+  left join actuals a on a.category = c.category
+$$;
+revoke all on function public.project_mapped_actuals(uuid,text) from public,anon,authenticated;
+grant execute on function public.project_mapped_actuals(uuid,text) to authenticated;
