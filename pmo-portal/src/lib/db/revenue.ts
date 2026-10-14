@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { isProjectFinances, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
@@ -292,6 +293,23 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
  * #767 (AC-DUE-001): record (or clear, with null) the date the client received the invoice.
  * Admin/Finance, draft or submitted — enforced by the SECURITY DEFINER RPC, not the UI.
  */
+export async function setSalesInvoiceProject(siId: string, projectId: string): Promise<void> {
+  const { error } = await supabase.rpc('assign_sales_invoice_project', {
+    p_si_id: siId,
+    p_project_id: projectId,
+  });
+  if (error) throwWrite(error);
+}
+
+export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
+  const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
+  if (error) throwWrite(error);
+  if (!isProjectFinances(data) || data.project_id !== projectId) {
+    throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
+  }
+  return data;
+}
+
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {
   const { error } = await supabase.rpc('set_sales_invoice_received_date', {
     p_si_id: siId,
