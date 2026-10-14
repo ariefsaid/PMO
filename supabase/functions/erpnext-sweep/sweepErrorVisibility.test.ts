@@ -8,7 +8,7 @@ import { contactDb } from '../_shared/erpnextContacts.fixtures.ts';
 
 const ORG = '00000000-0000-4000-8000-000000009980';
 const SECRET_REF = 'synthetic-sweep-binding';
-const ERROR_TEXT = 'Upstream failed at https://upstream.example.test/private?token=query-secret#fragment secret_abcdef0123456789abcdef0123456789';
+const ERROR_TEXT = 'Upstream failed: vault_ref_synthetic_credential\nTraceback (most recent call last):\n  File "<synthetic>"';
 const SUPPLIER_DOMAIN = sweepWatermarkDomain('supplier');
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -35,6 +35,7 @@ function fakeDb(seed: Watermark[] = []) {
   const watermarkUpserts: Watermark[] = [];
   const errorEvents: Array<Record<string, unknown>> = [];
   let failErrorEventInsert = false;
+  let hangErrorEventInsert = false;
   const baseFrom = base.client.from.bind(base.client);
 
   const watermarkQuery = () => {
@@ -42,19 +43,31 @@ function fakeDb(seed: Watermark[] = []) {
     let patch: Partial<Watermark> = {};
     const filters = new Map<string, unknown>();
     const inFilters = new Map<string, unknown[]>();
+    const ors: string[] = [];
+    const notNull: string[] = [];
     const matches = (row: Watermark) =>
       [...filters].every(([key, value]) => row[key as keyof Watermark] === value)
-      && [...inFilters].every(([key, values]) => values.includes(row[key as keyof Watermark]));
+      && [...inFilters].every(([key, values]) => values.includes(row[key as keyof Watermark]))
+      && notNull.every((key) => row[key as keyof Watermark] !== null && row[key as keyof Watermark] !== undefined)
+      && (ors.length === 0 || ors.some((condition) => {
+        const [key, op, ...rest] = condition.split('.');
+        const value = rest.join('.');
+        const actual = row[key as keyof Watermark];
+        return op === 'is' ? actual == null : op === 'lt' ? typeof actual === 'string' && actual < value : false;
+      }));
     const matchingRows = () => [...watermarks.values()].filter(matches);
     const execute = () => {
+      const rows = matchingRows();
       if (action === 'update') {
-        for (const row of matchingRows()) Object.assign(row, patch);
+        for (const row of rows) Object.assign(row, patch);
       }
-      return { data: matchingRows(), error: null };
+      return { data: rows.map((row) => ({ id: row.domain })), error: null };
     };
     type QueryBuilder = {
-      select: () => QueryBuilder;
+      select: (columns?: string) => QueryBuilder;
       eq: (key: string, value: unknown) => QueryBuilder;
+      or: (condition: string) => QueryBuilder;
+      not: (key: string, operator: string, value: unknown) => QueryBuilder;
       in: (key: string, values: unknown[]) => QueryBuilder;
       update: (value: Partial<Watermark>) => QueryBuilder;
       upsert: (value: Watermark) => Promise<{ data: null; error: null }>;
@@ -64,6 +77,8 @@ function fakeDb(seed: Watermark[] = []) {
     const builder: QueryBuilder = {
       select: () => builder,
       eq: (key, value) => { filters.set(key, value); return builder; },
+      or: (condition) => { ors.push(...condition.split(',')); return builder; },
+      not: (key, operator, value) => { if (operator === 'is' && value === 'null') notNull.push(key); return builder; },
       in: (key, values) => { inFilters.set(key, values); return builder; },
       update: (value) => { action = 'update'; patch = value; return builder; },
       upsert: (value) => {
@@ -84,6 +99,7 @@ function fakeDb(seed: Watermark[] = []) {
     if (table === 'error_events') {
       return {
         insert: async (row: Record<string, unknown>) => {
+          if (hangErrorEventInsert) return await new Promise(() => {});
           if (failErrorEventInsert) return { error: { code: 'XX000' } };
           errorEvents.push({ ...row });
           return { error: null };
@@ -100,6 +116,7 @@ function fakeDb(seed: Watermark[] = []) {
     watermarkUpserts,
     errorEvents,
     set failErrorEventInsert(value: boolean) { failErrorEventInsert = value; },
+    set hangErrorEventInsert(value: boolean) { hangErrorEventInsert = value; },
   };
 }
 
@@ -127,6 +144,7 @@ function stubs() {
   console.error = () => {};
   const requests: string[] = [];
   let failSupplier = true;
+  let emptySupplier = false;
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = String(input instanceof Request ? input.url : input);
     requests.push(url);
@@ -136,7 +154,7 @@ function stubs() {
     }
     if (path === '/api/resource/Supplier' && !failSupplier) {
       return new Response(JSON.stringify({
-        data: [{ name: 'SUP-RECOVERY', modified: '2026-10-08 09:00:00', docstatus: 0, supplier_name: 'Recovery Co', tax_id: 'TAX-1' }],
+        data: emptySupplier ? [] : [{ name: 'SUP-RECOVERY', modified: '2026-10-08 09:00:00', docstatus: 0, supplier_name: 'Recovery Co', tax_id: 'TAX-1' }],
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -144,6 +162,7 @@ function stubs() {
   return {
     requests,
     set failSupplier(value: boolean) { failSupplier = value; },
+    set emptySupplier(value: boolean) { emptySupplier = value; },
     restore() {
       globalThis.fetch = originalFetch;
       (Deno.env as unknown as { get: unknown }).get = originalEnvGet;
@@ -152,7 +171,7 @@ function stubs() {
   };
 }
 
-Deno.test('AC-998-002 failed list stores a bounded safe error and preserves the cursor while siblings continue', async () => {
+Deno.test('AC-998-002 failed list stores only an allowlisted diagnostic code and preserves the cursor while siblings continue', async () => {
   const db = fakeDb([{
     org_id: ORG, external_tier: 'erpnext', domain: SUPPLIER_DOMAIN,
     watermark_cursor: '2026-10-01 09:00:00', last_error: null, last_error_at: null,
@@ -162,13 +181,13 @@ Deno.test('AC-998-002 failed list stores a bounded safe error and preserves the 
     const result = await sweepOrgDoctypesLive(db.client, orgBinding());
     const row = db.watermarks.get(SUPPLIER_DOMAIN);
     assert(row?.last_error, 'failed Supplier list must persist last_error on its watermark');
-    assert(row.last_error.length <= 500, 'persisted error must be bounded to 500 characters');
-    assert(!row.last_error.includes('upstream.example.test') && !row.last_error.includes('query-secret'), 'persisted error must not expose URL/query secrets');
+    assert(row.last_error === 'erp-http-403', `persisted error must be a diagnostic code only: ${row.last_error}`);
+    assert(!row.last_error.includes('vault_ref') && !row.last_error.includes('Traceback'), 'persisted error must not expose upstream details');
     assert(row.last_error_at && Number.isFinite(Date.parse(row.last_error_at)), 'failed list must stamp last_error_at');
     assert(row.watermark_cursor === '2026-10-01 09:00:00', 'failure must not change the previous cursor');
     assert(stubsLive.requests.some((url) => new URL(url).pathname === '/api/resource/Contact'), 'Contact sibling must still be polled');
     assert(stubsLive.requests.some((url) => new URL(url).pathname === '/api/resource/Customer'), 'Customer sibling must still be polled');
-    assert(result.error && !result.error.includes('upstream.example.test') && !result.error.includes('query-secret'), 'public sweep error must also be scrubbed');
+    assert(result.error === 'Supplier: sweep failed', 'public sweep result must not expose upstream details');
   } finally {
     stubsLive.restore();
   }
@@ -192,20 +211,40 @@ Deno.test('AC-998-002 completed list clears prior error fields while advancing t
   }
 });
 
+Deno.test('AC-998-002 failed then recovered with an empty listing clears both error fields', async () => {
+  const db = fakeDb([{
+    org_id: ORG, external_tier: 'erpnext', domain: SUPPLIER_DOMAIN,
+    watermark_cursor: '2026-10-01 09:00:00', last_error: null, last_error_at: null,
+  }]);
+  const stubsLive = stubs();
+  try {
+    await sweepOrgDoctypesLive(db.client, orgBinding());
+    const row = db.watermarks.get(SUPPLIER_DOMAIN)!;
+    assert(row.last_error === 'erp-http-403', 'initial failure must be stored as an allowlisted code');
+    stubsLive.failSupplier = false;
+    stubsLive.emptySupplier = true;
+    const result = await sweepOrgDoctypesLive(db.client, orgBinding());
+    assert(!result.error, `empty recovery walk must succeed: ${result.error}`);
+    assert(row.last_error === null && row.last_error_at === null, 'successful empty walk must clear prior error fields');
+  } finally {
+    stubsLive.restore();
+  }
+});
+
 Deno.test('AC-998-003 records one stable event per hour and event-write failure does not stop sibling polling', async () => {
   const startMs = Date.parse('2026-10-10T12:00:00.000Z');
   const db = fakeDb();
   const stubsLive = stubs();
   try {
     const runAt = (time: number) => sweepOrgDoctypesLive(db.client, orgBinding(), undefined, { nowMs: () => time });
-    await runAt(startMs);
+    await Promise.all([runAt(startMs), runAt(startMs)]);
     await runAt(startMs + 30 * 60_000);
     assert(Number(db.errorEvents.length) === 1, `repeat failure inside one hour must not create another event; got ${db.errorEvents.length}`);
     assert(JSON.stringify(db.errorEvents[0]) === JSON.stringify({
       fn: 'erpnext-sweep', error_code: 'sweep-doctype-failed', context_id: SUPPLIER_DOMAIN, org_id: ORG,
     }), `event must contain only stable routing values: ${JSON.stringify(db.errorEvents[0])}`);
 
-    await runAt(startMs + 60 * 60_000);
+    await runAt(startMs + 60 * 60_000 + 1);
     assert(Number(db.errorEvents.length) === 2, 'failure at exactly one hour must create a fresh event');
 
     db.failErrorEventInsert = true;
@@ -214,6 +253,14 @@ Deno.test('AC-998-003 records one stable event per hour and event-write failure 
     assert(result.error, 'event sink failure must preserve the ordinary contained doctype error result');
     assert(stubsLive.requests.length > requestsBefore, 'event sink failure must not prevent sibling list requests');
     assert(stubsLive.requests.some((url) => new URL(url).pathname === '/api/resource/Contact'), 'Contact sibling must still be polled when event insert fails');
+
+    db.failErrorEventInsert = false;
+    db.hangErrorEventInsert = true;
+    const beforeHang = stubsLive.requests.length;
+    const started = Date.now();
+    await runAt(startMs + 180 * 60_000);
+    assert(Date.now() - started < 2_500, 'a hanging event insert must be bounded');
+    assert(stubsLive.requests.length > beforeHang, 'a hanging event insert must not block sibling doctype requests');
   } finally {
     stubsLive.restore();
   }
