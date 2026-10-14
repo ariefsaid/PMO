@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   setEfaktur: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => ({ data: h.invoices, isPending: false, isError: false, refetch: vi.fn() }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },

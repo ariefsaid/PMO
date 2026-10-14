@@ -1496,8 +1496,8 @@ Each criterion has **one owning layer**; support tests listed in tasks do not re
 | 012 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 20 |
 | 013 | Vitest `pmo-portal/src/lib/projectFinances.test.ts` | 26,27,30,40 |
 | 014 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 21,23,25,29 |
-| 015 | RTL `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` | 27,28,38,39,40,42,44,46 |
-| 016 | E2E `pmo-portal/e2e/AC-PFIN-016-project-finances.spec.ts` | 43 |
+| 015 | RTL `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` — `AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys`; loading, error/retry, empty, exact-money, and narrow semantic-field cases are additional support oracles in this owning suite | 27,28,38,39,40,42,44,46 |
+| 016 | E2E `pmo-portal/e2e/AC-PFIN-016-project-finances.spec.ts` — `AC-PFIN-016: Finance assigns an adopted invoice to a project — attribution persists, the section reads USD 100/75/25, no budget, and no ERP command is dispatched` | 43 |
 | 017 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 18,39 |
 | 018 | pgTAP `supabase/tests/0287_project_finances_reads.test.sql` | 17,19,45 |
 | 019 | RTL `pmo-portal/pages/project-detail/ProjectFinancesSection.test.tsx` | 32,41 |

@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: async () => [] }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
     create: { mutateAsync: h.createMutate, isPending: false },

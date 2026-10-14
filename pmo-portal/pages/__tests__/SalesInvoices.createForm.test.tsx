@@ -42,6 +42,7 @@ vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ co
 // real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a syntax error.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => hoisted.salesInvoicesState,
   useRevenueMutations: () => ({
     create: { mutateAsync: hoisted.createMutate, isPending: false },

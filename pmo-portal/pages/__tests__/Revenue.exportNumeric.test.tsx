@@ -38,6 +38,7 @@ const state = vi.hoisted(() => ({
   invoices: [] as Array<Record<string, unknown>>,
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIncomingPayments: () => ({ data: state.payments, isPending: false, isError: false, refetch: vi.fn() }),
   useSalesInvoices: () => ({ data: state.invoices, isPending: false, isError: false, refetch: vi.fn() }),
   useRevenueMutations: () => ({

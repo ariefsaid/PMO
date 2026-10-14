@@ -148,4 +148,21 @@ describe('ProjectFinancesSection reading states', () => {
     expect(usd.getByText('Unavailable')).toBeInTheDocument();
     expect(usd.queryByText('$100.00')).not.toBeInTheDocument();
   });
+
+  it('AC-PFIN-015 keeps long money strings semantic dt/dd fields that can wrap on narrow content', () => {
+    h.query.data = payload({
+      invoices: [{ currency: 'USD', invoice_count: 12, invoiced: '1234567890.55', settled: '1234567890.44', outstanding: '0.11', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '1234567890.33', missing_work: 0 }],
+    });
+    render(<ProjectFinancesSection project={project} />);
+    const bucket = screen.getByTestId('project-finances-USD');
+    expect(bucket).toHaveClass('min-w-0');
+    // The settlement readings stay semantic description-list fields, not escaped raw text.
+    const invoicedLabel = within(bucket).getByText('Invoiced');
+    expect(invoicedLabel.tagName).toBe('DT');
+    const invoicedValue = screen.getByText('$1,234,567,890.55').closest('dd');
+    expect(invoicedValue).not.toBeNull();
+    expect(invoicedValue).toHaveClass('break-words');
+    expect(invoicedValue?.tagName).toBe('DD');
+    expect(within(bucket).getAllByRole('term')).toHaveLength(5);
+  });
 });

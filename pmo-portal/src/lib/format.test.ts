@@ -3,11 +3,23 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import {
   PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
   formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
-  formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatFullDate, formatMonthDay,
+  formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
 } from './format';
 
 afterEach(() => resetActiveLocale());
+
+describe('formatExactMoney', () => {
+  it('formats exact decimal strings without converting large values through Number', () => {
+    expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US')).toBe('$9,007,199,254,740,993.99');
+  });
+
+  it('returns null for malformed money, currency, or locale input', () => {
+    expect(formatExactMoney('1.001', 'USD', 'en-US')).toBeNull();
+    expect(formatExactMoney('1.00', 'usd', 'en-US')).toBeNull();
+    expect(formatExactMoney('1.00', 'USD', 'not_a_locale')).toBeNull();
+  });
+});
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
