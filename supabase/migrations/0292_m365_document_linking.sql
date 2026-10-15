@@ -309,3 +309,20 @@ end; $$;
 create trigger org_m365_settings_stamp_guard
   before insert or update on public.org_m365_document_settings
   for each row execute function public.stamp_guard_m365_settings();
+
+revoke insert on public.project_documents,public.procurement_documents from authenticated;
+grant insert (id,org_id,project_id,code,category,title,revision,status,doc_date,author_id,file_path,created_at,
+  source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
+  on public.project_documents to authenticated;
+grant insert (id,org_id,procurement_id,type,reference_number,status,date,link,
+  source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind)
+  on public.procurement_documents to authenticated;
+
+revoke update on public.project_documents from authenticated;
+grant update (id,org_id,project_id,code,category,title,revision,doc_date,file_path,created_at,
+  source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
+  on public.project_documents to authenticated;
+revoke update on public.procurement_documents from authenticated;
+grant update (id,org_id,procurement_id,type,reference_number,status,date,link,
+  source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind)
+  on public.procurement_documents to authenticated;
