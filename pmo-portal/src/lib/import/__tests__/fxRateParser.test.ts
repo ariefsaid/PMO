@@ -106,7 +106,7 @@ describe('JISDOR input normalization', () => {
       { rate_date: '2026-10-09', rate: 16234.56 },
       { rate_date: '2026-10-12', rate: 16300 },
     ]);
-    expect(parsed.rejected).toEqual([{ row: 8, reason: 'invalidDate' }]);
+    expect(parsed.rejected).toEqual([{ row: 8, value: 'Footer total', reason: 'invalidDate' }]);
   });
 
   it('AC-FX-006: collapses identical dates and rejects every contributor to a conflict', () => {
@@ -130,8 +130,8 @@ describe('JISDOR input normalization', () => {
     );
     expect(conflict.rows).toEqual([]);
     expect(conflict.rejected).toEqual([
-      { row: 2, reason: 'duplicateDate' },
-      { row: 3, reason: 'duplicateDate' },
+      { row: 2, value: '16234', reason: 'duplicateDate' },
+      { row: 3, value: '16300', reason: 'duplicateDate' },
     ]);
   });
 
@@ -155,6 +155,6 @@ describe('JISDOR input normalization', () => {
       ),
       '2026-10-14',
     );
-    expect(result.rejected).toEqual([{ row: 2, reason: 'formula' }]);
+    expect(result.rejected).toEqual([{ row: 2, value: '16234', reason: 'formula' }]);
   });
 });

@@ -143,7 +143,9 @@ afterEach(() => cleanup());
 describe('AC-FX-011 project contract equivalent', () => {
   it('renders a header equivalent using the contract date while naming the selected publication date; tax basis and editing remain', () => {
     renderSubject(<ProjectDetailHeader project={project()} committedSpend={10} />);
-    expect(screen.getByText(/≈ Rp 1,630,000 \(JISDOR 2026-10-09\)/)).toBeInTheDocument();
+    expect(screen.getAllByTestId('stat-tile')[0]?.querySelector('.sr-only')).toHaveTextContent(
+      '≈ Rp 1,630,000 (JISDOR 2026-10-09)',
+    );
     expect(h.calls).toHaveLength(1);
     expect(h.calls[0]).toEqual(['USD', 'IDR', '2026-10-10', true]);
     expect(screen.getByTestId('contract-tile-tax-basis')).toBeInTheDocument();
