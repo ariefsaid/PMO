@@ -4,6 +4,7 @@ import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { formatCurrencyCents } from '@/src/lib/format';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
@@ -13,7 +14,7 @@ const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-mute
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow }> = ({ inv }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean }> = ({ inv, showFx = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -70,7 +71,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow }> = (
       <dl className="space-y-1 text-[13px]">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
-          <dd className="tabular">{money(inv.amount)}</dd>
+          <dd className="tabular">
+            {money(inv.amount)}
+            {showFx && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
+          </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
@@ -81,8 +85,20 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow }> = (
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
           <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="tabular">{money(invoiceGross(inv))}</dd>
+          <dd className="tabular">
+            {money(invoiceGross(inv))}
+            {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
+          </dd>
         </div>
+        {showFx && (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}</dt>
+            <dd className="tabular">
+              {money(inv.erp_outstanding_amount)}
+              <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />
+            </dd>
+          </div>
+        )}
       </dl>
     </div>
   );

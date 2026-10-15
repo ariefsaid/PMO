@@ -302,6 +302,16 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
 });
 
 describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('AC-PFIN-009 assign_project on salesInvoice is Admin and Finance only under the real role', () => {
+    expect(allowedRoles('assign_project', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Admin', record: { viewOnly: true } })).toBe(true);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Finance', record: { viewOnly: true } })).toBe(true);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: 'Engineer' })).toBe(false);
+    expect(can('assign_project', 'salesInvoice', { realRole: null })).toBe(false);
+  });
+
   it('P3a: create salesInvoice = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
     expect(allowedRoles('create', 'salesInvoice')).toEqual(['Admin', 'Finance']);
     expect(can('create', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
@@ -584,6 +594,23 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
 
 it('AC-TAG-001 project classification option administration is Admin-only', () => {
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
+});
+
+describe('can() — JISDOR FX maintenance authority', () => {
+  it('AC-FX-009/010 Finance and Admin may view/upload; only Admin may manually create/edit', () => {
+    expect(allowedRoles('view', 'fxRate')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('upload', 'fxRate')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('create', 'fxRate')).toEqual(['Admin']);
+    expect(allowedRoles('edit', 'fxRate')).toEqual(['Admin']);
+    expect(can('view', 'fxRate', { realRole: null })).toBe(false);
+    expect(can('upload', 'fxRate', { realRole: null })).toBe(false);
+  });
+
+  it('AC-FX-009 view-as context denies all FX writes', () => {
+    for (const action of ['upload', 'create', 'edit'] as const) {
+      expect(can(action, 'fxRate', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+  });
 });
 
 describe('can() — expenseClaim (#775; migration 0247 is the enforcement authority)', () => {

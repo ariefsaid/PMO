@@ -122,6 +122,17 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     ]);
   });
 
+  it('AC-FX-010/013: Exchange rates breadcrumb returns Finance to its permitted section', () => {
+    const navigate = vi.fn();
+    const crumbs = breadcrumbForPath('/administration/exchange-rates', undefined, navigate);
+    expect(crumbs).toEqual([
+      { label: 'Administration', i18nKey: 'shell.nav.administration', href: '/administration/exchange-rates', onClick: expect.any(Function) },
+      { label: 'Exchange rates', i18nKey: 'admin.nav.exchangeRates' },
+    ]);
+    crumbs[0].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/administration/exchange-rates');
+  });
+
   it('AC-ADMIA-004: Administration child routes derive a parent crumb that navigates to Users', () => {
     const expected = [
       ['/administration/users', 'Users', 'admin.nav.users'],

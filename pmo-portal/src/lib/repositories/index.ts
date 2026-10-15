@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { fxRatesRepository } from './fxRates';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
@@ -285,6 +286,8 @@ import {
   submitSalesInvoiceSod,
   setSalesInvoiceReceivedDate,
   setSalesInvoiceEfaktur,
+  setSalesInvoiceProject,
+  getProjectFinances,
 } from '@/src/lib/db/revenue';
 import {
   nativeReadOnly,
@@ -656,6 +659,8 @@ const revenue: RevenueRepository = {
   listPayments: (params) => wrap(() => listIncomingPayments(params)),
   getPayment: (id) => wrap(() => getIncomingPayment(id)),
   getRevenueByProject: () => wrap(() => getRevenueByProject()),
+  setProject: (siId, projectId) => wrap(() => setSalesInvoiceProject(siId, projectId)),
+  getProjectFinances: (projectId) => wrap(() => getProjectFinances(projectId)),
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
@@ -1211,6 +1216,7 @@ const reports: ReportsRepository = {
 
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
+  fxRates: fxRatesRepository,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
@@ -1278,4 +1284,10 @@ export type {
   ReportsRepository,
   IntegrationsRepository,
   VendorWithholdingSlipsRepository,
+  FxRatesRepository,
+  FxRateRow,
+  FxRateInput,
+  FxRateMatch,
+  FxRatePage,
+  FxCommitCounts,
 } from './types';

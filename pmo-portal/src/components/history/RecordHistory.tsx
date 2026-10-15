@@ -178,6 +178,12 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
   const recordIdsByType = useMemo(() => {
     const ids: Partial<Record<HistoryNameKind, string[]>> = {};
     for (const event of events) {
+      if (event.entityType === 'sales_invoice') {
+        const projectChange = event.changes.project_id;
+        for (const id of [projectChange?.old, projectChange?.new]) {
+          if (typeof id === 'string' && id) (ids.project ??= []).push(id);
+        }
+      }
       if (['purchase_request', 'rfq', 'purchase_order', 'payment', 'sales_invoice', 'procurement_invoice', 'vendor_withholding_slip_bill'].includes(event.entityType)) {
         const kind = event.entityType as HistoryNameKind;
         (ids[kind] ??= []).push(event.entityId);

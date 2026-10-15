@@ -32,6 +32,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIncomingPayments: () => ({ data: hoisted.payments, isPending: false, isError: false, refetch: vi.fn() }),
   useSalesInvoices: () => ({ data: hoisted.invoices, isPending: false, isError: false, refetch: vi.fn() }),
   useRevenueMutations: () => ({
@@ -64,7 +65,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
-vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({
+  trackFilterApplied: vi.fn(),
+  trackSearchUsed: vi.fn(),
+}));
 
 import IncomingPayments from '../IncomingPayments';
 import SalesInvoices from '../SalesInvoices';

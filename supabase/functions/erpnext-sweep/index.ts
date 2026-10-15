@@ -1,4 +1,5 @@
 import { applyErpContactFeed } from '../_shared/erpnextContacts.ts';
+export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 /**
  * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
  *
@@ -60,6 +61,7 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 // HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
 import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
+import { resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
@@ -1179,6 +1181,117 @@ const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
 
 /** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
  *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
+export async function repairInvoiceProjectsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  afterId: string | null,
+  cache?: ErpAuthPairCache,
+): Promise<{ scanned: number; repaired: number; unresolved: number; failedIds: string[]; nextCursor: string | null; done: boolean }> {
+  if (!org.ownedDomains.includes('revenue')) {
+    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
+  }
+  const candidateQuery = serviceClient.from('sales_invoices').select('id,si_number,erp_project,erp_modified')
+    .eq('org_id', org.orgId).is('project_id', null).eq('pmo_native', false)
+    .not('si_number', 'is', null).order('id', { ascending: true }).limit(100);
+  const candidateResult = await (afterId ? candidateQuery.gt('id', afterId) : candidateQuery) as unknown as {
+    data: Array<{ id: string; si_number: string | null; erp_project: string | null; erp_modified: string | null }> | null;
+    error: { message: string; code?: string } | null;
+  };
+  const { data, error } = candidateResult;
+  if (error) throw new AppError(error.message, error.code);
+  const rows = data ?? [];
+  if (rows.length === 0) {
+    return { scanned: 0, repaired: 0, unresolved: 0, failedIds: [], nextCursor: afterId, done: true };
+  }
+  const refsResult = await serviceClient.from('external_refs').select('pmo_record_id,external_record_id')
+    .eq('org_id', org.orgId).eq('domain', 'revenue').in('pmo_record_id', rows.map((row) => row.id)) as unknown as {
+      data: Array<{ pmo_record_id: string; external_record_id: string }> | null;
+      error: { message: string; code?: string } | null;
+    };
+  if (refsResult.error) throw new AppError(refsResult.error.message, refsResult.error.code);
+  const refs = new Map((refsResult.data ?? []).map((ref) => [ref.pmo_record_id, ref.external_record_id]));
+  let erpClient: ErpClientDeps | null = null;
+  const getErpClient = async () => erpClient ??= await erpClientForOrg(serviceClient, org, cache);
+  const sources: Array<{ row: (typeof rows)[number]; erpProject: string }> = [];
+  const failedIds: string[] = [];
+  let processed = 0;
+  let fetched = 0;
+  let unresolved = 0;
+  for (const row of rows) {
+    if (row.erp_project !== null) {
+      sources.push({ row, erpProject: row.erp_project });
+      processed++;
+      continue;
+    }
+    const erpName = refs.get(row.id);
+    if (!erpName || erpName !== row.si_number) {
+      unresolved++;
+      processed++;
+      continue;
+    }
+    if (fetched >= 10) break;
+    fetched++;
+    try {
+      const doc = await fetchErpDoc(await getErpClient(), DOCTYPE_REGISTRY['sales-invoice'].doctype, erpName);
+      if (doc.name !== erpName || !admitsDocForBindingCompany('sales-invoice', doc, org.company)) {
+        unresolved++;
+        processed++;
+        continue;
+      }
+      const canonical = DOCTYPE_BODIES['sales-invoice']!.fromDoc(doc);
+      const erpProject = typeof canonical.erp_project === 'string' ? canonical.erp_project : null;
+      if (erpProject !== null) {
+        let hydration = serviceClient.from('sales_invoices').update({ erp_project: erpProject })
+          .eq('org_id', org.orgId).eq('id', row.id).is('project_id', null).is('erp_project', null);
+        hydration = row.erp_modified === null
+          ? hydration.is('erp_modified', null)
+          : hydration.eq('erp_modified', row.erp_modified);
+        const { data: hydrated, error: hydrationError } = await hydration.select('id') as unknown as {
+          data: Array<{ id: string }> | null; error: { message: string; code?: string } | null;
+        };
+        if (hydrationError) throw new AppError(hydrationError.message, hydrationError.code);
+        if (!hydrated?.some((entry) => entry.id === row.id)) {
+          unresolved++;
+          processed++;
+          continue;
+        }
+        sources.push({ row, erpProject });
+      } else {
+        unresolved++;
+      }
+      processed++;
+    } catch {
+      failedIds.push(row.id);
+      break;
+    }
+  }
+  let repaired = 0;
+  try {
+    const resolution = await resolveInvoiceProjects(serviceClient, org.orgId, sources.map((source) => source.erpProject));
+    for (const source of sources) {
+      const projectId = resolution.get(source.erpProject);
+      if (!projectId) { unresolved++; continue; }
+      const { data: filled, error: fillError } = await serviceClient.rpc('fill_sales_invoice_project', {
+        p_org_id: org.orgId, p_si_id: source.row.id, p_project_id: projectId, p_erp_project: source.erpProject,
+      });
+      if (fillError) throw new AppError(fillError.message, fillError.code);
+      if (filled === true) repaired++;
+      else unresolved++;
+    }
+  } catch (err) {
+    // A persistent fill error is retried next tick; log it so a systematic DB failure is visible.
+    console.error('invoice project backfill fill failed', { orgId: org.orgId, error: err instanceof Error ? err.message : String(err) });
+    failedIds.push(...sources.map((source) => source.row.id));
+  }
+  const failed = failedIds.length > 0;
+  const capped = fetched >= 10 && processed < rows.length && !failed;
+  return {
+    scanned: rows.length, repaired, unresolved, failedIds: [...new Set(failedIds)],
+    nextCursor: failed ? afterId : capped ? rows[processed - 1]?.id ?? afterId : rows.at(-1)?.id ?? afterId,
+    done: !failed && !capped && rows.length < 100,
+  };
+}
+
 async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
@@ -2294,10 +2407,27 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } });
   }
 
+  let maintenanceRequest: { org_id: string; after_id: string | null } | null = null;
+  const requestBody = await req.text();
+  if (requestBody.trim()) {
+    let payload: unknown;
+    try { payload = JSON.parse(requestBody); } catch { return json({ error: 'INVALID_REQUEST' }, 400); }
+    const object = payload !== null && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload as Record<string, unknown> : null;
+    const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if (!object || object.mode !== 'repair-invoice-projects' || typeof object.org_id !== 'string'
+        || !uuid.test(object.org_id) || !(object.after_id === null || (typeof object.after_id === 'string' && uuid.test(object.after_id)))) {
+      return json({ error: 'INVALID_REQUEST' }, 400);
+    }
+    maintenanceRequest = { org_id: object.org_id, after_id: object.after_id as string | null };
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseClient;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }) as unknown as SupabaseClient;
 
   // #916: the whole invocation shares ONE elapsed-time budget for the doctype walk, stamped HERE (the
   // env-int reader is the sanctioned "clock/env read" DI — a missing/invalid value falls back).
@@ -2319,6 +2449,14 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   // isolate never holds one tenant's credential across ticks and a rotated credential never outlives the
   // tick (ADR-0072 decision 5).
   const erpAuth = createErpAuthPairCache();
+
+  if (maintenanceRequest) {
+    const orgs = await listEmployingOrgsLive(serviceClient);
+    const org = orgs.find((candidate) => candidate.orgId === maintenanceRequest!.org_id);
+    if (!org || !org.ownedDomains.includes('revenue')) return json({ error: 'ORG_NOT_ELIGIBLE' }, 404);
+    const result = await repairInvoiceProjectsLive(serviceClient, org, maintenanceRequest.after_id, erpAuth);
+    return json({ ok: result.failedIds.length === 0, ...result });
+  }
 
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({

@@ -43,6 +43,8 @@ const ORGANIZATION_SECTIONS = [
   // #770 added Project setup (the org's project classification options) as a fifth destination.
   { name: 'Project setup', url: '/administration/projects', testid: 'administration-panel-projects', heading: 'Project setup' },
   { name: 'Credits', url: '/administration/credits', testid: 'administration-panel-credits', heading: 'Credits' },
+  // #1026 deliberately exposes JISDOR administration to org Admins.
+  { name: 'Exchange rates', url: '/administration/exchange-rates', testid: 'administration-panel-exchange-rates', heading: 'Exchange rates' },
 ] as const;
 
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
@@ -67,7 +69,7 @@ async function expectSectionSelected(
   await expect(sectionNav(page).locator('[aria-current="page"]')).toHaveCount(1);
 }
 
-test('AC-ADMIA-001: an org Admin journeys through the five destinations with coherent location/heading/panel and Back restores the prior section', async ({
+test('AC-ADMIA-001: an org Admin journeys through the six destinations with coherent location/heading/panel and Back restores the prior section', async ({
   page,
 }) => {
   await signIn(page, ADMIN);
@@ -99,6 +101,8 @@ test('AC-ADMIA-001: an org Admin journeys through the five destinations with coh
   }
 
   // FR-ADMIA-004: browser Back restores each prior section (no stale local tab state).
+  await page.goBack();
+  await expectSectionSelected(page, ORGANIZATION_SECTIONS[4]); // Credits
   await page.goBack();
   await expectSectionSelected(page, ORGANIZATION_SECTIONS[3]); // Project setup
   await page.goBack();

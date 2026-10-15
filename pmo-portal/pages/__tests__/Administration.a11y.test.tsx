@@ -10,7 +10,8 @@
  * `alertdialog`, and toasts are `aria-live`. Any blocking finding here fails CI before it ships.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -24,7 +25,9 @@ function pageAlertsMatching(message: RegExp) {
   );
 }
 
-const { listState, mutations, isOperatorState } = vi.hoisted(() => ({
+const { listState, mutations, isOperatorState, fxState, roleState } = vi.hoisted(() => ({
+  roleState: { value: 'Admin' },
+  fxState: { list: vi.fn(), context: vi.fn(), existing: vi.fn(), upsert: vi.fn() },
   listState: {
     data: [
       { id: 'self-admin', full_name: 'Org Admin', email: 'admin@example.com', role: 'Admin', manager_id: null, org_id: 'org-1', status: 'active' },
@@ -48,8 +51,9 @@ vi.mock('@/src/hooks/useUsers', () => ({
   useUserMutations: () => mutations,
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1' }, role: 'Admin' }),
+  useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1', role: roleState.value }, role: roleState.value }),
 }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-31', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => isOperatorState.value,
   useOperatorMembership: () => ({
@@ -85,6 +89,12 @@ vi.mock('@/src/lib/repositories', () => ({
     credits: { getOrgBalance: vi.fn().mockResolvedValue(1250), grant: vi.fn().mockResolvedValue(undefined) },
     orgFeature: { listOwn: vi.fn().mockResolvedValue({}), toggle: vi.fn().mockResolvedValue(undefined) },
     orgSettings: { getTaxDefault: vi.fn().mockResolvedValue('exclusive') },
+    fxRates: {
+      list: fxState.list,
+      context: fxState.context,
+      existing: fxState.existing,
+      upsert: fxState.upsert,
+    },
   },
 }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -101,7 +111,7 @@ const renderComposed = (path = '/administration/users') => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <ImpersonationProvider realRole="Admin">
+      <ImpersonationProvider realRole={roleState.value as 'Admin' | 'Finance'}>
         <MemoryRouter initialEntries={[path]}>
           <ToastProvider>
             <Administration />
@@ -121,6 +131,14 @@ afterEach(() => {
 beforeEach(() => {
   isOperatorState.value = false;
   isOperatorState.pending = false;
+  roleState.value = 'Admin';
+  fxState.list.mockReset().mockResolvedValue({ rows: [{
+    id: 'fx-1', org_id: 'org-1', rate_date: '2026-10-12', rate: 16300, base_currency: 'USD', quote_currency: 'IDR',
+    source: 'JISDOR', created_by: null, updated_by: null, created_at: '2026-10-12T00:00:00Z', updated_at: '2026-10-12T00:00:00Z',
+  }], nextCursor: null });
+  fxState.context.mockReset().mockResolvedValue({ currency: 'IDR', timezone: 'Asia/Jakarta' });
+  fxState.existing.mockReset().mockResolvedValue([]);
+  fxState.upsert.mockReset().mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });
 });
 
 async function expectNoBlockingViolations(container: HTMLElement) {
@@ -244,5 +262,72 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
       expect(s).toHaveAttribute('aria-checked');
       expect(s.getAttribute('aria-label')).toBeTruthy();
     });
+  });
+
+  for (const role of ['Admin', 'Finance'] as const) {
+    for (const width of [1280, 390]) {
+      it(`AC-FX-013: ${role} sees the settled Exchange rates route at ${width}px without blocking violations`, async () => {
+        roleState.value = role;
+        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: width });
+        const { container } = renderComposed('/administration/exchange-rates');
+        await waitFor(() => expect(container.querySelector('[data-testid="administration-panel-exchange-rates"]')).not.toBeNull());
+        expect(await screen.findByRole('table')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Upload rates' })).toBeInTheDocument();
+        if (role === 'Admin') expect(screen.getByRole('button', { name: 'New rate' })).toBeInTheDocument();
+        else expect(screen.queryByRole('button', { name: 'New rate' })).not.toBeInTheDocument();
+        await expectNoBlockingViolations(document.body);
+      });
+    }
+  }
+
+  it('AC-FX-013: list, manual form, upload preview, rejected rows and save failure are axe-clean', async () => {
+    roleState.value = 'Admin';
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    const { container } = renderComposed('/administration/exchange-rates');
+    await waitFor(() => expect(container.querySelector('[data-testid="administration-panel-exchange-rates"]')).not.toBeNull());
+    await screen.findByRole('table');
+    await expectNoBlockingViolations(document.body);
+
+    await userEvent.click(screen.getByRole('button', { name: 'New rate' }));
+    await screen.findByRole('dialog', { name: 'New rate' });
+    expect(screen.getByLabelText(/Publication date/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/IDR per USD/)).toBeInTheDocument();
+    await expectNoBlockingViolations(document.body);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New rate' })).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Upload rates' }));
+    const fileInput = screen.getByLabelText('Choose BI Excel or date,rate CSV');
+    fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-12,16300'], 'rates.csv', { type: 'text/csv' })] } });
+    await screen.findByText('1 new');
+    await expectNoBlockingViolations(document.body);
+
+    fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-13,not-a-rate'], 'rejected.csv', { type: 'text/csv' })] } });
+    await screen.findByText(/Row 2: not-a-rate — Enter a rate/i);
+    await expectNoBlockingViolations(document.body);
+
+    fireEvent.change(fileInput, { target: { files: [new File(['date,rate\n2026-10-12,16300'], 'retry.csv', { type: 'text/csv' })] } });
+    await screen.findByText('1 new');
+    fxState.upsert.mockRejectedValueOnce(new Error('offline'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Save rates' }));
+    await screen.findByText(/Your rates were not saved/i);
+    expect(screen.getAllByText('16,300').length).toBeGreaterThan(0);
+    await expectNoBlockingViolations(document.body);
+  });
+
+  it('AC-FX-013: upload Cancel and Escape return focus to the Upload opener', async () => {
+    roleState.value = 'Admin';
+    renderComposed('/administration/exchange-rates');
+    const opener = await screen.findByRole('button', { name: 'Upload rates' });
+    await userEvent.click(opener);
+    await screen.findByRole('dialog', { name: 'Upload rates' });
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+
+    await userEvent.click(opener);
+    await screen.findByRole('dialog', { name: 'Upload rates' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 });

@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import { efakturRefusal } from '@/src/lib/efaktur';
 
 /**
@@ -114,6 +115,8 @@ export function useRevenuePerProject() {
  */
 export function useRevenueMutations() {
   const qc = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
   const isExternal = routeDomainWrite('revenue') === 'external';
 
@@ -128,6 +131,7 @@ export function useRevenueMutations() {
     // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
     qc.invalidateQueries({ queryKey: ['work-order-billing'] });
     qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
+    qc.invalidateQueries({ queryKey: ['project-finances', orgId] });
   };
 
   const create = useMutation({
@@ -228,4 +232,29 @@ export function useRevenueMutations() {
   });
 
   return { create, setReceivedDate, setEfaktur, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+}
+
+export function useAssignInvoiceProject() {
+  const qc = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useMutation({
+    mutationFn: ({ siId, projectId }: AssignInvoiceProjectInput) =>
+      repositories.revenue.setProject(siId, projectId),
+    onSuccess: (_data, { siId, projectId, oldProjectId }) => {
+      const projectIds = [...new Set([oldProjectId, projectId].filter((id): id is string => Boolean(id)))];
+      const keys: readonly (readonly unknown[])[] = [
+        ['salesInvoices', orgId], ['salesInvoice', orgId, siId], ['incomingPayments', orgId],
+        ['incomingPayment', orgId], ['revenueByProject', orgId], ['project-vat-editability'],
+        ['record-history', orgId, 'sales_invoice', siId],
+        ...projectIds.flatMap((id) => [
+          ['project-finances', orgId, id], ['record-history', orgId, 'project', id],
+        ]),
+      ];
+      // The attribution write is complete; let the modal close before background refetches finish.
+      // invalidateQueries marks each key stale synchronously and refreshes active readers without
+      // coupling the user-visible save latency to unrelated query/network work.
+      for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
+    },
+  });
 }

@@ -33,10 +33,12 @@ export type Action =
   | 'record_received_date'
   | 'download_pdf'
   | 'record_efaktur'
+  | 'assign_project'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
-  | 'confirm_employee_link';
+  | 'confirm_employee_link'
+  | 'upload';
 
 export type Entity =
   | 'project'
@@ -79,7 +81,8 @@ export type Entity =
   | 'employeeLink'
   | 'pushHold'
   | 'managementPack'
-  | 'projectProgress';
+  | 'projectProgress'
+  | 'fxRate';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -441,6 +444,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
   // UX-only: author cannot submit their own draft; different approver-role user can.
   // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
+  fxRate: {
+    view: allow(REVENUE_WRITE),
+    upload: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    create: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
+    edit: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
+  },
   salesInvoice: {
     // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
     view: allow(MASTER_DATA),
@@ -463,6 +472,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       && ['Submitted', 'Unpaid', 'Paid'].includes(String(ctx.record?.status ?? '')),
     // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
     record_efaktur: allow(REVENUE_WRITE),
+    // PMO project attribution remains separate from the ERP invoice body and is role-gated server-side.
+    assign_project: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.

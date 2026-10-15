@@ -4,11 +4,15 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import type { Role } from '@/src/auth/AuthContext';
 import OverviewTab from '../tabs/OverviewTab';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { Tables } from '@/src/lib/supabase/database.types';
+
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 
 // ── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -125,7 +129,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => procState,
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => revenueState,
+  useSalesInvoices: (projectId: string) => { invoiceQuery.calls(projectId); return revenueState; },
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
@@ -146,17 +150,38 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' }, role: 'Project Manager' }),
 }));
 
+const financeQuery = vi.hoisted(() => ({
+  calls: vi.fn(),
+  query: {
+    data: {
+      project_id: 'p1', contract_invoiced: '110.00', remaining_to_invoice: '110.00',
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 }],
+      budget: null,
+      actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] },
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
+}));
+const invoiceQuery = vi.hoisted(() => ({ calls: vi.fn() }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: (projectId: string) => { financeQuery.calls(projectId); return financeQuery.query; },
+}));
+
 const navigate = vi.fn();
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpend = 150_000) =>
+const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpend = 150_000, role: Role = 'Project Manager') =>
   render(
-    <MemoryRouter>
-      <OverviewTab project={p} committedSpend={committedSpend} setTab={setTab} />
-    </MemoryRouter>,
+    <ImpersonationProvider realRole={role}>
+      <MemoryRouter>
+        <OverviewTab project={p} committedSpend={committedSpend} setTab={setTab} />
+      </MemoryRouter>
+    </ImpersonationProvider>,
   );
 
 beforeEach(() => {
@@ -174,65 +199,79 @@ beforeEach(() => {
   revenueState.isPending = false;
   revenueState.isError = false;
   navigate.mockClear();
+  financeQuery.calls.mockClear();
+  invoiceQuery.calls.mockClear();
+  financeQuery.query.isPending = false;
+  financeQuery.query.isError = false;
+  financeQuery.query.refetch.mockReset();
+  financeQuery.query.data = {
+    project_id: 'p1', contract_invoiced: '110.00', remaining_to_invoice: '110.00',
+    invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 }],
+    budget: null,
+    actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] },
+  };
 });
 
 describe('project invoicing summary', () => {
-  it('AC-UNB-001: shows contract, submitted invoices, and remaining value with the contract basis', () => {
-    renderTab();
-    const summary = screen.getByTestId('project-invoicing-summary');
-    expect(summary).toHaveTextContent('$1,000,000');
-    expect(summary).toHaveTextContent('$2,900');
-    expect(summary).toHaveTextContent('$997,100');
-    expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(screen.getByTestId('project-invoicing-scope')).toHaveTextContent('without a project are not included');
+  it('AC-PFIN-019/020 renders one authorized finance section with server comparison separate from invoice totals', () => {
+    const allowedRoles: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
+    for (const role of allowedRoles) {
+      const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs, vi.fn(), 150_000, role);
+      const section = screen.getByTestId('project-finances');
+      expect(screen.getAllByTestId('project-finances')).toHaveLength(1);
+      expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
+      expect(section).toHaveTextContent('$220.00');
+      expect(section).toHaveTextContent('$110.00');
+      expect(section).toHaveTextContent('$100.00');
+      expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      view.unmount();
+    }
+    expect(financeQuery.calls).toHaveBeenCalledTimes(allowedRoles.length);
+    expect(invoiceQuery.calls).not.toHaveBeenCalled();
   });
 
-  it('AC-UNB-003: shows unavailable invoice totals when the currency or stored tax basis cannot be compared', () => {
-    revenueState.data = [
-      { id: 'si-unknown-basis', amount: 2_200, currency: 'USD', tax_treatment: 'unknown', tax_amount: 200, status: 'Paid' },
-    ];
-    renderTab();
-    const summary = screen.getByTestId('project-invoicing-summary');
-    expect(summary).toHaveTextContent('Unavailable');
-    expect(summary).not.toHaveTextContent('$0');
+  it('AC-PFIN-019 does not fetch or render the new finance section for Engineer and retains delivery content', () => {
+    renderTab(project, vi.fn(), 150_000, 'Engineer');
+    expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
+    expect(financeQuery.calls).not.toHaveBeenCalled();
+    expect(invoiceQuery.calls).not.toHaveBeenCalled();
+    expect(screen.getByText(/Procurement summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
   });
-
-  it('AC-UNB-003: does not render a contract amount without its stored tax basis', () => {
-    const projectWithUnknownBasis = { ...project, tax_treatment: 'unknown' } as ProjectWithRefs;
-    renderTab(projectWithUnknownBasis);
-    const summary = screen.getByTestId('project-invoicing-summary');
-    expect(summary).toHaveTextContent('Unavailable');
-    expect(summary).not.toHaveTextContent('$1,000,000');
-  });
-
-  it('AC-UNB-003: marks invoice totals unavailable when a submitted invoice uses another currency', () => {
-    revenueState.data = [
-      { id: 'si-eur', amount: 2_200, currency: 'EUR', tax_treatment: 'exclusive', tax_amount: 0, status: 'Submitted' },
-    ];
-    renderTab();
-    const summary = screen.getByTestId('project-invoicing-summary');
-    expect(summary).toHaveTextContent('Unavailable');
-    expect(summary).not.toHaveTextContent('$0');
-  });
-
-  it('AC-UNB-001: keeps invoice figures unavailable during loading and offers retry after a read error', async () => {
-    revenueState.data = undefined;
-    revenueState.isPending = true;
-    const view = renderTab();
-    const summary = screen.getByTestId('project-invoicing-summary');
-    expect(summary).toHaveTextContent('Loading invoice totals');
-    expect(summary).not.toHaveTextContent('$0');
+  it('AC-PFIN-020: keeps the existing project contract basis and refuses a contract value with unknown basis', () => {
+    const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs);
+    const section = screen.getByTestId('project-finances');
+    expect(section).toHaveTextContent('$220.00');
+    expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
     view.unmount();
 
-    revenueState.isPending = false;
-    revenueState.isError = true;
+    const unknownBasis = { ...project, contract_value: 1_000_000, tax_treatment: 'unknown' } as ProjectWithRefs;
+    const unknownView = renderTab(unknownBasis);
+    const contractField = screen.getByText('Contract value').closest('div');
+    expect(contractField).toHaveTextContent('Unavailable');
+    expect(contractField).not.toHaveTextContent('$1,000,000');
+    expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
+    unknownView.unmount();
+  });
+
+  it('AC-PFIN-015: keeps the section honest during loading and offers retry on a finance-read error', async () => {
+    financeQuery.query.isPending = true;
+    const view = renderTab();
+    const section = screen.getByTestId('project-finances');
+    expect(section).toHaveTextContent('Loading project finances');
+    expect(section).not.toHaveTextContent('$0.00');
+    view.unmount();
+
+    financeQuery.query.isPending = false;
+    financeQuery.query.isError = true;
+    financeQuery.query.refetch.mockResolvedValue(undefined);
     renderTab();
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent("Couldn't load invoice totals");
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project finances");
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(revenueState.refetch).toHaveBeenCalled();
+    expect(financeQuery.query.refetch).toHaveBeenCalled();
   });
 });
 
@@ -399,14 +438,16 @@ describe('OverviewTab D15 financial summary — Actual tile derives from committ
 
   const renderFinanceSummary = (committedSpend: number) =>
     render(
-      <MemoryRouter>
-        <OverviewTab
+      <ImpersonationProvider realRole="Engineer">
+        <MemoryRouter>
+          <OverviewTab
           project={deadSpentProject}
           committedSpend={committedSpend}
           setTab={vi.fn()}
           showFinanceSummary={true}
-        />
-      </MemoryRouter>,
+          />
+        </MemoryRouter>
+      </ImpersonationProvider>,
     );
 
   it('AC-MONEY-01: D15 Actual tile shows committedSpend when project.spent is 0', () => {
@@ -433,9 +474,11 @@ describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
     // needs its own render with that flag on — asserting both from the default render is how this
     // oracle would have gone quietly dead a second time.
     const { unmount } = render(
-      <MemoryRouter>
-        <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
-      </MemoryRouter>,
+      <ImpersonationProvider realRole="Engineer">
+        <MemoryRouter>
+          <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
+        </MemoryRouter>
+      </ImpersonationProvider>,
     );
     // Both sites live inside the delivery-forward financial summary, so one render covers them —
     // but they are asserted BY NAME, because they can rot independently and a count would not tell.

@@ -2305,6 +2305,16 @@ question is "which rate source, at what staleness, priced how" — an `OD-`, not
 
 ---
 
+## DD-FX-1 — JISDOR is stored for labelled display equivalents, not consolidated accounting (owner #1012, 2026-10-14)
+
+**Context.** DD-CUR-6 declined acquiring rates until an organization genuinely needed a home-currency view. The owner has now selected BI's manually uploaded USD/IDR JISDOR publications and ruled the date/source semantics.
+
+**Decision.** PMO stores org-scoped JISDOR history and shows an approximate rupiah equivalent **beside**, never instead of, the exact contract/invoice amount. Dated documents use the latest publication at or before their own date; open balances use the latest available publication as of the organization day. Missing rate/date and unsupported pair remain explicitly unavailable. Finance/Admin upload; Admin has the single-day correction UX. No automatic feed or accounting conversion is introduced.
+
+**Consequences.** Supersedes only DD-CUR-6's “PMO holds no exchange rates” and its blanket ban on **display-only equivalents**. Its exact per-currency procurement/revenue breakdown ruling remains in force. Stored original currencies/amounts, tax basis, exports, money transitions and margins remain unchanged. Changing a reference rate can change a labelled display approximation on a later read, never a document or ledger. Schema/API rationale is recorded in ADR-0085.
+
+---
+
 ## OD-XING-1 · OD-TAX-1 · OD-TASK-1 · OD-MTG-1..2 · OD-I18N-1 · OD-SEED-4 — the go-live owner batch (owner grill, 2026-08-21)
 
 Drained from the wayfinder owner frontier on [RIS goes live: first-client delivery route](https://github.com/ariefsaid/PMO/issues/450): #527 (nine rulings), #523 (the crossing), #518 (PPN), #499 (provisioning). Director calls made in the same session are `DD-` entries below.
@@ -2926,6 +2936,19 @@ an invoice is created or amended. ERP's own AR aging keeps ERP's due date — AD
 accounting truth, so PMO does not re-derive aging. Known limit: if ERP already carries a received date,
 a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
 field-only update route if it bites.
+
+## DD-OPS-12 — RIS stays on ERPNext v16; the budget push is rebuilt for v16 (owner, 2026-10-15)
+
+**[DD-OPS-12]** `DD-OPS-11`'s re-proof never exercised the budget push. On 2026-10-15 the production sweep's
+Material Request 417 (#1034) led to a full v16 check: every PMO push body, built by the shipped `toBody` builders,
+inserted and submitted on a v16.33 copy site inside a rolled-back transaction. **15 of 16 kinds pass; only `Budget`
+breaks** — v16 stores one Budget per account (header `account` + `budget_amount`), replaces `fiscal_year` with
+required `from_fiscal_year`/`to_fiscal_year`, and adds a required `distribution_frequency` (#1033). By `DD-OPS-10`'s
+condition this break is not small, so the owner chose between reinstalling at v15 and rebuilding the push.
+**Ruling: stay on v16 and rebuild the budget push** — the break is contained to one doctype, the 2025 books stay
+where they are, and the v15 end-of-life upgrade is avoided. Until it ships, an org on v16 cannot activate a budget
+(activation awaits the push). The rebuild keeps v15 working for the local dev bed (`SUPPORTED_VERSION_MAJORS`
+unchanged). Lesson: a version re-proof must run every push body, not only the crossing journeys.
 
 ## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
 

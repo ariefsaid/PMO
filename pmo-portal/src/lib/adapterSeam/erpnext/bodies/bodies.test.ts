@@ -11,7 +11,7 @@ import { piToBody, piFromDoc, PI_FROM_DOC_FIELDS } from './purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './paymentEntry.ts';
 import { poToBody, poFromDoc } from './purchaseOrder.ts';
 import { grToBody, grFromDoc } from './goodsReceipt.ts';
-import { mrToBody, mrFromDoc } from './materialRequest.ts';
+import { mrToBody, mrFromDoc, MR_FROM_DOC_FIELDS } from './materialRequest.ts';
 import { rfqToBody, rfqFromDoc } from './rfq.ts';
 import { supplierQuotationToBody, supplierQuotationFromDoc } from './supplierQuotation.ts';
 import { siToBody, siFromDoc } from './salesInvoice.ts';
@@ -373,6 +373,11 @@ describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, he
   it('mrFromDoc maps the pr_number + docstatus', () => {
     const canonical = mrFromDoc({ name: 'MAT-REQ-2026-00001', docstatus: 0, modified: '2026-07-11 10:00:00.000000' });
     expect(canonical).toMatchObject({ id: 'MAT-REQ-2026-00001', pr_number: 'MAT-REQ-2026-00001', erp_docstatus: 0 });
+  });
+
+  it('Material Request: the sweep never asks ERPNext for `total` and never writes an amount (the doctype has no total — v16 rejects the list call with 417)', () => {
+    expect(MR_FROM_DOC_FIELDS).not.toContain('total');
+    expect(mrFromDoc({ name: 'MAT-REQ-2026-00002', docstatus: 1, total: 500 })).not.toHaveProperty('amount');
   });
 
   it('rfqFromDoc maps the rfq_number + docstatus', () => {

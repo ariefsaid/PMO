@@ -73,6 +73,7 @@ const hoisted = vi.hoisted(() => ({
 const salesInvoicesState = hoisted.salesInvoicesState;
 
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },

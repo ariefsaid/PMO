@@ -103,12 +103,13 @@ const SalesDetailRedirect: React.FC = () => {
 /** Compatibility entry for the former all-in-one Administration page. */
 const AdministrationEntryRedirect: React.FC = () => {
   const { hash } = useLocation();
-  return (
-    <Navigate
-      to={hash === '#budget-account-map' ? '/administration/accounting#budget-account-map' : '/administration/users'}
-      replace
-    />
-  );
+  const { role } = useAuth();
+  const target = hash === '#budget-account-map'
+    ? '/administration/accounting#budget-account-map'
+    : role === 'Finance'
+      ? '/administration/exchange-rates'
+      : '/administration/users';
+  return <Navigate to={target} replace />;
 };
 
 /**
@@ -167,6 +168,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
   { path: '/administration/credits', element: <AdministrationPage /> },
+  { path: '/administration/exchange-rates', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },
   // Keep malformed/deprecated Administration section links inside the Administration shell so

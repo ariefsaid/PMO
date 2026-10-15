@@ -14,6 +14,7 @@
  */
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
+import { invertProjectMap } from './projectMap.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq().eq().order().range()`
  *  (thenable) for the mirror READS, and `.rpc(fn, args)` for the one WRITE — the atomic snapshot
@@ -142,23 +143,6 @@ const SEP = String.fromCharCode(0);
 
 function groupKey(projectId: string | null, costCenter: string | null, account: string | null, fiscalYear: string | null): string {
   return [projectId ?? '', costCenter ?? '', account ?? '', fiscalYear ?? ''].join(SEP);
-}
-
-/**
- * INVERT the binding's `project_map` (PMO project id → ERP project NAME) into the lookup this module
- * needs (ERP project NAME → PMO project id). An ERP name claimed by TWO PMO projects has no single
- * truthful answer, so it resolves to `null` (unattributed) rather than to whichever entry happened to
- * be enumerated last — mis-attributed money is worse than visibly unattributed money.
- */
-function invertProjectMap(
-  projectMap: Readonly<Record<string, unknown>> | undefined,
-): ReadonlyMap<string, string | null> {
-  const inverse = new Map<string, string | null>();
-  for (const [pmoProjectId, erpName] of Object.entries(projectMap ?? {})) {
-    if (typeof erpName !== 'string' || erpName === '') continue;
-    inverse.set(erpName, inverse.has(erpName) ? null : pmoProjectId);
-  }
-  return inverse;
 }
 
 /**

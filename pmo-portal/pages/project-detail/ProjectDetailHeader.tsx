@@ -43,6 +43,7 @@ import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -186,6 +187,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
           <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
+          <div className="basis-full min-w-0">
+            <FxEquivalent
+              amount={project.contract_value}
+              currency={project.currency}
+              date={project.contract_date}
+              compact
+            />
+          </div>
           {!valueEditing && canEditValue && isFinanceForward && (
             <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
               aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
@@ -491,15 +500,17 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           The editor and its confirm remain unchanged; no finance or authority changes. */}
       {isDelivery && isFinanceForward && (
         <>
-          <div className="mb-1 grid min-w-0 grid-cols-1 gap-2 md:grid-cols-5 md:gap-3">
-            <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
-              className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
-            <details open={isDesktop} className="min-w-0 md:col-span-4">
+          <div className="mb-1 min-w-0">
+            <details open={isDesktop} className="min-w-0">
               <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
                 {t('projectDetail.overview.finance.title', 'Financial summary')}
               </summary>
-              <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
-                className="mt-2 gap-x-3 gap-y-2 md:mt-0 [&>div]:min-w-0" />
+              <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:grid-cols-5 md:gap-3">
+                <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
+                  className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
+                <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
+                  className="gap-x-3 gap-y-2 md:col-span-4 [&>div]:min-w-0" />
+              </div>
             </details>
           </div>
           {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (

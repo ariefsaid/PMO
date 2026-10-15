@@ -31,8 +31,10 @@ import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
+import { useAssignInvoiceProject, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useInvoiceProjectOptions, type InvoiceProjectOption } from '@/src/hooks/useFkOptions';
+import { InvoiceProjectModal } from '@/src/components/InvoiceProjectModal';
+import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
@@ -51,6 +53,7 @@ import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
@@ -167,10 +170,16 @@ const SalesInvoices: React.FC = () => {
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const recordContext = useRecordContext('/sales-invoices', invoiceId);
-  const {
-    data: projectOptions,
-    isPending: projectOptionsPending,
-  } = useInvoiceProjectOptions();
+  const projectOptionsQuery = useInvoiceProjectOptions();
+  const projectOptions = projectOptionsQuery.data;
+  const projectOptionsPending = projectOptionsQuery.isPending;
+  const refetchProjectOptions = projectOptionsQuery.refetch;
+  const assignProject = useAssignInvoiceProject();
+  const loadProjectOptions = useCallback(async () => {
+    const result = await refetchProjectOptions();
+    if (result.error) throw result.error;
+    return result.data ?? [];
+  }, [refetchProjectOptions]);
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -208,7 +217,7 @@ const SalesInvoices: React.FC = () => {
   }, [mode, searchParams, setSearchParams, statusFilters]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
 
-  const updateListParam = (key: 'q' | 'status', value: string) => {
+  const updateListParam = (key: 'q' | 'status' | 'attribution', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
@@ -256,6 +265,7 @@ const SalesInvoices: React.FC = () => {
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<SalesInvoiceRow | null>(null);
   const [efakturTarget, setEfakturTarget] = useState<SalesInvoiceRow | null>(null);
+  const [projectTarget, setProjectTarget] = useState<SalesInvoiceRow | null>(null);
 
   // BLOCK 2 (ADR-0058): the confirm dialogs are ALWAYS mounted, so their command identity cannot be
   // a plain ref — it must be per (record, verb) or a retry on invoice B would carry invoice A's key.
@@ -265,13 +275,14 @@ const SalesInvoices: React.FC = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
+      .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
       .filter((inv) => matchesStatus(inv, statusFilter))
       .filter((inv) => !q
         || invoiceNumber(inv)?.toLowerCase().includes(q)
         || inv.reference_number?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || inv.customer_name?.toLowerCase().includes(q));
-  }, [all, search, statusFilter]);
+  }, [all, search, searchParams, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -322,7 +333,7 @@ const SalesInvoices: React.FC = () => {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
             </header>
-            <SalesInvoiceApprovalPreview inv={viewTarget} />
+            <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">
                 <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)}>
@@ -428,11 +439,13 @@ const SalesInvoices: React.FC = () => {
           <span className="tabular text-right text-[13px]">
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
+          {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
               {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyCents(invoiceGross(inv)!, inv.currency) })}
+              <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
           )}
         </span>
@@ -452,6 +465,7 @@ const SalesInvoices: React.FC = () => {
             <span className="tabular text-[13px]">
               {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
             </span>
+            {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
             {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
             {paid != null && (
               <span className="text-xs text-muted-foreground">
@@ -534,6 +548,14 @@ const SalesInvoices: React.FC = () => {
         disabled: pdfDownload.inFlightIds.has(inv.id),
         onClick: () => void pdfDownload.download(inv),
       });
+    if (may('assign_project', 'salesInvoice') && canAttributeInvoice(inv)) {
+      items.push({
+        label: inv.project_id
+          ? t('invoiceProject.change', 'Change project')
+          : t('invoiceProject.assign', 'Assign project'),
+        onClick: () => setProjectTarget(inv),
+      });
+    }
     if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
@@ -657,6 +679,16 @@ const SalesInvoices: React.FC = () => {
       }
     >
       {/* Body */}
+      {searchParams.get('attribution') === 'unassigned' && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="rounded-full border border-border bg-secondary px-3 py-1 text-sm">
+            {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
+            {t('financeCopy.clearFilter', 'Clear filter')}
+          </Button>
+        </div>
+      )}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -718,6 +750,24 @@ const SalesInvoices: React.FC = () => {
             // In a full implementation, we'd have an update mutation
             // For now, just close the modal
             setFormTarget(null);
+          }}
+        />
+      )}
+
+      {projectTarget && (
+        <InvoiceProjectModal
+          invoice={projectTarget}
+          projects={projectOptions ?? []}
+          loadProjects={loadProjectOptions}
+          currentProjectName={projectOptions?.find((option) => option.value === projectTarget.project_id)?.label ?? null}
+          loading={assignProject.isPending}
+          onClose={() => setProjectTarget(null)}
+          onSave={async (projectId) => {
+            await assignProject.mutateAsync({
+              siId: projectTarget.id,
+              projectId,
+              oldProjectId: projectTarget.project_id,
+            });
           }}
         />
       )}

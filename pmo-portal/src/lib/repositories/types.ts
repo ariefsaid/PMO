@@ -128,6 +128,7 @@ import type {
   IncomingPaymentRow,
   RevenueByProjectRow,
 } from '@/src/lib/db/revenue';
+import type { ProjectFinances } from '@/src/lib/projectFinances';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
@@ -154,6 +155,19 @@ import type { BillContextLabels, BillCursor, BillPage, ReadBillContextsInput, Sl
 export interface CommandIntent {
   id: string;
   idempotencyKey: string;
+}
+
+export type FxRateRow = Tables<'fx_rates'>;
+export type FxRateInput = { rate_date: string; rate: number };
+export type FxRateMatch = Pick<FxRateRow, 'rate' | 'rate_date'>;
+export type FxRatePage = { rows: FxRateRow[]; nextCursor: string | null };
+export type FxCommitCounts = { new: number; changed: number; unchanged: number };
+export interface FxRatesRepository {
+  list(before?: string): Promise<FxRatePage>;
+  existing(dates: string[]): Promise<Pick<FxRateRow, 'rate_date' | 'rate'>[]>;
+  onDate(base: string, quote: string, onDate: string): Promise<FxRateMatch | null>;
+  upsert(rows: FxRateInput[]): Promise<FxCommitCounts>;
+  context(): Promise<{ currency: string; timezone: string }>;
 }
 
 export interface ProjectRepository {
@@ -506,6 +520,11 @@ export interface RevenueRepository {
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */
   getRevenueByProject(): Promise<RevenueByProjectRow[]>;
+  /** PMO attribution for an existing adopted invoice; does not dispatch an ERP write. */
+  setProject(siId: string, projectId: string): Promise<void>;
+  /** Checked project-scoped finance payload from the invoker read RPC. */
+  getProjectFinances(projectId: string): Promise<ProjectFinances>;
+
 }
 
 export interface TimesheetRepository {
@@ -756,6 +775,7 @@ export interface VendorWithholdingSlipsRepository {
 }
 
 export interface Repositories {
+  fxRates: FxRatesRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;

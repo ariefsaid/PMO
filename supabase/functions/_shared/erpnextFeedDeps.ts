@@ -46,6 +46,7 @@ import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapter
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { resolveInvoiceProject } from './projectInvoiceAttribution.ts';
 
 export { ERPNEXT_TIER };
 
@@ -166,6 +167,15 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         error: { message: string; code?: string } | null;
       }>);
       if (error) throw new AppError(error.message, error.code);
+      if (kind === 'sales-invoice' && typeof canonical.erp_project === 'string') {
+        const projectId = await resolveInvoiceProject(serviceClient, orgId, canonical.erp_project);
+        if (projectId) {
+          const { error: fillError } = await serviceClient.rpc('fill_sales_invoice_project', {
+            p_org_id: orgId, p_si_id: pmoRecordId, p_project_id: projectId, p_erp_project: canonical.erp_project,
+          });
+          if (fillError) throw new AppError(fillError.message, fillError.code);
+        }
+      }
     },
     // Luna BLOCK 7: adopt CLAIM-FIRST. `applyInboundChange` takes the `external_refs` claim for
     // `newPmoRecordId()` BEFORE `mintWithId` runs, so a concurrent webhook/sweep adopt that loses the
@@ -436,11 +446,12 @@ async function mintMirrorRow(
     const erpOutstanding = (canonical as { erp_outstanding_amount?: string | number | null }).erp_outstanding_amount;
     const customerId = await resolveCustomerId(serviceClient, orgId, canonical);
     if (kind === 'sales-invoice') {
-      // Project-less SI → project_id = null (Unassigned bucket; Finance notification via existing path)
+      const projectId = await resolveInvoiceProject(serviceClient, orgId, canonical.erp_project);
       const { error } = await serviceClient.from('sales_invoices').insert({
         id,
         org_id: orgId,
-        project_id: null,
+        project_id: projectId,
+        erp_project: canonical.erp_project ?? null,
         customer_id: customerId,
         si_number: canonical.si_number ?? canonical.id,
         reference_number: (canonical as { reference_number?: string | null }).reference_number ?? null,
@@ -473,7 +484,7 @@ async function mintMirrorRow(
       // revenue bucket. Without an explicit prompt nobody is ever asked to assign it — so raise the
       // action-required notification on the EXISTING `notifications` surface (0048). Best-effort:
       // the invoice itself is already adopted and must never be lost to a notification failure.
-      await notifyFinanceUnassignedInvoice(serviceClient, orgId, {
+      if (projectId === null) await notifyFinanceUnassignedInvoice(serviceClient, orgId, {
         salesInvoiceId: id,
         siNumber: String(canonical.si_number ?? canonical.id ?? ''),
         amount: (canonical as { amount?: string | number | null }).amount ?? null,
@@ -655,6 +666,7 @@ async function revenueFieldPatch(
   putIfPresent(patch, 'amount', (canonical as { amount?: unknown }).amount);
 
   if (kind === 'sales-invoice') {
+    if (Object.prototype.hasOwnProperty.call(canonical, 'erp_project')) patch.erp_project = canonical.erp_project;
     const outstanding = (canonical as { erp_outstanding_amount?: string | number | null }).erp_outstanding_amount;
     putIfPresent(patch, 'si_number', (canonical as { si_number?: unknown }).si_number);
     putIfPresent(patch, 'invoice_date', (canonical as { invoice_date?: unknown }).invoice_date);

@@ -52,6 +52,19 @@ function dateFormatterFor(
   return formatter;
 }
 
+/** ISO calendar day for an instant in an explicitly supplied organization timezone. */
+export function formatCalendarDayInTimeZone(instant: Date, timezone: string): string {
+  const parts = dateFormatterFor('isoDay', 'en-US', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(instant);
+  const value = (type: 'year' | 'month' | 'day') => parts.find(part => part.type === type)?.value;
+  const year = value('year');
+  const month = value('month');
+  const day = value('day');
+  if (!year || !month || !day) throw new RangeError('Organization calendar day is unavailable.');
+  return `${year}-${month}-${day}`;
+}
+
 /** Money formatters: shape + record currency + the viewer's NUMBER locale (never the UI locale). */
 function currencyFormatterFor(shape: string, currency: string, opts: Intl.NumberFormatOptions) {
   return numberFormatterFor(shape, getNumberLocale(), currency, {
@@ -63,6 +76,24 @@ function currencyFormatterFor(shape: string, currency: string, opts: Intl.Number
 
 export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+}
+
+/** Format exact decimal money without converting its whole or fractional units through Number. */
+export function formatExactMoney(value: string | null, currency: string, locale: string): string | null {
+  if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  const negative = value.startsWith('-');
+  const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  const whole = BigInt(wholeText);
+  const cents = BigInt(fraction.padEnd(2, '0'));
+  try {
+    const parts = numberFormatterFor('exact-currency', locale, currency, {
+      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).formatToParts(whole);
+    const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
+    return negative ? `−${body}` : body;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -538,6 +569,14 @@ export function formatCurrencyFine(value: number, currency: string): string {
 // Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
 export function formatNumber(value: number): string {
   return numberFormatterFor('plain', getNumberLocale(), undefined, {}).format(value);
+}
+
+/** Plain viewer-grouped number rounded to an integer for display-only rupiah approximations. */
+export function formatNumberWhole(value: number): string {
+  return numberFormatterFor('whole', getNumberLocale(), undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 // Number with at most 2 fraction digits (credits balance): "1,234.57".

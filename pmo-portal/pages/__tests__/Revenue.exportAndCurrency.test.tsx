@@ -27,7 +27,10 @@ const hoisted = vi.hoisted(() => ({
   captured: [] as ArrayBuffer[],
 }));
 
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => hoisted.orgCurrency }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => hoisted.orgCurrency,
+  useOrgCurrencyState: () => ({ currency: hoisted.orgCurrency, isResolved: true, isError: false }),
+}));
 vi.mock('@/src/lib/export', async (orig) => {
   const actual = (await orig()) as typeof import('@/src/lib/export');
   return {
@@ -40,6 +43,7 @@ vi.mock('@/src/lib/export', async (orig) => {
   };
 });
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIncomingPayments: () => ({ data: hoisted.payments, isPending: false, isError: false, refetch: vi.fn() }),
   useSalesInvoices: () => ({ data: hoisted.invoices, isPending: false, isError: false, refetch: vi.fn() }),
   useRevenueMutations: () => ({
