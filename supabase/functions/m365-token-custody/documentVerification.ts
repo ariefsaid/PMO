@@ -1,8 +1,8 @@
-// documentVerification.ts — user-triggered checks for claimed controlled project files.
+// documentVerification.ts — user-triggered checks and controlled-file Issue freeze.
 // The browser supplies row IDs only; SQL owns eligibility, identity, claim generation and baseline.
 
 import type { HandlerDeps, HandlerResult } from "./types.ts";
-import { resolveOrgOrResult } from "./auth.ts";
+import { authorizeMemberEntitled, resolveOrgOrResult } from "./auth.ts";
 import { openCallerGraphRead } from "./graphRead.ts";
 import { readDocumentMetadataBatch } from "./documentReadBatch.ts";
 import { validMicrosoftBrowserUrl } from "../_shared/microsoftDocumentReference.ts";
@@ -10,6 +10,14 @@ import { validMicrosoftBrowserUrl } from "../_shared/microsoftDocumentReference.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const MAX_IDS = 20;
 const HEADERS = { "Content-Type": "application/json" };
+const WRITE_ROLES = new Set([
+  "Admin",
+  "Executive",
+  "Project Manager",
+  "Finance",
+]);
+const ITEM_SELECT = "id,name,webUrl,parentReference,file,folder,cTag";
+const VERSION_SELECT = "id,lastModifiedDateTime";
 
 interface ClaimedDocument {
   id: string;
@@ -23,6 +31,25 @@ interface GraphBatchResponse {
   id?: unknown;
   status?: unknown;
   body?: unknown;
+}
+
+interface ProjectDocumentForIssue {
+  id: string;
+  org_id: string;
+  author_id: string | null;
+  status: string;
+  source: string | null;
+  ms_item_kind: string | null;
+  ms_drive_id: string | null;
+  ms_item_id: string | null;
+}
+
+interface ItemSnapshot {
+  id: string;
+  driveId: string;
+  name: string;
+  webUrl: string;
+  cTag: string | null;
 }
 
 export async function handleCheckDocuments(
@@ -112,6 +139,201 @@ export async function handleCheckDocuments(
 
   if (result.status !== 200) return result;
   return { status: 200, body: { checked: claimed.length }, headers: HEADERS };
+}
+
+export async function handleIssueMicrosoftDocument(
+  body: unknown,
+  deps: HandlerDeps,
+): Promise<HandlerResult> {
+  const documentId = isRecord(body) && typeof body.document_id === "string" &&
+      UUID.test(body.document_id)
+    ? body.document_id
+    : null;
+  if (!documentId) {
+    return issueError(400, "BAD_REQUEST", "Cannot issue this document.");
+  }
+  if (!deps.callerClient) {
+    return issueError(500, "INTERNAL_ERROR", "Could not load this document.");
+  }
+
+  let membership: { orgId: string; role: string };
+  try {
+    membership = await authorizeMemberEntitled({
+      callerClient: deps.callerClient,
+      serviceClient: deps.serviceClient,
+      userId: deps.userId,
+    });
+  } catch {
+    return issueError(403, "FORBIDDEN", "Cannot issue this document.");
+  }
+  if (!WRITE_ROLES.has(membership.role)) {
+    return issueError(403, "FORBIDDEN", "Cannot issue this document.");
+  }
+
+  const { data, error } = await deps.callerClient
+    .from("project_documents")
+    .select(
+      "id,org_id,author_id,status,source,ms_item_kind,ms_drive_id,ms_item_id",
+    )
+    .eq("id", documentId)
+    .single();
+  const document = data as ProjectDocumentForIssue | null;
+  if (
+    error || !document || document.org_id !== membership.orgId ||
+    document.status !== "Draft" || document.source !== "onedrive" ||
+    document.ms_item_kind !== "file" || !document.ms_drive_id ||
+    !document.ms_item_id
+  ) {
+    return issueError(
+      409,
+      "SOURCE_CHANGED",
+      "This document is no longer available to Issue.",
+    );
+  }
+
+  const opened = await openCallerGraphRead(deps);
+  if (!("get" in opened)) return opened;
+  const path = `/drives/${encodeURIComponent(document.ms_drive_id)}/items/${
+    encodeURIComponent(document.ms_item_id)
+  }`;
+  const beforeResult = await opened.get({
+    path,
+    query: { "$select": ITEM_SELECT },
+  });
+  const before = decodeItemSnapshot(
+    beforeResult,
+    document.ms_drive_id,
+    document.ms_item_id,
+  );
+  if (!before) {
+    return issueError(
+      409,
+      "SOURCE_CHANGED",
+      "The Microsoft file could not be verified.",
+    );
+  }
+
+  const versionsResult = await opened.get({
+    path: `${path}/versions`,
+    query: { "$select": VERSION_SELECT },
+  });
+  const pinnedVersion = selectUniqueNewestVersion(versionsResult);
+
+  const afterResult = await opened.get({
+    path,
+    query: { "$select": ITEM_SELECT },
+  });
+  const after = decodeItemSnapshot(
+    afterResult,
+    document.ms_drive_id,
+    document.ms_item_id,
+  );
+  if (!after) {
+    return issueError(
+      409,
+      "SOURCE_CHANGED",
+      "The Microsoft file could not be verified.",
+    );
+  }
+  if (before.cTag && after.cTag && before.cTag !== after.cTag) {
+    return issueError(
+      409,
+      "SOURCE_CHANGED",
+      "The Microsoft file changed during Issue. Try again.",
+    );
+  }
+  const cTag = before.cTag && after.cTag ? after.cTag : null;
+
+  const { error: issueErrorResult } = await deps.serviceClient.rpc(
+    "m365_issue_document",
+    {
+      p_actor_id: deps.userId,
+      p_doc_id: document.id,
+      p_drive_id: document.ms_drive_id,
+      p_item_id: document.ms_item_id,
+      p_content_tag: cTag,
+      p_version_id: pinnedVersion,
+      p_name: after.name,
+      p_url: after.webUrl,
+    },
+  );
+  if (issueErrorResult) {
+    const errorRow = issueErrorResult as { code?: unknown; details?: unknown };
+    if (
+      errorRow.code === "23514" && errorRow.details === "m365-source-changed"
+    ) {
+      return issueError(
+        409,
+        "SOURCE_CHANGED",
+        "This document changed before Issue could be saved.",
+      );
+    }
+    return issueError(403, "FORBIDDEN", "Cannot issue this document.");
+  }
+  return {
+    status: 200,
+    body: {
+      issued: true,
+      verification: cTag ? "available" : "unavailable",
+      version_history: pinnedVersion ? "available" : "unavailable",
+    },
+    headers: HEADERS,
+  };
+}
+
+function decodeItemSnapshot(
+  result: HandlerResult,
+  expectedDriveId: string,
+  expectedItemId: string,
+): ItemSnapshot | null {
+  if (!result || result.status !== 200 || !isRecord(result.body)) return null;
+  const item = result.body;
+  const parent = isRecord(item.parentReference) ? item.parentReference : null;
+  const file = item.file != null;
+  const folder = item.folder != null;
+  const name = typeof item.name === "string" ? item.name : "";
+  const webUrl = typeof item.webUrl === "string" ? item.webUrl : "";
+  if (
+    item.id !== expectedItemId || parent?.driveId !== expectedDriveId ||
+    file === folder || !file || !name.trim() ||
+    !validMicrosoftBrowserUrl(webUrl)
+  ) return null;
+  return {
+    id: expectedItemId,
+    driveId: expectedDriveId,
+    name,
+    webUrl,
+    cTag: typeof item.cTag === "string" && item.cTag.trim() ? item.cTag : null,
+  };
+}
+
+function selectUniqueNewestVersion(result: HandlerResult): string | null {
+  if (
+    result.status !== 200 || !isRecord(result.body) ||
+    !Array.isArray(result.body.value)
+  ) return null;
+  const versions = result.body.value.flatMap((value) => {
+    if (
+      !isRecord(value) || typeof value.id !== "string" || !value.id.trim() ||
+      typeof value.lastModifiedDateTime !== "string"
+    ) return [];
+    const modifiedAt = Date.parse(value.lastModifiedDateTime);
+    return Number.isFinite(modifiedAt) ? [{ id: value.id, modifiedAt }] : [];
+  });
+  if (versions.length === 0) return null;
+  versions.sort((a, b) => b.modifiedAt - a.modifiedAt);
+  if (
+    versions.length > 1 && versions[0]!.modifiedAt === versions[1]!.modifiedAt
+  ) return null;
+  return versions[0]!.id;
+}
+
+function issueError(
+  status: number,
+  error: string,
+  message: string,
+): HandlerResult {
+  return { status, body: { error, message }, headers: HEADERS };
 }
 
 function parseDocumentIds(body: unknown): string[] | null {

@@ -115,6 +115,11 @@ export interface CheckDocumentsRequest {
   document_ids: string[];
 }
 
+export interface IssueDocumentRequest {
+  action: "issue_document";
+  document_id: string;
+}
+
 /**
  * `connection_status` response body (AC-M365-150). The ALLOW-LIST of non-sensitive metadata a
  * client may learn about its own connection. This is the entire point of the status surface:
@@ -137,7 +142,8 @@ export type M365Request =
   | GraphProxyRequest
   | DisconnectRequest
   | ConnectionStatusRequest
-  | CheckDocumentsRequest;
+  | CheckDocumentsRequest
+  | IssueDocumentRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 

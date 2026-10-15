@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encryptForTest, deps, mockClient } from './m365MockDeps';
 import type { ConnectionRow } from '../../../../../supabase/functions/m365-token-custody/types';
 
-const { handleCheckDocuments } = await import('../../../../../supabase/functions/m365-token-custody/documentVerification');
+const { handleCheckDocuments, handleIssueMicrosoftDocument } = await import('../../../../../supabase/functions/m365-token-custody/documentVerification');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -60,6 +60,56 @@ async function setup(
   return { service, caller, fetch, handlerDeps };
 }
 
+async function setupIssue(input: {
+  tags: Array<string | null>;
+  versions: unknown[];
+  issueError?: { code: string; details: string };
+}) {
+  const projectDocument = {
+    id: documentId,
+    org_id: '10200000-0000-0000-0000-000000000001',
+    project_id: '10200000-0000-0000-0000-000000000201',
+    author_id: '10200000-0000-0000-0000-000000000102',
+    status: 'Draft', source: 'onedrive', ms_item_kind: 'file',
+    ms_drive_id: 'synthetic-drive', ms_item_id: 'synthetic-item',
+    ms_web_url: 'https://example.invalid/item', ms_item_name: 'Synthetic file',
+    ms_content_tag_at_issue: null, ms_version_id_at_issue: null,
+  };
+  const service = mockClient({ ms_graph_connections: [{ data: await connection(), error: null }] });
+  service.rpc.mockImplementation((fn) => {
+    if (fn === 'm365_membership_state') {
+      return Promise.resolve({ data: { state: 'active', org_id: projectDocument.org_id, role: 'Admin' }, error: null });
+    }
+    if (fn === 'm365_issue_document') return Promise.resolve({ data: null, error: input.issueError ?? null });
+    return Promise.resolve({ data: null, error: null });
+  });
+  const caller = mockClient({
+    org_features: [{ data: { enabled: true }, error: null }, { data: { enabled: true }, error: null }],
+    project_documents: [{ data: projectDocument, error: null }],
+  });
+  let metadataRead = 0;
+  const fetch = vi.fn(async (inputUrl: string | URL | Request) => {
+    const url = String(inputUrl);
+    let body: unknown;
+    if (url.includes('/versions')) {
+      body = { value: input.versions };
+    } else {
+      const cTag = input.tags[metadataRead++];
+      body = {
+        id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item',
+        parentReference: { driveId: 'synthetic-drive' }, file: {},
+        ...(cTag === null ? {} : { cTag }),
+      };
+    }
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetch);
+  return {
+    service, caller, fetch,
+    handlerDeps: deps({ service, caller, userId: '10200000-0000-0000-0000-000000000101' }),
+  };
+}
+
 async function connection(): Promise<ConnectionRow> {
   return {
     id: 'synthetic-connection', org_id: '10200000-0000-0000-0000-000000000001',
@@ -74,6 +124,54 @@ async function connection(): Promise<ConnectionRow> {
 }
 
 describe('M365 controlled document checks', () => {
+  it('AC-M365DOC-068 freezes Issue only after stable metadata reads and pins the newest parsed version', async () => {
+    const { service, fetch, handlerDeps } = await setupIssue({
+      tags: ['content-at-issue', 'content-at-issue'],
+      versions: [
+        { id: '10.0', lastModifiedDateTime: '2025-02-01T00:00:00Z' },
+        { id: '2.0', lastModifiedDateTime: '2025-03-01T00:00:00Z' },
+      ],
+    });
+    const result = await handleIssueMicrosoftDocument({ document_id: documentId }, handlerDeps);
+    expect(result).toMatchObject({ status: 200, body: { issued: true } });
+    const issue = service.rpc.mock.calls.find(([fn]) => fn === 'm365_issue_document')?.[1];
+    expect(issue).toMatchObject({ p_content_tag: 'content-at-issue', p_version_id: '2.0' });
+    expect(issue).not.toHaveProperty('p_to');
+    expect(fetch.mock.calls.filter(([input]) => String(input).includes('/drives/synthetic-drive/items/synthetic-item')).length).toBe(3);
+  });
+
+  it('AC-M365DOC-068 refuses Issue when cTag changes between metadata reads', async () => {
+    const { service, fetch, handlerDeps } = await setupIssue({
+      tags: ['before-tag', 'after-tag'], versions: [{ id: '1.0', lastModifiedDateTime: '2025-01-01T00:00:00Z' }],
+    });
+    const result = await handleIssueMicrosoftDocument({ document_id: documentId }, handlerDeps);
+    expect(result).toMatchObject({ status: 409, body: { error: 'SOURCE_CHANGED' } });
+    expect(service.rpc).not.toHaveBeenCalledWith('m365_issue_document', expect.anything());
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('AC-M365DOC-068 fences a source/status/actor change observed by the final database commit', async () => {
+    const { service, handlerDeps } = await setupIssue({
+      tags: ['content-at-issue', 'content-at-issue'],
+      versions: [{ id: '1.0', lastModifiedDateTime: '2025-01-01T00:00:00Z' }],
+      issueError: { code: '23514', details: 'm365-source-changed' },
+    });
+    const result = await handleIssueMicrosoftDocument({ document_id: documentId }, handlerDeps);
+    expect(result).toMatchObject({ status: 409, body: { error: 'SOURCE_CHANGED' } });
+    expect(JSON.stringify(result)).not.toContain('m365-source-changed');
+    expect(service.rpc).toHaveBeenCalledWith('m365_issue_document', expect.objectContaining({
+      p_actor_id: '10200000-0000-0000-0000-000000000101', p_doc_id: documentId,
+    }));
+  });
+
+  it('AC-M365DOC-068 permits honest unavailable metadata as not_verified with no pin', async () => {
+    const { service, handlerDeps } = await setupIssue({ tags: [null, null], versions: [] });
+    const result = await handleIssueMicrosoftDocument({ document_id: documentId }, handlerDeps);
+    expect(result).toMatchObject({ status: 200, body: { issued: true, verification: 'unavailable' } });
+    const issue = service.rpc.mock.calls.find(([fn]) => fn === 'm365_issue_document')?.[1];
+    expect(issue).toMatchObject({ p_content_tag: null, p_version_id: null });
+  });
+
   it('AC-M365DOC-064 batches only claimed controlled files and commits the server-derived result', async () => {
     const { service, fetch, handlerDeps } = await setup();
     const result = await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);

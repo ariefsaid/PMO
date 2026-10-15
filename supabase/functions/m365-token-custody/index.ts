@@ -26,7 +26,10 @@ import { handleGraphProxy } from "./proxy.ts";
 import { handleDisconnect } from "./revoke.ts";
 import { handleConnectionStatus } from "./status.ts";
 import { handleInitiateOrgApproval } from "./orgApproval.ts";
-import { handleCheckDocuments } from "./documentVerification.ts";
+import {
+  handleCheckDocuments,
+  handleIssueMicrosoftDocument,
+} from "./documentVerification.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -178,6 +181,9 @@ export async function handler(req: Request): Promise<Response> {
         break;
       case "check_documents":
         result = await handleCheckDocuments(body, authed);
+        break;
+      case "issue_document":
+        result = await handleIssueMicrosoftDocument(body, authed);
         break;
       case "initiate_org_approval":
         // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
