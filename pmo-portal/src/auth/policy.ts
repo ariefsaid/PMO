@@ -37,7 +37,8 @@ export type Action =
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
-  | 'confirm_employee_link';
+  | 'confirm_employee_link'
+  | 'upload';
 
 export type Entity =
   | 'project'
@@ -80,7 +81,8 @@ export type Entity =
   | 'employeeLink'
   | 'pushHold'
   | 'managementPack'
-  | 'projectProgress';
+  | 'projectProgress'
+  | 'fxRate';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -442,6 +444,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
   // UX-only: author cannot submit their own draft; different approver-role user can.
   // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
+  fxRate: {
+    view: allow(REVENUE_WRITE),
+    upload: (role, ctx) => has(REVENUE_WRITE, role) && ctx.record?.viewOnly !== true,
+    create: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
+    edit: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
+  },
   salesInvoice: {
     // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
     view: allow(MASTER_DATA),

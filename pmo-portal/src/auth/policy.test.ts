@@ -596,6 +596,23 @@ it('AC-TAG-001 project classification option administration is Admin-only', () =
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });
 
+describe('can() — JISDOR FX maintenance authority', () => {
+  it('AC-FX-009/010 Finance and Admin may view/upload; only Admin may manually create/edit', () => {
+    expect(allowedRoles('view', 'fxRate')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('upload', 'fxRate')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('create', 'fxRate')).toEqual(['Admin']);
+    expect(allowedRoles('edit', 'fxRate')).toEqual(['Admin']);
+    expect(can('view', 'fxRate', { realRole: null })).toBe(false);
+    expect(can('upload', 'fxRate', { realRole: null })).toBe(false);
+  });
+
+  it('AC-FX-009 view-as context denies all FX writes', () => {
+    for (const action of ['upload', 'create', 'edit'] as const) {
+      expect(can(action, 'fxRate', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+  });
+});
+
 describe('can() — expenseClaim (#775; migration 0247 is the enforcement authority)', () => {
   it('AC-EXP-054 every role may view and raise their own claims', () => {
     expect(allowedRoles('view', 'expenseClaim')).toEqual(ALL_ROLES);

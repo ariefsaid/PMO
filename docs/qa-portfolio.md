@@ -101,17 +101,17 @@ dependencies such as Mailpit, so those journeys still need a dedicated serial re
 
 ## `routes × oracles` denominator (Layer 2)
 
-**Routes (38 non-catch-all route entries, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-09-27):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
+**Routes (39 non-catch-all route entries, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-10-14):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
 `/sales` · `/sales/:id` · `/procurement` · `/procurement/:id` · `/procurement/:id/:tab` · `/timesheets` · `/approvals` ·
 `/companies` · `/companies/:id` · `/contacts` · `/contacts/:id` · `/incidents` · `/incidents/:id` (feature-hidden) ·
 `/my-tasks` · `/meetings` · `/meetings/:id` · `/reports` · `/administration` (entry alias) ·
 `/administration/users` · `/administration/integrations` · `/administration/accounting` · `/administration/credits` ·
-`/administration/usage` · `/administration/features` · `/administration/:section` (unknown-section fallback) ·
+`/administration/exchange-rates` · `/administration/usage` · `/administration/features` · `/administration/:section` (unknown-section fallback) ·
 `/sales-invoices` · `/incoming-payments` · `/revenue-by-project` · `/integrations` (personal) · `/views` ·
 `/views/new` · `/views/:id` · `/views/:id/edit` · `/settings/profile`.
 ⚑ A prior list under-counted by 14 routes for ~6 weeks (the whole meeting module included) despite the maintenance gate below — re-derive it from `appRouteConfig`, never edit it by memory.
 
-**Administration IA cells:** The six canonical child routes and personal `/integrations` receive
+**Administration IA cells:** The seven canonical child routes and personal `/integrations` receive
 action-completeness, state-coverage, cross-screen consistency, WCAG-AA, mobile@390, and
 job-fit-per-role checks. The `/administration` alias and `/administration/:section` fallback receive
 redirect, permission, and focus checks; they are compatibility behavior rather than new destinations.
@@ -130,6 +130,15 @@ cited test, never from this pointer.
 (loading/empty/error/permission) · data-correctness (numbers/dates/positions) · cross-screen
 consistency · a11y (WCAG-AA) · mobile@390 · job-fit-per-role.
 
+**FX JISDOR issue #1012 affected cells:** each of the seven oracles above applies to
+`/administration/exchange-rates`, `/projects/:id`, `/projects/:id/overview`, `/sales-invoices`, and
+`/sales-invoices/:invoiceId`. Owning Layer-1 proofs are `AdministrationExchangeRates.test.tsx`,
+`Administration.a11y.test.tsx` / `Administration.fxAccess.test.tsx`, `ProjectFxEquivalent.test.tsx`,
+`OverviewTab.test.tsx`, and `SalesInvoices.fx.test.tsx`; AC-FX-015 owns the disposable cross-stack
+journey. Rendered Discover is explicitly partial in `docs/reviews/2026-10-14-fx-rates-jisdor.md`;
+its rich-data and full route × locale × theme × viewport cells remain outstanding. This scoped matrix
+records affected behaviors without changing the existing route denominator.
+
 The sweep answers every (route × oracle) cell on the affected routes; full-app at epic boundaries.
 **Maintenance gate (binding):** adding/renaming a route **requires** updating this route list in the
 same PR — a new screen must not escape the denominator. (CI check TODO: Phase 3.)
@@ -142,6 +151,7 @@ once all three artifacts exist:
 | Finding (date) | Test (the lock) | Matrix oracle/cell | DESIGN/decision note | Done |
 |---|---|---|---|---|
 | S-curve plots "today" at far-right (categorical axis) — 2026-06-15 | `sCurve.test.ts` AC-SC-AXIS-001/002/003/004 (ts field; position-oracle; monotonic domain; year-disambig formatter) | data-correctness × `/projects/:id` | DESIGN.md: time-series uses a time axis, points placed by value | ☑ (2026-06-16) |
+| Empty FX list repeated its blue Upload primary in both header and empty-state CTA — 2026-10-14 | `AdministrationExchangeRates.test.tsx` verifies Finance sees one Upload primary while the empty state remains visible | action-completeness × `/administration/exchange-rates` | DESIGN.md One-Blue Rule: keep empty state explanatory when the page-level primary is already visible | ☑ (2026-10-14) |
 | Gantt milestones rendered off-axis (header badge, not date diamond) — 2026-06-15 | `ganttLayout` marker-position test + render-at-`marker.left` test | data-correctness × `/projects/:id` | DESIGN.md: timeline markers placed on the axis by date | ☐ (Gantt-fix wave — vendors failed eval, fix custom) |
 | **Mobile content bleeds off-screen** (procurement row/toolbar clipped, overview cards, timesheet select) — owner, 2026-06-16 | **`e2e/AC-MOBILE-OVERFLOW-001-no-horizontal-bleed.spec.ts`** — every route × {390, 360} asserts **no element's right edge exceeds the viewport** (the shell `overflow-x-hidden` *clips* bleed, so a page-`scrollWidth` oracle is blind — element-right-edge is the correct oracle, excluding legit `overflow-x` scrollers) | **mobile@390** (now an L1 GATE, every PR) × all routes | DESIGN.md: mobile = no horizontal bleed; native `<select>`/toolbars/grid-items must `min-w-0`/cap width | ☑ (2026-06-16) |
 | Projects mobile toolbar loses the intended tap when switching disclosures, and an inert shell dialog blocks dismissal — 2026-09-26 | `e2e/AC-PRJUX-003-mobile-disclosure-switch.spec.ts` checks the switch, Escape, outside click, focus, and open-panel bounds at 360px | interaction + mobile@360 × `/projects` | DESIGN.md: switch on click; only active dialogs block dismissal; preserve the intended focus target | ☑ (2026-09-27) |

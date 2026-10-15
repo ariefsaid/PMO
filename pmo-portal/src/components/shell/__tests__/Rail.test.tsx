@@ -121,14 +121,14 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 
-  it('Admin shows the Administration foot item; Finance does not', () => {
+  it('AC-FX-010: Admin keeps the Administration destination; Finance gets the direct FX section link', () => {
     effectiveRole = 'Admin';
     const { unmount } = renderRail();
-    expect(screen.getByText('Administration')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration');
     unmount();
     effectiveRole = 'Finance';
     renderRail();
-    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/exchange-rates');
   });
 
   // AC-NAV-009: the rail re-gates when the effective (impersonated) role changes.

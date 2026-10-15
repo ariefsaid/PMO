@@ -53,6 +53,7 @@ import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
@@ -332,7 +333,7 @@ const SalesInvoices: React.FC = () => {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
             </header>
-            <SalesInvoiceApprovalPreview inv={viewTarget} />
+            <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">
                 <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)}>
@@ -438,11 +439,13 @@ const SalesInvoices: React.FC = () => {
           <span className="tabular text-right text-[13px]">
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
+          {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
               {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyCents(invoiceGross(inv)!, inv.currency) })}
+              <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
           )}
         </span>
@@ -462,6 +465,7 @@ const SalesInvoices: React.FC = () => {
             <span className="tabular text-[13px]">
               {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
             </span>
+            {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
             {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
             {paid != null && (
               <span className="text-xs text-muted-foreground">

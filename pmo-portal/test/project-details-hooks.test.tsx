@@ -29,7 +29,16 @@ const project = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => 'USD',
+  useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-12', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@tanstack/react-query', async (orig) => {
+  const actual = await (orig() as Promise<Record<string, unknown>>);
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+});
 // #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. This spec
 // mounts ProjectDetail without a QueryClientProvider, so the hook is stubbed here rather than the
 // whole tree re-hosted. Held in its loading state so it contributes no text of its own — the

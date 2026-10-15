@@ -40,6 +40,10 @@ select set_eq(
      having count(*) > 1 $$,
   $$ values ('credits -> profiles'),
             ('erp_employees -> profiles'),
+            -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
+            -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
+            -- from fx_rates, so no unqualified embed exists. Recorded, not waived.
+            ('fx_rates -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),

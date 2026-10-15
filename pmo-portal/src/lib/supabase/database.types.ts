@@ -2616,6 +2616,70 @@ export type Database = {
           },
         ]
       }
+      fx_rates: {
+        Row: {
+          base_currency: string
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          quote_currency: string
+          rate: number
+          rate_date: string
+          source: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_currency?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          quote_currency?: string
+          rate: number
+          rate_date: string
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_currency?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          quote_currency?: string
+          rate?: number
+          rate_date?: string
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fx_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_reports: {
         Row: {
           created_at: string
@@ -7259,6 +7323,13 @@ export type Database = {
         }
         Returns: string
       }
+      fx_rate_on: {
+        Args: { base: string; on_date: string; quote: string }
+        Returns: {
+          rate: number
+          rate_date: string
+        }[]
+      }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
@@ -8540,6 +8611,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      upsert_fx_rates: { Args: { p_rows: Json }; Returns: Json }
       valid_project_classification_options: {
         Args: { p_options: string[] }
         Returns: boolean

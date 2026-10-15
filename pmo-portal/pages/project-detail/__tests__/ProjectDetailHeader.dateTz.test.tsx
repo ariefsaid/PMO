@@ -14,6 +14,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Mocks (minimal — we only need the header to render with a contract_date) ──
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 
 // B-0.2: ProjectDetailHeader now calls useProjectBudget (derived budget for Spend%).
 // Provide a minimal mock so we don't need a QueryClientProvider here.

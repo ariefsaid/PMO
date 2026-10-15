@@ -11,6 +11,17 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/components/fx/FxEquivalent', () => ({
+  default: () => (
+    <span data-testid="fx-equivalent">
+      <span aria-hidden="true" title="≈ Rp 81,500,000 (JISDOR 2026-01-10)" className="block truncate whitespace-nowrap">
+        ≈ Rp 81,500,000 (JISDOR 2026-01-10)
+      </span>
+      <span className="sr-only">≈ Rp 81,500,000 (JISDOR 2026-01-10)</span>
+    </span>
+  ),
+}));
+
 // Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
 const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
@@ -159,6 +170,20 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
     expect(screen.getByText(/Innovate Corp · PMO Project Number: PMO-26-7711 · Client Project Code: CLIENT-81 · PO CPO-2026-001/)).toBeInTheDocument();
+  });
+
+  it('keeps the JISDOR caption on one compact line after the original amount', () => {
+    renderHeader('Finance');
+    const tile = screen.getAllByTestId('stat-tile')[0];
+    const amount = within(tile).getByTestId('contract-value-amount');
+    const equivalent = within(tile).getByTestId('fx-equivalent');
+    const clipped = equivalent.querySelector('[aria-hidden="true"]');
+    const edit = within(tile).getByRole('button', { name: 'Edit contract value' });
+    expect(amount.compareDocumentPosition(equivalent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(clipped).toHaveClass('truncate', 'whitespace-nowrap');
+    expect(clipped).toHaveAttribute('title', clipped?.textContent?.trim());
+    expect(equivalent.querySelector('.sr-only')).toHaveTextContent(clipped?.textContent?.trim() ?? '');
+    expect(equivalent.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('renders a 5-stat strip with contract/actual figures (AC-G)', () => {

@@ -12,6 +12,8 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
+
 // ── Fixture data ─────────────────────────────────────────────────────────────
 
 const project: ProjectWithRefs = {

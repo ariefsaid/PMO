@@ -43,6 +43,7 @@ import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -186,6 +187,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
           <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
+          <div className="basis-full min-w-0">
+            <FxEquivalent
+              amount={project.contract_value}
+              currency={project.currency}
+              date={project.contract_date}
+              compact
+            />
+          </div>
           {!valueEditing && canEditValue && isFinanceForward && (
             <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
               aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>

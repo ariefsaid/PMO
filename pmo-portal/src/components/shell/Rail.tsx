@@ -401,10 +401,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Admin || isOperator) && (
+      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
-            to="/administration"
+            to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
             onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               cn(

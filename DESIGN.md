@@ -239,7 +239,8 @@ future retune that drops any hue below 4.5:1 fails CI.
 ### Named rules
 **The One-Blue Rule.** `--primary` is the only saturated interactive color and must touch ≤~10% of any
 screen: the one primary action + the focus ring + active-nav. If two things are blue and only one is the
-action, one is wrong. Violet/status hues are NOT substitutes for it.
+action, one is wrong. Do not repeat a page-level primary action as a second empty-state CTA; keep the
+empty state explanatory when the primary is already visible. Violet/status hues are NOT substitutes for it.
 
 **The Status-As-Dot Rule (ADR-0068).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
 an AA `-text` variant) — **never a loud filled slab behind body text.** Solid status fills are reserved

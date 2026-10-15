@@ -87,7 +87,7 @@ export const IMPORT_SKIPPED: unique symbol = Symbol('import.skipped');
 /** Parse-time rejection: bad file, empty sheet, or over the row cap. Carries a typed `code`. */
 export class ImportParseError extends Error {
   constructor(
-    public readonly code: 'not_xlsx' | 'empty' | 'too_many_rows',
+    public readonly code: 'not_xlsx' | 'empty' | 'too_many_rows' | 'too_many_columns' | 'fileTooLarge' | 'emptyFile' | 'unsupportedFile' | 'invalidCsv',
     message: string,
   ) {
     super(message);
