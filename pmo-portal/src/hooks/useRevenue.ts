@@ -241,7 +241,7 @@ export function useAssignInvoiceProject() {
   return useMutation({
     mutationFn: ({ siId, projectId }: AssignInvoiceProjectInput) =>
       repositories.revenue.setProject(siId, projectId),
-    onSuccess: async (_data, { siId, projectId, oldProjectId }) => {
+    onSuccess: (_data, { siId, projectId, oldProjectId }) => {
       const projectIds = [...new Set([oldProjectId, projectId].filter((id): id is string => Boolean(id)))];
       const keys: readonly (readonly unknown[])[] = [
         ['salesInvoices', orgId], ['salesInvoice', orgId, siId], ['incomingPayments', orgId],
@@ -251,7 +251,10 @@ export function useAssignInvoiceProject() {
           ['project-finances', orgId, id], ['record-history', orgId, 'project', id],
         ]),
       ];
-      await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
+      // The attribution write is complete; let the modal close before background refetches finish.
+      // invalidateQueries marks each key stale synchronously and refreshes active readers without
+      // coupling the user-visible save latency to unrelated query/network work.
+      for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
     },
   });
 }

@@ -52,6 +52,18 @@ describe('useAssignInvoiceProject', () => {
     expect(h.setProject).toHaveBeenCalledWith('invoice-A', 'project-new');
   });
 
+  it('AC-PFIN-010 resolves the assignment as soon as the write succeeds, without waiting for active-query refreshes', async () => {
+    const { client, Wrapper } = makeWrapper();
+    const pendingRefresh = new Promise<void>(() => {});
+    const invalidate = vi.spyOn(client, 'invalidateQueries').mockReturnValue(pendingRefresh);
+    h.setProject.mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useAssignInvoiceProject(), { wrapper: Wrapper });
+
+    await expect(result.current.mutateAsync({ siId: 'invoice-A', projectId: 'project-new', oldProjectId: null }))
+      .resolves.toBeUndefined();
+    expect(invalidate).toHaveBeenCalled();
+  });
+
   it('AC-PFIN-013 ordinary invoice creation invalidates only the current org finance family', async () => {
     const { client, Wrapper } = makeWrapper();
     const current = ['project-finances', 'org-A', 'project-A'] as const;

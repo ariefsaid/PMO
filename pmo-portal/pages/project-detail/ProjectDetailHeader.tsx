@@ -500,15 +500,17 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           The editor and its confirm remain unchanged; no finance or authority changes. */}
       {isDelivery && isFinanceForward && (
         <>
-          <div className="mb-1 grid min-w-0 grid-cols-1 gap-2 md:grid-cols-5 md:gap-3">
-            <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
-              className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
-            <details open={isDesktop} className="min-w-0 md:col-span-4">
+          <div className="mb-1 min-w-0">
+            <details open={isDesktop} className="min-w-0">
               <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
                 {t('projectDetail.overview.finance.title', 'Financial summary')}
               </summary>
-              <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
-                className="mt-2 gap-x-3 gap-y-2 md:mt-0 [&>div]:min-w-0" />
+              <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:grid-cols-5 md:gap-3">
+                <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
+                  className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
+                <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
+                  className="gap-x-3 gap-y-2 md:col-span-4 [&>div]:min-w-0" />
+              </div>
             </details>
           </div>
           {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (

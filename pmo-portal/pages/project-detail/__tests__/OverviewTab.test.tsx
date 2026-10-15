@@ -219,6 +219,7 @@ describe('project invoicing summary', () => {
       const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs, vi.fn(), 150_000, role);
       const section = screen.getByTestId('project-finances');
       expect(screen.getAllByTestId('project-finances')).toHaveLength(1);
+      expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
       expect(section).toHaveTextContent('$220.00');
       expect(section).toHaveTextContent('$110.00');
