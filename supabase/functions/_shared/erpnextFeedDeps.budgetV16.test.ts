@@ -49,7 +49,32 @@ Deno.test('Desk cancellation of one account scopes tombstone to its v16 mirror g
   assert(!!update, 'v16 identity must update the companion mirror');
   assert(update!.filters.some(([key, val]) => key === 'fiscal_year' && val === '2026'), 'must scope fiscal year');
   assert(update!.filters.some(([key, val]) => key === 'erp_account' && val === 'Salary'), 'must scope account');
+  assert(typeof update!.payload!.erp_cancelled_at === 'string' && update!.payload!.erp_cancelled_at !== '' &&
+    update!.payload!.erp_docstatus === 2, 'the Desk cancel must tombstone its own row');
+  assert(update!.payload!.push_state === 'failed', 'the Desk cancel must reopen only its own row to failed');
+  assert(!calls.some((call) => call.op === 'update' && call.filters.some(([key, val]) => key === 'erp_account' && val !== 'Salary')),
+    'a sibling account (COGS) on the same version/year is never touched by the cancel');
   assert(!calls.some((call) => call.op === 'update' && call.table === 'budget_version_erp_mirror'), 'must not touch legacy mirror');
+});
+
+Deno.test('a Desk amend repoints only the amended account and retains its tombstone column', async () => {
+  const { client, calls } = fakeClient({});
+  const deps = createErpFeedDeps(client, ORG, 'budget');
+  const identity = budgetAccountIdentity(VERSION, '2026', 'Salary');
+  await deps.repointExternalRef('budget', identity, 'ERP-BUDGET-NEW');
+  await deps.stampAmended(identity, 'ERP-BUDGET-OLD', '2026-10-16T09:00:00Z');
+  const refUpdate = calls.find((call) => call.table === 'external_refs' && call.op === 'update');
+  assert(!!refUpdate, 'the Desk amend must repoint the external ref');
+  assert(refUpdate!.filters.some(([key, val]) => key === 'pmo_record_id' && val === identity),
+    'the ref repoint keys the FULL account identity, never a sibling account');
+  const mirrorUpdate = calls.find((call) => call.table === 'budget_version_account_erp_mirror' && call.op === 'update');
+  assert(!!mirrorUpdate, 'the amend stamp must reach the companion mirror');
+  assert(mirrorUpdate!.filters.some(([key, val]) => key === 'erp_account' && val === 'Salary') &&
+    mirrorUpdate!.filters.some(([key, val]) => key === 'fiscal_year' && val === '2026'),
+    'the amend stamp is scoped to its account grain');
+  assert(!('erp_cancelled_at' in (mirrorUpdate!.payload ?? {})), 'the amend must never write (clear) the tombstone column');
+  assert(!calls.some((call) => call.op === 'update' && call.table === 'budget_version_erp_mirror'),
+    'the v16 amend must not fall through to the legacy mirror');
 });
 
 Deno.test('an inbound cancellation preserves an already-pushed intentional remove tombstone', async () => {
