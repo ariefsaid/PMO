@@ -65,6 +65,24 @@ export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
+/** Format exact decimal money without converting its whole or fractional units through Number. */
+export function formatExactMoney(value: string | null, currency: string, locale: string): string | null {
+  if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  const negative = value.startsWith('-');
+  const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  const whole = BigInt(wholeText);
+  const cents = BigInt(fraction.padEnd(2, '0'));
+  try {
+    const parts = numberFormatterFor('exact-currency', locale, currency, {
+      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).formatToParts(whole);
+    const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
+    return negative ? `−${body}` : body;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse a user-typed money / numeric-field string to a number, or `null` when it is not a valid
  * number. **The single parse used for BOTH validation and persistence** (Wave 3 input integrity):

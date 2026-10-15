@@ -101,6 +101,7 @@ export function useHistoryRefs(args: {
       purchaseOrders: new Map([...(docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)] as [string, string]), ...(eventNames.data?.purchase_order ?? new Map())]),
       payments: new Map([...(docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)] as [string, string]), ...(eventNames.data?.payment ?? new Map())]),
       salesInvoices: eventNames.data?.sales_invoice ?? new Map(),
+      projects: eventNames.data?.project ?? new Map(),
       procurementInvoices: eventNames.data?.procurement_invoice ?? new Map(),
       withholdingSlipBills: eventNames.data?.vendor_withholding_slip_bill ?? new Map(),
     };

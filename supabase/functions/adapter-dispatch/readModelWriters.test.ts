@@ -200,6 +200,48 @@ Deno.test({
 });
 
 Deno.test({
+  name: 'AC-PFIN-003 Sales Invoice read-back preserves source provenance without replacing PMO project attribution',
+  fn: async () => {
+    const writer = getReadModelWriter('revenue');
+    for (const [canonical, expected] of [
+      [{ erp_project: 'ERP-A' }, 'ERP-A'],
+      [{ erp_project: null }, null],
+      [{}, undefined],
+    ] as const) {
+      const { client, calls } = makeFakeClient();
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'si-1', si_number: 'SINV-1', amount: '10.00', erp_docstatus: 1, erp_outstanding_amount: '5.00', ...canonical },
+        { domain: 'revenue', operation: 'update', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', projectId: 'pmo-project' } },
+      );
+      const update = calls.find((call) => call.table === 'sales_invoices' && call.method === 'update');
+      if (!update) throw new Error('read-back updates existing Sales Invoice');
+      const patch = update.args[0] as Record<string, unknown>;
+      assertEquals(Object.hasOwn(patch, 'erp_project'), expected !== undefined, 'omitted source field must stay omitted');
+      if (expected !== undefined) assertEquals(patch.erp_project, expected, 'source value including explicit NULL is preserved');
+      assert(!Object.hasOwn(patch, 'project_id'), 'ERP source cannot overwrite PMO project attribution');
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-PFIN-003 Sales Invoice creation retains ERP provenance and command-owned project link',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ projects: { org_id: 'org-1' }, companies: { org_id: 'org-1' } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'si-1', si_number: 'SINV-1', amount: '10.00', erp_docstatus: 1, erp_outstanding_amount: '5.00', erp_project: 'ERP-A' },
+      { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', projectId: 'pmo-project' } },
+    );
+    const insert = calls.find((call) => call.table === 'sales_invoices' && call.method === 'insert');
+    if (!insert) throw new Error('creation inserts Sales Invoice mirror');
+    const row = insert.args[0] as Record<string, unknown>;
+    assertEquals(row.erp_project, 'ERP-A');
+    assertEquals(row.project_id, 'pmo-project', 'PMO command project stays authoritative');
+  },
+});
+
+Deno.test({
   name: 'findPmoRecordId is the exact reverse of resolveExternalRef',
   fn: async () => {
     const { client: withRow } = makeFakeClient({ external_refs: { pmo_record_id: 'pmo-1' } });

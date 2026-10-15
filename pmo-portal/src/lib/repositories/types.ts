@@ -128,6 +128,7 @@ import type {
   IncomingPaymentRow,
   RevenueByProjectRow,
 } from '@/src/lib/db/revenue';
+import type { ProjectFinances } from '@/src/lib/projectFinances';
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
@@ -506,6 +507,11 @@ export interface RevenueRepository {
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */
   getRevenueByProject(): Promise<RevenueByProjectRow[]>;
+  /** PMO attribution for an existing adopted invoice; does not dispatch an ERP write. */
+  setProject(siId: string, projectId: string): Promise<void>;
+  /** Checked project-scoped finance payload from the invoker read RPC. */
+  getProjectFinances(projectId: string): Promise<ProjectFinances>;
+
 }
 
 export interface TimesheetRepository {

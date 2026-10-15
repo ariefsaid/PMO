@@ -5,6 +5,8 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({ create: vi.fn(async () => ({ id: 'si-1', si_number: 'ACC-SINV-1' })) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { createInvoice: h.create } } }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: () => 'pmo' }));
 
 import { useRevenueMutations } from './useRevenue';
 

@@ -285,6 +285,8 @@ import {
   submitSalesInvoiceSod,
   setSalesInvoiceReceivedDate,
   setSalesInvoiceEfaktur,
+  setSalesInvoiceProject,
+  getProjectFinances,
 } from '@/src/lib/db/revenue';
 import {
   nativeReadOnly,
@@ -656,6 +658,8 @@ const revenue: RevenueRepository = {
   listPayments: (params) => wrap(() => listIncomingPayments(params)),
   getPayment: (id) => wrap(() => getIncomingPayment(id)),
   getRevenueByProject: () => wrap(() => getRevenueByProject()),
+  setProject: (siId, projectId) => wrap(() => setSalesInvoiceProject(siId, projectId)),
+  getProjectFinances: (projectId) => wrap(() => getProjectFinances(projectId)),
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'

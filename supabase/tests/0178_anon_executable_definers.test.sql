@@ -12,9 +12,9 @@
 -- not merely a count. The throwaway function in the regression section proves the sweep catches an
 -- explicitly anon-granted SECURITY DEFINER writer inside this transaction.
 --
--- The 42-name allow-list was re-derived from literal `.rpc('name'` / `.rpc("name"` calls under
+-- The 43-name allow-list was re-derived from literal `.rpc('name'` / `.rpc("name"` calls under
 -- pmo-portal/src and pmo-portal/pages, excluding tests, __tests__, and __mocks__, then sorted and
--- de-duplicated. The checkout contains 42 (the issue brief says 41; transition_procurement is the
+-- de-duplicated. The checkout contains 43 (the issue brief says 41; transition_procurement is the
 -- additional production call). Six existing authenticated RPC contracts are also retained because
 -- their migrations grant them to authenticated and the shipped pgTAP contracts invoke them through
 -- PostgREST: reserve_credits, claim_sales_invoice_author, confirm_erp_employee_link,
@@ -59,6 +59,10 @@
 -- (AC-VWH-021/022). `create_procurement_invoice` / `capture_vendor_invoice` changed signature only (proname
 -- unchanged). THE COUNT IS RE-DERIVED BY HAND from the list below.
 --
+-- ⚑ AMENDED BY 0290 (#1008): `assign_sales_invoice_project` joins the retained set (+1, count 70).
+-- It is a SECURITY DEFINER PMO-attribution writer called under authenticated JWT and asserts active
+-- membership, role, org/project/invoice scope, and billing context; paired with 0290 assignment pgTAP.
+-- `fill_sales_invoice_project` is service-role-only and deliberately NOT retained.
 -- ⚑ AMENDED BY 0275 (#784): `create_native_sales_invoice`, `transition_native_sales_invoice`, `record_native_receipt`
 -- and `cancel_native_receipt` join the retained set, taking the count to 66 after the dev merge (dev's 62 + 4, re-derived by hand from the list).
 -- Each is a SECURITY DEFINER writer called through PostgREST under a member's JWT that re-asserts membership + org +
@@ -93,6 +97,7 @@ select plan(5);
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('activate_budget_version'),
+  ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
   ('approved_timesheet_for_push'),
   ('attach_claim_evidence'),
@@ -182,8 +187,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  69,
-  'AC-ACL-002 all 69 retained client-callable RPC names still have a public function');
+  70,
+  'AC-ACL-002 all 70 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -192,8 +197,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  69,
-  'AC-ACL-003 all 69 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  70,
+  'AC-ACL-003 all 70 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration
