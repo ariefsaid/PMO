@@ -51,7 +51,7 @@ async function readGraphPage<T>(request: GraphReadRequest, decode: Decode<T>): P
     }),
   );
   if (error) await throwBrowseError(error);
-  if (!data || !Array.isArray(data.value)) {
+  if (!data || !Array.isArray(data.value) || data.value.length > 100) {
     throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
   }
   const value: T[] = [];
@@ -61,7 +61,39 @@ async function readGraphPage<T>(request: GraphReadRequest, decode: Decode<T>): P
     if (decoded === null) unsupported += 1;
     else value.push(decoded);
   }
-  return { value, next: null, unsupported_count: unsupported };
+  const nextLink = data['@odata.nextLink'];
+  const next = nextLink == null ? null : parseNextLink(nextLink, request);
+  return { value, next, unsupported_count: unsupported };
+}
+
+const ALLOWED_NEXT_QUERY_KEYS = new Set(['$top', '$skiptoken', '$skip', '$select', '$orderby', 'search']);
+
+export function parseNextLink(link: unknown, initialRequest: GraphReadRequest): GraphReadRequest {
+  if (typeof link !== 'string') throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  const expectedPath = `/v1.0${initialRequest.path}`;
+  if (url.protocol !== 'https:' || url.origin !== 'https://graph.microsoft.com'
+      || url.username || url.password || url.hash || url.pathname !== expectedPath
+      || /%2e|%2f|%5c/i.test(url.pathname)) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  const query: Record<string, string> = {};
+  for (const [key, value] of url.searchParams) {
+    if (!ALLOWED_NEXT_QUERY_KEYS.has(key) || Object.prototype.hasOwnProperty.call(query, key)) {
+      throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+    }
+    query[key] = value;
+  }
+  if (query.$top !== undefined && query.$top !== '100') {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  query.$top = '100';
+  return { path: initialRequest.path, query };
 }
 
 function readText(value: unknown): string | null {
