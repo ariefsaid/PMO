@@ -75,6 +75,24 @@ alter table public.project_documents
         ms_drift_state,ms_check_claim,ms_check_claimed_at)=0))
   ) is true));
 
+create table public.budget_version_document_links (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null default public.auth_org_id() references public.organizations(id),
+  budget_version_id uuid not null references public.budget_versions(id) on delete cascade,
+  ms_drive_id text not null,
+  ms_item_id text not null,
+  ms_web_url text not null,
+  ms_item_name text not null,
+  ms_item_kind text not null,
+  ms_linked_by uuid not null default auth.uid() references public.profiles(id),
+  ms_linked_at timestamptz not null default now(),
+  ms_last_verified_at timestamptz,
+  constraint budget_version_document_links_reference_complete check (
+    public.m365_ref_complete(ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,
+      ms_linked_by,ms_linked_at) is true
+  )
+);
+
 alter table public.procurement_documents
   add constraint procurement_documents_source_complete check (((
     (source is null and num_nonnulls(ms_drive_id,ms_item_id,ms_item_name,ms_item_kind,
