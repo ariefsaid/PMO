@@ -10,6 +10,20 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.20.0](https://github.com/ariefsaid/PMO/compare/v0.19.0...v0.20.0) (2026-10-15)
+
+
+### Features
+
+* **finance:** revenue and cost per project — adopt with project, assign the rest, one finance view ([#1008](https://github.com/ariefsaid/PMO/issues/1008)) ([#1028](https://github.com/ariefsaid/PMO/issues/1028)) ([53fe969](https://github.com/ariefsaid/PMO/commit/53fe969142235ba1b16260f8ba4dad746daee452))
+* **fx:** JISDOR exchange-rate table and rupiah equivalents ([#1012](https://github.com/ariefsaid/PMO/issues/1012)) ([#1026](https://github.com/ariefsaid/PMO/issues/1026)) ([fd54799](https://github.com/ariefsaid/PMO/commit/fd5479977accac6037df569452476e5c01d42f3c))
+
+
+### Bug Fixes
+
+* clear the release PR's four chromium e2e failures ([#1029](https://github.com/ariefsaid/PMO/issues/1029)) ([#1031](https://github.com/ariefsaid/PMO/issues/1031)) ([1ff8257](https://github.com/ariefsaid/PMO/commit/1ff82577723da4fb2f80c6a22a76c35434cb0c77))
+* **erpnext:** Material Request sweep stops requesting a nonexistent total field ([#1034](https://github.com/ariefsaid/PMO/issues/1034)) ([99618b5](https://github.com/ariefsaid/PMO/commit/99618b5386dcaa768a5c2f156fd3cb0c75a44d3f))
+
 ## [0.19.0](https://github.com/ariefsaid/PMO/compare/v0.18.0...v0.19.0) (2026-10-14)
 
 
