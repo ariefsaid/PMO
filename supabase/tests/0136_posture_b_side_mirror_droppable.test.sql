@@ -7,15 +7,16 @@ begin;
 -- `create temporary table xing_before` step is setup, not a test. The plan's own draft declared
 -- plan(8) — pg_prove caught the miscount ("planned 8 tests but ran 7", 0 of the 7 failing) — fixed
 -- here to match the assertions actually written, never inflated to hit an arbitrary count.
-select plan(8);
+select plan(10);
 
--- 1. The side mirror is EXACTLY these two tables. A third one appearing must break this test, not
---    silently escape A4's scope.
+-- 1. The Posture-B mirror inventory now includes the account-grained Budget companion. The invoker
+--    union view is an explicit read-compatibility dependency, so remove that view before proving the
+--    underlying side mirrors remain independently droppable.
 select set_eq(
   $$ select table_name::text from information_schema.tables
       where table_schema = 'public' and table_name like '%\_erp\_mirror' $$,
-  $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('expense_posting_erp_mirror') $$,
-  'AC-XING-004 the Posture-B side mirror is exactly timesheet_erp_mirror + budget_version_erp_mirror + expense_posting_erp_mirror'
+  $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('budget_version_account_erp_mirror'), ('expense_posting_erp_mirror') $$,
+  'AC-XING-004 Posture-B side-mirror inventory includes the v16 Budget companion'
 );
 
 -- 2. Record the PMO SoT row counts BEFORE the drop.
@@ -28,15 +29,21 @@ union all select 'projects',           count(*) from public.projects
 union all select 'expense_claims',     count(*) from public.expense_claims
 union all select 'expense_advance_returns', count(*) from public.expense_advance_returns;
 
--- 3. RESTRICT, not CASCADE: invariant 7 says the mirror carries only external-side state, so nothing
---    PMO owns may depend on it. A dependency here is the finding, and it must be loud.
+-- 3. RESTRICT, not CASCADE: invariant 7 says the mirror carries only external-side state. The
+--    compatibility view must be explicitly removed before testing the underlying Budget mirror.
+select lives_ok('drop view public.budget_push_mirror_rows restrict',
+  'AC-XING-004 the read-compatibility union view is an explicit reversible dependency');
 select lives_ok(
   'drop table public.timesheet_erp_mirror restrict',
   'AC-XING-004 timesheet_erp_mirror drops with RESTRICT — nothing PMO owns depends on it'
 );
 select lives_ok(
+  'drop table public.budget_version_account_erp_mirror restrict',
+  'AC-XING-004 account-grained Budget mirror drops with RESTRICT after removing the compatibility view'
+);
+select lives_ok(
   'drop table public.budget_version_erp_mirror restrict',
-  'AC-XING-004 budget_version_erp_mirror drops with RESTRICT — nothing PMO owns depends on it'
+  'AC-XING-004 legacy budget_version_erp_mirror drops with RESTRICT after removing the compatibility view'
 );
 select lives_ok(
   'drop table public.expense_posting_erp_mirror restrict',
