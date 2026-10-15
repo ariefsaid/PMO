@@ -213,3 +213,29 @@ export function searchDrive(driveId: string, term: string): Promise<GraphPage<Gr
     query: { '$top': '100' },
   }, decodeItem);
 }
+
+function decodeVersion(value: unknown): GraphVersion | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const version = value as Record<string, unknown>;
+  const id = readText(version.id);
+  if (!id) return null;
+  return { id, modified_at: readText(version.lastModifiedDateTime) };
+}
+
+export function listVersions(ref: MicrosoftReferenceInput, next?: GraphReadRequest): Promise<GraphPage<GraphVersion>> {
+  const request = next ?? {
+    path: `/drives/${segment(ref.drive_id)}/items/${segment(ref.item_id)}/versions`,
+    query: { '$top': '100', '$select': 'id,lastModifiedDateTime' },
+  };
+  return readGraphPage({
+    ...request,
+    query: { ...(request.query ?? {}), '$top': '100' },
+  }, decodeVersion);
+}
+
+export function getItem(ref: MicrosoftReferenceInput): Promise<GraphItem> {
+  return readGraphObject({
+    path: `/drives/${segment(ref.drive_id)}/items/${segment(ref.item_id)}`,
+    query: { '$select': 'id,name,webUrl,parentReference,file,folder,cTag,sharepointIds' },
+  }, decodeItem);
+}

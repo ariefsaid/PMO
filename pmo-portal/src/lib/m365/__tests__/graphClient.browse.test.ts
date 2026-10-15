@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
-import { browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, parseNextLink, searchDrive } from '../graphClient';
+import { browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, parseNextLink, searchDrive, listVersions, getItem } from '../graphClient';
 import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
 
 describe('Graph metadata browse transport', () => {
@@ -68,6 +68,30 @@ describe('Graph metadata browse transport', () => {
       action: 'graph_proxy', method: 'GET', path: "/drives/drive-id/root/search(q=%27O%27%27Brien%27)",
       query: { '$top': '100' },
     } });
+  });
+
+  it('AC-M365DOC-065 reads metadata versions and item facets without requesting bytes', async () => {
+    const ref = { drive_id: 'drive-id', item_id: 'item-id', web_url: 'https://example.invalid/item', name: 'Item', item_kind: 'file' as const };
+    invoke.mockResolvedValueOnce({ data: { value: [{ id: '2.0', lastModifiedDateTime: '2026-10-14T00:00:00Z' }] }, error: null });
+    await expect(listVersions(ref)).resolves.toMatchObject({
+      value: [{ id: '2.0', modified_at: '2026-10-14T00:00:00Z' }],
+    });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: {
+      action: 'graph_proxy', method: 'GET', path: '/drives/drive-id/items/item-id/versions',
+      query: { '$top': '100', '$select': 'id,lastModifiedDateTime' },
+    } });
+    invoke.mockResolvedValueOnce({ data: {
+      id: 'item-id', name: 'Item', webUrl: ref.web_url,
+      parentReference: { driveId: 'drive-id' }, file: {}, cTag: 'ctag',
+      sharepointIds: { siteUrl: 'https://example.invalid/sites/synthetic', listId: 'list-id', listItemId: '12' },
+      downloadUrl: 'https://example.invalid/content',
+    }, error: null });
+    await getItem(ref);
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: {
+      action: 'graph_proxy', method: 'GET', path: '/drives/drive-id/items/item-id',
+      query: { '$select': 'id,name,webUrl,parentReference,file,folder,cTag,sharepointIds' },
+    } });
+    expect(JSON.stringify(invoke.mock.calls)).not.toMatch(/content|download/);
   });
 
   it('AC-M365DOC-067 parses only same-resource Graph cursors and pins the page size', () => {
