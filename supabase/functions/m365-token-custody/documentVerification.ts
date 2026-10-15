@@ -5,6 +5,7 @@ import type { HandlerDeps, HandlerResult } from "./types.ts";
 import { resolveOrgOrResult } from "./auth.ts";
 import { openCallerGraphRead } from "./graphRead.ts";
 import { readDocumentMetadataBatch } from "./documentReadBatch.ts";
+import { validMicrosoftBrowserUrl } from "../_shared/microsoftDocumentReference.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const MAX_IDS = 20;
@@ -94,7 +95,7 @@ export async function handleCheckDocuments(
     const identityMatches = item?.id === doc.ms_item_id &&
       parent?.driveId === doc.ms_drive_id;
     const success = response?.status === 200 && file && identityMatches &&
-      !!name && !!url && !!cTag;
+      !!name.trim() && validMicrosoftBrowserUrl(url) && !!cTag.trim();
     await deps.serviceClient.rpc("m365_commit_document_check", {
       p_actor_id: deps.userId,
       p_doc_id: doc.id,
@@ -109,6 +110,7 @@ export async function handleCheckDocuments(
     });
   }
 
+  if (result.status !== 200) return result;
   return { status: 200, body: { checked: claimed.length }, headers: HEADERS };
 }
 

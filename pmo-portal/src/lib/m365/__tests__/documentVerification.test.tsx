@@ -21,7 +21,12 @@ const claimedDocument = {
   ms_check_claim: '10200000-0000-0000-0000-000000000901',
 };
 
-async function setup(claimed: unknown[] = [claimedDocument], entitled = true) {
+async function setup(
+  claimed: unknown[] = [claimedDocument],
+  entitled = true,
+  graphPayload?: unknown,
+  graphStatus = 200,
+) {
   const service = mockClient({
     ms_graph_connections: [{ data: await connection(), error: null }],
   });
@@ -44,12 +49,12 @@ async function setup(claimed: unknown[] = [claimedDocument], entitled = true) {
     ],
   });
   const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
-    new Response(JSON.stringify({ responses: [{
+    new Response(JSON.stringify(graphPayload ?? { responses: [{
       id: '1', status: 200, body: {
         id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item',
         parentReference: { driveId: 'synthetic-drive' }, file: {}, cTag: 'content-1',
       },
-    }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    }] }), { status: graphStatus, headers: { 'content-type': 'application/json' } }));
   vi.stubGlobal('fetch', fetch);
   const handlerDeps = deps({ service, caller, userId: '10200000-0000-0000-0000-000000000101' });
   return { service, caller, fetch, handlerDeps };
@@ -104,6 +109,61 @@ describe('M365 controlled document checks', () => {
     expect(malformed.status).toBe(400);
     expect(service.rpc).not.toHaveBeenCalledWith('m365_claim_document_checks', expect.anything());
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365DOC-064 eTag-only rename commits the same cTag and never treats eTag as content evidence', async () => {
+    const { service, handlerDeps } = await setup([claimedDocument], true, { responses: [{
+      id: '1', status: 200, body: {
+        id: 'synthetic-item', name: 'Renamed file', webUrl: 'https://example.invalid/renamed',
+        parentReference: { driveId: 'synthetic-drive' }, file: {}, cTag: 'content-1', eTag: 'etag-renamed',
+      },
+    }] });
+    await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);
+    const commit = service.rpc.mock.calls.find(([fn]) => fn === 'm365_commit_document_check')?.[1];
+    expect(commit).toMatchObject({ p_success: true, p_content_tag: 'content-1', p_name: 'Renamed file' });
+    expect(commit).not.toHaveProperty('etag');
+  });
+
+  it('AC-M365DOC-064 changed cTag is passed as the server-derived comparison value', async () => {
+    const { service, handlerDeps } = await setup([claimedDocument], true, { responses: [{
+      id: '1', status: 200, body: {
+        id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item',
+        parentReference: { driveId: 'synthetic-drive' }, file: {}, cTag: 'content-2',
+      },
+    }] });
+    await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);
+    const commit = service.rpc.mock.calls.find(([fn]) => fn === 'm365_commit_document_check')?.[1];
+    expect(commit).toMatchObject({ p_success: true, p_content_tag: 'content-2', p_baseline: 'content-1' });
+  });
+
+  it('AC-M365DOC-064 treats missing tags, changed identity, and item failures as unverified', async () => {
+    const badCases = [
+      { id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item', parentReference: { driveId: 'synthetic-drive' }, file: {} },
+      { id: 'synthetic-item', name: 'Synthetic file', webUrl: 'https://example.invalid/item', parentReference: { driveId: 'other-drive' }, file: {}, cTag: 'content-2' },
+    ];
+    for (const item of badCases) {
+      const { service, handlerDeps } = await setup([claimedDocument], true, { responses: [{ id: '1', status: 200, body: item }] });
+      await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);
+      const commit = service.rpc.mock.calls.find(([fn]) => fn === 'm365_commit_document_check')?.[1];
+      expect(commit).toMatchObject({ p_success: false, p_name: '', p_url: '', p_content_tag: '' });
+    }
+    for (const status of [404, 429, 503]) {
+      const { service, handlerDeps } = await setup([claimedDocument], true, { responses: [{ id: '1', status, body: { error: 'opaque' } }] });
+      await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);
+      const commit = service.rpc.mock.calls.find(([fn]) => fn === 'm365_commit_document_check')?.[1];
+      expect(commit).toMatchObject({ p_success: false, p_content_tag: '' });
+      expect(commit).not.toHaveProperty('error');
+    }
+  });
+
+  it('AC-M365DOC-064 releases owned claims and reports an opaque batch transport failure', async () => {
+    const { service, fetch, handlerDeps } = await setup();
+    fetch.mockRejectedValue(new Error('synthetic upstream detail'));
+    const result = await handleCheckDocuments({ document_ids: [documentId] }, handlerDeps);
+    expect(result).toMatchObject({ status: 502, body: { error: 'GRAPH_ERROR' } });
+    const commit = service.rpc.mock.calls.find(([fn]) => fn === 'm365_commit_document_check')?.[1];
+    expect(commit).toMatchObject({ p_success: false, p_claim: claimedDocument.ms_check_claim });
+    expect(JSON.stringify(result)).not.toContain('synthetic upstream detail');
   });
 
   it('AC-M365DOC-064 denies an inactive/non-member caller before claiming rows', async () => {
