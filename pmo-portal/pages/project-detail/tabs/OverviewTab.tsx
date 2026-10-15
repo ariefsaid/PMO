@@ -137,7 +137,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
   return (
     <div className="space-y-8">
-      {may('view', 'salesInvoice') && <ProjectFinancesSection project={project} />}
       {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
           whose min-content (a long title / unbroken number) exceeds the track refuse to
           shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}
@@ -232,6 +231,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           detail. The PM manages by this number day one, so it is on the screen they land on
           rather than behind the Work orders tab — the tab is where they ACT on it. */}
       <ProjectDrawdown projectId={project.id} />
+
+      {/* Keep the actionable work/phase context first on phones; finances follow the work-first
+          surface rather than pushing the PM's primary delivery actions below the fold. */}
+      {may('view', 'salesInvoice') && <ProjectFinancesSection project={project} />}
 
       <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* T14/T15 — Procurement summary card */}

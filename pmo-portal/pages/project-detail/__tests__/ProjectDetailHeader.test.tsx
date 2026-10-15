@@ -126,15 +126,17 @@ describe('ProjectDetailHeader — content', () => {
     }
   });
 
-  it('UIP-005: phone keeps Contract available and discloses the unchanged supporting financial metrics', async () => {
+  it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
     desktopBox.value = false;
     renderHeader('Finance');
     const disclosure = screen.getByText('Financial summary').closest('details');
     expect(disclosure).not.toHaveAttribute('open');
-    expect(screen.getByText('$5,000,000').closest('details')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeInTheDocument();
+    expect(screen.getByText('$5,000,000')).not.toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit contract value' })).not.toBeVisible();
     await userEvent.click(screen.getByText('Financial summary'));
     expect(disclosure).toHaveAttribute('open');
+    expect(screen.getByText('$5,000,000')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
     expect(disclosure).toHaveTextContent('Committed$2,100,000');
     expect(disclosure).toHaveTextContent('Actual$2,100,000');
     expect(disclosure).toHaveTextContent('On-hand margin$2,900,000');
