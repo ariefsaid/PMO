@@ -34,6 +34,7 @@ export async function readDocumentMetadataBatch(
 
   const requests = refs.map((ref, index) => ({
     id: String(index + 1),
+    method: "GET" as const,
     url: `/drives/${encodeURIComponent(ref.drive_id)}/items/${
       encodeURIComponent(ref.item_id)
     }?$select=${ITEM_METADATA_SELECT}`,

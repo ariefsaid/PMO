@@ -14,10 +14,12 @@ const { handler, setTestJwks } = await import("./index.ts");
 Deno.serve = originalServe;
 
 Deno.test("AC-M365DOC-064 builds bounded metadata-only batch reads with server IDs", async () => {
-  let captured: Array<{ id: string; url: string }> = [];
+  let captured: Array<{ id: string; method: "GET"; url: string }> = [];
   const session = {
     get: async () => ({ status: 500 }),
-    batch: async (entries: Array<{ id: string; url: string }>) => {
+    batch: async (
+      entries: Array<{ id: string; method: "GET"; url: string }>,
+    ) => {
       captured = entries;
       return { status: 200, body: { responses: [] } };
     },
@@ -42,7 +44,10 @@ Deno.test("AC-M365DOC-064 builds bounded metadata-only batch reads with server I
         "batch child must use the fixed metadata-only projection",
       );
     }
-    if (Object.keys(entry).sort().join(",") !== "id,url") {
+    if (
+      Object.keys(entry).sort().join(",") !== "id,method,url" ||
+      entry.method !== "GET"
+    ) {
       throw new Error(
         "batch child cannot carry method, body, headers, or dependencies",
       );
@@ -67,6 +72,58 @@ Deno.test("AC-M365DOC-064 builds bounded metadata-only batch reads with server I
   );
   if (oversizedCall) {
     throw new Error("batch must reject more than twenty entries");
+  }
+});
+
+Deno.test("AC-M365DOC-064 served check_documents rejects over-limit IDs before claim or Graph access", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-user" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  Deno.env.set("SUPABASE_URL", url);
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+  try {
+    const response = await handler(
+      new Request("http://edge.test/m365-token-custody", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "check_documents",
+          document_ids: Array.from(
+            { length: 21 },
+            (_, index) =>
+              `10200000-0000-0000-0000-${String(index + 1).padStart(12, "0")}`,
+          ),
+        }),
+      }),
+    );
+    const body = await response.json();
+    if (
+      response.status !== 400 ||
+      body.message !== "Cannot check these documents."
+    ) {
+      throw new Error(
+        "served check_documents must reject oversized requests safely",
+      );
+    }
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
   }
 });
 

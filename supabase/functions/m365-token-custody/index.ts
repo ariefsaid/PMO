@@ -12,51 +12,59 @@
 // POST actions include initiate_connect, initiate_org_approval, graph_proxy, disconnect, and
 // connection_status.
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 import {
-  verifyCallerJwt,
   bearerToken,
-  JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
-} from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
-import { handleInitiateConnect } from './initiate.ts';
-import { handleCallback } from './callback.ts';
-import { handleGraphProxy } from './proxy.ts';
-import { handleDisconnect } from './revoke.ts';
-import { handleConnectionStatus } from './status.ts';
-import { handleInitiateOrgApproval } from './orgApproval.ts';
-import { corsHeaders } from './auth.ts';
+  JwtVerifyError,
+  verifyCallerJwt,
+} from "../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts";
+import { handleInitiateConnect } from "./initiate.ts";
+import { handleCallback } from "./callback.ts";
+import { handleGraphProxy } from "./proxy.ts";
+import { handleDisconnect } from "./revoke.ts";
+import { handleConnectionStatus } from "./status.ts";
+import { handleInitiateOrgApproval } from "./orgApproval.ts";
+import { handleCheckDocuments } from "./documentVerification.ts";
+import { corsHeaders } from "./auth.ts";
 import type {
+  GraphProxyRequest,
   HandlerDeps,
   HandlerResult,
   M365Env,
-  GraphProxyRequest,
   M365ErrorResponse,
   M365Request,
-} from './types.ts';
-import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+} from "./types.ts";
+import { serveWithErrorReporting } from "../_shared/serveWithErrorReporting.ts";
 
 // Minimal ambient Deno shape — avoids depending on lib.d.ts for the env reads (REC-1 import
 // boundary). `Deno.serve` below is the runtime entry API provided by the Deno edge lib.
 interface DenoEnvLike {
   env: { get(key: string): string | undefined };
 }
-const denoEnv = (globalThis as { Deno?: DenoEnvLike }).Deno?.env ?? new Proxy({}, {
-  get: () => undefined,
-}) as DenoEnvLike['env'];
+const denoEnv = (globalThis as { Deno?: DenoEnvLike }).Deno?.env ??
+  new Proxy({}, {
+    get: () => undefined,
+  }) as DenoEnvLike["env"];
 const SUPABASE_EDGE_OPTIONS = {
-  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
 };
 function cfg(key: string): string {
-  return denoEnv.get(key) ?? '';
+  return denoEnv.get(key) ?? "";
 }
 
 // One cached, rate-limited JWKS resolver (ADR-0057), memoized across warm invocations + built
 // lazily so an empty SUPABASE_URL can't throw before the handler returns a typed 401/500.
 let _jwks: JwksResolver | null = null;
 function getJwks(supabaseUrl: string): JwksResolver {
-  if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  if (!_jwks) {
+    _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  }
   return _jwks;
 }
 
@@ -66,17 +74,18 @@ export function setTestJwks(resolver: JwksResolver): void {
 
 /** Build the resolved M365Env from Deno env (the single env-reading site). */
 function buildEnv(): M365Env {
-  const supabaseUrl = cfg('SUPABASE_URL').replace(/\/$/, '');
+  const supabaseUrl = cfg("SUPABASE_URL").replace(/\/$/, "");
   return {
-    m365TenantId: cfg('M365_TENANT_ID'),
-    m365ClientId: cfg('M365_CLIENT_ID'),
-    m365ClientSecret: cfg('M365_CLIENT_SECRET'),
-    m365RedirectUri: cfg('M365_REDIRECT_URI'),
-    m365TokenKek: cfg('M365_TOKEN_KEK'),
+    m365TenantId: cfg("M365_TENANT_ID"),
+    m365ClientId: cfg("M365_CLIENT_ID"),
+    m365ClientSecret: cfg("M365_CLIENT_SECRET"),
+    m365RedirectUri: cfg("M365_REDIRECT_URI"),
+    m365TokenKek: cfg("M365_TOKEN_KEK"),
     supabaseUrl,
-    jwtIssuer: cfg('EDGE_JWT_ISSUER') || cfg('SUPABASE_JWT_ISSUER') || `${supabaseUrl}/auth/v1`,
-    siteUrl: cfg('SITE_URL'),
-    allowedOrigin: cfg('AGENT_ALLOWED_ORIGIN') || cfg('SITE_URL'),
+    jwtIssuer: cfg("EDGE_JWT_ISSUER") || cfg("SUPABASE_JWT_ISSUER") ||
+      `${supabaseUrl}/auth/v1`,
+    siteUrl: cfg("SITE_URL"),
+    allowedOrigin: cfg("AGENT_ALLOWED_ORIGIN") || cfg("SITE_URL"),
   };
 }
 
@@ -84,22 +93,28 @@ export async function handler(req: Request): Promise<Response> {
   const env = buildEnv();
   const cors = corsHeaders(env.allowedOrigin);
 
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: cors });
   }
 
   const url = new URL(req.url);
 
   // GET /callback — Microsoft redirect. No caller JWT; the single-use state row is the credential.
-  if (req.method === 'GET' && url.pathname.endsWith('/callback')) {
+  if (req.method === "GET" && url.pathname.endsWith("/callback")) {
     const deps = await callbackDeps(env);
     if (deps instanceof Response) return deps;
     return toResponse(await handleCallback(req, deps), env.allowedOrigin);
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== "POST") {
     return toResponse(
-      { status: 405, body: { error: 'BAD_REQUEST', message: 'method not allowed' } satisfies M365ErrorResponse },
+      {
+        status: 405,
+        body: {
+          error: "BAD_REQUEST",
+          message: "method not allowed",
+        } satisfies M365ErrorResponse,
+      },
       env.allowedOrigin,
     );
   }
@@ -112,14 +127,20 @@ export async function handler(req: Request): Promise<Response> {
   if (authed instanceof Response) return authed;
 
   // POST: parse the {action} body, then route.
-  let body: Omit<Partial<M365Request>, 'action'> & {
-    action?: M365Request['action'] | 'refresh';
+  let body: Omit<Partial<M365Request>, "action"> & {
+    action?: M365Request["action"] | "refresh";
   };
   try {
     body = (await req.json()) as Partial<M365Request>;
   } catch {
     return toResponse(
-      { status: 400, body: { error: 'BAD_REQUEST', message: 'invalid JSON body' } satisfies M365ErrorResponse },
+      {
+        status: 400,
+        body: {
+          error: "BAD_REQUEST",
+          message: "invalid JSON body",
+        } satisfies M365ErrorResponse,
+      },
       env.allowedOrigin,
     );
   }
@@ -127,29 +148,38 @@ export async function handler(req: Request): Promise<Response> {
   let result: HandlerResult;
   try {
     switch (body.action) {
-      case 'initiate_connect':
+      case "initiate_connect":
         result = await handleInitiateConnect(authed);
         break;
-      case 'graph_proxy':
-        result = await handleGraphProxy(body as unknown as GraphProxyRequest, authed);
+      case "graph_proxy":
+        result = await handleGraphProxy(
+          body as unknown as GraphProxyRequest,
+          authed,
+        );
         break;
-      case 'refresh':
+      case "refresh":
         // Phase-1 callers exercise refresh implicitly via graph_proxy's auto-refresh (near-expiry).
         // A standalone refresh action is NOT supported (quality #1): the previous router case
         // silently impersonated a Graph GET /me/drive — returning drive metadata the caller never
         // asked for and not actually refreshing if the token had life. Reject explicitly instead.
         result = {
           status: 400,
-          body: { error: 'BAD_REQUEST', message: 'action refresh not supported in Phase 1' } satisfies M365ErrorResponse,
+          body: {
+            error: "BAD_REQUEST",
+            message: "action refresh not supported in Phase 1",
+          } satisfies M365ErrorResponse,
         };
         break;
-      case 'disconnect':
+      case "disconnect":
         result = await handleDisconnect(authed);
         break;
-      case 'connection_status':
+      case "connection_status":
         result = await handleConnectionStatus(authed);
         break;
-      case 'initiate_org_approval':
+      case "check_documents":
+        result = await handleCheckDocuments(body, authed);
+        break;
+      case "initiate_org_approval":
         // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
         // admin-consent URL; persists nothing. Uses the activation gate, separate from the
         // member data-access gate (NFR-M365SEP-001).
@@ -158,55 +188,86 @@ export async function handler(req: Request): Promise<Response> {
       default:
         result = {
           status: 400,
-          body: { error: 'BAD_REQUEST', message: `unknown action: ${body.action ?? ''}` } satisfies M365ErrorResponse,
+          body: {
+            error: "BAD_REQUEST",
+            message: `unknown action: ${body.action ?? ""}`,
+          } satisfies M365ErrorResponse,
         };
     }
   } catch (err) {
     // Handlers map expected errors to results; only unexpected throws land here.
-    console.error('[m365-token-custody] unexpected error', {
-      errorCode: 'INTERNAL_ERROR',
-      message: err instanceof Error ? err.name : 'unknown',
+    console.error("[m365-token-custody] unexpected error", {
+      errorCode: "INTERNAL_ERROR",
+      message: err instanceof Error ? err.name : "unknown",
     });
     result = {
       status: 500,
-      body: { error: 'INTERNAL_ERROR', message: 'unexpected error' } satisfies M365ErrorResponse,
+      body: {
+        error: "INTERNAL_ERROR",
+        message: "unexpected error",
+      } satisfies M365ErrorResponse,
     };
   }
 
   return toResponse(result, env.allowedOrigin);
 }
 
-if (import.meta.main) serveWithErrorReporting('m365-token-custody', handler);
+if (import.meta.main) serveWithErrorReporting("m365-token-custody", handler);
 
 /** Build deps for the GET /callback path: service client only (no caller JWT, no caller client). */
 async function callbackDeps(env: M365Env): Promise<HandlerDeps | Response> {
-  if (!env.supabaseUrl || !cfg('SUPABASE_SERVICE_ROLE_KEY')) {
+  if (!env.supabaseUrl || !cfg("SUPABASE_SERVICE_ROLE_KEY")) {
     return toResponse(
-      { status: 500, body: { error: 'INTERNAL_ERROR', message: 'missing Supabase configuration' } },
+      {
+        status: 500,
+        body: {
+          error: "INTERNAL_ERROR",
+          message: "missing Supabase configuration",
+        },
+      },
       env.allowedOrigin,
     );
   }
-  const serviceClient = createClient(env.supabaseUrl, cfg('SUPABASE_SERVICE_ROLE_KEY'), SUPABASE_EDGE_OPTIONS);
+  const serviceClient = createClient(
+    env.supabaseUrl,
+    cfg("SUPABASE_SERVICE_ROLE_KEY"),
+    SUPABASE_EDGE_OPTIONS,
+  );
   // Bridge the real supabase-js client into the structural M365SupabaseLike seam (same `as never`
   // convention agent-chat/compose-view use — the real client satisfies the shape at runtime).
-  return { env, serviceClient: serviceClient as never, userId: '' };
+  return { env, serviceClient: serviceClient as never, userId: "" };
 }
 
 /** Verify the caller JWT (ADR-0057) and build deps with BOTH clients for authenticated actions. */
-async function authedDeps(req: Request, env: M365Env): Promise<HandlerDeps | Response> {
-  const anonKey = cfg('SUPABASE_ANON_KEY');
-  const serviceRoleKey = cfg('SUPABASE_SERVICE_ROLE_KEY');
+async function authedDeps(
+  req: Request,
+  env: M365Env,
+): Promise<HandlerDeps | Response> {
+  const anonKey = cfg("SUPABASE_ANON_KEY");
+  const serviceRoleKey = cfg("SUPABASE_SERVICE_ROLE_KEY");
   if (!env.supabaseUrl || !anonKey || !serviceRoleKey) {
     return toResponse(
-      { status: 500, body: { error: 'INTERNAL_ERROR', message: 'missing Supabase configuration' } },
+      {
+        status: 500,
+        body: {
+          error: "INTERNAL_ERROR",
+          message: "missing Supabase configuration",
+        },
+      },
       env.allowedOrigin,
     );
   }
 
-  const jwt = bearerToken(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get("Authorization"));
   if (!jwt) {
     return toResponse(
-      { status: 401, body: { error: 'UNAUTHORIZED', message: 'missing Authorization header' } },
+      {
+        status: 401,
+        body: {
+          error: "UNAUTHORIZED",
+          message: "missing Authorization header",
+        },
+      },
       env.allowedOrigin,
     );
   }
@@ -215,14 +276,14 @@ async function authedDeps(req: Request, env: M365Env): Promise<HandlerDeps | Res
   try {
     const verified = await verifyCallerJwt(jwt, getJwks(env.supabaseUrl), {
       issuer: env.jwtIssuer,
-      audience: 'authenticated',
-      algorithms: ['ES256'],
+      audience: "authenticated",
+      algorithms: ["ES256"],
     });
     userId = verified.sub;
   } catch (err) {
     const status = err instanceof JwtVerifyError ? err.status : 401;
     return toResponse(
-      { status, body: { error: 'UNAUTHORIZED', message: 'invalid JWT' } },
+      { status, body: { error: "UNAUTHORIZED", message: "invalid JWT" } },
       env.allowedOrigin,
     );
   }
@@ -231,9 +292,18 @@ async function authedDeps(req: Request, env: M365Env): Promise<HandlerDeps | Res
     ...SUPABASE_EDGE_OPTIONS,
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-  const serviceClient = createClient(env.supabaseUrl, serviceRoleKey, SUPABASE_EDGE_OPTIONS);
+  const serviceClient = createClient(
+    env.supabaseUrl,
+    serviceRoleKey,
+    SUPABASE_EDGE_OPTIONS,
+  );
 
-  return { env, serviceClient: serviceClient as never, callerClient: callerClient as never, userId };
+  return {
+    env,
+    serviceClient: serviceClient as never,
+    callerClient: callerClient as never,
+    userId,
+  };
 }
 
 /** Map a HandlerResult to a Deno Response, merging CORS + Content-Type + any handler headers. */
@@ -242,7 +312,7 @@ function toResponse(result: HandlerResult, allowedOrigin: string): Response {
   if (result.headers) Object.assign(headers, result.headers);
   let body: string | null = null;
   if (result.body !== undefined) {
-    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if (!headers["Content-Type"]) headers["Content-Type"] = "application/json";
     body = JSON.stringify(result.body);
   }
   return new Response(body, { status: result.status, headers });

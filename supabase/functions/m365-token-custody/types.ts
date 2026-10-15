@@ -31,12 +31,19 @@ export interface M365SupabaseLike {
     delete(): {
       eq(column: string, value: string): DeleteEqBuilder;
     };
-    update(patch: object): { eq(column: string, value: string): UpdateEqBuilder };
+    update(
+      patch: object,
+    ): { eq(column: string, value: string): UpdateEqBuilder };
     upsert(row: object, opts?: { onConflict?: string }): {
-      select(columns: string): { single(): PromiseLike<{ data: unknown; error: unknown }> };
+      select(
+        columns: string,
+      ): { single(): PromiseLike<{ data: unknown; error: unknown }> };
     };
   };
-  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+  rpc(
+    fn: string,
+    args?: Record<string, unknown>,
+  ): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
 /**
@@ -44,8 +51,11 @@ export interface M365SupabaseLike {
  * revoke.ts does) AND chainable into `.select(columns).maybeSingle()` for the atomic single-use
  * consume (stateStore.ts MEDIUM-1). Mirrors the real supabase-js fluent query builder shape.
  */
-export interface DeleteEqBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
-  select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
+export interface DeleteEqBuilder
+  extends PromiseLike<{ data: unknown; error: unknown }> {
+  select(
+    columns: string,
+  ): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
 }
 
 /**
@@ -56,14 +66,17 @@ export interface DeleteEqBuilder extends PromiseLike<{ data: unknown; error: unk
  * Mirrors the real supabase-js fluent query builder shape (PostgREST returns the updated row on
  * `.update().select()`).
  */
-export interface UpdateEqBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
-  select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
+export interface UpdateEqBuilder
+  extends PromiseLike<{ data: unknown; error: unknown }> {
+  select(
+    columns: string,
+  ): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
 }
 
 // ── Request/response shapes (the wire contract, ADR-0060 §9) ───────────────────
 
 export interface InitiateConnectRequest {
-  action: 'initiate_connect';
+  action: "initiate_connect";
 }
 
 export interface InitiateConnectResponse {
@@ -72,7 +85,7 @@ export interface InitiateConnectResponse {
 }
 
 export interface InitiateOrgApprovalRequest {
-  action: 'initiate_org_approval';
+  action: "initiate_org_approval";
 }
 
 export interface InitiateOrgApprovalResponse {
@@ -80,21 +93,26 @@ export interface InitiateOrgApprovalResponse {
 }
 
 export interface GraphProxyRequest {
-  action: 'graph_proxy';
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  action: "graph_proxy";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   path: string; // e.g. '/me/drive/root/children'
   query?: Record<string, string>;
   body?: unknown;
 }
 
 export interface DisconnectRequest {
-  action: 'disconnect';
+  action: "disconnect";
 }
 
 /** `connection_status` request body (AC-M365-150). Read-only — no parameters beyond the action;
  * the caller's org + user are resolved server-side from the verified JWT (never trusted from body). */
 export interface ConnectionStatusRequest {
-  action: 'connection_status';
+  action: "connection_status";
+}
+
+export interface CheckDocumentsRequest {
+  action: "check_documents";
+  document_ids: string[];
 }
 
 /**
@@ -107,7 +125,7 @@ export interface ConnectionStatusRequest {
  */
 export interface ConnectionStatusResponse {
   connected: boolean;
-  status: 'active' | 'stale' | 'revoked' | null;
+  status: "active" | "stale" | "revoked" | null;
   connected_at: string | null;
   last_refresh_at: string | null;
   scopes: string[];
@@ -118,7 +136,8 @@ export type M365Request =
   | InitiateOrgApprovalRequest
   | GraphProxyRequest
   | DisconnectRequest
-  | ConnectionStatusRequest;
+  | ConnectionStatusRequest
+  | CheckDocumentsRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -128,21 +147,21 @@ export interface M365ErrorResponse {
 }
 
 export type M365ErrorCode =
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_ENTITLED'
-  | 'DISABLED_MEMBER'
-  | 'BANNED_MEMBER'
-  | 'ORG_APPROVAL_REQUIRED'
-  | 'BAD_REQUEST'
-  | 'INVALID_STATE'
-  | 'TOKEN_EXCHANGE_FAILED'
-  | 'NOT_CONNECTED'
-  | 'CONNECTION_STALE'
-  | 'CONNECTION_REVOKED'
-  | 'SCOPE_INSUFFICIENT'
-  | 'GRAPH_ERROR'
-  | 'INTERNAL_ERROR';
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_ENTITLED"
+  | "DISABLED_MEMBER"
+  | "BANNED_MEMBER"
+  | "ORG_APPROVAL_REQUIRED"
+  | "BAD_REQUEST"
+  | "INVALID_STATE"
+  | "TOKEN_EXCHANGE_FAILED"
+  | "NOT_CONNECTED"
+  | "CONNECTION_STALE"
+  | "CONNECTION_REVOKED"
+  | "SCOPE_INSUFFICIENT"
+  | "GRAPH_ERROR"
+  | "INTERNAL_ERROR";
 
 export const ERROR_STATUS: Record<M365ErrorCode, number> = {
   UNAUTHORIZED: 401,
@@ -179,7 +198,7 @@ export const ERROR_STATUS: Record<M365ErrorCode, number> = {
 // NO raw oid; the forensic trail (stored vs presented oid) lives in the paired
 // `m365.connection.identity_mismatch` audit_events row (server-side only — oids are public
 // Microsoft identifiers, not secrets).
-export const M365_IDENTITY_MISMATCH = 'M365_IDENTITY_MISMATCH' as const;
+export const M365_IDENTITY_MISMATCH = "M365_IDENTITY_MISMATCH" as const;
 
 /**
  * Typed handler error. Handlers throw this from pure helper logic (e.g. authz gates) and the
@@ -191,7 +210,7 @@ export class M365HandlerError extends Error {
   readonly contextId?: string;
   constructor(code: M365ErrorCode, message?: string, contextId?: string) {
     super(message ?? code);
-    this.name = 'M365HandlerError';
+    this.name = "M365HandlerError";
     this.code = code;
     this.contextId = contextId;
   }
@@ -211,7 +230,7 @@ export interface ConnectionRow {
   access_token_expires_at: string | null;
   refresh_token_expires_at: string | null;
   key_id: string;
-  status: 'active' | 'stale' | 'revoked';
+  status: "active" | "stale" | "revoked";
   connected_at: string;
   last_refresh_at: string | null;
   updated_at: string;

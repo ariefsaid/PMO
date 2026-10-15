@@ -32,6 +32,7 @@ export interface GraphReadRequest {
 
 export interface GraphBatchEntry {
   id: string;
+  method: "GET";
   url: string;
 }
 
@@ -195,8 +196,11 @@ export async function openCallerGraphRead(
       entries.length <= 20 && entries.every((entry) => {
         if (
           !entry || typeof entry.id !== "string" || !/^\d+$/u.test(entry.id) ||
-          ids.has(entry.id) || typeof entry.url !== "string" ||
-          Object.keys(entry).some((key) => key !== "id" && key !== "url")
+          entry.method !== "GET" || ids.has(entry.id) ||
+          typeof entry.url !== "string" ||
+          Object.keys(entry).some((key) =>
+            key !== "id" && key !== "method" && key !== "url"
+          )
         ) return false;
         ids.add(entry.id);
         const [path, query] = entry.url.split("?", 2);
@@ -227,7 +231,7 @@ export async function openCallerGraphRead(
       deps,
       connection,
       resolved,
-      { requests: entries.map(({ id, url }) => ({ id, url })) },
+      { requests: entries.map(({ id, method, url }) => ({ id, method, url })) },
     );
   };
 
