@@ -59,6 +59,9 @@ import {
   selectProcurementQuote,
   listProcurementDocuments,
   createProcurementDocument,
+  createMicrosoftProcurementDocument,
+  linkMicrosoftProcurementDocument,
+  unlinkMicrosoftProcurementDocument,
   deleteProcurementDocument,
 } from './procurementCrud';
 import { ProcurementError } from './procurementLifecycle';
@@ -221,6 +224,39 @@ describe('AC-PROC-004 selectProcurementQuote (RPC, no org_id, code preserved)', 
     h.rpcResult.value = { data: null, error: { message: 'cannot select from stage', code: 'P0001' } };
     await expect(selectProcurementQuote('q1')).rejects.toMatchObject({ code: 'P0001' });
     await expect(selectProcurementQuote('q1')).rejects.toBeInstanceOf(ProcurementError);
+  });
+});
+
+describe('AC-M365DOC-051/062 procurement Microsoft references', () => {
+  const reference = {
+    drive_id: 'synthetic-drive', item_id: 'synthetic-item',
+    web_url: 'https://example.invalid/item', name: 'Synthetic item', item_kind: 'folder' as const,
+  };
+
+  it('creates a metadata-only Microsoft reference using the canonical link and one insert', async () => {
+    h.result.value = { data: { id: 'doc-1' }, error: null };
+    await createMicrosoftProcurementDocument('case-1', reference, { referenceNumber: 'REF-1', date: '2026-10-14' });
+    expect(h.calls.from).toEqual(['procurement_documents']);
+    expect(h.calls.insert).toEqual([{
+      procurement_id: 'case-1', type: 'Microsoft reference', status: 'Draft', link: reference.web_url,
+      source: 'onedrive', ms_drive_id: reference.drive_id, ms_item_id: reference.item_id,
+      ms_item_name: reference.name, ms_item_kind: 'folder', reference_number: 'REF-1', date: '2026-10-14',
+    }]);
+    expect(JSON.stringify(h.calls.insert)).not.toMatch(/org_id|ms_linked_by|ms_linked_at/);
+  });
+
+  it('links/unlinks a row with single canonical updates and does not overwrite unrelated metadata', async () => {
+    h.result.value = { data: [{ id: 'doc-1' }], error: null };
+    await linkMicrosoftProcurementDocument('doc-1', reference);
+    expect(h.calls.update[0]).toEqual({
+      link: reference.web_url, source: 'onedrive', ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id, ms_item_name: reference.name, ms_item_kind: 'folder',
+    });
+    await unlinkMicrosoftProcurementDocument('doc-1');
+    expect(h.calls.update[1]).toEqual({
+      link: null, source: null, ms_drive_id: null, ms_item_id: null, ms_item_name: null, ms_item_kind: null,
+    });
+    expect(h.calls.eq).toEqual([['id', 'doc-1'], ['id', 'doc-1']]);
   });
 });
 

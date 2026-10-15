@@ -1,6 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
 
 /**
  * project_documents DAL — the per-project document REGISTER (metadata only).
@@ -25,12 +27,15 @@ export interface ProjectDocumentInput {
   title: string;
   revision: string;
   doc_date: string;
+  source?: 'onedrive';
+  microsoft?: MicrosoftReferenceInput;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
   message: string;
   code?: string;
+  details?: string;
 }
 
 /**
@@ -38,7 +43,7 @@ interface PostgrestErrorLike {
  * (e.g. `42501` RLS-rejected) so the UI can classify the toast.
  */
 function throwWrite(error: PostgrestErrorLike): never {
-  throw new AppError(error.message, error.code);
+  throw new AppError(error.message, error.code, error.details);
 }
 
 /** Empty optional text → null (so a blank input never writes an empty string). */
@@ -90,6 +95,16 @@ export async function createProjectDocument(
   input: ProjectDocumentInput,
   authorId: string | null,
 ): Promise<ProjectDocumentRow> {
+  if ((input.source === 'onedrive') !== Boolean(input.microsoft)) {
+    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  if (input.microsoft) {
+    try {
+      assertMicrosoftReference(input.microsoft);
+    } catch {
+      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+    }
+  }
   const { data, error } = await supabase
     .from('project_documents')
     .insert({
@@ -100,6 +115,14 @@ export async function createProjectDocument(
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
       author_id: authorId,
+      ...(input.source === 'onedrive' && input.microsoft ? {
+        source: 'onedrive' as const,
+        ms_drive_id: input.microsoft.drive_id,
+        ms_item_id: input.microsoft.item_id,
+        ms_web_url: input.microsoft.web_url,
+        ms_item_name: input.microsoft.name,
+        ms_item_kind: input.microsoft.item_kind,
+      } : {}),
     })
     .select()
     .single();
@@ -113,6 +136,48 @@ export async function createProjectDocument(
  * intentionally NOT touched here — a metadata edit never moves the workflow or rewrites authorship.
  * Throws an `AppError` (code preserved) on failure.
  */
+export async function linkMicrosoftDocument(
+  id: string,
+  reference: MicrosoftReferenceInput,
+): Promise<void> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({
+      source: 'onedrive',
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url,
+      ms_item_name: reference.name,
+      ms_item_kind: reference.item_kind,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
+export async function unlinkMicrosoftDocument(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({
+      source: null,
+      ms_drive_id: null,
+      ms_item_id: null,
+      ms_web_url: null,
+      ms_item_name: null,
+      ms_item_kind: null,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
 export async function updateProjectDocument(id: string, input: ProjectDocumentInput): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')
@@ -139,6 +204,19 @@ export async function updateProjectDocument(id: string, input: ProjectDocumentIn
  * error `code` is preserved (42501 not-permitted/SoD, P0001 illegal-stage) so the UI classifies the toast.
  */
 export async function transitionProjectDocument(id: string, status: DocStatus): Promise<void> {
+  if (status === 'Issued') {
+    const { data, error } = await supabase
+      .from('project_documents')
+      .select('source,ms_item_kind')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throwWrite(error);
+    const document = data as { source?: string | null; ms_item_kind?: string | null } | null;
+    if (document?.source === 'onedrive' && document.ms_item_kind === 'file') {
+      await issueMicrosoftDocument(id);
+      return;
+    }
+  }
   const { error } = (await supabase.rpc('transition_document_status', {
     p_doc_id: id,
     p_to: status,
@@ -201,12 +279,15 @@ export async function prepareUpload(
   validateUploadExtension(fileName);
   const { data: doc, error: fetchError } = await supabase
     .from('project_documents')
-    .select('id, org_id, project_id, file_path, status')
+    .select('id, org_id, project_id, file_path, status, source')
     .eq('id', docId)
     .maybeSingle();
   if (fetchError) throwWrite(fetchError);
   if (!doc) throw new AppError('Document not found');
   if (doc.status !== 'Draft') throw new AppError('Cannot upload to a document that is not Draft', '42501');
+  if (doc.source === 'onedrive') {
+    throw new AppError('This document already has a Microsoft reference.', '23514', 'm365-source-collision');
+  }
 
   const path = buildStoragePath(doc.org_id, doc.project_id, docId, fileName);
 
@@ -226,7 +307,7 @@ export async function prepareUpload(
 export async function confirmUpload(docId: string, path: string): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')
-    .update({ file_path: path })
+    .update({ file_path: path, source: 'upload' })
     .eq('id', docId)
     .select('id');
   if (error) throwWrite(error);

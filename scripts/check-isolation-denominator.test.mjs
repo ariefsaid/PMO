@@ -177,6 +177,25 @@ test('probe expectations are mandatory, constrained and round-trip through regen
   assert.deepEqual(JSON.parse(formatEntry('tables', shipped.tables[0])), shipped.tables[0]);
 });
 
+test('M365 typed relations and server-only lifecycle RPCs are in the isolation denominator', () => {
+  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const tables = new Map(denominator.tables.map((entry) => [entry.table, entry]));
+  assert.deepEqual(tables.get('budget_version_document_links'), {
+    table: 'budget_version_document_links', has_org: true, pk: 'id', columns: '*',
+    b_read: 'own-org-only', by_id: 'applicable',
+  });
+  assert.deepEqual(tables.get('org_m365_document_settings'), {
+    table: 'org_m365_document_settings', has_org: true, pk: 'org_id', columns: '*',
+    b_read: 'own-org-only', by_id: 'applicable',
+  });
+  for (const fn of [
+    'm365_claim_document_checks(uuid,uuid[])',
+    'm365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean)',
+    'm365_issue_document(uuid,uuid,text,text,text,text,text,text)',
+    'm365_refresh_reference(uuid,uuid,uuid,uuid,text,text,text,text)',
+  ]) assert.ok(denominator.definer_functions.includes(fn), `missing ${fn}`);
+});
+
 test('source citations and exact RPC probe coverage are verified without a database', () => {
   const shipped = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'denominator-source-'));

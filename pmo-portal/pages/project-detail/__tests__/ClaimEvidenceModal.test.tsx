@@ -6,8 +6,15 @@ import { ToastProvider } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 
-const doc = (id: string, title: string, status: string, filePath: string | null) =>
-  ({ id, org_id: 'o', project_id: 'p', code: null, category: 'Report', title, revision: 'A', status, doc_date: null, author_id: null, file_path: filePath, created_at: '' }) as unknown as ProjectDocumentRow;
+const doc = (id: string, title: string, status: ProjectDocumentRow['status'], filePath: string | null): ProjectDocumentRow => ({
+  id, org_id: 'o', project_id: 'p', code: null, category: 'Report', title, revision: 'A',
+  status, doc_date: null, author_id: null, file_path: filePath, created_at: '', parent_document_id: null,
+  source: filePath ? 'upload' : null,
+  ms_drive_id: null, ms_item_id: null, ms_web_url: null, ms_item_name: null, ms_item_kind: null,
+  ms_linked_by: null, ms_linked_at: null, ms_last_verified_at: null,
+  ms_content_tag_at_issue: null, ms_version_id_at_issue: null, ms_drift_state: null,
+  ms_check_claim: null, ms_check_claimed_at: null,
+});
 const DOCS = [
   doc('doc-1', 'Progress report', 'Issued', 'docs/report.pdf'),
   doc('doc-2', 'Draft report', 'Draft', 'docs/draft.pdf'),
