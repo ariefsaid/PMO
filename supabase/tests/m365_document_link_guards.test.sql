@@ -29,6 +29,18 @@ insert into public.project_documents (id,org_id,project_id,category,title,status
 values ('10200000-0000-0000-0000-000000000306','10200000-0000-0000-0000-000000000001',
  '10200000-0000-0000-0000-000000000201','Specification','Raw upload seam','Draft',
  '10200000-0000-0000-0000-000000000102');
+insert into public.project_documents
+ (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id,ms_item_id,ms_web_url,
+  ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at)
+values
+ ('10200000-0000-0000-0000-000000000307','10200000-0000-0000-0000-000000000001',
+  '10200000-0000-0000-0000-000000000201','Specification','Draft controlled file','Draft',
+  '10200000-0000-0000-0000-000000000102','onedrive','drive-a','issue-file','https://example.invalid/issue',
+  'Issue file','file','10200000-0000-0000-0000-000000000102',now()),
+ ('10200000-0000-0000-0000-000000000308','10200000-0000-0000-0000-000000000001',
+  '10200000-0000-0000-0000-000000000201','Specification','Draft folder','Draft',
+  '10200000-0000-0000-0000-000000000102','onedrive','drive-a','issue-folder','https://example.invalid/folder',
+  'Issue folder','folder','10200000-0000-0000-0000-000000000102',now());
 
 grant update(source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at)
  on public.project_documents to authenticated;
@@ -81,6 +93,10 @@ select ok((select source is null and file_path is null from public.project_docum
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"10200000-0000-0000-0000-000000000102","role":"authenticated"}';
+select throws_ok($$select public.transition_document_status('10200000-0000-0000-0000-000000000307','Issued')$$,
+ '23514',null,'AC-M365DOC-063 linked Draft file cannot be directly issued without server verification');
+select throws_ok($$select public.transition_document_status('10200000-0000-0000-0000-000000000308','Issued')$$,
+ '23514',null,'AC-M365DOC-063 linked folder remains reference-only');
 select throws_ok($$update public.project_documents set project_id='10200000-0000-0000-0000-000000000202'
  where id='10200000-0000-0000-0000-000000000302'$$,
  '23514',null,'AC-M365DOC-063 linked project parent is immutable');
