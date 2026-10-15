@@ -239,3 +239,71 @@ export function getItem(ref: MicrosoftReferenceInput): Promise<GraphItem> {
     query: { '$select': 'id,name,webUrl,parentReference,file,folder,cTag,sharepointIds' },
   }, decodeItem);
 }
+
+export type RefreshMicrosoftReferencesInput =
+  | { project_id: string; items: Array<{ drive_id: string; item_id: string }> }
+  | { procurement_id: string; items: Array<{ drive_id: string; item_id: string }> }
+  | { budget_version_id: string; items: Array<{ drive_id: string; item_id: string }> };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const MAX_DOCUMENT_BATCH = 20;
+
+async function invokeDocumentAction(action: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<unknown>(FUNCTION_NAME, { body: action }),
+  );
+  if (error) await throwBrowseError(error);
+  return data;
+}
+
+export async function issueMicrosoftDocument(id: string): Promise<void> {
+  if (!UUID.test(id)) throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  const data = await invokeDocumentAction({ action: 'issue_document', document_id: id });
+  if (!data || typeof data !== 'object' || (data as { issued?: unknown }).issued !== true) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+}
+
+export async function checkMicrosoftDocuments(ids: string[]): Promise<void> {
+  if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || !UUID.test(id))) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  for (let offset = 0; offset < ids.length; offset += MAX_DOCUMENT_BATCH) {
+    const documentIds = ids.slice(offset, offset + MAX_DOCUMENT_BATCH);
+    const data = await invokeDocumentAction({ action: 'check_documents', document_ids: documentIds });
+    if (!data || typeof data !== 'object' || !Number.isInteger((data as { checked?: unknown }).checked) ||
+      (data as { checked: number }).checked < 0 || (data as { checked: number }).checked > documentIds.length) {
+      throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+    }
+  }
+}
+
+export async function refreshMicrosoftReferences(input: RefreshMicrosoftReferencesInput): Promise<void> {
+  if (!input || !Array.isArray(input.items) || input.items.length > MAX_DOCUMENT_BATCH) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  const keys = ['project_id', 'procurement_id', 'budget_version_id'] as const;
+  const record = input as unknown as Record<string, unknown>;
+  const present = keys.filter((key) => Object.prototype.hasOwnProperty.call(input, key));
+  if (Object.keys(input).some((key) => ![...keys, 'items'].includes(key as typeof keys[number] | 'items')) ||
+    present.length !== 1 || !UUID.test(String(record[present[0]!] ?? ''))) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  const items = input.items;
+  if (items.some((item) => !item || Object.keys(item).some((key) => key !== 'drive_id' && key !== 'item_id') ||
+    typeof item.drive_id !== 'string' || !item.drive_id.trim() ||
+    typeof item.item_id !== 'string' || !item.item_id.trim())) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+  const parentKey = present[0]!;
+  const result = await invokeDocumentAction({
+    action: 'refresh_references',
+    [parentKey]: record[parentKey],
+    items: items.map(({ drive_id, item_id }) => ({ drive_id, item_id })),
+  });
+  if (!result || typeof result !== 'object' ||
+    !Number.isInteger((result as { refreshed?: unknown }).refreshed) ||
+    !Number.isInteger((result as { checked?: unknown }).checked)) {
+    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  }
+}

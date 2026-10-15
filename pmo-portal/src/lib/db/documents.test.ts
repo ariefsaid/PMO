@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // A flexible chainable mock of the supabase query builder — same harness as the
 // Companies DAL test. Each terminal (awaited) call resolves the queued result;
 // we assert the recorded calls.
+const { issueMicrosoftDocument } = vi.hoisted(() => ({ issueMicrosoftDocument: vi.fn() }));
+
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
   const calls = {
@@ -50,6 +52,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
+vi.mock('@/src/lib/m365/graphClient', () => ({ issueMicrosoftDocument }));
 
 import {
   listProjectDocuments,
@@ -71,6 +74,7 @@ beforeEach(() => {
     else (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  issueMicrosoftDocument.mockReset();
 });
 
 describe('AC-DOC-001 listProjectDocuments (per-project register)', () => {
@@ -214,6 +218,14 @@ describe('AC-DOC-005 transitionProjectDocument (status workflow — RPC-only)', 
     expect(h.rpcCalls[0]).toEqual(['transition_document_status', { p_doc_id: 'd1', p_to: 'Issued' }]);
     expect(h.calls.update.length).toBe(0);
     expect(JSON.stringify(h.rpcCalls)).not.toContain('org_id');
+  });
+
+  it('AC-M365DOC-064 routes a linked Microsoft file Issue through the custody action', async () => {
+    h.result.value = { data: { source: 'onedrive', ms_item_kind: 'file' }, error: null };
+    await transitionProjectDocument('10200000-0000-0000-0000-000000000301', 'Issued');
+    expect(issueMicrosoftDocument).toHaveBeenCalledWith('10200000-0000-0000-0000-000000000301');
+    expect(h.rpcCalls).toHaveLength(0);
+    expect(h.calls.select).toContainEqual('source,ms_item_kind');
   });
 
   it('AC-DOC-005: throws AppError preserving the PG code on a denied transition (SoD 42501 / illegal P0001)', async () => {

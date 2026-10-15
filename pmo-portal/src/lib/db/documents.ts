@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
 
 /**
  * project_documents DAL — the per-project document REGISTER (metadata only).
@@ -203,6 +204,19 @@ export async function updateProjectDocument(id: string, input: ProjectDocumentIn
  * error `code` is preserved (42501 not-permitted/SoD, P0001 illegal-stage) so the UI classifies the toast.
  */
 export async function transitionProjectDocument(id: string, status: DocStatus): Promise<void> {
+  if (status === 'Issued') {
+    const { data, error } = await supabase
+      .from('project_documents')
+      .select('source,ms_item_kind')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throwWrite(error);
+    const document = data as { source?: string | null; ms_item_kind?: string | null } | null;
+    if (document?.source === 'onedrive' && document.ms_item_kind === 'file') {
+      await issueMicrosoftDocument(id);
+      return;
+    }
+  }
   const { error } = (await supabase.rpc('transition_document_status', {
     p_doc_id: id,
     p_to: status,

@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
-import { browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, parseNextLink, searchDrive, listVersions, getItem } from '../graphClient';
+import {
+  browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren,
+  parseNextLink, searchDrive, listVersions, getItem, issueMicrosoftDocument,
+  checkMicrosoftDocuments, refreshMicrosoftReferences,
+} from '../graphClient';
 import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
 
 describe('Graph metadata browse transport', () => {
@@ -106,6 +110,41 @@ describe('Graph metadata browse transport', () => {
       'https://graph.microsoft.com/v1.0/drives/synthetic-drive/root/children?$top=101',
       'https://graph.microsoft.com/v1.0/drives/synthetic-drive/root/children?$top=100&download=1',
     ]) expect(() => parseNextLink(unsafe, initial)).toThrow();
+  });
+
+  it('AC-M365DOC-064 sends Issue without caller-authored transition or verification fields', async () => {
+    invoke.mockResolvedValue({ data: { issued: true, verification: 'available' }, error: null });
+    await issueMicrosoftDocument('10200000-0000-0000-0000-000000000301');
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: {
+      action: 'issue_document', document_id: '10200000-0000-0000-0000-000000000301',
+    } });
+    expect(JSON.stringify(invoke.mock.calls)).not.toMatch(/baseline|actor|p_to|content_tag/);
+  });
+
+  it('AC-M365DOC-064 chunks checks at twenty and awaits each request sequentially', async () => {
+    invoke.mockResolvedValue({ data: { checked: 1 }, error: null });
+    const ids = Array.from({ length: 41 }, (_, index) =>
+      `10200000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`
+    );
+    await checkMicrosoftDocuments(ids);
+    expect(invoke.mock.calls.map(([, options]) => options.body.document_ids.length)).toEqual([20, 20, 1]);
+    expect(invoke.mock.calls.every(([, options]) => options.body.action === 'check_documents')).toBe(true);
+  });
+
+  it('AC-M365DOC-062 refreshes with exactly one typed parent and identity pairs only', async () => {
+    invoke.mockResolvedValue({ data: { refreshed: 1, checked: 0 }, error: null });
+    await refreshMicrosoftReferences({
+      project_id: '10200000-0000-0000-0000-000000000201',
+      items: [{ drive_id: 'synthetic-drive', item_id: 'synthetic-item' }],
+    });
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: {
+      action: 'refresh_references', project_id: '10200000-0000-0000-0000-000000000201',
+      items: [{ drive_id: 'synthetic-drive', item_id: 'synthetic-item' }],
+    } });
+    await expect(refreshMicrosoftReferences({
+      project_id: '10200000-0000-0000-0000-000000000201',
+      procurement_id: '10200000-0000-0000-0000-000000000202', items: [],
+    } as never)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('AC-M365DOC-067 rejects server pages larger than the bounded 100 entries', async () => {
