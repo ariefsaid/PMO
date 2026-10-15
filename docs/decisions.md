@@ -2937,6 +2937,19 @@ accounting truth, so PMO does not re-derive aging. Known limit: if ERP already c
 a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
 field-only update route if it bites.
 
+## DD-OPS-12 — RIS stays on ERPNext v16; the budget push is rebuilt for v16 (owner, 2026-10-15)
+
+**[DD-OPS-12]** `DD-OPS-11`'s re-proof never exercised the budget push. On 2026-10-15 the production sweep's
+Material Request 417 (#1034) led to a full v16 check: every PMO push body, built by the shipped `toBody` builders,
+inserted and submitted on a v16.33 copy site inside a rolled-back transaction. **15 of 16 kinds pass; only `Budget`
+breaks** — v16 stores one Budget per account (header `account` + `budget_amount`), replaces `fiscal_year` with
+required `from_fiscal_year`/`to_fiscal_year`, and adds a required `distribution_frequency` (#1033). By `DD-OPS-10`'s
+condition this break is not small, so the owner chose between reinstalling at v15 and rebuilding the push.
+**Ruling: stay on v16 and rebuild the budget push** — the break is contained to one doctype, the 2025 books stay
+where they are, and the v15 end-of-life upgrade is avoided. Until it ships, an org on v16 cannot activate a budget
+(activation awaits the push). The rebuild keeps v15 working for the local dev bed (`SUPPORTED_VERSION_MAJORS`
+unchanged). Lesson: a version re-proof must run every push body, not only the crossing journeys.
+
 ## DD-ERP-SITE-1 — one ERP site serves one PMO org (Director, 2026-10-06)
 
 PMO assumes an ERPNext site is connected to at most one PMO org. Customers, Suppliers and their Contacts
