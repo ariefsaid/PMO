@@ -1,12 +1,12 @@
 /**
  * Material Request (the PMO Purchase Request) `toBody`/`fromDoc` — R9 §0 + spec FR-ENA-110.
- * `material_request_type: 'Purchase'` + `company` (from the binding config) are required; ERPNext has
- * no `grand_total` on this doctype (it is a request, not a valued doc) — `amount` mirrors `d.total`
- * when ERPNext computes it, else stays `NULL` (never a PMO-side Σ of lines, ADR-0048).
+ * `material_request_type: 'Purchase'` + `company` (from the binding config) are required. ERPNext has
+ * no total of any kind on this doctype (it is a request, not a valued doc — v16 rejects a list call
+ * naming `total` with 417), so `fromDoc` carries no `amount`: the PMO figure is never mirrored over
+ * (and never a PMO-side Σ of lines, ADR-0048).
  */
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { mirrorMoney } from '../moneyShape.ts';
 import { requireItems } from './shared.ts';
 
 export function mrToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
@@ -23,7 +23,6 @@ export function mrFromDoc(doc: unknown): PmoRecord {
   return {
     id: String(d.name),
     pr_number: String(d.name),
-    amount: mirrorMoney(d.total),
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
     erp_amended_from: (d.amended_from as string | null) ?? null,
@@ -35,4 +34,4 @@ export function mrFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const MR_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'total'] as const;
+export const MR_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from'] as const;
