@@ -1,280 +1,33 @@
-// proxy.ts — `graph_proxy` handler: decrypt the cached access token, call Microsoft Graph, return
-// the data. Auto-refreshes when the access token is near expiry and enforces the connection's
-// consented scopes per requested path. A pure function taking INJECTED deps (ADR-0039): clients,
-// fetch, clock, env. No Deno.env, no client construction.
+// proxy.ts — public graph_proxy action. All connection and Graph transport work is shared with
+// the document verifier through graphRead.ts; this wrapper preserves the existing wire contract.
 
-import type { HandlerDeps, HandlerResult, GraphProxyRequest, ConnectionRow } from './types.ts';
-import { resolveOrgOrResult } from './auth.ts';
-import { decryptToken, deserializeEnvelope, resolveKek, fromByteaValue } from './crypto.ts';
-import { refreshAccessToken } from './refresh.ts';
-import { recordM365Error } from './audit.ts';
-import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
+import type { GraphProxyRequest, HandlerDeps, HandlerResult } from "./types.ts";
+import {
+  type GraphReadSession,
+  openCallerGraphRead,
+  validateGraphProxyInput,
+} from "./graphRead.ts";
+export { scopeCoversPath } from "./graphRead.ts";
 
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
-const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000; // refresh if the access token expires within 30s
-
-/**
- * AC-M365-110/111/112/113/114. Flow:
- *   1. authorize (active member + entitled) → orgId.
- *   2. load the caller's connection; reject NOT_CONNECTED / CONNECTION_STALE / CONNECTION_REVOKED.
- *   3. enforce scope↔path (AC-M365-114): a Files.Read-only connection may only hit OneDrive paths;
- *      write methods need a Files.ReadWrite* scope. Hoisted before decrypt/refresh (quality #2).
- *   4. decrypt the cached access token; if absent/near-expiry, refresh (refreshAccessToken handles
- *      stale/revoke classification — AC-M365-111/112/113) and re-decrypt.
- *   5. call Graph with the decrypted Bearer; return the JSON body. NEVER echo the token (AC-M365-140).
- */
 export async function handleGraphProxy(
   req: GraphProxyRequest,
   deps: HandlerDeps,
 ): Promise<HandlerResult> {
-  const { serviceClient, userId } = deps;
-  const headers = { 'Content-Type': 'application/json' };
-
-  const resolved = await resolveOrgOrResult(deps);
-  if (typeof resolved !== 'string') return resolved;
-  const orgId = resolved;
-
-  if (!req.path || !req.method) {
-    return { status: 400, body: { error: 'BAD_REQUEST', message: 'method and path required' }, headers };
-  }
-  const method = normalizeGraphMethod(req.method);
-  const normalizedPath = normalizeGraphRequestPath(req.path);
-  if (!method || !normalizedPath) {
-    return {
-      status: 400,
-      body: { error: 'BAD_REQUEST', message: 'method and path must be valid Graph requests' },
-      headers,
-    };
-  }
-
-  // PATH TRAVERSAL (live security audit 2026-07-24, MED-B1). `scopeCoversPath` matched the RAW
-  // string while `new URL()` NORMALIZES it, so `/me/drive/../../beta/me/messages` passed the
-  // OneDrive prefix check and then resolved to `/beta/me/messages` — escaping both the `/v1.0`
-  // prefix and the OneDrive family the consented scopes cover. Reproduced:
-  //   /me/drive/../../beta/me/messages -> https://graph.microsoft.com/v1.0/beta/me/messages
-  //   /drives/../..//evil.example/x    -> https://graph.microsoft.com//evil.example/x
-  // Contained today only because the connection holds Files.Read (Graph 403s mail), but the app's
-  // own defence-in-depth control was defeated and it becomes material the moment scopes broaden.
-  // Reject the ambiguous forms outright — a legitimate Graph path never needs them — and validate
-  // the NORMALIZED pathname below (belt and braces: neither check alone is sufficient).
-  if (!req.path.startsWith('/') || /(\.\.|\/\/|\?|#|\\)/.test(req.path)) {
-    return {
-      status: 400,
-      body: { error: 'BAD_REQUEST', message: 'path must be absolute and free of traversal segments' },
-      headers,
-    };
-  }
-
-  // Load the caller's connection (own-row scoped — service_role write path, ADR-0060 §4/AC-M365-133).
-  // ⚑ Kept wide (`'*'`) deliberately, NOT a missed trim: this is the ONE handler that legitimately
-  // holds the access-token secret. loadFreshAccessToken reads access_token_ciphertext +
-  // access_token_expires_at + key_id, and refreshAccessToken reads refresh_token_ciphertext +
-  // entra_tenant_id + org_id + user_id + scopes. Narrowing here would drop a column the refresh
-  // path depends on and silently break token renewal. The other ms_graph_connections selects
-  // (revoke.ts, disconnect) ARE trimmed — see 0168's review for the secret-surface rationale.
-  const { data: conn, error: connError } = await serviceClient
-    .from('ms_graph_connections')
-    .select('*')
-    .eq('org_id', orgId)
-    .eq('user_id', userId)
-    .single();
-
-  if (connError || !conn) {
-    return { status: 404, body: { error: 'NOT_CONNECTED', message: 'no active Microsoft 365 connection' }, headers };
-  }
-  const connection = conn as ConnectionRow;
-
-  if (connection.status === 'stale') {
-    return { status: 409, body: { error: 'CONNECTION_STALE', message: 'connection expired, please reconnect' }, headers };
-  }
-  if (connection.status === 'revoked') {
-    return { status: 410, body: { error: 'CONNECTION_REVOKED', message: 'connection revoked' }, headers };
-  }
-
-  // Scope↔path enforcement (AC-M365-114). Hoisted BEFORE decrypt/refresh (quality #2) so a
-  // scope-insufficient request needlessly decrypts nothing and burns no Microsoft refresh round-trip.
-  if (!scopeCoversPath(connection.scopes, method, normalizedPath)) {
-    return {
-      status: 403,
-      body: { error: 'SCOPE_INSUFFICIENT', message: 'requested Graph path requires additional consent' },
-      headers,
-    };
-  }
-
-  // Decrypt the cached access token, refreshing first if it is absent or near expiry.
-  let accessToken: string;
-  try {
-    accessToken = await loadFreshAccessToken(connection, deps);
-  } catch {
-    // After a refresh failure the row is stale OR revoked — re-read to map a security revocation to
-    // 410 CONNECTION_REVOKED (not a benign 409 stale), so a reuse-revocation isn't masked (quality #10).
-    const { data: fresh } = await serviceClient
-      .from('ms_graph_connections')
-      .select('status')
-      .eq('id', connection.id)
-      .single();
-    if ((fresh as { status?: string } | null)?.status === 'revoked') {
-      return { status: 410, body: { error: 'CONNECTION_REVOKED', message: 'connection revoked' }, headers };
-    }
-    return {
-      status: 409,
-      body: { error: 'CONNECTION_STALE', message: 'token refresh failed, please reconnect' },
-      headers,
-    };
-  }
-
-  // Call Graph. The decrypted Bearer is used here and never logged/echoed (AC-M365-140).
-  const graphUrl = new URL(`${GRAPH_BASE}${normalizedPath}`);
-  // Authoritative check: assert on the NORMALIZED result, not the raw string. Even if a future
-  // edit weakens the input filter above, a request can never leave the pinned origin or the
-  // `/v1.0` prefix the scope gate reasoned about.
-  if (graphUrl.origin !== 'https://graph.microsoft.com' || !graphUrl.pathname.startsWith('/v1.0/')) {
-    return {
-      status: 400,
-      body: { error: 'BAD_REQUEST', message: 'resolved path escapes the allowed Graph surface' },
-      headers,
-    };
-  }
-  if (req.query) {
-    for (const [k, v] of Object.entries(req.query)) graphUrl.searchParams.set(k, v);
-  }
-  const fetchImpl = deps.fetch ?? fetch;
-  let graphRes: Response;
-  try {
-    graphRes = await fetchBounded(fetchImpl, graphUrl.toString(), {
-    method,
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: req.body !== undefined ? JSON.stringify(req.body) : undefined,
-    });
-  } catch {
-    // Deadline or network failure → the same opaque 502 an upstream error returns.
-    await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
-    return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
-  }
-
-  if (!graphRes.ok) {
-    // #445 permanent remedy: Graph's status/code/message/request-id go to the STRUCTURED SERVER
-    // LOG ONLY — the 2026-08-18 live investigation was undiagnosable without them (the code alone
-    // said 'BadRequest'; the message named the real condition, a missing SPO license). The client
-    // envelope stays OPAQUE by design (AC-M365-140 adjacent — no upstream detail to the browser);
-    // the opacity is pinned by the AC-M365-140 test in tokenCustody.proxy.test.ts. Truncated;
-    // contains no token material.
-    let upstreamCode = '';
-    let upstreamMessage = '';
-    try {
-      const errBody = (await graphRes.json()) as { error?: { code?: string; message?: string } };
-      upstreamCode = String(errBody?.error?.code ?? '');
-      upstreamMessage = String(errBody?.error?.message ?? '').slice(0, 200);
-    } catch { /* non-JSON upstream body */ }
-    console.error('[m365-token-custody] graph_proxy upstream failure', {
-      status: graphRes.status,
-      upstreamCode,
-      upstreamMessage,
-      requestId: graphRes.headers.get('request-id') ?? '',
-      connectionId: connection.id,
-      path: normalizedPath,
-    });
-    await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
-    return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
-  }
-
-  const data = await graphRes.json();
-  return { status: 200, body: data, headers };
-}
-
-/**
- * Decrypt the cached access token, refreshing first if it is null or expires within the buffer.
- * `refreshAccessToken` re-reads the row it updated via the service client; this re-loads the fresh
- * ciphertext. Throws on a refresh/exchange failure (caller maps to CONNECTION_STALE).
- */
-async function loadFreshAccessToken(connection: ConnectionRow, deps: HandlerDeps): Promise<string> {
-  const { env, serviceClient, now } = deps;
-  const nowFn = now ?? (() => new Date());
-  const kek = resolveKek(env, connection.key_id);
-
-  const expiresAtMs = connection.access_token_expires_at
-    ? new Date(connection.access_token_expires_at).getTime()
-    : 0;
-
-  if (!connection.access_token_ciphertext || expiresAtMs < nowFn().getTime() + ACCESS_TOKEN_REFRESH_BUFFER_MS) {
-    const refreshed = await refreshAccessToken(connection, deps);
-    if (!refreshed) throw new Error('refresh failed');
-    const { data: fresh, error: freshError } = await serviceClient
-      .from('ms_graph_connections')
-      .select('access_token_ciphertext, key_id')
-      .eq('id', connection.id)
-      .single();
-    const freshRow = fresh as { access_token_ciphertext: Uint8Array | null; key_id: string } | null;
-    if (freshError || !freshRow || !freshRow.access_token_ciphertext) throw new Error('refresh produced no token');
-    const envelope = deserializeEnvelope(fromByteaValue(freshRow.access_token_ciphertext));
-    return decryptToken(envelope.ciphertext, envelope.iv, resolveKek(env, freshRow.key_id));
-  }
-
-  const envelope = deserializeEnvelope(fromByteaValue(connection.access_token_ciphertext));
-  return decryptToken(envelope.ciphertext, envelope.iv, kek);
-}
-
-const GRAPH_METHODS = new Set(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
-const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
-const ENCODED_UNSAFE_PATH = /%2e|%2f|%5c/i;
-
-function normalizeGraphMethod(method: unknown): GraphProxyRequest['method'] | null {
-  if (typeof method !== 'string') return null;
-  const upper = method.toUpperCase();
-  return GRAPH_METHODS.has(upper) ? upper as GraphProxyRequest['method'] : null;
-}
-
-/**
- * Resolve the request against the pinned Graph origin before scope evaluation. Percent-encoded dot
- * segments and separators are rejected rather than decoded: accepting either would make the raw
- * scope prefix disagree with the URL that receives the Bearer token.
- */
-function normalizeGraphRequestPath(path: unknown): string | null {
-  if (typeof path !== 'string' || !path.startsWith('/') || /(?:\.\.|\/\/|\?|#|\\)/.test(path)) return null;
-  if (ENCODED_UNSAFE_PATH.test(path)) return null;
-  return normalizePathForScope(path);
-}
-
-function normalizePathForScope(path: string): string | null {
-  if (ENCODED_UNSAFE_PATH.test(path)) return null;
-  try {
-    const graphUrl = new URL(`${GRAPH_BASE}${path}`);
-    if (graphUrl.origin !== 'https://graph.microsoft.com' || !graphUrl.pathname.startsWith('/v1.0/')) return null;
-    const normalized = graphUrl.pathname.slice('/v1.0'.length);
-    if (/(?:\.\.|\/\/|\?|#|\\)/.test(normalized) || ENCODED_UNSAFE_PATH.test(normalized)) return null;
-    return normalized;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * OneDrive path family match. Uses trailing-slash prefixes (LOW-5) so a lookalike like
- * '/me/driveEvil' cannot pass as '/me/drive'; the exact root ('/me/drive', '/drives', '/sites')
- * is also accepted.
- */
-function isOneDrivePath(path: string): boolean {
-  return path === '/me/drive' || path.startsWith('/me/drive/')
-    || path === '/drives' || path.startsWith('/drives/')
-    || path === '/sites' || path.startsWith('/sites/');
-}
-
-/**
- * Phase-1 scope↔path enforcement (AC-M365-114, LOW-5). Only Files.* scopes are provisioned and
- * cover OneDrive paths; any non-OneDrive path (calendar, mail, …) is rejected SCOPE_INSUFFICIENT.
- * Write methods (POST/PATCH/PUT/DELETE) additionally require a Files.ReadWrite* scope — a
- * Files.Read-only connection may not write (Graph would 403 anyway; we fail earlier with a clear
- * code). Conservative by design.
- */
-export function scopeCoversPath(scopes: string[], method: string, path: string): boolean {
-  const normalizedPath = normalizePathForScope(path);
-  if (!normalizedPath || !isOneDrivePath(normalizedPath)) return false;
-  const normalizedMethod = normalizeGraphMethod(method);
-  if (!normalizedMethod) return false;
-  if (WRITE_METHODS.has(normalizedMethod)) {
-    return scopes.some((s) => s === 'Files.ReadWrite' || s === 'Files.ReadWrite.All');
-  }
-  return scopes.some(
-    (s) => s === 'Files.Read' || s === 'Files.ReadWrite' || s === 'Files.Read.All' || s === 'Files.ReadWrite.All',
+  const session = await openCallerGraphRead(
+    deps,
+    () => validateGraphProxyInput(req),
   );
+  if (!isSession(session)) return session;
+  return await session.get({
+    path: req.path,
+    method: req.method,
+    query: req.query,
+    body: req.body,
+  });
+}
+
+function isSession(
+  value: GraphReadSession | HandlerResult,
+): value is GraphReadSession {
+  return "get" in value;
 }

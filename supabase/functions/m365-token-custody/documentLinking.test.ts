@@ -89,6 +89,75 @@ Deno.test("AC-M365DOC-056 served handler enforces consented scopes on graph_prox
   }
 });
 
+Deno.test("AC-M365DOC-056 served graph_proxy keeps its caller-scoped connection error envelope", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-user" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  for (const name of names) {
+    Deno.env.set(
+      name,
+      name === "SUPABASE_URL" ? url : `synthetic-${name.toLowerCase()}`,
+    );
+  }
+  try {
+    await withFetchMock([
+      supabaseRpc("m365_membership_state", () =>
+        jsonResponse({
+          state: "active",
+          org_id: "synthetic-org",
+          role: "Admin",
+        })),
+      supabaseSelect("org_features", () =>
+        jsonResponse({ enabled: true }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      supabaseSelect(
+        "ms_graph_connections",
+        () => jsonResponse({ message: "not found" }, { status: 406 }),
+      ),
+    ], async ({ calls }) => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "graph_proxy",
+            method: "GET",
+            path: "/me/drive",
+          }),
+        }),
+      );
+      const body = await response.json();
+      if (response.status !== 404 || body.error !== "NOT_CONNECTED") {
+        throw new Error("graph_proxy connection failure response changed");
+      }
+      if (
+        calls.some((call) => call.url.origin === "https://graph.microsoft.com")
+      ) {
+        throw new Error("Graph was called without a caller connection");
+      }
+    });
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});
+
 Deno.test("AC-M365DOC-056 served handler authenticates before parsing proxy JSON", async () => {
   const names = [
     "SUPABASE_URL",
