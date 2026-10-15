@@ -257,7 +257,8 @@ jobs:
     # only write-access collaborators can dispatch (fork PRs never receive secrets).
     if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45, not 30: the three lanes alone reached ~25 min by v0.20 and the served-fn smoke was cut off at the cap
+    timeout-minutes: 45
     defaults:
       run:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)
