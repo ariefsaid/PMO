@@ -22,6 +22,7 @@ import { AdapterError } from '../../contract.ts';
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../../budget/categoryAccountMap.ts';
+import { resolveV16BudgetAccounts } from '../budgetAccountPlan.ts';
 
 /** The `Select` domain of every `action_if_*` field (spike §1, verbatim from the doctype meta). */
 const OVERSPEND_ACTIONS = ['Stop', 'Warn', 'Ignore'] as const;
@@ -94,6 +95,14 @@ function resolveApplicableOn(config: Record<string, unknown>): Record<string, 0 
  * the fan-out can never mint an empty Budget. Pinned by the `BFY T5` cases in this file.
  */
 export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  if (ctx.versionMajor === 16) {
+    const intent = (rec as Record<string, unknown>).budget_intent;
+    if (intent === 'remove') throw new AdapterError('commit-rejected', 'budget push: remove intent has no ERP body');
+    const account = (rec as Record<string, unknown>).erp_account;
+    const body = v16Bodies(rec, ctx).find((candidate) => candidate.account === account);
+    if (!body) throw new AdapterError('commit-rejected', `budget push: selected account ${String(account)} is unresolved`);
+    return body;
+  }
   // FR-BUD-013 fail-closed refs: an unresolvable ERP project is never a null/omitted dimension and never
   // a cost_center fallback — an unattributed budget silently mis-scopes the overspend controls.
   const project = requireString(ctx.refs.project, 'the ERP project reference');
@@ -124,6 +133,43 @@ export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   return body;
 }
 
+function v16Bodies(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown>[] {
+  const project = requireString(ctx.refs.project, 'the ERP project reference');
+  const company = requireString(ctx.config.company, 'the binding company');
+  const fiscalYear = requireString((rec as Record<string, unknown>).fiscal_year, 'the fiscal year');
+  const map = (ctx.config.category_account_map as CategoryAccountMapRow[] | undefined) ?? [];
+  const lineItems = ((rec as Record<string, unknown>).line_items as BudgetLineItem[] | undefined) ?? [];
+  const accounts = resolveV16BudgetAccounts(lineItems, map);
+  if (accounts.length === 0) {
+    throw new AdapterError('commit-rejected', 'budget push: the active version has no budgeted amount to push');
+  }
+  const action = resolveOverspendAction(ctx.config);
+  return accounts.map(({ account, budget_amount }) => {
+    const body: Record<string, unknown> = {
+      company,
+      budget_against: 'Project',
+      project,
+      account,
+      // v16 validates the header amount numerically BEFORE Frappe casts types: a decimal string 500s
+      // (`'<=' not supported between str and int`, proven on a v16.33 copy). Exact: 2-dp cents < 2^53.
+      budget_amount: Number(budget_amount),
+      from_fiscal_year: fiscalYear,
+      to_fiscal_year: fiscalYear,
+      distribution_frequency: 'Monthly',
+      distribute_equally: 1,
+      ...resolveApplicableOn(ctx.config),
+    };
+    for (const field of ACTION_FIELDS) body[field] = action;
+    return body;
+  });
+}
+
+/** Return account-grained v16 bodies or the unchanged single v15 body. */
+export function budgetBodiesForYear(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown>[] {
+  if (ctx.versionMajor !== 16) return [budgetToBody(rec, ctx) as Record<string, unknown>];
+  return v16Bodies(rec, ctx);
+}
+
 /**
  * ⚑ LIFECYCLE ONLY (FR-BUD-140/152). PMO owns the budget figure, so an ERP-side `budget_amount` must
  * have NO route back into PMO — this mapper deliberately does not read `accounts` at all. A Desk edit to
@@ -137,8 +183,17 @@ export function budgetFromDoc(doc: unknown): PmoRecord {
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
     erp_amended_from: (d.amended_from as string | null) ?? null,
-    fiscal_year: (d.fiscal_year as string | null) ?? null,
+    fiscal_year: (d.from_fiscal_year as string | null) ?? (d.fiscal_year as string | null) ?? null,
+    ...(d.from_fiscal_year === undefined ? {} : { erp_account: (d.account as string | null) ?? null }),
   };
+}
+
+/** Fields read by budgetFromDoc for the version-specific ERP list endpoint. */
+export function budgetFromDocFields(versionMajor?: number): readonly string[] {
+  if (versionMajor === 16) {
+    return ['name', 'modified', 'docstatus', 'amended_from', 'from_fiscal_year', 'to_fiscal_year', 'account'];
+  }
+  return BUDGET_FROM_DOC_FIELDS;
 }
 
 /** The list-endpoint fields `budgetFromDoc` actually READS — the sweep builds its `fields=[…]` from this

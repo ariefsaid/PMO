@@ -41,6 +41,7 @@ import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { WITHHOLDING_REVIEW_FIELD } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 // FR-BFY-038: the bare `budget_version_id` parser + the fiscal-year half of a year-qualified budget identity.
 import { budgetVersionIdOf, fiscalYearOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+import { parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { escapeLikePattern } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
@@ -102,6 +103,16 @@ function mirrorLookupValue(kind: ErpDocKind, pmoRecordId: string): string {
   return budgetVersionIdOf(pmoRecordId);
 }
 
+function mirrorTable(kind: ErpDocKind, pmoRecordId: string): string {
+  if (kind !== 'budget' || !pmoRecordId.includes(':')) return KIND_MIRROR_TABLE[kind];
+  try {
+    if (parseBudgetIdentity(pmoRecordId).erpAccount !== null) return 'budget_version_account_erp_mirror';
+  } catch {
+    // Legacy year-qualified identities are parsed below by their existing fiscal-year path.
+  }
+  return KIND_MIRROR_TABLE[kind];
+}
+
 /**
  * ⚑ FR-BFY-038 (FU-2 review, BLOCKER 1) — the OTHER half of the identity: the fiscal year.
  *
@@ -115,6 +126,12 @@ function mirrorLookupValue(kind: ErpDocKind, pmoRecordId: string): string {
  */
 function mirrorFiscalYear(kind: ErpDocKind, pmoRecordId: string): string | null {
   if (kind !== 'budget' || !pmoRecordId.includes(':')) return null;
+  try {
+    const parsed = parseBudgetIdentity(pmoRecordId);
+    if (parsed.erpAccount !== null) return parsed.fiscalYear;
+  } catch {
+    // Preserve the legacy fiscal-year identity parser behavior.
+  }
   return fiscalYearOf(pmoRecordId);
 }
 
@@ -133,20 +150,23 @@ function scopeMirrorQuery<T>(query: T, kind: ErpDocKind, lookupColumn: string, o
   let scoped = (query as unknown as EqQuery).eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId));
   const fiscalYear = mirrorFiscalYear(kind, pmoRecordId);
   if (fiscalYear !== null) scoped = scoped.eq('fiscal_year', fiscalYear);
+  if (kind === 'budget' && mirrorTable(kind, pmoRecordId) === 'budget_version_account_erp_mirror') {
+    scoped = scoped.eq('erp_account', parseBudgetIdentity(pmoRecordId).erpAccount);
+  }
   return scoped as unknown as T;
 }
 
 /** Build the inbound feed apply deps for one (org, kind). `kind` decides the mirror table + domain. */
 export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, kind: ErpDocKind): ErpFeedDeps {
   const domain = KIND_DOMAIN[kind];
-  const table = KIND_MIRROR_TABLE[kind];
   const lookupColumn = pmoRecordLookupColumn(kind);
+  const tableFor = (pmoRecordId: string) => mirrorTable(kind, pmoRecordId);
 
   return {
     // ── ApplyChangeDeps ──
     resolvePmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, domain, externalRecordId),
     readMirrorSourceMod: async (pmoRecordId) => {
-      const { data, error } = await scopeMirrorQuery(serviceClient.from(table).select('erp_modified'), kind, lookupColumn, orgId, pmoRecordId).maybeSingle();
+      const { data, error } = await scopeMirrorQuery(serviceClient.from(tableFor(pmoRecordId)).select('erp_modified'), kind, lookupColumn, orgId, pmoRecordId).maybeSingle();
       if (error) throw new AppError(error.message, error.code);
       const modified = (data as { erp_modified?: string | null } | null)?.erp_modified ?? null;
       return modified ? Date.parse(modified) : null;
@@ -163,7 +183,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         ...purchaseInvoiceFieldPatch(kind, canonical),
         ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
-      const { error } = await (scopeMirrorQuery(serviceClient.from(table).update(patch), kind, lookupColumn, orgId, pmoRecordId) as unknown as Promise<{
+      const { error } = await (scopeMirrorQuery(serviceClient.from(tableFor(pmoRecordId)).update(patch), kind, lookupColumn, orgId, pmoRecordId) as unknown as Promise<{
         error: { message: string; code?: string } | null;
       }>);
       if (error) throw new AppError(error.message, error.code);
@@ -203,7 +223,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
         mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
         mirrorExists: async (pmoRecordId) => {
-          const { data, error } = await scopeMirrorQuery(serviceClient.from(table).select(lookupColumn), kind, lookupColumn, orgId, pmoRecordId).maybeSingle();
+          const { data, error } = await scopeMirrorQuery(serviceClient.from(tableFor(pmoRecordId)).select(lookupColumn), kind, lookupColumn, orgId, pmoRecordId).maybeSingle();
           if (error) throw new AppError(error.message, error.code);
           return data !== null;
         },
@@ -220,7 +240,16 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
 
     // ── LineageDeps ──
     tombstoneMirror: async (pmoRecordId, erpModified) => {
-      const tombstoneUpdate = serviceClient.from(table).update({
+      if (kind === 'budget' && mirrorTable(kind, pmoRecordId) === 'budget_version_account_erp_mirror') {
+        const { data, error } = await scopeMirrorQuery(
+          serviceClient.from(tableFor(pmoRecordId)).select('budget_intent,push_state,erp_docstatus'),
+          kind, lookupColumn, orgId, pmoRecordId,
+        ).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        const current = data as { budget_intent?: string; push_state?: string; erp_docstatus?: number | null } | null;
+        if (current?.budget_intent === 'remove' && current.push_state === 'pushed' && current.erp_docstatus === 2) return;
+      }
+      const tombstoneUpdate = serviceClient.from(tableFor(pmoRecordId)).update({
         erp_cancelled_at: new Date().toISOString(),
         erp_docstatus: 2,
         erp_modified: erpModified,
@@ -283,7 +312,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       // `updateMirror` immediately after this and re-writes `erp_amended_from` through the correct
       // column, so nothing is observably lost — but a writer that only works because a DIFFERENT
       // writer repairs it is not a writer, it is a latent trap. Keyed like every sibling.
-      const amendUpdate = serviceClient.from(table).update({
+      const amendUpdate = serviceClient.from(tableFor(pmoRecordId)).update({
         erp_amended_from: amendedFrom,
         erp_modified: erpModified,
       });

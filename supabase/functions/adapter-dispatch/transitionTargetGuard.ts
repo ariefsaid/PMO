@@ -25,6 +25,7 @@
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { decodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+import { isBudgetAccountPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 /** The structural service-role read seam both guards need: `.from(t).select(c).eq(...)…maybeSingle()`.
  *  Identical to `refs.ts`'s `ExternalRefsLookupClient` (the filter builder is chainable), re-exported
@@ -291,6 +292,7 @@ function judgeBudgetPerYearKey(key: string): boolean | null {
 
 export function isOpaqueIdempotencyKey(key: string | undefined | null): boolean {
   if (typeof key !== 'string') return false;
+  if (key.startsWith('bud16:')) return isBudgetAccountPushKey(key);
   if (UUID_RE.test(key)) return true;
   // A key that CLAIMS the per-year budget shape is judged by THAT rule alone — the general
   // deterministic regex would otherwise wave through a `bud:<uuid>::<epoch>` (an empty year token

@@ -777,6 +777,84 @@ export type Database = {
           },
         ]
       }
+      budget_version_account_erp_mirror: {
+        Row: {
+          activated_at_witness: string | null
+          budget_intent: string
+          budget_version_id: string
+          created_at: string
+          erp_account: string
+          erp_budget_name: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          fiscal_year: string
+          id: string
+          org_id: string
+          push_error: string | null
+          push_state: string
+          pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          unmapped_categories: string[] | null
+        }
+        Insert: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Update: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id?: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year?: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_version_document_links: {
         Row: {
           budget_version_id: string
@@ -6686,6 +6764,29 @@ export type Database = {
       }
     }
     Views: {
+      budget_push_mirror_rows: {
+        Row: {
+          activated_at_witness: string | null
+          budget_intent: string | null
+          budget_version_id: string | null
+          created_at: string | null
+          erp_account: string | null
+          erp_budget_name: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          fiscal_year: string | null
+          id: string | null
+          org_id: string | null
+          push_error: string | null
+          push_state: string | null
+          pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          unmapped_categories: string[] | null
+        }
+        Relationships: []
+      }
       sales_invoice_work_billed: {
         Row: {
           currency: string | null
@@ -6987,10 +7088,15 @@ export type Database = {
       }
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
+      budget_account_identity: {
+        Args: { p_account: string; p_fy: string; p_version: string }
+        Returns: string
+      }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
           p_amount: number

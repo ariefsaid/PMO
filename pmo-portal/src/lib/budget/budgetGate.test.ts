@@ -160,6 +160,8 @@ describe('runBudgetGate', () => {
       plan: [{ fiscal_year: '2026', line_items: DEFAULT_LINE_ITEMS }],
       projectStartDate: '2026-01-01',
       projectEndDate: '2026-12-31',
+      categoryMap: DEFAULT_MAP,
+      inSpanFiscalYears: ['2026'],
     });
   });
 });

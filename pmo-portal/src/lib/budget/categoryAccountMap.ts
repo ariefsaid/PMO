@@ -20,6 +20,7 @@
  */
 import type { Enums } from '../supabase/database.types.ts';
 import { AdapterError } from '../adapterSeam/contract.ts';
+import { fromCents, toCents } from './budgetAmount.ts';
 
 /** The generated DB enum is the category authority. Bare strings remain accepted at runtime so
  * unknown values still reach the fail-closed mapping guard. */
@@ -60,27 +61,6 @@ export class BudgetCategoryUnmappedError extends Error {
   }
 }
 
-/** Exact decimal-string → integer cents. String-parsed (never `Number(v)*100`) so `30000.10 + 20000.20`
- *  is exactly `50000.30`, and a value outside the decimal grammar is REFUSED rather than becoming `NaN`
- *  → `0` (a silent under-budget in the client's ERP). */
-function toCents(value: string): number {
-  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim());
-  if (!match) {
-    throw new AdapterError('commit-rejected', `invalid decimal budget amount: ${JSON.stringify(value)}`);
-  }
-  const [, sign, whole, fraction = ''] = match;
-  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
-  if (!Number.isSafeInteger(cents)) {
-    throw new AdapterError('commit-rejected', `budget amount out of range: ${JSON.stringify(value)}`);
-  }
-  return sign === '-' ? -cents : cents;
-}
-
-function fromCents(cents: number): string {
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
-}
 
 /**
  * Resolve an Active version's line items → the ERP `accounts[]` rows.
