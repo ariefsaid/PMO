@@ -79,5 +79,20 @@ select lives_ok($$insert into public.project_documents (id,org_id,project_id,cat
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','file','Draft','10200000-0000-0000-0000-000000000102','onedrive','drive','item','https://EXAMPLE.invalid/x','name','file','10200000-0000-0000-0000-000000000102',now())$$,'AC-M365DOC-053 accepts complete file ref');
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','folder','Draft','10200000-0000-0000-0000-000000000102','onedrive','drive','folder-item','https://example.invalid/folder','folder','folder','10200000-0000-0000-0000-000000000102',now())$$,'AC-M365DOC-053 accepts complete folder ref');
 
+-- Supporting AC-M365DOC-001/051/052/055/066 index and FK shape proof.
+select ok(to_regclass('public.m365_budget_parent_idx') is not null,
+  'AC-M365DOC-052 budget evidence parent query has its ordered composite index');
+select ok(to_regclass('public.project_documents_ms_identity_idx') is not null,
+  'AC-M365DOC-001 project reference identity is indexed by org and item');
+select ok(to_regclass('public.procurement_documents_ms_identity_idx') is not null,
+  'AC-M365DOC-051 procurement reference identity is indexed by org and item');
+select ok(to_regclass('public.m365_budget_identity_idx') is not null,
+  'AC-M365DOC-052 budget reference identity is indexed by org and item');
+select ok(exists(select 1 from pg_constraint c
+  where c.conrelid='public.budget_version_document_links'::regclass
+    and c.contype='f' and c.confrelid='public.budget_versions'::regclass
+    and pg_get_constraintdef(c.oid) like '%ON DELETE CASCADE%'),
+  'AC-M365DOC-052 budget evidence parent FK cascades on version deletion');
+
 select * from finish();
 rollback;

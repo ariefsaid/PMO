@@ -655,3 +655,12 @@ grant execute on function public.m365_claim_document_checks(uuid,uuid[]) to serv
 grant execute on function public.m365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean) to service_role;
 grant execute on function public.m365_issue_document(uuid,uuid,text,text,text,text,text,text) to service_role;
 grant execute on function public.m365_refresh_reference(uuid,uuid,uuid,uuid,text,text,text,text) to service_role;
+
+create index m365_budget_parent_idx
+  on public.budget_version_document_links(org_id,budget_version_id,ms_linked_at,id);
+create index project_documents_ms_identity_idx
+  on public.project_documents(org_id,ms_drive_id,ms_item_id) where source='onedrive';
+create index procurement_documents_ms_identity_idx
+  on public.procurement_documents(org_id,ms_drive_id,ms_item_id) where source='onedrive';
+create index m365_budget_identity_idx
+  on public.budget_version_document_links(org_id,ms_drive_id,ms_item_id);
