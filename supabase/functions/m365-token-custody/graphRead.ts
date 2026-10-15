@@ -190,15 +190,24 @@ export async function openCallerGraphRead(
   };
 
   const batch = async (entries: GraphBatchEntry[]): Promise<HandlerResult> => {
-    if (
-      !Array.isArray(entries) || entries.length < 1 || entries.length > 20 ||
-      entries.some((entry) =>
-        !entry || typeof entry.id !== "string" ||
-        typeof entry.url !== "string" ||
-        !entry.url.startsWith("/") ||
-        !scopeCoversPath(connection.scopes, "GET", entry.url)
-      )
-    ) {
+    const ids = new Set<string>();
+    const validEntries = Array.isArray(entries) && entries.length > 0 &&
+      entries.length <= 20 && entries.every((entry) => {
+        if (
+          !entry || typeof entry.id !== "string" || !/^\d+$/u.test(entry.id) ||
+          ids.has(entry.id) || typeof entry.url !== "string" ||
+          Object.keys(entry).some((key) => key !== "id" && key !== "url")
+        ) return false;
+        ids.add(entry.id);
+        const [path, query] = entry.url.split("?", 2);
+        const segments = path?.split("/");
+        return !!path && segments?.length === 5 && segments[1] === "drives" &&
+          !!segments[2] && segments[3] === "items" && !!segments[4] &&
+          query ===
+            "$select=id,name,webUrl,parentReference,file,folder,cTag,sharepointIds" &&
+          scopeCoversPath(connection.scopes, "GET", path);
+      });
+    if (!validEntries) {
       return {
         status: 400,
         body: {
@@ -218,7 +227,7 @@ export async function openCallerGraphRead(
       deps,
       connection,
       resolved,
-      { requests: entries },
+      { requests: entries.map(({ id, url }) => ({ id, url })) },
     );
   };
 

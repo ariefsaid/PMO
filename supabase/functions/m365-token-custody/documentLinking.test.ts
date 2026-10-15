@@ -1,3 +1,4 @@
+import { readDocumentMetadataBatch } from "./documentReadBatch.ts";
 import {
   createJwtAuthority,
   createTestJwksResolver,
@@ -11,6 +12,63 @@ const originalServe = Deno.serve;
 Deno.serve = (() => undefined) as unknown as typeof Deno.serve;
 const { handler, setTestJwks } = await import("./index.ts");
 Deno.serve = originalServe;
+
+Deno.test("AC-M365DOC-064 builds bounded metadata-only batch reads with server IDs", async () => {
+  let captured: Array<{ id: string; url: string }> = [];
+  const session = {
+    get: async () => ({ status: 500 }),
+    batch: async (entries: Array<{ id: string; url: string }>) => {
+      captured = entries;
+      return { status: 200, body: { responses: [] } };
+    },
+  };
+  await readDocumentMetadataBatch(session, [
+    { drive_id: "synthetic-drive-a", item_id: "synthetic-item-a" },
+    { drive_id: "synthetic-drive-b", item_id: "synthetic-item-b" },
+  ]);
+  if (
+    captured.length !== 2 || captured[0]?.id !== "1" || captured[1]?.id !== "2"
+  ) {
+    throw new Error("batch IDs must be unique and server generated");
+  }
+  for (const entry of captured) {
+    if (
+      !entry.url.startsWith("/drives/") ||
+      !entry.url.includes(
+        "?$select=id,name,webUrl,parentReference,file,folder,cTag,sharepointIds",
+      )
+    ) {
+      throw new Error(
+        "batch child must use the fixed metadata-only projection",
+      );
+    }
+    if (Object.keys(entry).sort().join(",") !== "id,url") {
+      throw new Error(
+        "batch child cannot carry method, body, headers, or dependencies",
+      );
+    }
+    if (/content|children|versions|PATCH|DELETE|POST/i.test(entry.url)) {
+      throw new Error("batch child escaped the metadata item read route");
+    }
+  }
+  let oversizedCall = false;
+  await readDocumentMetadataBatch(
+    {
+      ...session,
+      batch: async () => {
+        oversizedCall = true;
+        return { status: 200 };
+      },
+    },
+    Array.from({ length: 21 }, (_, index) => ({
+      drive_id: `synthetic-drive-${index}`,
+      item_id: `synthetic-item-${index}`,
+    })),
+  );
+  if (oversizedCall) {
+    throw new Error("batch must reject more than twenty entries");
+  }
+});
 
 Deno.test("AC-M365DOC-056 served handler preserves metadata-only preflight behavior", async () => {
   const response = await handler(
