@@ -39,5 +39,25 @@ select throws_ok($$insert into public.org_m365_document_settings
  '10200000-0000-0000-0000-000000000101',now())$$,
  '23514',null,'AC-M365DOC-055 whitespace-only default tuple fields are rejected');
 
+insert into public.organizations (id,name) values
+ ('10200000-0000-0000-0000-000000000002','Synthetic other settings org');
+grant select,update on public.org_m365_document_settings to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"10200000-0000-0000-0000-000000000101","role":"authenticated"}';
+select lives_ok($$update public.org_m365_document_settings set default_site_id='site-from-user',
+ default_site_name='Synthetic site',default_drive_id='drive-from-user',default_drive_name='Synthetic library',
+ updated_by='99999999-0000-0000-0000-000000000999',updated_at='2000-01-01'
+ where org_id='10200000-0000-0000-0000-000000000001'$$,
+ 'AC-M365DOC-055 Admin default update replaces forged actor/time with server stamps');
+select throws_ok($$update public.org_m365_document_settings set org_id='10200000-0000-0000-0000-000000000002'
+ where org_id='10200000-0000-0000-0000-000000000001'$$,
+ '23514',null,'AC-M365DOC-055 settings singleton organization key is immutable');
+reset role;
+select is((select updated_by from public.org_m365_document_settings
+ where org_id='10200000-0000-0000-0000-000000000001'),
+ '10200000-0000-0000-0000-000000000101'::uuid,'AC-M365DOC-055 settings updater is server stamped');
+select ok((select updated_at>'2000-01-01'::timestamptz from public.org_m365_document_settings
+ where org_id='10200000-0000-0000-0000-000000000001'),'AC-M365DOC-055 settings timestamp is server stamped');
+
 select * from finish();
 rollback;
