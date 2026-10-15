@@ -150,7 +150,9 @@ function v16Bodies(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown>[] {
       budget_against: 'Project',
       project,
       account,
-      budget_amount,
+      // v16 validates the header amount numerically BEFORE Frappe casts types: a decimal string 500s
+      // (`'<=' not supported between str and int`, proven on a v16.33 copy). Exact: 2-dp cents < 2^53.
+      budget_amount: Number(budget_amount),
       from_fiscal_year: fiscalYear,
       to_fiscal_year: fiscalYear,
       distribution_frequency: 'Monthly',

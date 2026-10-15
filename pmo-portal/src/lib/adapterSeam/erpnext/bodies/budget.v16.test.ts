@@ -35,7 +35,7 @@ describe('ERP Budget v16 body contract', () => {
     expect(bodies).toEqual([
       {
         company: 'Test Co', budget_against: 'Project', project: 'PROJ-1', account: 'Salary',
-        budget_amount: '50000.00', from_fiscal_year: '2026', to_fiscal_year: '2026',
+        budget_amount: 50000, from_fiscal_year: '2026', to_fiscal_year: '2026',
         distribution_frequency: 'Monthly', distribute_equally: 1,
         applicable_on_material_request: 1, applicable_on_purchase_order: 1,
         applicable_on_booking_actual_expenses: 1,
@@ -48,7 +48,7 @@ describe('ERP Budget v16 body contract', () => {
       },
       {
         company: 'Test Co', budget_against: 'Project', project: 'PROJ-1', account: 'COGS',
-        budget_amount: '25000.00', from_fiscal_year: '2026', to_fiscal_year: '2026',
+        budget_amount: 25000, from_fiscal_year: '2026', to_fiscal_year: '2026',
         distribution_frequency: 'Monthly', distribute_equally: 1,
         applicable_on_material_request: 1, applicable_on_purchase_order: 1,
         applicable_on_booking_actual_expenses: 1,

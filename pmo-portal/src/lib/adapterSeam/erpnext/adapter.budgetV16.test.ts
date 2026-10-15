@@ -63,7 +63,7 @@ describe('AC-BV16-005 revises only changed accounts and removes the dropped acco
     const salary = harness({ account: 'Salary', amount: '60000.00', oldAmount: '50000.00', oldName: 'OLD-Salary' });
     const salaryResult = await commit(salary);
     expect(methodCalls(salary)).toEqual(['GET', 'PUT', 'POST', 'PUT', 'GET']);
-    expect(salary.calls.find((c) => c.method === 'POST')?.body).toMatchObject({ account: 'Salary', budget_amount: '60000.00', amended_from: 'OLD-Salary' });
+    expect(salary.calls.find((c) => c.method === 'POST')?.body).toMatchObject({ account: 'Salary', budget_amount: 60000, amended_from: 'OLD-Salary' });
     expect(salaryResult.canonical.id).toBe(VERSION);
     expect(salaryResult.canonical.erp_account).toBe('Salary');
 
