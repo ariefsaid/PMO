@@ -18,6 +18,20 @@ const baseDoc: ProjectDocumentRow = {
   file_path: 'org-1/proj-1/parent-1/foundation-ga.pdf',
   parent_document_id: null,
   created_at: '2026-05-10T00:00:00Z',
+  source: 'upload',
+  ms_drive_id: null,
+  ms_item_id: null,
+  ms_web_url: null,
+  ms_item_name: null,
+  ms_item_kind: null,
+  ms_linked_by: null,
+  ms_linked_at: null,
+  ms_last_verified_at: null,
+  ms_content_tag_at_issue: null,
+  ms_version_id_at_issue: null,
+  ms_drift_state: null,
+  ms_check_claim: null,
+  ms_check_claimed_at: null,
 };
 
 describe('NewRevisionModal', () => {

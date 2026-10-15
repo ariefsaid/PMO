@@ -4,6 +4,7 @@ import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -11,6 +12,7 @@ import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
 
 export type BudgetVersionRow = Tables<'budget_versions'>;
 export type BudgetLineItemRow = Tables<'budget_line_items'>;
+export type BudgetDocumentLinkRow = Tables<'budget_version_document_links'>;
 
 export type BudgetVersionWithItems = BudgetVersionRow & {
   /** All line-items belonging to this version. */
@@ -469,6 +471,52 @@ export async function archiveVersion(versionId: string): Promise<void> {
  * `budget_version.delete` audit row. A non-Admin attempt raises 42501 naming the cascade, so the
  * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
+export async function listBudgetDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]> {
+  const { data, error } = await supabase
+    .from('budget_version_document_links')
+    .select('*')
+    .eq('budget_version_id', versionId)
+    .order('ms_linked_at')
+    .order('id');
+  if (error) throw toAppError(error);
+  return data ?? [];
+}
+
+export async function addBudgetDocumentLink(
+  versionId: string,
+  reference: MicrosoftReferenceInput,
+): Promise<BudgetDocumentLinkRow> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('budget_version_document_links')
+    .insert({
+      budget_version_id: versionId,
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url,
+      ms_item_name: reference.name,
+      ms_item_kind: reference.item_kind,
+    })
+    .select()
+    .single();
+  if (error) throw toAppError(error);
+  return data as BudgetDocumentLinkRow;
+}
+
+export async function removeBudgetDocumentLink(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('budget_version_document_links')
+    .delete()
+    .eq('id', id)
+    .select('id');
+  if (error) throw toAppError(error);
+  assertWriteLanded(data, 'Document link not found or you do not have permission to remove it.');
+}
+
 export async function deleteDraftVersion(versionId: string): Promise<void> {
   const { data, error } = await supabase
     .from('budget_versions')

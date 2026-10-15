@@ -35,6 +35,7 @@ const REQUIRED = {
   'supabase/functions/external-disconnect/disconnect.test.ts': 'handleDisconnectRequest',
   'supabase/functions/erpnext-onboard/onboard.test.ts': 'handleOnboardRequest',
   'supabase/functions/telegram-notify/index.test.ts': 'handleTelegramNotifyRequest',
+  'supabase/functions/m365-token-custody/documentLinking.test.ts': 'handler',
 };
 
 /** Copy anti-patterns: a test re-implementing what it should import. */

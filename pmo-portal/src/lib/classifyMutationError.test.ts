@@ -29,6 +29,21 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(out.rawDetail).toBe('duplicate key value violates unique constraint');
   });
 
+  it('AC-M365DOC-062 23514 source collision → safe recovery copy without raw DB detail', () => {
+    const error = new AppError('opaque database error', '23514', 'm365-source-collision');
+    expect(classifyMutationError(error)).toMatchObject({
+      detail: 'This entry already has a file or link; refresh and clear it before relinking.',
+      rawDetail: 'opaque database error',
+    });
+  });
+
+  it('AC-M365DOC-062 unknown 23514 check detail is replaced with safe generic copy', () => {
+    const error = new AppError('new row violates check constraint "synthetic_rule"', '23514');
+    const result = classifyMutationError(error);
+    expect(result.detail).toBe('This change conflicts with the current document state. Refresh and try again.');
+    expect(result.detail).not.toMatch(/synthetic_rule|constraint|violates/i);
+  });
+
   it('23503 → still-in-use headline (in-use delete)', () => {
     const e = Object.assign(
       new Error('update or delete on table "companies" violates foreign key constraint'),
