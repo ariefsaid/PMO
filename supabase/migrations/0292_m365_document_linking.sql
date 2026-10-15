@@ -44,6 +44,16 @@ revoke all on function public.m365_ref_complete(text,text,text,text,text,uuid,ti
 grant execute on function public.m365_browser_url_valid(text) to authenticated, service_role;
 grant execute on function public.m365_ref_complete(text,text,text,text,text,uuid,timestamptz) to authenticated, service_role;
 
+alter table public.procurement_documents
+  add column source public.doc_source,
+  add column ms_drive_id text,
+  add column ms_item_id text,
+  add column ms_item_name text,
+  add column ms_item_kind text,
+  add column ms_linked_by uuid references public.profiles(id),
+  add column ms_linked_at timestamptz,
+  add column ms_last_verified_at timestamptz;
+
 alter table public.project_documents
   add constraint project_documents_source_complete check (((
     (source is null and file_path is null and num_nonnulls(
@@ -63,4 +73,12 @@ alter table public.project_documents
       and ((ms_check_claim is null)=(ms_check_claimed_at is null))
       and (ms_item_kind='file' or num_nonnulls(ms_content_tag_at_issue,ms_version_id_at_issue,
         ms_drift_state,ms_check_claim,ms_check_claimed_at)=0))
+  ) is true));
+
+alter table public.procurement_documents
+  add constraint procurement_documents_source_complete check (((
+    (source is null and num_nonnulls(ms_drive_id,ms_item_id,ms_item_name,ms_item_kind,
+      ms_linked_by,ms_linked_at,ms_last_verified_at)=0)
+    or (source='onedrive' and public.m365_ref_complete(ms_drive_id,ms_item_id,link,
+      ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at))
   ) is true));
