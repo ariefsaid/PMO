@@ -204,3 +204,12 @@ export function listChildren(driveId: string, folderId?: string): Promise<GraphP
     : `/drives/${drive}/root/children`;
   return readGraphPage({ path, query: { '$top': '100' } }, decodeItem);
 }
+
+export function searchDrive(driveId: string, term: string): Promise<GraphPage<GraphItem>> {
+  const escapedLiteral = `'${term.replace(/'/g, "''")}'`;
+  const encodedLiteral = encodeURIComponent(escapedLiteral).replace(/'/g, '%27');
+  return readGraphPage({
+    path: `/drives/${segment(driveId)}/root/search(q=${encodedLiteral})`,
+    query: { '$top': '100' },
+  }, decodeItem);
+}

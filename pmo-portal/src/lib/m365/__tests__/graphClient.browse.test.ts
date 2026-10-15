@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
-import { browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, parseNextLink } from '../graphClient';
+import { browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, parseNextLink, searchDrive } from '../graphClient';
 import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
 
 describe('Graph metadata browse transport', () => {
@@ -59,6 +59,15 @@ describe('Graph metadata browse transport', () => {
     expect(scopeCoversPath(['Files.Read', 'Files.Read.All', 'Sites.Read.All'], 'GET', '/me/messages')).toBe(false);
     expect(() => listDrives('../mail')).toThrow();
     expect(() => listChildren('drive%2Fmail')).toThrow();
+  });
+
+  it('AC-M365DOC-057 escapes OData search terms and keeps paging query separate', async () => {
+    invoke.mockResolvedValue({ data: { value: [] }, error: null });
+    await searchDrive('drive-id', "O'Brien");
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: {
+      action: 'graph_proxy', method: 'GET', path: "/drives/drive-id/root/search(q=%27O%27%27Brien%27)",
+      query: { '$top': '100' },
+    } });
   });
 
   it('AC-M365DOC-067 parses only same-resource Graph cursors and pins the page size', () => {
