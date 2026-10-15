@@ -364,3 +364,119 @@ create policy m365_settings_insert on public.org_m365_document_settings for inse
 create policy m365_settings_update on public.org_m365_document_settings for update to authenticated
   using (org_id=public.auth_org_id() and public.is_active_member() and public.auth_role()='Admin')
   with check (org_id=public.auth_org_id() and public.is_active_member() and public.auth_role()='Admin');
+
+create or replace function public.audit_project_document_update() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if (new.status,new.author_id,new.title,new.code,new.category,new.revision,new.doc_date,new.file_path,
+      new.project_id,new.parent_document_id)
+     is not distinct from
+     (old.status,old.author_id,old.title,old.code,old.category,old.revision,old.doc_date,old.file_path,
+      old.project_id,old.parent_document_id) then
+    return new;
+  end if;
+  perform public.log_audit('project_document.update',new.org_id,auth.uid(),new.id,
+    jsonb_build_object('status',new.status::text,'author_id',new.author_id,
+      'from_title',old.title,'to_title',new.title,'from_code',old.code,'to_code',new.code,
+      'from_category',old.category,'to_category',new.category,'from_revision',old.revision,
+      'to_revision',new.revision,'from_doc_date',old.doc_date,'to_doc_date',new.doc_date,
+      'from_file_path',old.file_path,'to_file_path',new.file_path));
+  return new;
+end; $$;
+
+create function public.audit_project_document_m365() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if tg_op='DELETE' then
+    if old.source='onedrive' then
+      perform public.log_audit('project_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+        jsonb_build_object('project_id',old.project_id,'ms_drive_id',old.ms_drive_id,
+          'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
+    end if;
+    return old;
+  end if;
+  if tg_op='INSERT' and new.source='onedrive' then
+    perform public.log_audit('project_document.m365_linked',new.org_id,auth.uid(),new.id,
+      jsonb_build_object('project_id',new.project_id,'ms_drive_id',new.ms_drive_id,
+        'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
+  elsif tg_op='UPDATE' and old.source is distinct from new.source then
+    if new.source='onedrive' then
+      perform public.log_audit('project_document.m365_linked',new.org_id,auth.uid(),new.id,
+        jsonb_build_object('project_id',new.project_id,'ms_drive_id',new.ms_drive_id,
+          'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
+    elsif old.source='onedrive' and new.source is null then
+      perform public.log_audit('project_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+        jsonb_build_object('project_id',old.project_id,'ms_drive_id',old.ms_drive_id,
+          'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
+    end if;
+  end if;
+  return new;
+end; $$;
+
+create function public.audit_procurement_document_m365() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if tg_op='DELETE' then
+    if old.source='onedrive' then
+      perform public.log_audit('procurement_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+        jsonb_build_object('procurement_id',old.procurement_id,'ms_drive_id',old.ms_drive_id,
+          'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
+    end if;
+    return old;
+  end if;
+  if tg_op='INSERT' and new.source='onedrive' then
+    perform public.log_audit('procurement_document.m365_linked',new.org_id,auth.uid(),new.id,
+      jsonb_build_object('procurement_id',new.procurement_id,'ms_drive_id',new.ms_drive_id,
+        'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
+  elsif tg_op='UPDATE' and old.source is distinct from new.source then
+    if new.source='onedrive' then
+      perform public.log_audit('procurement_document.m365_linked',new.org_id,auth.uid(),new.id,
+        jsonb_build_object('procurement_id',new.procurement_id,'ms_drive_id',new.ms_drive_id,
+          'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
+    elsif old.source='onedrive' and new.source is null then
+      perform public.log_audit('procurement_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+        jsonb_build_object('procurement_id',old.procurement_id,'ms_drive_id',old.ms_drive_id,
+          'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
+    end if;
+  end if;
+  return new;
+end; $$;
+
+create function public.audit_budget_version_document_m365() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if tg_op='INSERT' then
+    perform public.log_audit('budget_version_document.m365_linked',new.org_id,auth.uid(),new.id,
+      jsonb_build_object('budget_version_id',new.budget_version_id,'ms_drive_id',new.ms_drive_id,
+        'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
+    return new;
+  end if;
+  perform public.log_audit('budget_version_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+    jsonb_build_object('budget_version_id',old.budget_version_id,'ms_drive_id',old.ms_drive_id,
+      'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
+  return old;
+end; $$;
+
+create function public.audit_org_m365_document_settings() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if (old.default_site_id,old.default_drive_id) is distinct from (new.default_site_id,new.default_drive_id) then
+    perform public.log_audit('org_m365_document_settings.default_changed',new.org_id,auth.uid(),new.org_id,
+      jsonb_build_object('from_site_id',old.default_site_id,'to_site_id',new.default_site_id,
+        'from_drive_id',old.default_drive_id,'to_drive_id',new.default_drive_id));
+  end if;
+  return new;
+end; $$;
+
+revoke all on function public.audit_project_document_m365() from public,anon,authenticated;
+revoke all on function public.audit_procurement_document_m365() from public,anon,authenticated;
+revoke all on function public.audit_budget_version_document_m365() from public,anon,authenticated;
+revoke all on function public.audit_org_m365_document_settings() from public,anon,authenticated;
+create trigger project_document_m365_audit after insert or update or delete on public.project_documents
+  for each row execute function public.audit_project_document_m365();
+create trigger procurement_document_m365_audit after insert or update or delete on public.procurement_documents
+  for each row execute function public.audit_procurement_document_m365();
+create trigger budget_version_document_m365_audit after insert or delete on public.budget_version_document_links
+  for each row execute function public.audit_budget_version_document_m365();
+create trigger org_m365_document_settings_audit after update on public.org_m365_document_settings
+  for each row execute function public.audit_org_m365_document_settings();
