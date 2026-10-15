@@ -892,6 +892,84 @@ export type Database = {
           },
         ]
       }
+      budget_version_account_erp_mirror: {
+        Row: {
+          activated_at_witness: string | null
+          budget_intent: string
+          budget_version_id: string
+          created_at: string
+          erp_account: string
+          erp_budget_name: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          fiscal_year: string
+          id: string
+          org_id: string
+          push_error: string | null
+          push_state: string
+          pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          unmapped_categories: string[] | null
+        }
+        Insert: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Update: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id?: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year?: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_versions: {
         Row: {
           activated_at: string | null
