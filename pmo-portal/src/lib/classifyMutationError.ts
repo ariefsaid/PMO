@@ -135,7 +135,7 @@ function boundOperation(operation: ClassifyOperation | undefined): ClassifyOpera
  */
 const KNOWN_REASON_CODES = new Set([
   // Postgres/PostgREST codes already classified in classifyCode() below.
-  'P0001', '42501', '23505', '23503', 'REQUEST_TIMEOUT',
+  'P0001', '42501', '23505', '23503', '23514', 'REQUEST_TIMEOUT',
   // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
   'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
@@ -177,6 +177,7 @@ function boundReasonCode(code: string | undefined): string {
  * docstring for why app-authored messages are deliberately absent.
  */
 const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
+  '23514': 'This change conflicts with the current document state. Refresh and try again.',
   '42501': 'Your role does not allow this change. Ask an administrator if you think it should.',
   '23505': 'Another record already uses one of these values. Change it and try again.',
   '23503': 'Another record still refers to this one. Remove or reassign those references first, or archive it instead.',
@@ -267,7 +268,15 @@ export function classifyMutationError(
   const detailOverride = code && context?.detailOverrides && Object.prototype.hasOwnProperty.call(context.detailOverrides, code)
     ? context.detailOverrides[code]
     : undefined;
-  const detail = detailOverride ?? generated ?? rawDetail;
+  const databaseDetails = typeof (err as { details?: unknown } | null)?.details === 'string'
+    ? (err as { details: string }).details
+    : undefined;
+  const safeCheckDetail = code === '23514'
+    ? databaseDetails === 'm365-source-collision'
+      ? 'This entry already has a file or link; refresh and clear it before relinking.'
+      : POSTGRES_GENERATED_DETAIL['23514']
+    : undefined;
+  const detail = detailOverride ?? safeCheckDetail ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS

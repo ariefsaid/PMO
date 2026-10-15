@@ -265,12 +265,15 @@ export async function prepareUpload(
   validateUploadExtension(fileName);
   const { data: doc, error: fetchError } = await supabase
     .from('project_documents')
-    .select('id, org_id, project_id, file_path, status')
+    .select('id, org_id, project_id, file_path, status, source')
     .eq('id', docId)
     .maybeSingle();
   if (fetchError) throwWrite(fetchError);
   if (!doc) throw new AppError('Document not found');
   if (doc.status !== 'Draft') throw new AppError('Cannot upload to a document that is not Draft', '42501');
+  if (doc.source === 'onedrive') {
+    throw new AppError('This document already has a Microsoft reference.', '23514', 'm365-source-collision');
+  }
 
   const path = buildStoragePath(doc.org_id, doc.project_id, docId, fileName);
 
@@ -290,7 +293,7 @@ export async function prepareUpload(
 export async function confirmUpload(docId: string, path: string): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')
-    .update({ file_path: path })
+    .update({ file_path: path, source: 'upload' })
     .eq('id', docId)
     .select('id');
   if (error) throwWrite(error);
