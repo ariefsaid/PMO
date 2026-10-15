@@ -87,3 +87,28 @@ Deno.test('AC-PFIN-004 authorized maintenance request runs one explicit repair b
     (Deno.env as unknown as { get: unknown }).get = originalGet;
   }
 });
+
+Deno.test('the pg_cron tick body `{}` (erpnext_sweep_tick sends it) runs the normal sweep, never a 400', async () => {
+  const originalGet = Deno.env.get;
+  const originalFetch = globalThis.fetch;
+  const paths: string[] = [];
+  (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) => ({
+    ERPNEXT_SWEEP_SECRET: 'synthetic-sweep-secret', SUPABASE_URL: 'https://supabase.example.test',
+    SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-key',
+  } as Record<string, string>)[key];
+  globalThis.fetch = (async (input) => {
+    paths.push(new URL(String(input instanceof Request ? input.url : input)).pathname);
+    return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    const response = await served!(new Request('https://edge.example.test/erpnext-sweep', {
+      method: 'POST', headers: { authorization: 'Bearer synthetic-sweep-secret', 'content-type': 'application/json' },
+      body: '{}',
+    }));
+    assert(response.status === 200, `the cron tick is a normal sweep; got ${response.status}`);
+    assert(paths.some((p) => p.endsWith('/external_org_bindings')), 'the normal sweep reads the org bindings');
+  } finally {
+    globalThis.fetch = originalFetch;
+    (Deno.env as unknown as { get: unknown }).get = originalGet;
+  }
+});

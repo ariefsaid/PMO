@@ -4,13 +4,21 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-15) — v0.19.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-15) — v0.20.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-15):** release **v0.19.0** — `production` == `main` == `dev` == `bc251d76` (tag `v0.19.0`);
-hosted DB at **0289** (0287/0288 are unused numbers held by in-flight branches — they must renumber above 0289 before
-merging); all edge functions stamped `bc251d76` (`/functions/v1/health`). After-push probes (owner-run
-`run-prod-probes`): anon-executable definers = the 4 RLS helpers · `second-org-smoke` 20/0 ·
-`second-org-roles-smoke` 81/0 · `isolation-probe` 238 checks / 0 leaks (187 skips need a disposable tenant A).
+**Live (owner yes, 2026-10-15):** release **v0.20.0** — `production` == `main` == `6ec6491f` (tag `v0.20.0`);
+hosted DB at **0291**; all edge functions stamped `6ec6491f`. After-push probes (owner-run): anon-executable
+definers = the 4 RLS helpers · `second-org-smoke` 0 fails · `second-org-roles-smoke` 81/0 · `isolation-probe`
+241 checks / 0 leaks (189 skips need a disposable tenant A).
+
+**What v0.20.0 carries (over v0.19.0):** project finances — ERPNext invoices adopted onto their project, Finance/Admin
+assign the rest, one finance view (#1008/#1028, 0290) · JISDOR exchange-rate table + rupiah equivalents (#1012/#1026,
+0291) · the Material Request sweep stops requesting a field v16 lacks (#1034) · e2e repairs (#1031, #1036) · CI
+integration timeout 30 → 45 min (#1032).
+
+**ERPNext v16 (DD-OPS-12):** RIS stays on v16. Every push body passes on v16 except Budget, which v16 stores one per
+account — rebuild in progress (#1033, spec `docs/specs/budget-push-v16.spec.md`, ADR-0086 on its branch). **No
+budget activation on a v16 org until it ships.**
 
 **What v0.19.0 carries (over v0.18.0):** import rows say why they failed (#996) · one read-only path for production
 queries (#1003) · an ERPNext Customer/Supplier rename reaches PMO (#1005) · sweep failures recorded and alerted
