@@ -9,7 +9,7 @@
  */
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
-import { getDoc, listDocsByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import { getDoc, listDocsByFilters, type ErpClientDeps, type ErpRateLimiter, type ErpFilter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { findPmoRecordId, resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import { packTimeLogs } from './timeLogPacking.ts';
@@ -19,6 +19,8 @@ import { AdapterError } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
+import { parseBudgetIdentity } from './budgetAccountIdentity.ts';
+import { resolveV16BudgetAccounts } from './budgetAccountPlan.ts';
 import { listErpItems, validateItemLines } from './itemCatalog.ts';
 import { readNegativeRatesAllowed } from './erpSellingSettings.ts';
 import { resolveSalesTaxRows, type ErpTaxRow } from './erpSalesTaxRows.ts';
@@ -884,6 +886,9 @@ async function resolveBudgetRefs(
     line_items?: unknown;
     /** FR-BFY-032: the year-qualified outbox/external_refs identity, derived at the served boundary. */
     outbox_identity?: unknown;
+    erp_account?: unknown;
+    budget_intent?: unknown;
+    budget_predecessor?: unknown;
   };
   const project = resolveErpProjectName(binding.config, record.projectId);
   const refs: Record<string, string | null> = { project };
@@ -901,11 +906,36 @@ async function resolveBudgetRefs(
   // (`resolveBudgetAccounts` — the same pure function `budgetToBody` uses, never a second copy of the
   // rule) rather than re-deriving it; identical stance to `resolveTimesheetRefs`'s `packTimeLogs`
   // pre-flight. An empty result is left for `budgetToBody` to reject with its own exact message.
-  const accounts = resolveBudgetAccounts(
-    (record.line_items as BudgetLineItem[] | undefined) ?? [],
-    (budgetConfig.category_account_map as CategoryAccountMapRow[] | undefined) ?? [],
-  );
-  if (accounts.length === 0) return { refs };
+  const major = binding.version_major;
+  if (major !== 15 && major !== 16) throw new AppError('budget push requires a supported ERP binding version', 'config-rejected');
+  const lineItems = (record.line_items as BudgetLineItem[] | undefined) ?? [];
+  const accountMap = (budgetConfig.category_account_map as CategoryAccountMapRow[] | undefined) ?? [];
+  let selectedAccount: string | null = null;
+  if (major === 16) {
+    let identity: ReturnType<typeof parseBudgetIdentity>;
+    try {
+      if (typeof record.outbox_identity !== 'string' || typeof record.erp_account !== 'string') throw new Error();
+      identity = parseBudgetIdentity(record.outbox_identity);
+    } catch {
+      throw new AppError('v16 budget command has an invalid account identity', 'config-rejected');
+    }
+    if (identity.erpAccount !== record.erp_account || identity.fiscalYear !== fiscalYear ||
+        (record.budget_intent !== 'ensure' && record.budget_intent !== 'remove')) {
+      throw new AppError('v16 budget command dimensions do not match its identity', 'config-rejected');
+    }
+    selectedAccount = record.erp_account;
+    if (record.budget_intent === 'ensure') {
+      const resolved = resolveV16BudgetAccounts(lineItems, accountMap);
+      if (resolved.filter((row) => row.account === selectedAccount).length !== 1) {
+        throw new AppError(`budget push: selected account ${selectedAccount} is not in the current plan`, 'commit-rejected');
+      }
+    } else if (typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
+      throw new AppError(`budget push: removal for account ${selectedAccount} has no witnessed predecessor`, 'commit-rejected');
+    }
+  } else {
+    const accounts = resolveBudgetAccounts(lineItems, accountMap);
+    if (accounts.length === 0) return { refs };
+  }
 
   // ⚑ HIGH-1 (audit round 5) — READ THE WHOLE GRAIN, not just its live occupant: `docstatus < 2` is
   // every document ERPNext's duplicate guard counts (spike §8 — the guard fires against a DRAFT exactly
@@ -925,17 +955,16 @@ async function resolveBudgetRefs(
   const grain = await listDocsByFilters(
     clientDeps,
     'Budget',
-    [
+    ([
       ['company', '=', company],
       ['project', '=', project],
-      ['fiscal_year', '=', fiscalYear],
+      ...(major === 16
+        ? [['account', '=', selectedAccount!], ['from_fiscal_year', '=', fiscalYear]]
+        : [['fiscal_year', '=', fiscalYear]]),
       ['docstatus', '<', 2],
-    ],
-    // ⚑ MED-1 (round 6): `amended_from` carries the draft's LINEAGE. ⚑ LOW-1 (round 7): `owner` carries
-    // its AUTHOR — the half that was missing, and the half that decides whether adopting it would
-    // overwrite a human's work. Both are plain list fields: one read, zero extra calls.
+    ] as ErpFilter[]),
     ['name', 'docstatus', 'amended_from', 'owner'],
-    5, // a handful is plenty to classify the grain; we never need to enumerate it
+    5,
   );
   const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
   const draftRows = grain.filter((row) => Number(row.docstatus) === 0);
@@ -945,8 +974,10 @@ async function resolveBudgetRefs(
   // accounts. Fail CLOSED, zero writes: the adapter never picks one to supersede.
   if (live.length > 1) {
     throw new AppError(
-      `budget push: ${live.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
-        `an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`,
+      major === 16
+        ? `budget push: ${live.length} live ERPNext Budgets already exist for account ${selectedAccount} in fiscal year ${fiscalYear} (${company}, ${project}) — an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`
+        : `budget push: ${live.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
+          `an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`,
       'commit-rejected',
     );
   }
@@ -984,7 +1015,7 @@ async function resolveBudgetRefs(
   // behaviour, and `dispatchFactory.budgetRecovery.test.ts` guards it.
   if (drafts.length > 0) {
     throw new AppError(
-      `budget push: ERPNext already holds a DRAFT Budget for (${company}, ${fiscalYear}, ${project}) — ` +
+      `budget push: ERPNext already holds a DRAFT Budget for ${major === 16 ? `account ${selectedAccount} in fiscal year ${fiscalYear} (${company}, ${project})` : `(${company}, ${fiscalYear}, ${project})`} — ` +
         `${drafts.join(', ')}. ERPNext refuses a second Budget on this grain while a draft exists, so PMO ` +
         'cannot revise the budget until an operator submits or deletes that draft.' +
         (live.length === 0
@@ -1029,11 +1060,34 @@ async function resolveBudgetRefs(
     );
     if (owner === null) {
       throw new AppError(
-        `budget push: ERPNext already holds a LIVE Budget for (${company}, ${fiscalYear}, ${project}) — ${live[0]} — ` +
+        `budget push: ERPNext already holds a LIVE Budget for ${major === 16 ? `account ${selectedAccount} in fiscal year ${fiscalYear} (${company}, ${project})` : `(${company}, ${fiscalYear}, ${project})`} — ${live[0]} — ` +
           'that PMO did not create. PMO will not cancel or amend a Budget it does not own: an operator must ' +
           'either remove that document or accept it as the authority for this project and fiscal year.',
         'budget-unowned-live-occupant',
       );
+    }
+    if (major === 16) {
+      let sourceIdentity: ReturnType<typeof parseBudgetIdentity>;
+      try { sourceIdentity = parseBudgetIdentity(owner); } catch {
+        throw new AppError(`budget push: existing ${selectedAccount} Budget has no valid account ownership witness`, 'commit-rejected');
+      }
+      if (sourceIdentity.erpAccount !== selectedAccount || sourceIdentity.fiscalYear !== fiscalYear) {
+        throw new AppError(`budget push: existing ${selectedAccount} Budget is not witnessed for this account and year`, 'commit-rejected');
+      }
+      const { data: witness, error: witnessError } = await deps.serviceClient
+        .from('budget_version_account_erp_mirror')
+        .select('budget_version_id,fiscal_year,erp_account,erp_budget_name,budget_versions!inner(project_id)')
+        .eq('org_id', deps.orgId)
+        .eq('budget_version_id', sourceIdentity.versionId)
+        .eq('fiscal_year', fiscalYear)
+        .eq('erp_account', selectedAccount!)
+        .eq('erp_budget_name', live[0])
+        .eq('budget_versions.project_id', String(record.projectId))
+        .maybeSingle();
+      const witnessRow = witness as { erp_budget_name?: string } | null;
+      if (witnessError || !witnessRow || witnessRow.erp_budget_name !== live[0]) {
+        throw new AppError(`budget push: existing ${selectedAccount} Budget lacks a same-project account witness`, 'commit-rejected');
+      }
     }
     refs.self = live[0];
   }
@@ -1478,6 +1532,24 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   if (!binding.activated_at) {
     throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
   }
+  if (isBudgetCommand(deps.command)) {
+    const major = binding.version_major;
+    if (major !== 15 && major !== 16) throw new AppError('budget push requires a supported ERP binding version', 'config-rejected');
+    const identity = deps.command.record.outbox_identity;
+    const account = deps.command.record.erp_account;
+    if ((typeof identity === 'string' && identity.includes(':a:')) !== (major === 16) ||
+        (major === 16 && (typeof identity !== 'string' || typeof account !== 'string'))) {
+      throw new AppError('budget account identity does not match the active ERP binding', 'config-rejected');
+    }
+    if (major === 16) {
+      try {
+        const parsed = parseBudgetIdentity(identity as string);
+        if (parsed.erpAccount !== account || parsed.fiscalYear !== deps.command.record.fiscal_year) throw new Error();
+      } catch {
+        throw new AppError('budget account identity does not match the command dimensions', 'config-rejected');
+      }
+    }
+  }
 
   // Luna re-audit BLOCK 2 (+ round-7 B10, the procurement half) — the cross-org link pre-flight runs
   // FIRST: before ref resolution (which can issue ERP GETs), before the adapter is constructed, and
@@ -1577,6 +1649,15 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
+      ...(isBudgetCommand(deps.command) ? {
+        versionMajor: binding.version_major as 15 | 16,
+        ...(binding.version_major === 16 ? {
+          budgetAccount: {
+            intent: deps.command.record.budget_intent as 'ensure' | 'remove',
+            predecessor: (deps.command.record.budget_predecessor as string | null) ?? null,
+          },
+        } : {}),
+      } : {}),
     },
     validateAuthoringPartyIdentity: async (command) => {
       const kind = command.record.erp_doc_kind;

@@ -117,6 +117,10 @@ export interface BudgetGateResult {
   projectEndDate: string | null;
   /** The ADR-0059 §4 activation stamp (mig 0139) — the deterministic per-year key's epoch source. */
   activatedAt: string;
+  /** The exact Admin map snapshot validated by the gate, reused for v16 account fan-out. */
+  categoryMap: CategoryAccountMapRow[];
+  /** Live-calendar fiscal years overlapping the current project span; v16 removals may only target these. */
+  inSpanFiscalYears: string[];
 }
 
 /** The `Fiscal Year` whose [year_start_date, year_end_date] contains `date` (inclusive), or null.
@@ -334,6 +338,8 @@ export async function runBudgetGate(deps: BudgetGateDeps): Promise<BudgetGateRes
     projectId: project.id,
     activatedAt: version.activated_at,
     plan,
+    categoryMap: map,
+    inSpanFiscalYears: [...span.inSpanFYNames],
     projectStartDate: project.start_date,
     projectEndDate: project.end_date,
   };

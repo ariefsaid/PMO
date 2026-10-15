@@ -44,6 +44,9 @@ import {
   type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+import { budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { planBudgetAccountIntents, resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
+import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 // BFY (FR-BFY-031/032): the canonical fiscal-year encoding + the per-year deterministic key. Both are
 // server-side ONLY — the client cannot derive either (it cannot read the client's Fiscal Year doctype).
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
@@ -215,12 +218,15 @@ const erpRateLimiter = { acquire: async () => {} };
 interface ErpBindingRow {
   site_url: string;
   secret_ref: string;
+  version_major: number | null;
+  config: Record<string, unknown> | null;
+  activated_at: string | null;
 }
 
 async function resolveErpBindingRow(serviceClient: SupabaseClient, orgId: string): Promise<ErpBindingRow> {
   const { data, error } = await serviceClient
     .from('external_org_bindings')
-    .select('site_url, secret_ref')
+    .select('site_url, secret_ref, version_major, config, activated_at')
     .eq('org_id', orgId)
     .eq('external_tier', ERPNEXT_TIER)
     .maybeSingle();
@@ -235,6 +241,9 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     throw new AppError('external integrations are disabled by the operator', 'config-rejected');
   }
   const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
+  if (isBudgetPushCommand(ctx.command) && binding.version_major !== 15 && binding.version_major !== 16) {
+    throw new AppError('budget push requires an ERP binding with supported version major 15 or 16', 'config-rejected');
+  }
   const { apiKey, apiSecret } = await resolveErpAuthPair(ctx.serviceClient, { orgId: ctx.orgId, secretRef: binding.secret_ref }, ctx.erpAuth);
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
@@ -577,20 +586,26 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
  *  no activation stamp) has no fiscal year to key a row on, and `budget_version_erp_mirror`'s own writer
  *  (`readModelWriters.ts`) already refuses a fiscal-year-less row for the identical reason. Best-effort —
  *  a failure to record this must never mask the rejection the caller already gets. */
-async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: string, versionId: string, err: BudgetGateError): Promise<void> {
+async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: string, versionId: string, err: BudgetGateError, versionMajor?: number | null): Promise<void> {
   if (!err.fiscalYear) return;
   try {
-    await serviceClient.from('budget_version_erp_mirror').upsert(
-      {
-        org_id: orgId,
-        budget_version_id: versionId,
-        fiscal_year: err.fiscalYear,
-        push_state: 'failed',
-        push_error: err.code,
-        unmapped_categories: err.unmappedCategories ?? null,
-      },
-      { onConflict: 'org_id,budget_version_id,fiscal_year' },
-    );
+    const row = {
+      org_id: orgId,
+      budget_version_id: versionId,
+      fiscal_year: err.fiscalYear,
+      push_state: 'failed',
+      push_error: err.code,
+      unmapped_categories: err.unmappedCategories ?? null,
+    };
+    if (versionMajor === 16) {
+      await serviceClient.from('budget_version_account_erp_mirror').upsert({
+        ...row, erp_account: '', budget_intent: 'ensure',
+      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+    } else {
+      await serviceClient.from('budget_version_erp_mirror').upsert(row, {
+        onConflict: 'org_id,budget_version_id,fiscal_year',
+      });
+    }
   } catch (mirrorErr) {
     console.error('[adapter-dispatch] failed to record budget gate failure:', mirrorErr);
   }
@@ -846,8 +861,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // map (FR-BUD-113) BEFORE any ERP call. A non-employing org is a benign no-op (see `orgEmploysErpnext`).
   // On a PASS, server truth (never the payload) REPLACES the fields the push body is built from.
   /** BFY: one per-year dispatch unit of the gate's push plan (null for every non-budget command). */
+  let budgetVersionMajor: 15 | 16 | null = null;
   let budgetUnits: Array<{
     fiscalYear: string;
+    erpAccount: string | null;
     /** `<budget_version_id>:<encoded_fiscal_year>` — the outbox + external_refs identity. */
     identity: string;
     idempotencyKey: string;
@@ -870,6 +887,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     const targetFiscalYearRaw = (command.record as { target_fiscal_year?: unknown }).target_fiscal_year;
     const targetFiscalYear = typeof targetFiscalYearRaw === 'string' && targetFiscalYearRaw.length > 0 ? targetFiscalYearRaw : null;
     try {
+      const bindingSnapshot = await resolveErpBindingRow(serviceClient, orgId);
+      const versionMajor = bindingSnapshot.version_major;
+      if (versionMajor !== 15 && versionMajor !== 16) {
+        throw new BudgetGateError('config-rejected', 'budget push requires a supported ERP binding version');
+      }
+      budgetVersionMajor = versionMajor;
       const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, erpAuth));
       // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
       // becomes one command with:
@@ -892,7 +915,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       const planEntries = targetFiscalYear === null
         ? gate.plan
         : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
-      if (targetFiscalYear !== null && planEntries.length === 0) {
+      if (targetFiscalYear !== null && planEntries.length === 0 &&
+          !(versionMajor === 16 && gate.inSpanFiscalYears.includes(targetFiscalYear))) {
         throw new BudgetGateError(
           'commit-rejected',
           `budget push: fiscal year "${targetFiscalYear}" is not a phased year of this budget version`,
@@ -900,30 +924,82 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           targetFiscalYear,
         );
       }
-      budgetUnits = planEntries.map((entry) => {
-        const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
-        const identity = `${gate.versionId}:${encodedFiscalYear}`;
-        return {
-          fiscalYear: entry.fiscal_year,
-          identity,
-          idempotencyKey: budgetPushKey(gate.versionId, encodedFiscalYear, gate.activatedAt),
-          record: {
-            ...command.record,
-            projectId: gate.projectId,
-            fiscal_year: entry.fiscal_year,
-            line_items: entry.line_items,
-            outbox_identity: identity,
-            project_start_date: gate.projectStartDate,
-            project_end_date: gate.projectEndDate,
-            // ⚑ #479 — the ADR-0059 §6 state-stamp witness, on a NON-body field like the span above.
-            // It is the SAME `gate.activatedAt` the idempotency key two lines up is derived from, so
-            // the mirror records the activation the push was actually keyed on rather than one
-            // inferred later. Server-read by `runBudgetGate` from `budget_versions`, never from the
-            // caller's payload — §3.3's rule, and the reason this rides the command at all.
-            activated_at: gate.activatedAt,
-          } as AdapterCommand['record'],
-        };
-      });
+      if (versionMajor === 16) {
+        const history = await fetchAllRowsByKeyset<{ id: string; fiscal_year: string; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null }>((afterId, limit) => {
+          let query = serviceClient.from('budget_version_account_erp_mirror')
+            .select('id,fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,budget_versions!inner(project_id)')
+            .eq('org_id', orgId)
+            .eq('budget_versions.project_id', gate.projectId)
+            .order('id', { ascending: true })
+            .limit(limit);
+          if (afterId !== null) query = query.gt('id', afterId);
+          return query as never;
+        });
+        const outOfSpan = history.find((row) => row.erp_account && row.erp_budget_name && !gate.inSpanFiscalYears.includes(row.fiscal_year));
+        if (outOfSpan) {
+          throw new BudgetGateError(
+            'commit-rejected',
+            `budget push: prior account ${outOfSpan.erp_account} for fiscal year ${outOfSpan.fiscal_year} is outside the current project span and requires operator action`,
+            undefined,
+            outOfSpan.fiscal_year,
+          );
+        }
+        const prior = history.flatMap((row) => row.erp_account && row.erp_budget_name
+          ? [{ fiscalYear: row.fiscal_year, erpAccount: row.erp_account, erpBudgetName: row.erp_budget_name, cancelledAt: row.erp_cancelled_at }]
+          : []);
+        const byYear = new Map(planEntries.map((entry) => [entry.fiscal_year, entry]));
+        const accountYears = (targetFiscalYear ? [targetFiscalYear] : gate.inSpanFiscalYears)
+          .filter((year) => gate.inSpanFiscalYears.includes(year));
+        budgetUnits = accountYears.flatMap((year) => {
+          const entry = byYear.get(year) ?? { fiscal_year: year, line_items: [] };
+          const desired = resolveV16BudgetAccounts(entry.line_items, gate.categoryMap);
+          return planBudgetAccountIntents(year, desired, prior).map((intent) => {
+            const identity = budgetAccountIdentity(gate.versionId, intent.fiscalYear, intent.erpAccount);
+            return {
+              fiscalYear: intent.fiscalYear,
+              erpAccount: intent.erpAccount,
+              identity,
+              idempotencyKey: budgetAccountPushKey(identity, gate.activatedAt),
+              record: {
+                ...command.record,
+                id: gate.versionId,
+                erp_doc_kind: 'budget',
+                projectId: gate.projectId,
+                fiscal_year: intent.fiscalYear,
+                line_items: entry.line_items,
+                erp_account: intent.erpAccount,
+                budget_intent: intent.intent,
+                budget_predecessor: intent.predecessor,
+                outbox_identity: identity,
+                project_start_date: gate.projectStartDate,
+                project_end_date: gate.projectEndDate,
+                activated_at: gate.activatedAt,
+              } as AdapterCommand['record'],
+            };
+          });
+        });
+      } else {
+        budgetUnits = planEntries.map((entry) => {
+          const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
+          const identity = `${gate.versionId}:${encodedFiscalYear}`;
+          return {
+            fiscalYear: entry.fiscal_year,
+            erpAccount: null,
+            identity,
+            idempotencyKey: budgetPushKey(gate.versionId, encodedFiscalYear, gate.activatedAt),
+            record: {
+              ...command.record,
+              projectId: gate.projectId,
+              fiscal_year: entry.fiscal_year,
+              line_items: entry.line_items,
+              outbox_identity: identity,
+              project_start_date: gate.projectStartDate,
+              project_end_date: gate.projectEndDate,
+              activated_at: gate.activatedAt,
+            } as AdapterCommand['record'],
+          };
+        });
+      }
       // The FINAL server-derived key is validated at the served boundary, never trusted (FR-BFY-031).
       // An unencodable/unparseable year is refused BEFORE the outbox, exactly like a client key would be.
       for (const unit of budgetUnits) {
@@ -936,9 +1012,27 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           );
         }
       }
+      if (versionMajor === 16 && budgetUnits.length > 0) {
+        const slots = budgetUnits.map((unit) => ({
+          org_id: orgId,
+          budget_version_id: gate.versionId,
+          fiscal_year: unit.fiscalYear,
+          erp_account: unit.erpAccount,
+          budget_intent: (unit.record as Record<string, unknown>).budget_intent,
+          push_state: 'pending',
+          activated_at_witness: gate.activatedAt,
+          pushed_project_start_date: gate.projectStartDate,
+          pushed_project_end_date: gate.projectEndDate,
+        }));
+        const { error: slotError } = await serviceClient.from('budget_version_account_erp_mirror').upsert(slots, {
+          onConflict: 'org_id,budget_version_id,fiscal_year,erp_account',
+          ignoreDuplicates: true,
+        });
+        if (slotError) throw new BudgetGateError('commit-rejected', 'budget push: could not persist the account unit queue');
+      }
     } catch (err) {
       const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
-      await recordBudgetGateFailure(serviceClient, orgId, versionId, gateErr);
+      await recordBudgetGateFailure(serviceClient, orgId, versionId, gateErr, budgetVersionMajor);
       return new Response(JSON.stringify({ error: 'commit-rejected', message: gateErr.message }), { status: 422, headers });
     }
   }
@@ -1178,25 +1272,41 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // as the span witness above. A failed row that records WHICH activation was attempted is what
       // lets an operator tell "this push failed" from "a later activation superseded it".
       const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
-      await serviceClient.from('budget_version_erp_mirror').upsert(
-        {
-          org_id: orgId,
-          budget_version_id: versionId,
-          fiscal_year: fiscalYear,
-          push_state: outcome.pushState,
-          push_error: pushError,
-          ...(typeof witnessActivatedAt === 'string' && witnessActivatedAt !== ''
-            ? { activated_at_witness: witnessActivatedAt }
-            : {}),
-          ...(typeof witnessStart === 'string' && witnessStart !== ''
-            ? {
-                pushed_project_start_date: witnessStart,
-                pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
-              }
-            : {}),
-        },
-        { onConflict: 'org_id,budget_version_id,fiscal_year' },
-      );
+      const failureRow = {
+        org_id: orgId,
+        budget_version_id: versionId,
+        fiscal_year: fiscalYear,
+        push_state: outcome.pushState,
+        push_error: pushError,
+        ...(typeof witnessActivatedAt === 'string' && witnessActivatedAt !== ''
+          ? { activated_at_witness: witnessActivatedAt }
+          : {}),
+        ...(typeof witnessStart === 'string' && witnessStart !== ''
+          ? {
+              pushed_project_start_date: witnessStart,
+              pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+            }
+          : {}),
+      };
+      const accountRecord = command.record as { outbox_identity?: unknown; erp_account?: unknown; budget_intent?: unknown };
+      const accountIdentity = typeof accountRecord.outbox_identity === 'string'
+        ? parseBudgetIdentity(accountRecord.outbox_identity)
+        : null;
+      if (accountIdentity?.erpAccount) {
+        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+          ...failureRow,
+          erp_account: accountIdentity.erpAccount,
+          budget_intent: accountRecord.budget_intent === 'remove' ? 'remove' : 'ensure',
+        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      } else if (budgetVersionMajor === 16) {
+        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+          ...failureRow, erp_account: '', budget_intent: 'ensure',
+        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      } else {
+        await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
+          onConflict: 'org_id,budget_version_id,fiscal_year',
+        });
+      }
       await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
         versionId,
         reason: superseded ? pushError : (failure.code ?? failure.message),

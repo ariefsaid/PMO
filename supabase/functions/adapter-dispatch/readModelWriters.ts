@@ -19,6 +19,7 @@ import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
 import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
 import { buildsSalesInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -969,9 +970,17 @@ const budgetWriter: ReadModelWriter = {
     if (kind !== 'budget') {
       throw new AppError(`erpnext budget read-model writer for erp_doc_kind '${String(kind)}' is not wired`, 'UNSUPPORTED_DOMAIN');
     }
+    const record = command.record as { outbox_identity?: unknown; fiscal_year?: unknown; erp_account?: unknown; budget_intent?: unknown };
+    const identity = typeof record.outbox_identity === 'string' ? parseBudgetIdentity(record.outbox_identity) : null;
+    // The account-framed outbox identity and server unit record remain authoritative if a replayed
+    // canonical was persisted by an older/partial finalizer with only its bare PMO id.
+    const fiscalYear = typeof canonical.fiscal_year === 'string'
+      ? canonical.fiscal_year
+      : identity?.erpAccount !== null && identity?.erpAccount !== undefined
+        ? identity.fiscalYear
+        : undefined;
     // The mirror's grain is (budget_version_id x fiscal_year) — a row written without the fiscal year
     // would be a wrong-grain row that the next push could not find, so this fails loudly instead.
-    const fiscalYear = canonical.fiscal_year;
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
       throw new AppError('budget mirror: the pushed budget carries no fiscal year', 'commit-rejected');
     }
@@ -1000,6 +1009,39 @@ const budgetWriter: ReadModelWriter = {
     const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
     if (typeof witnessActivatedAt !== 'string' || witnessActivatedAt === '') {
       throw new AppError('budget mirror: the pushed budget carries no activation witness', 'commit-rejected');
+    }
+    if (identity?.erpAccount !== null && identity?.erpAccount !== undefined) {
+      const account = identity.erpAccount;
+      if (identity.fiscalYear !== fiscalYear || record.erp_account !== account ||
+          (canonical.erp_account !== undefined && canonical.erp_account !== account)) {
+        throw new AppError('budget mirror: account identity does not match canonical lifecycle', 'commit-rejected');
+      }
+      if (record.budget_intent !== 'ensure' && record.budget_intent !== 'remove') {
+        throw new AppError('budget mirror: account intent is invalid', 'commit-rejected');
+      }
+      if (ctx.isReplay) {
+        const { data: existing, error: readError } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+          .from('budget_version_account_erp_mirror').select('erp_cancelled_at')
+          .eq('org_id', ctx.orgId).eq('budget_version_id', String(canonical.id))
+          .eq('fiscal_year', fiscalYear).eq('erp_account', account).maybeSingle();
+        if (readError) throw new AppError(readError.message, readError.code);
+        if ((existing as { erp_cancelled_at?: string | null } | null)?.erp_cancelled_at != null) return;
+      }
+      const { error } = await ctx.serviceClient.from('budget_version_account_erp_mirror').upsert({
+        org_id: ctx.orgId, budget_version_id: canonical.id, fiscal_year: fiscalYear,
+        erp_account: account, budget_intent: record.budget_intent,
+        push_state: 'pushed', push_error: null,
+        pushed_project_start_date: witnessStart,
+        pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+        activated_at_witness: witnessActivatedAt,
+        erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
+        erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+        erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+        erp_cancelled_at: record.budget_intent === 'remove' ? new Date().toISOString() : null,
+        pushed_at: new Date().toISOString(),
+      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      if (error) throw new AppError(error.message, error.code);
+      return;
     }
     // ⚑ BLOCKER 2 (FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. A retry of an already-
     // `confirmed` outbox row converges the STORED canonical (no fresh ERP write). If the accountant
