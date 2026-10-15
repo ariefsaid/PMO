@@ -255,7 +255,7 @@ $$;
 drop function public.project_mapped_actuals(uuid,text);
 drop function public.assign_sales_invoice_project(uuid,uuid);
 drop function public.fill_sales_invoice_project(uuid,uuid,uuid,text);
-drop trigger sales_invoices_project_org_guard on public.sales_invoices;
+drop trigger sales_invoices_zz_check_project_org on public.sales_invoices;
 drop function public.sales_invoice_project_org_guard();
 drop index public.sales_invoices_null_erp_project_scan_idx;
 drop index public.erp_actuals_snapshot_project_read_idx;

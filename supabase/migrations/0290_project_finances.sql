@@ -24,7 +24,7 @@ begin
 end $$;
 alter function public.sales_invoice_project_org_guard() owner to postgres;
 revoke all on function public.sales_invoice_project_org_guard() from public,anon,authenticated;
-create trigger sales_invoices_project_org_guard
+create trigger sales_invoices_zz_check_project_org
 before insert or update of org_id,project_id on public.sales_invoices
 for each row execute function public.sales_invoice_project_org_guard();
 

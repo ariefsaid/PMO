@@ -2414,16 +2414,7 @@
         "title": "Ringkasan keuangan"
       },
       "invoicing": {
-        "contract": "Nilai kontrak",
-        "error": "Total invoice gagal dimuat.",
-        "invoicedToDate": "Invoice sampai saat ini",
-        "loading": "Memuat total invoice…",
-        "remaining": "Sisa yang perlu ditagih",
-        "retry": "Coba lagi",
-        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk.",
-        "title": "Penagihan terhadap kontrak",
-        "unavailable": "Tidak tersedia",
-        "unavailableDetail": "Total invoice tidak dapat dibandingkan dengan mata uang atau basis pajak kontrak ini."
+        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk."
       },
       "procSummary": {
         "closed": "Ditutup",
@@ -3810,6 +3801,7 @@
     "clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced": "Faktur klien yang diterbitkan melalui PMO dan dicerminkan dari ERPNext. Jumlah terutang bersumber dari ERP.",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
+    "clearFilter": "Hapus filter",
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur penjualan",
