@@ -111,3 +111,64 @@ export function browseOneDrive(request: GraphReadRequest): Promise<GraphPage<Gra
     query: { ...(request.query ?? {}), '$top': '100' },
   }, decodeItem);
 }
+
+function segment(value: string): string {
+  const hasControl = [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+  if (!value || value === '.' || value === '..' || value.includes('/') || value.includes('\\')
+      || hasControl || /%2e|%2f|%5c/i.test(value)) {
+    throw new AppError('Microsoft location is invalid.', 'BAD_REQUEST');
+  }
+  return encodeURIComponent(value);
+}
+
+function decodeLocation(value: unknown): GraphSite | GraphDrive | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  const id = readText(item.id);
+  const name = readText(item.name);
+  const webUrl = item.webUrl;
+  if (!id || !name || !validMicrosoftBrowserUrl(webUrl)) return null;
+  return { id, name, web_url: webUrl };
+}
+
+async function readGraphObject<T>(request: GraphReadRequest, decode: (value: unknown) => T | null): Promise<T> {
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<unknown>(FUNCTION_NAME, {
+      body: {
+        action: 'graph_proxy', method: 'GET', path: request.path,
+        ...(request.query ? { query: request.query } : {}),
+      },
+    }),
+  );
+  if (error) await throwBrowseError(error);
+  const value = data ? decode(data) : null;
+  if (!value) throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  return value;
+}
+
+export function listSites(search?: string): Promise<GraphPage<GraphSite>> {
+  return readGraphPage({
+    path: '/sites', query: { search: search || '*', '$top': '100' },
+  }, (value) => decodeLocation(value) as GraphSite | null);
+}
+
+export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> {
+  return readGraphPage({
+    path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' },
+  }, (value) => decodeLocation(value) as GraphDrive | null);
+}
+
+export function getPersonalDrive(): Promise<GraphDrive> {
+  return readGraphObject({ path: '/me/drive' }, (value) => decodeLocation(value) as GraphDrive | null);
+}
+
+export function listChildren(driveId: string, folderId?: string): Promise<GraphPage<GraphItem>> {
+  const drive = segment(driveId);
+  const path = folderId
+    ? `/drives/${drive}/items/${segment(folderId)}/children`
+    : `/drives/${drive}/root/children`;
+  return readGraphPage({ path, query: { '$top': '100' } }, decodeItem);
+}
