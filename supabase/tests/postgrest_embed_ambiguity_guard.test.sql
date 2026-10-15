@@ -47,6 +47,9 @@ select set_eq(
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),
+            -- 0292: project_documents now has multiple profile references. The DAL currently uses
+            -- unqualified row reads only and has no profile embed from this register.
+            ('project_documents -> profiles'),
             ('task_dependencies -> tasks'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the

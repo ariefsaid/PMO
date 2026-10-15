@@ -30,7 +30,7 @@ async function setup(
   const service = mockClient({
     ms_graph_connections: [{ data: await connection(), error: null }],
   });
-  service.rpc.mockImplementation((fn, args) => {
+  service.rpc.mockImplementation((fn) => {
     if (fn === 'm365_membership_state') {
       return Promise.resolve({ data: { state: 'active', org_id: '10200000-0000-0000-0000-000000000001', role: 'Admin' }, error: null });
     }
