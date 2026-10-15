@@ -93,6 +93,24 @@ create table public.budget_version_document_links (
   )
 );
 
+create table public.org_m365_document_settings (
+  org_id uuid primary key default public.auth_org_id()
+    references public.organizations(id) on delete cascade,
+  default_site_id text,
+  default_site_name text,
+  default_drive_id text,
+  default_drive_name text,
+  updated_by uuid not null references public.profiles(id),
+  updated_at timestamptz not null,
+  constraint org_m365_document_settings_default_complete check (((
+    num_nonnulls(default_site_id,default_site_name,default_drive_id,default_drive_name)=0
+    or (default_site_id is not null and btrim(default_site_id)<>''
+      and default_site_name is not null and btrim(default_site_name)<>''
+      and default_drive_id is not null and btrim(default_drive_id)<>''
+      and default_drive_name is not null and btrim(default_drive_name)<>'')
+  ) is true))
+);
+
 alter table public.procurement_documents
   add constraint procurement_documents_source_complete check (((
     (source is null and num_nonnulls(ms_drive_id,ms_item_id,ms_item_name,ms_item_kind,
