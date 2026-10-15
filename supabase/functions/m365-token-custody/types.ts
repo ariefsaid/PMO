@@ -120,6 +120,14 @@ export interface IssueDocumentRequest {
   document_id: string;
 }
 
+export interface RefreshReferencesRequest {
+  action: "refresh_references";
+  project_id?: string;
+  procurement_id?: string;
+  budget_version_id?: string;
+  items: Array<{ drive_id: string; item_id: string }>;
+}
+
 /**
  * `connection_status` response body (AC-M365-150). The ALLOW-LIST of non-sensitive metadata a
  * client may learn about its own connection. This is the entire point of the status surface:
@@ -143,7 +151,8 @@ export type M365Request =
   | DisconnectRequest
   | ConnectionStatusRequest
   | CheckDocumentsRequest
-  | IssueDocumentRequest;
+  | IssueDocumentRequest
+  | RefreshReferencesRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 

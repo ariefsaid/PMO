@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encryptForTest, deps, mockClient } from './m365MockDeps';
 import type { ConnectionRow } from '../../../../../supabase/functions/m365-token-custody/types';
 
-const { handleCheckDocuments, handleIssueMicrosoftDocument } = await import('../../../../../supabase/functions/m365-token-custody/documentVerification');
+const { handleCheckDocuments, handleIssueMicrosoftDocument, handleRefreshReferences } = await import('../../../../../supabase/functions/m365-token-custody/documentVerification');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -110,6 +110,48 @@ async function setupIssue(input: {
   };
 }
 
+async function setupRefresh(controlled = false) {
+  const parentId = '10200000-0000-0000-0000-000000000201';
+  const orgId = '10200000-0000-0000-0000-000000000001';
+  const rows = [
+    {
+      id: '10200000-0000-0000-0000-000000000301', org_id: orgId, project_id: parentId,
+      author_id: '10200000-0000-0000-0000-000000000101', status: controlled ? 'Issued' : 'Draft', source: 'onedrive',
+      ms_item_kind: 'file', ms_drive_id: 'synthetic-drive-a', ms_item_id: 'shared-item',
+    },
+    {
+      id: '10200000-0000-0000-0000-000000000302', org_id: orgId, project_id: parentId,
+      author_id: '10200000-0000-0000-0000-000000000101', status: 'Draft', source: 'onedrive',
+      ms_item_kind: 'file', ms_drive_id: 'synthetic-drive-b', ms_item_id: 'shared-item',
+    },
+  ];
+  const service = mockClient({ ms_graph_connections: [{ data: await connection(), error: null }] });
+  service.rpc.mockImplementation((fn) => {
+    if (fn === 'm365_membership_state') return Promise.resolve({ data: { state: 'active', org_id: orgId, role: 'Admin' }, error: null });
+    if (fn === 'm365_refresh_reference') return Promise.resolve({ data: true, error: null });
+    if (fn === 'm365_claim_document_checks') return Promise.resolve({ data: [], error: null });
+    return Promise.resolve({ data: null, error: null });
+  });
+  const caller = mockClient({
+    org_features: [{ data: { enabled: true }, error: null }, { data: { enabled: true }, error: null }],
+    project_documents: [{ data: rows, error: null }],
+  });
+  const fetch = vi.fn(async (inputUrl: string | URL | Request) => {
+    const requestedDrive = String(inputUrl).includes('/drives/synthetic-drive-a/')
+      ? 'synthetic-drive-a'
+      : 'synthetic-drive-wrong';
+    return new Response(JSON.stringify({
+      id: 'shared-item', name: 'Updated name', webUrl: 'https://example.invalid/item',
+      parentReference: { driveId: requestedDrive }, file: {}, cTag: 'metadata-tag',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetch);
+  return {
+    service, caller, fetch,
+    handlerDeps: deps({ service, caller, userId: '10200000-0000-0000-0000-000000000101' }),
+  };
+}
+
 async function connection(): Promise<ConnectionRow> {
   return {
     id: 'synthetic-connection', org_id: '10200000-0000-0000-0000-000000000001',
@@ -124,6 +166,58 @@ async function connection(): Promise<ConnectionRow> {
 }
 
 describe('M365 controlled document checks', () => {
+  it('AC-M365DOC-062 refreshes only rows matching both drive and item identity', async () => {
+    const { service, caller, fetch, handlerDeps } = await setupRefresh();
+    const result = await handleRefreshReferences({
+      project_id: '10200000-0000-0000-0000-000000000201',
+      items: [
+        { drive_id: 'synthetic-drive-a', item_id: 'shared-item' },
+        { drive_id: 'synthetic-drive-b', item_id: 'shared-item' },
+      ],
+    }, handlerDeps);
+    expect(result).toMatchObject({ status: 200, body: { refreshed: 1 } });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.map(([input]) => String(input))).toEqual(expect.arrayContaining([
+      expect.stringContaining('/drives/synthetic-drive-a/items/shared-item'),
+      expect.stringContaining('/drives/synthetic-drive-b/items/shared-item'),
+    ]));
+    expect(service.rpc).toHaveBeenCalledWith('m365_refresh_reference', expect.objectContaining({
+      p_project_document_id: '10200000-0000-0000-0000-000000000301',
+      p_drive_id: 'synthetic-drive-a', p_item_id: 'shared-item',
+    }));
+    expect(service.rpc).not.toHaveBeenCalledWith('m365_refresh_reference', expect.objectContaining({
+      p_project_document_id: '10200000-0000-0000-0000-000000000302',
+    }));
+    expect(caller.selects.some((read) => read.table === 'project_documents')).toBe(true);
+  });
+
+  it('AC-M365DOC-064 routes controlled project files through check_documents, never metadata refresh', async () => {
+    const { service, fetch, handlerDeps } = await setupRefresh(true);
+    const result = await handleRefreshReferences({
+      project_id: '10200000-0000-0000-0000-000000000201',
+      items: [{ drive_id: 'synthetic-drive-a', item_id: 'shared-item' }],
+    }, handlerDeps);
+    expect(result).toMatchObject({ status: 200, body: { refreshed: 0, checked: 0 } });
+    expect(service.rpc).toHaveBeenCalledWith('m365_claim_document_checks', expect.objectContaining({
+      p_ids: ['10200000-0000-0000-0000-000000000301'],
+    }));
+    expect(service.rpc).not.toHaveBeenCalledWith('m365_refresh_reference', expect.anything());
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365DOC-062 refuses ambiguous parent selection and more than twenty identities', async () => {
+    const { service, fetch, handlerDeps } = await setupRefresh();
+    const ambiguous = await handleRefreshReferences({ items: [] }, handlerDeps);
+    const overLimit = await handleRefreshReferences({
+      project_id: '10200000-0000-0000-0000-000000000201',
+      items: Array.from({ length: 21 }, (_, index) => ({ drive_id: `d${index}`, item_id: `i${index}` })),
+    }, handlerDeps);
+    expect(ambiguous.status).toBe(400);
+    expect(overLimit.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(service.rpc).not.toHaveBeenCalledWith('m365_refresh_reference', expect.anything());
+  });
+
   it('AC-M365DOC-068 freezes Issue only after stable metadata reads and pins the newest parsed version', async () => {
     const { service, fetch, handlerDeps } = await setupIssue({
       tags: ['content-at-issue', 'content-at-issue'],

@@ -29,6 +29,7 @@ import { handleInitiateOrgApproval } from "./orgApproval.ts";
 import {
   handleCheckDocuments,
   handleIssueMicrosoftDocument,
+  handleRefreshReferences,
 } from "./documentVerification.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
@@ -184,6 +185,9 @@ export async function handler(req: Request): Promise<Response> {
         break;
       case "issue_document":
         result = await handleIssueMicrosoftDocument(body, authed);
+        break;
+      case "refresh_references":
+        result = await handleRefreshReferences(body, authed);
         break;
       case "initiate_org_approval":
         // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
