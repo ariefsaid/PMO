@@ -118,3 +118,137 @@ alter table public.procurement_documents
     or (source='onedrive' and public.m365_ref_complete(ms_drive_id,ms_item_id,link,
       ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at))
   ) is true));
+
+create function public.guard_project_m365_source() returns trigger
+language plpgsql set search_path=public as $$
+declare v_parent_org uuid;
+begin
+  if public.actor_bypasses_rls() then return new; end if;
+  if not public.is_active_member() or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot change this document reference.' using errcode='42501';
+  end if;
+  select p.org_id into v_parent_org from public.projects p where p.id=new.project_id;
+  if v_parent_org is distinct from public.auth_org_id() or new.org_id is distinct from public.auth_org_id() then
+    raise exception 'Cannot change this document reference.' using errcode='42501';
+  end if;
+  if tg_op='INSERT' then
+    if new.file_path is not null and new.source is null then new.source:='upload'; end if;
+    if new.source='onedrive' and (new.status<>'Draft' or (new.author_id is distinct from auth.uid()
+       and public.auth_role()<>'Admin')) then
+      raise exception 'Cannot change this document reference.' using errcode='42501';
+    end if;
+    return new;
+  end if;
+  if old.source='onedrive' and new.file_path is not null then
+    raise exception 'Clear the Microsoft reference before uploading.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  if new.source='onedrive' and (old.source is not null or old.file_path is not null) then
+    raise exception 'This entry already has a file or link.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  if new.source='onedrive' or old.source='onedrive' then
+    if old.status<>'Draft' or (old.author_id is distinct from auth.uid() and public.auth_role()<>'Admin') then
+      raise exception 'Cannot change this document reference.' using errcode='42501';
+    end if;
+  end if;
+  if old.source is distinct from 'onedrive' then
+    if new.file_path is not null and new.source is null then new.source:='upload';
+    elsif old.file_path is not null and new.file_path is null and new.source='upload' then new.source:=null;
+    end if;
+  end if;
+  return new;
+end; $$;
+
+create function public.stamp_project_m365_source() returns trigger
+language plpgsql set search_path=public as $$
+begin
+  if new.source='onedrive' and new.source is distinct from old.source and auth.uid() is not null then
+    new.ms_linked_by:=auth.uid(); new.ms_linked_at:=now(); new.ms_last_verified_at:=null;
+    new.ms_content_tag_at_issue:=null; new.ms_version_id_at_issue:=null; new.ms_drift_state:=null;
+    new.ms_check_claim:=null; new.ms_check_claimed_at:=null;
+  elsif tg_op='UPDATE' and old.source='onedrive' and new.source is null then
+    new.ms_drive_id:=null; new.ms_item_id:=null; new.ms_web_url:=null; new.ms_item_name:=null;
+    new.ms_item_kind:=null; new.ms_linked_by:=null; new.ms_linked_at:=null; new.ms_last_verified_at:=null;
+    new.ms_content_tag_at_issue:=null; new.ms_version_id_at_issue:=null; new.ms_drift_state:=null;
+    new.ms_check_claim:=null; new.ms_check_claimed_at:=null;
+  end if;
+  return new;
+end; $$;
+
+create function public.guard_procurement_m365_source() returns trigger
+language plpgsql set search_path=public as $$
+declare v_parent_org uuid;
+begin
+  if public.actor_bypasses_rls() then return new; end if;
+  if not public.is_active_member() or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot change this procurement reference.' using errcode='42501';
+  end if;
+  select p.org_id into v_parent_org from public.procurements p where p.id=new.procurement_id;
+  if v_parent_org is distinct from public.auth_org_id() or new.org_id is distinct from public.auth_org_id() then
+    raise exception 'Cannot change this procurement reference.' using errcode='42501';
+  end if;
+  if tg_op='UPDATE' and new.source='onedrive'
+     and (old.source is not null or old.link is not null) then
+    raise exception 'This entry already has a file or link.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  if tg_op='UPDATE' and old.source='onedrive' and new.source='onedrive' then
+    raise exception 'This entry already has a file or link.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  return new;
+end; $$;
+
+create function public.stamp_procurement_m365_source() returns trigger
+language plpgsql set search_path=public as $$
+begin
+  if new.source='onedrive' and new.source is distinct from old.source and auth.uid() is not null then
+    new.ms_linked_by:=auth.uid(); new.ms_linked_at:=now(); new.ms_last_verified_at:=null;
+  elsif tg_op='UPDATE' and old.source='onedrive' and new.source is null then
+    new.ms_drive_id:=null; new.ms_item_id:=null; new.ms_item_name:=null; new.ms_item_kind:=null;
+    new.ms_linked_by:=null; new.ms_linked_at:=null; new.ms_last_verified_at:=null;
+    new.link:=null;
+  end if;
+  return new;
+end; $$;
+
+create function public.guard_project_m365_identity() returns trigger
+language plpgsql set search_path=public as $$
+begin
+  if old.source='onedrive' and (new.id is distinct from old.id or new.org_id is distinct from old.org_id
+     or new.project_id is distinct from old.project_id or new.parent_document_id is distinct from old.parent_document_id) then
+    raise exception 'A linked document cannot change its parent.' using errcode='23514';
+  end if;
+  return new;
+end; $$;
+
+create function public.guard_procurement_m365_identity() returns trigger
+language plpgsql set search_path=public as $$
+begin
+  if old.source='onedrive' and (new.id is distinct from old.id or new.org_id is distinct from old.org_id
+     or new.procurement_id is distinct from old.procurement_id) then
+    raise exception 'A linked procurement reference cannot change its parent.' using errcode='23514';
+  end if;
+  return new;
+end; $$;
+
+create function public.guard_budget_m365_identity() returns trigger
+language plpgsql set search_path=public as $$
+begin
+  if new.budget_version_id is distinct from old.budget_version_id then
+    raise exception 'A budget reference cannot change its parent.' using errcode='23514';
+  end if;
+  return new;
+end; $$;
+
+create trigger project_m365_guard before insert or update of source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,file_path
+  on public.project_documents for each row execute function public.guard_project_m365_source();
+create trigger project_m365_stamp before insert or update of source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,file_path
+  on public.project_documents for each row execute function public.stamp_project_m365_source();
+create trigger project_m365_identity_guard before update of id,org_id,project_id,parent_document_id
+  on public.project_documents for each row execute function public.guard_project_m365_identity();
+create trigger procurement_m365_guard before insert or update of source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind,link
+  on public.procurement_documents for each row execute function public.guard_procurement_m365_source();
+create trigger procurement_m365_stamp before insert or update of source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind,link
+  on public.procurement_documents for each row execute function public.stamp_procurement_m365_source();
+create trigger procurement_m365_identity_guard before update of id,org_id,procurement_id
+  on public.procurement_documents for each row execute function public.guard_procurement_m365_identity();
+create trigger budget_m365_identity_guard before update of budget_version_id
+  on public.budget_version_document_links for each row execute function public.guard_budget_m365_identity();
