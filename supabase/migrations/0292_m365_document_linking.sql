@@ -531,3 +531,127 @@ begin
       where id=v_parent_id and status in ('Issued','Approved');
   end if;
 end; $$;
+
+create function public.m365_claim_document_checks(p_actor_id uuid,p_ids uuid[])
+returns setof public.project_documents language plpgsql security definer set search_path=public as $$
+declare v_org uuid; v_role public.user_role;
+begin
+  perform public.assert_is_active_member(p_actor_id);
+  select org_id,role into v_org,v_role from public.profiles where id=p_actor_id and status='active';
+  if p_actor_id is null or v_org is null or v_role not in ('Admin','Executive','Project Manager','Finance')
+     or coalesce(cardinality(p_ids),0)>20 or exists(select 1 from unnest(p_ids) x where x is null) then
+    raise exception 'Cannot check these documents.' using errcode='42501';
+  end if;
+  return query update public.project_documents d set ms_check_claim=gen_random_uuid(),ms_check_claimed_at=now()
+    where d.id in (select x.id from public.project_documents x where x.id=any(p_ids)
+      and x.org_id=v_org and x.source='onedrive' and x.ms_item_kind='file' and x.status<>'Draft'
+      and (x.ms_last_verified_at is null or x.ms_last_verified_at<=now()-interval '24 hours')
+      and (x.ms_check_claimed_at is null or x.ms_check_claimed_at<=now()-interval '60 seconds')
+      order by x.id for update skip locked)
+    returning d.*;
+end; $$;
+
+create function public.m365_commit_document_check(p_actor_id uuid,p_doc_id uuid,p_claim uuid,
+ p_drive_id text,p_item_id text,p_baseline text,p_name text,p_url text,p_content_tag text,p_success boolean)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare v_org uuid; v_role public.user_role; d public.project_documents%rowtype;
+begin
+  perform public.assert_is_active_member(p_actor_id);
+  select org_id,role into v_org,v_role from public.profiles where id=p_actor_id and status='active';
+  if p_actor_id is null or v_org is null or v_role not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot check this document.' using errcode='42501';
+  end if;
+  select * into d from public.project_documents where id=p_doc_id for update;
+  if not found or d.org_id is distinct from v_org or d.source<>'onedrive' or d.ms_item_kind<>'file'
+     or d.ms_check_claim is distinct from p_claim or d.ms_drive_id is distinct from p_drive_id
+     or d.ms_item_id is distinct from p_item_id or d.ms_content_tag_at_issue is distinct from p_baseline then
+    return false;
+  end if;
+  if p_success and nullif(btrim(p_content_tag),'') is not null
+     and nullif(btrim(p_baseline),'') is not null and public.m365_browser_url_valid(p_url)
+     and nullif(btrim(p_name),'') is not null then
+    update public.project_documents set ms_drift_state=case when p_content_tag=p_baseline then 'clean' else 'drifted' end,
+      ms_item_name=p_name,ms_web_url=p_url,ms_last_verified_at=now(),ms_check_claim=null,ms_check_claimed_at=null
+      where id=p_doc_id;
+  else
+    update public.project_documents set ms_drift_state='not_verified',ms_check_claim=null,ms_check_claimed_at=null
+      where id=p_doc_id;
+  end if;
+  return true;
+end; $$;
+
+create function public.m365_issue_document(p_actor_id uuid,p_doc_id uuid,p_drive_id text,p_item_id text,
+ p_content_tag text,p_version_id text,p_name text,p_url text)
+returns void language plpgsql security definer set search_path=public as $$
+declare v_org uuid; v_role public.user_role; d public.project_documents%rowtype; v_drift text;
+begin
+  perform public.assert_is_active_member(p_actor_id);
+  select org_id,role into v_org,v_role from public.profiles where id=p_actor_id and status='active';
+  if p_actor_id is null or v_org is null or v_role not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot issue this document.' using errcode='42501';
+  end if;
+  select * into d from public.project_documents where id=p_doc_id for update;
+  if not found or d.org_id is distinct from v_org or d.source<>'onedrive' or d.ms_item_kind<>'file'
+     or d.status<>'Draft' or d.ms_drive_id is distinct from p_drive_id or d.ms_item_id is distinct from p_item_id
+     or not public.m365_browser_url_valid(p_url) or nullif(btrim(p_name),'') is null then
+    raise exception 'Document source changed before Issue.' using errcode='23514',detail='m365-source-changed';
+  end if;
+  v_drift:=case when nullif(btrim(p_content_tag),'') is null then 'not_verified' else 'clean' end;
+  update public.project_documents set status='Issued',ms_content_tag_at_issue=nullif(btrim(p_content_tag),''),
+    ms_version_id_at_issue=nullif(btrim(p_version_id),''),ms_drift_state=v_drift,
+    ms_item_name=p_name,ms_web_url=p_url,ms_check_claim=null,ms_check_claimed_at=null where id=p_doc_id;
+  perform public.log_audit('project_document.transition',v_org,p_actor_id,p_doc_id,
+    jsonb_build_object('from','Draft','to','Issued'));
+end; $$;
+
+create function public.m365_refresh_reference(p_actor_id uuid,p_project_document_id uuid,
+ p_procurement_document_id uuid,p_budget_link_id uuid,p_drive_id text,p_item_id text,p_name text,p_url text)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare v_org uuid; v_role public.user_role; d public.project_documents%rowtype;
+  p public.procurement_documents%rowtype; b public.budget_version_document_links%rowtype;
+  v_parent_org uuid; v_status public.budget_status;
+begin
+  perform public.assert_is_active_member(p_actor_id);
+  select org_id,role into v_org,v_role from public.profiles where id=p_actor_id and status='active';
+  if p_actor_id is null or v_org is null or num_nonnulls(p_project_document_id,p_procurement_document_id,p_budget_link_id)<>1
+     or not public.m365_browser_url_valid(p_url) or nullif(btrim(p_name),'') is null then
+    raise exception 'Cannot refresh this reference.' using errcode='42501';
+  end if;
+  if p_project_document_id is not null then
+    select * into d from public.project_documents where id=p_project_document_id for update;
+    if not found or d.org_id is distinct from v_org or d.source<>'onedrive'
+      or d.ms_drive_id is distinct from p_drive_id or d.ms_item_id is distinct from p_item_id
+      or d.status<>'Draft' or (d.author_id is distinct from p_actor_id and v_role<>'Admin') then return false; end if;
+    update public.project_documents set ms_item_name=p_name,ms_web_url=p_url,ms_last_verified_at=now()
+      where id=d.id;
+    return true;
+  elsif p_procurement_document_id is not null then
+    if v_role not in ('Admin','Executive','Project Manager','Finance') then return false; end if;
+    select * into p from public.procurement_documents where id=p_procurement_document_id for update;
+    if not found or p.org_id is distinct from v_org or p.source<>'onedrive'
+      or p.ms_drive_id is distinct from p_drive_id or p.ms_item_id is distinct from p_item_id then return false; end if;
+    update public.procurement_documents set ms_item_name=p_name,link=p_url,ms_last_verified_at=now()
+      where id=p.id;
+    return true;
+  else
+    if v_role not in ('Admin','Executive','Project Manager','Finance') then return false; end if;
+    select * into b from public.budget_version_document_links where id=p_budget_link_id for update;
+    if not found or b.org_id is distinct from v_org or b.ms_drive_id is distinct from p_drive_id
+      or b.ms_item_id is distinct from p_item_id then return false; end if;
+    select org_id,status into v_parent_org,v_status from public.budget_versions
+      where id=b.budget_version_id for update;
+    if v_parent_org is distinct from v_org or v_status is distinct from 'Draft' then return false; end if;
+    update public.budget_version_document_links set ms_item_name=p_name,ms_web_url=p_url,ms_last_verified_at=now()
+      where id=b.id;
+    return true;
+  end if;
+end; $$;
+
+revoke all on function public.m365_claim_document_checks(uuid,uuid[]) from public,anon,authenticated;
+revoke all on function public.m365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean) from public,anon,authenticated;
+revoke all on function public.m365_issue_document(uuid,uuid,text,text,text,text,text,text) from public,anon,authenticated;
+revoke all on function public.m365_refresh_reference(uuid,uuid,uuid,uuid,text,text,text,text) from public,anon,authenticated;
+grant execute on function public.m365_claim_document_checks(uuid,uuid[]) to service_role;
+grant execute on function public.m365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean) to service_role;
+grant execute on function public.m365_issue_document(uuid,uuid,text,text,text,text,text,text) to service_role;
+grant execute on function public.m365_refresh_reference(uuid,uuid,uuid,uuid,text,text,text,text) to service_role;
