@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
  * project_documents DAL — the per-project document REGISTER (metadata only).
@@ -31,6 +32,7 @@ export interface ProjectDocumentInput {
 interface PostgrestErrorLike {
   message: string;
   code?: string;
+  details?: string;
 }
 
 /**
@@ -38,7 +40,7 @@ interface PostgrestErrorLike {
  * (e.g. `42501` RLS-rejected) so the UI can classify the toast.
  */
 function throwWrite(error: PostgrestErrorLike): never {
-  throw new AppError(error.message, error.code);
+  throw new AppError(error.message, error.code, error.details);
 }
 
 /** Empty optional text → null (so a blank input never writes an empty string). */
@@ -113,6 +115,31 @@ export async function createProjectDocument(
  * intentionally NOT touched here — a metadata edit never moves the workflow or rewrites authorship.
  * Throws an `AppError` (code preserved) on failure.
  */
+export async function linkMicrosoftDocument(
+  id: string,
+  reference: MicrosoftReferenceInput,
+): Promise<void> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({
+      source: 'onedrive',
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url,
+      ms_item_name: reference.name,
+      ms_item_kind: reference.item_kind,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
 export async function updateProjectDocument(id: string, input: ProjectDocumentInput): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')

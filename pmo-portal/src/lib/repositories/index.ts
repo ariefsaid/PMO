@@ -67,6 +67,7 @@ import {
   listProjectDocuments,
   getProjectDocument,
   createProjectDocument,
+  linkMicrosoftDocument,
   updateProjectDocument,
   transitionProjectDocument,
   deleteProjectDocument,
@@ -455,6 +456,7 @@ const document: DocumentRepository = {
   get: (id) => wrap(() => getProjectDocument(id)),
   create: (projectId, input, authorId) =>
     wrap(() => createProjectDocument(projectId, input, authorId)),
+  linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftDocument(id, reference)),
   update: (id, input) => wrap(() => updateProjectDocument(id, input)),
   transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
   delete: (id) => wrap(() => deleteProjectDocument(id)),
