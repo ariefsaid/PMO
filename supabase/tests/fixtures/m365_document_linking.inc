@@ -1,7 +1,8 @@
 -- Synthetic shared fixtures for the M365 document-linking pgTAP tests.
 insert into public.organizations (id, name) values
   ('10200000-0000-0000-0000-000000000001', 'M365 Link Test Org A'),
-  ('10200000-0000-0000-0000-000000000002', 'M365 Link Test Org B');
+  ('10200000-0000-0000-0000-000000000002', 'M365 Link Test Org B')
+on conflict (id) do nothing;
 
 insert into auth.users (id, email) values
   ('10200000-0000-0000-0000-000000000101', 'm365-admin@example.invalid'),

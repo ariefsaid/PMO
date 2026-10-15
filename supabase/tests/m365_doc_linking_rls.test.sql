@@ -29,6 +29,27 @@ select ok(has_column_privilege('authenticated','public.project_documents','sourc
  'AC-M365DOC-003 authenticated role receives project source UPDATE column privilege');
 select ok(has_column_privilege('authenticated','public.project_documents','ms_item_kind','INSERT'),
  'AC-M365DOC-003 authenticated role can INSERT reference fields');
+select ok(has_column_privilege('authenticated','public.project_documents','author_id','INSERT'),
+ 'AC-M365DOC-003 DAL author attribution remains writable on INSERT');
+select ok(has_column_privilege('authenticated','public.project_documents','parent_document_id','INSERT'),
+ 'AC-M365DOC-003 DAL revision lineage remains writable on INSERT');
+select ok(not has_column_privilege('authenticated','public.project_documents','ms_linked_by','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_linked_at','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_last_verified_at','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_content_tag_at_issue','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_version_id_at_issue','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_drift_state','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_check_claim','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_check_claimed_at','INSERT')
+ and not has_column_privilege('authenticated','public.project_documents','ms_linked_by','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_linked_at','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_last_verified_at','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_content_tag_at_issue','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_version_id_at_issue','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_drift_state','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_check_claim','UPDATE')
+ and not has_column_privilege('authenticated','public.project_documents','ms_check_claimed_at','UPDATE'),
+ 'AC-M365DOC-003 provenance and verification stamps remain server-owned');
 select ok(not has_table_privilege('authenticated','public.project_documents','INSERT'),
  'AC-M365DOC-003 project INSERT remains column-scoped');
 select ok(has_column_privilege('authenticated','public.procurement_documents','source','UPDATE'),
@@ -55,8 +76,8 @@ select lives_ok($$update public.project_documents set source='onedrive',ms_drive
  where id='10200000-0000-0000-0000-000000000302'$$,
  'AC-M365DOC-003 read-only same-org actor can attempt a source update');
 reset role;
-select ok((select source is null from public.project_documents
- where id='10200000-0000-0000-0000-000000000302'),
+select is((select source::text from public.project_documents
+ where id='10200000-0000-0000-0000-000000000302'), 'upload',
  'AC-M365DOC-003 read-only actor source update is denied by effective RLS');
 
 set local role authenticated;

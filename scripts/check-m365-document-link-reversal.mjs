@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const UP_PATH = new URL('../supabase/migrations/0292_m365_document_linking.sql', import.meta.url);
 const DOWN_PATH = new URL('../supabase/migrations/rollback/0292_m365_document_linking_down.sql', import.meta.url);
-const UPGRADE_TEST = 'supabase/tests/m365_doc_linking_upgrade.test.sql';
+const UPGRADE_TEST = 'supabase/migration-tests/m365_doc_linking_upgrade.test.sql';
 const DB_CONTAINER = 'supabase_db_pmo-portal';
 
 export function readMigrationPair(up = fs.readFileSync(UP_PATH, 'utf8'), down = fs.readFileSync(DOWN_PATH, 'utf8')) {

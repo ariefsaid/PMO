@@ -27,7 +27,7 @@ test('reversal witness refuses to touch the database without the shared lock', (
 });
 
 test('upgrade fixture owns only synthetic identifiers and checks old path plus metadata-only row', () => {
-  const sql = fs.readFileSync(new URL('../supabase/tests/m365_doc_linking_upgrade.test.sql', import.meta.url), 'utf8');
+  const sql = fs.readFileSync(new URL('../supabase/migration-tests/m365_doc_linking_upgrade.test.sql', import.meta.url), 'utf8');
   assert.match(sql, /10200000-0000-0000-0000-000000000301/);
   assert.match(sql, /documents\/m365-fixture\.pdf/);
   assert.match(sql, /10200000-0000-0000-0000-000000000302/);

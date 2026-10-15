@@ -34,13 +34,15 @@ insert into public.profiles (id,org_id,full_name,email,role,status) values
 insert into public.projects (id,org_id,code,name,status,project_manager_id) values
  ('10200000-0000-0000-0000-000000000201','10200000-0000-0000-0000-000000000001','M365-A','Synthetic project','Ongoing Project','10200000-0000-0000-0000-000000000102');
 
--- Legacy source collisions must fail closed, including SQL NULL-sensitive arms.
-select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path)
- values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','fixture/path')$$,
- '23514', null, 'AC-M365DOC-002 rejects file path with null source');
-select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source)
- values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','upload')$$,
- '23514', null, 'AC-M365DOC-002 rejects upload source without file');
+-- Legacy/plain document writes omit source; file rows default to upload while metadata-only rows remain valid.
+select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path)
+ values ('10200000-0000-0000-0000-000000000301','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','legacy file','Draft','10200000-0000-0000-0000-000000000102','fixture/path')$$,
+ 'AC-M365DOC-002 accepts a legacy file row with omitted source');
+select is((select source::text from public.project_documents where id='10200000-0000-0000-0000-000000000301'),
+ 'upload', 'AC-M365DOC-002 defaults an omitted source to upload');
+select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source)
+ values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','metadata upload source','Draft','10200000-0000-0000-0000-000000000102','upload')$$,
+ 'AC-M365DOC-002 accepts upload source without a file path');
 select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,file_path)
  values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','onedrive','fixture/path')$$,
  '23514', null, 'AC-M365DOC-002 rejects Microsoft source with upload path');

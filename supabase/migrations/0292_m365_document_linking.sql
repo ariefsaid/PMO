@@ -19,6 +19,9 @@ alter table public.project_documents
   add column ms_check_claim uuid,
   add column ms_check_claimed_at timestamptz;
 
+alter table public.project_documents
+  alter column source set default 'upload';
+
 -- Preserve existing uploads as uploads; metadata-only rows remain source-null.
 update public.project_documents
 set source = 'upload'
@@ -55,25 +58,25 @@ alter table public.procurement_documents
   add column ms_last_verified_at timestamptz;
 
 alter table public.project_documents
-  add constraint project_documents_source_complete check (((
-    (source is null and file_path is null and num_nonnulls(
-      ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at,
-      ms_last_verified_at,ms_content_tag_at_issue,ms_version_id_at_issue,ms_drift_state,
-      ms_check_claim,ms_check_claimed_at)=0)
-    or (source='upload' and file_path is not null and num_nonnulls(
-      ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at,
-      ms_last_verified_at,ms_content_tag_at_issue,ms_version_id_at_issue,ms_drift_state,
-      ms_check_claim,ms_check_claimed_at)=0)
-    or (source='onedrive' and file_path is null and public.m365_ref_complete(
-      ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at)
-      and (ms_content_tag_at_issue is null or btrim(ms_content_tag_at_issue)<>'')
-      and (ms_version_id_at_issue is null or btrim(ms_version_id_at_issue)<>'')
-      and (ms_drift_state is null or ms_drift_state in ('clean','drifted','not_verified'))
-      and (ms_drift_state is null or ms_drift_state='not_verified' or ms_content_tag_at_issue is not null)
-      and ((ms_check_claim is null)=(ms_check_claimed_at is null))
-      and (ms_item_kind='file' or num_nonnulls(ms_content_tag_at_issue,ms_version_id_at_issue,
-        ms_drift_state,ms_check_claim,ms_check_claimed_at)=0))
-  ) is true));
+  add constraint project_documents_source_complete check (
+    (
+      (
+        (source in ('upload') or (source is null and file_path is null))
+        and num_nonnulls(ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at,
+          ms_last_verified_at,ms_content_tag_at_issue,ms_version_id_at_issue,ms_drift_state,
+          ms_check_claim,ms_check_claimed_at)=0
+      )
+      or (source='onedrive' and file_path is null and public.m365_ref_complete(
+        ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at)
+        and (ms_content_tag_at_issue is null or btrim(ms_content_tag_at_issue)<>'')
+        and (ms_version_id_at_issue is null or btrim(ms_version_id_at_issue)<>'')
+        and (ms_drift_state is null or ms_drift_state in ('clean','drifted','not_verified'))
+        and (ms_drift_state is null or ms_drift_state='not_verified' or ms_content_tag_at_issue is not null)
+        and ((ms_check_claim is null)=(ms_check_claimed_at is null))
+        and (ms_item_kind='file' or num_nonnulls(ms_content_tag_at_issue,ms_version_id_at_issue,
+          ms_drift_state,ms_check_claim,ms_check_claimed_at)=0))
+    ) is true
+  );
 
 create table public.budget_version_document_links (
   id uuid primary key default gen_random_uuid(),
@@ -123,6 +126,7 @@ create function public.guard_project_m365_source() returns trigger
 language plpgsql set search_path=public as $$
 declare v_parent_org uuid;
 begin
+  if tg_op='INSERT' and new.file_path is not null and new.source is null then new.source:='upload'; end if;
   if public.actor_bypasses_rls() then return new; end if;
   if not public.is_active_member() or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
     raise exception 'Cannot change this document reference.' using errcode='42501';
@@ -132,7 +136,6 @@ begin
     raise exception 'Cannot change this document reference.' using errcode='42501';
   end if;
   if tg_op='INSERT' then
-    if new.file_path is not null and new.source is null then new.source:='upload'; end if;
     if new.source='onedrive' and (new.status<>'Draft' or (new.author_id is distinct from auth.uid()
        and public.auth_role()<>'Admin')) then
       raise exception 'Cannot change this document reference.' using errcode='42501';
@@ -142,7 +145,8 @@ begin
   if old.source='onedrive' and new.file_path is not null then
     raise exception 'Clear the Microsoft reference before uploading.' using errcode='23514',detail='m365-source-collision';
   end if;
-  if new.source='onedrive' and (old.source is not null or old.file_path is not null) then
+  if new.source='onedrive' and (old.file_path is not null
+     or (old.source is not null and old.source is distinct from 'upload')) then
     raise exception 'This entry already has a file or link.' using errcode='23514',detail='m365-source-collision';
   end if;
   if new.source='onedrive' or old.source='onedrive' then
@@ -312,7 +316,7 @@ create trigger org_m365_settings_stamp_guard
 
 revoke insert on public.project_documents,public.procurement_documents from authenticated;
 grant insert (id,org_id,project_id,code,category,title,revision,status,doc_date,author_id,file_path,created_at,
-  source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
+  parent_document_id,source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
   on public.project_documents to authenticated;
 grant insert (id,org_id,procurement_id,type,reference_number,status,date,link,
   source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind)
