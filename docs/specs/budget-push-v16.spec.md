@@ -73,9 +73,15 @@ revision changes only the accounts that changed.
   rows exist and the year's status reads failed, naming that account; v15 rows keep their existing key.
 - **AC-BV16-007** *(unit)* — Given a v16 org, when the sweep builds its Budget list call, then `fiscal_year` is not
   requested.
-- **AC-BV16-008** *(live, rehearsal site only)* — Given the RIS rehearsal copy (v16.33), when a version is activated
-  through the real dispatch path, then one submitted Budget per account exists with the right amounts, and a
-  revision amends only the changed account. Evidence recorded in the PR; never run against a live client site.
+- **AC-BV16-008** *(live, rehearsal site only — two halves; amended 2026-10-15, owner "proceed as recommended")* — The
+  rehearsal copy has no network route, so the proof is split: (a) the real dispatch path (auth, gate, account fan-out,
+  outbox, ref finalisation, mirror writer) is owned by the served replay test against a simulated ERP; (b) given the
+  RIS rehearsal copy (v16.33), when the bodies the shipped builder emits for a two-account version are inserted and
+  submitted, and a revision changing only Salary is applied as the adapter does (cancel + amend), then two submitted
+  Budgets exist with the right amounts and 12-month distribution, Salary's successor is amended from the cancelled
+  original, the unchanged account is untouched, a duplicate is refused, and everything is rolled back. Evidence in
+  the PR. The full-route harness (`scripts/bv16-rehearsal.mjs`) stays available for when a private route exists.
+  *Found by (b): v16 rejects a text `budget_amount` before casting — the body now sends a number.*
 
 ## Out of scope
 
