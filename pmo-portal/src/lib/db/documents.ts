@@ -26,6 +26,8 @@ export interface ProjectDocumentInput {
   title: string;
   revision: string;
   doc_date: string;
+  source?: 'onedrive';
+  microsoft?: MicrosoftReferenceInput;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -92,6 +94,16 @@ export async function createProjectDocument(
   input: ProjectDocumentInput,
   authorId: string | null,
 ): Promise<ProjectDocumentRow> {
+  if ((input.source === 'onedrive') !== Boolean(input.microsoft)) {
+    throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  if (input.microsoft) {
+    try {
+      assertMicrosoftReference(input.microsoft);
+    } catch {
+      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+    }
+  }
   const { data, error } = await supabase
     .from('project_documents')
     .insert({
@@ -102,6 +114,14 @@ export async function createProjectDocument(
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
       author_id: authorId,
+      ...(input.source === 'onedrive' && input.microsoft ? {
+        source: 'onedrive' as const,
+        ms_drive_id: input.microsoft.drive_id,
+        ms_item_id: input.microsoft.item_id,
+        ms_web_url: input.microsoft.web_url,
+        ms_item_name: input.microsoft.name,
+        ms_item_kind: input.microsoft.item_kind,
+      } : {}),
     })
     .select()
     .single();

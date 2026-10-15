@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { update, eq, select, from, storage, functions } = vi.hoisted(() => ({
+const { update, eq, select, from, storage, functions, insert, single } = vi.hoisted(() => ({
   update: vi.fn(),
   eq: vi.fn(),
   select: vi.fn(),
   from: vi.fn(),
+  insert: vi.fn(),
+  single: vi.fn(),
   storage: { from: vi.fn() },
   functions: { invoke: vi.fn() },
 }));
@@ -33,11 +35,15 @@ describe('document repository Microsoft linking', () => {
     eq.mockReset();
     select.mockReset();
     from.mockReset();
+    insert.mockReset();
+    single.mockReset();
     storage.from.mockReset();
     functions.invoke.mockReset();
-    const query = { update, eq, select };
+    const query = { update, insert, eq, select, single };
     update.mockReturnValue(query);
+    insert.mockReturnValue(query);
     eq.mockReturnValue(query);
+    select.mockReturnValue(query);
     from.mockReturnValue(query);
   });
 
@@ -71,6 +77,38 @@ describe('document repository Microsoft linking', () => {
     const write = repositories.document.linkMicrosoftDocument('document-1', reference);
     await expect(write).rejects.toMatchObject({ code: '23514', details: 'm365-source-collision' });
     await expect(write).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-M365DOC-011 creates a linked Draft with one INSERT and server-owned stamps', async () => {
+    const row = { id: 'document-1', status: 'Draft', file_path: null, author_id: 'actor-1' };
+    single.mockResolvedValue({ data: row, error: null });
+
+    await expect(repositories.document.create('project-1', {
+      title: 'Evidence', category: 'Specification', code: '', revision: 'A', doc_date: '',
+      source: 'onedrive', microsoft: reference,
+    }, 'actor-1')).resolves.toMatchObject(row);
+
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledWith({
+      project_id: 'project-1', code: null, category: 'Specification', title: 'Evidence',
+      revision: 'A', doc_date: null, author_id: 'actor-1', source: 'onedrive',
+      ms_drive_id: reference.drive_id, ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url, ms_item_name: reference.name, ms_item_kind: 'file',
+    });
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('ms_linked_by');
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('ms_linked_at');
+    expect(update).not.toHaveBeenCalled();
+    expect(storage.from).not.toHaveBeenCalled();
+    expect(functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it('rejects inconsistent source/reference input before insertion', async () => {
+    await expect(repositories.document.create('project-1', {
+      title: 'Evidence', category: 'Specification', code: '', revision: 'A', doc_date: '',
+      source: 'onedrive',
+    }, 'actor-1')).rejects.toMatchObject({ code: '23514', details: 'm365-reference-invalid' });
+    expect(from).not.toHaveBeenCalled();
   });
 
   it('refuses malformed references before any database call', async () => {
