@@ -32,9 +32,12 @@ revision changes only the accounts that changed.
   budget_amount, from_fiscal_year: <year>, to_fiscal_year: <year>, distribution_frequency: 'Monthly',
   distribute_equally: 1}` plus every `action_if_*` / `applicable_on_*` field FR-BUD-131 sends today. It shall send
   no `accounts` and no `fiscal_year`.
-- **FR-BV16-003 (accounts shared by categories)** — When several budget categories map to the same ERP account,
-  the v16 push shall send ONE Budget for that account whose amount is the sum of those categories (ERPNext refuses
-  two). Amounts stay exact (cents), never re-derived.
+- **FR-BV16-003 (one account, one category)** — The account map already guarantees one category per ERP account
+  (`unique (org_id, erp_account)`, FR-BAM-001/DD-BAM-2), so each non-zero category yields its own account's Budget.
+  If two non-zero categories ever resolve to the same account (a regressed reader), the v16 push shall refuse with
+  `commit-rejected` naming the account — never sum, never let one row win (same posture as FR-BAM-007).
+  *(Amended 2026-10-15, Director: the signed draft asked to sum shared accounts; the map makes that state
+  impossible, so the requirement is narrowed to the defensive refusal.)*
 - **FR-BV16-004 (identity + idempotency)** — Each v16 Budget shall have its own PMO identity
   `<version>:<year>:<account>` and its own idempotency key, so a replayed push creates nothing new and one
   account's failure never blocks or duplicates another's.
@@ -60,8 +63,8 @@ revision changes only the accounts that changed.
   no `accounts`/`fiscal_year` keys.
 - **AC-BV16-002** *(unit)* — Given a v15 binding and the same version, when the body builder runs, then the body is
   byte-identical to today's.
-- **AC-BV16-003** *(unit)* — Given Labor and Overtime both mapped to Salary (30,000 + 20,000) on v16, then exactly
-  one Salary body of 50,000 is built.
+- **AC-BV16-003** *(unit)* — Given a v16 binding and a (synthetic) map where Labor and Overtime both resolve to
+  Salary, when the body builder runs, then it throws `commit-rejected` naming Salary and builds no body.
 - **AC-BV16-004** *(unit/served)* — Given a v16 activation with two accounts, when the push runs twice, then two
   ERP creates happen once each, under distinct identities and keys, and the replay is a no-op.
 - **AC-BV16-005** *(unit)* — Given a revision where Salary 50,000→60,000, COGS unchanged, Equipment added and
