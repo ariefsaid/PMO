@@ -100,6 +100,7 @@ import SalesInvoices from '../SalesInvoices';
 const invoice = (overrides: Partial<SalesInvoiceRow>): SalesInvoiceRow => ({
   id: 'inv-usd',
   org_id: 'org-1',
+  erp_project: null,
   project_id: null,
   customer_id: 'client-1',
   customer_name: 'USD client',
