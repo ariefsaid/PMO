@@ -326,3 +326,24 @@ revoke update on public.procurement_documents from authenticated;
 grant update (id,org_id,procurement_id,type,reference_number,status,date,link,
   source,ms_drive_id,ms_item_id,ms_item_name,ms_item_kind)
   on public.procurement_documents to authenticated;
+
+alter table public.budget_version_document_links enable row level security;
+alter table public.budget_version_document_links force row level security;
+revoke all on public.budget_version_document_links from public,anon,authenticated;
+grant select,delete on public.budget_version_document_links to authenticated;
+grant insert (budget_version_id,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
+  on public.budget_version_document_links to authenticated;
+create policy m365_budget_links_select on public.budget_version_document_links for select to authenticated
+  using (org_id=public.auth_org_id() and public.is_active_member()
+    and exists(select 1 from public.budget_versions v where v.id=budget_version_id
+      and v.org_id=public.auth_org_id()));
+create policy m365_budget_links_insert on public.budget_version_document_links for insert to authenticated
+  with check (org_id=public.auth_org_id() and public.is_active_member()
+    and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
+    and exists(select 1 from public.budget_versions v where v.id=budget_version_id
+      and v.org_id=public.auth_org_id() and v.status='Draft'));
+create policy m365_budget_links_delete on public.budget_version_document_links for delete to authenticated
+  using (org_id=public.auth_org_id() and public.is_active_member()
+    and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
+    and exists(select 1 from public.budget_versions v where v.id=budget_version_id
+      and v.org_id=public.auth_org_id() and v.status='Draft'));
