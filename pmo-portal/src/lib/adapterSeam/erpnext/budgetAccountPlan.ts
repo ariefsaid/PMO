@@ -53,3 +53,43 @@ export function resolveV16BudgetAccounts(
   }
   return rows;
 }
+
+export function planBudgetAccountIntents(
+  fiscalYear: string,
+  desired: readonly BudgetAccountRow[],
+  prior: readonly PriorBudgetAccount[],
+): BudgetAccountIntent[] {
+  const desiredAccounts = new Set(desired.map((row) => row.account));
+  const intents: BudgetAccountIntent[] = desired.map((row) => ({
+    fiscalYear,
+    erpAccount: row.account,
+    intent: 'ensure',
+    amount: row.budget_amount,
+    predecessor: null,
+  }));
+  const seenHistory = new Set<string>();
+  const predecessors = new Map<string, string>();
+
+  for (const row of prior) {
+    if (row.fiscalYear !== fiscalYear || !row.erpAccount || !row.erpBudgetName || row.cancelledAt !== null) continue;
+    const historyKey = JSON.stringify([row.fiscalYear, row.erpAccount, row.erpBudgetName]);
+    if (seenHistory.has(historyKey)) continue;
+    seenHistory.add(historyKey);
+    const predecessor = predecessors.get(row.erpAccount);
+    if (predecessor !== undefined && predecessor !== row.erpBudgetName) {
+      throw new AdapterError(
+        'commit-rejected',
+        `budget push: conflicting live predecessor names for account ${row.erpAccount}`,
+      );
+    }
+    predecessors.set(row.erpAccount, row.erpBudgetName);
+  }
+
+  for (const [erpAccount, predecessor] of predecessors) {
+    if (!desiredAccounts.has(erpAccount)) {
+      intents.push({ fiscalYear, erpAccount, intent: 'remove', amount: null, predecessor });
+    }
+  }
+  return intents;
+}
+

@@ -40,6 +40,10 @@ export interface ErpCtx {
    *  case's item list) — a fallback the adapter substitutes ONLY when the command's own `record.items`
    *  is absent/empty. `undefined` (every pre-Slice-5 caller) ⇒ byte-for-byte, no substitution. */
   resolvedItems?: unknown[];
+  /** Binding-authoritative ERPNext major; omitted callers retain legacy behavior. */
+  versionMajor?: 15 | 16;
+  /** Server-derived account operation for v16 budget commands only. */
+  budgetAccount?: { intent: 'ensure' | 'remove'; predecessor: string | null };
 }
 
 export interface DoctypeEntry {
