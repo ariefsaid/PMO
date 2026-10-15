@@ -106,6 +106,7 @@ import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 import type {
   BudgetVersionRow,
   BudgetVersionWithItems,
+  BudgetDocumentLinkRow,
   BudgetLineItemRow,
   NewLineItem,
   ImportProvenance,
@@ -583,6 +584,9 @@ export interface BudgetRepository {
   activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
+  listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;
+  addDocumentLink(versionId: string, reference: MicrosoftReferenceInput): Promise<BudgetDocumentLinkRow>;
+  removeDocumentLink(id: string): Promise<void>;
 }
 
 export interface IncidentRepository {

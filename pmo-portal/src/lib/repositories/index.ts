@@ -190,6 +190,9 @@ import {
   activateVersion,
   archiveVersion,
   deleteDraftVersion,
+  listBudgetDocumentLinks,
+  addBudgetDocumentLink,
+  removeBudgetDocumentLink,
 } from '@/src/lib/db/budgets';
 import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import {
@@ -834,6 +837,9 @@ const budget: BudgetRepository = {
   activateVersion: (versionId) => wrap(() => activateVersion(versionId)),
   archiveVersion: (versionId) => wrap(() => archiveVersion(versionId)),
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
+  listDocumentLinks: (versionId) => wrap(() => listBudgetDocumentLinks(versionId)),
+  addDocumentLink: (versionId, reference) => wrap(() => addBudgetDocumentLink(versionId, reference)),
+  removeDocumentLink: (id) => wrap(() => removeBudgetDocumentLink(id)),
 };
 
 const incident: IncidentRepository = {
