@@ -127,6 +127,113 @@ Deno.test("AC-M365DOC-064 served check_documents rejects over-limit IDs before c
   }
 });
 
+Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only verified actor IDs", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-verified-user" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  Deno.env.set("SUPABASE_URL", url);
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+  try {
+    await withFetchMock([
+      supabaseRpc("m365_membership_state", () =>
+        jsonResponse({
+          state: "disabled",
+          org_id: "synthetic-org-a",
+          role: "Admin",
+        })),
+    ], async ({ calls }) => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "check_documents",
+            document_ids: ["10200000-0000-0000-0000-000000000301"],
+          }),
+        }),
+      );
+      if (response.status !== 403) {
+        throw new Error(`inactive caller was not rejected: ${response.status}`);
+      }
+      if (calls.some((call) => call.url.pathname.includes("m365_claim_document_checks"))) {
+        throw new Error("inactive caller reached the claim RPC");
+      }
+    });
+
+    await withFetchMock([
+      supabaseRpc("m365_membership_state", (call) => {
+        if ((call.bodyJson as { p_user_id?: string })?.p_user_id !== "synthetic-verified-user") {
+          throw new Error("membership lookup did not use the verified JWT subject");
+        }
+        return jsonResponse({
+          state: "active",
+          org_id: "synthetic-org-a",
+          role: "Finance",
+        });
+      }),
+      supabaseSelect("org_features", () =>
+        jsonResponse({ enabled: true }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      supabaseRpc("m365_claim_document_checks", (call) => {
+        const payload = call.bodyJson as Record<string, unknown>;
+        if (payload.p_actor_id !== "synthetic-verified-user") {
+          throw new Error("claim RPC actor was not server-derived from the JWT");
+        }
+        if (payload.p_ids === undefined || "p_baseline" in payload || "p_content_tag" in payload) {
+          throw new Error("client supplied baseline or content entered the claim RPC");
+        }
+        return jsonResponse([]);
+      }),
+    ], async ({ calls }) => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "check_documents",
+            document_ids: ["10200000-0000-0000-0000-000000000301"],
+            actor_id: "synthetic-forged-user",
+            org_id: "synthetic-org-b",
+            baseline: "synthetic-client-baseline",
+            cTag: "synthetic-client-content-tag",
+            batch: [{ method: "POST", url: "/me/drive/root/children", body: "write" }],
+          }),
+        }),
+      );
+      const body = await response.json();
+      if (response.status !== 200 || body.checked !== 0) {
+        throw new Error("unclaimed or cross-org references were not safely withheld");
+      }
+      if (calls.some((call) => call.url.origin === "https://graph.microsoft.com")) {
+        throw new Error("untrusted client baseline or nested write reached Graph");
+      }
+    });
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});
+
 Deno.test("AC-M365DOC-056 served handler preserves metadata-only preflight behavior", async () => {
   const response = await handler(
     new Request("http://edge.test/m365-token-custody", { method: "OPTIONS" }),
