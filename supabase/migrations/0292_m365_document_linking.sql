@@ -347,3 +347,20 @@ create policy m365_budget_links_delete on public.budget_version_document_links f
     and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists(select 1 from public.budget_versions v where v.id=budget_version_id
       and v.org_id=public.auth_org_id() and v.status='Draft'));
+
+alter table public.org_m365_document_settings enable row level security;
+alter table public.org_m365_document_settings force row level security;
+revoke all on public.org_m365_document_settings from public,anon,authenticated;
+grant select on public.org_m365_document_settings to authenticated;
+grant insert (default_site_id,default_site_name,default_drive_id,default_drive_name)
+  on public.org_m365_document_settings to authenticated;
+grant update (default_site_id,default_site_name,default_drive_id,default_drive_name)
+  on public.org_m365_document_settings to authenticated;
+create policy m365_settings_select on public.org_m365_document_settings for select to authenticated
+  using (org_id=public.auth_org_id() and public.is_active_member());
+create policy m365_settings_insert on public.org_m365_document_settings for insert to authenticated
+  with check (org_id=public.auth_org_id() and public.is_active_member()
+    and public.auth_role()='Admin');
+create policy m365_settings_update on public.org_m365_document_settings for update to authenticated
+  using (org_id=public.auth_org_id() and public.is_active_member() and public.auth_role()='Admin')
+  with check (org_id=public.auth_org_id() and public.is_active_member() and public.auth_role()='Admin');
