@@ -161,6 +161,9 @@ import {
   selectProcurementQuote,
   listProcurementDocuments,
   createProcurementDocument,
+  createMicrosoftProcurementDocument,
+  linkMicrosoftProcurementDocument,
+  unlinkMicrosoftProcurementDocument,
   deleteProcurementDocument,
 } from '@/src/lib/db/procurementCrud';
 import {
@@ -602,6 +605,10 @@ const procurement: ProcurementRepository = {
   listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
+  createMicrosoftDocument: (procurementId, reference, metadata) =>
+    wrap(() => createMicrosoftProcurementDocument(procurementId, reference, metadata)),
+  linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftProcurementDocument(id, reference)),
+  unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftProcurementDocument(id)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
   createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>

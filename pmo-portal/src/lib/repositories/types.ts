@@ -431,6 +431,13 @@ export interface ProcurementRepository {
     procurementId: string,
     input: ProcurementDocumentInput,
   ): Promise<ProcurementDocumentRow>;
+  createMicrosoftDocument(
+    procurementId: string,
+    reference: MicrosoftReferenceInput,
+    metadata?: { referenceNumber?: string | null; date?: string | null },
+  ): Promise<ProcurementDocumentRow>;
+  linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
   // ── New ERP-canonical record creators (Slice 5.4) ──
