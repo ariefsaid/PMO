@@ -261,6 +261,17 @@ describe('documents DAL — storage operations', () => {
     expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
   });
 
+  it('AC-M365DOC-042 deletes a linked PMO row without deleting the Microsoft item or calling Graph', async () => {
+    h.result.value = {
+      data: Object.assign([{ id: 'doc-1' }], { ...mockDocRow, file_path: null }),
+      error: null,
+    };
+    await deleteProjectDocument('doc-1');
+    expect(h.calls.delete).toBe(1);
+    expect(h.storageCalls.remove).toEqual([]);
+    expect(h.storageCalls.from).toEqual([]);
+  });
+
   it('AC-DOC-011 (DAL): getSignedDownloadUrl uses SIGNED_URL_EXPIRY_SECONDS', async () => {
     h.storageResult.value = {
       data: { signedUrl: 'https://example.com/signed' },

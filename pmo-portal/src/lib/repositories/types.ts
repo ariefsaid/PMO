@@ -327,6 +327,8 @@ export interface DocumentRepository {
   ): Promise<ProjectDocumentRow>;
   /** Atomically link a Microsoft item; actor/time stamps are server-owned. */
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  /** Remove only the PMO reference; does not modify or delete the Microsoft item. */
+  unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Update a document's metadata (never status / author_id / org_id). */
   update(id: string, input: ProjectDocumentInput): Promise<void>;
   /** Move the document to the next workflow status (Draft→Issued→Approved/Rejected→Closed). */

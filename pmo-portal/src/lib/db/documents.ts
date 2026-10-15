@@ -160,6 +160,23 @@ export async function linkMicrosoftDocument(
   assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
 }
 
+export async function unlinkMicrosoftDocument(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({
+      source: null,
+      ms_drive_id: null,
+      ms_item_id: null,
+      ms_web_url: null,
+      ms_item_name: null,
+      ms_item_kind: null,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
 export async function updateProjectDocument(id: string, input: ProjectDocumentInput): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')
