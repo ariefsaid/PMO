@@ -539,7 +539,7 @@ revoke all on function public.record_outbox_ref(uuid,integer,text,text,text,text
 grant execute on function public.record_outbox_ref(uuid,integer,text,text,text,text) to service_role;
 
 -- #1033 task 15: a staged, fail-closed rollback for an unused account mirror.
-create function public.bv16_migration_0292_revert() returns void
+create function public.bv16_migration_0293_revert() returns void
 language plpgsql security invoker set search_path=public,pg_temp as $revert$
 begin
   perform pg_advisory_xact_lock(hashtext('pmo_budget_identity_rekey'));
@@ -986,4 +986,4 @@ create or replace function public.record_outbox_ref(
   drop table public.budget_version_account_erp_mirror;
 end;
 $revert$;
-revoke all on function public.bv16_migration_0292_revert() from public,anon,authenticated,service_role;
+revoke all on function public.bv16_migration_0293_revert() from public,anon,authenticated,service_role;

@@ -1,4 +1,4 @@
-# ADR-0086 — Account-qualified Budget units for ERPNext v16
+# ADR-0087 — Account-qualified Budget units for ERPNext v16
 
 - **Status:** Proposed for Director review; implements signed #1033 requirements.
 - **Date:** 2026-10-15

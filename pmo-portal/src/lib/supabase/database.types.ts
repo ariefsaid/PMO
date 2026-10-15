@@ -6907,7 +6907,7 @@ export type Database = {
         Args: { p_fiscal_year: string }
         Returns: string
       }
-      bv16_migration_0292_revert: { Args: never; Returns: undefined }
+      bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
           p_amount: number
