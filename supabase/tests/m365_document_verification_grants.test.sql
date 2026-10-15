@@ -33,7 +33,11 @@ values
  ('10200000-0000-0000-0000-000000000303','10200000-0000-0000-0000-000000000002',
   '10200000-0000-0000-0000-000000000202','Specification','Other org controlled','Issued',
   '10200000-0000-0000-0000-000000000102','onedrive','drive-b','foreign-item','https://example.invalid/foreign',
-  'Foreign evidence','file','10200000-0000-0000-0000-000000000102',now(),'foreign-tag','clean');
+  'Foreign evidence','file','10200000-0000-0000-0000-000000000102',now(),'foreign-tag','clean'),
+ ('10200000-0000-0000-0000-000000000304','10200000-0000-0000-0000-000000000001',
+  '10200000-0000-0000-0000-000000000201','Specification','Demoted author draft','Draft',
+  '10200000-0000-0000-0000-000000000101','onedrive','drive-a','demoted-item','https://example.invalid/demoted',
+  'Demoted evidence','folder','10200000-0000-0000-0000-000000000101',now(),null,null);
 
 select ok(to_regprocedure('public.m365_claim_document_checks(uuid,uuid[])') is not null,
  'AC-M365DOC-066 claim RPC exists with the fixed signature');
@@ -101,6 +105,11 @@ select lives_ok($$select public.m365_issue_document('10200000-0000-0000-0000-000
  '10200000-0000-0000-0000-000000000302','drive-a','issue-item',null,null,'Draft evidence',
  'https://example.invalid/issue')$$,
  'AC-M365DOC-066 service Issue can freeze a matching Draft linked file');
+update public.profiles set role='Engineer' where id='10200000-0000-0000-0000-000000000101';
+select is(public.m365_refresh_reference('10200000-0000-0000-0000-000000000101',
+ '10200000-0000-0000-0000-000000000304',null,null,'drive-a','demoted-item','Renamed evidence',
+ 'https://example.invalid/renamed'),false,
+ 'AC-M365DOC-066 demoted project document author cannot refresh as a non-writer');
 reset role;
 select ok((select status='Issued' and ms_drift_state='not_verified'
  and ms_content_tag_at_issue is null and ms_version_id_at_issue is null

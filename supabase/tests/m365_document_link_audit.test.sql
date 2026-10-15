@@ -19,8 +19,6 @@ insert into public.project_documents (id,org_id,project_id,category,title,status
 insert into public.procurement_documents (id,org_id,procurement_id,type,status)
  values ('10200000-0000-0000-0000-000000000302','10200000-0000-0000-0000-000000000001',
  '10200000-0000-0000-0000-000000000202','Microsoft reference','Draft');
-insert into public.org_m365_document_settings (org_id,updated_by,updated_at)
- values ('10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000101',now());
 
 grant update(source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind)
  on public.project_documents to authenticated;
@@ -47,9 +45,13 @@ select lives_ok($$insert into public.budget_version_document_links
  'https://example.invalid/budget','Private budget name','file')$$,'AC-M365DOC-061 budget link succeeds with audit');
 select lives_ok($$delete from public.budget_version_document_links where ms_item_id='budget-item'$$,
  'AC-M365DOC-061 budget unlink succeeds with audit');
-select lives_ok($$update public.org_m365_document_settings set default_site_id='site-a',default_site_name='Private site',
- default_drive_id='drive-a',default_drive_name='Private library' where org_id='10200000-0000-0000-0000-000000000001'$$,
- 'AC-M365DOC-061 setting change succeeds with audit');
+select lives_ok($$insert into public.org_m365_document_settings
+ (default_site_id,default_site_name,default_drive_id,default_drive_name)
+ values ('site-a','Private site','drive-a','Private library')$$,
+ 'AC-M365DOC-061 first default library set succeeds with audit');
+select lives_ok($$update public.org_m365_document_settings set default_site_id='site-b',default_site_name='Private site B',
+ default_drive_id='drive-b',default_drive_name='Private library B' where org_id='10200000-0000-0000-0000-000000000001'$$,
+ 'AC-M365DOC-061 changing the default library succeeds with audit');
 select lives_ok($$update public.org_m365_document_settings set default_site_id=null,default_site_name=null,
  default_drive_id=null,default_drive_name=null where org_id='10200000-0000-0000-0000-000000000001'$$,
  'AC-M365DOC-061 setting clear succeeds with audit');
@@ -63,12 +65,12 @@ select is((select count(*)::integer from public.audit_events where action='procu
  'AC-M365DOC-061 procurement link emits one typed M365 audit event');
 select is((select count(*)::integer from public.audit_events where action='procurement_document.m365_unlinked'),1,
  'AC-M365DOC-061 procurement unlink emits one typed M365 audit event');
-select is((select count(*)::integer from public.audit_events where action='budget_version_document.m365_linked'),1,
+select is((select count(*)::integer from public.audit_events where action='budget_version_document_link.m365_linked'),1,
  'AC-M365DOC-061 budget link emits one typed M365 audit event');
-select is((select count(*)::integer from public.audit_events where action='budget_version_document.m365_unlinked'),1,
+select is((select count(*)::integer from public.audit_events where action='budget_version_document_link.m365_unlinked'),1,
  'AC-M365DOC-061 budget unlink emits one typed M365 audit event');
-select is((select count(*)::integer from public.audit_events where action='org_m365_document_settings.default_changed'),2,
- 'AC-M365DOC-061 changed/cleared default each emits one typed audit event');
+select is((select count(*)::integer from public.audit_events where action='m365.default_library_changed'),3,
+ 'AC-M365DOC-061 first set/change/clear default each emits one typed audit event');
 select ok(not exists(select 1 from public.audit_events where action='project_document.update'
  and entity_id='10200000-0000-0000-0000-000000000301'),
  'AC-M365DOC-061 reference-only project updates do not emit generic document snapshots');

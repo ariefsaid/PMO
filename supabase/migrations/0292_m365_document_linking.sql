@@ -446,12 +446,12 @@ create function public.audit_budget_version_document_m365() returns trigger
 language plpgsql security definer set search_path=public as $$
 begin
   if tg_op='INSERT' then
-    perform public.log_audit('budget_version_document.m365_linked',new.org_id,auth.uid(),new.id,
+    perform public.log_audit('budget_version_document_link.m365_linked',new.org_id,auth.uid(),new.id,
       jsonb_build_object('budget_version_id',new.budget_version_id,'ms_drive_id',new.ms_drive_id,
         'ms_item_id',new.ms_item_id,'ms_item_kind',new.ms_item_kind));
     return new;
   end if;
-  perform public.log_audit('budget_version_document.m365_unlinked',old.org_id,auth.uid(),old.id,
+  perform public.log_audit('budget_version_document_link.m365_unlinked',old.org_id,auth.uid(),old.id,
     jsonb_build_object('budget_version_id',old.budget_version_id,'ms_drive_id',old.ms_drive_id,
       'ms_item_id',old.ms_item_id,'ms_item_kind',old.ms_item_kind));
   return old;
@@ -460,10 +460,12 @@ end; $$;
 create function public.audit_org_m365_document_settings() returns trigger
 language plpgsql security definer set search_path=public as $$
 begin
-  if (old.default_site_id,old.default_drive_id) is distinct from (new.default_site_id,new.default_drive_id) then
-    perform public.log_audit('org_m365_document_settings.default_changed',new.org_id,auth.uid(),new.org_id,
-      jsonb_build_object('from_site_id',old.default_site_id,'to_site_id',new.default_site_id,
-        'from_drive_id',old.default_drive_id,'to_drive_id',new.default_drive_id));
+  if tg_op='INSERT' or (old.default_site_id,old.default_drive_id) is distinct from (new.default_site_id,new.default_drive_id) then
+    perform public.log_audit('m365.default_library_changed',new.org_id,auth.uid(),new.org_id,
+      jsonb_build_object('from_site_id',case when tg_op='INSERT' then null else old.default_site_id end,
+        'to_site_id',new.default_site_id,
+        'from_drive_id',case when tg_op='INSERT' then null else old.default_drive_id end,
+        'to_drive_id',new.default_drive_id));
   end if;
   return new;
 end; $$;
@@ -478,7 +480,7 @@ create trigger procurement_document_m365_audit after insert or update or delete 
   for each row execute function public.audit_procurement_document_m365();
 create trigger budget_version_document_m365_audit after insert or delete on public.budget_version_document_links
   for each row execute function public.audit_budget_version_document_m365();
-create trigger org_m365_document_settings_audit after update on public.org_m365_document_settings
+create trigger org_m365_document_settings_audit after insert or update on public.org_m365_document_settings
   for each row execute function public.audit_org_m365_document_settings();
 
 create or replace function public.transition_document_status(p_doc_id uuid, p_to doc_status)
@@ -618,6 +620,7 @@ begin
     raise exception 'Cannot refresh this reference.' using errcode='42501';
   end if;
   if p_project_document_id is not null then
+    if v_role not in ('Admin','Executive','Project Manager','Finance') then return false; end if;
     select * into d from public.project_documents where id=p_project_document_id for update;
     if not found or d.org_id is distinct from v_org or d.source<>'onedrive'
       or d.ms_drive_id is distinct from p_drive_id or d.ms_item_id is distinct from p_item_id

@@ -349,7 +349,7 @@ export async function handleRefreshReferences(
     };
   }
   const target = parsed.target;
-  if (target.kind !== "project" && !WRITE_ROLES.has(membership.role)) {
+  if (!WRITE_ROLES.has(membership.role)) {
     return {
       status: 403,
       body: { error: "FORBIDDEN", message: "Cannot refresh these references." },

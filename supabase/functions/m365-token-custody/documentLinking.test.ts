@@ -1,4 +1,5 @@
 import { readDocumentMetadataBatch } from "./documentReadBatch.ts";
+import { encryptToken, serializeEnvelope } from "./crypto.ts";
 import {
   createJwtAuthority,
   createTestJwksResolver,
@@ -75,6 +76,79 @@ Deno.test("AC-M365DOC-064 builds bounded metadata-only batch reads with server I
   }
 });
 
+Deno.test("AC-M365DOC-066 served refresh refuses a project author demoted to a non-writer role", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-demoted-author" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  Deno.env.set("SUPABASE_URL", url);
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+  try {
+    await withFetchMock([
+      supabaseRpc("m365_membership_state", () =>
+        jsonResponse({
+          state: "active",
+          org_id: "synthetic-org",
+          role: "Engineer",
+        })),
+      supabaseSelect("org_features", () =>
+        jsonResponse({ enabled: true }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      supabaseSelect("project_documents", () =>
+        jsonResponse([{
+          id: "10200000-0000-0000-0000-000000000301",
+          source: "onedrive",
+          status: "Draft",
+          author_id: "synthetic-demoted-author",
+          ms_item_kind: "folder",
+          ms_drive_id: "synthetic-drive",
+          ms_item_id: "synthetic-item",
+        }])),
+    ], async ({ calls }) => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "refresh_references",
+            project_id: "10200000-0000-0000-0000-000000000201",
+            items: [{ drive_id: "synthetic-drive", item_id: "synthetic-item" }],
+          }),
+        }),
+      );
+      if (response.status !== 403) {
+        throw new Error(
+          `demoted author refresh was not refused: ${response.status}`,
+        );
+      }
+      if (
+        calls.some((call) => call.url.origin === "https://graph.microsoft.com")
+      ) {
+        throw new Error("non-writer reached Graph during reference refresh");
+      }
+    });
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});
+
 Deno.test("AC-M365DOC-064 served check_documents rejects over-limit IDs before claim or Graph access", async () => {
   const url = "https://edge-test.supabase.test";
   const auth = await createJwtAuthority(url);
@@ -127,6 +201,193 @@ Deno.test("AC-M365DOC-064 served check_documents rejects over-limit IDs before c
   }
 });
 
+Deno.test("AC-M365DOC-064 served check_documents sends claimed stale references in a bounded metadata-only Graph batch", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-verified-user" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+    "M365_TOKEN_KEK",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  const rawKek = new Uint8Array(32).fill(9);
+  const kek = btoa(String.fromCharCode(...rawKek)).replace(/=/g, "").replaceAll(
+    "+",
+    "-",
+  ).replaceAll("/", "_");
+  Deno.env.set("SUPABASE_URL", url);
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+  Deno.env.set("M365_TOKEN_KEK", kek);
+  try {
+    const encrypted = await encryptToken("synthetic-access-token", rawKek);
+    const connection = {
+      id: "synthetic-connection",
+      org_id: "synthetic-org",
+      user_id: "synthetic-verified-user",
+      entra_tenant_id: "synthetic-tenant",
+      entra_user_object_id: null,
+      scopes: ["Files.Read"],
+      refresh_token_ciphertext: "\\x00",
+      access_token_ciphertext: `\\x${
+        Array.from(serializeEnvelope(encrypted.iv, encrypted.ciphertext), (b) =>
+          b.toString(16).padStart(2, "0")).join("")
+      }`,
+      access_token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+      refresh_token_expires_at: null,
+      key_id: "kek-v1",
+      status: "active",
+      connected_at: new Date().toISOString(),
+      last_refresh_at: null,
+      updated_at: new Date().toISOString(),
+    };
+    const batchEntries: unknown[] = [];
+    await withFetchMock([
+      supabaseRpc(
+        "m365_membership_state",
+        () =>
+          jsonResponse({
+            state: "active",
+            org_id: "synthetic-org",
+            role: "Finance",
+          }),
+      ),
+      supabaseSelect("org_features", () =>
+        jsonResponse({ enabled: true }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      supabaseRpc("m365_claim_document_checks", (call) => {
+        const payload = call.bodyJson as { p_actor_id?: string };
+        if (payload.p_actor_id !== "synthetic-verified-user") {
+          throw new Error("claim actor was not server-derived");
+        }
+        return jsonResponse([
+          {
+            id: "10200000-0000-0000-0000-000000000301",
+            ms_drive_id: "server-drive-a",
+            ms_item_id: "server-item-a",
+            ms_content_tag_at_issue: "tag-a",
+            ms_check_claim: "claim-a",
+          },
+          {
+            id: "10200000-0000-0000-0000-000000000302",
+            ms_drive_id: "server-drive-b",
+            ms_item_id: "server-item-b",
+            ms_content_tag_at_issue: "tag-b",
+            ms_check_claim: "claim-b",
+          },
+        ]);
+      }),
+      supabaseSelect("ms_graph_connections", () =>
+        jsonResponse(connection, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      {
+        label: "graph-batch",
+        host: "graph.microsoft.com",
+        pathname: "/v1.0/$batch",
+        method: "POST",
+        response: (call) => {
+          const body = call.bodyJson as { requests?: unknown[] };
+          batchEntries.push(...(body.requests ?? []));
+          return jsonResponse({
+            responses: [
+              {
+                id: "1",
+                status: 200,
+                body: {
+                  id: "server-item-a",
+                  name: "Evidence A",
+                  webUrl: "https://tenant.sharepoint.com/a",
+                  cTag: "tag-a",
+                  parentReference: { driveId: "server-drive-a" },
+                  file: {},
+                },
+              },
+              {
+                id: "2",
+                status: 200,
+                body: {
+                  id: "server-item-b",
+                  name: "Evidence B",
+                  webUrl: "https://tenant.sharepoint.com/b",
+                  cTag: "tag-b",
+                  parentReference: { driveId: "server-drive-b" },
+                  file: {},
+                },
+              },
+            ],
+          });
+        },
+      },
+      supabaseRpc("m365_commit_document_check", () => jsonResponse(true)),
+    ], async () => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "check_documents",
+            document_ids: [
+              "10200000-0000-0000-0000-000000000301",
+              "10200000-0000-0000-0000-000000000302",
+            ],
+          }),
+        }),
+      );
+      const body = await response.json();
+      if (response.status !== 200 || body.checked !== 2) {
+        throw new Error(
+          `successful claimed batch was not checked: ${response.status}`,
+        );
+      }
+    });
+    if (batchEntries.length !== 2 || batchEntries.length > 20) {
+      throw new Error(
+        "Graph batch must contain claimed entries within the limit",
+      );
+    }
+    for (const [index, raw] of batchEntries.entries()) {
+      const entry = raw as Record<string, unknown>;
+      if (
+        Object.keys(entry).sort().join(",") !== "id,method,url" ||
+        entry.id !== String(index + 1) || entry.method !== "GET"
+      ) {
+        throw new Error(
+          "Graph batch children must be GET-only with server-generated IDs and no write envelope fields",
+        );
+      }
+      if (
+        typeof entry.url !== "string" ||
+        !entry.url.includes(
+          index === 0 ? "server-drive-a" : "server-drive-b",
+        ) ||
+        !entry.url.includes(
+          "$select=id,name,webUrl,parentReference,file,folder,cTag,sharepointIds",
+        )
+      ) {
+        throw new Error(
+          "Graph batch must use claimed server identities and the fixed metadata-only projection",
+        );
+      }
+    }
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});
+
 Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only verified actor IDs", async () => {
   const url = "https://edge-test.supabase.test";
   const auth = await createJwtAuthority(url);
@@ -168,15 +429,24 @@ Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only veri
       if (response.status !== 403) {
         throw new Error(`inactive caller was not rejected: ${response.status}`);
       }
-      if (calls.some((call) => call.url.pathname.includes("m365_claim_document_checks"))) {
+      if (
+        calls.some((call) =>
+          call.url.pathname.includes("m365_claim_document_checks")
+        )
+      ) {
         throw new Error("inactive caller reached the claim RPC");
       }
     });
 
     await withFetchMock([
       supabaseRpc("m365_membership_state", (call) => {
-        if ((call.bodyJson as { p_user_id?: string })?.p_user_id !== "synthetic-verified-user") {
-          throw new Error("membership lookup did not use the verified JWT subject");
+        if (
+          (call.bodyJson as { p_user_id?: string })?.p_user_id !==
+            "synthetic-verified-user"
+        ) {
+          throw new Error(
+            "membership lookup did not use the verified JWT subject",
+          );
         }
         return jsonResponse({
           state: "active",
@@ -191,10 +461,17 @@ Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only veri
       supabaseRpc("m365_claim_document_checks", (call) => {
         const payload = call.bodyJson as Record<string, unknown>;
         if (payload.p_actor_id !== "synthetic-verified-user") {
-          throw new Error("claim RPC actor was not server-derived from the JWT");
+          throw new Error(
+            "claim RPC actor was not server-derived from the JWT",
+          );
         }
-        if (payload.p_ids === undefined || "p_baseline" in payload || "p_content_tag" in payload) {
-          throw new Error("client supplied baseline or content entered the claim RPC");
+        if (
+          payload.p_ids === undefined || "p_baseline" in payload ||
+          "p_content_tag" in payload
+        ) {
+          throw new Error(
+            "client supplied baseline or content entered the claim RPC",
+          );
         }
         return jsonResponse([]);
       }),
@@ -213,16 +490,26 @@ Deno.test("AC-M365DOC-064 served checks fence inactive callers and use only veri
             org_id: "synthetic-org-b",
             baseline: "synthetic-client-baseline",
             cTag: "synthetic-client-content-tag",
-            batch: [{ method: "POST", url: "/me/drive/root/children", body: "write" }],
+            batch: [{
+              method: "POST",
+              url: "/me/drive/root/children",
+              body: "write",
+            }],
           }),
         }),
       );
       const body = await response.json();
       if (response.status !== 200 || body.checked !== 0) {
-        throw new Error("unclaimed or cross-org references were not safely withheld");
+        throw new Error(
+          "unclaimed or cross-org references were not safely withheld",
+        );
       }
-      if (calls.some((call) => call.url.origin === "https://graph.microsoft.com")) {
-        throw new Error("untrusted client baseline or nested write reached Graph");
+      if (
+        calls.some((call) => call.url.origin === "https://graph.microsoft.com")
+      ) {
+        throw new Error(
+          "untrusted client baseline or nested write reached Graph",
+        );
       }
     });
   } finally {
