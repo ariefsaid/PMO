@@ -52,6 +52,13 @@ Deno.test('v16 budget writer scopes successful account rows and preserves replay
     id: VERSION, fiscal_year: '2026', erp_account: account,
   }, command());
   assertEquals(replay.calls.filter((call) => call.method === 'upsert').length, 0);
+
+  const freshAfterCancel = fixture({ erp_cancelled_at: '2026-02-01T00:00:00Z' });
+  await writer.upsert({ serviceClient: freshAfterCancel.client as never, orgId: 'org-1', isReplay: false }, {
+    id: VERSION, fiscal_year: '2026', erp_account: account, erp_budget_name: 'ERP-BUDGET', erp_docstatus: 1,
+  }, command());
+  const freshWrite = freshAfterCancel.calls.find((call) => call.method === 'upsert');
+  assertEquals((freshWrite?.args[0] as Record<string, unknown>).erp_cancelled_at, null);
 });
 
 Deno.test('v16 budget writer records a successful removal as a pushed account tombstone', async () => {

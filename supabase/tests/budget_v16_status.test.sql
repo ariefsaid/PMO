@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(7);
 
 insert into public.organizations(id,name) values ('0b170000-0000-0000-0000-000000000001','BV16 status organization');
 insert into auth.users(id,email) values ('0b170000-0000-0000-0000-0000000000a1','bv16-status@example.invalid');
@@ -37,5 +37,20 @@ insert into public.budget_version_account_erp_mirror(org_id,budget_version_id,fi
 values ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000001','2027','A-Hold','held','operator-hold');
 set local role authenticated;
 select is((select push_state||':'||push_error from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') where fiscal_year='2027'), 'held:operator-hold: account=A-Hold','held account is preserved and identified');
+set local role postgres;
+insert into public.budget_versions(id,org_id,project_id,version,name,status,activated_at)
+values ('0b172222-0000-0000-0000-000000000002','0b170000-0000-0000-0000-000000000001','0b171111-0000-0000-0000-000000000001',2,'BV16 plan fixture','Draft',now());
+insert into public.budget_version_account_erp_mirror(org_id,budget_version_id,fiscal_year,erp_account,push_state,created_at)
+select '0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000002','2026','Plan-'||g,'failed',now() - (g || ' seconds')::interval
+from generate_series(1,3000) g;
+update public.budget_version_account_erp_mirror set push_state='pending'
+where budget_version_id='0b172222-0000-0000-0000-000000000002' and erp_account in ('Plan-2999','Plan-3000');
+analyze public.budget_version_account_erp_mirror;
+create function pg_temp.explain_json(query text) returns json language plpgsql as $$
+declare result json;
+begin execute 'explain (format json) ' || query into result; return result; end;
+$$;
+select is((pg_temp.explain_json('select id from public.budget_version_account_erp_mirror where org_id=''0b170000-0000-0000-0000-000000000001'' and budget_version_id=''0b172222-0000-0000-0000-000000000002'' and fiscal_year=''2026'' and erp_account=''Plan-2999''')->0->'Plan'->>'Index Name'), 'budget_version_account_erp_mi_org_id_budget_version_id_fisc_key', 'account/year lookup uses the new unique index');
+select is((jsonb_path_query_first(pg_temp.explain_json('select id from public.budget_version_account_erp_mirror where org_id=''0b170000-0000-0000-0000-000000000001'' and push_state=''pending'' order by created_at,id limit 200')::jsonb, '$.**."Index Name"') #>> '{}'), 'budget_version_account_erp_mirror_queue_idx', 'bounded org/state queue uses the queue index');
 select * from finish();
 rollback;

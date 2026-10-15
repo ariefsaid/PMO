@@ -129,6 +129,7 @@ import {
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 
 /** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
  *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
@@ -2568,7 +2569,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // write-back, and a `held` row would additionally need an Admin release even after the operator had
   // already corrected the dates. The money-critical property — never POST a body the current gate would
   // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload, cache);
+  await assertBudgetSweepGate(serviceClient, org, payload, row, cache);
 
   const command: AdapterCommand = {
     domain: row.domain as AdapterCommand['domain'],
@@ -2588,6 +2589,14 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
  */
 export function moneyWriteReplayOptions(persistPayload: boolean): { replay: boolean } {
   return { replay: !persistPayload };
+}
+
+export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: string | null; isReplay?: boolean }) {
+  return {
+    orgId: args.orgId,
+    callerUserId: args.actorUserId ?? undefined,
+    isReplay: args.isReplay ?? false,
+  };
 }
 
 export async function buildMoneyWriteDepsLive(
@@ -2675,9 +2684,11 @@ export async function buildMoneyWriteDepsLive(
     },
   });
 
-  const writeReadModel = async (canonical: PmoRecord): Promise<void> => {
+  const writeReadModel = async (canonical: PmoRecord, options?: { isReplay?: boolean }): Promise<void> => {
     await getReadModelWriter(command.domain).upsert(
-      { serviceClient: serviceClient as never, orgId: org.orgId, callerUserId: args.actorUserId ?? undefined },
+      { serviceClient: serviceClient as never, ...moneyWriteReadModelContext({
+        orgId: org.orgId, actorUserId: args.actorUserId, isReplay: options?.isReplay,
+      }) },
       canonical,
       command,
     );
@@ -2703,6 +2714,7 @@ async function assertBudgetSweepGate(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   payload: Record<string, unknown>,
+  outbox: OutboxRow,
   cache?: ErpAuthPairCache,
 ): Promise<void> {
   if (payload.erp_doc_kind !== 'budget') return;
@@ -2750,12 +2762,71 @@ async function assertBudgetSweepGate(
       BUDGET_SWEEP_GATE_HELD,
     );
   }
-  if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
-    throw new AppError(
-      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
-        `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
-      BUDGET_SWEEP_GATE_HELD,
+  const versionMajor = org.versionMajor ?? 15;
+  if (versionMajor !== 16) {
+    if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
+      throw new AppError(
+        `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
+          `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
+        BUDGET_SWEEP_GATE_HELD,
+      );
+    }
+    return;
+  }
+
+  let identity: ReturnType<typeof parseBudgetIdentity>;
+  try {
+    identity = parseBudgetIdentity(outbox.pmoRecordId);
+  } catch {
+    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is invalid', BUDGET_SWEEP_GATE_HELD);
+  }
+  const account = identity.erpAccount;
+  const frozenAccount = typeof payload.erp_account === 'string' ? payload.erp_account : null;
+  if (!account || !frozenAccount || account !== frozenAccount || identity.versionId !== versionId || identity.fiscalYear !== frozenYear) {
+    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is missing or inconsistent', BUDGET_SWEEP_GATE_HELD);
+  }
+  let currentKey: string;
+  try {
+    currentKey = budgetAccountPushKey(outbox.pmoRecordId, plan.activatedAt);
+  } catch {
+    throw new AppError('erpnext-sweep budget recovery HELD: current activation witness is invalid', BUDGET_SWEEP_GATE_HELD);
+  }
+  if (currentKey !== outbox.idempotencyKey) {
+    throw new AppError('erpnext-sweep budget recovery HELD: activation changed since this account intent was created', BUDGET_SWEEP_GATE_HELD);
+  }
+
+  let desired: ReturnType<typeof resolveV16BudgetAccounts>;
+  try {
+    desired = resolveV16BudgetAccounts(
+      plan.plan.find((entry) => entry.fiscal_year === frozenYear)?.line_items ?? [],
+      plan.categoryMap,
     );
+  } catch (err) {
+    throw new AppError(`erpnext-sweep budget recovery HELD: current account resolution failed — ${err instanceof Error ? err.message : String(err)}`, BUDGET_SWEEP_GATE_HELD);
+  }
+  const remove = payload.budget_intent === 'remove';
+  if (remove) {
+    if (desired.some((row) => row.account === account) || !plan.inSpanFiscalYears.includes(frozenYear)) {
+      throw new AppError('erpnext-sweep budget recovery HELD: removed account is desired again or year is outside the current project span', BUDGET_SWEEP_GATE_HELD);
+    }
+    const predecessor = typeof payload.budget_predecessor === 'string' ? payload.budget_predecessor : '';
+    if (!predecessor) throw new AppError('erpnext-sweep budget recovery HELD: removal has no predecessor witness', BUDGET_SWEEP_GATE_HELD);
+    const prior = await serviceClient.from('budget_version_account_erp_mirror')
+      .select('budget_version_id,erp_budget_name,budget_versions!inner(project_id)')
+      .eq('org_id', org.orgId).eq('budget_versions.project_id', plan.projectId)
+      .eq('fiscal_year', frozenYear).eq('erp_account', account).eq('erp_budget_name', predecessor)
+      .eq('budget_intent', 'ensure').is('erp_cancelled_at', null).maybeSingle();
+    if (prior.error || !prior.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no same-org project/account witness', BUDGET_SWEEP_GATE_HELD);
+    const priorVersionId = String((prior.data as { budget_version_id?: unknown }).budget_version_id ?? '');
+    let reverseIdentity: string;
+    try { reverseIdentity = budgetAccountIdentity(priorVersionId, frozenYear, account); }
+    catch { throw new AppError('erpnext-sweep budget recovery HELD: predecessor identity is invalid', BUDGET_SWEEP_GATE_HELD); }
+    const reverseRef = await serviceClient.from('external_refs').select('external_record_id')
+      .eq('org_id', org.orgId).eq('domain', 'budget').eq('external_tier', ERPNEXT_TIER)
+      .eq('pmo_record_id', reverseIdentity).eq('external_record_id', predecessor).maybeSingle();
+    if (reverseRef.error || !reverseRef.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no reverse reference witness', BUDGET_SWEEP_GATE_HELD);
+  } else if (!desired.some((row) => row.account === account)) {
+    throw new AppError('erpnext-sweep budget recovery HELD: account is no longer desired by the current map', BUDGET_SWEEP_GATE_HELD);
   }
 }
 
