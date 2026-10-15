@@ -179,6 +179,16 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15): ServedRoutesR
       return call.headers.get('accept')?.includes('vnd.pgrst.object') ? objectResponse(rows[0] ?? null) : jsonResponse(rows);
     }),
     {
+      label: 'v16 account mirror sentinel retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_account_erp_mirror',
+      response: (call) => {
+        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^in\./, '').replace(/[()]/g, '').split(',') ?? [];
+        for (let index = accountMirrorRows.length - 1; index >= 0; index--) {
+          if (accountMirrorRows[index]?.erp_account === '' && yearFilter.includes(String(accountMirrorRows[index]?.fiscal_year))) accountMirrorRows.splice(index, 1);
+        }
+        return jsonResponse([]);
+      },
+    },
+    {
       label: 'v16 account mirror upsert', method: 'POST', pathname: '/rest/v1/budget_version_account_erp_mirror',
       response: (call) => {
         const incomingRows = (Array.isArray(call.bodyJson) ? call.bodyJson : [call.bodyJson]) as Array<Record<string, unknown>>;

@@ -1542,7 +1542,7 @@ export function budgetBackstopDepsLive(
   /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
    *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
    *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
-  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null }>,
+  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
@@ -1617,7 +1617,7 @@ export function budgetBackstopDepsLive(
           erp_cancelled_at: null,
           fiscal_year: c.year,
           erp_account: c.account,
-          budget_intent: c.account === null ? 'ensure' as const : 'ensure' as const,
+          budget_intent: c.budget_intent ?? 'ensure',
           created_at: null,
         }));
       return [...mirrored, ...orphans]
@@ -1717,6 +1717,7 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
         fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.fiscal_year === 'string'
           ? ((c.canonical as Record<string, string>).fiscal_year)
           : null,
+        budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
       }));
     const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates), { orgId: org.orgId });
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that

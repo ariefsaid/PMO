@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(8);
 
 insert into public.organizations(id,name) values ('0b170000-0000-0000-0000-000000000001','BV16 status organization');
 insert into auth.users(id,email) values ('0b170000-0000-0000-0000-0000000000a1','bv16-status@example.invalid');
@@ -24,9 +24,13 @@ values ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-00000000
        ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000001','2028','Salary','failed','salary-down',null),
        ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000001','2028','COGS','failed','cogs-down',null);
 
+insert into public.budget_version_account_erp_mirror(org_id,budget_version_id,fiscal_year,erp_account,push_state,push_error,created_at)
+values ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000001','2026','','failed','old-gate-refusal','2020-01-01'),
+       ('0b170000-0000-0000-0000-000000000001','0b172222-0000-0000-0000-000000000001','2028','','failed','old-gate-refusal','2020-01-01');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"0b170000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is((select push_state from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') where fiscal_year='2026'), 'pushed', 'all-pushed year remains pushed');
+select is((select push_state from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') where fiscal_year='2026'), 'pushed', 'a later successful account attempt supersedes a prior gate-failure sentinel');
+select is((select push_state||':'||push_error from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') where fiscal_year='2028'), 'failed:cogs-down: account=COGS','a real later account failure is named instead of masked by a stale sentinel');
 select is((select push_state from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') where fiscal_year='2027'), 'pending', 'pending outranks pushed');
 select results_eq($$select fiscal_year,push_state,push_error from public.get_budget_push_status('0b171111-0000-0000-0000-000000000001') order by fiscal_year$$,
   $$values ('2026'::text,'pushed'::text,null::text),('2027'::text,'pending'::text,null::text),('2028'::text,'failed'::text,'cogs-down: account=COGS'::text)$$,

@@ -599,7 +599,7 @@ async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: str
     };
     if (versionMajor === 16) {
       await serviceClient.from('budget_version_account_erp_mirror').upsert({
-        ...row, erp_account: '', budget_intent: 'ensure',
+        ...row, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
       }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
     } else {
       await serviceClient.from('budget_version_erp_mirror').upsert(row, {
@@ -925,9 +925,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         );
       }
       if (versionMajor === 16) {
-        const history = await fetchAllRowsByKeyset<{ id: string; fiscal_year: string; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null }>((afterId, limit) => {
+        const history = await fetchAllRowsByKeyset<{ id: string; fiscal_year: string; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null }>((afterId, limit) => {
           let query = serviceClient.from('budget_version_account_erp_mirror')
-            .select('id,fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,budget_versions!inner(project_id)')
+            .select('id,fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,budget_versions!inner(project_id)')
             .eq('org_id', orgId)
             .eq('budget_versions.project_id', gate.projectId)
             .order('id', { ascending: true })
@@ -935,7 +935,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           if (afterId !== null) query = query.gt('id', afterId);
           return query as never;
         });
-        const outOfSpan = history.find((row) => row.erp_account && row.erp_budget_name && !gate.inSpanFiscalYears.includes(row.fiscal_year));
+        const outOfSpan = history.find((row) => row.erp_account && row.erp_budget_name && !row.erp_cancelled_at && row.erp_docstatus !== 2 && !gate.inSpanFiscalYears.includes(row.fiscal_year));
         if (outOfSpan) {
           throw new BudgetGateError(
             'commit-rejected',
@@ -1029,6 +1029,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           ignoreDuplicates: true,
         });
         if (slotError) throw new BudgetGateError('commit-rejected', 'budget push: could not persist the account unit queue');
+        // The account-grained queue is now durable for every unit in this attempt. Retire any prior
+        // gate-failure sentinel so it cannot outrank the account outcomes from this retry.
+        const { error: sentinelError } = await serviceClient.from('budget_version_account_erp_mirror').delete()
+          .eq('org_id', orgId).eq('budget_version_id', gate.versionId).eq('erp_account', '')
+          .in('fiscal_year', [...new Set(budgetUnits.map((unit) => unit.fiscalYear))]);
+        if (sentinelError) throw new BudgetGateError('commit-rejected', 'budget push: could not clear the prior gate-failure status');
       }
     } catch (err) {
       const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
@@ -1300,7 +1306,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
       } else if (budgetVersionMajor === 16) {
         await serviceClient.from('budget_version_account_erp_mirror').upsert({
-          ...failureRow, erp_account: '', budget_intent: 'ensure',
+          ...failureRow, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
       } else {
         await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {

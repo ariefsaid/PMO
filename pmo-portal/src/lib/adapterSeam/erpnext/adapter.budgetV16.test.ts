@@ -134,7 +134,7 @@ describe('AC-BV16-005 revises only changed accounts and removes the dropped acco
     await commit(changed);
     expect(methodCalls(changed)).toContain('POST');
     const malformed = harness({ account: 'Salary', amount: '50000.00', oldAmount: 'NaN', oldName: 'OLD-Salary' });
-    await expect(commit(malformed)).rejects.toMatchObject({ code: 'commit-rejected' });
+    await expect(commit(malformed)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('account Salary') });
     expect(methodCalls(malformed)).toEqual(['GET']);
   });
 });

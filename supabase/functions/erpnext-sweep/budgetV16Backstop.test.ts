@@ -69,6 +69,16 @@ Deno.test('an exhausted v16 account is held only in its exact account mirror row
   assert(held.payload.erp_account === 'Salary' && held.payload.fiscal_year === '2026', `hold must preserve account/year: ${JSON.stringify(held)}`);
 });
 
+Deno.test('a remove-intent held outbox orphan retains remove intent in its mirror candidate', async () => {
+  const identity = budgetAccountIdentity(VERSION, '2026', 'Travel');
+  const { client } = db({});
+  const rows = await budgetBackstopDepsLive(client, BINDING, [{
+    id: 'outbox-remove', pmo_record_id: identity, fiscal_year: '2026', budget_intent: 'remove',
+  }]).listPendingBudgetPushes(ORG, 200);
+  const remove = rows.find((row) => row.erp_account === 'Travel');
+  assert(remove?.budget_intent === 'remove', `held remove intent must not be rewritten as ensure: ${JSON.stringify(remove)}`);
+});
+
 Deno.test('AC-BV16-004 identical accounts in two fiscal years never collide in the combined queue', async () => {
   const salary2026 = { budget_version_id: VERSION, fiscal_year: '2026', erp_account: 'Salary', push_state: 'failed', erp_cancelled_at: null, created_at: '2026-10-15T10:00:00Z', id: 'row-2026' };
   const identity2027 = budgetAccountIdentity(VERSION, '2027', 'Salary');

@@ -92,6 +92,11 @@ language sql stable security invoker set search_path = public, pg_temp as $$
         case em.push_state when 'failed' then 1 when 'held' then 2 else 3 end,
         em.erp_account,em.id) as rn
     from mirror_rows em
+    where not (em.erp_account = '' and exists (
+      select 1 from mirror_rows later
+       where later.fiscal_year = em.fiscal_year and later.erp_account <> ''
+         and (later.created_at, later.id) > (em.created_at, em.id)
+    ))
   ),
   mirror as (select * from ranked_mirror where rn=1),
   phased as (
@@ -219,7 +224,7 @@ as $$
               and em.fiscal_year = p_fiscal_year
               and em.push_state = 'pushed'                                           -- F-A
               and em.budget_intent = 'ensure'
-              and em.erp_docstatus is distinct from 2
+              and (em.erp_account = '' or em.erp_docstatus is distinct from 2)
          )
        ) as on_record
   ),
@@ -248,7 +253,7 @@ as $$
        and em.fiscal_year = p_fiscal_year
        and em.push_state = 'pushed'                                                  -- F-A (NOT F-B)
        and em.budget_intent = 'ensure'
-       and em.erp_docstatus is distinct from 2
+       and (em.erp_account = '' or em.erp_docstatus is distinct from 2)
        and ( em.pushed_project_start_date is null                                    -- pre-issue push
              or ( em.pushed_project_start_date is not distinct from proj.start_date
                   and em.pushed_project_end_date is not distinct from proj.end_date ) )

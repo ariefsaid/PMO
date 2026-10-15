@@ -74,8 +74,17 @@ describe('v16 prior account history', () => {
         'empty valid year does not mint a synthetic zero-budget command');
     });
 
-    const outOfSpan = servedRoutes({ ...seed, accountMirrorHistory: [{
+    const cancelledOutOfSpan = servedRoutes({ ...seed, accountMirrorHistory: [{
       id: '00000000-0000-4000-8000-000000000001', org_id: ORG_ID, project_id: PROJECT_ID,
+      fiscal_year: '2025', erp_account: 'Travel', erp_budget_name: 'OLD-TRAVEL', erp_cancelled_at: null, erp_docstatus: 2,
+    }] }, 16);
+    await withFetchMock(cancelledOutOfSpan.routes, async () => {
+      const response = await handler!(request(jwt));
+      assertEquals(response.status, 200, 'a cancelled out-of-span predecessor does not block dispatch');
+    });
+
+    const outOfSpan = servedRoutes({ ...seed, accountMirrorHistory: [{
+      id: '00000000-0000-4000-8000-000000000002', org_id: ORG_ID, project_id: PROJECT_ID,
       fiscal_year: '2025', erp_account: 'Travel', erp_budget_name: 'OLD-TRAVEL', erp_cancelled_at: null,
     }] }, 16);
     await withFetchMock(outOfSpan.routes, async () => {

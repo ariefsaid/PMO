@@ -193,7 +193,13 @@ async function commitV16BudgetCreate(
     if (Number(doc.docstatus) !== 1) fail(`occupant ${String(doc.name)} is not submitted`);
     const replacement = recordWithResolvedItemsFallback(command.record, deps.ctx);
     const body = bodyFns.toBody(replacement, deps.ctx) as Record<string, unknown>;
-    if (toCents(String(doc.budget_amount)) === toCents(String(body.budget_amount))) {
+    let amountsMatch: boolean;
+    try {
+      amountsMatch = toCents(String(doc.budget_amount)) === toCents(String(body.budget_amount));
+    } catch {
+      return fail('has an invalid or missing ERP budget amount');
+    }
+    if (amountsMatch) {
       return { externalRecordId: String(doc.name), canonical: canonical(doc) };
     }
     // Construct and validate replacement before the point-of-no-return cancel inside commitAmend.
@@ -205,7 +211,6 @@ async function commitV16BudgetCreate(
   const target = deps.ctx.refs.self ?? predecessor;
   const doc = await getDoc(deps.client, entry.doctype, target) as Record<string, unknown>;
   verify(doc);
-  if (target !== predecessor && !deps.ctx.refs.self) return fail('has no witnessed live successor');
   if (Number(doc.docstatus) === 0) fail(`is occupied by draft ${String(doc.name)}`);
   if (Number(doc.docstatus) === 2) return { externalRecordId: target, canonical: canonical(doc) };
   if (Number(doc.docstatus) === 1) {

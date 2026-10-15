@@ -26,6 +26,29 @@ function makeRequest(jwt: string, targetFiscalYear?: string) {
 }
 
 describe('v16 account fan-out partial outcome', () => {
+  it('the served gate-refusal writer persists a year sentinel with empty account and failed state', async () => {
+    const seed = twoYearPhasedSeed({
+      fiscalYears: [{ name: '2026', year_start_date: '2026-01-01', year_end_date: '2026-12-31' }],
+      lineItems: [{ id: 'li-unmapped', category: 'Unmapped', budgeted_amount: '10.00', fiscal_year: '2026' }],
+      categoryMap: [], projectStartDate: '2026-01-01', projectEndDate: '2026-12-31',
+    });
+    const { routes, accountMirrorRows } = servedRoutes(seed, 16);
+    const jwt = await auth.mintJwt({ sub: USER_ID });
+    await withFetchMock(routes, async ({ calls }) => {
+      const response = await handler!(makeRequest(jwt));
+      assertEquals(response.status, 422);
+      assert(accountMirrorRows.some((row) => row.erp_account === '' && row.push_state === 'failed' && row.fiscal_year === '2026' && typeof row.created_at === 'string'));
+      const writes = calls.filter((call) => call.method === 'POST' && call.url.pathname.endsWith('/budget_version_account_erp_mirror'));
+      assertEquals((writes.at(-1)?.bodyJson as Record<string, unknown>)?.erp_account, '');
+
+      seed.categoryMap.push({ category: 'Unmapped', erp_account: '5100 - Labor - AL' });
+      const recovered = await handler!(makeRequest(jwt));
+      assertEquals(recovered.status, 200, await recovered.text());
+      assertEquals(accountMirrorRows.some((row) => row.erp_account === ''), false, 'the successful retry deletes the sentinel row');
+      assertEquals(accountMirrorRows.find((row) => row.erp_account === '5100 - Labor - AL')?.push_state, 'pushed');
+      assertEquals(calls.filter((call) => call.method === 'DELETE' && call.url.pathname.endsWith('/budget_version_account_erp_mirror')).length, 1);
+    });
+  });
   it('records one account failure and continues to create the sibling account', async () => {
     const seed = twoYearPhasedSeed({
       fiscalYears: [{ name: '2026', year_start_date: '2026-01-01', year_end_date: '2026-12-31' }],
@@ -98,6 +121,9 @@ describe('v16 account fan-out partial outcome', () => {
       assertEquals(erpBudgets.length, 2);
       assert(erpBudgets.every((doc) => doc.body.from_fiscal_year === '2026'));
       assertEquals(accountMirrorRows.length, 2);
+      const sentinelDeletes = calls.filter((call) => call.method === 'DELETE' && call.url.pathname.endsWith('/budget_version_account_erp_mirror'));
+      assertEquals(sentinelDeletes.length, 1, 'successful account queue persistence retires the prior year sentinel');
+      assertEquals(sentinelDeletes[0]?.url.searchParams.get('fiscal_year'), 'in.(2026)');
       const keys = calls.filter((call) => call.method === 'POST' && call.url.pathname.endsWith('/external_command_outbox'));
       assertEquals(keys.length, 2);
       assertEquals(keys.map((call) => String((call.bodyJson as Record<string, unknown>).pmo_record_id)), [
