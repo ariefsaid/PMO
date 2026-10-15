@@ -2415,11 +2415,14 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     const object = payload !== null && typeof payload === 'object' && !Array.isArray(payload)
       ? payload as Record<string, unknown> : null;
     const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-    if (!object || object.mode !== 'repair-invoice-projects' || typeof object.org_id !== 'string'
-        || !uuid.test(object.org_id) || !(object.after_id === null || (typeof object.after_id === 'string' && uuid.test(object.after_id)))) {
-      return json({ error: 'INVALID_REQUEST' }, 400);
+    // The pg_cron tick (erpnext_sweep_tick) posts `{}` — an empty object is the normal sweep, not a maintenance request.
+    if (!(object && Object.keys(object).length === 0)) {
+      if (!object || object.mode !== 'repair-invoice-projects' || typeof object.org_id !== 'string'
+          || !uuid.test(object.org_id) || !(object.after_id === null || (typeof object.after_id === 'string' && uuid.test(object.after_id)))) {
+        return json({ error: 'INVALID_REQUEST' }, 400);
+      }
+      maintenanceRequest = { org_id: object.org_id, after_id: object.after_id as string | null };
     }
-    maintenanceRequest = { org_id: object.org_id, after_id: object.after_id as string | null };
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
