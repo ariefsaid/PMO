@@ -50,7 +50,7 @@ import type {
   ProjectDocumentInput,
   DocStatus,
 } from '@/src/lib/db/documents';
-import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import type { MicrosoftReferenceInput, MicrosoftLibraryDefault } from '@/src/lib/m365/reference';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -790,8 +790,14 @@ export interface VendorWithholdingSlipsRepository {
   get(slipId: string): Promise<SlipDetail>;
 }
 
+export interface M365DocumentSettingsRepository {
+  getDefaultLibrary(): Promise<MicrosoftLibraryDefault | null>;
+  setDefaultLibrary(value: MicrosoftLibraryDefault | null): Promise<void>;
+}
+
 export interface Repositories {
   fxRates: FxRatesRepository;
+  m365DocumentSettings: M365DocumentSettingsRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;

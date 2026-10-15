@@ -100,8 +100,8 @@ create table public.org_m365_document_settings (
   default_site_name text,
   default_drive_id text,
   default_drive_name text,
-  updated_by uuid not null references public.profiles(id),
-  updated_at timestamptz not null,
+  updated_by uuid not null default auth.uid() references public.profiles(id),
+  updated_at timestamptz not null default now(),
   constraint org_m365_document_settings_default_complete check (((
     num_nonnulls(default_site_id,default_site_name,default_drive_id,default_drive_name)=0
     or (default_site_id is not null and btrim(default_site_id)<>''

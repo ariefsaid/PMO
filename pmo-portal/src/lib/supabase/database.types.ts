@@ -3337,8 +3337,8 @@ export type Database = {
           default_site_id?: string | null
           default_site_name?: string | null
           org_id?: string
-          updated_at: string
-          updated_by: string
+          updated_at?: string
+          updated_by?: string
         }
         Update: {
           default_drive_id?: string | null

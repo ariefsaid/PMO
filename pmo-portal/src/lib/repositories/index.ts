@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
 import { fxRatesRepository } from './fxRates';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
@@ -312,6 +313,7 @@ import type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  M365DocumentSettingsRepository,
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
@@ -822,6 +824,11 @@ const timesheet: TimesheetRepository = {
     }),
 };
 
+const m365DocumentSettings: M365DocumentSettingsRepository = {
+  getDefaultLibrary: () => wrap(() => getDefaultLibrary()),
+  setDefaultLibrary: (value) => wrap(() => setDefaultLibrary(value)),
+};
+
 const budget: BudgetRepository = {
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
@@ -1234,6 +1241,7 @@ const reports: ReportsRepository = {
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   fxRates: fxRatesRepository,
+  m365DocumentSettings,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
@@ -1273,6 +1281,7 @@ export type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  M365DocumentSettingsRepository,
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
