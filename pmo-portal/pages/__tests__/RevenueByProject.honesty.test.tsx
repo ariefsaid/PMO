@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -75,11 +76,17 @@ beforeAll(async () => {
   });
 });
 
-const renderPage = () =>
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="route-location">{location.pathname}{location.search}</output>;
+};
+
+const renderPage = (role: 'Admin' | 'Executive' | 'Finance' | 'Project Manager' = 'Executive') =>
   render(
     <I18nextProvider i18n={testI18n}>
-      <ImpersonationProvider realRole="Executive">
-        <MemoryRouter>
+      <ImpersonationProvider realRole={role}>
+        <MemoryRouter initialEntries={['/revenue-by-project']}>
+          <LocationProbe />
           <ToastProvider>
             <RevenueByProject />
           </ToastProvider>
@@ -142,6 +149,26 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     expect(screen.getByText('No revenue data yet')).toBeInTheDocument();
     expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('AC-PFIN-009: Finance/Admin has an Assign project action; keyboard activation still opens the unassigned list for readers', async () => {
+    revenueState.data = [
+      { project_id: null, project_name: null, currency: 'USD', total_amount: 1200, open_ar: 1200, invoice_count: 1 },
+    ];
+    for (const role of ['Finance', 'Admin'] as const) {
+      const finance = renderPage(role);
+      fireEvent.click(screen.getByRole('button', { name: 'Assign project' }));
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/sales-invoices?attribution=unassigned');
+      finance.unmount();
+    }
+
+    const reader = renderPage('Executive');
+    expect(screen.queryByRole('button', { name: 'Assign project' })).not.toBeInTheDocument();
+    const openGroup = screen.getByRole('button', { name: 'Open Unassigned (USD)' });
+    openGroup.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/sales-invoices?attribution=unassigned');
+    reader.unmount();
   });
 
   it('AC-801-001: describes the unassigned invoices in English and Indonesian without exposing a setting key', async () => {

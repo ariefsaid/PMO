@@ -66,6 +66,7 @@ export function useBudgetMutations(projectId: string) {
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
     queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
+    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
   };
 
   const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string }>({

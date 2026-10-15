@@ -16,9 +16,10 @@ vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ co
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevenueMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false }, submitInvoice: { mutateAsync: vi.fn(), isPending: false }, cancelInvoice: { mutateAsync: vi.fn(), isPending: false }, setReceivedDate: { mutateAsync: vi.fn(), isPending: false }, pendingPush: { status: 'idle', lastError: null, lastPushAt: null } }),
 }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [] }), useInvoiceProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [] }), useInvoiceProjectOptions: () => ({ data: [], isPending: false, refetch: vi.fn(async () => ({ data: [], error: null })) }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'finance-1', org_id: 'org-1' }, role: state.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));

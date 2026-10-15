@@ -2471,16 +2471,7 @@
         "title": "Financial summary"
       },
       "invoicing": {
-        "contract": "Contract value",
-        "error": "Couldn't load invoice totals.",
-        "invoicedToDate": "Invoiced to date",
-        "loading": "Loading invoice totals…",
-        "remaining": "Remaining to invoice",
-        "retry": "Retry",
-        "scopeNote": "Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.",
-        "title": "Invoicing against contract",
-        "unavailable": "Unavailable",
-        "unavailableDetail": "Invoice totals cannot be compared with this contract currency or tax basis."
+        "scopeNote": "Counts invoices linked to this project. Invoices raised in the ERP without a project are not included."
       },
       "procSummary": {
         "closed": "Closed",
@@ -3867,6 +3858,7 @@
     "clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced": "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
+    "clearFilter": "Clear filter",
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No sales invoices yet",
@@ -4441,5 +4433,27 @@
     "keepEditing": "Keep editing",
     "fixFields_one": "Fix {{count}} field before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
+  },
+  "projectFinances": {
+    "title":"Project finances", "lifetime":"Lifetime to date", "contract":"Contract value",
+    "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
+    "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
+    "incomplete":"Incomplete — ERP outstanding missing",
+    "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
+    "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
+    "draft":"Draft — not active", "active":"Active", "noBudget":"No budget", "budget":"Budget",
+    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"GL reading unavailable",
+    "mappingUnavailable":"Account mapping unavailable", "mappedCosts":"Mapped GL costs",
+    "category":"Category", "actuals":"GL actuals", "unavailable":"Unavailable",
+    "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
+    "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
+    "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
+  },
+  "invoiceProject": {
+    "assign":"Assign project", "change":"Change project", "project":"Project", "save":"Save project",
+    "scope":"PMO attribution only; the ERP invoice is unchanged.", "required":"Select a project.",
+    "current":"Current project", "fromTo":"From {{old}} to {{new}}. PMO attribution only; the ERP invoice is unchanged.",
+    "discardTitle":"Discard project selection?", "discardDetail":"The selected project will not be saved.",
+    "discard":"Discard", "keep":"Keep editing", "unassignedFilter":"Unassigned invoices"
   }
 }

@@ -131,6 +131,21 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({ vendor_withholding_slip_bill: ['link-1'] });
   });
 
+  it('AC-PFIN-008 resolves old and new invoice project references to names without exposing UUIDs', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(1, { entityType: 'sales_invoice', entityId: 'si-1', changes: {
+        project_id: { old: 'project-old', new: 'project-new' },
+      } }),
+    ], nextCursor: null });
+    repo.recordHistory.lookupNames.mockResolvedValue({ project: new Map([
+      ['project-old', 'Old project'], ['project-new', 'New project'],
+    ]) });
+    renderIt({ includeChildren: true });
+    expect(await screen.findByText('Old project → New project')).toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({ project: ['project-old', 'project-new'], sales_invoice: ['si-1'] });
+    expect(document.body.textContent).not.toMatch(/project-old|project-new/);
+  });
+
   it('HI-2: names invoice event records from only the event IDs on the visible page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(2, { entityType: 'sales_invoice', entityId: 'si-1', changes: {} }),
@@ -356,13 +371,14 @@ describe('RecordHistory — child records and references on the project History 
     expect(screen.queryByText(/Unavailable → Unavailable/)).toBeNull();
   });
 
-  it('a project ref on a procurement reads "Project changed" (no uuid, no Unavailable pair)', async () => {
+  it('AC-PFIN-008 an unresolved project ref stays unavailable and never leaks its ids', async () => {
     repo.recordHistory.list.mockResolvedValue({
       events: [ev(1, { entityType: 'procurement', entityId: 'pr1', changes: { project_id: { old: 'p0', new: 'p1' } } })],
       nextCursor: null,
     });
     renderIt({ entityType: 'procurement', entityId: 'pr1' });
-    expect(await screen.findByText('Project changed')).toBeInTheDocument();
+    expect(await screen.findByText('Unavailable → Unavailable')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/p0|p1/);
     // a procurement's own History does not load the project lists
     expect(repo.task.list).not.toHaveBeenCalled();
     expect(listProcurementsByProject).not.toHaveBeenCalled();

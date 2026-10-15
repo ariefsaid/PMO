@@ -21,6 +21,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppShell } from '@/src/components/shell';
 import type { Role } from '@/src/auth/AuthContext';
 import React from 'react';
+vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 // ── Shared project fixture (on-hand, delivery stage) ──────────────────────────
 

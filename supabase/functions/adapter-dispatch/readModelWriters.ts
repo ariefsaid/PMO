@@ -700,6 +700,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // It rides with `amount` deliberately: if a natively-authored 'exclusive' row is ever mirrored,
     // its amount becomes the grand total and the marker must follow it, or the row starts lying.
     tax_treatment: 'inclusive',
+    ...(Object.prototype.hasOwnProperty.call(canonical, 'erp_project')
+      ? { erp_project: canonical.erp_project }
+      : {}),
     status: deriveSiStatus(outstanding, docstatus),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -747,6 +750,7 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       id: canonical.id,
       org_id: ctx.orgId,
       project_id: projectId,
+      erp_project: canonical.erp_project ?? null,
       customer_id: customerId,
       ...(workOrderId ? { work_order_id: workOrderId } : {}),
       author_user_id: ctx.callerUserId ?? null,

@@ -33,6 +33,7 @@ export type Action =
   | 'record_received_date'
   | 'download_pdf'
   | 'record_efaktur'
+  | 'assign_project'
   | 'manage_external_bindings'
   | 'manage'
   | 'push_timesheet'
@@ -471,6 +472,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       && ['Submitted', 'Unpaid', 'Paid'].includes(String(ctx.record?.status ?? '')),
     // DD-EFK-1: e-Faktur facts stay PMO-owned and are editable by the revenue write set only.
     record_efaktur: allow(REVENUE_WRITE),
+    // PMO project attribution remains separate from the ERP invoice body and is role-gated server-side.
+    assign_project: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.

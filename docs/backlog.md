@@ -4,21 +4,21 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-14) — v0.18.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-15) — v0.19.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-14):** release **v0.18.0** — `production` == `main` == `9c9dc56b` (tag `v0.18.0`); hosted DB
-at **0284**; all 24 edge functions stamped `528344dd` (`/functions/v1/health`). After-push probes (owner-run
+**Live (owner yes, 2026-10-15):** release **v0.19.0** — `production` == `main` == `dev` == `bc251d76` (tag `v0.19.0`);
+hosted DB at **0289** (0287/0288 are unused numbers held by in-flight branches — they must renumber above 0289 before
+merging); all edge functions stamped `bc251d76` (`/functions/v1/health`). After-push probes (owner-run
 `run-prod-probes`): anon-executable definers = the 4 RLS helpers · `second-org-smoke` 20/0 ·
-`second-org-roles-smoke` 81/0 · `isolation-probe` 236 checks / 0 leaks (189 skips need a disposable tenant A).
-`dev` is ahead of `main` by #996 (import rows say why they failed) and #1003 (`scripts/prod-read.sh`).
+`second-org-roles-smoke` 81/0 · `isolation-probe` 238 checks / 0 leaks (187 skips need a disposable tenant A).
 
-**What v0.18.0 carries (over v0.17.0):** UX Discover wave 1 — eight slices (#983–#992: one approvals population,
-receipt preview, prerequisites before dead ends, addressable invoices, accountable personal work, discoverable homes
-and one shell vocabulary, actionable dashboards, phone week completion) · procurement money consistency (#979, 0284:
-one amount basis, payable settlement, quote selection through comparison) · PPN invoice correction (#956, 0283) · the
-ERPNext sweep now polls non-submittable doctypes (#999 — Customer/Supplier/Employee had never synced since connect) ·
-the classification location filter keeps typed text (#1000) · e2e repairs after the slices combined (#993 #995 #997
-#1001). Withholding-slip screens, probe coverage and toast fixes (#961 #965 #966 #953) closed.
+**What v0.19.0 carries (over v0.18.0):** import rows say why they failed (#996) · one read-only path for production
+queries (#1003) · an ERPNext Customer/Supplier rename reaches PMO (#1005) · sweep failures recorded and alerted
+(#1006, 0285) · Executive at-risk count matches the Projects list (#1009, 0286, DD-RISK-1) · invoice record-page
+follow-ups (#1010) · row-actions shadow only when content scrolls under it (#1013) · phases: one visible noun, form
+guidance (#1015, DD-VOCAB-1) · M365 admin-consent URL carries the required scope (#1019) · Bahasa on the dashboards,
+approvals tile and sales-invoice noun (#1021, UXS-006 A1) · tax evidence carries recognizable invoice and project
+labels (#1022 + #1024, 0289, UXS-031).
 
 **RIS:** seeded on prod 2026-10-14 (owner "go") — starting data loaded through `pmo load` (projects, contract
 values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app

@@ -44,7 +44,9 @@ function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null,
         select(columns: string) {
           const filters: Record<string, string> = {};
           const matches = () => (rows[table] ?? []).filter((candidate) =>
-            Object.entries(filters).every(([key, value]) => candidate[key] === value));
+            Object.entries(filters).every(([key, value]) => key.endsWith('__not_null')
+              ? candidate[key.slice(0, -10)] !== null && candidate[key.slice(0, -10)] !== undefined
+              : candidate[key] === value));
           const projectRow = (row: Row) => {
             const data: Row = {};
             for (const key of columns.split(',').map((col) => col.trim())) {
@@ -55,6 +57,10 @@ function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null,
           };
           const chain = {
             eq(col: string, val: string) { filters[col] = val; return chain; },
+            not(col: string, operator: string, val: string) {
+              if (operator === 'is' && val === null) filters[`${col}__not_null`] = 'true';
+              return chain;
+            },
             limit() { return chain; },
             async maybeSingle() {
               if (table === failingTable) return { data: null, error: { message: 'Synthetic source read failed', code: 'SYNTHETIC_READ_ERROR' } };

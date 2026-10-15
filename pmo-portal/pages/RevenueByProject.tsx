@@ -42,7 +42,7 @@ const RevenueByProject: React.FC = () => {
     [all]
   );
 
-  const canView = may('view', 'project');
+  const canView = may('view', 'salesInvoice');
 
   const currencyPending = !currencyResolved && !currencyError;
   const state: 'loading' | 'empty' | 'error' | undefined = isError || currencyError
@@ -76,13 +76,47 @@ const RevenueByProject: React.FC = () => {
         <div className="flex flex-col gap-0.5">
           {row.project_name ? (
             <>
-              <span className="font-semibold">{row.project_name}</span>
+              <button
+                type="button"
+                aria-label={`Open ${row.project_name} (${row.currency})`}
+                className="w-fit font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigate(`/projects/${row.project_id}`);
+                }}
+              >
+                {row.project_name}
+              </button>
               <span className="text-xs text-muted-foreground font-mono">
                 {t('financeCopy.invoiceCount', '{{count}} invoices', { count: row.invoice_count })}
               </span>
             </>
           ) : (
-            <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")}</StatusPill>
+            <>
+              <button
+                type="button"
+                aria-label={`Open Unassigned (${row.currency})`}
+                className="w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigate('/sales-invoices?attribution=unassigned');
+                }}
+              >
+                <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")}</StatusPill>
+              </button>
+              {may('assign_project', 'salesInvoice') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate('/sales-invoices?attribution=unassigned');
+                  }}
+                >
+                  {t('invoiceProject.assign', 'Assign project')}
+                </Button>
+              )}
+            </>
           )}
         </div>
       ),
@@ -217,8 +251,8 @@ const RevenueByProject: React.FC = () => {
             rowKey={(row) => `${row.project_id ?? 'unassigned'}|${row.currency}`}
             onActivate={(row) => {
               if (row.project_id) navigate(`/projects/${row.project_id}`);
+              else navigate('/sales-invoices?attribution=unassigned');
             }}
-            rowLabel={(row) => `Open ${row.project_name ?? 'Unassigned'} (${row.currency})`}
             state={all.length === 0 ? 'empty' : undefined}
             emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
             emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}
