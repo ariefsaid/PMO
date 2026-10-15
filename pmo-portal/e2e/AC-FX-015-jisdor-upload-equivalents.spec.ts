@@ -51,6 +51,9 @@ test.afterEach(async () => {
   for (const check of checks) expect(check.count).toBe(0);
 });
 
+// Multi-page journey (upload, repeat import, project, invoice): the default 30 s test budget is too tight on CI.
+test.setTimeout(60_000);
+
 test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can safely repeat the import', async ({
   page,
 }) => {
