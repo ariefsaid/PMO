@@ -1,6 +1,6 @@
 # Budget push on ERPNext v16 — one ERP Budget per account (#1033)
 
-**Status:** draft for owner sign-off · **Tier:** money path (Director-dispatched) · **Ruling:** `DD-OPS-12`
+**Status:** signed (owner, 2026-10-15) · **Tier:** money path (Director-dispatched) · **Ruling:** `DD-OPS-12`
 **Extends:** `erpnext-adapter-p3c-budget.spec.md` (FR-BUD-1xx), `budget-fiscal-year-phasing.spec.md` (FR-BFY-0xx),
 `budget-account-map-multi.spec.md` (FR-BAM-0xx). Everything those specs say still holds on v15; this spec only
 adds the v16 shape.
