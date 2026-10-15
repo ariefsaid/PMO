@@ -1,0 +1,126 @@
+import {
+  createJwtAuthority,
+  createTestJwksResolver,
+  jsonResponse,
+  supabaseRpc,
+  supabaseSelect,
+  withFetchMock,
+} from "../_shared/testing/edgeTestKit.ts";
+
+const originalServe = Deno.serve;
+Deno.serve = (() => undefined) as unknown as typeof Deno.serve;
+const { handler, setTestJwks } = await import("./index.ts");
+Deno.serve = originalServe;
+
+Deno.test("AC-M365DOC-056 served handler preserves metadata-only preflight behavior", async () => {
+  const response = await handler(
+    new Request("http://edge.test/m365-token-custody", { method: "OPTIONS" }),
+  );
+  if (response.status !== 200 || await response.text() !== "ok") {
+    throw new Error("unexpected preflight response");
+  }
+});
+
+Deno.test("AC-M365DOC-056 served handler enforces consented scopes on graph_proxy", async () => {
+  const url = "https://edge-test.supabase.test";
+  const auth = await createJwtAuthority(url);
+  const token = await auth.mintJwt({ sub: "synthetic-user" });
+  setTestJwks(createTestJwksResolver(auth));
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  Deno.env.set("SUPABASE_URL", url);
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+  try {
+    await withFetchMock([
+      supabaseRpc("m365_membership_state", () =>
+        jsonResponse({
+          state: "active",
+          org_id: "synthetic-org",
+          role: "Admin",
+        })),
+      supabaseSelect("org_features", () =>
+        jsonResponse({ enabled: true }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+      supabaseSelect("ms_graph_connections", () =>
+        jsonResponse({
+          id: "synthetic-connection",
+          status: "active",
+          scopes: ["Files.Read"],
+        }, {
+          headers: { "content-type": "application/vnd.pgrst.object+json" },
+        })),
+    ], async () => {
+      const response = await handler(
+        new Request("http://edge.test/m365-token-custody", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "graph_proxy",
+            method: "POST",
+            path: "/me/drive/root/children",
+          }),
+        }),
+      );
+      if (response.status !== 403) {
+        throw new Error(`expected scope rejection, got ${response.status}`);
+      }
+      const result = await response.json();
+      if (result.error !== "SCOPE_INSUFFICIENT") {
+        throw new Error("expected scope rejection envelope");
+      }
+    });
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});
+
+Deno.test("AC-M365DOC-056 served handler authenticates before parsing proxy JSON", async () => {
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, Deno.env.get(name)]),
+  );
+  try {
+    Deno.env.set("SUPABASE_URL", "https://edge-test.supabase.test");
+    Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+    Deno.env.set("SUPABASE_ANON_KEY", "synthetic-anon-key");
+    const response = await handler(
+      new Request("http://edge.test/m365-token-custody", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{",
+      }),
+    );
+    if (response.status !== 401) {
+      throw new Error(`expected 401, got ${response.status}`);
+    }
+    const body = await response.json();
+    if (body.error !== "UNAUTHORIZED") {
+      throw new Error("expected stable unauthorized response");
+    }
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
+  }
+});

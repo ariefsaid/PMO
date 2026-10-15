@@ -45,6 +45,9 @@ interface DenoEnvLike {
 const denoEnv = (globalThis as { Deno?: DenoEnvLike }).Deno?.env ?? new Proxy({}, {
   get: () => undefined,
 }) as DenoEnvLike['env'];
+const SUPABASE_EDGE_OPTIONS = {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+};
 function cfg(key: string): string {
   return denoEnv.get(key) ?? '';
 }
@@ -55,6 +58,10 @@ let _jwks: JwksResolver | null = null;
 function getJwks(supabaseUrl: string): JwksResolver {
   if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
   return _jwks;
+}
+
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
 }
 
 /** Build the resolved M365Env from Deno env (the single env-reading site). */
@@ -73,7 +80,7 @@ function buildEnv(): M365Env {
   };
 }
 
-serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Response> => {
+export async function handler(req: Request): Promise<Response> {
   const env = buildEnv();
   const cors = corsHeaders(env.allowedOrigin);
 
@@ -167,7 +174,9 @@ serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Resp
   }
 
   return toResponse(result, env.allowedOrigin);
-});
+}
+
+if (import.meta.main) serveWithErrorReporting('m365-token-custody', handler);
 
 /** Build deps for the GET /callback path: service client only (no caller JWT, no caller client). */
 async function callbackDeps(env: M365Env): Promise<HandlerDeps | Response> {
@@ -177,7 +186,7 @@ async function callbackDeps(env: M365Env): Promise<HandlerDeps | Response> {
       env.allowedOrigin,
     );
   }
-  const serviceClient = createClient(env.supabaseUrl, cfg('SUPABASE_SERVICE_ROLE_KEY'));
+  const serviceClient = createClient(env.supabaseUrl, cfg('SUPABASE_SERVICE_ROLE_KEY'), SUPABASE_EDGE_OPTIONS);
   // Bridge the real supabase-js client into the structural M365SupabaseLike seam (same `as never`
   // convention agent-chat/compose-view use — the real client satisfies the shape at runtime).
   return { env, serviceClient: serviceClient as never, userId: '' };
@@ -219,9 +228,10 @@ async function authedDeps(req: Request, env: M365Env): Promise<HandlerDeps | Res
   }
 
   const callerClient = createClient(env.supabaseUrl, anonKey, {
+    ...SUPABASE_EDGE_OPTIONS,
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-  const serviceClient = createClient(env.supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(env.supabaseUrl, serviceRoleKey, SUPABASE_EDGE_OPTIONS);
 
   return { env, serviceClient: serviceClient as never, callerClient: callerClient as never, userId };
 }
