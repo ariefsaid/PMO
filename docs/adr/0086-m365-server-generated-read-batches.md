@@ -1,6 +1,6 @@
-# ADR-0085 — Server-generated Microsoft document read batches
+# ADR-0086 — Server-generated Microsoft document read batches
 
-- **Status:** Proposed for Director implementation review; required before the batch adapter is exposed.
+- **Status:** ACCEPTED by the Director 2026-10-15 (server-built, GET-only metadata, ≤20 entries, per-entry scope gate). Renumbered from 0085 (taken on dev by the JISDOR ADR).
 - **Date:** 2026-10-14
 - **Scope:** Issue #1020's user-triggered controlled-file verification transport, not a general Graph batch API.
 - **Related:** [Linked-document drift](0071-linked-document-content-drift.md), [Graph token custody](0060-microsoft-graph-token-custody.md), [Integration architecture](0063-microsoft-365-integration-architecture.md), [signed specification](../specs/m365-onedrive-doc-linking.spec.md), [implementation plan](../plans/2026-10-14-m365-doc-linking.md).
