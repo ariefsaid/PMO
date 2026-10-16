@@ -1,10 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 
 describe('MilestonePhaseHeader', () => {
+  beforeEach(() => {
+    // Pin the clock: target labels add the year when it differs from today's (UX-031).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-17T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('AC-DEL-008 AC-DEL-009 AC-DEL-012: stepper variant renders name+Current on same line, effective % in right column, weight share, target, no From tasks', async () => {
     const onEditProgress = vi.fn();
     render(

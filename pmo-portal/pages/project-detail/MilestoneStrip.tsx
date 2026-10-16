@@ -282,8 +282,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
               <li>
                 {/* AC-RAM-004 (#688) Discover round 3 (2026-09-29): the previous fixed
                     `sm:grid-cols-2 xl:grid-cols-4` sized columns off the VIEWPORT, but this grid
-                    sits in a two-column record layout (`ProjectDetail`'s
-                    `lg:grid-cols-[minmax(0,1fr)_340px]`) — its own rendered width is ~627px at a
+                    sat in a two-column record layout (the details rail, made a disclosure by S-13,
+                    so the grid is now full width) — its rendered width was ~627px at a
                     1280px viewport and ~787px at 1440px, nowhere near 1280/4=320px per card. Forcing
                     4 columns at that width squeezed the name column to ~7-47px, breaking words
                     mid-letter (`break-words`, round 2's fix, stopped the % overlap but not this).
