@@ -75,7 +75,7 @@ for (const role of ['pm', 'finance'] as const) {
         await page.evaluate(value => { localStorage.setItem('theme', value); document.documentElement.classList.toggle('dark', value === 'dark'); }, theme);
         for (const tab of ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks']) {
           await page.goto(`${projectPath}/${tab}`);
-          const work = tab === 'budget' ? panel.getByTestId('derived-budget')
+          const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
             : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
             : tab === 'work-orders' ? panel.getByText('Contract drawdown', { exact: true }).first()
             : tab === 'billing' ? panel.getByText('Billing summary', { exact: true })

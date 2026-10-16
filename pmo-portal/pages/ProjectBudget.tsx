@@ -216,7 +216,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 control that makes the capability reachable. */}
             <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
             <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-            <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
             <th className="border-b border-border bg-card" />
           </tr>
         </thead>
@@ -295,9 +294,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     />
                   </div>
                 </td>
-                <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount), currency)}
-                </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
                   <Button
@@ -342,9 +338,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular">
                   {formatCurrency(Number(li.budgeted_amount), currency)}
-                </td>
-                <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount), currency)}
                 </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   <Button
@@ -427,7 +420,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   className="w-28"
                 />
               </td>
-              <td />
               <td className="space-x-1 px-3 py-2 text-right">
                 {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
                 <Button
@@ -534,7 +526,12 @@ const VersionCard: React.FC<VersionCardProps> = ({
             <Badge>{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</Badge>
           )}
         </div>
-        <span className="ml-auto shrink-0 whitespace-nowrap font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
+        <span
+          data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
+          className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
+        >
+          {formatCurrency(version.total, version.currency)}
+        </span>
       </div>
 
       {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
@@ -624,7 +621,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
                       than none. */}
                   <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
                   <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-                  <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
                 </tr>
               </thead>
               <tbody>
@@ -637,9 +633,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular">
                       {formatCurrency(Number(li.budgeted_amount), version.currency)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                      {formatCurrency(Number(li.actual_amount), version.currency)}
                     </td>
                   </tr>
                 ))}
@@ -918,6 +911,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     />
   );
 
+  const hasActive = versions.some((v) => v.status === 'Active');
   const head = (
     // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
     // selected "Budget" tab label (which already names the section). Dropped — the
@@ -925,12 +919,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     // is the section heading; no orphaned hierarchy (the page <h1> is the project name).
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p className="text-sm text-muted-foreground">
-          {t('financeCopy.activeBudget', "Active budget:")}{' '}
-          <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-            {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
-          </span>
-        </p>
+        {/* UX-033: the Active amount is announced ONCE, in the version header below. This line exists only
+            to keep it in view while another version is open — and DD-MONEY-4: with no Active version it says
+            so, instead of presenting a Draft or $0 as the budget. */}
+        {!hasActive ? (
+          <p className="text-sm text-muted-foreground">{t('uxs04.noActiveBudget', 'No active budget')}</p>
+        ) : selected?.status !== 'Active' ? (
+          <p className="text-sm text-muted-foreground">
+            {t('financeCopy.activeBudget', "Active budget:")}{' '}
+            <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
+              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
+            </span>
+          </p>
+        ) : null}
       </div>
       {canWrite && (
         <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
@@ -1009,16 +1010,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             </option>
           ))}
         </select>
-        {/* A4/A5: status pill — tinted, darkened AA text, dot + text (not color-only) */}
-        {selected && (
-          <StatusPill variant={budgetVersionVariant(selected.status)}>{budgetStatusLabel(selected.status, t)}</StatusPill>
-        )}
-        {/* A6: tabular total in selector bar so it's visible without scrolling */}
-        {selected && (
-          <span className="ml-auto text-[13px] font-semibold tabular">
-            {formatCurrency(selected.total, selected.currency)}
-          </span>
-        )}
       </Toolbar>
 
       {/* AC-BD-05: exactly ONE VersionCard */}

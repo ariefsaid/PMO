@@ -901,14 +901,14 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
  * facts: this is what PMO recorded on the budget line; the projection reads the ERP general ledger.
  */
 describe('ProjectBudget — the Actual column names its own source (C-4)', () => {
-  it('C-4 the version grid column says the figure is PMO-recorded, not the ERP ledger', async () => {
+  it('C-4 / S-04 the version grid carries NO Actual column — spending comes only from the Forecast (ledger) source', async () => {
     budgetState.data = 4700000;
-    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
-    renderPage();
-    // the selected version's line-item grid is the surface that carries the column
+    // a stored, stale line Actual must never reach the screen
+    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items.map((li) => ({ ...li, actual_amount: 123456789 })) }];
+    const { container } = renderPage();
     await screen.findByRole('columnheader', { name: /Budgeted/i });
-    expect(screen.queryAllByRole('columnheader', { name: /^Actual$/ })).toHaveLength(0);
-    expect(screen.getAllByRole('columnheader', { name: /Actual \(PMO recorded\)/i }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole('columnheader', { name: /actual/i })).toHaveLength(0);
+    expect(container.textContent).not.toMatch(/123,456,789/);
   });
 });
 

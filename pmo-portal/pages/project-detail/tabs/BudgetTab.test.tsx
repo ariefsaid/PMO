@@ -60,6 +60,16 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     expect(screen.getByTestId('pmo-budget-grid')).toBeInTheDocument();
   });
 
+  it('UX-034 the Forecast comes BEFORE the version ledger in document order', async () => {
+    bindingMock.mockReturnValue({ data: binding('active'), isSuccess: true });
+
+    render(<BudgetTab projectId="proj-1" />);
+
+    const forecast = await screen.findByTestId('erp-projection-panel');
+    const ledger = screen.getByTestId('pmo-budget-grid');
+    expect(forecast.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('LOW-2 an org with NO erpnext binding never sees the panel — its remedy copy would be unfollowable', async () => {
     // A real non-ERP org: no erpnext binding at all (it may still employ some OTHER tier for OTHER domains).
     bindingMock.mockReturnValue({ data: null, isSuccess: true });

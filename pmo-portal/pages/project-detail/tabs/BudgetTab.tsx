@@ -13,7 +13,7 @@ export interface BudgetTabProps {
  * tokens + StatusPill). Kept as a one-responsibility tab so the detail shell
  * never reaches into budget internals.
  *
- * P3c slice 6 (FR-BUD-151): additively mounts `<BudgetProjection>` below the existing budget grid —
+ * P3c slice 6 (FR-BUD-151): mounts `<BudgetProjection>` (since S-04 ABOVE the budget version grid) —
  * PMO's forward view (never pushed to ERP, FR-BUD-160). It fetches + gates itself independently of
  * `<ProjectBudget>`.
  *
@@ -37,10 +37,12 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
   const { data: erpnextBinding } = useErpnextBinding();
   const employsExternalBudget = erpnextBinding?.status === 'active';
   return (
-    <>
-      <ProjectBudget projectId={projectId} />
+    // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
+    // answers — and the version ledger/operations follow. Same two components, only the order changes.
+    <div className="flex flex-col gap-5">
       {employsExternalBudget && <BudgetProjection projectId={projectId} />}
-    </>
+      <ProjectBudget projectId={projectId} />
+    </div>
   );
 };
 
