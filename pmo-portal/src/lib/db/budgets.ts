@@ -13,6 +13,7 @@ import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/li
 export type BudgetVersionRow = Tables<'budget_versions'>;
 export type BudgetLineItemRow = Tables<'budget_line_items'>;
 export type BudgetDocumentLinkRow = Tables<'budget_version_document_links'>;
+export type BudgetActivationMode = 'allowed' | 'sole_operator' | 'blocked' | 'blocked_editor' | 'blocked_no_drafter';
 
 export type BudgetVersionWithItems = BudgetVersionRow & {
   /** All line-items belonging to this version. */
@@ -78,6 +79,14 @@ export interface ImportProvenance {
  * (FR-BV-002). The stale `projects.budget` header is never read (FR-BV-003).
  * org_id is NEVER sent — RLS scopes via `auth_org_id()` (NFR-BV-PERF-001).
  */
+export async function getBudgetActivationMode(versionId: string): Promise<BudgetActivationMode> {
+  const { data, error } = await supabase.rpc('budget_activation_mode', { version_id: versionId });
+  if (error) throw toAppError(error);
+  const modes: readonly BudgetActivationMode[] = ['allowed', 'sole_operator', 'blocked', 'blocked_editor', 'blocked_no_drafter'];
+  if (!modes.includes(data as BudgetActivationMode)) throw new Error('Unexpected budget activation mode');
+  return data as BudgetActivationMode;
+}
+
 export async function deriveProjectBudget(projectId: string): Promise<number> {
   const { data, error } = await supabase.rpc('get_project_budget', {
     p_project_id: projectId,

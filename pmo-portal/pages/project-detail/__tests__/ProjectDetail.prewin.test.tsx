@@ -96,6 +96,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
