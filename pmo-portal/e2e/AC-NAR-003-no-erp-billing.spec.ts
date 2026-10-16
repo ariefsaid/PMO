@@ -152,4 +152,17 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   row = await invoiceRow(page);
   await expect(row.getByText(localizedExact('Paid', 'Dibayar'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/(?:Overpaid by|Kelebihan bayar)\s*\S*\s?90[.,]000/i);
+
+  // The receipt is a readable record: follow the latest receipt to its invoice allocation, then open that invoice.
+  await page.goto('/incoming-payments');
+  await page.getByLabel(localized('Search incoming payments', 'Cari pembayaran masuk')).fill(`${tag} Client`);
+  const receiptRow = page.getByRole('row').filter({ hasText: `${tag} Client` }).filter({ hasText: /700[.,]000/ });
+  await expect(receiptRow).toBeVisible({ timeout: 15_000 });
+  await receiptRow.getByRole('link', { name: /^RCV-\d{10}$/ }).click();
+  await expect(page.getByRole('heading', { name: /^Receipt RCV-\d{10}$/ })).toBeVisible();
+  const invoiceAllocation = page.getByRole('link', { name: /^INV-\d{10}$/ });
+  await expect(invoiceAllocation).toBeVisible();
+  await invoiceAllocation.click();
+  await expect(page).toHaveURL(/\/sales-invoices\/[^/?]+/);
+  await expect(page.getByRole('heading', { name: /Invoice|Faktur/ })).toBeVisible();
 });
