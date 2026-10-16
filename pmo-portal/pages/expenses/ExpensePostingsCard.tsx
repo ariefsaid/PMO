@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
+import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
 import { Card, CardHead, CardPad, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpensePostingKind, ExpensePostingRow, ExpensePushState } from '@/src/lib/repositories/expensePostings';
@@ -62,6 +63,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     queryKey: ['expense-postings', claimId],
     queryFn: () => repositories.expensePostings.listForClaim(claimId),
   });
+  const readiness = useExpensePostingReadiness().state;
   const postingLabel: Record<ExpensePostingKind, string> = {
     approval: t('expenses.postings.kind.approval', 'Approval journal'),
     'claim-payment': t('expenses.postings.kind.claimPayment', 'Cash payment'),
@@ -89,7 +91,18 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
       />
     );
   }
-  if (!data || data.length === 0) return null;
+  if (!data || data.length === 0) {
+    // S-12 (RF-060): silence is only right when posting is active or still being checked; otherwise say why
+    // nothing is posted. Display only — nothing is queued or retried from here.
+    if (readiness === 'checking' || readiness === 'ready') return null;
+    return (
+      <p role="status" className="mb-4 text-[13px] text-muted-foreground">
+        {readiness === 'unavailable'
+          ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
+          : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
+      </p>
+    );
+  }
   return (
     // The same shell as the Receipts card beside it; the title is a real heading for screen-reader navigation.
     <Card variant="bare" className="mb-4" aria-labelledby="expense-postings-heading" role="region">

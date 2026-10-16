@@ -4494,5 +4494,19 @@
       "failed": "Accounting update needs attention",
       "held": "Accounting update on hold"
     }
+  },
+  "uxs12": {
+    "expensePosting": {
+      "adminInactive": "ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.",
+      "adminUnknown": "Couldn't check whether expense posting is ready. Try checking again.",
+      "retryReadiness": "Check again",
+      "mapIncomplete": "{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.",
+      "saveRefused": "Expense posting isn't ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.",
+      "formNotConnected": "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.",
+      "formInactive": "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.",
+      "formUnknown": "Couldn't check whether expense posting is active. You can still save this in PMO.",
+      "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
+      "cardUnknown": "Couldn't check whether this claim will reach accounting."
+    }
   }
 }

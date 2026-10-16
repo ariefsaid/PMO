@@ -28,6 +28,11 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: '
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
+const readiness = vi.hoisted(() => ({ state: 'ready' as string }));
+vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({
+  useExpensePostingReadiness: () => ({ state: readiness.state, retry: vi.fn() }),
+}));
+
 import ExpenseClaims from './ExpenseClaims';
 
 const ROW = {
@@ -40,6 +45,7 @@ beforeEach(() => {
   mockNavigate.mockClear();
   h.listSpy.mockClear();
   h.create.mutateAsync.mockReset();
+  readiness.state = 'ready';
   h.list.data = { rows: [ROW], truncated: false };
 });
 
@@ -86,5 +92,31 @@ describe('ExpenseClaims page', () => {
     h.list.data = { rows: [ROW], truncated: true };
     renderPage();
     expect(screen.getByText(/Showing the latest 200/)).toBeInTheDocument();
+  });
+
+  describe('S-12 posting readiness before draft creation (RF-060)', () => {
+    it.each([
+      ['notConnected', /Expense posting to accounting isn't active/],
+      ['inactive', /ERPNext is connected, but expense posting isn't switched on/],
+      ['unavailable', /Couldn't check whether expense posting is active/],
+    ])('%s: a persistent plain warning shows in the new-claim form and PMO-only creation still works', async (state, text) => {
+      readiness.state = state;
+      h.create.mutateAsync.mockResolvedValue({ id: 'new-2' });
+      renderPage();
+      await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText(text)).toBeInTheDocument();
+      await userEvent.type(within(dialog).getByLabelText(/Title/), 'Site visit');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+      expect(h.create.mutateAsync).toHaveBeenCalled();
+    });
+
+    it.each(['ready', 'checking'])('%s: no warning', async (state) => {
+      readiness.state = state;
+      renderPage();
+      await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).queryByText(/expense posting/i)).toBeNull();
+    });
   });
 });
