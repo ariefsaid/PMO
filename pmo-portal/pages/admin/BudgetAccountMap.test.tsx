@@ -13,8 +13,9 @@ import { MemoryRouter, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
-const { listMock, createMock, updateMock, deleteMock, setPushMock } = vi.hoisted(() => ({
+const { listMock, catalogueMock, createMock, updateMock, deleteMock, setPushMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
+  catalogueMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -23,6 +24,7 @@ const { listMock, createMock, updateMock, deleteMock, setPushMock } = vi.hoisted
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetCategoryAccountMap: listMock,
+  listBudgetPostingAccountCatalogue: catalogueMock,
   createBudgetCategoryAccountMapRow: createMock,
   updateBudgetCategoryAccountMapRow: updateMock,
   deleteBudgetCategoryAccountMapRow: deleteMock,
@@ -58,6 +60,19 @@ const FragmentNav: React.FC = () => {
   );
 };
 
+const selectCatalogueAccount = async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, account: string) => {
+  await user.click(within(dialog).getByRole('combobox', { name: /erp account/i }));
+  const search = await screen.findByRole('searchbox');
+  await user.type(search, account);
+  await user.click(await screen.findByRole('option', { name: new RegExp(account, 'i') }));
+};
+
+const openRowOptions = async (user: ReturnType<typeof userEvent.setup>, category: string) => {
+  const row = (await screen.findByText(category)).closest('tr')!;
+  await user.click(within(row).getByText('Account options'));
+  return row;
+};
+
 const renderPage = (role: Role = 'Admin', initial = '/administration/accounting') => {
   realRole = role;
   return render(
@@ -74,16 +89,70 @@ const renderPage = (role: Role = 'Admin', initial = '/administration/accounting'
 
 beforeEach(() => {
   listMock.mockReset();
+  catalogueMock.mockReset();
   createMock.mockReset();
   updateMock.mockReset();
   deleteMock.mockReset();
   setPushMock.mockReset();
   setPushMock.mockResolvedValue(undefined);
   listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
+  catalogueMock.mockResolvedValue({
+    source: 'mirror',
+    accounts: [
+      { account: '5100 - Direct Costs', accountName: 'Labor', accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '5200 - Materials', accountName: 'Materials', accountNumber: '5200', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '5100 - New Account', accountName: 'Labor', accountNumber: '5101', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '5400 - Travel Expenses', accountName: 'Travel expenses', accountNumber: '5400', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '6100 - Office', accountName: 'Office overhead', accountNumber: '6100', parentAccount: 'Operating Expenses', rootType: 'Expense', isGroup: false, disabled: false },
+    ],
+  });
   createMock.mockResolvedValue({ category: 'Materials', erpAccount: '5200 - Materials' });
   updateMock.mockResolvedValue({ category: 'Labor', erpAccount: '5100 - New Account' });
   deleteMock.mockResolvedValue(undefined);
   realRole = 'Admin';
+});
+
+describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
+  it('retains the mapped category and proposes only the unmatched direct-cost category', async () => {
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'Review 1 proposals' })).toBeInTheDocument();
+    expect(screen.getByText(/existing choices are kept/i)).toBeInTheDocument();
+    expect(screen.queryByText('6100 - Office')).not.toBeInTheDocument();
+  });
+
+  it('confirms proposed choices once before saving them', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review 1 proposals' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Confirm proposed posting accounts?' });
+    expect(within(confirm).getByText(/Materials → 5200 - Materials/)).toBeInTheDocument();
+    expect(createMock).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Confirm proposals' }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', '5200 - Materials', true));
+  });
+
+  it('keeps the account chart loading state distinct from a loaded empty proposal set', async () => {
+    catalogueMock.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    expect(await screen.findByText('Loading the account chart…')).toBeInTheDocument();
+    expect(screen.queryByText(/no clear direct-cost match/i)).not.toBeInTheDocument();
+  });
+
+  it('clearly labels the live-chart fallback when the mirrored chart is empty', async () => {
+    catalogueMock.mockResolvedValue({ source: 'erp-fallback', accounts: [] });
+    renderPage();
+    expect(await screen.findByText(/saved account chart is empty/i)).toBeInTheDocument();
+    expect(screen.getByText(/no clear direct-cost match/i)).toBeInTheDocument();
+  });
+
+  it('leaves categories for operator resolution rather than substituting an overhead account', async () => {
+    catalogueMock.mockResolvedValue({ source: 'mirror', accounts: [
+      { account: '6100 - Office', accountName: 'Office', accountNumber: '6100', parentAccount: 'Operating Expenses', rootType: 'Expense', isGroup: false, disabled: false },
+    ] });
+    renderPage();
+    expect(await screen.findByText(/overhead account will not be substituted/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /review .*proposals/i })).not.toBeInTheDocument();
+  });
 });
 
 describe('BudgetAccountMap — all categories always present (AC-BUD-010/011/012)', () => {
@@ -110,12 +179,15 @@ describe('BudgetAccountMap — all categories always present (AC-BUD-010/011/012
 });
 
 describe('BudgetAccountMap — Admin-only affordances (FR-BUD-112)', () => {
-  it('Admin sees Map/Edit + Unmap controls', async () => {
+  it('Admin reaches rare row actions through the account-options disclosure', async () => {
+    const user = userEvent.setup();
     renderPage('Admin');
-    expect(await screen.findByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /map materials/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove 5100 - Direct Costs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add account to Labor' })).toBeInTheDocument();
+    const labor = await openRowOptions(user, 'Labor');
+    expect(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
+    expect(within(labor).getByRole('button', { name: 'Remove 5100 - Direct Costs' })).toBeInTheDocument();
+    expect(within(labor).getByRole('button', { name: 'Add account to Labor' })).toBeInTheDocument();
+    const materials = (await screen.findByText('Materials')).closest('tr')!;
+    expect(materials.querySelector('details')).not.toHaveAttribute('open');
   });
 
   it('a non-Admin (Engineer) sees the same rows read-only — no write affordances', async () => {
@@ -129,20 +201,23 @@ describe('BudgetAccountMap — Admin-only affordances (FR-BUD-112)', () => {
 
 describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
   it('AC-CAT-004: maps Special expenses through the existing repository with its canonical value', async () => {
+    const user = userEvent.setup();
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Map Special expenses' }));
+    const special = await openRowOptions(user, 'Special expenses');
+    await user.click(within(special).getByRole('button', { name: 'Map Special expenses' }));
     const modal = await screen.findByRole('dialog');
-    await userEvent.type(within(modal).getByLabelText(/erp account/i), 'Travel expenses');
-    await userEvent.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', 'Travel expenses', true));
+    await selectCatalogueAccount(user, modal, '5400 - Travel Expenses');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', '5400 - Travel Expenses', true));
   });
 
   it('maps a previously-unmapped category (create)', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: /map materials/i }));
+    const materials = await openRowOptions(user, 'Materials');
+    await user.click(within(materials).getByRole('button', { name: /map materials/i }));
     const modal = await screen.findByRole('dialog');
-    await user.type(within(modal).getByLabelText(/erp account/i), '5200 - Materials');
+    await selectCatalogueAccount(user, modal, '5200 - Materials');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
     await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', '5200 - Materials', true));
   });
@@ -150,30 +225,33 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
   it('repoints an already-mapped category (update)', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Edit 5100 - Direct Costs' }));
+    const labor = await openRowOptions(user, 'Labor');
+    await user.click(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' }));
     const modal = await screen.findByRole('dialog');
-    const field = within(modal).getByLabelText(/erp account/i);
-    await user.clear(field);
-    await user.type(field, '5100 - New Account');
+    await selectCatalogueAccount(user, modal, '5100 - New Account');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('m-labor', '5100 - New Account'));
+    expect(setPushMock).not.toHaveBeenCalled();
   });
 
   it('⚑ the BIJECTION: mapping an account already used by ANOTHER category is blocked client-side, naming the conflict', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: /map materials/i }));
+    const materials = await openRowOptions(user, 'Materials');
+    await user.click(within(materials).getByRole('button', { name: /map materials/i }));
     const modal = await screen.findByRole('dialog');
-    await user.type(within(modal).getByLabelText(/erp account/i), '5100 - Direct Costs');
-    await user.click(within(modal).getByRole('button', { name: /save/i }));
-    expect((await within(modal).findAllByText(/already mapped to labor/i)).length).toBeGreaterThan(0);
+    await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
+    const search = await screen.findByRole('searchbox');
+    await user.type(search, '5100 - Direct Costs');
+    expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
   });
 
   it('unmaps a category with a confirm dialog', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Remove 5100 - Direct Costs' }));
+    const labor = await openRowOptions(user, 'Labor');
+    await user.click(within(labor).getByRole('button', { name: 'Remove 5100 - Direct Costs' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: /unmap/i }));
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m-labor'));
@@ -263,10 +341,11 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Engineer');
     const labor = (await screen.findByText('Labor')).closest('tr')!;
-    const salary = within(labor).getByText('Salary - PSC').closest('li')!;
-    const allowances = within(labor).getByText('Allowances - PSC').closest('li')!;
+    const salary = within(labor).getByText('Salary - PSC').parentElement!;
     expect(within(salary).getByText('Budget push')).toBeInTheDocument();
-    expect(within(allowances).queryByText('Budget push')).not.toBeInTheDocument();
+    await userEvent.click(within(labor).getByText(/additional account\(s\) count toward actuals only/i));
+    expect(within(labor).getByText('Allowances - PSC')).toBeInTheDocument();
+    expect(within(labor).getAllByText('Budget push')).toHaveLength(1);
     expect(within(labor).queryByText(/blocks every push/i)).not.toBeInTheDocument();
     expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
   });
@@ -280,35 +359,50 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {
     listMock.mockResolvedValue(MULTI);
+    catalogueMock.mockResolvedValue({ source: 'mirror', accounts: [
+      ...MULTI.map((row) => ({ account: row.erpAccount, accountName: row.erpAccount, accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false })),
+      { account: 'Social Security - PSC', accountName: 'Social Security', accountNumber: '5103', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    ] });
     const user = userEvent.setup();
     renderPage('Admin');
-    await user.click(await screen.findByRole('button', { name: 'Add account to Labor' }));
+    const labor = await openRowOptions(user, 'Labor');
+    await user.click(within(labor).getByRole('button', { name: 'Add account to Labor' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Labor' });
-    await user.type(within(modal).getByLabelText(/erp account/i), 'Social Security - PSC');
+    await selectCatalogueAccount(user, modal, 'Social Security - PSC');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
     await waitFor(() => expect(createMock).toHaveBeenCalledWith('Labor', 'Social Security - PSC', false));
   });
 
   it('AC-BAM-009 an account added to a category with no push account becomes its push account', async () => {
     listMock.mockResolvedValue(MULTI);
+    catalogueMock.mockResolvedValue({ source: 'mirror', accounts: [
+      ...MULTI.map((row) => ({ account: row.erpAccount, accountName: row.erpAccount, accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false })),
+      { account: 'Raw Materials - PSC', accountName: 'Raw Materials', accountNumber: '5201', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    ] });
     const user = userEvent.setup();
     renderPage('Admin');
-    await user.click(await screen.findByRole('button', { name: 'Add account to Materials' }));
+    const materials = await openRowOptions(user, 'Materials');
+    await user.click(within(materials).getByRole('button', { name: 'Add account to Materials' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
-    await user.type(within(modal).getByLabelText(/erp account/i), 'Raw Materials - PSC');
+    await selectCatalogueAccount(user, modal, 'Raw Materials - PSC');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
     await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', 'Raw Materials - PSC', true));
   });
 
-  it('AC-BAM-009 an account already under another category is refused before submit, naming it', async () => {
+  it('AC-BAM-009 an account already under another category is not selectable', async () => {
     listMock.mockResolvedValue(MULTI);
+    catalogueMock.mockResolvedValue({ source: 'mirror', accounts: MULTI.map((row) => ({
+      account: row.erpAccount, accountName: row.erpAccount, accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false,
+    })) });
     const user = userEvent.setup();
     renderPage('Admin');
-    await user.click(await screen.findByRole('button', { name: 'Add account to Materials' }));
+    const materials = await openRowOptions(user, 'Materials');
+    await user.click(within(materials).getByRole('button', { name: 'Add account to Materials' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Materials' });
-    await user.type(within(modal).getByLabelText(/erp account/i), 'Allowances - PSC');
-    await user.click(within(modal).getByRole('button', { name: /save/i }));
-    expect((await within(modal).findAllByText('Allowances - PSC is already mapped to Labor.')).length).toBeGreaterThan(0);
+    await user.click(within(modal).getByRole('combobox', { name: /erp account/i }));
+    const search = await screen.findByRole('searchbox');
+    await user.type(search, 'Allowances - PSC');
+    expect(screen.queryByRole('option', { name: /Allowances - PSC/i })).not.toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
   });
 

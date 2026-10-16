@@ -10,6 +10,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { listErpItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/itemCatalog.ts';
 import { listPurchaseTaxTemplates } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpPurchaseTaxRows.ts';
+import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
 import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
@@ -69,10 +70,72 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
   } catch {
     return json({ error: 'BAD_REQUEST' }, 400);
   }
-  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates')
+  if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts')
     return json({ error: 'BAD_REQUEST' }, 400);
 
   const service = createClient(url, key, clientOptions);
+  if (purpose === 'budget-accounts') {
+    const { data: binding, error: bindingError } = await service
+      .from('external_org_bindings')
+      .select('status,activated_at,config')
+      .eq('org_id', profile.org_id)
+      .eq('external_tier', 'erpnext')
+      .maybeSingle();
+    if (bindingError || !binding) return json({ error: 'BINDING_NOT_FOUND' }, 404);
+    if (binding.status !== 'active' || !binding.activated_at)
+      return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
+    const company = (binding.config as Record<string, unknown> | null)?.company;
+    if (typeof company !== 'string' || !company)
+      return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
+
+    const { data: mirror, error: mirrorError } = await service
+      .from('erp_account_mirror')
+      .select('erp_name, account_name, account_number, parent_account, root_type, is_group, disabled')
+      .eq('org_id', profile.org_id)
+      .eq('company', company)
+      .order('lft');
+    if (mirrorError) return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
+    if (mirror?.length) {
+      return json({
+        accounts: mirror.map((row) => ({
+          account: row.erp_name,
+          accountName: row.account_name,
+          accountNumber: row.account_number,
+          parentAccount: row.parent_account,
+          rootType: row.root_type,
+          isGroup: row.is_group,
+          disabled: row.disabled,
+        })),
+        source: 'mirror',
+      });
+    }
+
+    const connection = await erpClientForOrg(service, profile.org_id, { requireCompany: true });
+    if ('refusal' in connection) {
+      if (connection.refusal === 'company-not-set') return json({ error: 'config-rejected', message: 'ERPNext company is not set' }, 422);
+      if (connection.refusal === 'not-found') return json({ error: 'BINDING_NOT_FOUND' }, 404);
+      if (connection.refusal === 'inactive') return json({ error: 'config-rejected', message: 'ERPNext binding is not active' }, 422);
+      if (connection.refusal === 'invalid-site') return json({ error: 'config-rejected', message: 'ERPNext site URL is not permitted' }, 422);
+      return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
+    }
+    try {
+      const accounts = await fetchStatementAccounts(connection.client, { company });
+      return json({
+        accounts: accounts.map((row) => ({
+          account: row.name,
+          accountName: row.account_name,
+          accountNumber: row.account_number,
+          parentAccount: row.parent_account,
+          rootType: row.root_type,
+          isGroup: row.is_group,
+          disabled: row.disabled,
+        })),
+        source: 'erp-fallback',
+      });
+    } catch {
+      return json({ error: 'external-unreachable', message: 'Could not load the ERP account chart. Try again.' }, 502);
+    }
+  }
   const connection = await erpClientForOrg(service, profile.org_id, {
     requireCompany: purpose === 'purchase-tax-templates',
   });

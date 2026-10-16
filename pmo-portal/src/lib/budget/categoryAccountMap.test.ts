@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveBudgetAccounts, BudgetCategoryUnmappedError } from './categoryAccountMap';
+import { resolveBudgetAccounts, BudgetCategoryUnmappedError, proposeBudgetAccountMap, type BudgetPostingAccount } from './categoryAccountMap';
 
 const MAP = [
   { category: 'Labor', erp_account: 'Salary - PSC' },
@@ -8,6 +8,28 @@ const MAP = [
 ];
 
 describe('categoryAccountMap (FR-BUD-110..114 — the PMO category ↔ ERP account boundary)', () => {
+  it('AC-UX-076 proposes only enabled ledger accounts in direct-cost groups and keeps overhead out of posting proposals', () => {
+    const accounts: BudgetPostingAccount[] = [
+      { account: '5100 - Labor', accountName: 'Labor', accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '5200 - Materials', accountName: 'Materials', accountNumber: '5200', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '6100 - Office', accountName: 'Office overhead', accountNumber: '6100', parentAccount: 'Operating Expenses', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: 'Cost of Sales', accountName: 'Cost of Sales', accountNumber: '5000', parentAccount: null, rootType: 'Expense', isGroup: true, disabled: false },
+      { account: '5101 - Disabled', accountName: 'Labor', accountNumber: '5101', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: true },
+    ];
+    const proposals = proposeBudgetAccountMap(accounts, ['Labor', 'Materials', 'Subcontractors']);
+    expect(proposals).toEqual([
+      { category: 'Labor', account: '5100 - Labor' },
+      { category: 'Materials', account: '5200 - Materials' },
+    ]);
+  });
+
+  it('AC-UX-076 leaves unmatched or ambiguous categories for operator resolution and never reuses an account', () => {
+    const accounts: BudgetPostingAccount[] = [
+      { account: '5110 - Labor', accountName: 'Labor', accountNumber: '5110', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+      { account: '5120 - Labor', accountName: 'Labor', accountNumber: '5120', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    ];
+    expect(proposeBudgetAccountMap(accounts, ['Labor', 'Special expenses'])).toEqual([]);
+  });
   it('AC-CAT-006: maps Special expenses through its configured account and sums integer cents exactly', () => {
     expect(resolveBudgetAccounts([
       { category: 'Special expenses', budgeted_amount: '25000.10' },

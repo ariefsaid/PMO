@@ -174,6 +174,67 @@ describe('external-items shipped handler', () => {
       assertEquals((await handleItemsRequest(await request({ purpose: 'other' }))).status, 400);
     });
   });
+  it('AC-UX-076 serves the verified company chart from the account mirror before ERP fallback', async () => {
+    await withFetchMock(
+      [
+        profile(),
+        binding(),
+        supabaseSelect('erp_account_mirror', (call) => {
+          assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
+          assertEquals(call.url.searchParams.get('company'), 'eq.Test Co');
+          return jsonResponse([{
+            erp_name: '5100 - Labor', account_name: 'Labor', account_number: '5100',
+            parent_account: 'Cost of Sales - Test Co', root_type: 'Expense', is_group: false, disabled: false,
+          }]);
+        }),
+      ],
+      async ({ calls }) => {
+        const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+        assertEquals(response.status, 200);
+        assertEquals(await response.json(), {
+          accounts: [{
+            account: '5100 - Labor', accountName: 'Labor', accountNumber: '5100',
+            parentAccount: 'Cost of Sales - Test Co', rootType: 'Expense', isGroup: false, disabled: false,
+          }],
+          source: 'mirror',
+        });
+        assertEquals(calls.filter((call) => call.url.host === 'erp.example.com').length, 0);
+      },
+    );
+  });
+
+  it('AC-UX-076 falls back to the live company chart only when the account mirror is empty', async () => {
+    await withFetchMock(
+      [
+        profile(),
+        binding(),
+        supabaseSelect('erp_account_mirror', () => jsonResponse([])),
+        binding(),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test:test')),
+        erp('erp.example.com', '/api/resource/Account', (call) => {
+          assertEquals(call.method, 'GET');
+          assertEquals(JSON.parse(decodeURIComponent(call.url.searchParams.get('filters')!)), [['company', '=', 'Test Co']]);
+          return jsonResponse({ data: [{
+            name: '5100 - Labor', company: 'Test Co', account_name: 'Labor', account_number: '5100',
+            parent_account: 'Cost of Sales - Test Co', root_type: 'Expense', report_type: 'Profit and Loss',
+            is_group: 0, disabled: 0, lft: 3, rgt: 4,
+          }] });
+        }),
+      ],
+      async () => {
+        const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+        assertEquals(response.status, 200);
+        assertEquals(await response.json(), {
+          accounts: [{
+            account: '5100 - Labor', accountName: 'Labor', accountNumber: '5100',
+            parentAccount: 'Cost of Sales - Test Co', rootType: 'Expense', isGroup: false, disabled: false,
+          }],
+          source: 'erp-fallback',
+        });
+      },
+    );
+  });
+
   it('AC-520-7 lists the binding company\'s enabled purchase tax templates for the vendor-invoice picker', async () => {
     await withFetchMock(
       [
