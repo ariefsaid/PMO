@@ -97,7 +97,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { getRevenueByProject, getSalesInvoice, getIncomingPayment, setSalesInvoiceEfaktur } from './revenue';
+import { getRevenueByProject, getSalesInvoice, getIncomingPayment, setSalesInvoiceEfaktur, getOrgReadsErpLedger } from './revenue';
 
 /** `n` invoices for one project, each `amount` billed with `outstanding` still open. Ids are unique
  *  and sort in insertion order — the keyset scan reads its cursor from the last row of each page. */
@@ -365,6 +365,19 @@ describe('db/revenue singular reads — getSalesInvoice / getIncomingPayment (AC
     });
     expect(h.state.eqCalls).toContainEqual(['id', 'ip-1']);
     expect(row?.customer_name).toBe('Acme Co');
+  });
+
+  it('DD-MONEY-1 calls the no-argument org ledger RPC and returns its boolean', async () => {
+    vi.mocked(h.rpc).mockImplementationOnce(async () => ({ data: true, error: null }) as never);
+    await expect(getOrgReadsErpLedger()).resolves.toBe(true);
+    expect(h.rpc).toHaveBeenLastCalledWith('org_reads_erp_ledger');
+  });
+
+  it('DD-MONEY-1 fails closed on RPC errors and malformed payloads', async () => {
+    vi.mocked(h.rpc).mockImplementationOnce(async () => ({ data: null, error: { message: 'failed' } }) as never);
+    await expect(getOrgReadsErpLedger()).rejects.toThrow();
+    vi.mocked(h.rpc).mockImplementationOnce(async () => ({ data: null, error: null }) as never);
+    await expect(getOrgReadsErpLedger()).rejects.toThrow('Ledger basis reading unavailable');
   });
 
   it('AC-FIN-001: a missing relation on a singular read yields customer_name null (never the id)', async () => {

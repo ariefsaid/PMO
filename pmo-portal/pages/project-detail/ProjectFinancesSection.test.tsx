@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
     refetch: vi.fn().mockResolvedValue(undefined),
   },
   canReviewSetup: false,
-  commitments: { data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' as const },
+  commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable' },
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
@@ -54,7 +54,7 @@ beforeEach(() => {
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
   h.canReviewSetup = false;
-  h.commitments = { data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' };
+  h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp' };
 });
 
 describe('ProjectFinancesSection reading states', () => {
@@ -97,6 +97,23 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.getByText('Not available yet')).toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] } });
+    const { rerender } = render(<ProjectFinancesSection project={project} />);
+    expect(within(screen.getByTestId('project-finances')).getAllByText('$120.00')).toHaveLength(2);
+
+    h.commitments.ledgerBasis = 'pmo';
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    expect(screen.getByText('Committed PMO purchase orders')).toBeInTheDocument();
+
+    h.commitments.ledgerBasis = 'unavailable';
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
   it('AC-PFIN-015 shows an unmatched cost category in plain words, not system terms (#1045)', () => {

@@ -8,6 +8,7 @@ import {
 } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { repositories } from '@/src/lib/repositories';
 
 /**
  * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
@@ -55,14 +56,19 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
     enabled: Boolean(orgId && projectId),
   });
   const ownership = useExternalDomainOwnership(includeOwnership);
+  const ledger = useQuery<boolean>({
+    queryKey: ['org-reads-erp-ledger', orgId],
+    queryFn: () => repositories.revenue.getOrgReadsErpLedger(),
+    enabled: Boolean(orgId && includeOwnership),
+  });
   const commitmentSource: CommitmentSource | undefined = !includeOwnership
     ? undefined
     : ownership.isPending || ownership.isError || !ownership.data
       ? 'unavailable'
       : ownership.data.some((row) => row.domain === 'procurement') ? 'not-tracked' : 'pmo';
-  const ledgerBasis = !includeOwnership || ownership.isPending || ownership.isError || !ownership.data
+  const ledgerBasis = !includeOwnership || ledger.isPending || ledger.isError || ledger.data === undefined
     ? 'unavailable' as const
-    : ownership.data.some((row) => row.domain === 'ledger::gl_entries') ? 'erp' as const : 'pmo' as const;
+    : ledger.data ? 'erp' as const : 'pmo' as const;
   return { ...query, commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError };
 }
 

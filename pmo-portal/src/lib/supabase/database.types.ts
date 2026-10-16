@@ -7786,7 +7786,6 @@ export type Database = {
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
-      get_pm_dashboard_projects: { Args: never; Returns: Json }
       get_expense_advance_aging: {
         Args: never
         Returns: {
@@ -7823,6 +7822,7 @@ export type Database = {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
       }
+      get_pm_dashboard_projects: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_procurement_approval_routes: {
         Args: { p_ids: string[] }
@@ -8501,6 +8501,7 @@ export type Database = {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean
       }
+      org_reads_erp_ledger: { Args: never; Returns: boolean }
       org_usage_summary: {
         Args: never
         Returns: {
