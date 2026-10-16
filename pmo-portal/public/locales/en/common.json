@@ -3720,6 +3720,11 @@
     "overdueDateLoading": "Loading the organization date…",
     "overdueDateUnavailable": "Overdue filtering is unavailable until the organization date is known."
   },
+  "uxs37": {
+    "basisDescription": "Billed work excludes tax; open receivables include tax owed. Each amount stays in its invoice currency.",
+    "billedWorkTaxBasis": "net of tax",
+    "openReceivablesTaxBasis": "gross, tax included"
+  },
   "financeCopy": {
     "viewInvoice": "View invoice",
     "invoiceRecordTitle": "Invoice {{number}}",
