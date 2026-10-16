@@ -3708,6 +3708,20 @@
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
+  "uxs05": {
+    "project": "Project",
+    "projectNotRecorded": "Project not recorded",
+    "customerReference": "Customer reference",
+    "projectReferenceFallback": "Project reference: {{reference}}",
+    "overdueDay": "{{count}} day overdue",
+    "overdueDays": "{{count}} days overdue",
+    "filterProject": "Filter by project",
+    "allProjects": "All projects",
+    "overdueOnly": "Overdue only",
+    "sortOldestOverdue": "Oldest overdue first",
+    "overdueDateLoading": "Loading the organization date…",
+    "overdueDateUnavailable": "Overdue filtering is unavailable until the organization date is known."
+  },
   "financeCopy": {
     "viewInvoice": "View invoice",
     "invoiceRecordTitle": "Invoice {{number}}",

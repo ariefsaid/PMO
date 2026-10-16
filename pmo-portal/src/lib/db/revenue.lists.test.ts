@@ -127,17 +127,17 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
   // #781 (AC-FIN-001): the list resolves the customer's company NAME in the SAME query (it must
   // never render the opaque `customer_id`), so the projection embeds `companies.name` in the
   // existing explicit-FK join and flattens it to `customer_name`.
-  it('AC-FIN-001: embeds the customer name in the one SI read and flattens it to customer_name', async () => {
+  it('AC-FIN-001: resolves the shared company display name in the one SI read', async () => {
     h.state.pages.sales_invoices = [[
-      { id: 'si-1', si_number: 'ACC-SINV-1', companies: { erp_payment_terms_days: 30, name: 'Acme Co' } },
+      { id: 'si-1', si_number: 'ACC-SINV-1', companies: { erp_payment_terms_days: 30, name: 'Acme Legal Co', short_name: 'Acme' } },
     ]];
 
     const rows = await listSalesInvoices();
 
     expect(h.state.calls[0].columns).toBe(
-      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)',
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
     );
-    expect(rows[0].customer_name).toBe('Acme Co');
+    expect(rows[0].customer_name).toBe('Acme');
   });
 
   it('AC-FIN-001: a sales invoice with no resolved company yields customer_name null (never the id)', async () => {

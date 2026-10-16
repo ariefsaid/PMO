@@ -3708,8 +3708,22 @@
     "signedInAs": "Masuk sebagai {{email}}",
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
+  "uxs05": {
+    "project": "Proyek",
+    "projectNotRecorded": "Proyek belum dicatat",
+    "customerReference": "Referensi pelanggan",
+    "projectReferenceFallback": "Referensi proyek: {{reference}}",
+    "overdueDay": "Terlambat {{count}} hari",
+    "overdueDays": "Terlambat {{count}} hari",
+    "filterProject": "Filter berdasarkan proyek",
+    "allProjects": "Semua proyek",
+    "overdueOnly": "Hanya yang terlambat",
+    "sortOldestOverdue": "Dahulukan yang paling lama terlambat",
+    "overdueDateLoading": "Memuat tanggal organisasi…",
+    "overdueDateUnavailable": "Filter keterlambatan tidak tersedia sampai tanggal organisasi diketahui."
+  },
   "financeCopy": {
-    "viewInvoice": "Lihat faktur",
+    "viewInvoice": "Lihat invoice",
     "invoiceRecordTitle": "Faktur {{number}}",
     "invoiceRecordNotFound": "Faktur tidak ditemukan",
     "invoiceRecordNotFoundBody": "Faktur ini tidak lagi tersedia.",
