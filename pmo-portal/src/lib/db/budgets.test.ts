@@ -69,6 +69,9 @@ import {
   retryBudgetPush,
   archiveVersion,
   deleteDraftVersion,
+  listBudgetDocumentLinks,
+  addBudgetDocumentLink,
+  removeBudgetDocumentLink,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
 
@@ -125,6 +128,39 @@ beforeEach(() => {
   mockSingle.mockReset();
   mockMaybeSingle.mockReset();
   mockFunctionsInvoke.mockReset();
+});
+
+describe('AC-M365DOC-052 typed budget document links', () => {
+  const reference = {
+    drive_id: 'synthetic-drive', item_id: 'synthetic-item',
+    web_url: 'https://example.invalid/item', name: 'Synthetic item', item_kind: 'file' as const,
+  };
+
+  it('lists evidence for exactly one version in deterministic link-time/id order', async () => {
+    const row = { id: 'link-1', budget_version_id: 'version-1' };
+    makeFromBuilder({ data: [row], error: null });
+    await expect(listBudgetDocumentLinks('version-1')).resolves.toEqual([row]);
+    expect(mockFrom).toHaveBeenCalledWith('budget_version_document_links');
+    expect(mockEq).toHaveBeenCalledWith('budget_version_id', 'version-1');
+    expect(mockOrder).toHaveBeenNthCalledWith(1, 'ms_linked_at');
+    expect(mockOrder).toHaveBeenNthCalledWith(2, 'id');
+  });
+
+  it('adds one typed reference and removes only its link row', async () => {
+    const row = { id: 'link-1', budget_version_id: 'version-1' };
+    makeFromBuilder({ data: row, error: null });
+    await expect(addBudgetDocumentLink('version-1', reference)).resolves.toEqual(row);
+    expect(mockInsert).toHaveBeenCalledWith({
+      budget_version_id: 'version-1', ms_drive_id: reference.drive_id, ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url, ms_item_name: reference.name, ms_item_kind: 'file',
+    });
+    makeFromBuilder({ data: [{ id: 'link-1' }], error: null });
+    await removeBudgetDocumentLink('link-1');
+    expect(mockDelete).toHaveBeenCalledTimes(1);
+    expect(mockEq).toHaveBeenCalledWith('id', 'link-1');
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

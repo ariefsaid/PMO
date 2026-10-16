@@ -217,7 +217,10 @@ export function describePushMutationError(err: unknown): PushErrorCopy {
 }
 
 export function describePushError(raw: string | null | undefined): PushErrorCopy {
-  if (!raw || raw.trim() === '') {
+  const accountMatch = raw?.match(/: account=([^\r\n]*)$/);
+  const account = accountMatch?.[1]?.trim().slice(0, 120) || null;
+  const classifiedInput = accountMatch ? raw!.slice(0, accountMatch.index) : raw;
+  if (!classifiedInput || classifiedInput.trim() === '') {
     return {
       code: null,
       message: 'The push did not complete, and no reason was recorded for it.',
@@ -228,12 +231,12 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
     };
   }
 
-  const code = splitCode(raw);
+  const code = splitCode(classifiedInput);
   const entry = CODES[code];
   if (entry) {
     return {
       code,
-      message: entry.message,
+      message: account ? `${entry.message} Account: ${account}.` : entry.message,
       retryable: entry.retryable,
       transport: entry.transport ?? false,
       remedy: entry.remedy ?? null,
@@ -245,7 +248,9 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
   // anyone before someone gets round to classifying it here.
   return {
     code,
-    message: 'The push failed for a reason this screen could not be classified against a known cause.',
+    message: account
+      ? `The push failed for a reason this screen could not be classified against a known cause. Account: ${account}.`
+      : 'The push failed for a reason this screen could not be classified against a known cause.',
     retryable: true,
     transport: false,
     remedy: null,

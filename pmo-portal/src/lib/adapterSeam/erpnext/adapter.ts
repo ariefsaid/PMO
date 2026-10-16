@@ -18,6 +18,7 @@ import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommi
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
+import { toCents } from '../../budget/budgetAmount.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
@@ -157,9 +158,90 @@ function postSubmitUnknown(error: unknown, kind: ErpDocKind, doctype: string, na
   );
 }
 
+async function commitV16BudgetCreate(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+): Promise<CommandResult | null> {
+  const record = command.record as Record<string, unknown>;
+  const account = record.erp_account;
+  const fiscalYear = record.fiscal_year;
+  const intent = deps.ctx.budgetAccount?.intent;
+  const fail = (detail: string): never => {
+    throw new AdapterError('commit-rejected', `budget push: account ${String(account)} for ${String(fiscalYear)} ${detail}`);
+  };
+  if (typeof account !== 'string' || !account || typeof fiscalYear !== 'string' || !fiscalYear || !intent) {
+    return fail('has incomplete v16 unit dimensions');
+  }
+  if (intent === 'ensure' && !deps.ctx.refs.self) return null;
+  const bodyFns = requireBodyFns(deps, 'budget');
+  const verify = (doc: Record<string, unknown>): void => {
+    if (doc.docstatus === 0) fail(`is occupied by draft ${String(doc.name ?? '')}`);
+    if (doc.company !== deps.ctx.config.company || doc.project !== deps.ctx.refs.project ||
+        doc.account !== account || doc.from_fiscal_year !== fiscalYear || doc.to_fiscal_year !== fiscalYear) {
+      fail('has an occupant with mismatched company, project, account, or year');
+    }
+  };
+  const canonical = (doc: unknown): PmoRecord => ({
+    ...bodyFns.fromDoc(doc), id: command.record.id, budget_intent: intent,
+  });
+
+  if (intent === 'ensure') {
+    const current = await getDoc(deps.client, entry.doctype, deps.ctx.refs.self!);
+    const doc = current as Record<string, unknown>;
+    verify(doc);
+    if (Number(doc.docstatus) !== 1) fail(`occupant ${String(doc.name)} is not submitted`);
+    const replacement = recordWithResolvedItemsFallback(command.record, deps.ctx);
+    const body = bodyFns.toBody(replacement, deps.ctx) as Record<string, unknown>;
+    let amountsMatch: boolean;
+    try {
+      amountsMatch = toCents(String(doc.budget_amount)) === toCents(String(body.budget_amount));
+    } catch {
+      return fail('has an invalid or missing ERP budget amount');
+    }
+    if (amountsMatch) {
+      return { externalRecordId: String(doc.name), canonical: canonical(doc) };
+    }
+    // Construct and validate replacement before the point-of-no-return cancel inside commitAmend.
+    return commitAmend(command, deps, String(doc.name));
+  }
+
+  const predecessor = deps.ctx.budgetAccount?.predecessor;
+  if (!predecessor) return fail('has no witnessed predecessor to remove');
+  const target = deps.ctx.refs.self ?? predecessor;
+  const doc = await getDoc(deps.client, entry.doctype, target) as Record<string, unknown>;
+  verify(doc);
+  if (Number(doc.docstatus) === 0) fail(`is occupied by draft ${String(doc.name)}`);
+  if (Number(doc.docstatus) === 2) return { externalRecordId: target, canonical: canonical(doc) };
+  if (Number(doc.docstatus) === 1) {
+    await cancelDoc(deps.client, entry.doctype, target);
+    await deps.afterCancelHook?.();
+  } else {
+    fail(`has unsupported document status ${String(doc.docstatus)}`);
+  }
+  const readback = await getDoc(deps.client, entry.doctype, target) as Record<string, unknown>;
+  verify(readback);
+  if (Number(readback.docstatus) !== 2) fail(`could not confirm cancellation of ${target}`);
+  return { externalRecordId: target, canonical: canonical(readback) };
+}
+
+function withBudgetUnitCanonical(command: AdapterCommand, deps: ErpAdapterDeps, canonical: PmoRecord): PmoRecord {
+  if (requireKind(command.record) !== 'budget' || deps.ctx.versionMajor !== 16) return canonical;
+  const record = command.record as Record<string, unknown>;
+  const intent = deps.ctx.budgetAccount?.intent;
+  if (typeof record.fiscal_year !== 'string' || typeof record.erp_account !== 'string' || !intent) {
+    throw new AdapterError('commit-rejected', 'budget push: v16 canonical is missing its server unit dimensions');
+  }
+  return { ...canonical, id: command.record.id, fiscal_year: record.fiscal_year, erp_account: record.erp_account, budget_intent: intent };
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
+  if (kind === 'budget' && deps.ctx.versionMajor === 16) {
+    const result = await commitV16BudgetCreate(command, deps, entry);
+    if (result) return result;
+  }
   // ⚑ FR-BUD-121 / AC-BUD-031 — THE UPSERT. For a kind whose natural grain ERP itself enforces as
   // unique (`upsertOnGrain`, today ERP `Budget`), a create against an ALREADY-OCCUPIED grain must edit
   // the document that is there, not mint a second one: ERPNext rejects the duplicate atomically
@@ -197,7 +279,7 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
     // `field:supplier_name`) — the "<Doctype>:<name>" collision-safe encoding (task 3.2's
     // `partyAdopt.ts` externalIdFor) is a STORAGE-layer concern applied only when writing
     // `external_refs` (index.ts's `recordExternalRef` wrapper, task 6.4 fix-round), never here.
-    const canonical: PmoRecord = { ...bodyFns.fromDoc(created), id: command.record.id };
+    const canonical = withBudgetUnitCanonical(command, deps, { ...bodyFns.fromDoc(created), id: command.record.id });
     return { externalRecordId: created.name, canonical };
   }
 
@@ -209,7 +291,7 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
     // The POST/PUT response body carries a stale `status`/`outstanding_amount` (R9 §5 trap) — the
     // TRUE derived status is only ever visible on a fresh GET after submit.
     const refetched = await getDoc(deps.client, entry.doctype, created.name);
-    const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+    const canonical = withBudgetUnitCanonical(command, deps, { ...bodyFns.fromDoc(refetched), id: command.record.id });
     return { externalRecordId: created.name, canonical };
   } catch (error) {
     throw postSubmitUnknown(error, kind, entry.doctype, created.name);

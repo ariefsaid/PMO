@@ -777,6 +777,148 @@ export type Database = {
           },
         ]
       }
+      budget_version_account_erp_mirror: {
+        Row: {
+          activated_at_witness: string | null
+          budget_intent: string
+          budget_version_id: string
+          created_at: string
+          erp_account: string
+          erp_budget_name: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          fiscal_year: string
+          id: string
+          org_id: string
+          push_error: string | null
+          push_state: string
+          pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          unmapped_categories: string[] | null
+        }
+        Insert: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Update: {
+          activated_at_witness?: string | null
+          budget_intent?: string
+          budget_version_id?: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          fiscal_year?: string
+          id?: string
+          org_id?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          unmapped_categories?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_account_erp_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_version_document_links: {
+        Row: {
+          budget_version_id: string
+          id: string
+          ms_drive_id: string
+          ms_item_id: string
+          ms_item_kind: string
+          ms_item_name: string
+          ms_last_verified_at: string | null
+          ms_linked_at: string
+          ms_linked_by: string
+          ms_web_url: string
+          org_id: string
+        }
+        Insert: {
+          budget_version_id: string
+          id?: string
+          ms_drive_id: string
+          ms_item_id: string
+          ms_item_kind: string
+          ms_item_name: string
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string
+          ms_linked_by?: string
+          ms_web_url: string
+          org_id?: string
+        }
+        Update: {
+          budget_version_id?: string
+          id?: string
+          ms_drive_id?: string
+          ms_item_id?: string
+          ms_item_kind?: string
+          ms_item_name?: string
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string
+          ms_linked_by?: string
+          ms_web_url?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_version_document_links_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_document_links_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_version_document_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_version_editors: {
         Row: {
           budget_version_id: string
@@ -3257,6 +3399,51 @@ export type Database = {
           },
         ]
       }
+      org_m365_document_settings: {
+        Row: {
+          default_drive_id: string | null
+          default_drive_name: string | null
+          default_site_id: string | null
+          default_site_name: string | null
+          org_id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          default_drive_id?: string | null
+          default_drive_name?: string | null
+          default_site_id?: string | null
+          default_site_name?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Update: {
+          default_drive_id?: string | null
+          default_drive_name?: string | null
+          default_site_id?: string | null
+          default_site_name?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_m365_document_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_m365_document_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -3567,9 +3754,17 @@ export type Database = {
           date: string | null
           id: string
           link: string | null
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_kind: string | null
+          ms_item_name: string | null
+          ms_last_verified_at: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
           org_id: string
           procurement_id: string
           reference_number: string | null
+          source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
           type: string
         }
@@ -3577,9 +3772,17 @@ export type Database = {
           date?: string | null
           id?: string
           link?: string | null
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_kind?: string | null
+          ms_item_name?: string | null
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
           org_id?: string
           procurement_id: string
           reference_number?: string | null
+          source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           type: string
         }
@@ -3587,13 +3790,28 @@ export type Database = {
           date?: string | null
           id?: string
           link?: string | null
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_kind?: string | null
+          ms_item_name?: string | null
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
           org_id?: string
           procurement_id?: string
           reference_number?: string | null
+          source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_documents_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_documents_org_id_fkey"
             columns: ["org_id"]
@@ -4667,10 +4885,24 @@ export type Database = {
           doc_date: string | null
           file_path: string | null
           id: string
+          ms_check_claim: string | null
+          ms_check_claimed_at: string | null
+          ms_content_tag_at_issue: string | null
+          ms_drift_state: string | null
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_kind: string | null
+          ms_item_name: string | null
+          ms_last_verified_at: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_version_id_at_issue: string | null
+          ms_web_url: string | null
           org_id: string
           parent_document_id: string | null
           project_id: string
           revision: string | null
+          source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
           title: string
         }
@@ -4682,10 +4914,24 @@ export type Database = {
           doc_date?: string | null
           file_path?: string | null
           id?: string
+          ms_check_claim?: string | null
+          ms_check_claimed_at?: string | null
+          ms_content_tag_at_issue?: string | null
+          ms_drift_state?: string | null
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_kind?: string | null
+          ms_item_name?: string | null
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_version_id_at_issue?: string | null
+          ms_web_url?: string | null
           org_id?: string
           parent_document_id?: string | null
           project_id: string
           revision?: string | null
+          source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title: string
         }
@@ -4697,10 +4943,24 @@ export type Database = {
           doc_date?: string | null
           file_path?: string | null
           id?: string
+          ms_check_claim?: string | null
+          ms_check_claimed_at?: string | null
+          ms_content_tag_at_issue?: string | null
+          ms_drift_state?: string | null
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_kind?: string | null
+          ms_item_name?: string | null
+          ms_last_verified_at?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_version_id_at_issue?: string | null
+          ms_web_url?: string | null
           org_id?: string
           parent_document_id?: string | null
           project_id?: string
           revision?: string | null
+          source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title?: string
         }
@@ -4708,6 +4968,13 @@ export type Database = {
           {
             foreignKeyName: "project_documents_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_documents_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -6497,6 +6764,29 @@ export type Database = {
       }
     }
     Views: {
+      budget_push_mirror_rows: {
+        Row: {
+          activated_at_witness: string | null
+          budget_intent: string | null
+          budget_version_id: string | null
+          created_at: string | null
+          erp_account: string | null
+          erp_budget_name: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          fiscal_year: string | null
+          id: string | null
+          org_id: string | null
+          push_error: string | null
+          push_state: string | null
+          pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          unmapped_categories: string[] | null
+        }
+        Relationships: []
+      }
       sales_invoice_work_billed: {
         Row: {
           currency: string | null
@@ -6701,6 +6991,7 @@ export type Database = {
         }
         Returns: string
       }
+      active_delivery_project_statuses: { Args: never; Returns: string[] }
       actor_authorization_state: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: Json
@@ -6797,10 +7088,15 @@ export type Database = {
       }
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
+      budget_account_identity: {
+        Args: { p_account: string; p_fy: string; p_version: string }
+        Returns: string
+      }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
       }
+      bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
           p_amount: number
@@ -7699,6 +7995,60 @@ export type Database = {
         }
         Returns: undefined
       }
+      m365_browser_url_valid: { Args: { value: string }; Returns: boolean }
+      m365_claim_document_checks: {
+        Args: { p_actor_id: string; p_ids: string[] }
+        Returns: {
+          author_id: string | null
+          category: string
+          code: string | null
+          created_at: string
+          doc_date: string | null
+          file_path: string | null
+          id: string
+          ms_check_claim: string | null
+          ms_check_claimed_at: string | null
+          ms_content_tag_at_issue: string | null
+          ms_drift_state: string | null
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_kind: string | null
+          ms_item_name: string | null
+          ms_last_verified_at: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_version_id_at_issue: string | null
+          ms_web_url: string | null
+          org_id: string
+          parent_document_id: string | null
+          project_id: string
+          revision: string | null
+          source: Database["public"]["Enums"]["doc_source"] | null
+          status: Database["public"]["Enums"]["doc_status"]
+          title: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "project_documents"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      m365_commit_document_check: {
+        Args: {
+          p_actor_id: string
+          p_baseline: string
+          p_claim: string
+          p_content_tag: string
+          p_doc_id: string
+          p_drive_id: string
+          p_item_id: string
+          p_name: string
+          p_success: boolean
+          p_url: string
+        }
+        Returns: boolean
+      }
       m365_delete_connection: {
         Args: { p_connection_id: string; p_org_id: string; p_user_id: string }
         Returns: string
@@ -7707,8 +8057,33 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_user_id: string }
         Returns: undefined
       }
+      m365_issue_document: {
+        Args: {
+          p_actor_id: string
+          p_content_tag: string
+          p_doc_id: string
+          p_drive_id: string
+          p_item_id: string
+          p_name: string
+          p_url: string
+          p_version_id: string
+        }
+        Returns: undefined
+      }
       m365_membership_state: { Args: { p_user_id: string }; Returns: Json }
       m365_pkce_sweep_tick: { Args: never; Returns: undefined }
+      m365_ref_complete: {
+        Args: {
+          actor: string
+          at_time: string
+          drive: string
+          item: string
+          kind: string
+          name: string
+          url: string
+        }
+        Returns: boolean
+      }
       m365_refresh_connection: {
         Args: {
           p_access_token_ciphertext: string
@@ -7720,6 +8095,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      m365_refresh_reference: {
+        Args: {
+          p_actor_id: string
+          p_budget_link_id: string
+          p_drive_id: string
+          p_item_id: string
+          p_name: string
+          p_procurement_document_id: string
+          p_project_document_id: string
+          p_url: string
+        }
+        Returns: boolean
       }
       m365_set_connection_status: {
         Args: {
@@ -8642,6 +9030,7 @@ export type Database = {
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
       crm_activity_kind: "Call" | "Email" | "Meeting" | "Note"
+      doc_source: "upload" | "onedrive"
       doc_status:
         | "Draft"
         | "Issued"
@@ -8846,6 +9235,7 @@ export const Constants = {
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],
       crm_activity_kind: ["Call", "Email", "Meeting", "Note"],
+      doc_source: ["upload", "onedrive"],
       doc_status: [
         "Draft",
         "Issued",

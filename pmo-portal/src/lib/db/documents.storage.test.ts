@@ -12,7 +12,7 @@ interface StorageBuilder {
 interface TableBuilder {
   select: (columns: string) => TableBuilder;
   eq: (column: string, value: string) => TableBuilder;
-  update: (values: { file_path: string }) => TableBuilder;
+  update: (values: { file_path: string; source?: 'upload' }) => TableBuilder;
   delete: () => TableBuilder;
   maybeSingle: () => Promise<QueryResult<typeof mockDocRow | null>>;
   then: <TResult1 = QueryResult<null>, TResult2 = never>(
@@ -69,7 +69,7 @@ const h = vi.hoisted(() => {
     from: [] as string[],
     select: [] as string[],
     eq: [] as [string, string][],
-    update: [] as [{ file_path: string }][],
+    update: [] as [{ file_path: string; source?: 'upload' }][],
     delete: 0,
     maybeSingle: 0,
   };
@@ -83,7 +83,7 @@ const h = vi.hoisted(() => {
       calls.eq.push([column, value]);
       return builder;
     }),
-    update: vi.fn((values: { file_path: string }) => {
+    update: vi.fn((values: { file_path: string; source?: 'upload' }) => {
       calls.update.push([values]);
       return builder;
     }),
@@ -133,6 +133,7 @@ type MockDocRow = {
   doc_date: string | null;
   parent_document_id: string | null;
   created_at: string;
+  source?: 'upload' | 'onedrive' | null;
 };
 
 const mockDocRow: MockDocRow = {
@@ -149,6 +150,7 @@ const mockDocRow: MockDocRow = {
   doc_date: null,
   parent_document_id: null,
   created_at: '2026-01-01T00:00:00Z',
+  source: null,
 };
 
 describe('documents DAL — storage operations', () => {
@@ -217,7 +219,7 @@ describe('documents DAL — storage operations', () => {
     await confirmUpload('doc-1', 'org-1/proj-1/doc-1/new.pdf');
     await cleanupStorageObject('org-1/proj-1/doc-1/old.pdf');
     expect(h.calls.from).toContain('project_documents');
-    expect(h.calls.update).toContainEqual([{ file_path: 'org-1/proj-1/doc-1/new.pdf' }]);
+    expect(h.calls.update).toContainEqual([{ file_path: 'org-1/proj-1/doc-1/new.pdf', source: 'upload' }]);
     expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
     expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
   });
@@ -228,6 +230,21 @@ describe('documents DAL — storage operations', () => {
     await confirmUpload('doc-1', 'org-1/proj-1/doc-1/file.pdf');
     expect(h.calls.from).toContain('project_documents');
     expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
+  });
+
+  it('AC-M365DOC-002 refuses to sign an upload URL for a Microsoft-linked row', async () => {
+    h.result.value = { data: { ...mockDocRow, source: 'onedrive' }, error: null };
+    await expect(prepareUpload('doc-1', 'file.pdf')).rejects.toMatchObject({
+      code: '23514', details: 'm365-source-collision',
+    });
+    expect(h.storageCalls.createSignedUploadUrl).toEqual([]);
+    expect(h.storageCalls.from).toEqual([]);
+  });
+
+  it('AC-M365DOC-002 confirms uploaded source atomically with the file path', async () => {
+    h.result.value = { data: [{ id: 'doc-1' }], error: null };
+    await confirmUpload('doc-1', 'org-1/proj-1/doc-1/file.pdf');
+    expect(h.calls.update).toEqual([[{ file_path: 'org-1/proj-1/doc-1/file.pdf', source: 'upload' }]]);
   });
 
   it('#534: a using-denied confirmUpload (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
@@ -259,6 +276,17 @@ describe('documents DAL — storage operations', () => {
     expect(h.calls.delete).toBe(1);
     expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
     expect(h.storageCalls.remove).toContainEqual([['org-1/proj-1/doc-1/old.pdf']]);
+  });
+
+  it('AC-M365DOC-042 deletes a linked PMO row without deleting the Microsoft item or calling Graph', async () => {
+    h.result.value = {
+      data: Object.assign([{ id: 'doc-1' }], { ...mockDocRow, file_path: null }),
+      error: null,
+    };
+    await deleteProjectDocument('doc-1');
+    expect(h.calls.delete).toBe(1);
+    expect(h.storageCalls.remove).toEqual([]);
+    expect(h.storageCalls.from).toEqual([]);
   });
 
   it('AC-DOC-011 (DAL): getSignedDownloadUrl uses SIGNED_URL_EXPIRY_SECONDS', async () => {

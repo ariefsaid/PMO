@@ -52,6 +52,10 @@ export interface BudgetMirrorCandidateRow {
    * scopes PMO's budget column by: a guessed year here becomes a wrong-year figure on the money screen.
    */
   fiscal_year?: string | null;
+  erp_account?: string | null;
+  budget_intent?: 'ensure' | 'remove' | null;
+  created_at?: string | null;
+  id?: string | null;
 }
 
 export interface BudgetBackstopDeps {

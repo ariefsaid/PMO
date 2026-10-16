@@ -66,7 +66,7 @@ import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from 
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
 // mapper — the poll is built from those so the two cannot drift apart.
-import { BUDGET_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/budget.ts';
+import { budgetFromDocFields } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/budget.ts';
 import { TS_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/timesheet.ts';
 import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
@@ -128,6 +128,8 @@ import {
 } from './budgetBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+import { budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 
 /** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
  *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
@@ -146,18 +148,22 @@ function fiscalYearOfIdentity(pmoRecordId: string): string | null {
   const sep = pmoRecordId.indexOf(':');
   if (sep < 0) return null;
   try {
-    return decodeFiscalYear(pmoRecordId.slice(sep + 1)) || null;
+    return parseBudgetIdentity(pmoRecordId).fiscalYear ?? (decodeFiscalYear(pmoRecordId.slice(sep + 1)) || null);
   } catch {
     return null;
   }
+}
+
+function accountOfIdentity(pmoRecordId: string): string | null {
+  try { return parseBudgetIdentity(pmoRecordId).erpAccount; } catch { return null; }
 }
 
 /** ⚑ BLOCKER 3 (FU-2) — the orphan dedup key. The budget mirror grain is (budget_version_id ×
  *  fiscal_year), so an outbox orphan is a duplicate of a mirror row ONLY when BOTH match. A NUL (\u0000)
  *  delimiter — which neither a UUID nor an ERPNext Fiscal Year name can contain — keeps the
  *  composite unambiguous. */
-function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined): string {
-  return `${versionId}\u0000${fiscalYear ?? ''}`;
+function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined, account?: string | null): string {
+  return `${versionId}\u0000${fiscalYear ?? ''}\u0000${account ?? ''}`;
 }
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
@@ -236,7 +242,7 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   // P3c: `budget` IS polled (`feedKinds.ts` SWEEP_UNPOLLED_KINDS is empty — the inbound never-adopt/never-fight-the-
   // operator branches landed). `accounts` is deliberately absent from its field list: the list endpoint
   // drops child tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
-  budget: BUDGET_FROM_DOC_FIELDS,
+  budget: budgetFromDocFields(),
   timesheet: TS_FROM_DOC_FIELDS,
   employee: EMPLOYEE_FROM_DOC_FIELDS,
   // #775 phase B — expense postings (lifecycle-only inbound, FR-EXP-113).
@@ -247,8 +253,9 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`
  *  discriminator where the kind shares a doctype (BLOCK A1). Exported for direct unit testing. */
-export function sweepFieldsForKind(kind: ErpDocKind): string[] {
-  const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
+export function sweepFieldsForKind(kind: ErpDocKind, versionMajor?: number): string[] {
+  const baseFields = kind === 'budget' ? budgetFromDocFields(versionMajor) : FROM_DOC_FIELDS_BY_KIND[kind] ?? [];
+  const fields = new Set<string>(baseFields);
   const routingFields = ['name', 'modified', 'docstatus'];
   if (DOCTYPE_REGISTRY[kind].submittable) routingFields.push('amended_from');
   for (const routing of routingFields) fields.add(routing);
@@ -1010,7 +1017,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
     // Luna BLOCK 6: fetch exactly the fields THIS kind's mapper consumes (money included), plus — where
     // the canonical depends on a child table the list endpoint cannot return (the Receive PE's
     // `references`) — re-read each changed doc in full.
-    const fields = sweepFieldsForKind(kind);
+    const fields = sweepFieldsForKind(kind, org.versionMajor ?? undefined);
     const hydrateDoc = KINDS_NEEDING_FULL_DOC.includes(kind)
       ? (name: string) => fetchErpDoc(client, doctype, name)
       : undefined;
@@ -1463,6 +1470,8 @@ function holdBudgetMirrorRow(
   reason: string,
 ): PromiseLike<{ error: { message: string; code?: string } | null }> {
   const { budget_version_id: budgetVersionId, push_state: pushState, fiscal_year: fiscalYear } = row;
+  const account = typeof row.erp_account === 'string' && row.erp_account !== '' ? row.erp_account : null;
+  const mirrorName = account ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror';
   // ⚑ MEDIUM-2: an `absent` candidate (an outbox-only orphan — a dispatch that died between the ERP
   // commit and the mirror write) has NO row to compare-and-set against, so an update-only hold wrote
   // zero rows and the refusal was invisible: exactly the stranded-and-unseen outcome this pass exists to
@@ -1484,11 +1493,12 @@ function holdBudgetMirrorRow(
       // `surfaceActionRequired` is what tells a human, and it runs either way.
       if (!fiscalYear) return { error: null };
       const { error } = await serviceClient
-        .from('budget_version_erp_mirror')
+        .from(mirrorName)
         .insert({
           org_id: orgId,
           budget_version_id: budgetVersionId,
           fiscal_year: fiscalYear,
+          ...(account ? { erp_account: account, budget_intent: row.budget_intent ?? 'ensure' } : {}),
           push_state: 'held',
           push_error: reason,
         });
@@ -1505,12 +1515,14 @@ function holdBudgetMirrorRow(
   // posture the `absent`/INSERT branch above already takes, and for the same reason: a guessed year
   // writes a wrong-year state onto the primary money screen.
   if (!fiscalYear) return Promise.resolve({ error: null });
-  return serviceClient
-    .from('budget_version_erp_mirror')
+  let hold = serviceClient
+    .from(mirrorName)
     .update({ push_state: 'held', push_error: reason })
     .eq('org_id', orgId)
     .eq('budget_version_id', budgetVersionId)
-    .eq('fiscal_year', fiscalYear)
+    .eq('fiscal_year', fiscalYear);
+  if (account) hold = hold.eq('erp_account', account) as typeof hold;
+  return hold
     // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
     .is('erp_cancelled_at', null);
@@ -1530,28 +1542,42 @@ export function budgetBackstopDepsLive(
   /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
    *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
    *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
-  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null }>,
+  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
-      const { data, error } = await serviceClient
-        .from('budget_version_erp_mirror')
-        // LOW-1: `fiscal_year` rides along — a mirror row's own grain, needed by any hold this pass writes.
-        .select('budget_version_id, push_state, erp_cancelled_at, fiscal_year')
-        .eq('org_id', orgId)
-        .in('push_state', ['pending', 'failed'])
-        .is('erp_cancelled_at', null)
-        .order('created_at', { ascending: true })
-        .limit(limit);
-      if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null; fiscal_year: string | null }> | null) ?? [])
-        .map((r) => ({
-          budget_version_id: r.budget_version_id,
-          push_state: r.push_state,
-          erp_cancelled_at: r.erp_cancelled_at,
-          fiscal_year: r.fiscal_year,
-        }));
+      const [legacyResult, accountResult] = await Promise.all([
+        serviceClient.from('budget_version_erp_mirror')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at')
+          .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
+          .order('created_at', { ascending: true }).limit(limit),
+        serviceClient.from('budget_version_account_erp_mirror')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at')
+          .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
+          .order('created_at', { ascending: true }).limit(limit),
+      ]);
+      if (legacyResult.error) throw new AppError(legacyResult.error.message, legacyResult.error.code);
+      if (accountResult.error) throw new AppError(accountResult.error.message, accountResult.error.code);
+      const toCandidate = (r: Record<string, unknown>, accountGrained: boolean): BudgetMirrorCandidateRow => ({
+        id: typeof r.id === 'string' ? r.id : null,
+        budget_version_id: String(r.budget_version_id),
+        push_state: String(r.push_state),
+        erp_cancelled_at: (r.erp_cancelled_at as string | null) ?? null,
+        fiscal_year: (r.fiscal_year as string | null) ?? null,
+        ...(accountGrained ? {
+          erp_account: (r.erp_account as string | null) ?? null,
+          budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
+        } : { erp_account: null, budget_intent: 'ensure' as const }),
+        created_at: (r.created_at as string | null) ?? null,
+      });
+      const mirrored = [
+        ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? []).map((r) => toCandidate(r, false)),
+        ...((accountResult.data as Array<Record<string, unknown>> | null) ?? [])
+          .filter((r) => typeof r.erp_account === 'string' && r.erp_account !== '')
+          .map((r) => toCandidate(r, true)),
+      ].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+        .slice(0, limit);
       // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
       // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
       // dispatch that died after `adapter.commit` and before `finalize_outbox` left an outbox row
@@ -1568,7 +1594,7 @@ export function budgetBackstopDepsLive(
       // set silently discarded that orphan (its version had *a* mirror), stranding a live ERP Budget PMO
       // reports as never-pushed. A pre-fan-out bare orphan (no year on record) keeps version-level
       // suppression — pre-fan-out there is exactly one year per version, so the two agree.
-      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year)));
+      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year, r.erp_account)));
       const knownVersions = new Set(mirrored.map((r) => r.budget_version_id));
       const orphans = eligibleBudgetCandidates
         // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
@@ -1578,22 +1604,25 @@ export function budgetBackstopDepsLive(
           ...c,
           versionId: bareBudgetVersionId(c.pmo_record_id),
           year: fiscalYearOfIdentity(c.pmo_record_id) ?? c.fiscal_year ?? null,
+          account: accountOfIdentity(c.pmo_record_id),
         }))
-        // Suppress a QUALIFIED orphan only when THAT exact year has a mirror; a bare orphan (no knowable
-        // year) falls back to version-level suppression.
-        .filter((c) => (c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year)) : !knownVersions.has(c.versionId)))
-        .slice(0, Math.max(limit - mirrored.length, 0))
+        // Suppress only an exact version/year/account mirror. Bare legacy rows keep version suppression.
+        .filter((c) => c.account !== null
+          ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, c.account))
+          : c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, null)) : !knownVersions.has(c.versionId))
         .map((c) => ({
+          id: c.id,
           budget_version_id: c.versionId,
           push_state: BUDGET_MIRROR_ABSENT,
           erp_cancelled_at: null,
-          // LOW-1: the grain this orphan is about. The year-qualified IDENTITY states it exactly (it is
-          // the year the dispatch itself derived); the outbox canonical is the fallback for a
-          // pre-fan-out row. Absent ⇒ the hold writes nothing rather than guessing
-          // (see `holdBudgetMirrorRow`).
           fiscal_year: c.year,
+          erp_account: c.account,
+          budget_intent: c.budget_intent ?? 'ensure',
+          created_at: null,
         }));
-      return [...mirrored, ...orphans];
+      return [...mirrored, ...orphans]
+        .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+        .slice(0, limit);
     },
     readBudgetVersion: async (versionId) => {
       // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
@@ -1614,10 +1643,14 @@ export function budgetBackstopDepsLive(
       // row (its outbox row was written under the bare id and the single-year key) — never a guess: the
       // legacy shape is used verbatim for it.
       const encodedFiscalYear = row.fiscal_year ? encodeFiscalYear(row.fiscal_year) : null;
-      const identity = encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
-      const idempotencyKey = encodedFiscalYear
-        ? budgetPushKey(row.budget_version_id, encodedFiscalYear, version.activated_at)
-        : budgetPushKey(row.budget_version_id, version.activated_at);
+      const identity = row.erp_account
+        ? budgetAccountIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.erp_account)
+        : encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
+      const idempotencyKey = row.erp_account
+        ? budgetAccountPushKey(identity, version.activated_at)
+        : encodedFiscalYear
+          ? budgetPushKey(row.budget_version_id, encodedFiscalYear, version.activated_at)
+          : budgetPushKey(row.budget_version_id, version.activated_at);
       const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, identity, idempotencyKey);
       if (!outboxRow) {
         // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
@@ -1684,6 +1717,7 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
         fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.fiscal_year === 'string'
           ? ((c.canonical as Record<string, string>).fiscal_year)
           : null,
+        budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
       }));
     const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates), { orgId: org.orgId });
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
@@ -2539,7 +2573,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // write-back, and a `held` row would additionally need an Admin release even after the operator had
   // already corrected the dates. The money-critical property — never POST a body the current gate would
   // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload, cache);
+  await assertBudgetSweepGate(serviceClient, org, payload, row, cache);
 
   const command: AdapterCommand = {
     domain: row.domain as AdapterCommand['domain'],
@@ -2559,6 +2593,14 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
  */
 export function moneyWriteReplayOptions(persistPayload: boolean): { replay: boolean } {
   return { replay: !persistPayload };
+}
+
+export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: string | null; isReplay?: boolean }) {
+  return {
+    orgId: args.orgId,
+    callerUserId: args.actorUserId ?? undefined,
+    isReplay: args.isReplay ?? false,
+  };
 }
 
 export async function buildMoneyWriteDepsLive(
@@ -2646,9 +2688,11 @@ export async function buildMoneyWriteDepsLive(
     },
   });
 
-  const writeReadModel = async (canonical: PmoRecord): Promise<void> => {
+  const writeReadModel = async (canonical: PmoRecord, options?: { isReplay?: boolean }): Promise<void> => {
     await getReadModelWriter(command.domain).upsert(
-      { serviceClient: serviceClient as never, orgId: org.orgId, callerUserId: args.actorUserId ?? undefined },
+      { serviceClient: serviceClient as never, ...moneyWriteReadModelContext({
+        orgId: org.orgId, actorUserId: args.actorUserId, isReplay: options?.isReplay,
+      }) },
       canonical,
       command,
     );
@@ -2674,6 +2718,7 @@ async function assertBudgetSweepGate(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   payload: Record<string, unknown>,
+  outbox: OutboxRow,
   cache?: ErpAuthPairCache,
 ): Promise<void> {
   if (payload.erp_doc_kind !== 'budget') return;
@@ -2721,12 +2766,71 @@ async function assertBudgetSweepGate(
       BUDGET_SWEEP_GATE_HELD,
     );
   }
-  if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
-    throw new AppError(
-      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
-        `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
-      BUDGET_SWEEP_GATE_HELD,
+  const versionMajor = org.versionMajor ?? 15;
+  if (versionMajor !== 16) {
+    if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
+      throw new AppError(
+        `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
+          `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
+        BUDGET_SWEEP_GATE_HELD,
+      );
+    }
+    return;
+  }
+
+  let identity: ReturnType<typeof parseBudgetIdentity>;
+  try {
+    identity = parseBudgetIdentity(outbox.pmoRecordId);
+  } catch {
+    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is invalid', BUDGET_SWEEP_GATE_HELD);
+  }
+  const account = identity.erpAccount;
+  const frozenAccount = typeof payload.erp_account === 'string' ? payload.erp_account : null;
+  if (!account || !frozenAccount || account !== frozenAccount || identity.versionId !== versionId || identity.fiscalYear !== frozenYear) {
+    throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is missing or inconsistent', BUDGET_SWEEP_GATE_HELD);
+  }
+  let currentKey: string;
+  try {
+    currentKey = budgetAccountPushKey(outbox.pmoRecordId, plan.activatedAt);
+  } catch {
+    throw new AppError('erpnext-sweep budget recovery HELD: current activation witness is invalid', BUDGET_SWEEP_GATE_HELD);
+  }
+  if (currentKey !== outbox.idempotencyKey) {
+    throw new AppError('erpnext-sweep budget recovery HELD: activation changed since this account intent was created', BUDGET_SWEEP_GATE_HELD);
+  }
+
+  let desired: ReturnType<typeof resolveV16BudgetAccounts>;
+  try {
+    desired = resolveV16BudgetAccounts(
+      plan.plan.find((entry) => entry.fiscal_year === frozenYear)?.line_items ?? [],
+      plan.categoryMap,
     );
+  } catch (err) {
+    throw new AppError(`erpnext-sweep budget recovery HELD: current account resolution failed — ${err instanceof Error ? err.message : String(err)}`, BUDGET_SWEEP_GATE_HELD);
+  }
+  const remove = payload.budget_intent === 'remove';
+  if (remove) {
+    if (desired.some((row) => row.account === account) || !plan.inSpanFiscalYears.includes(frozenYear)) {
+      throw new AppError('erpnext-sweep budget recovery HELD: removed account is desired again or year is outside the current project span', BUDGET_SWEEP_GATE_HELD);
+    }
+    const predecessor = typeof payload.budget_predecessor === 'string' ? payload.budget_predecessor : '';
+    if (!predecessor) throw new AppError('erpnext-sweep budget recovery HELD: removal has no predecessor witness', BUDGET_SWEEP_GATE_HELD);
+    const prior = await serviceClient.from('budget_version_account_erp_mirror')
+      .select('budget_version_id,erp_budget_name,budget_versions!inner(project_id)')
+      .eq('org_id', org.orgId).eq('budget_versions.project_id', plan.projectId)
+      .eq('fiscal_year', frozenYear).eq('erp_account', account).eq('erp_budget_name', predecessor)
+      .eq('budget_intent', 'ensure').is('erp_cancelled_at', null).maybeSingle();
+    if (prior.error || !prior.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no same-org project/account witness', BUDGET_SWEEP_GATE_HELD);
+    const priorVersionId = String((prior.data as { budget_version_id?: unknown }).budget_version_id ?? '');
+    let reverseIdentity: string;
+    try { reverseIdentity = budgetAccountIdentity(priorVersionId, frozenYear, account); }
+    catch { throw new AppError('erpnext-sweep budget recovery HELD: predecessor identity is invalid', BUDGET_SWEEP_GATE_HELD); }
+    const reverseRef = await serviceClient.from('external_refs').select('external_record_id')
+      .eq('org_id', org.orgId).eq('domain', 'budget').eq('external_tier', ERPNEXT_TIER)
+      .eq('pmo_record_id', reverseIdentity).eq('external_record_id', predecessor).maybeSingle();
+    if (reverseRef.error || !reverseRef.data) throw new AppError('erpnext-sweep budget recovery HELD: predecessor has no reverse reference witness', BUDGET_SWEEP_GATE_HELD);
+  } else if (!desired.some((row) => row.account === account)) {
+    throw new AppError('erpnext-sweep budget recovery HELD: account is no longer desired by the current map', BUDGET_SWEEP_GATE_HELD);
   }
 }
 

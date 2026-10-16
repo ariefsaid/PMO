@@ -50,6 +50,7 @@ import type {
   ProjectDocumentInput,
   DocStatus,
 } from '@/src/lib/db/documents';
+import type { MicrosoftReferenceInput, MicrosoftLibraryDefault } from '@/src/lib/m365/reference';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -105,6 +106,7 @@ import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 import type {
   BudgetVersionRow,
   BudgetVersionWithItems,
+  BudgetDocumentLinkRow,
   BudgetLineItemRow,
   NewLineItem,
   ImportProvenance,
@@ -324,6 +326,10 @@ export interface DocumentRepository {
     input: ProjectDocumentInput,
     authorId: string | null,
   ): Promise<ProjectDocumentRow>;
+  /** Atomically link a Microsoft item; actor/time stamps are server-owned. */
+  linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  /** Remove only the PMO reference; does not modify or delete the Microsoft item. */
+  unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Update a document's metadata (never status / author_id / org_id). */
   update(id: string, input: ProjectDocumentInput): Promise<void>;
   /** Move the document to the next workflow status (Draft→Issued→Approved/Rejected→Closed). */
@@ -426,6 +432,13 @@ export interface ProcurementRepository {
     procurementId: string,
     input: ProcurementDocumentInput,
   ): Promise<ProcurementDocumentRow>;
+  createMicrosoftDocument(
+    procurementId: string,
+    reference: MicrosoftReferenceInput,
+    metadata?: { referenceNumber?: string | null; date?: string | null },
+  ): Promise<ProcurementDocumentRow>;
+  linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
   // ── New ERP-canonical record creators (Slice 5.4) ──
@@ -571,6 +584,9 @@ export interface BudgetRepository {
   activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
+  listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;
+  addDocumentLink(versionId: string, reference: MicrosoftReferenceInput): Promise<BudgetDocumentLinkRow>;
+  removeDocumentLink(id: string): Promise<void>;
 }
 
 export interface IncidentRepository {
@@ -774,8 +790,14 @@ export interface VendorWithholdingSlipsRepository {
   get(slipId: string): Promise<SlipDetail>;
 }
 
+export interface M365DocumentSettingsRepository {
+  getDefaultLibrary(): Promise<MicrosoftLibraryDefault | null>;
+  setDefaultLibrary(value: MicrosoftLibraryDefault | null): Promise<void>;
+}
+
 export interface Repositories {
   fxRates: FxRatesRepository;
+  m365DocumentSettings: M365DocumentSettingsRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;

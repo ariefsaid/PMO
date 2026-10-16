@@ -58,8 +58,14 @@ export interface ServedSeed {
   projectEndDate: string | null;
   /** ERP `Budget` rows already occupying the grain, per fiscal year (the FR-BUD-121 upsert probe). */
   grainByFiscalYear?: Record<string, Array<Record<string, unknown>>>;
+  /** v16 account grain occupancy, keyed as `<fiscal-year>|<account>`. */
+  grainByAccountYear?: Record<string, Array<Record<string, unknown>>>;
   /** `external_refs.pmo_record_id` → external record id (the PMO ownership witness, FR-BFY-076). */
   externalRefs?: Record<string, string>;
+  /** Test-only ERP validation rejection for one v16 Budget account. */
+  rejectBudgetAccount?: string;
+  /** Existing account mirror rows returned by the real handler's project-scoped keyset scan. */
+  accountMirrorHistory?: Array<Record<string, unknown> & { org_id?: string; project_id?: string }>;
 }
 
 /** The 2-fiscal-year, fully-phased seed AC-BFY-009 is about. */
@@ -96,14 +102,17 @@ export interface ServedRoutesResult {
   routes: MockRoute[];
   /** Every ERP `Budget` document the mocked ERP now holds, in creation order. */
   erpBudgets: Array<{ name: string; body: Record<string, unknown>; docstatus: number }>;
+  accountMirrorRows: Array<Record<string, unknown>>;
 }
 
 /**
  * The full route table for one served budget dispatch. Every route is a fact about the world the
  * handler reads; nothing here re-implements a handler decision.
  */
-export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
+export function servedRoutes(seed: ServedSeed, versionMajor = 15): ServedRoutesResult {
   const erpBudgets: ServedRoutesResult['erpBudgets'] = [];
+  const accountMirrorRows: Array<Record<string, unknown>> = [];
+  let mirrorSeq = 0;
   let outboxSeq = 0;
   const outboxRows = new Map<string, Record<string, unknown>>();
 
@@ -126,7 +135,7 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
         site_url: ERP_SITE_URL,
         secret_ref: SECRET_REF,
         activated_at: '2026-01-01T00:00:00+00:00',
-        version_major: 15,
+        version_major: versionMajor,
         config: { company: COMPANY, project_map: { [PROJECT_ID]: ERP_PROJECT } },
       })),
     // #651 / ADR-0072: the gate's fiscal read resolves the pair through the ONE shared resolver
@@ -153,6 +162,45 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
     supabaseSelect('budget_line_items', (call) =>
       jsonResponse(call.url.searchParams.has('id') ? [] : seed.lineItems)),
     supabaseSelect('budget_category_account_map', () => jsonResponse(seed.categoryMap)),
+    supabaseSelect('budget_version_account_erp_mirror', (call) => {
+      const param = (key: string) => call.url.searchParams.get(key)?.replace(/^eq\./, '');
+      const account = param('erp_account');
+      const year = param('fiscal_year');
+      const version = param('budget_version_id');
+      const afterId = call.url.searchParams.get('id')?.replace(/^gt\./, '');
+      const project = param('budget_versions.project_id');
+      const org = param('org_id');
+      const rows = [...(seed.accountMirrorHistory ?? []), ...accountMirrorRows]
+        .filter((row) => (!account || row.erp_account === account) && (!year || row.fiscal_year === year) &&
+          (!version || row.budget_version_id === version) && (!afterId || String(row.id) > afterId) &&
+          (!org || !row.org_id || row.org_id === org) && (!project || !row.project_id || row.project_id === project))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+        .slice(0, Number(call.url.searchParams.get('limit') ?? '1000'));
+      return call.headers.get('accept')?.includes('vnd.pgrst.object') ? objectResponse(rows[0] ?? null) : jsonResponse(rows);
+    }),
+    {
+      label: 'v16 account mirror sentinel retirement', method: 'DELETE', pathname: '/rest/v1/budget_version_account_erp_mirror',
+      response: (call) => {
+        const yearFilter = call.url.searchParams.get('fiscal_year')?.replace(/^in\./, '').replace(/[()]/g, '').split(',') ?? [];
+        for (let index = accountMirrorRows.length - 1; index >= 0; index--) {
+          if (accountMirrorRows[index]?.erp_account === '' && yearFilter.includes(String(accountMirrorRows[index]?.fiscal_year))) accountMirrorRows.splice(index, 1);
+        }
+        return jsonResponse([]);
+      },
+    },
+    {
+      label: 'v16 account mirror upsert', method: 'POST', pathname: '/rest/v1/budget_version_account_erp_mirror',
+      response: (call) => {
+        const incomingRows = (Array.isArray(call.bodyJson) ? call.bodyJson : [call.bodyJson]) as Array<Record<string, unknown>>;
+        for (const incoming of incomingRows) {
+          const key = ['budget_version_id', 'fiscal_year', 'erp_account'].map((field) => incoming[field]).join('|');
+          const old = accountMirrorRows.find((row) => [row.budget_version_id, row.fiscal_year, row.erp_account].join('|') === key);
+          if (old) Object.assign(old, incoming);
+          else accountMirrorRows.push({ id: `mirror-${++mirrorSeq}`, ...incoming });
+        }
+        return jsonResponse([]);
+      },
+    },
     // Both directions are asked: `resolveExternalRef` (pmo_record_id → external_record_id, the
     // create-target guard) and `findPmoRecordId` (external_record_id → pmo_record_id, the FR-BFY-076
     // ownership witness).
@@ -213,10 +261,20 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
     supabaseRpc('claim_outbox_for_commit', (call) => {
       const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
       const row = [...outboxRows.values()].find((r) => r.id === id);
-      return jsonResponse(row ? { ...row, state: 'committing', claim_generation: 1 } : null);
+      if (row) {
+        row.state = 'committing';
+        row.claim_generation = 1;
+      }
+      return jsonResponse(row ? { ...row } : null);
     }),
+    supabaseRpc('quarantine_committing', () => jsonResponse(null)),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
-    supabaseRpc('confirm_outbox', () => jsonResponse(1)),
+    supabaseRpc('confirm_outbox', (call) => {
+      const id = String((call.bodyJson as { p_id?: unknown })?.p_id ?? '');
+      const row = [...outboxRows.values()].find((r) => r.id === id);
+      if (row) row.state = 'confirmed';
+      return jsonResponse(1);
+    }),
 
     // ── the read-model mirror + the operator surface ─────────────────────────────────────────────
     {
@@ -243,9 +301,12 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
         if (call.method === 'GET') {
           const filters = call.url.searchParams.get('filters') ?? '[]';
           const fy = fiscalYearOfFilters(filters);
-          return jsonResponse({ data: (fy && seed.grainByFiscalYear?.[fy]) ?? [] });
+          const account = accountOfFilters(filters);
+          return jsonResponse({ data: (fy && account && seed.grainByAccountYear?.[`${fy}|${account}`]) ??
+            (fy && seed.grainByFiscalYear?.[fy]) ?? [] });
         }
         const body = (call.bodyJson ?? {}) as Record<string, unknown>;
+        if (seed.rejectBudgetAccount !== undefined && seed.rejectBudgetAccount === body.account) return jsonResponse({ exc: 'budget account rejected' }, { status: 422 });
         const name = `BUDGET-${erpBudgets.length + 1}`;
         erpBudgets.push({ name, body, docstatus: 0 });
         return jsonResponse({ data: { ...body, name, docstatus: 0 } });
@@ -267,7 +328,7 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
     },
   ];
 
-  return { routes, erpBudgets };
+  return { routes, erpBudgets, accountMirrorRows };
 }
 
 /** `?pmo_record_id=eq.<id>&idempotency_key=eq.<key>` → the map key the fixture stores rows under. */
@@ -280,7 +341,17 @@ function outboxKeyOf(call: FetchCall): string {
 function fiscalYearOfFilters(filters: string): string | null {
   try {
     const parsed = JSON.parse(filters) as Array<[string, string, unknown]>;
-    const row = parsed.find((f) => f[0] === 'fiscal_year');
+    const row = parsed.find((f) => f[0] === 'fiscal_year' || f[0] === 'from_fiscal_year');
+    return row ? String(row[2]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function accountOfFilters(filters: string): string | null {
+  try {
+    const parsed = JSON.parse(filters) as Array<[string, string, unknown]>;
+    const row = parsed.find((f) => f[0] === 'account');
     return row ? String(row[2]) : null;
   } catch {
     return null;

@@ -16,6 +16,7 @@ import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
 import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
+import { budgetAccountIdentity } from '@/src/lib/adapterSeam/erpnext/budgetAccountIdentity';
 import type { Database } from '@/src/lib/supabase/database.types';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
@@ -330,6 +331,20 @@ async function activeBudgetVersionId(projectId: string): Promise<string> {
  */
 export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear: string | null): Promise<void> {
   const versionId = await activeBudgetVersionId(projectId);
+  let identities = fiscalYear ? [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId] : [versionId];
+  if (fiscalYear) {
+    const { data: accounts, error: accountError } = await supabase
+      .from('budget_version_account_erp_mirror')
+      .select('erp_account')
+      .eq('budget_version_id', versionId)
+      .eq('fiscal_year', fiscalYear);
+    if (accountError) throw toAppError(accountError);
+    const accountIdentities = (Array.isArray(accounts) ? accounts as Array<{ erp_account: string | null }> : [])
+      .map(({ erp_account }) => erp_account?.trim())
+      .filter((account): account is string => Boolean(account))
+      .map((account) => budgetAccountIdentity(versionId, fiscalYear, account));
+    identities = [...new Set([...accountIdentities, ...identities])];
+  }
   const { data, error } = await supabase
     .from('external_command_outbox')
     .select('id')
@@ -344,7 +359,7 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
     // was written by the pre-fan-out single-FY dispatcher and therefore names this one year. Releasing
     // "whatever is held for this project" would clear a DIFFERENT year's money command.
     // A year-less status row (nothing on record for any year) can only ever be the legacy bare key.
-    .in('pmo_record_id', fiscalYear ? [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId] : [versionId])
+    .in('pmo_record_id', identities)
     .eq('state', 'held')
     .order('created_at', { ascending: false })
     .limit(1)

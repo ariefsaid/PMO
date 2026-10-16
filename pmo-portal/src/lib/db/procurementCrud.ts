@@ -3,6 +3,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 // ERROR-TYPE NOTE (intentional ProcurementError reuse, not a divergence): the
 // other CRUD DAL modules (companies / documents / projects / incidents) throw the
@@ -54,11 +55,12 @@ export class ProcurementVendorAlreadySetError extends ProcurementError {
 interface RpcErrorLike {
   message: string;
   code?: string;
+  details?: string;
 }
 
 /** Rethrows preserving both message and Postgres code (for classifyMutationError). */
 function throwWrite(error: RpcErrorLike): never {
-  throw new ProcurementError(error.message, error.code);
+  throw new ProcurementError(error.message, error.code, error.details);
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +308,79 @@ export async function createProcurementDocument(
     .single();
   if (error) throwWrite(error);
   return data as ProcurementDocumentRow;
+}
+
+export async function createMicrosoftProcurementDocument(
+  procurementId: string,
+  reference: MicrosoftReferenceInput,
+  metadata?: { referenceNumber?: string | null; date?: string | null },
+): Promise<ProcurementDocumentRow> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new ProcurementError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('procurement_documents')
+    .insert({
+      procurement_id: procurementId,
+      type: 'Microsoft reference',
+      status: 'Draft',
+      link: reference.web_url,
+      source: 'onedrive',
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_item_name: reference.name,
+      ms_item_kind: reference.item_kind,
+      ...(metadata?.referenceNumber !== undefined ? { reference_number: metadata.referenceNumber } : {}),
+      ...(metadata?.date !== undefined ? { date: metadata.date } : {}),
+    })
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return data as ProcurementDocumentRow;
+}
+
+export async function linkMicrosoftProcurementDocument(
+  id: string,
+  reference: MicrosoftReferenceInput,
+): Promise<void> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new ProcurementError('Cannot link this item.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('procurement_documents')
+    .update({
+      link: reference.web_url,
+      source: 'onedrive',
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_item_name: reference.name,
+      ms_item_kind: reference.item_kind,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
+export async function unlinkMicrosoftProcurementDocument(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('procurement_documents')
+    .update({
+      link: null,
+      source: null,
+      ms_drive_id: null,
+      ms_item_id: null,
+      ms_item_name: null,
+      ms_item_kind: null,
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
 }
 
 /**

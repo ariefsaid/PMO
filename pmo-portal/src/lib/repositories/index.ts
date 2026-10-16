@@ -13,6 +13,7 @@
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
+import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
 import { fxRatesRepository } from './fxRates';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
@@ -67,6 +68,8 @@ import {
   listProjectDocuments,
   getProjectDocument,
   createProjectDocument,
+  linkMicrosoftDocument,
+  unlinkMicrosoftDocument,
   updateProjectDocument,
   transitionProjectDocument,
   deleteProjectDocument,
@@ -159,6 +162,9 @@ import {
   selectProcurementQuote,
   listProcurementDocuments,
   createProcurementDocument,
+  createMicrosoftProcurementDocument,
+  linkMicrosoftProcurementDocument,
+  unlinkMicrosoftProcurementDocument,
   deleteProcurementDocument,
 } from '@/src/lib/db/procurementCrud';
 import {
@@ -185,6 +191,9 @@ import {
   activateVersion,
   archiveVersion,
   deleteDraftVersion,
+  listBudgetDocumentLinks,
+  addBudgetDocumentLink,
+  removeBudgetDocumentLink,
 } from '@/src/lib/db/budgets';
 import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import {
@@ -304,6 +313,7 @@ import type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  M365DocumentSettingsRepository,
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
@@ -455,6 +465,8 @@ const document: DocumentRepository = {
   get: (id) => wrap(() => getProjectDocument(id)),
   create: (projectId, input, authorId) =>
     wrap(() => createProjectDocument(projectId, input, authorId)),
+  linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftDocument(id, reference)),
+  unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftDocument(id)),
   update: (id, input) => wrap(() => updateProjectDocument(id, input)),
   transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
   delete: (id) => wrap(() => deleteProjectDocument(id)),
@@ -598,6 +610,10 @@ const procurement: ProcurementRepository = {
   listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
+  createMicrosoftDocument: (procurementId, reference, metadata) =>
+    wrap(() => createMicrosoftProcurementDocument(procurementId, reference, metadata)),
+  linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftProcurementDocument(id, reference)),
+  unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftProcurementDocument(id)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
   createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
@@ -808,6 +824,11 @@ const timesheet: TimesheetRepository = {
     }),
 };
 
+const m365DocumentSettings: M365DocumentSettingsRepository = {
+  getDefaultLibrary: () => wrap(() => getDefaultLibrary()),
+  setDefaultLibrary: (value) => wrap(() => setDefaultLibrary(value)),
+};
+
 const budget: BudgetRepository = {
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
@@ -823,6 +844,9 @@ const budget: BudgetRepository = {
   activateVersion: (versionId) => wrap(() => activateVersion(versionId)),
   archiveVersion: (versionId) => wrap(() => archiveVersion(versionId)),
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
+  listDocumentLinks: (versionId) => wrap(() => listBudgetDocumentLinks(versionId)),
+  addDocumentLink: (versionId, reference) => wrap(() => addBudgetDocumentLink(versionId, reference)),
+  removeDocumentLink: (id) => wrap(() => removeBudgetDocumentLink(id)),
 };
 
 const incident: IncidentRepository = {
@@ -1217,6 +1241,7 @@ const reports: ReportsRepository = {
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   fxRates: fxRatesRepository,
+  m365DocumentSettings,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
@@ -1256,6 +1281,7 @@ export type {
   ProjectRepository,
   CompanyRepository,
   DocumentRepository,
+  M365DocumentSettingsRepository,
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,

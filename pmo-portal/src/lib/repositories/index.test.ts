@@ -181,8 +181,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'fxRates', 'incident', 'integrations', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
     );
+  });
+
+  it('m365DocumentSettings exposes the default-library repository methods', () => {
+    expect(Object.keys(repositories.m365DocumentSettings).sort()).toEqual(['getDefaultLibrary', 'setDefaultLibrary']);
   });
 
   it('expensePostings exposes the two read methods (#775 phase B, ADR-0017)', () => {
@@ -224,9 +228,11 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'get',
         'getChild',
         'getSignedUrl',
+        'linkMicrosoftDocument',
         'list',
         'prepareUpload',
         'transition',
+        'unlinkMicrosoftDocument',
         'update',
       ].sort(),
     );
@@ -254,6 +260,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createDocument',
         'createInvoice',
         'createItem',
+        'createMicrosoftDocument',
         'createPayment',
         'createPurchaseOrder',
         'createPurchaseRequest',
@@ -263,11 +270,13 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'linkMicrosoftDocument',
         'list',
         'listDocuments',
         'selectQuote',
         'setEfaktur',
         'transition',
+        'unlinkMicrosoftDocument',
         'updateHeader',
         'updateItem',
         'updateVendor',
@@ -277,7 +286,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listVersions', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listDocumentLinks', 'listVersions', 'removeDocumentLink', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
