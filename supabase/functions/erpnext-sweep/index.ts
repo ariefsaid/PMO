@@ -1186,6 +1186,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
 export interface RepairUnlinkedReceiptsDeps {
   /** The org's ERP-sourced receipts still missing their invoice link (bounded per tick). */
   listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string }>>;
+  /** Stamp every attempt so failures cannot monopolise the bounded scan. */
+  stampAllocationCheck?: (id: string) => Promise<void>;
   /** Re-read one Payment Entry in full (its `references` child rows are not list-endpoint fields). */
   fetchDoc: (erpName: string) => Promise<Record<string, unknown>>;
   /** The PMO id the cited Sales Invoice ERP name now maps to, or `null` if still unmapped. */
@@ -1216,13 +1218,21 @@ export async function repairUnlinkedReceipts(
       if (allocations !== undefined) await deps.mirrorAllocations?.(receipt.id, allocations);
       const references = doc.references as Array<{ reference_name?: string | null }> | undefined;
       const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
-      if (!siErpName) continue; // an unreferenced receipt is a valid on-account payment
-      const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
-      if (!salesInvoicePmoId) continue; // still unmapped — retry next tick rather than guess
-      await deps.link(receipt.id, salesInvoicePmoId);
-      repaired += 1;
+      if (siErpName) {
+        const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
+        if (salesInvoicePmoId) {
+          await deps.link(receipt.id, salesInvoicePmoId);
+          repaired += 1;
+        }
+      }
     } catch (err) {
       errors.push({ id: receipt.id, error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      try {
+        await deps.stampAllocationCheck?.(receipt.id);
+      } catch (err) {
+        errors.push({ id: receipt.id, error: `stamp allocation check: ${err instanceof Error ? err.message : String(err)}` });
+      }
     }
   }
   return { repaired, errors };
@@ -1352,17 +1362,23 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: async () => {
         // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const base = () => serviceClient.from('incoming_payments')
-          .select('id').eq('org_id', org.orgId).not('erp_docstatus', 'is', null);
+          .select('id,allocation_checked_at').eq('org_id', org.orgId).not('erp_docstatus', 'is', null)
+          .or(`allocation_checked_at.is.null,allocation_checked_at.lte.${cutoff}`)
+          .order('allocation_checked_at', { ascending: true, nullsFirst: true })
+          .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
         const [unlinked, unmirrored, unresolved] = await Promise.all([
-          base().is('sales_invoice_id', null).limit(UNLINKED_RECEIPT_SCAN_LIMIT),
-          base().is('allocation_details', null).limit(UNLINKED_RECEIPT_SCAN_LIMIT),
-          base().filter('allocation_details', 'cs', '[{"invoice_id":null}]').limit(UNLINKED_RECEIPT_SCAN_LIMIT),
+          base().is('sales_invoice_id', null),
+          base().is('allocation_details', null),
+          base().filter('allocation_details', 'cs', '[{"invoice_id":null}]'),
         ]);
         const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
         if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
         const rows = [...new Map([unlinked, unmirrored, unresolved]
-          .flatMap((r) => (r.data as Array<{ id: string }> | null) ?? []).map((r) => [r.id, r])).values()];
+          .flatMap((r) => (r.data as Array<{ id: string; allocation_checked_at: string | null }> | null) ?? []).map((r) => [r.id, r])).values()]
+          .sort((a, b) => (a.allocation_checked_at ?? '').localeCompare(b.allocation_checked_at ?? ''))
+          .slice(0, UNLINKED_RECEIPT_SCAN_LIMIT);
         if (rows.length === 0) return [];
         // The ERP name lives on external_refs (the mirror row carries no ERP name column).
         const { data: refs, error: refErr } = await serviceClient.from('external_refs')
@@ -1371,6 +1387,11 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
         if (refErr) throw new AppError(refErr.message, refErr.code);
         return ((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
           .map((r) => ({ id: r.pmo_record_id, erpName: r.external_record_id }));
+      },
+      stampAllocationCheck: async (ipId) => {
+        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_checked_at: new Date().toISOString() })
+          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+        if (error) throw new AppError(error.message, error.code);
       },
       fetchDoc: (erpName) => fetchErpDoc(client, DOCTYPE_REGISTRY['incoming-payment'].doctype, erpName),
       resolveSalesInvoicePmoId: async (siErpName) => {

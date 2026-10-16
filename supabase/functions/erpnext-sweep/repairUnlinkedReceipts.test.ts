@@ -125,3 +125,34 @@ Deno.test('RF-031: an on-account receipt mirrors a KNOWN-empty list; a doc witho
   assert(mirrored.length === 1 && mirrored[0].ipId === 'pmo-ip-2' && JSON.stringify(mirrored[0].allocations) === '[]',
     `only the documented on-account receipt is written, as []: ${JSON.stringify(mirrored)}`);
 });
+
+Deno.test('S-06: stamps successful and failed attempts so the sweep can defer them', async () => {
+  const stamped: string[] = [];
+  const result = await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [{ id: 'failed', erpName: 'bad' }, { id: 'good', erpName: 'good' }],
+    fetchDoc: async (name) => { if (name === 'bad') throw new Error('upstream error'); return { references: [] }; },
+    resolveSalesInvoicePmoId: async () => null,
+    link: async () => {},
+    stampAllocationCheck: async (id) => { stamped.push(id); },
+  });
+  assert(stamped.join(',') === 'failed,good', `each attempt stamped: ${stamped}`);
+  assert(result.errors.length === 1, 'upstream failure is reported');
+});
+
+Deno.test('S-06: a bounded oldest-first batch reaches later candidates on the next run', async () => {
+  const checked = new Set<string>();
+  const reached: string[][] = [];
+  for (let run = 0; run < 2; run++) {
+    const batch = ['oldest', 'next', 'newest'].filter((id) => !checked.has(id)).slice(0, 2);
+    reached.push(batch);
+    await repairUnlinkedReceipts({
+      listUnlinkedReceipts: async () => batch.map((id) => ({ id, erpName: id })),
+      fetchDoc: async () => ({ references: [] }),
+      resolveSalesInvoicePmoId: async () => null,
+      link: async () => {},
+      stampAllocationCheck: async (id) => { checked.add(id); },
+    });
+  }
+  assert(reached[0].join(',') === 'oldest,next' && reached[1].join(',') === 'newest',
+    `later candidates reached: ${JSON.stringify(reached)}`);
+});
