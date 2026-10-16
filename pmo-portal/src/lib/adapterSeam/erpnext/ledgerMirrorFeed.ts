@@ -71,6 +71,8 @@ export interface FeedLedgerMirrorsOpts {
   pageSize?: number;
   /** Test/operations override; production defaults to the bounded ledger-fetch budget. */
   maxPages?: number;
+  /** Full historical statement replay: fetch all GL pages and fail closed before any mirror/watermark write if incomplete. */
+  fullReplay?: boolean;
 }
 
 export interface FeedLedgerMirrorsResult {
@@ -90,7 +92,7 @@ export async function feedLedgerMirrors(
   serviceClient: LedgerFeedServiceClient,
   opts: FeedLedgerMirrorsOpts,
 ): Promise<FeedLedgerMirrorsResult> {
-  const { client, orgId, company, pageSize, maxPages } = opts;
+  const { client, orgId, company, pageSize, maxPages, fullReplay = false } = opts;
 
   const glCursor = await readWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN);
   // A caller-supplied small budget is used to exercise/limit the initial backfill. Resumed ticks use
@@ -98,10 +100,11 @@ export async function feedLedgerMirrors(
   // budget before the next unseen page can be observed; production remains bounded on every tick.
   const glResult = await fetchGlEntries(client, {
     company,
-    since: glCursor ?? undefined,
+    since: fullReplay ? undefined : glCursor ?? undefined,
     pageSize,
-    maxPages,
+    maxPages: fullReplay ? (maxPages ?? 300) : maxPages,
   });
+  if (fullReplay && !glResult.caughtUp) throw new AppError('Full statement replay page budget exhausted; mirror and watermark were not changed', 'external-unreachable');
   const glFed = await upsertMirrorRows(serviceClient, 'erp_gl_entry_mirror', orgId, glResult.rows.map(glRowToMirror));
   const glNext = maxModified(glResult.rows);
   const glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
