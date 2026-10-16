@@ -13,6 +13,24 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
   projectOptions: [{ value: 'project-1', label: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
+  incomingPaymentsState: {
+    data: [{
+      id: 'receipt-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy',
+      sales_invoice_id: null, ip_number: 'SYNTHETIC-RECEIPT-1', reference_number: null,
+      date: '2026-10-08', amount: 250, currency: 'USD', status: 'Paid', erp_docstatus: 1,
+      erp_modified: null, erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-08T00:00:00Z',
+      allocation_details: [{ invoice_id: 'inv-1', invoice_number: 'ACC-SINV-2026-00001', amount: '250.00', currency: 'USD' }],
+    }], isPending: false, isError: false,
+  },
+  invoiceEvidenceState: {
+    data: {
+      lines: [{ item_code: 'SYNTHETIC-SVC', description: 'Inspection work', qty: 2, rate: 125, amount: 250 }],
+      contact: { name: 'Billing Desk', email: 'billing@example.test', phone: '+62-TEST-000' },
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
   salesInvoicesState: {
     data: [
       {
@@ -73,15 +91,25 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 const salesInvoicesState = hoisted.salesInvoicesState;
+const invoiceEvidenceState = hoisted.invoiceEvidenceState;
+const incomingPaymentsState = hoisted.incomingPaymentsState;
 const SEED_INVOICES = structuredClone(salesInvoicesState.data);
 
 beforeEach(() => {
   salesInvoicesState.data = structuredClone(SEED_INVOICES);
   salesInvoicesState.isPending = false;
   salesInvoicesState.isError = false;
+  invoiceEvidenceState.isPending = false;
+  invoiceEvidenceState.isError = false;
+  incomingPaymentsState.isPending = false;
+  incomingPaymentsState.isError = false;
+  incomingPaymentsState.data = structuredClone(hoisted.incomingPaymentsState.data);
 });
 
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoiceEvidence: () => invoiceEvidenceState,
+  useInvoiceEvidence: () => invoiceEvidenceState,
+  useIncomingPayments: () => incomingPaymentsState,
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
@@ -273,6 +301,9 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
     expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+    const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
+    expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
+    expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
   });
 
   it('RF-024 does not turn an unknown due date or outstanding amount into zero', () => {
@@ -298,6 +329,28 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
+  });
+
+  it('RF-025 renders ERP line evidence and the available billing contact without making the lines editable', () => {
+    salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByRole('heading', { name: 'Bill evidence' })).toBeInTheDocument();
+    expect(screen.getByText('Inspection work')).toBeInTheDocument();
+    expect(screen.getByText('SYNTHETIC-SVC')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Bill evidence' })).toHaveTextContent('2 × $125.00 = $250.00');
+    expect(screen.getByText('Billing Desk')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'billing@example.test' })).toHaveAttribute('href', 'mailto:billing@example.test');
+    expect(screen.queryByRole('button', { name: /edit line/i })).not.toBeInTheDocument();
+  });
+
+  it('RF-025 explains an unavailable ERP line read and offers a retry', async () => {
+    const user = userEvent.setup();
+    salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
+    invoiceEvidenceState.isError = true;
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByText('Bill evidence is temporarily unavailable.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry invoice evidence' }));
+    expect(invoiceEvidenceState.refetch).toHaveBeenCalled();
   });
 
   it('UX-053 shows the recorded client-receipt date instead of implying a send action', () => {
