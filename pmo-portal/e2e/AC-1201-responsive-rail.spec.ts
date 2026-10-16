@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — pure nav/assert; viewport resize + nav rail visibility; no DB writes.
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, waitForFonts } from './helpers';
 
 // AC-1201 — Responsive rail collapse (single source of truth at the 920px
 // breakpoint). Durable regression guard for the C1 bugs that slipped jsdom
@@ -70,6 +70,7 @@ test('UX-001 Approvals stays within the 800px rail viewport while Sales remains 
   const sales = nav.getByRole('link', { name: 'Sales Pipeline' });
   await expect(approvals).toBeVisible();
   await expect(sales).toBeAttached();
+  await waitForFonts(page);
 
   const railBox = await nav.boundingBox();
   const approvalsBox = await approvals.boundingBox();
