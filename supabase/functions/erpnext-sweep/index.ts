@@ -565,10 +565,15 @@ interface OrgBinding {
    *  per-pass tests keep their fixtures byte-for-byte; absent/null ⇒ the `absent` queue yields NOTHING,
    *  which is the fail-safe answer (never a retroactive push). `listEmployingOrgsLive` always sets it. */
   activatedAt?: string | null;
+  /** Holder fence for statement-source writes in this sweep tick. */
+  statementLockHolder?: string;
 }
 
 export interface ErpSweepCycleDeps {
   listEmployingOrgs: () => Promise<OrgBinding[]>;
+  /** Atomic per-org statement-source lock. Live wiring always supplies both callbacks. */
+  claimStatementLock?: (orgId: string, holder: string) => Promise<boolean>;
+  releaseStatementLock?: (orgId: string, holder: string) => Promise<void>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string }>;
   /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
@@ -590,6 +595,14 @@ export interface ErpSweepCycleDeps {
    *  tests stay byte-for-byte; the live wiring always supplies it. */
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
 }
+
+/**
+ * Supabase Edge Functions document a 150-second wall-clock limit:
+ * https://supabase.com/docs/guides/functions/limits
+ * ponytail: TTL outlives the function's wall-clock cap, so writers can't overlap; per-write fencing only if ticks ever exceed the cap.
+ */
+export const STATEMENT_SWEEP_WALL_CLOCK_CAP_MS = 150_000;
+export const STATEMENT_SWEEP_LOCK_TTL_MS = 15 * 60_000;
 
 export interface ErpSweepCycleResult {
   orgs: number;
@@ -613,6 +626,23 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
+    const lockHolder = crypto.randomUUID();
+    if (deps.claimStatementLock) {
+      let acquired = false;
+      try {
+        acquired = await deps.claimStatementLock(org.orgId, lockHolder);
+      } catch (err) {
+        errors.push(`statement-lock:${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (!acquired) {
+        if (errors.length === 0) errors.push('statement-lock-held');
+        perOrg.push({ orgId: org.orgId, reconcile: null, errors });
+        cache?.delete(org.orgId);
+        continue;
+      }
+      org.statementLockHolder = lockHolder;
+    }
+    try {
     // (1) outbox recovery FIRST.
     let reconcile: ReconcileOrgOutboxResult | null = null;
     try {
@@ -695,6 +725,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
     // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
     // resolution failure can't leave a stale org resident for a later org's passes.
     cache?.delete(org.orgId);
+    } finally {
+      if (deps.releaseStatementLock && org.statementLockHolder) {
+        try {
+          await deps.releaseStatementLock(org.orgId, org.statementLockHolder);
+        } catch (err) {
+          errors.push(`statement-lock-release:${err instanceof Error ? err.message : String(err)}`);
+        }
+        delete org.statementLockHolder;
+      }
+    }
   }
   return { orgs: orgs.length, perOrg };
 }
@@ -2498,6 +2538,17 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
+    claimStatementLock: async (orgId, holder) => {
+      const { data, error } = await serviceClient.rpc('claim_erp_sweep_lock', {
+        p_org_id: orgId, p_holder: holder, p_ttl: `${STATEMENT_SWEEP_LOCK_TTL_MS} milliseconds`,
+      });
+      if (error) throw new Error(`statement lock claim failed: ${error.code ?? 'unknown'}`);
+      return data === true;
+    },
+    releaseStatementLock: async (orgId, holder) => {
+      const { error } = await serviceClient.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });
+      if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
+    },
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
