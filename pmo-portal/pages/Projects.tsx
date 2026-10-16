@@ -758,7 +758,7 @@ const Projects: React.FC = () => {
     );
   }
 
-  if (all.length === 0) {
+  if (all.length === 0 && filter !== 'at-risk') {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
@@ -1203,9 +1203,9 @@ const Projects: React.FC = () => {
       }
     >
       {/* Body */}
-      {filter === 'at-risk' && moneyPending ? (
+      {filter === 'at-risk' && all.length > 0 && moneyPending ? (
         <ListState variant="loading" rows={3} />
-      ) : filter === 'at-risk' && moneyError ? (
+      ) : filter === 'at-risk' && all.length > 0 && moneyError ? (
         <ListState
           variant="error"
           title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}

@@ -8,6 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectCard from './ProjectCard';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 // ProjectCard embeds ProjectStatusControl (useToast) + CompanyNameLink (Link) —
 // wrap in both providers.
@@ -147,6 +148,32 @@ describe('ProjectCard', () => {
     expect(screen.getByText('$125.0K of $500.0K Active budget')).toBeInTheDocument();
     // Should NOT show the old Committed/Actual bars
     expect(screen.queryByLabelText(/Committed: \d+% of contract/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-S02: the compact Actual summary uses Actual currency, not project currency', () => {
+    const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
+    render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
+    expect(screen.getByText('$125.0K of $500.0K Active budget')).toBeInTheDocument();
+  });
+
+  it('formats the exact Actual with the selected number locale, independently of UI language', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
+      expect(screen.getByText(/US\$\s?125\.000,00/)).toBeInTheDocument();
+    } finally {
+      resetActiveLocale();
+    }
+  });
+
+  it('uses the canonical at-risk predicate rather than rounded display percentages', () => {
+    const actuals = (amount: string) => ({ currency: 'USD', total: amount, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount }] });
+    const budget = { activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } as const;
+    const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ actuals: actuals('89.50'), ...budget }} />);
+    expect(screen.queryByText('At risk')).not.toBeInTheDocument();
+    unmount();
+    render(<ProjectCard project={{ ...base, status: 'Close Out' } as ProjectWithRefs} onOpen={vi.fn()} projectMoney={{ actuals: actuals('95.00'), ...budget }} />);
+    expect(screen.queryByText('At risk')).not.toBeInTheDocument();
   });
 
   it('AC-S02: partial or restricted Actual is displayed with its qualifier but never drives budget usage', () => {

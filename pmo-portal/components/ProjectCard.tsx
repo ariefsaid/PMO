@@ -7,6 +7,8 @@ import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { formatExactMoney } from '@/src/lib/projectFinances';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { isAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
 import ProjectStatusControl from './ProjectStatusControl';
@@ -38,7 +40,7 @@ export interface ProjectCardProps {
  * RPC), which stops propagation so it never drills.
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
   // project's own — not the org default. Two projects in different currencies render correctly
   // side by side in the same list, which is the whole point of the per-record column (0187).
@@ -59,6 +61,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
     ? Math.round((actual / activeBudget) * 100)
     : null;
+  const atRisk = actual != null && actualIsComplete && activeBudget != null && budgetCurrencyMatches
+    && isAtRisk({ status: project.status as string, budget: activeBudget, spent: actual });
   const budgetUsageUnavailable = !projectMoney || (projectMoney.hasActiveBudget && actual == null)
     ? t('uxs02.unavailable', 'Unavailable')
     : projectMoney.hasActiveBudget && activeBudget === 0
@@ -99,7 +103,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
           <dd className="font-semibold tabular">
-            {actual == null ? t('uxs02.unavailable', 'Unavailable') : formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, i18n.language) ?? t('uxs02.unavailable', 'Unavailable')}
+            {actual == null ? t('uxs02.unavailable', 'Unavailable') : formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}
           </dd>
           {actual != null && (
             <dd className="text-[11px] text-muted-foreground">
@@ -138,13 +142,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
                 <ProgressBar
                   value={budgetUsedPct}
                   showValue
-                  tone={budgetUsedPct >= 90 ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
+                  tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
                   aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
                 />
                 <span className="text-[11px] text-muted-foreground">
-                  {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual!, currency), budget: formatCompactCurrency(activeBudget!, projectMoney?.activeBudgetCurrency ?? currency) })}
+                  {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual!, projectMoney?.actuals.currency ?? currency), budget: formatCompactCurrency(activeBudget!, projectMoney?.activeBudgetCurrency ?? currency) })}
                 </span>
-                {budgetUsedPct >= 90 && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
+                {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
               </>
             )}
           </div>
@@ -161,8 +165,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
             <span className="text-[11px] text-muted-foreground">{budgetUsageUnavailable}</span>
           ) : (
             <div className="flex flex-col gap-0.5">
-              <ProgressBar value={budgetUsedPct} showValue tone={budgetUsedPct >= 90 ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })} />
-              {budgetUsedPct >= 90 && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
+              <ProgressBar value={budgetUsedPct} showValue tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })} />
+              {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
             </div>
           )}
         </div>

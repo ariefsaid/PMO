@@ -128,6 +128,11 @@ const fixtures = [
     client: { id: 'c1', name: 'Acme' },
     pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
+  {
+    id: 'p5', name: 'Rounded To 90 But Safe', code: 'P-005', status: 'Ongoing Project',
+    project_manager_id: 'pm-1', client_id: 'c1', contract_value: 100_000, currency: 'USD',
+    customer_contract_ref: null, client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
+  },
 ];
 
 const renderWithUrl = (url: string, role: Role = 'Project Manager') =>
@@ -163,7 +168,7 @@ beforeEach(() => {
   projectMoneyState.isError = false;
   projectMoneyState.data = Object.fromEntries([
     ['p1', ['40000.00', '80000.00']], ['p2', ['95000.00', '100000.00']],
-    ['p3', ['90000.00', '100000.00']], ['p4', ['49000.00', '50000.00']],
+    ['p3', ['90000.00', '100000.00']], ['p4', ['49000.00', '50000.00']], ['p5', ['89500.00', '100000.00']],
   ].map(([id, values]) => [id, { actuals: { currency: 'USD', total: values[0], asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: values[0] }] }, activeBudgetAmount: values[1], activeBudgetCurrency: 'USD', hasActiveBudget: true }]));
 });
 
@@ -183,6 +188,16 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(screen.queryByText('Safe Project')).not.toBeInTheDocument();
     // Completed even though high committed-spend: p4 excluded (not active)
     expect(screen.queryByText('Completed Not At Risk')).not.toBeInTheDocument();
+    // 89.5% rounds to 90 for display but remains below the exact canonical threshold.
+    expect(screen.queryByText('Rounded To 90 But Safe')).not.toBeInTheDocument();
+  });
+
+  it('renders the empty state for an empty portfolio even when the disabled money query is pending', () => {
+    projectsState.data = [];
+    projectMoneyState.isPending = true;
+    renderWithUrl('/projects?filter=at-risk');
+    expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('projects-loading')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-3: honest empty state when no projects are at risk', () => {

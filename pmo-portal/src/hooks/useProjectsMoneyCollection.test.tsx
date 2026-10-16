@@ -28,6 +28,18 @@ describe('useProjectsMoneyCollection', () => {
     expect(result.current.data).toEqual(data);
   });
 
+  it('chunks large collections into calls of at most 500 IDs and merges the read models', async () => {
+    const ids = Array.from({ length: 1001 }, (_, index) => `p${String(index).padStart(4, '0')}`);
+    repo.collection.mockImplementation(async (chunk: string[]) => Object.fromEntries(chunk.map((id) => [id, { id }])));
+    const { result } = renderHook(() => useProjectsMoneyCollection(ids), { wrapper: wrapper(client()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repo.collection).toHaveBeenCalledTimes(3);
+    expect(repo.collection.mock.calls.map(([chunk]) => chunk.length)).toEqual([500, 500, 1]);
+    expect(result.current.data).toHaveProperty('p0000');
+    expect(result.current.data).toHaveProperty('p1000');
+    expect(Object.keys(result.current.data ?? {})).toHaveLength(1001);
+  });
+
   it('AC-S02-007: empty projects do not trigger an RPC', () => {
     repo.collection.mockClear();
     const { result } = renderHook(() => useProjectsMoneyCollection([]), { wrapper: wrapper(client()) });
