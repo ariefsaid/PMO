@@ -99,6 +99,18 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     expect(rpc).toHaveBeenCalledWith('finish_erp_gl_replay', expect.objectContaining({ p_org_id: 'org-1', p_company: 'Synthetic Co', p_watermark: '2026-10-07 10:00:00.000000' }));
   });
 
+  it('AC-005: an empty caught-up full replay finishes without inventing or advancing a watermark', async () => {
+    const base = fakeServiceClient();
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted: 0 }, error: null });
+    const sc = Object.assign(base, { rpc });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const result = await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+    expect(rpc).toHaveBeenCalledWith('finish_erp_gl_replay', expect.objectContaining({ p_watermark: null }));
+    expect(result.glCursor).toBeNull();
+    expect(h(base).watermarks.has(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(false);
+  });
+
   it('AC-005: an incomplete full replay fails before mirror or watermark mutation', async () => {
     const sc = fakeServiceClient();
     const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-PARTIAL')], caughtUp: false });

@@ -42,7 +42,7 @@ const ERPNEXT_TIER = 'erpnext';
  *  (thenable PostgrestFilterBuilder) — callers cast `as never` at the boundary. */
 export interface LedgerFeedServiceClient {
   from(table: string): LedgerFeedTable;
-  rpc(name: 'finish_erp_gl_replay', args: { p_org_id: string; p_company: string; p_replay_id: string; p_watermark: string }): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+  rpc(name: 'finish_erp_gl_replay', args: { p_org_id: string; p_company: string; p_replay_id: string; p_watermark: string | null }): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 export interface LedgerFeedTable {
   select(columns: string): LedgerFeedSelectBuilder;
@@ -112,7 +112,6 @@ export async function feedLedgerMirrors(
   const glNext = maxModified(glResult.rows);
   let glFinalCursor: string | null;
   if (fullReplay) {
-    if (glNext === null) throw new AppError('Full statement replay returned no watermark; replay remains pending', 'external-unreachable');
     const { error } = await serviceClient.rpc('finish_erp_gl_replay', {
       p_org_id: orgId, p_company: company, p_replay_id: replayId!, p_watermark: glNext,
     });

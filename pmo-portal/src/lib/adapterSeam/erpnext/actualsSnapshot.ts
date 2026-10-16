@@ -100,8 +100,8 @@ interface MirrorRow {
   cost_center: string | null;
   account: string | null;
   fiscal_year: string | null;
-  debit: number | string | null;
-  credit: number | string | null;
+  debit: string | null;
+  credit: string | null;
 }
 
 interface SumBucket {
@@ -119,7 +119,7 @@ interface SumBucket {
  * states on the row, and it is the ONLY thing that makes a snapshot row attributable to a PMO project
  * — a column that is never SELECTed can never be attributed by.
  */
-const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,debit,credit';
+const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,debit:debit::text,credit:credit::text';
 
 /**
  * The mirror's uuid PRIMARY KEY (0101 §1) — the KEYSET cursor + total, stable order for the paged scan
@@ -131,7 +131,7 @@ const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,de
 const GL_MIRROR_SCAN_ORDER = 'id';
 
 function toNano(v: number | string | null | undefined): bigint {
-  if (v === null || v === undefined || v === '') return 0n;
+  if (v === null || v === undefined || v === '') throw new AppError('Missing required mirrored GL amount', 'commit-rejected');
   const text = String(v).trim();
   const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(text);
   if (!match) throw new AppError('Malformed mirrored GL decimal', 'commit-rejected');
