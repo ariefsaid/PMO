@@ -63,7 +63,7 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
   },
   projectMoneyState: {
-    data: {} as Record<string, { actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
+    data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -519,7 +519,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectsState.isPending = false;
     projectsState.isError = false;
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     projectMoneyState.isPending = false;
@@ -544,14 +544,25 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
+    expect(within(body).getByText('ERP actual')).toBeInTheDocument();
     expect(within(body).queryByText('$2,100,000')).not.toBeInTheDocument();
     expect(within(body).getByText(/Updated/)).toBeInTheDocument();
     expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
   });
 
+  it('AC-S02: labels committed PMO Actual separately from ERP ledger Actual', () => {
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('Committed POs')).toBeInTheDocument();
+    expect(within(body).queryByText('ERP actual')).not.toBeInTheDocument();
+  });
+
   it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
     };
     renderPage();
@@ -611,7 +622,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02: missing freshness is explicit when Actual is known', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] }, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] }, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;

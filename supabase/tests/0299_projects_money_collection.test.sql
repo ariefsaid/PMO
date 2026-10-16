@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(15);
 
 insert into public.organizations (id,name) values
  ('02990000-0000-0000-0000-000000000001','Collection read test org'),
@@ -17,6 +17,11 @@ values
  ('02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-000000000001','Synthetic delivery project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-ONE'),
  ('02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-000000000001','No reading project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-TWO'),
  ('02990000-0000-0000-0000-0000000000d3','02990000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-FOREIGN');
+insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
+ ('02990000-0000-0000-0000-0000000000f1','02990000-0000-0000-0000-000000000001','ERP committed PO','Ordered',75,'02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-0000000000a1'),
+ ('02990000-0000-0000-0000-0000000000f2','02990000-0000-0000-0000-000000000001','PMO committed PO','Ordered',45,'02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-0000000000a1');
+insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
+values ('02990000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','02990000-0000-0000-0000-0000000000a1',now());
 set local request.jwt.claims='{}';
 set local role service_role;
 insert into public.budget_category_account_map (org_id,category,erp_account,is_push_target) values
@@ -40,6 +45,8 @@ select is((select actuals->>'total' from public.get_projects_money_collection(ar
           'AC-S02-001 collection Actual equals the shipped single-project mapped-cost result');
 select is((select (actuals->>'total')::numeric from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d1'::uuid]) limit 1),
           125::numeric,'AC-S02-001 delivery Actual reads mapped ledger cost');
+select is((select ledger_basis from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d1'::uuid]) limit 1),
+          'erp','AC-S02-001 ERP-bound org returns ERP basis');
 select is((select active_budget_amount::numeric from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d1'::uuid]) limit 1),
           500::numeric,'AC-S02-002 active budget is used rather than the newer Draft amount');
 select is((select has_active_budget from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d1'::uuid]) limit 1),
@@ -50,11 +57,19 @@ select is((select active_budget_amount::numeric from public.get_projects_money_c
           null::numeric,'AC-S02-002 missing Active budget is unavailable, not zero');
 select is((select has_active_budget from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
           false,'AC-S02-002 a Draft-only project has no Active budget');
+reset role;
+update public.external_org_bindings set status='disconnected' where org_id='02990000-0000-0000-0000-000000000001';
+set local role authenticated;
+set local request.jwt.claims='{"sub":"02990000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select (actuals->>'total')::numeric from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
+          45::numeric,'AC-S02-001 non-ERP org returns committed PO Actual');
+select is((select ledger_basis from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
+          'pmo','AC-S02-001 non-ERP org returns PMO basis');
 select is((select count(*)::int from public.get_projects_money_collection(array[
           '02990000-0000-0000-0000-0000000000d1'::uuid,'02990000-0000-0000-0000-0000000000d1'::uuid,
           '02990000-0000-0000-0000-0000000000d3'::uuid])),1,'AC-S02-003 duplicate IDs collapse and foreign-org projects are excluded');
 select is((select (actuals->>'total') from public.get_projects_money_collection(array['02990000-0000-0000-0000-0000000000d2'::uuid]) limit 1),
-          null,'AC-S02-004 a missing snapshot remains unknown, not zero');
+          '45.00','AC-S02-001 the non-ERP project uses its committed PO instead of a missing ERP snapshot');
 select throws_ok($$select * from public.get_projects_money_collection(array[]::uuid[])$$,'22023',null,
                  'AC-S02-005 invalid empty collection is rejected');
 set local request.jwt.claims='{"sub":"02990000-0000-0000-0000-0000000000a2","role":"authenticated"}';

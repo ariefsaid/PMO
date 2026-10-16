@@ -7856,6 +7856,7 @@ export type Database = {
           active_budget_amount: string | null
           active_budget_currency: string | null
           has_active_budget: boolean
+          ledger_basis: string
           project_id: string
         }[]
       }

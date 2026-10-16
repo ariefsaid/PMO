@@ -95,7 +95,7 @@
     "receivableHelp": "Pilih akun yang digunakan untuk mencatat faktur pelanggan perusahaan ini.",
     "domainHelp": "Layanan yang terhubung akan mengelola jenis informasi bisnis ini. Tinjau data dan akses yang ada sebelum melanjutkan.",
     "domainField": "Informasi bisnis"
-  },,
+  },
   "uxs02": {
     "unavailable": "Tidak tersedia",
     "activeBudget": "Anggaran Aktif",
@@ -106,6 +106,8 @@
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
     "incompleteCoverage": "Cakupan sumber belum lengkap",
+    "erpActual": "Realisasi ERP",
+    "pmoActual": "PO berkomitmen",
     "restrictedRowsExcluded": "Baris terbatas dikecualikan",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
     "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",

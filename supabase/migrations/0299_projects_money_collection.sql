@@ -2,7 +2,7 @@
 -- Rollback: migrations/rollback/0299_projects_money_collection_down.sql.
 
 create function public.get_projects_money_collection(p_project_ids uuid[])
-returns table(project_id uuid, actuals jsonb, active_budget_amount text, active_budget_currency text, has_active_budget boolean)
+returns table(project_id uuid, actuals jsonb, ledger_basis text, active_budget_amount text, active_budget_currency text, has_active_budget boolean)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
   v_role public.user_role := public.auth_role();
@@ -26,7 +26,20 @@ begin
   loop
     return query
       select v_project_id,
-             public.get_project_finances(v_project_id)->'actuals',
+             case when public.org_reads_erp_ledger()
+               then public.get_project_finances(v_project_id)->'actuals'
+               else jsonb_build_object(
+                 'currency', (select p.currency from public.projects p where p.id = v_project_id),
+                 'total', (select coalesce(sum(pr.total_value), 0)::text
+                           from public.procurements pr
+                           where pr.project_id = v_project_id
+                             and pr.status::text = any(public.committed_procurement_statuses())),
+                 'as_of', null,
+                 'excludes_restricted_rows', false,
+                 'categories', '[]'::jsonb
+               )
+             end,
+             case when public.org_reads_erp_ledger() then 'erp' else 'pmo' end,
              case
                when not exists (
                  select 1 from public.budget_versions b

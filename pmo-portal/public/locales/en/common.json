@@ -95,7 +95,7 @@
     "receivableHelp": "Choose the account used to record customer invoices for this company.",
     "domainHelp": "The connected service will maintain this type of business information. Review existing records and access before continuing.",
     "domainField": "Business information"
-  },,
+  },
   "uxs02": {
     "unavailable": "Unavailable",
     "activeBudget": "Active budget",
@@ -106,6 +106,8 @@
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "incompleteCoverage": "Incomplete source coverage",
+    "erpActual": "ERP actual",
+    "pmoActual": "Committed POs",
     "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",

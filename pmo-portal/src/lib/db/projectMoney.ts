@@ -16,6 +16,7 @@ export interface ProjectMoneyActuals {
 }
 
 export interface ProjectMoneyRead {
+  ledgerBasis: 'erp' | 'pmo';
   actuals: ProjectMoneyActuals;
   activeBudgetAmount: string | null;
   activeBudgetCurrency: string | null;
@@ -31,6 +32,7 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
   const result: Record<string, ProjectMoneyRead> = {};
   for (const row of (data ?? []) as Array<{
     project_id: string | null;
+    ledger_basis: 'erp' | 'pmo';
     actuals: {
       currency?: string | null;
       total?: string | null;
@@ -44,6 +46,7 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
   }>) {
     if (!row.project_id || !row.actuals) continue;
     result[row.project_id] = {
+      ledgerBasis: row.ledger_basis,
       actuals: {
         currency: row.actuals.currency ?? 'USD',
         total: row.actuals.total ?? null,

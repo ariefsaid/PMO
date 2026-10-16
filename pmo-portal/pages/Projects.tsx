@@ -48,7 +48,7 @@ import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollecti
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
-import { formatExactMoney } from '@/src/lib/projectFinances';
+import { deriveActualPosition, formatExactMoney } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -602,11 +602,25 @@ const Projects: React.FC = () => {
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
         const money = projectMoney?.[p.id];
-        const actual = money?.actuals.total;
         if (moneyError || !money) {
           return <span className="text-[12px] text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        const incomplete = money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+        const actualPosition = deriveActualPosition({
+          ledgerBasis: money.ledgerBasis,
+          committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
+          commitmentPending: moneyPending,
+          commitmentError: moneyError,
+          projectCurrency: p.currency,
+          actuals: {
+            currency: money.actuals.currency,
+            total: money.actuals.total,
+            as_of: money.actuals.asOf,
+            excludes_restricted_rows: money.actuals.excludesRestrictedRows,
+            categories: money.actuals.categories,
+          },
+        });
+        const actual = actualPosition.amount;
+        const incomplete = money.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
         if (actual == null) {
           return (
             <div className="flex flex-col gap-0.5 text-right">
@@ -618,10 +632,11 @@ const Projects: React.FC = () => {
         }
         return (
           <div className="flex flex-col gap-0.5 text-right">
-            <span className="text-muted-foreground">{formatExactMoney(actual, money.actuals.currency || p.currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}</span>
-            <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
+            <span className="text-muted-foreground">{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}</span>
+            <span className="text-[10px] text-muted-foreground">{money.ledgerBasis === 'erp' ? t('uxs02.erpActual', 'ERP actual') : t('uxs02.pmoActual', 'Committed POs')}</span>
+            {money.ledgerBasis === 'erp' && <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
               ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
-              : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>
+              : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>}
             {incomplete && <span className="text-[10px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
             {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
           </div>
