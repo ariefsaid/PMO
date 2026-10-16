@@ -93,10 +93,10 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/002)', () => {
-  it('AC-UX-017: the contracted-revenue tile separates margin from contract remaining', () => {
+  it('AC-UX-017: the on-hand contract value tile separates margin from contract remaining', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-on-hand-margin');
-    expect(within(tile).getByText(/Contracted revenue/i)).toBeInTheDocument();
+    expect(within(tile).getByText(/Contract value on hand/i)).toBeInTheDocument();
     expect(tile).toHaveTextContent(/Contract remaining after known Actual/);
     expect(tile).toHaveTextContent(/Margin on billed work/);
     expect(tile).not.toHaveTextContent(/Realized margin/);

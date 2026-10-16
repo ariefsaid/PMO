@@ -133,7 +133,11 @@ const ExecutiveDashboard: React.FC = () => {
       known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
     });
     const weightedPct = data.pipeline_projected_margin === null
-      ? t(mixedPipelineCurrencies ? 'uxs03.mixedCurrencyTotalUnavailable' : 'uxs03.noActiveBudget', mixedPipelineCurrencies ? 'Unavailable for mixed currencies' : 'No active budget')
+      ? mixedPipelineCurrencies
+        ? t('uxs03.mixedCurrencyTotalUnavailable', 'Unavailable for mixed currencies')
+        : data.pipeline_total_value === 0
+          ? t('uxs03.noPipelineValue', 'No pipeline value to calculate margin')
+          : t('uxs03.noActiveBudget', 'No active budget')
       : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
 
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
@@ -267,7 +271,7 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-on-hand-margin"
             tone="green"
             icon="dollar"
-            label={t('uxs03.contractedRevenue', 'Contracted revenue')}
+            label={t('uxs03.contractValueOnHand', 'Contract value on hand')}
             value={money(data.on_hand_value)}
             vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data.on_hand_contract_remaining)
               + ' · ' + marginLabel + ': ' + money(data.on_hand_realized_margin) + ' · ' + actualCoverage}
@@ -330,7 +334,7 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-total-contract-value"
             tone="amber"
             icon="grid"
-            label={t('dashboard.kpi.totalContractValue.label', 'Total contract value')}
+            label={t('uxs03.contractValueOnHand', 'Contract value on hand')}
             value={money(data.total_contract_value)}
             vs={t('dashboard.kpi.totalContractValue.vs', 'active projects')}
             to="/projects?filter=Ongoing"

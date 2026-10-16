@@ -326,7 +326,7 @@ export const FinanceDashboard: React.FC = () => {
       </section>
       <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
-        <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
+        <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('uxs03.contractValueInProgress', 'Contract value in progress')}
           value={money(data?.total_contract_value ?? null)} loading={isPending}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see contracted revenue"
@@ -336,7 +336,7 @@ export const FinanceDashboard: React.FC = () => {
           value={money(totalSpend)} loading={isPending} vs={actualCoverage}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see spend breakdown"
-          help="Sum of actual spend across the portfolio's top projects." />
+          help={t('dashboard.kpi.totalSpend.help', 'Total Actual recorded across the on-hand portfolio.')} />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
         <KPITile testId="kpi-margin" tone="blue" icon="up" label={t('uxs03.marginToDate', 'Margin to date')}
           value={money(data?.on_hand_realized_margin ?? null)} loading={isPending}
@@ -429,17 +429,19 @@ export const FinanceDashboard: React.FC = () => {
 
       <DashGrid>
         <Card>
-          <CardHead>Procurement by Status</CardHead>
+          <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
+          <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
           <div className="px-4 pb-4 pt-2">
             {procError ? (
               <ListState variant="error" title="Couldn't load procurement" onRetry={() => refetchProc()} />
             ) : procPending ? (
               <ListState variant="loading" rows={6} />
             ) : procByStatus.length === 0 ? (
-              <ListState variant="empty" icon="cart" title="No procurement activity yet" />
+              <ListState variant="empty" icon="cart" title={t('dashboard.chart.procStatus.empty', 'No procurement activity yet')} />
             ) : (
               <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
-                label="Procurement by status" noun="requests" />
+                label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
+                noun={t('dashboard.chart.procStatus.noun', 'requests')} />
             )}
           </div>
         </Card>

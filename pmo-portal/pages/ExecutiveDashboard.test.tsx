@@ -28,7 +28,7 @@ const populated = {
   on_hand_actual_coverage_count: 2,
   on_hand_actual_coverage_total: 2,
   pipeline_weighted_value: 800000,
-  pipeline_projected_margin: 0.200,
+  pipeline_projected_margin: 0.200 as number | null,
   pipeline_total_value: 2000000,
   projects_at_risk: 1,
   projects_by_status: [
@@ -114,6 +114,18 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
+  it('labels contract value on hand distinctly from finance contract value in progress', () => {
+    renderPage();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('Contract value on hand');
+  });
+
+  it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
+    dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
+    renderPage();
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('No pipeline value to calculate margin');
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).not.toHaveTextContent('No active budget');
+  });
+
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
     renderPage();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');

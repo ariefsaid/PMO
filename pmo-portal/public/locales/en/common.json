@@ -1130,7 +1130,7 @@
         "vs": "of {{gross}} gross"
       },
       "revenueOnHand": {
-        "help": "Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date."
+        "help": "Margin is measured on billed work only; it is billed-work revenue less Actual, not contract value remaining after costs."
       },
       "aboutMetric": "About this metric",
       "helpLabel": "Help: {{label}}",
@@ -1142,7 +1142,7 @@
         "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
-        "help": "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
+        "help": "On-hand portfolio Actual recorded to date.",
         "label": "Total project spend",
         "linkLabel": "Open active projects to see spend breakdown"
       }
@@ -4522,7 +4522,7 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Contracted revenue", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
+    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "contractValueInProgress":"Contract value in progress", "noPipelineValue":"No pipeline value to calculate margin", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
     "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",

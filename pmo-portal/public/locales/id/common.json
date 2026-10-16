@@ -1130,7 +1130,7 @@
         "vs": "dari {{gross}} bruto"
       },
       "revenueOnHand": {
-        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi adalah bagian pendapatan yang tersisa setelah biaya aktual hingga kini."
+        "help": "Margin hanya diukur pada pekerjaan yang telah ditagihkan: pendapatan tertagih dikurangi Aktual, bukan nilai kontrak yang tersisa setelah biaya."
       },
       "aboutMetric": "Tentang metrik ini",
       "helpLabel": "Bantuan: {{label}}",
@@ -1142,7 +1142,7 @@
         "mobileVs": "Nilai kontrak {{count}} proyek yang masih berjalan"
       },
       "totalSpend": {
-        "help": "Jumlah realisasi pengeluaran pada proyek teratas portofolio. (Agregat pengeluaran terkomitmen akan menyusul.)",
+        "help": "Aktual portofolio saat ini yang tercatat hingga kini.",
         "label": "Total pengeluaran proyek",
         "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran"
       }
@@ -4522,7 +4522,7 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Pendapatan terikat kontrak", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
+    "contractedRevenue":"Pendapatan terikat kontrak", "contractValueOnHand":"Nilai kontrak dalam portofolio saat ini", "contractValueInProgress":"Nilai kontrak yang sedang berjalan", "noPipelineValue":"Tidak ada nilai pipeline untuk menghitung margin", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
     "activeBudgetRisk":"Risiko terhadap anggaran aktif", "noActiveBudget":"Belum ada anggaran aktif", "notAvailableYet":"Belum tersedia",
     "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",

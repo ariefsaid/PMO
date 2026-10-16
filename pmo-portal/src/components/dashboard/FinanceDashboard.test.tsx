@@ -98,9 +98,19 @@ describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
 });
 
 describe('FinanceDashboard (real — exec RPC + procurements)', () => {
-  it('shows total contracted revenue from the RPC', () => {
+  it('shows contract value in progress, distinct from the on-hand contract value', () => {
     renderPane();
     expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('$8,000,000');
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Contract value in progress');
+  });
+
+  it('labels PMO purchasing scope and explains an empty request chart', () => {
+    const previous = procurements.splice(0);
+    renderPane();
+    expect(screen.getByText('PMO purchasing requests')).toBeInTheDocument();
+    expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
+    expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
+    procurements.push(...previous);
   });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
