@@ -40,6 +40,15 @@
     "noDomains": "Belum ada informasi yang diperbarui dari ERPNext",
     "m365ApprovalDescription": "Organisasi Anda mungkin perlu menyetujui aplikasi PMO Portal sebelum anggota tim menghubungkan Microsoft 365. Mulai langkah ini hanya jika Microsoft meminta persetujuan organisasi; persetujuan yang sudah ada tidak perlu diulang."
   },
+  "uxs14": {
+    "filters": "Filter",
+    "moreActions": "Tindakan lainnya",
+    "showOptionalColumns": "Tampilkan kolom opsional",
+    "hideEmptyColumns": "Sembunyikan kolom kosong",
+    "projectReferences": "Referensi proyek lainnya",
+    "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
+    "contractReference": "Referensi kontrak pelanggan"
+  },
   "uxs10": {
     "mapPrinciple": "Satu akun biaya langsung menerima anggaran setiap kategori. Akun tambahan yang ditandai ke proyek hanya dapat dihitung dalam realisasi.",
     "rowOptions": "Opsi akun",
@@ -3065,7 +3074,6 @@
     },
     "atRiskPill": "Berisiko",
     "columns": {
-      "action": "Tindakan",
       "actual": "Realisasi",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
@@ -3074,8 +3082,7 @@
       "progress": "Progres",
       "project": "Proyek",
       "status": "Status",
-      "endCustomer": "Pelanggan akhir",
-      "endCustomerShort": "Akhir"
+      "endCustomer": "Pelanggan akhir"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -3139,8 +3146,6 @@
     "export": "Ekspor",
     "import": "Impor",
     "mobile": {
-      "filters": "Filter",
-      "more": "Aksi lainnya",
       "activeCount": "Filter aktif",
       "customer": "Klien",
       "manager": "Manajer proyek",

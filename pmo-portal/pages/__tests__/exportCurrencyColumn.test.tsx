@@ -128,7 +128,12 @@ async function exportFrom(node: React.ReactElement) {
       </MemoryRouter>
     </ImpersonationProvider>,
   );
-  await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+  const user = userEvent.setup();
+  const exportButton = screen.queryByRole('button', { name: /export/i });
+  if (!exportButton) {
+    await user.click(screen.getByRole('button', { name: /^More actions/i }));
+  }
+  await user.click(screen.getByRole('button', { name: /export/i }));
   await waitFor(() => expect(hoisted.captured).toHaveLength(1));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(hoisted.captured[0]);

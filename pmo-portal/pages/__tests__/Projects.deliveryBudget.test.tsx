@@ -159,8 +159,8 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
-    // [8] = Budget used — the added End customer column (after Customer) shifted the indices left.
-    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[8];
+    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
+    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
     expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });

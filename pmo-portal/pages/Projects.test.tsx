@@ -58,9 +58,10 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
   deliverySummaryState: {
-    p1: { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 },
-    p2: { deliveryPct: 25, committedSpend: 0, budget: 0 },
+    p1: { deliveryPct: 50 as number | null, committedSpend: 2_100_000, budget: 4_700_000 },
+    p2: { deliveryPct: 25 as number | null, committedSpend: 0, budget: 0 },
     p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
+    isError: false,
   },
   projectMoneyState: {
     data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
@@ -97,7 +98,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
-  useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
+  useProjectsDeliverySummary: () => ({ data: deliverySummaryState, isError: deliverySummaryState.isError, isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
@@ -152,8 +153,9 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
 
-  it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', () => {
+  it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', async () => {
     renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^More actions/ }));
     const exportBtn = screen.getByRole('button', { name: /export/i });
     expect(exportBtn).toBeInTheDocument();
     expect(exportBtn).not.toBeDisabled();
@@ -188,18 +190,15 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-CODE-003: project cell shows identifier values without the label prefix in the truncating element, label kept for AT (#838)', () => {
+  it('AC-CODE-003: project cell shows identifier values without the label prefix in the truncating element, label kept for AT (#838)', async () => {
     const prev = projectsState.data;
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77' }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
       const pmo = screen.getByTitle('PMO-26-0042');
       expect(pmo).toHaveTextContent(/^PMO-26-0042$/);
-      const client = screen.getByTitle('CLIENT-77');
-      expect(client).toHaveTextContent(/^CLIENT-77$/);
-      // The label survives as a screen-reader-only prefix on the same line.
-      expect(pmo.parentElement).toHaveTextContent('PMO Project Number: PMO-26-0042');
-      expect(client.parentElement).toHaveTextContent('Client Project Code: CLIENT-77');
+      await userEvent.click(screen.getByText('More project references'));
+      expect(screen.getByTitle('CLIENT-77')).toBeInTheDocument();
       expect(within(pmo.parentElement as HTMLElement).getByText('PMO Project Number:')).toHaveClass('sr-only');
     } finally {
       projectsState.data = prev;
@@ -210,10 +209,10 @@ describe('Projects index — IA-3 (real data)', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getAllByText('Innovate Corp').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Alice Manager').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('img', { name: 'Alice Manager' }).length).toBeGreaterThan(0);
   });
 
-  it('keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
+  it('RF-010: keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
     const previous = projectsState.data;
     projectsState.data = [{
       ...seed[0], tax_treatment: 'exclusive', tax_rate: 11,
@@ -258,7 +257,7 @@ describe('Projects index — IA-3 (real data)', () => {
     // No NaN leaks anywhere on the rendered index.
     expect(document.body.textContent).not.toMatch(/NaN/);
     // The zero-budget rows fall back to a muted em-dash in the Budget used column.
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
   });
 
   it('AC-NAV-006: navigates to the project detail route when a row is activated, carrying validated list-return context (no tab)', async () => {
@@ -393,6 +392,108 @@ describe('Projects table — compact layout (#1)', () => {
     expect(avatar).toHaveAttribute('title', 'Alice Manager');
     expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
+
+  it('RF-009: hides optional progress and budget columns when loaded data is absent', () => {
+    const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
+    const priorMoney = projectMoneyState.data;
+    try {
+      deliverySummaryState.p1 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p2 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p3 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      projectMoneyState.data = {};
+      projectMoneyState.isError = false;
+      renderPage();
+      expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
+    } finally {
+      Object.assign(deliverySummaryState, priorDelivery);
+      projectMoneyState.data = priorMoney;
+    }
+  });
+
+  it('RF-009: failed summary reads keep optional columns visible for unavailable-state recovery', () => {
+    const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
+    const priorDeliveryError = deliverySummaryState.isError;
+    const priorMoney = projectMoneyState.data;
+    const priorMoneyError = projectMoneyState.isError;
+    try {
+      deliverySummaryState.p1 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p2 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p3 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.isError = true;
+      projectMoneyState.data = {};
+      projectMoneyState.isError = true;
+      renderPage();
+      expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
+    } finally {
+      Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
+      projectMoneyState.data = priorMoney;
+      projectMoneyState.isError = priorMoneyError;
+    }
+  });
+
+  it('RF-011: an unassigned project is labelled, not rendered as a person avatar', () => {
+    projectsState.data = [{ ...seed[0], project_manager_id: null, pm: null }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const row = document.querySelector('tbody tr') as HTMLElement;
+    expect(within(row).getByText('Unassigned')).toBeInTheDocument();
+    expect(within(row).queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('UX-020: near-complete delivery does not inherit a budget-risk danger threshold', () => {
+    const previousDelivery = deliverySummaryState.p1;
+    try {
+      projectsState.data = [{ ...seed[0], status: 'Ongoing Project' }] as unknown as ProjectWithRefs[];
+      deliverySummaryState.p1 = { deliveryPct: 95, committedSpend: 2_100_000, budget: 4_700_000 };
+      renderPage();
+      expect(screen.getByLabelText('Delivery 95%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-primary');
+    } finally {
+      deliverySummaryState.p1 = previousDelivery;
+    }
+  });
+
+  it('UX-020: completed delivery uses success styling rather than risk styling', () => {
+    const previousDelivery = deliverySummaryState.p1;
+    try {
+      projectsState.data = [{ ...seed[0], status: 'Close Out' }] as unknown as ProjectWithRefs[];
+      deliverySummaryState.p1 = { deliveryPct: 100, committedSpend: 2_100_000, budget: 4_700_000 };
+      renderPage();
+      expect(screen.getByLabelText('Delivery 100%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-success');
+    } finally {
+      deliverySummaryState.p1 = previousDelivery;
+    }
+  });
+
+  it('UX-019: project identity leads with name and customer while secondary references are disclosed', async () => {
+    projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-SYN-001', code: 'CLIENT-SYN-44', customer_contract_ref: 'CPO-SYN-9' }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const row = document.querySelector('tbody tr') as HTMLElement;
+    expect(within(row).getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(within(row).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(row).getByText('PMO-SYN-001')).toBeInTheDocument();
+    expect(within(row).getByTitle('CLIENT-SYN-44')).not.toBeVisible();
+    await userEvent.click(within(row).getByLabelText('More project references for Innovate Corp HQ Fit-Out'));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects');
+    expect(within(row).getByTitle('CLIENT-SYN-44')).toBeVisible();
+  });
+
+  it('UX-018: secondary filters and transfer tools are grouped behind labelled disclosures', () => {
+    renderPage('Admin');
+    expect(screen.getByRole('button', { name: /^Filters/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: /status filter/i })).toBeVisible();
+    expect(screen.getByTestId('list-page-view')).toBeVisible();
+    expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
+  });
+
+  it('RF-013: status changes remain available from the project card while absent from the table action column', async () => {
+    renderPage();
+    expect(screen.queryByRole('columnheader', { name: /^Action$/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
+    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThan(0);
+  });
 });
 
 describe('ProjectStatusControl integration (AC-1011 UI)', () => {
@@ -402,12 +503,15 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-1011 (UI): the default Table view renders a ProjectStatusControl per row and shows the customer contract reference (FR-PR-011)', () => {
+  it('AC-1011 (UI): the table keeps project identity concise and status transitions available in the Cards view', async () => {
     projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
-    const controls = screen.getAllByTestId('project-status-control');
-    expect(controls.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
+    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
+    await userEvent.click(within(wonCard).getByText('More project references'));
+    expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 
@@ -417,7 +521,9 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('CPO-2026-999')).toBeInTheDocument();
+    const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
+    await userEvent.click(within(wonCard).getByText('More project references'));
+    expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 });
@@ -560,12 +666,13 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(within(body).queryByText('ERP actual')).not.toBeInTheDocument();
   });
 
-  it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', () => {
+  it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', async () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
     };
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('Unavailable')).toBeInTheDocument();
     expect(within(body).getByText('No active budget')).toBeInTheDocument();
@@ -800,6 +907,47 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     expect(screen.getAllByText('Site Owner Beta').length).toBeGreaterThan(0);
   });
 
+  it('RF-012: end-customer choices come from project associations, not unrelated companies', async () => {
+    companiesState.data = [
+      ...companiesState.data,
+      { id: '9c9c9c9c-0000-4000-8000-0000000000c3', name: 'Unrelated Supplier', type: 'Vendor' },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    const scopedSelect = screen.getByRole('combobox', { name: /filter by end customer/i });
+    expect(within(scopedSelect).getByRole('option', { name: 'Asset Owner Alpha' })).toBeInTheDocument();
+    expect(within(scopedSelect).queryByRole('option', { name: 'Unrelated Supplier' })).not.toBeInTheDocument();
+  });
+
+  it('RF-009: the optional-column restore control is absent when filters leave no table rows', async () => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
+    expect(screen.getByRole('button', { name: /hide empty columns/i })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('searchbox', { name: /search projects/i }), 'no matching project');
+    expect(screen.getByText('No projects match these filters')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hide empty columns/i })).not.toBeInTheDocument();
+  });
+
+  it('RF-009: the optional-column restore control is absent when no projects exist', () => {
+    projectsState.data = [] as unknown as ProjectWithRefs[];
+    renderPage();
+    expect(screen.getByText('No projects yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
+  });
+
+  it('UX-021: all-empty optional columns hide with a discoverable restore control', async () => {
+    projectsState.data = withEnd.map((project) => ({ ...project, end_client_id: null, end_client: null })) as unknown as ProjectWithRefs[];
+    renderPage();
+    expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^Budget used$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
+    expect(screen.getByRole('columnheader', { name: /end customer/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /^Budget used$/i })).toBeInTheDocument();
+  });
+
   it('AC-EC-003: ?endClient=<id> narrows the list to that end customer’s projects', () => {
     renderPage('Project Manager', `/projects?filter=All&endClient=${END_B}`);
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
@@ -809,8 +957,9 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 
   it('AC-EC-003: choosing an end customer in the filter narrows the rows and writes endClient to the URL', async () => {
     renderPage('Project Manager', '/projects?filter=All');
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
     const select = screen.getByRole('combobox', { name: /filter by end customer/i });
-    // Lists ALL the org's companies, not only Client-type (Site Owner Beta is a Vendor).
+    // Includes linked end customers regardless of company type (Site Owner Beta is a Vendor).
     expect(within(select).getByRole('option', { name: 'Site Owner Beta' })).toBeInTheDocument();
     await userEvent.selectOptions(select, END_A);
     expect(screen.getByTestId('location-probe').dataset.search).toContain(`endClient=${END_A}`);

@@ -115,6 +115,9 @@ const renderPage = () =>
 
 const pmSelect = () =>
   screen.getByRole('combobox', { name: /filter by project manager/i }) as HTMLSelectElement;
+const revealManagerFilter = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
+};
 
 describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and filter by ID', () => {
   beforeEach(() => {
@@ -123,8 +126,9 @@ describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and 
     projectsState.isError = false;
   });
 
-  it('AC-PRJUX-004: the PM option for a blank-name profile has a nonempty, readable label', () => {
+  it('AC-PRJUX-004: the PM option for a blank-name profile has a nonempty, readable label', async () => {
     renderPage();
+    await revealManagerFilter();
     const select = pmSelect();
     const blankOption = Array.from(select.options).find((o) => o.value === 'b1a2c3d4-1111-4eee-8000-000000000001');
     expect(blankOption).toBeTruthy();
@@ -134,6 +138,7 @@ describe('AC-PRJUX-004 — blank-name manager profiles get a readable label and 
 
   it('AC-PRJUX-004: selecting the blank-name profile filters by its real ID (only its project remains)', async () => {
     renderPage();
+    await revealManagerFilter();
     await userEvent.selectOptions(pmSelect(), 'b1a2c3d4-1111-4eee-8000-000000000001');
     expect(screen.getByText('Blank PM Project')).toBeInTheDocument();
     expect(screen.queryByText('Named Manager Project')).not.toBeInTheDocument();
@@ -150,6 +155,7 @@ describe('AC-PRJUX-005 — Unassigned is distinct from an anonymous assigned pro
 
   it('AC-PRJUX-005: the Unassigned option exists and selecting it shows only null-manager projects', async () => {
     renderPage();
+    await revealManagerFilter();
     const select = pmSelect();
     const unassignedOption = Array.from(select.options).find((o) => o.textContent === 'Unassigned');
     expect(unassignedOption).toBeTruthy();
@@ -163,7 +169,8 @@ describe('AC-PRJUX-005 — Unassigned is distinct from an anonymous assigned pro
     renderPage();
     const tbody = document.querySelector('tbody')!;
     expect(within(tbody as HTMLElement).getByRole('img', { name: 'Unnamed user · b1a2c3d4' })).toBeInTheDocument();
-    expect(within(tbody as HTMLElement).getByRole('img', { name: 'Unassigned' })).toBeInTheDocument();
+    expect(within(tbody as HTMLElement).getByText('Unassigned')).toBeInTheDocument();
+    expect(within(tbody as HTMLElement).queryByRole('img', { name: 'Unassigned' })).not.toBeInTheDocument();
     expect(within(tbody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })).not.toHaveLength(0);
   });
 });
