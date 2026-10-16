@@ -2937,6 +2937,60 @@ accounting truth, so PMO does not re-derive aging. Known limit: if ERP already c
 a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
 field-only update route if it bites.
 
+## DD-MONEY-1..4 — one money language on every surface (Director, 2026-10-16)
+
+The 2026-10-16 trace found six meanings of "spent" and five of "margin" across the project header, Overview,
+projects list, Budget tab and dashboards. For an org whose books run in ERPNext, every surface except Project
+finances read 0 cost and a 100% margin, and the margin looked healthy. The newest rule (project-finances spec
+FR-PFIN-014/017) was applied to its own section only. Owner direction: PMO displays what ERPNext calculates;
+unknown is never zero (PRODUCT.md).
+- **DD-MONEY-1 — Actual is one figure.** Where the org reads its ledger from ERPNext, a project's Actual is its
+  mapped ledger cost (the `project_mapped_actuals` basis, the same as Project finances). Otherwise it's
+  `OD-BUDGET-2`'s committed POs. Header, Overview, projects list, dashboards, Budget tab and PM dashboard all
+  read that one figure. The never-written `projects.spent` and `budget_line_items.actual_amount` are no longer
+  read. This ends `OD-BUDGET-2`'s interim "reads 0 before the procurement module" for ERP-run orgs; its
+  committed basis still defines **Committed**.
+- **DD-MONEY-2 — margin means profit.** "Margin" is billed-work revenue less Actual (FR-PFIN-017).
+  `OD-MARGIN-1`'s on-hand lens keeps its formula fed by DD-MONEY-1's Actual, but it's labelled as contract
+  remaining after cost so far, never "realized margin", because early in a project it isn't profit.
+- **DD-MONEY-3 — Committed with ERP purchasing.** When ERPNext owns the org's procurement domain, Committed
+  reads "not tracked in PMO yet", never 0, until PMO reads ERP's open purchase orders (follow-up).
+- **DD-MONEY-4 — drafts don't drive risk.** `OD-BUDGET-1` stands. A Draft budget never drives spend %,
+  utilization, at-risk or pipeline margin; those read "no active budget" instead of 0% or 100%.
+Owner may veto any of these; they apply the owner's display-only direction and the signed project-finances spec.
+
+## DD-SETUP-1 — budget categories match cost-of-sales accounts (Director, 2026-10-16)
+
+Each budget category's push account is a cost-of-sales (direct-cost group) account in the client's chart.
+Where the chart has none for a category, an account is added in ERPNext rather than borrowing an overhead
+account. Overhead-group accounts that the client tags to projects on purpose may join a category as count-only
+accounts, so existing project costs still show. One account belongs to one category (FR-BV16-003). At setup,
+PMO proposes this from the chart's own grouping and the user confirms once (#1043). First applied by hand for
+the first client on 2026-10-16.
+
+## DD-UX-1..10 — declutter audit decisions (2026-10-16)
+
+From `docs/ux/2026-10-16-declutter-audit.md` § Owner decisions. 1 and 2 were agreed by the owner; 3–10 are
+Director decisions within PRODUCT.md's principles.
+1. The dashboard spend bar is renamed "Spending vs contract" now. A budget-usage bar follows once budgets are active.
+2. Each project shows one money summary (contract, spent, billed, received), drilling into spending, forecast
+   and billing. Missing data says why, never 0.
+3. Sales keeps its place in navigation, and Approvals becomes reachable from every screen before any destination
+   is removed.
+4. Integration setup is guided inside PMO: proposed matches, reviewed by the user, recoverable by an operator.
+   Clients never need ERPNext access.
+5. No silent identity or account reassignment. The first consequential match is reviewed; unchanged links
+   maintain themselves, and only ambiguity or new exceptions resurface.
+6. "Send an invoice" means the approved-PDF handoff with delivery and received states. Integrated email
+   delivery is a new capability and needs owner sign-off when proposed.
+7. Project billing starts from one entry with a business-labelled method choice. Contract, work-order and
+   quantity billing stay underneath.
+8. Phone gets daily parity: check money, approve, record time and receipts. Bulk configuration stays
+   desktop-first but never dead-ends a phone user.
+9. Plain business labels on screen, with accounting and source detail on demand. Actual, Committed and Margin
+   follow DD-MONEY-1..4.
+10. An expense claim starts from the receipt or first line, with the same approval route and evidence rules.
+
 ## DD-OPS-12 — RIS stays on ERPNext v16; the budget push is rebuilt for v16 (owner, 2026-10-15)
 
 **[DD-OPS-12]** `DD-OPS-11`'s re-proof never exercised the budget push. On 2026-10-15 the production sweep's
