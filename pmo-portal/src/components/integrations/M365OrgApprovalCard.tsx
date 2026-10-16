@@ -79,8 +79,8 @@ export const M365OrgApprovalCard: React.FC = () => {
 
       <p className="mt-2 text-sm text-muted-foreground">
         {t(
-          'integrations.m365OrgApproval.description',
-          'Approve the PMO Portal app for your organization in Microsoft 365. This one-time step lets your team connect their own Microsoft 365 accounts to PMO Portal.',
+          'uxs07.m365ApprovalDescription',
+          'Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated.',
         )}
       </p>
 

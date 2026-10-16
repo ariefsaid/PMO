@@ -169,27 +169,43 @@ export function ErpSetupChecklist(
           'A connection is ready for work when its required setup is complete.',
         )}
       </p>
-      {setup.isPending
+      {setup.isPending && !setup.data
         ? <ListState variant='loading' rows={4} />
-        : setup.isError
+        : setup.isError && !setup.data
         ? (
-          <ListState
-            variant='error'
-            title={t(
-              'integrations.erpSetup.unavailable',
-              'ERP setup unavailable',
-            )}
-            sub={t(
-              'integrations.erpSetup.unavailableHelp',
-              'The checklist could not be read. Try again.',
-            )}
-            onRetry={() => void setup.refetch()}
-          />
+          <div className='space-y-2'>
+            <ListState
+              variant='error'
+              title={t(
+                'integrations.erpSetup.unavailable',
+                'ERP setup unavailable',
+              )}
+              sub={t('uxs07.setupUnavailableHelp', 'Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.')}
+              onRetry={() => void setup.refetch()}
+            />
+            <a className={actionLink} href='/administration/accounting#budget-account-map'>
+              {t('uxs07.operatorHandoff', 'Open accounting setup')}
+            </a>
+          </div>
         )
         : setup.data && (
           <>
+            {setup.isError && (
+              <div className='mb-3 rounded-md border border-border bg-muted/30 p-3 text-sm' role='status'>
+                <p className='font-medium text-foreground'>{t('uxs07.lastKnownTitle', 'Showing the last saved setup check')}</p>
+                <p className='mt-1 text-muted-foreground'>{t('uxs07.lastKnownBody', 'The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.')}</p>
+                <div className='mt-2 flex flex-wrap items-center gap-3'>
+                  <Button variant='outline' size='sm' onClick={() => void setup.refetch()}>
+                    {t('uxs07.retryCheck', 'Check setup again')}
+                  </Button>
+                  <a className={actionLink} href='/administration/accounting#budget-account-map'>
+                    {t('uxs07.operatorHandoff', 'Open accounting setup')}
+                  </a>
+                </div>
+              </div>
+            )}
             <ul className='divide-y divide-border text-sm'>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-domains' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.domains', 'Domains employed')}
@@ -199,17 +215,14 @@ export function ErpSetupChecklist(
                       ? setup.data.domains.map((value) =>
                         domainText(value)
                       ).join(', ')
-                      : t(
-                        'integrations.erpSetup.noDomains',
-                        'No ERP domains employed',
-                      )}
+                      : t('uxs07.noDomains', 'No connected information is currently updating from ERPNext')}
                   </p>
                 </div>
                 <Button variant='outline' size='sm' onClick={openDomains}>
                   {t('integrations.erpSetup.employ', 'Employ ERP domains')}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-company-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t(
@@ -237,7 +250,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-activity-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t(
@@ -264,7 +277,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.budgetMap', 'Budget account map')}
@@ -287,7 +300,7 @@ export function ErpSetupChecklist(
                   {t('integrations.erpSetup.mapBudget', 'Map budget accounts')}
                 </a>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-employee-links' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.employeeLinks', 'Employee links')}
@@ -307,7 +320,7 @@ export function ErpSetupChecklist(
                   )}
                 </a>
               </li>
-              <li className='py-3'>
+              <li id='erp-setup-project-links' className='py-3'>
                 <p className='font-medium'>
                   {t('integrations.erpSetup.projects', 'Unmapped projects')}
                 </p>

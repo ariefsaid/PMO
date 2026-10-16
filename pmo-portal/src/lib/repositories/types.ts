@@ -962,7 +962,7 @@ export interface IntegrationHealth {
   connected_by: string | null;
   connected_at: string | null;
   last_sync: string | null;
-  error_count: number;
+  state_counts: { pending: number; failed: number; quarantined: number; held: number };
 }
 
 // ============================================================================
