@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
+const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle, mockInvoke } =
   vi.hoisted(() => {
     const mockRpc = vi.fn();
     const mockFrom = vi.fn();
@@ -22,11 +22,12 @@ const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLi
     const mockInsert = vi.fn();
     const mockUpsert = vi.fn();
     const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
+    const mockInvoke = vi.fn();
+    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle, mockInvoke };
   });
 
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { from: mockFrom, rpc: mockRpc },
+  supabase: { from: mockFrom, rpc: mockRpc, functions: { invoke: mockInvoke } },
 }));
 
 // HIGH-D: the retry seam delegates to the ONE budget push in the DAL — mocked here so this file proves
@@ -41,6 +42,7 @@ import {
   listBudgetFiscalYears,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
+  listBudgetPostingAccountCatalogue,
   listBudgetCategoryAccountMap,
   createBudgetCategoryAccountMapRow,
   updateBudgetCategoryAccountMapRow,
@@ -123,6 +125,7 @@ function makeKeysetFromBuilder(
 
 beforeEach(() => {
   mockRpc.mockReset();
+  mockInvoke.mockReset();
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
@@ -555,6 +558,20 @@ describe('fetchBudgetProjection with no fiscal year selected (H-4)', () => {
       p_project_id: 'proj-1',
       p_fiscal_year: '',
     });
+  });
+});
+
+describe('listBudgetPostingAccountCatalogue (AC-UX-076)', () => {
+  it('reads the typed account catalogue through the external-items repository boundary', async () => {
+    mockInvoke.mockResolvedValue({ data: {
+      source: 'mirror',
+      accounts: [{ account: '5100 - Labor', accountName: 'Labor', accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false }],
+    }, error: null });
+    await expect(listBudgetPostingAccountCatalogue()).resolves.toEqual({
+      source: 'mirror',
+      accounts: [{ account: '5100 - Labor', accountName: 'Labor', accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false }],
+    });
+    expect(mockInvoke).toHaveBeenCalledWith('external-items', { body: { purpose: 'budget-accounts' } });
   });
 });
 

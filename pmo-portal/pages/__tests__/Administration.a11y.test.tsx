@@ -99,6 +99,7 @@ vi.mock('@/src/lib/repositories', () => ({
 }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetCategoryAccountMap: vi.fn().mockResolvedValue([]),
+  listBudgetPostingAccountCatalogue: vi.fn().mockResolvedValue({ source: 'mirror', accounts: [] }),
   createBudgetCategoryAccountMapRow: vi.fn(),
   updateBudgetCategoryAccountMapRow: vi.fn(),
   deleteBudgetCategoryAccountMapRow: vi.fn(),

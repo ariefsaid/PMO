@@ -45,6 +45,73 @@ export interface CategoryAccountMapRow {
   erp_account: string;
 }
 
+/** Read-only account-chart row used to propose posting accounts. */
+export interface BudgetPostingAccount {
+  account: string;
+  accountName: string;
+  accountNumber: string | null;
+  parentAccount: string | null;
+  rootType: string;
+  isGroup: boolean;
+  disabled: boolean;
+}
+
+export interface BudgetAccountProposal {
+  category: string;
+  account: string;
+}
+
+const CATEGORY_TERMS: Record<string, readonly string[]> = {
+  Labor: ['labor', 'labour', 'salary', 'wage', 'manpower'],
+  Materials: ['material', 'goods', 'supply'],
+  Subcontractors: ['subcontract', 'contract service'],
+  Equipment: ['equipment', 'machinery'],
+  'Permits & Fees': ['permit', 'license', 'licence', 'fee'],
+};
+
+/**
+ * Propose only when the chart gives one clear direct-cost ledger match. Expense ledger accounts
+ * under an explicit Cost of Sales/Direct Costs parent or a 51-style account number are candidates;
+ * overheads, group accounts, disabled accounts, ambiguous matches and reused accounts are never
+ * guessed. No proposal is a valid operator-resolution state.
+ */
+export function isDirectCostPostingAccount(account: BudgetPostingAccount): boolean {
+  if (account.disabled || account.isGroup || account.rootType !== 'Expense') return false;
+  const group = (account.parentAccount ?? '').toLowerCase();
+  const directCostGroup = /cost of sales|cost of goods sold|direct cost/.test(group);
+  const numberedDirectCost = /^51(?:\d|[.-]|$)/.test(account.accountNumber ?? '');
+  return directCostGroup || numberedDirectCost;
+}
+
+export function proposeBudgetAccountMap(
+  accounts: readonly BudgetPostingAccount[],
+  categories: readonly string[],
+  alreadyAssigned: readonly string[] = [],
+): BudgetAccountProposal[] {
+  const assigned = new Set(alreadyAssigned);
+  const directCostAccounts = accounts.filter((account) =>
+    isDirectCostPostingAccount(account) && !assigned.has(account.account),
+  );
+  const candidatesByCategory = categories.map((category) => {
+    const terms = CATEGORY_TERMS[category];
+    if (!terms) return { category, matches: [] as BudgetPostingAccount[] };
+    const matches = directCostAccounts.filter((account) => {
+      const searchText = `${account.account} ${account.accountName}`.toLowerCase();
+      return terms.some((term) => searchText.includes(term));
+    });
+    return { category, matches };
+  });
+  const uniqueMatches = candidatesByCategory.filter(({ matches }) => matches.length === 1);
+  const usage = new Map<string, number>();
+  for (const { matches } of uniqueMatches) {
+    const account = matches[0]?.account;
+    if (account) usage.set(account, (usage.get(account) ?? 0) + 1);
+  }
+  return uniqueMatches
+    .filter(({ matches }) => usage.get(matches[0].account) === 1)
+    .map(({ category, matches }) => ({ category, account: matches[0].account }));
+}
+
 /** One ERP `Budget Account` child row (spike §4: exactly these two fields, nothing else). */
 export interface BudgetAccountRow {
   account: string;
