@@ -58,6 +58,19 @@ const SpendApprovers: React.FC = () => {
     onSuccess: invalidate,
   });
 
+  // Who the standard role rules reach: same predicate that offers the Approve button (ADR-0070).
+  // Shares the Add modal's query key, so opening the modal does not refetch.
+  const { data: people, isError: peopleError } = useQuery({
+    queryKey: ['spend-approver-people', orgId],
+    queryFn: () => repositories.profile.listOrgProfiles(),
+    enabled: Boolean(orgId),
+  });
+  const eligible = useMemo(
+    () =>
+      (people ?? []).filter((p) => p.status === 'active' && can('transition', 'procurement', { realRole: p.role as never })),
+    [people],
+  );
+
   const orgRows = useMemo(() => (data ?? []).filter((r) => r.projectId === null), [data]);
   const projectRows = useMemo(() => (data ?? []).filter((r) => r.projectId !== null), [data]);
 
@@ -73,27 +86,120 @@ const SpendApprovers: React.FC = () => {
     }
   };
 
-  const renderRows = (rows: SpendApproverRow[]) =>
+  const roleList = [
+    t('admin.roles.admin', 'Admin'),
+    t('admin.roles.executive', 'Executive'),
+    t('admin.roles.projectManager', 'Project Manager'),
+    t('admin.roles.finance', 'Finance'),
+  ];
+  const roles = t('uxs32.roleList', {
+    defaultValue: '{{first}}, {{second}}, {{third}} or {{fourth}}',
+    first: roleList[0],
+    second: roleList[1],
+    third: roleList[2],
+    fourth: roleList[3],
+  });
+  const names = eligible.map((p) => p.full_name).join(', ');
+  const eligibleIds = new Set(eligible.map((p) => p.id));
+  // Eligibility-derived notes wait for the people list; when it fails they stay silent
+  // rather than claim something the screen cannot verify.
+  const peopleReady = Boolean(people) && !peopleError;
+  // Which people hold those roles — only claimed once the list has loaded.
+  const holders = peopleError
+    ? t('uxs32.holdersUnavailable', "Couldn't check who holds these roles right now.")
+    : people
+      ? names
+        ? t('uxs32.holders', { defaultValue: 'Right now: {{names}}.', names })
+        : t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
+      : '';
+
+  const flatRouteNote = (scope: 'org' | 'project') => (
+    <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+      {t('uxs32.roleRoute', {
+        defaultValue: "Standard rules: any of {{roles}} can approve someone else's request.",
+        roles,
+      })}{' '}
+      {holders}
+    </p>
+  );
+  const adminRouteNote = (scope: 'org' | 'project') => (
+    <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
+      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.')}
+    </p>
+  );
+
+  /**
+   * The resolved route under each list (UX-081), mirroring spend_approval_route (migration 0243):
+   * an empty list falls to the flat OD-PROC-1 role rules (FR-APR-013/015); a project list nobody
+   * on it can act on escalates to the senior set (FR-APR-014); a senior set nobody can act on
+   * leaves the decision to an Admin (DD-APR-4). SoD-a stays: nobody decides their own request.
+   * The budget sole-operator exception is not generalized here.
+   */
+  const renderRoute = (rows: SpendApproverRow[], scope: 'org' | 'project') => {
+    if (rows.length === 0) {
+      if (scope === 'org' || orgRows.length === 0) return flatRouteNote(scope);
+      if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
+      return (
+        <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+          {t('uxs32.projectEmpty', {
+            defaultValue:
+              'No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers.',
+            roles,
+          })}{' '}
+          {holders}
+        </p>
+      );
+    }
+    if (peopleError) {
+      return (
+        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+          {t('uxs32.routeUnavailable', "Couldn't verify who can approve right now.")}
+        </p>
+      );
+    }
+    if (!peopleReady || rows.some((r) => eligibleIds.has(r.profileId))) return null;
+    const senior: 'org' | 'admin' | 'flat' = orgRows.some((r) => eligibleIds.has(r.profileId))
+      ? 'org'
+      : orgRows.length > 0
+        ? 'admin'
+        : 'flat';
+    if (senior === 'org') {
+      return (
+        <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
+          {t('uxs32.escalate', 'Nobody listed can approve right now. These requests go to the overhead approvers.')}
+        </p>
+      );
+    }
+    return senior === 'admin' ? adminRouteNote(scope) : flatRouteNote(scope);
+  };
+
+  const renderRows = (rows: SpendApproverRow[], scope: 'org' | 'project') =>
     rows.length === 0 ? (
-      <p className="text-[13px] text-muted-foreground">
-        {t('admin.spendApprovers.empty', 'Nobody listed — the standard role rules apply.')}
-      </p>
+      <>
+        <p className="text-[13px] text-muted-foreground">
+          {t('admin.spendApprovers.empty', 'Nobody listed — the standard role rules apply.')}
+        </p>
+        {renderRoute(rows, scope)}
+      </>
     ) : (
-      <ul className="divide-y divide-border rounded-lg border border-border">
-        {rows.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[13.5px]">
-            <span className="min-w-0">
-              <span className="font-medium">{r.fullName}</span>
-              {r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
-            </span>
-            {canManage && (
-              <Button variant="ghost" size="sm" onClick={() => setRemoving(r)}>
-                {t('admin.spendApprovers.remove', { defaultValue: 'Remove {{name}}', name: r.fullName })}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <>
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {rows.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[13.5px]">
+              <span className="min-w-0">
+                <span className="font-medium">{r.fullName}</span>
+                {r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
+              </span>
+              {canManage && (
+                <Button variant="ghost" size="sm" onClick={() => setRemoving(r)}>
+                  {t('admin.spendApprovers.remove', { defaultValue: 'Remove {{name}}', name: r.fullName })}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {renderRoute(rows, scope)}
+      </>
     );
 
   const openAdd = (mode: 'org' | 'project') => {
@@ -135,7 +241,7 @@ const SpendApprovers: React.FC = () => {
                 </Button>
               )}
             </div>
-            {renderRows(orgRows)}
+            {renderRows(orgRows, 'org')}
           </div>
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -148,7 +254,7 @@ const SpendApprovers: React.FC = () => {
                 </Button>
               )}
             </div>
-            {renderRows(projectRows)}
+            {renderRows(projectRows, 'project')}
           </div>
           {!canManage && (
             <p className="text-[13px] text-muted-foreground">

@@ -4527,5 +4527,16 @@
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
     "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart."
+  },
+  "uxs32": {
+    "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
+    "roleRoute": "Standard rules: any of {{roles}} can approve someone else's request.",
+    "holders": "Right now: {{names}}.",
+    "holdersNone": "Nobody active holds these roles right now.",
+    "holdersUnavailable": "Couldn't check who holds these roles right now.",
+    "routeUnavailable": "Couldn't verify who can approve right now.",
+    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.",
+    "escalate": "Nobody listed can approve right now. These requests go to the overhead approvers.",
+    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers."
   }
 }
