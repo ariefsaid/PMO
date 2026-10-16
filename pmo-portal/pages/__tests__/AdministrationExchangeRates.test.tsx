@@ -252,15 +252,22 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     renderPage();
     await screen.findByRole('table');
     const summary = screen.getByTestId('fx-page-summary');
-    expect(summary).toHaveTextContent('Rates shown: 50');
-    expect(summary).toHaveTextContent('dates Sep 12, 2026 to Oct 31, 2026');
+    expect(summary).toHaveTextContent('Dates from Sep 12, 2026 to Oct 31, 2026 — 50 with rates');
     expect(summary).toHaveTextContent('earlier rates on the next pages');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const lastPage = await screen.findByTestId('fx-page-summary');
-    expect(lastPage).toHaveTextContent('Rates shown: 1');
-    expect(lastPage).toHaveTextContent('dates Sep 11, 2026 to Sep 11, 2026');
+    expect(lastPage).toHaveTextContent('Dates from Sep 11, 2026 to Sep 11, 2026 — 1 with rates');
     expect(lastPage).not.toHaveTextContent('earlier rates on the next pages');
+  });
+
+  it('page history names missing calendar dates in the displayed range', async () => {
+    const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    renderPage();
+    const summary = await screen.findByTestId('fx-page-summary');
+    expect(summary).toHaveTextContent('3 with rates');
+    expect(summary).toHaveTextContent(/No rate for Oct 28, 2026, Oct 30, 2026/);
   });
 
   it('upload preview states the reviewed file’s coverage window before confirmation', async () => {
@@ -275,7 +282,8 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText('3 new')).toBeInTheDocument();
     const summary = screen.getByLabelText('Import preview summary');
-    expect(summary).toHaveTextContent('Covers Oct 5, 2026 → Oct 9, 2026');
+    expect(summary).toHaveTextContent('Dates from Oct 5, 2026 to Oct 9, 2026 — 3 with rates');
+    expect(summary).toHaveTextContent('No rate for Oct 6, 2026, Oct 8, 2026');
   });
 
   it('shows the publication date when a valid file contains one accepted rate', async () => {
@@ -288,8 +296,8 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(await screen.findByText('1 new')).toBeInTheDocument();
-    expect(screen.getByLabelText('Import preview summary')).toHaveTextContent(
-      'Covers Oct 12, 2026 → Oct 12, 2026',
-    );
+    const summary = screen.getByLabelText('Import preview summary');
+    expect(summary).toHaveTextContent('Dates from Oct 12, 2026 to Oct 12, 2026 — 1 with rates');
+    expect(summary).not.toHaveTextContent('No rate for');
   });
 });

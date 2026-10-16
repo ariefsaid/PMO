@@ -1,23 +1,41 @@
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 import type { FxParsed } from './fxRateParser';
 
-/**
- * The calendar-day window the file's accepted rows actually cover — nulls when nothing was
- * accepted. Interior gaps are deliberate: JISDOR does not publish every calendar day, so a
- * weekend inside the window is coverage, not a hole to fill (S-38: no invented prior-day rate).
- */
-export type FxCoverage = { firstDate: string | null; lastDate: string | null };
+/** The file's accepted date range and calendar dates absent inside it; no rates are inferred. */
+export type FxCoverage = {
+  firstDate: string | null;
+  lastDate: string | null;
+  missingDates: string[];
+};
 
 export type FxPreview = FxParsed & FxCommitCounts & { coverage: FxCoverage };
+
+/** Calendar dates absent between the earliest and latest published dates, without inferring schedules. */
+export function missingFxRateDates(dates: string[]): string[] {
+  if (dates.length < 2) return [];
+  const present = new Set(dates);
+  const first = dates.reduce((min, date) => (date < min ? date : min));
+  const last = dates.reduce((max, date) => (date > max ? date : max));
+  const cursor = new Date(`${first}T00:00:00.000Z`);
+  const end = new Date(`${last}T00:00:00.000Z`);
+  const missing: string[] = [];
+  while (cursor < end) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const date = cursor.toISOString().slice(0, 10);
+    if (date < last && !present.has(date)) missing.push(date);
+  }
+  return missing;
+}
 
 function coverageWindow(rows: FxRateInput[]): FxCoverage {
   let firstDate: string | null = null;
   let lastDate: string | null = null;
-  for (const { rate_date } of rows) {
+  const dates = rows.map(({ rate_date }) => rate_date);
+  for (const rate_date of dates) {
     if (firstDate === null || rate_date < firstDate) firstDate = rate_date;
     if (lastDate === null || rate_date > lastDate) lastDate = rate_date;
   }
-  return { firstDate, lastDate };
+  return { firstDate, lastDate, missingDates: missingFxRateDates(dates) };
 }
 
 export function buildFxPreview(

@@ -297,10 +297,16 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   </span>
                   {preview.coverage.firstDate && preview.coverage.lastDate && (
                     <span className="text-muted-foreground">
-                      {t('uxs38.previewCoverage', 'Covers {{first}} → {{last}}', {
+                      {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
                         first: formatDateOnly(preview.coverage.firstDate),
                         last: formatDateOnly(preview.coverage.lastDate),
+                        count: preview.rows.length,
                       })}
+                      {preview.coverage.missingDates.length > 0 && (
+                        <> · {t('uxs38.previewGaps', 'No rate for {{dates}}', {
+                          dates: preview.coverage.missingDates.map(formatDateOnly).join(', '),
+                        })}</>
+                      )}
                     </span>
                   )}
                   {preview.duplicates > 0 && (

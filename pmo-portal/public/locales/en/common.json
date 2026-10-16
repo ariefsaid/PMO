@@ -4542,8 +4542,10 @@
   "uxs38": {
     "emptyScope": "Reference rates affect displayed rupiah equivalents only — accounting records are never changed.",
     "emptyNeedRole": "An Admin or Finance member can upload them from this page.",
-    "pageSummary": "Rates shown: {{count}} · dates {{first}} to {{last}}",
+    "pageSummary": "Dates from {{first}} to {{last}} — {{count}} with rates",
+    "pageGaps": "No rate for {{dates}}",
     "moreEarlier": "earlier rates on the next pages",
-    "previewCoverage": "Covers {{first}} → {{last}}"
+    "previewCoverage": "Dates from {{first}} to {{last}} — {{count}} with rates",
+    "previewGaps": "No rate for {{dates}}"
   }
 }

@@ -4542,8 +4542,10 @@
   "uxs38": {
     "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan — catatan akuntansi tidak pernah diubah.",
     "emptyNeedRole": "Admin atau anggota Finance dapat mengunggahnya dari halaman ini.",
-    "pageSummary": "Kurs ditampilkan: {{count}} · tanggal {{first}} hingga {{last}}",
+    "pageSummary": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
-    "previewCoverage": "Mencakup {{first}} → {{last}}"
+    "previewCoverage": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "previewGaps": "Tidak ada kurs untuk {{dates}}"
   }
 }

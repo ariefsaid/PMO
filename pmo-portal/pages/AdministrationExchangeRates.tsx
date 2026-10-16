@@ -16,6 +16,7 @@ import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
 import { repositories } from '@/src/lib/repositories';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 import FxRateForm from '@/src/components/fx/FxRateForm';
@@ -244,11 +245,17 @@ const AdministrationExchangeRates: React.FC = () => {
       ) : (
         <>
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
-            {t('uxs38.pageSummary', 'Rates shown: {{count}} · dates {{first}} to {{last}}', {
+            {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
               first: formatDateOnly(rates.data.rows[rates.data.rows.length - 1].rate_date),
               last: formatDateOnly(rates.data.rows[0].rate_date),
-              count: rates.data.rows.length,
+              count: new Set(rates.data.rows.map((row) => row.rate_date)).size,
             })}
+            {(() => {
+              const gaps = missingFxRateDates(rates.data.rows.map((row) => row.rate_date));
+              return gaps.length > 0 ? (
+                <> · {t('uxs38.pageGaps', 'No rate for {{dates}}', { dates: gaps.map(formatDateOnly).join(', ') })}</>
+              ) : null;
+            })()}
             {rates.data.nextCursor && (
               <>
                 {' · '}
