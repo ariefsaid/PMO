@@ -92,4 +92,3 @@ alter table public.external_org_bindings
   add column statement_calendar jsonb;
 
 comment on table public.erp_sweep_lock is 'ponytail: TTL > the edge-function wall-clock cap, so a worker cannot outlive its lock; use fenced epochs if ticks ever exceed the cap.';
-
