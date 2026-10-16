@@ -62,6 +62,8 @@ export interface InvoiceProjectOption extends ComboboxOption {
   /** OD-TAX-4: the project decides a PMO invoice's VAT; a VAT project with no rate is refused (DD-TAX-4a). */
   subjectToVat: boolean;
   taxRate: number | null;
+  /** Customer's own contract / PO reference on the project, when recorded. */
+  customerContractRef?: string | null;
   /** Archived projects stay resolvable by name (an approval preview) but are never offered for a new invoice. */
   archived: boolean;
 }
@@ -81,6 +83,7 @@ export function useInvoiceProjectOptions() {
         clientId: p.client_id,
         subjectToVat: p.subject_to_vat,
         taxRate: p.tax_rate,
+        customerContractRef: p.customer_contract_ref,
         archived: p.archived_at != null,
       }));
     },

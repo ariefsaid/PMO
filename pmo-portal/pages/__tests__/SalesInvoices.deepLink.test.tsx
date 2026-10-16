@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -12,6 +12,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
+  projectOptions: [{ value: 'project-1', label: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
   salesInvoicesState: {
     data: [
       {
@@ -72,6 +73,13 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 const salesInvoicesState = hoisted.salesInvoicesState;
+const SEED_INVOICES = structuredClone(salesInvoicesState.data);
+
+beforeEach(() => {
+  salesInvoicesState.data = structuredClone(SEED_INVOICES);
+  salesInvoicesState.isPending = false;
+  salesInvoicesState.isError = false;
+});
 
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -92,7 +100,8 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-16', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
@@ -137,6 +146,88 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(table).toContain('ACC-SINV-2026-00002');
     expect(table).not.toContain('ACC-SINV-2026-00001');
   });
+  it('filters to overdue unpaid invoices and shows age against the organization day', async () => {
+    const user = userEvent.setup();
+    renderAt('/sales-invoices');
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('ACC-SINV-2026-00001');
+    expect(table).not.toContain('ACC-SINV-2026-00002');
+    expect(table).toContain('77 days overdue');
+  });
+
+  it('project picker filters the invoice collection', async () => {
+    const user = userEvent.setup();
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], project_id: 'project-1' };
+    renderAt('/sales-invoices');
+    await user.click(screen.getByRole('combobox', { name: 'Filter by project' }));
+    await user.click(await screen.findByRole('option', { name: /Northwind Build/ }));
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('ACC-SINV-2026-00001');
+    expect(table).not.toContain('ACC-SINV-2026-00002');
+  });
+
+  it('AC-S05-M1 sorts overdue unpaid invoices by age and keeps all other rows stable below', async () => {
+    const user = userEvent.setup();
+    salesInvoicesState.data = [
+      { ...SEED_INVOICES[0], status: 'Paid', invoice_date: '2020-01-01', erp_outstanding_amount: 0 },
+      { ...SEED_INVOICES[1], status: 'Unpaid', invoice_date: '2026-07-15', erp_due_date: '2026-09-15', erp_outstanding_amount: 1 },
+      { ...SEED_INVOICES[0], id: 'inv-overdue-oldest', si_number: 'ACC-SINV-2024-OLD', status: 'Unpaid', invoice_date: '2024-01-01', erp_due_date: '2024-02-01', erp_outstanding_amount: 1 },
+      { ...SEED_INVOICES[1], id: 'inv-cancelled', si_number: 'ACC-SINV-CANCELLED', status: 'Cancelled', invoice_date: '2020-01-01', erp_due_date: '2020-02-01', erp_outstanding_amount: 0 },
+    ];
+    renderAt('/sales-invoices');
+    await user.click(screen.getByRole('button', { name: 'Oldest overdue first' }));
+    const rows = screen.getAllByRole('row');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Invoice #'),
+      expect.stringContaining('ACC-SINV-2024-OLD'),
+      expect.stringContaining('ACC-SINV-2026-00002'),
+      expect.stringContaining('ACC-SINV-2026-00001'),
+      expect.stringContaining('ACC-SINV-CANCELLED'),
+    ]);
+  });
+
+  it('shows project attribution and uses its reference only when the invoice has none', () => {
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], project_id: 'project-1', reference_number: null };
+    renderAt('/sales-invoices?project=project-1');
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('Northwind Build');
+    expect(table).toContain('Project reference: CLIENT-PO-1');
+    expect(table).not.toContain('ACC-SINV-2026-00002');
+  });
+
+  it('prefers the invoice reference over the project fallback', () => {
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], project_id: 'project-1', reference_number: 'INVOICE-PO-9' };
+    renderAt('/sales-invoices?project=project-1');
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('INVOICE-PO-9');
+    expect(table).not.toContain('Project reference: CLIENT-PO-1');
+  });
+
+  it('makes even a small known residual visibly partly paid without applying a cutoff', () => {
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], status: 'Unpaid', erp_outstanding_amount: 1 };
+    renderAt('/sales-invoices');
+    const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
+    expect(row).toHaveTextContent('Partly paid');
+    expect(row).toHaveTextContent('$1.00');
+  });
+
+  it('invoice identity is a direct record link that retains the list query', () => {
+    renderAt('/sales-invoices?q=ACC-SINV-2026-00002');
+    expect(screen.getByRole('link', { name: 'ACC-SINV-2026-00002' })).toHaveAttribute('href', '/sales-invoices/inv-2?q=ACC-SINV-2026-00002');
+  });
+
+  it('labels the consequential action as Cancel invoice in its confirmation', async () => {
+    const user = userEvent.setup();
+    renderAt('/sales-invoices');
+    const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
+    expect(row).not.toBeNull();
+    await user.click(within(row as HTMLElement).getByRole('button', { name: 'Row actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    expect(screen.getByRole('heading', { name: 'Cancel ACC-SINV-2026-00001?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel invoice' })).toBeInTheDocument();
+  });
+
   it('no ?q= → empty search, both invoices', () => {
     renderAt('/sales-invoices');
     const table = screen.getByRole('table').textContent ?? '';

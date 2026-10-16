@@ -26,14 +26,15 @@ describe('nativeInvoice display rules (#784)', () => {
     expect(invoiceGross({ amount: 1_110_000, tax_amount: 110_000, tax_treatment: 'inclusive' })).toBe(1_110_000);
     expect(invoiceGross({ amount: null, tax_amount: 0, tax_treatment: 'exclusive' })).toBeNull();
   });
-  it('AC-NAR-003 a PMO invoice with part of its gross settled is Partly paid', () => {
+  it('AC-NAR-003 a PMO or ERP invoice with part of its gross settled is Partly paid', () => {
     expect(isPartlyPaid(unpaid)).toBe(true);
+    expect(isPartlyPaid({ ...unpaid, pmo_native: false, status: 'Submitted' })).toBe(true);
   });
-  it('AC-NAR-003 nothing settled, fully settled, Paid, or an ERP invoice is never Partly paid', () => {
+  it('AC-NAR-003 nothing settled, fully settled, Paid, or an ineligible status is never Partly paid', () => {
     expect(isPartlyPaid({ ...unpaid, erp_outstanding_amount: 1_110_000 })).toBe(false);
     expect(isPartlyPaid({ ...unpaid, erp_outstanding_amount: 0 })).toBe(false);
     expect(isPartlyPaid({ ...unpaid, status: 'Paid' })).toBe(false);
-    expect(isPartlyPaid({ ...unpaid, pmo_native: false })).toBe(false);
+    expect(isPartlyPaid({ ...unpaid, status: 'Draft' })).toBe(false);
     expect(isPartlyPaid({ ...unpaid, erp_outstanding_amount: null })).toBe(false);
   });
   it('AC-NAR-003 (DD-NAR-17) a PMO invoice paid beyond its gross reads the excess; otherwise nothing', () => {

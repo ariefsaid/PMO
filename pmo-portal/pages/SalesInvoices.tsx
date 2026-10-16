@@ -26,7 +26,7 @@ import {
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { EfakturCell } from '@/src/components/EfakturCell';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
@@ -40,7 +40,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
-import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
+import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
@@ -51,13 +51,14 @@ import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
-const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'Paid', 'Cancelled'];
+const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 /** M-7: PMO invoices are never "Submitted" (DD-NAR-3: Draft → Unpaid → Paid); a part-paid one is its own filter. */
 const NATIVE_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 
@@ -78,7 +79,7 @@ function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback
 function matchesStatus(inv: SalesInvoiceRow, filter: StatusFilter): boolean {
   if (filter === 'All') return true;
   if (filter === 'PartlyPaid') return isPartlyPaid(inv);
-  if (filter === 'Unpaid') return inv.status === 'Unpaid' && !isPartlyPaid(inv);
+  if (filter === 'Unpaid' || filter === 'Submitted') return inv.status === filter && !isPartlyPaid(inv);
   return inv.status === filter;
 }
 
@@ -159,9 +160,11 @@ const SalesInvoices: React.FC = () => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
+  const { day: organizationToday, isPending: isOrganizationDayPending } = useFxOrgDay(true);
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
   const pdfDownload = useInvoicePdfDownload();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
@@ -217,7 +220,10 @@ const SalesInvoices: React.FC = () => {
   }, [mode, searchParams, setSearchParams, statusFilters]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
 
-  const updateListParam = (key: 'q' | 'status' | 'attribution', value: string) => {
+  const loadFilterProjects = useCallback(async (): Promise<ComboboxOption[]> => projectOptions ?? [], [projectOptions]);
+  const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
+
+  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'overdue' | 'sort', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
@@ -277,12 +283,35 @@ const SalesInvoices: React.FC = () => {
     return all
       .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
       .filter((inv) => matchesStatus(inv, statusFilter))
+      .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
+      .filter((inv) => searchParams.get('overdue') !== 'true' || (
+        (inv.status === 'Submitted' || inv.status === 'Unpaid')
+        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
+        && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday)! > 0
+      ))
       .filter((inv) => !q
         || invoiceNumber(inv)?.toLowerCase().includes(q)
         || inv.reference_number?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || inv.customer_name?.toLowerCase().includes(q));
-  }, [all, search, searchParams, statusFilter]);
+  }, [all, organizationToday, search, searchParams, statusFilter]);
+
+  const sortedInvoices = useMemo(() => {
+    if (searchParams.get('sort') !== 'oldest-overdue') return filtered;
+    return filtered
+      .map((invoice, index) => {
+        const age = overdueAgeDays(
+          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
+          organizationToday,
+        );
+        const overdueUnpaid = (invoice.status === 'Submitted' || invoice.status === 'Unpaid') && age !== null && age > 0;
+        return { invoice, index, age, overdueUnpaid };
+      })
+      .sort((a, b) => Number(b.overdueUnpaid) - Number(a.overdueUnpaid)
+        || (a.overdueUnpaid && b.overdueUnpaid ? (b.age ?? 0) - (a.age ?? 0) : 0)
+        || a.index - b.index)
+      .map(({ invoice }) => invoice);
+  }, [filtered, organizationToday, searchParams]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -380,11 +409,12 @@ const SalesInvoices: React.FC = () => {
         const preErp = t('financeCopy.recordedBeforeErp', 'Recorded in PMO before the ERP was connected');
         return (
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            {draftLabel ? (
-              <span className="truncate text-[13px]" title={draftLabel}>{draftLabel}</span>
-            ) : (
-              <span className="truncate font-mono text-[13px]" title={number ?? ''}>{number ?? '—'}</span>
-            )}
+            <Link
+              to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
+              state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
+              className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+              title={draftLabel ?? number ?? ''}
+            >{draftLabel ?? number ?? '—'}</Link>
             {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. M-3: a
                 compact badge, the full sentence as its tooltip and for a screen reader. */}
             {inv.pmo_native && !native && (
@@ -400,31 +430,52 @@ const SalesInvoices: React.FC = () => {
     },
     {
       key: 'reference_number',
-      header: t('financeCopy.customerPO', "Customer PO"),
-      cell: (inv) => (
-        <span className="truncate text-muted-foreground" title={inv.reference_number ?? ''}>
-          {inv.reference_number ?? '—'}
-        </span>
-      ),
-      exportValue: (inv) => inv.reference_number ?? '',
+      header: t('uxs05.customerReference', 'Customer reference'),
+      cell: (inv) => {
+        const projectReference = projectOptions?.find((option) => option.value === inv.project_id)?.customerContractRef;
+        return inv.reference_number
+          ? <span className="truncate" title={inv.reference_number}>{inv.reference_number}</span>
+          : projectReference
+            ? <span className="truncate text-muted-foreground" title={projectReference}>{t('uxs05.projectReferenceFallback', 'Project reference: {{reference}}', { reference: projectReference })}</span>
+            : <span className="text-muted-foreground">—</span>;
+      },
+      exportValue: (inv) => inv.reference_number ?? projectOptions?.find((option) => option.value === inv.project_id)?.customerContractRef ?? '',
     },
     {
       key: 'customer_id',
       header: t('financeCopy.customer', "Customer"),
-      cell: (inv) => (
-        <span className="truncate" title={inv.customer_name ?? ''}>
-          {inv.customer_name ?? '—'}
-        </span>
-      ),
+      cell: (inv) => {
+        const project = projectOptions?.find((option) => option.value === inv.project_id);
+        return (
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate" title={inv.customer_name ?? ''}>{inv.customer_name ?? '—'}</span>
+            {inv.project_id ? (
+              <span className="truncate text-xs text-muted-foreground" title={project?.label ?? ''}>
+                {project?.label ?? (projectOptionsPending ? t('financeCopy.projectLoading', 'Project details loading') : t('financeCopy.projectUnavailable', 'Project details unavailable'))}
+              </span>
+            ) : <span className="truncate text-xs text-muted-foreground">{t('financeCopy.projectNotRecorded', 'Project not recorded')}</span>}
+          </span>
+        );
+      },
       exportValue: (inv) => inv.customer_name ?? '',
     },
     {
       key: 'status',
       header: t('financeCopy.status', "Status"),
       // DD-NAR-3: "Partly paid" is a display state of a PMO Unpaid invoice, never a stored status.
-      cell: (inv) => isPartlyPaid(inv)
+      cell: (inv) => {
+        const gross = invoiceGross(inv);
+        const partlySettled = isPartlyPaid(inv) || (
+          (inv.status === 'Submitted' || inv.status === 'Unpaid')
+          && gross != null
+          && inv.erp_outstanding_amount != null
+          && inv.erp_outstanding_amount > 0
+          && inv.erp_outstanding_amount < gross
+        );
+        return partlySettled
         ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-        : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>,
+        : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>;
+      },
       exportValue: (inv) => inv.status,
     },
     {
@@ -440,7 +491,7 @@ const SalesInvoices: React.FC = () => {
             {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
+          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
@@ -509,7 +560,16 @@ const SalesInvoices: React.FC = () => {
       header: t('financeCopy.dueDate', "Due Date"),
       cell: (inv) => {
         const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-        return due ? formatDateOnly(due) : '—';
+        const age = overdueAgeDays(due, organizationToday);
+        const unpaid = inv.status === 'Submitted' || inv.status === 'Unpaid';
+        return (
+          <span className="flex flex-col">
+            <span>{due ? formatDateOnly(due) : '—'}</span>
+            {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{age === 1
+              ? t('uxs05.overdueDay', '{{count}} day overdue', { count: age })
+              : t('uxs05.overdueDays', '{{count}} days overdue', { count: age })}</span>}
+          </span>
+        );
       },
       exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
     },
@@ -652,6 +712,34 @@ const SalesInvoices: React.FC = () => {
               }}
               ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
             />
+            <div className="mt-2 flex flex-wrap items-end gap-2">
+              <div className="w-full max-w-[280px]">
+                <Combobox
+                  label={t('uxs05.filterProject', 'Filter by project')}
+                  value={selectedProject?.value ?? null}
+                  selectedOption={selectedProject}
+                  onChange={(value) => updateListParam('project', value ?? '')}
+                  loadOptions={loadFilterProjects}
+                  noun={t('uxs05.project', 'Project')}
+                  placeholder={t('uxs05.allProjects', 'All projects')}
+                />
+              </div>
+              <Button
+                type="button"
+                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+                aria-pressed={searchParams.get('overdue') === 'true'}
+                disabled={!organizationToday}
+                onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+              >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+              {!organizationToday && <span className="text-sm text-muted-foreground" role="status">{isOrganizationDayPending ? t('uxs05.overdueDateLoading', 'Loading the organization date…') : t('uxs05.overdueDateUnavailable', 'Overdue filtering is unavailable until the organization date is known.')}</span>}
+              <Button
+                type="button"
+                variant={searchParams.get('sort') === 'oldest-overdue' ? 'outline' : 'ghost'}
+                aria-pressed={searchParams.get('sort') === 'oldest-overdue'}
+                disabled={!organizationToday}
+                onClick={() => updateListParam('sort', searchParams.get('sort') === 'oldest-overdue' ? '' : 'oldest-overdue')}
+              >{t('uxs05.sortOldestOverdue', 'Oldest overdue first')}</Button>
+            </div>
           </div>
         )
       }
@@ -674,7 +762,7 @@ const SalesInvoices: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Sales Invoices" />
+          <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
         )
       }
     >
@@ -719,11 +807,11 @@ const SalesInvoices: React.FC = () => {
 
       {state === undefined && (
         <DataTable<SalesInvoiceRow>
-          rows={filtered}
+          rows={sortedInvoices}
           columns={columns}
           rowKey={(inv) => inv.id}
           rowMenu={rowMenu}
-          state={filtered.length === 0 ? 'empty' : undefined}
+          state={sortedInvoices.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         />
