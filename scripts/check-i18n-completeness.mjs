@@ -10,6 +10,9 @@
  *      locale. It looks like working software right up to the moment a client reads it.
  *   2. ORPHANED — a catalogue key nothing references any more. It survives a refactor, gets
  *      translated, gets counted as coverage, and points at text that no longer exists.
+ *   3. DEFAULT DRIFT — an inline English default disagrees with an existing en catalogue value.
+ *      i18next prefers that catalogue value, so tests without catalogue resources can pass while
+ *      users see stale copy. Existing reviewed mismatches live in a self-cleaning baseline.
  *
  *   FR-L10N-042's own text is why both halves are here: the forgiving runtime is affordable
  *   ONLY because this gate makes gaps unshippable. The two rulings work as a pair or not at all.
@@ -53,6 +56,7 @@ const REPO = path.resolve(HERE, '..');
 const APP = path.join(REPO, 'pmo-portal');
 const ROUTE_LIST = path.join(APP, 'src/lib/i18n/launch-scope-routes.txt');
 const EN_CATALOGUE = path.join(APP, 'public/locales/en/common.json');
+const DEFAULT_MISMATCH_BASELINE = path.join(HERE, 'i18n-default-mismatch-baseline.json');
 /** Read ONLY by --id mode (FR-L10N-042b); the en-side loader must never touch it. */
 const ID_CATALOGUE = path.join(APP, 'public/locales/id/common.json');
 /** Roots scanned for key REFERENCES (the orphan half). Deliberately the whole app, not just
@@ -206,6 +210,19 @@ export function collectKeyRefs(src) {
   return keys;
 }
 
+/** Literal English defaults on t() calls; offsets are validated against stripped code so comments don't count. */
+export function collectInlineDefaults(src) {
+  const stripped = blankComments(src);
+  const found = [];
+  const re = /\bt\(\s*(['"])([^'"\n]+)\1\s*,\s*(?:(['"])([^'"\n]*)\3|\{[^}]*?\bdefaultValue\s*:\s*(['"])([^'"\n]*)\5\s*\})/gs;
+  let m;
+  while ((m = re.exec(src))) {
+    if (!/(?<![A-Za-z0-9_$.])t\(/.test(stripped.slice(m.index, m.index + 8))) continue;
+    found.push({ key: m[2], value: m[4] ?? m[6], index: m.index });
+  }
+  return found;
+}
+
 const STOP_WORDS =
   /\b(const|let|var|return|null|undefined|function|import|export|typeof|interface|extends|await|async|new)\b/;
 /** Values that render but are not prose: an email or URL example carries no language. */
@@ -341,6 +358,15 @@ export function flattenCatalogue(node, prefix = '', out = []) {
 
 /** `{a: {b: 'x'}}` → `Map('a.b' → 'x')` — the value-preserving flatten the id half needs, because
  *  "present but empty" and "absent" are different defects with the same rendered symptom. */
+function catalogueValueForDefault(catalogue, dotted) {
+  let cur = catalogue;
+  for (const part of dotted.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
 export function flattenCatalogueEntries(node, prefix = '', out = new Map()) {
   for (const [k, v] of Object.entries(node)) {
     const key = prefix ? `${prefix}.${k}` : k;
@@ -396,16 +422,31 @@ function hasRequiredPluralForm(known, key) {
  * @param referenceFiles   {Record<string,string>} rel path → source, the whole app
  * @param catalogue        {object} the parsed `en` catalogue
  */
-export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
+export function analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMismatchBaseline = [] }) {
   const catalogueKeys = flattenCatalogue(catalogue);
   const known = new Set(catalogueKeys);
 
   const unextracted = [];
   const missing = [];
+  const defaultMismatches = [];
   for (const [file, src] of Object.entries(launchScopeFiles)) {
     for (const hit of findUnextracted(src)) unextracted.push({ file, ...hit });
     for (const key of collectKeyRefs(src)) {
       if (!known.has(key) && !hasRequiredPluralForm(known, key)) missing.push({ file, key });
+    }
+    for (const hit of collectInlineDefaults(src)) {
+      const catalogueText = catalogueValueForDefault(catalogue, hit.key);
+      if (catalogueText === undefined) continue; // Existing missing-key rule owns this finding.
+      const normalize = (value) => value.replace(/\s+/g, ' ').trim();
+      if (typeof catalogueText === 'string' && normalize(catalogueText) !== normalize(hit.value)) {
+        defaultMismatches.push({
+          file,
+          line: lineOf(src, hit.index),
+          key: hit.key,
+          defaultValue: hit.value,
+          catalogueValue: catalogueText,
+        });
+      }
     }
   }
 
@@ -415,7 +456,25 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
   }
   const orphans = catalogueKeys.filter((k) => !referenced.has(k) && !referenced.has(pluralBase(k)));
 
-  return { unextracted, missing, orphans, catalogueKeys };
+  const signature = (m) => JSON.stringify([m.key, m.defaultValue, m.catalogueValue]);
+  const baseline = new Set(defaultMismatchBaseline.map((entry) => signature({
+    key: entry.key, defaultValue: entry.defaultValue, catalogueValue: entry.catalogueValue,
+  })));
+  const present = new Set(defaultMismatches.map(signature));
+  const staleDefaultBaseline = [...baseline]
+    .filter((entry) => !present.has(entry))
+    .map((entry) => JSON.parse(entry));
+  const newDefaultMismatches = defaultMismatches.filter((m) => !baseline.has(signature(m)));
+
+  return {
+    unextracted,
+    missing,
+    orphans,
+    defaultMismatches,
+    newDefaultMismatches,
+    staleDefaultBaseline,
+    catalogueKeys,
+  };
 }
 
 /**
@@ -594,7 +653,7 @@ function readIdFromDisk() {
 // ── Reporting ───────────────────────────────────────────────────────────────────────────────
 
 function report(result, entries, fileCount) {
-  const { unextracted, missing, orphans, catalogueKeys } = result;
+  const { unextracted, missing, orphans, newDefaultMismatches, staleDefaultBaseline, catalogueKeys } = result;
   let failed = false;
 
   if (unextracted.length) {
@@ -631,6 +690,21 @@ function report(result, entries, fileCount) {
     console.error(`  by no source file. They point at text that no longer exists, and they count`);
     console.error(`  as coverage while doing it. Delete them, or restore the call site.\n`);
     for (const k of orphans) console.error(`  ${k}`);
+  }
+
+  if (newDefaultMismatches.length) {
+    failed = true;
+    console.error(`\n✗ ${newDefaultMismatches.length} inline English default(s) differ from the en catalogue:`);
+    for (const m of newDefaultMismatches) {
+      console.error(`  ${m.key}  pmo-portal/${m.file}:${m.line}\n    default: ${m.defaultValue}\n    catalogue: ${m.catalogueValue}`);
+    }
+  }
+  if (staleDefaultBaseline.length) {
+    failed = true;
+    console.error(`\n✗ ${staleDefaultBaseline.length} stale inline-default baseline entry(ies); remove them:`);
+    for (const [key, defaultValue, catalogueValue] of staleDefaultBaseline) {
+      console.error(`  ${key}\n    default: ${defaultValue}\n    catalogue: ${catalogueValue}`);
+    }
   }
 
   if (failed) {
@@ -740,9 +814,27 @@ function selfTest() {
     const r = analyse(clean);
     check(
       'a clean catalogue passes',
-      !r.unextracted.length && !r.missing.length && !r.orphans.length,
+      !r.unextracted.length && !r.missing.length && !r.orphans.length && !r.defaultMismatches.length,
       `unextracted=${r.unextracted.length} missing=${r.missing.length} orphans=${r.orphans.length}`,
     );
+  }
+
+  // Inline defaults must match the catalogue for both supported i18next call shapes.
+  {
+    const stringCall = `t('${OK_KEY}', 'Hello there')`;
+    const optionsCall = `t('${OK_KEY}', { defaultValue: 'Hello there' })`;
+    const source = `const a = ${stringCall};\nconst b = ${optionsCall};`;
+    const matching = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': source } });
+    check('matching string and defaultValue defaults pass', !matching.defaultMismatches.length, JSON.stringify(matching.defaultMismatches));
+    const mismatchSource = `const a = t('${OK_KEY}', 'Good morning');\nconst b = t('${OK_KEY}', { defaultValue: 'Welcome' });`;
+    const mismatch = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': mismatchSource } });
+    check('string and defaultValue mismatches fail', mismatch.newDefaultMismatches.length === 2,
+      JSON.stringify(mismatch.newDefaultMismatches));
+    const allowlisted = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': mismatchSource },
+      defaultMismatchBaseline: mismatch.defaultMismatches.map(({ key, defaultValue, catalogueValue }) => ({ key, defaultValue, catalogueValue })) });
+    check('an allowlisted mismatch is not new', !allowlisted.newDefaultMismatches.length && !allowlisted.staleDefaultBaseline.length, '');
+    const stale = analyse({ ...clean, defaultMismatchBaseline: [{ key: OK_KEY, defaultValue: 'Obsolete', catalogueValue: 'Older' }] });
+    check('a stale mismatch baseline entry fails', stale.staleDefaultBaseline.length === 1, JSON.stringify(stale.staleDefaultBaseline));
   }
 
   // 1. Plant a MISSING key: a launch-scope screen references a key the catalogue does not hold.
@@ -1093,6 +1185,7 @@ if (isMain) {
     process.exit(reportId(result, entries, Object.keys(launchScopeFiles).length));
   }
   const { entries, launchScopeFiles, referenceFiles, catalogue } = readFromDisk();
-  const result = analyse({ launchScopeFiles, referenceFiles, catalogue });
+  const baseline = JSON.parse(fs.readFileSync(DEFAULT_MISMATCH_BASELINE, 'utf8'));
+  const result = analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMismatchBaseline: baseline });
   process.exit(report(result, entries, Object.keys(launchScopeFiles).length));
 }

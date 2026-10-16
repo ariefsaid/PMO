@@ -1,0 +1,127 @@
+[
+  {
+    "key": "timesheets.status.Rejected",
+    "defaultValue": "Rejected",
+    "catalogueValue": "Returned for changes"
+  },
+  {
+    "key": "dashboard.winRate.title",
+    "defaultValue": "Win Rate",
+    "catalogueValue": "Win rate"
+  },
+  {
+    "key": "projectDetail.milestones.prewinPlaceholder",
+    "defaultValue": "Phase planning starts once this is won",
+    "catalogueValue": "Delivery planning starts once this is won"
+  },
+  {
+    "key": "projectDetail.pipeline.readOnlyNotice",
+    "defaultValue": "Pipeline managed by the project owner. You can review this project\\u2019s stage and journey here; lifecycle changes are made by the project manager.",
+    "catalogueValue": "Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager."
+  },
+  {
+    "key": "projectDetail.pipeline.backToSalesPipeline",
+    "defaultValue": "\\u2190 Back to Sales Pipeline",
+    "catalogueValue": "← Back to Sales Pipeline"
+  },
+  {
+    "key": "projectDetail.header.vatStaleSave",
+    "defaultValue": "PPN was not changed. The project\\",
+    "catalogueValue": "PPN was not changed. The project's invoice state changed; refresh and try again when all invoices are cancelled and commands have settled."
+  },
+  {
+    "key": "projectDetail.workOrderForm.errors.value",
+    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
+    "catalogueValue": "Enter the order value as a non-negative number"
+  },
+  {
+    "key": "projectDetail.workOrderValue.errors.value",
+    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
+    "catalogueValue": "Enter the order value as a non-negative number"
+  },
+  {
+    "key": "financeCopy.budgetProjectionIntro",
+    "defaultValue": "PMO’s forward view — actuals from the ERP ledger, your own estimate to complete.",
+    "catalogueValue": "Compare the active budget with recorded actuals and the estimate to complete."
+  },
+  {
+    "key": "financeCopy.budgetProjectionActualsProvenance",
+    "defaultValue": "“Actuals to date” below is what the ERP general ledger has posted. It will differ from the “Actual” column on the budget versions above, which is what PMO recorded on each budget line.",
+    "catalogueValue": "Actuals come from the posted ERP ledger and may differ from the Actual column on the Budget tab, which records PMO expenses. Budget and estimate to complete values are recorded in PMO."
+  },
+  {
+    "key": "financeCopy.pmoNative",
+    "defaultValue": "This invoice was raised in PMO \\u2014 approve it from Approvals",
+    "catalogueValue": "This invoice was raised in PMO — approve it from Approvals"
+  },
+  {
+    "key": "financeCopy.sodSelfApproval",
+    "defaultValue": "You raised this invoice \\u2014 a different person must approve it",
+    "catalogueValue": "You raised this invoice — a different person must approve it"
+  },
+  {
+    "key": "bupot.vendor",
+    "defaultValue": "vendor",
+    "catalogueValue": "Vendor"
+  },
+  {
+    "key": "bupot.refusal.conflict",
+    "defaultValue": "A slip number or bill is already covered.",
+    "catalogueValue": "A slip number or bill is already covered. Inspect existing slip history."
+  },
+  {
+    "key": "bupot.refusal.invalidFacts",
+    "defaultValue": "Review the entered facts.",
+    "catalogueValue": "Review the entered facts and selected bills."
+  },
+  {
+    "key": "bupot.refusal.retrySameIntent",
+    "defaultValue": "Retry with this same slip intent.",
+    "catalogueValue": "The result is uncertain. Retry with this same slip intent."
+  },
+  {
+    "key": "bupot.remedy.reload",
+    "defaultValue": "Reload the latest facts.",
+    "catalogueValue": "Reload and review the latest slip facts."
+  },
+  {
+    "key": "bupot.remedy.inspect",
+    "defaultValue": "Inspect existing coverage.",
+    "catalogueValue": "Inspect existing coverage before recording another slip."
+  },
+  {
+    "key": "bupot.remedy.edit",
+    "defaultValue": "Edit the facts.",
+    "catalogueValue": "Edit the facts and try again."
+  },
+  {
+    "key": "bupot.remedy.retry",
+    "defaultValue": "Retry this same request.",
+    "catalogueValue": "Retry this same request; do not start a new slip."
+  },
+  {
+    "key": "bupot.remedy.edit",
+    "defaultValue": "Review the entered facts and try again.",
+    "catalogueValue": "Edit the facts and try again."
+  },
+  {
+    "key": "bupot.bill",
+    "defaultValue": "Linked bills",
+    "catalogueValue": "Bill"
+  },
+  {
+    "key": "revenueByProject.subtitle",
+    "defaultValue": "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
+    "catalogueValue": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
+  },
+  {
+    "key": "profileSettings.saving",
+    "defaultValue": "Saving your preferences…",
+    "catalogueValue": "Saving your preference…"
+  },
+  {
+    "key": "viewBuilder.addFilter",
+    "defaultValue": "Add filter",
+    "catalogueValue": "+ Add filter"
+  }
+]
