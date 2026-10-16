@@ -175,7 +175,8 @@ as $$
       (select count(*)::int from public.project_mapped_actuals(p.id,null) x where x.mapped)
       else 1 end as actual_coverage_total,
     (select bw.revenue from billed_work bw where bw.project_id=p.id and bw.currency=p.currency) as billed_revenue,
-    coalesce((select bw.incomplete from billed_work bw where bw.project_id=p.id and bw.currency=p.currency),false) as billed_incomplete
+    (coalesce((select bw.incomplete from billed_work bw where bw.project_id=p.id and bw.currency=p.currency),false)
+      or exists (select 1 from billed_work bw where bw.project_id=p.id and bw.currency<>p.currency)) as billed_incomplete
   from public.projects p left join public.companies c on c.id=p.client_id
   where p.project_manager_id=auth.uid() and p.org_id=public.auth_org_id()
   )

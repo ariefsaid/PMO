@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(20);
 
 insert into public.organizations (id,name) values
   ('02970000-0000-0000-0000-000000000001','Dashboard money language test org');
@@ -43,12 +43,16 @@ values ('02970000-0000-0000-0000-000000000001','02970000-0000-0000-0000-00000000
         '0297-LABOR','FY-2026',120,'2026-10-01','02970000-0000-0000-0000-0000000000b1','2026-10-02');
 insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,tax_treatment,tax_amount,
                                   currency,status,erp_docstatus)
-values ('02970000-0000-0000-0000-0000000000e1','02970000-0000-0000-0000-000000000001',
-        '02970000-0000-0000-0000-0000000000d3','SI-0297','2026-10-03',300,'exclusive',0,
-        'USD','Submitted',1);
+values
+  ('02970000-0000-0000-0000-0000000000e1','02970000-0000-0000-0000-000000000001',
+   '02970000-0000-0000-0000-0000000000d3','SI-0297','2026-10-03',300,'exclusive',0,
+   'USD','Submitted',1),
+  ('02970000-0000-0000-0000-0000000000e2','02970000-0000-0000-0000-000000000001',
+   '02970000-0000-0000-0000-0000000000d3','SI-0297-FX','2026-10-04',100,'exclusive',0,
+   'EUR','Submitted',1);
 
 update public.projects set project_manager_id='02970000-0000-0000-0000-0000000000a1'
-where id='02970000-0000-0000-0000-0000000000d1';
+where id in ('02970000-0000-0000-0000-0000000000d1','02970000-0000-0000-0000-0000000000d3');
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"02970000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -92,8 +96,11 @@ select ok(not has_function_privilege('anon','public.get_executive_dashboard()','
   'AC-UX-S03-14: dashboard RPC execute grants preserve 0286 authorization boundary');
 select is((get_executive_dashboard()->>'active_projects')::int,3,
   'AC-UX-S03-15: security-invoker dashboard remains scoped to the caller organization as in 0286');
-select is(json_array_length(get_pm_dashboard_projects()),1,
-  'AC-UX-014: PM read returns only the assigned project in the caller org');
+select is(json_array_length(get_pm_dashboard_projects()),2,
+  'AC-UX-014: PM read returns only assigned projects in the caller org');
+select is((select pm.value->>'realized_margin' from json_array_elements(get_pm_dashboard_projects()) pm
+           where pm.value->>'id'='02970000-0000-0000-0000-0000000000d3'),null,
+  'AC-UX-S03-I3: a foreign-currency billed-work invoice makes PM margin unknown');
 select ok((select pm.value->>'spent' from json_array_elements(get_pm_dashboard_projects()) pm
            where pm.value->>'id'='02970000-0000-0000-0000-0000000000d1') is not distinct from
           (select exec.value->>'spent' from json_array_elements(get_executive_dashboard()->'top_projects') exec
