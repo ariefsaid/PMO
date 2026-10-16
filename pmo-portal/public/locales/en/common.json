@@ -4588,6 +4588,11 @@
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
     }
   },
+  "uxs13": {
+    "moreProjectDetails": "More project details",
+    "projectDetailsAndActions": "Project details and actions",
+    "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
+  },
   "uxs18": {
     "bulk": {
       "scopeAll": "All {{count}} timesheets in this queue can be approved together.",

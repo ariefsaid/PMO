@@ -556,7 +556,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </div>
           )}
           <Card variant="bare" data-testid="wo-billing-summary">
-          <CardHead>{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
+          <CardHead><h2 className="text-base font-semibold">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</h2></CardHead>
           <CardPad>
             {billing.isPending ? (
               <ListState variant="loading" rows={1} testId="wo-billing-loading" />
@@ -604,7 +604,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       <Card variant="bare">
         <CardHead className="justify-between">
-          <span>{t('projectDetail.workOrders.title', 'Work orders')}</span>
+          <h2 className="text-base font-semibold">{t('projectDetail.workOrders.title', 'Work orders')}</h2>
           {may('create', 'workOrder') && (
             <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
               {t('projectDetail.workOrders.action.new', 'New work order')}

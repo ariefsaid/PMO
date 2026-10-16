@@ -77,12 +77,21 @@ for (const role of ['pm', 'finance'] as const) {
           await page.goto(`${projectPath}/${tab}`);
           const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
             : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
-            : tab === 'work-orders' ? panel.getByText('Contract drawdown', { exact: true }).first()
-            : tab === 'billing' ? panel.getByText('Billing summary', { exact: true })
+            : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Contract drawdown', exact: true })
+            : tab === 'billing' ? panel.getByRole('heading', { name: 'Billing summary', exact: true })
             : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
             : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
             : panel.getByText('ENG — Detail Design Package', { exact: true });
           await expect(work).toBeVisible();
+          const selectedTab = sections.getByRole('tab', { selected: true });
+          await expect(selectedTab).toBeVisible();
+          await expect.poll(async () => selectedTab.evaluate(el => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const label = range.getBoundingClientRect();
+            const strip = el.closest('[role="tablist"]')!.getBoundingClientRect();
+            return label.left >= strip.left && label.right <= strip.right;
+          })).toBe(true);
           if (tab === 'budget') {
             const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
             const remaining = remainingLabel.locator('..').locator('dd');
@@ -123,6 +132,18 @@ for (const role of ['pm', 'finance'] as const) {
       await expect(page).toHaveURL(`${projectPath}/tasks`);
       await expect(sections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      if (viewport.width === 390) {
+        const details = page.locator('summary').filter({ hasText: 'Project details and actions' });
+        await expect(details).toBeVisible();
+        await expect(details.locator('..')).not.toHaveAttribute('open', '');
+      }
+      if (viewport.width === 1440) {
+        const panelBox = await panel.boundingBox();
+        const mainBox = await page.locator('main').boundingBox();
+        expect(panelBox).not.toBeNull();
+        expect(mainBox).not.toBeNull();
+        expect(panelBox!.width).toBeGreaterThan(mainBox!.width * 0.9);
+      }
     });
   }
 }

@@ -190,25 +190,30 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const canEditValue = may('editContractValue', 'project', { record: { status } });
   const canSetVat = may('setVatFlag', 'project');
 
-  const meta = [
-    project.client ? companyDisplayName(project.client) : null,
-    project.pmo_project_number
-      ? `· ${t('projectDetail.header.pmoNumber', 'PMO Project Number')}: ${project.pmo_project_number}`
-      : null,
-    `· ${t('projectDetail.header.clientCode', 'Client Project Code')}: ${project.code?.trim() || t('projectDetail.header.notSet', 'Not set')}`,
-    project.customer_contract_ref
-      ? `· ${
-          project.contract_date
-            ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
-                ref: project.customer_contract_ref,
-                date: formatDateOnly(project.contract_date),
-              })
-            : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
-        }`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const customerName = project.client ? companyDisplayName(project.client) : null;
+  const orderReference = project.customer_contract_ref
+    ? project.contract_date
+      ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
+          ref: project.customer_contract_ref,
+          date: formatDateOnly(project.contract_date),
+        })
+      : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
+    : null;
+  const meta = (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {customerName && <span className="font-medium text-foreground">{customerName}</span>}
+      {orderReference && <span>{orderReference}</span>}
+      <details className="text-muted-foreground">
+        <summary className="touch-target cursor-pointer rounded-sm underline underline-offset-2">
+          {t('uxs13.moreProjectDetails', 'More project details')}
+        </summary>
+        <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          <span>{t('projectDetail.header.pmoNumber', 'PMO Project Number')}: {project.pmo_project_number || t('projectDetail.header.notSet', 'Not set')}</span>
+          <span>{t('projectDetail.header.clientCode', 'Client Project Code')}: {project.code?.trim() || t('projectDetail.header.notSet', 'Not set')}</span>
+        </span>
+      </details>
+    </div>
+  );
 
   const tiles: StatTile[] = [
     {
@@ -538,7 +543,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         }
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
-        meta={meta ? <span className="hidden md:inline">{meta}</span> : undefined}
+        meta={meta}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"

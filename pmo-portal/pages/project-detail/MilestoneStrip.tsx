@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getYear, parseISO } from 'date-fns';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -381,13 +382,16 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
 }) => {
   const { t } = useTranslation();
   const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
+  const overdue = isOverdueMilestone(milestone);
   // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
   const targetLabel = milestone.target_date
-    ? `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDayMonth(
-        new Date(`${milestone.target_date}T00:00:00`),
-      )}`
+    ? overdue && getYear(parseISO(milestone.target_date)) !== new Date().getFullYear()
+      ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
+          date: formatDayMonth(parseISO(milestone.target_date)),
+          year: getYear(parseISO(milestone.target_date)),
+        })
+      : `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDayMonth(parseISO(milestone.target_date))}`
     : null;
-  const overdue = isOverdueMilestone(milestone);
 
   return (
     <div
@@ -410,12 +414,12 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
             // AC-RAM-004 (#688): raw text-primary as small TEXT is ~3.5:1 on the dark canvas
             // (sub-AA, DESIGN.md accessibility posture) — same class of gap as the stepper's
             // "Current" badge (MilestonePhaseHeader). text-primary-text is the AA on-canvas variant.
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-text">
+            <span className="text-xs font-semibold uppercase tracking-[0.04em] text-primary-text">
               {t('projectDetail.milestones.current', 'Current')}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span>{pct(milestone.effective_pct)}</span>
           {weightShare != null && (
             <span>
@@ -440,7 +444,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
             aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', {
               name: milestone.name,
             })}
-            className="text-[11px] font-semibold text-primary-text hover:underline"
+            className="touch-target inline-flex min-h-8 items-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
             {t('projectDetail.milestones.edit', 'Edit')}
