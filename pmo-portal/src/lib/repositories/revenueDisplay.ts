@@ -5,9 +5,16 @@
  * only derive display values from mirrored data.
  */
 
-import { differenceInCalendarDays, parseISO } from 'date-fns';
-
 const DEFAULT_PAYMENT_TERMS_DAYS = 30;
+
+/**
+ * Whole calendar-day distance from the due date to the organization's current day.
+ * No date-fns: an edge function (agent-chat) imports this file and Deno has no npm map for it.
+ */
+export function overdueAgeDays(dueDate: string | null | undefined, organizationToday: string | null | undefined): number | null {
+  if (!dueDate || !organizationToday) return null;
+  return Math.round((Date.parse(`${organizationToday}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86_400_000);
+}
 
 /**
  * Derive the AR due date for display purposes.
@@ -31,12 +38,6 @@ const DEFAULT_PAYMENT_TERMS_DAYS = 30;
  * @param receivedDate - Optional date the client received the invoice (YYYY-MM-DD); overrides the others when set
  * @returns The derived due date as YYYY-MM-DD string, or null if invoiceDate is missing
  */
-/** Whole calendar-day distance from the due date to the organization's current day. */
-export function overdueAgeDays(dueDate: string | null | undefined, organizationToday: string | null | undefined): number | null {
-  if (!dueDate || !organizationToday) return null;
-  return differenceInCalendarDays(parseISO(`${organizationToday}T00:00:00Z`), parseISO(`${dueDate}T00:00:00Z`));
-}
-
 export function deriveArDueDate(
   invoiceDate: string | null | undefined,
   paymentTermsDays: number | null | undefined,
