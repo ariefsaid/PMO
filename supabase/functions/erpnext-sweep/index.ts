@@ -86,6 +86,9 @@ import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
+import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
+import { fetchStatementMetadata } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementMetadata.ts';
+import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -568,6 +571,7 @@ interface OrgBinding {
   activatedAt?: string | null;
   /** Holder fence for statement-source writes in this sweep tick. */
   statementLockHolder?: string;
+  statementReplayNeeded?: boolean;
 }
 
 export interface ErpSweepCycleDeps {
@@ -749,7 +753,7 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
  *  not silently swallowed). */
 export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Promise<OrgBinding[]> {
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, site_url, secret_ref, config, activated_at, version_major')
+    .select('org_id, site_url, secret_ref, config, activated_at, version_major, statement_full_ledger_replay_needed')
     .eq('external_tier', ERPNEXT_TIER);
   // task FIX-5: a real DB error must not be silently folded into "no employing orgs this cycle" — log
   // it so an outage is observable in the function logs. The sweep cycle still returns [] (fail-safe:
@@ -758,7 +762,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     console.error(`[erpnext-sweep] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     return [];
   }
-  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null }> | null) ?? [];
+  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null; statement_full_ledger_replay_needed?: boolean }> | null) ?? [];
   const activated = rows.filter((r) => r.activated_at);
   if (activated.length === 0) return [];
 
@@ -817,6 +821,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     versionMajor: r.version_major ?? null,
     activatedAt: r.activated_at,
     ownedDomains: ownedByOrg.get(r.org_id) ?? [],
+    statementReplayNeeded: r.statement_full_ledger_replay_needed === true,
   }));
 }
 
@@ -1420,12 +1425,47 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
 }
 
 /** The ledger-mirror feed for one org (8.6b). */
-async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }> {
+export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }> {
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
+    const attemptAt = new Date().toISOString();
+    const { error: statusError } = await serviceClient.from('external_org_bindings').update({
+      statement_update_delayed: true, statement_last_attempt_at: attemptAt,
+    }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+    if (statusError) throw new AppError(statusError.message, statusError.code);
+
+    // A complete chart/metadata scan is the prerequisite for this tick's ledger feed.
+    const [accounts, metadata] = await Promise.all([
+      fetchStatementAccounts(client, { company: org.company }),
+      fetchStatementMetadata(client, { company: org.company }),
+    ]);
+    await feedAccountMirror(serviceClient as unknown as Parameters<typeof feedAccountMirror>[0], {
+      orgId: org.orgId, company: org.company, refreshId: crypto.randomUUID(), asOf: attemptAt, accounts,
+    });
+    const { error: calendarError } = await serviceClient.from('external_org_bindings').update({
+      statement_calendar: metadata.calendar.map(({ start, end }) => ({ start, end })),
+    }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+    if (calendarError) throw new AppError(calendarError.message, calendarError.code);
+    const { error: missingError } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+      p_org_id: org.orgId, p_company: org.company,
+    });
+    if (missingError) throw new AppError(missingError.message, missingError.code);
     const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
       client, orgId: org.orgId, company: org.company,
+      // A newly discovered missing reference schedules the full replay for the NEXT tick; this
+      // tick's already-started incremental feed cannot claim to be a complete historical replay.
+      fullReplay: org.statementReplayNeeded === true,
     });
+    const { data: unresolved, error: unresolvedError } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+      p_org_id: org.orgId, p_company: org.company,
+    });
+    if (unresolvedError) throw new AppError(unresolvedError.message, unresolvedError.code);
+    if (r.glCaughtUp && r.pleCaughtUp && unresolved !== true) {
+      const { error: successError } = await serviceClient.from('external_org_bindings').update({
+        statement_update_delayed: false,
+      }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+      if (successError) throw new AppError(successError.message, successError.code);
+    }
     return { gl: r.glFed, ple: r.pleFed, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp };
   } catch (err) {
     return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: err instanceof Error ? err.message : String(err) };
