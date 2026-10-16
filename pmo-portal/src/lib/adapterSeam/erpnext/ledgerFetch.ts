@@ -23,6 +23,7 @@ import { AppError } from '../../appError.ts';
 /** The mirrored GL Entry row shape — feeds erp_gl_entry_mirror. Money is decimal-string (R4). */
 export interface GlEntryRow {
   name: string;
+  company?: string;
   account: string;
   cost_center: string | null;
   fiscal_year: string | null;
@@ -36,6 +37,8 @@ export interface GlEntryRow {
   credit: string | null;
   /** ERPNext `is_cancelled` (a cancelled original or its reversal) OR docstatus 2 — never counted. */
   is_cancelled: boolean;
+  is_opening?: 'Yes' | 'No' | null;
+  finance_book?: string | null;
   docstatus: number | null;
   /** Frappe `modified` — the per-row source-mod cursor (the slice-8 feed's `>=` guard). */
   modified: string;
@@ -83,8 +86,8 @@ export interface LedgerFetchResult<T> {
 }
 
 const GL_FIELDS = [
-  'name', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
-  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'docstatus', 'modified',
+  'name', 'company', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
+  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified',
 ] as const;
 
 const PLE_FIELDS = [
@@ -180,6 +183,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
       const docstatus = docstatusOf(r.docstatus);
       return {
         name: String(r.name),
+        company: String(r.company ?? opts.company),
         account: String(r.account),
         cost_center: str(r.cost_center),
         fiscal_year: str(r.fiscal_year),
@@ -192,6 +196,8 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
         debit: money(r.debit),
         credit: money(r.credit),
         is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
+        is_opening: r.is_opening === 'Yes' || r.is_opening === 'No' ? r.is_opening : null,
+        finance_book: str(r.finance_book),
         docstatus,
         modified: String(r.modified),
       };

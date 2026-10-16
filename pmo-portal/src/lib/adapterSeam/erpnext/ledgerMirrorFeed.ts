@@ -211,6 +211,9 @@ function maxModified(rows: Array<{ modified: string }>): string | null {
 function glRowToMirror(r: GlEntryRow): Record<string, unknown> {
   return {
     erp_name: r.name,
+    company: r.company,
+    is_opening: r.is_opening,
+    finance_book: r.finance_book,
     account: r.account,
     cost_center: r.cost_center,
     fiscal_year: r.fiscal_year,

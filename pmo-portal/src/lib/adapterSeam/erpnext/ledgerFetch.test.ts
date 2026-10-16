@@ -77,7 +77,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     ]);
     const fields = JSON.parse(params.get('fields') ?? '') as string[];
     // the field list requests the money + provenance + cancellation-state fields the mirror consumes
-    expect(fields).toEqual(expect.arrayContaining(['name', 'account', 'cost_center', 'debit', 'credit', 'posting_date', 'is_cancelled', 'docstatus', 'modified']));
+    expect(fields).toEqual(expect.arrayContaining(['name', 'company', 'account', 'cost_center', 'debit', 'credit', 'posting_date', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified']));
     expect(rows).toHaveLength(1);
     expect(rows[0].is_cancelled).toBe(false);
   });
@@ -98,6 +98,18 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     ] });
     const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
     expect(rows[0]).toMatchObject({ name: 'GLE-D2', is_cancelled: true, docstatus: 2 });
+  });
+
+  it('AC-001: captures explicit company, opening and finance-book fields without defaults for unknown values', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [
+      { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '0.123456789', credit: '0', is_opening: 'Yes', finance_book: 'Accrual', modified: '2026-01-01' },
+      { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '0', credit: '0', is_opening: 'Unknown', finance_book: null, modified: '2026-01-01' },
+    ] });
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Synthetic Co' });
+    expect(rows).toMatchObject([
+      { company: 'Synthetic Co', is_opening: 'Yes', finance_book: 'Accrual', debit: '0.123456789' },
+      { company: 'Synthetic Co', is_opening: null, finance_book: null },
+    ]);
   });
 
   it('a full backfill (no since) sends only the company filter', async () => {
