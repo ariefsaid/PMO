@@ -25,16 +25,6 @@
     "catalogueValue": "Enter the order value as a non-negative number"
   },
   {
-    "key": "financeCopy.budgetProjectionIntro",
-    "defaultValue": "PMO’s forward view — actuals from the ERP ledger, your own estimate to complete.",
-    "catalogueValue": "Compare the active budget with recorded actuals and the estimate to complete."
-  },
-  {
-    "key": "financeCopy.budgetProjectionActualsProvenance",
-    "defaultValue": "“Actuals to date” below is what the ERP general ledger has posted. It will differ from the “Actual” column on the budget versions above, which is what PMO recorded on each budget line.",
-    "catalogueValue": "Actuals come from the posted ERP ledger and may differ from the Actual column on the Budget tab, which records PMO expenses. Budget and estimate to complete values are recorded in PMO."
-  },
-  {
     "key": "bupot.vendor",
     "defaultValue": "vendor",
     "catalogueValue": "Vendor"
