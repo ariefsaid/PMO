@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dbContainer = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
-const migrations = ['0294_statement_account_source', '0295_statement_ledger_source', '0296_replace_erp_account_chart', '0303_statement_gl_replay_finish', '0304_statement_gl_missing_reference'];
+const migrations = ['0294_statement_account_source', '0295_statement_ledger_source', '0296_replace_erp_account_chart', '0303_statement_gl_replay_finish', '0304_statement_gl_missing_reference', '0305_statement_company_replay'];
 const sqlFile = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 function psql(sql) {
@@ -27,8 +27,8 @@ function verifyLocalTarget() {
 
 test('financial statement source migrations roll back and reapply inside a self-restoring transaction', () => {
   verifyLocalTarget();
-  const [a294, a295, a296, a303, a304] = migrations.map((name) => sqlFile(`supabase/migrations/${name}.sql`));
-  const [d294, d295, d296, d303, d304] = migrations.map((name) => sqlFile(`supabase/migrations/rollback/${name}_down.sql`));
+  const [a294, a295, a296, a303, a304, a305] = migrations.map((name) => sqlFile(`supabase/migrations/${name}.sql`));
+  const [d294, d295, d296, d303, d304, d305] = migrations.map((name) => sqlFile(`supabase/migrations/rollback/${name}_down.sql`));
   const fixture = `insert into public.erp_gl_entry_mirror(org_id,erp_name,company,account,debit,credit,erp_modified)
     values ('00000000-0000-0000-0000-000000000001','GL-ROLLBACK-FIXTURE','Rollback Co','Synthetic Account',0.123456789,0,'2026-01-01');`;
   const script = `begin;
@@ -47,6 +47,7 @@ do $$ begin
     raise exception 'unsafe numeric narrowing changed the column type';
   end if;
 end $$;
+${d305}
 ${d304}
 ${d303}
 ${d296}
@@ -58,6 +59,7 @@ ${a295}
 ${a296}
 ${a303}
 ${a304}
+${a305}
 rollback;
 `;
   const output = psql(script);
