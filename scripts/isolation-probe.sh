@@ -161,6 +161,9 @@ else skip "create_procurement_invoice (procurements)"; fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc get_projects_money_collection "{\"p_project_ids\":[\"$A_PROJECT\"]}")
+else skip "get_projects_money_collection (projects)"; fi
 if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc assign_sales_invoice_project "{\"p_si_id\":\"$A_SI\",\"p_project_id\":\"$A_PROJECT\"}")
 else

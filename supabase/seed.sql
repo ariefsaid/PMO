@@ -499,7 +499,11 @@ values
    '5a000000-0000-0000-0000-000000000001'),
   ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001',
    'Expenses Included In Asset Valuation - PSC','2026',300000.00,0,300000.00, now() - interval '1 day',
-   '5a000000-0000-0000-0000-000000000001')
+   '5a000000-0000-0000-0000-000000000001'),
+  -- Synthetic mapped ledger Actual keeps SP-2402 above its Active-budget risk threshold for UXS-013.
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Salary - PSC','2026',7000000.00,0,7000000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000002')
   -- ⚑ NOTE the deliberate absence: 'Entertainment Expenses - PSC' (Permits & Fees) is MAPPED but has no
   -- row here, so its actual is a real, computed 0 — the third state.
 on conflict do nothing;

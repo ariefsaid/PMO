@@ -7849,6 +7849,17 @@ export type Database = {
         }[]
       }
       get_project_finances: { Args: { p_project_id: string }; Returns: Json }
+      get_projects_money_collection: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          actuals: Json
+          active_budget_amount: string | null
+          active_budget_currency: string | null
+          has_active_budget: boolean
+          ledger_basis: string
+          project_id: string
+        }[]
+      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {

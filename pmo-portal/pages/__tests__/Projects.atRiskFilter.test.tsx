@@ -17,7 +17,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
 
-const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => ({
+const { projectsState, myTasksState, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -29,6 +29,7 @@ const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => (
     data: {} as Record<string, { deliveryPct: number | null; committedSpend: number; budget: number }>,
     isPending: false,
   },
+  projectMoneyState: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -61,6 +62,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => deliverySummaryState,
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -126,6 +128,11 @@ const fixtures = [
     client: { id: 'c1', name: 'Acme' },
     pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
+  {
+    id: 'p5', name: 'Rounded To 90 But Safe', code: 'P-005', status: 'Ongoing Project',
+    project_manager_id: 'pm-1', client_id: 'c1', contract_value: 100_000, currency: 'USD',
+    customer_contract_ref: null, client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
+  },
 ];
 
 const renderWithUrl = (url: string, role: Role = 'Project Manager') =>
@@ -147,11 +154,9 @@ beforeEach(() => {
   projectsState.isPending = false;
   projectsState.isError = false;
   myTasksState.data = [];
-  // I6: committed-spend-based at-risk summary data.
-  // p1: committedSpend=40K/budget=80K = 50% → safe
-  // p2: committedSpend=95K/budget=100K = 95% → at risk
-  // p3: committedSpend=90K/budget=100K = 90% → at risk
-  // p4: completed (not active regardless of spend)
+  // Canonical mapped Actual + Active-budget reads for the collection view.
+  // p1: 40K/80K = 50% → safe; p2: 95K/100K = 95%; p3: 90K/100K = 90%.
+  // p4 is completed and excluded regardless of its money values.
   deliverySummaryState.data = {
     p1: { deliveryPct: null, committedSpend: 40_000, budget: 80_000 },
     p2: { deliveryPct: null, committedSpend: 95_000, budget: 100_000 },
@@ -159,6 +164,12 @@ beforeEach(() => {
     p4: { deliveryPct: null, committedSpend: 49_000, budget: 50_000 },
   };
   deliverySummaryState.isPending = false;
+  projectMoneyState.isPending = false;
+  projectMoneyState.isError = false;
+  projectMoneyState.data = Object.fromEntries([
+    ['p1', ['40000.00', '80000.00']], ['p2', ['95000.00', '100000.00']],
+    ['p3', ['90000.00', '100000.00']], ['p4', ['49000.00', '50000.00']], ['p5', ['89500.00', '100000.00']],
+  ].map(([id, values]) => [id, { actuals: { currency: 'USD', total: values[0], asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: values[0] }] }, activeBudgetAmount: values[1], activeBudgetCurrency: 'USD', hasActiveBudget: true }]));
 });
 
 describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
@@ -168,7 +179,15 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('AC-IXD-DASH-W5-C2A-PROJ-2 I6: at-risk filter uses committed-spend, not stale p.spent', () => {
+  it('at-risk labels use the exact canonical predicate, not rounded percentages or status-blind values', () => {
+    renderWithUrl('/projects');
+    const roundedSafeRow = screen.getByText('Rounded To 90 But Safe').closest('tr');
+    const closeOutRow = screen.getByText('Completed Not At Risk').closest('tr');
+    expect(roundedSafeRow).not.toHaveTextContent('At risk');
+    expect(closeOutRow).not.toHaveTextContent('At risk');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-PROJ-2: at-risk filter uses canonical Actual, not stale p.spent', () => {
     renderWithUrl('/projects?filter=at-risk');
     // At risk: p2 (committedSpend/budget = 95%) and p3 (90%) — both active
     expect(screen.getByText('At Risk Project')).toBeInTheDocument();
@@ -177,6 +196,16 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(screen.queryByText('Safe Project')).not.toBeInTheDocument();
     // Completed even though high committed-spend: p4 excluded (not active)
     expect(screen.queryByText('Completed Not At Risk')).not.toBeInTheDocument();
+    // 89.5% rounds to 90 for display but remains below the exact canonical threshold.
+    expect(screen.queryByText('Rounded To 90 But Safe')).not.toBeInTheDocument();
+  });
+
+  it('renders the empty state for an empty portfolio even when the disabled money query is pending', () => {
+    projectsState.data = [];
+    projectMoneyState.isPending = true;
+    renderWithUrl('/projects?filter=at-risk');
+    expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('projects-loading')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-3: honest empty state when no projects are at risk', () => {
@@ -184,7 +213,8 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     projectsState.data = [fixtures[0]]; // only safe project
     renderWithUrl('/projects?filter=at-risk');
     expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
-    expect(screen.getByText(/every active project is under 90%/i)).toBeInTheDocument();
+    expect(screen.getByText(/no confirmed budget-risk signal is showing/i)).toBeInTheDocument();
+    expect(screen.getByText(/missing spending or active budget data can't be assessed/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-4: backward-compatible — no param keeps default (All for PM)', () => {

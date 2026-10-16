@@ -27,11 +27,17 @@ const projectRow = {
   archived_at: null,
 };
 
-const { deliveryState } = vi.hoisted(() => ({
+const { deliveryState, projectMoneyState } = vi.hoisted(() => ({
   deliveryState: {
     data: undefined as Record<string, unknown> | undefined,
     isPending: false,
     isError: true,
+  },
+  projectMoneyState: {
+    data: { 'proj-1': { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
   },
 }));
 
@@ -62,6 +68,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => deliveryState,
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({
