@@ -121,6 +121,24 @@ test('flock core serialises two concurrent holders (no interleaving)', async () 
   });
 });
 
+test('the test lock admits PMO_TEST_LOCK_SLOTS holders at once and makes the next one wait', async () => {
+  await withTempAsync('pmo-lock-slots-', async (dir) => {
+    const lock = path.join(dir, 'test.lock');
+    const hold = ['bash', '-c', 'sleep 1.5'];
+    const env = { PMO_TEST_LOCK_SLOTS: '2' };
+    const a = spawnLocked(TEST_LOCK, lock, env, hold);
+    const b = spawnLocked(TEST_LOCK, lock, env, hold);
+    const aDone = waitFor(a); const bDone = waitFor(b);
+    await Promise.all([waitUntilAcquired(a), waitUntilAcquired(b)]); // both in at once: 2 slots
+    const c = spawnLocked(TEST_LOCK, lock, env, hold);
+    const cDone = waitFor(c);
+    const [ra, rb, rc] = await Promise.all([aDone, bDone, cDone]);
+    for (const r of [ra, rb, rc]) assert.equal(r.code, 0, r.stderr);
+    assert.match(ra.stderr + rb.stderr, /ACQUIRED \(waited 0s\)[\s\S]*ACQUIRED \(waited 0s\)/, 'both first holders should get a slot immediately');
+    assert.match(rc.stderr, /ACQUIRED \(waited [1-9]/, 'the third holder should wait for a free slot');
+  });
+});
+
 // ── Timeout path returns 75 (EX_TEMPFAIL) ─────────────────────────────────────
 test('lock timeout exits 75 (EX_TEMPFAIL) instead of blocking forever', async () => {
   await withTempAsync('pmo-lock-timeout-', async (dir) => {
