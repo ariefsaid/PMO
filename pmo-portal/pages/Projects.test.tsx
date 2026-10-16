@@ -922,9 +922,11 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
   it('RF-009: the optional-column restore control is absent when filters leave no table rows', async () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
     await userEvent.type(screen.getByRole('searchbox', { name: /search projects/i }), 'no matching project');
     expect(screen.getByText('No projects match these filters')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hide empty columns/i })).not.toBeInTheDocument();
   });
 
   it('RF-009: the optional-column restore control is absent when no projects exist', () => {
