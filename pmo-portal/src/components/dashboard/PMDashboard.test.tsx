@@ -5,8 +5,8 @@ import { PMDashboard } from './PMDashboard';
 import { BahasaProvider } from '@/test/bahasa';
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme' },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta' },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
   { id: 'p3', name: 'My Project C', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'Loss Tender', project_manager_id: 'pm-1', client_name: null },
   { id: 'p4', name: 'My Project D', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'On Hold', project_manager_id: 'pm-1', client_name: null },
   { id: 'p5', name: 'My Project E', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'Leads', project_manager_id: 'pm-1', client_name: null },
@@ -206,9 +206,9 @@ describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
     // Only the active one should count.
     projState.data = [
       // Active, 95% utilized → should count
-      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
       // Inactive (Loss Tender), 95% utilized → must NOT count
-      { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
     // Only the active one qualifies — count must be 1, not 2
@@ -217,7 +217,7 @@ describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
 
   it('AC-AT-RISK-INACTIVE: an active project at 95% budget utilization IS counted as at-risk', () => {
     projState.data = [
-      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');

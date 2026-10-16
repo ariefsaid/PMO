@@ -187,6 +187,17 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(closeOutRow).not.toHaveTextContent('At risk');
   });
 
+  it('A2: categoryless committed-PO Actual still qualifies for the projects-list at-risk filter', () => {
+    projectMoneyState.data = {
+      ...projectMoneyState.data,
+      p2: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '95000.00', asOf: null,
+        excludesRestrictedRows: false, complete: true, categories: [] },
+        activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderWithUrl('/projects?filter=at-risk');
+    expect(screen.getByText('At Risk Project')).toBeInTheDocument();
+  });
+
   it('AC-IXD-DASH-W5-C2A-PROJ-2: at-risk filter uses canonical Actual, not stale p.spent', () => {
     renderWithUrl('/projects?filter=at-risk');
     // At risk: p2 (committedSpend/budget = 95%) and p3 (90%) — both active

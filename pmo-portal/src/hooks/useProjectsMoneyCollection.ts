@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { can } from '@/src/auth/policy';
 import { projectMoneyRepository } from '@/src/lib/repositories/projectMoney';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 
@@ -7,6 +8,7 @@ import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 export function useProjectsMoneyCollection(ids: string[]) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const allowed = can('edit', 'budgetLine', { realRole: currentUser?.role ?? null });
   const stableIds = [...new Set(ids)].sort();
   return useQuery({
     queryKey: ['projects-money', orgId, stableIds.join(',')],
@@ -18,7 +20,7 @@ export function useProjectsMoneyCollection(ids: string[]) {
       const results = await Promise.all(chunks.map((chunk) => projectMoneyRepository.collection(chunk)));
       return Object.assign({}, ...results);
     },
-    enabled: Boolean(orgId) && stableIds.length > 0,
+    enabled: Boolean(orgId) && allowed && stableIds.length > 0,
     staleTime: 15_000,
   });
 }

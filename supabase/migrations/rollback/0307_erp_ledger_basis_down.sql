@@ -1,3 +1,4 @@
+-- Roll back 0299 before 0307 because 0299 calls org_reads_erp_ledger().
 -- Restore dashboard functions exactly as installed by 0297, then remove the helper.
 -- 0297_dashboard_money_language.sql
 -- Dashboard Actual follows project finances: ERP-ledger-owned orgs use mapped ledger actuals;

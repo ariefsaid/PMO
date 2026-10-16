@@ -473,6 +473,10 @@ insert into budget_category_account_map (org_id, category, erp_account, is_push_
   -- Mapped but with NO GL rows below -> a REAL, computed zero, which is a DIFFERENT fact from
   -- 'Contingency'/'Subcontractors' (unmapped -> unobtainable/NULL). The seeded screen shows all three.
   ('00000000-0000-0000-0000-000000000001','Permits & Fees','Entertainment Expenses - PSC', true),
+  -- SP-2402's ledger Actual is complete for every budgeted category so the seeded risk signal
+  -- remains valid under DD-MONEY completeness (mapped categories with no rows are known zero).
+  ('00000000-0000-0000-0000-000000000001','Subcontractors','Subcontractor Costs - PSC', true),
+  ('00000000-0000-0000-0000-000000000001','Contingency','Contingency Costs - PSC', true),
   -- #768: Labor's second, READ-ONLY account — its actuals count toward Labor, its budget is never pushed.
   -- No GL rows below, so no seeded figure changes; the account map shows a multi-account category.
   ('00000000-0000-0000-0000-000000000001','Labor','Payroll Allowances - PSC', false)
@@ -503,7 +507,13 @@ values
   -- Synthetic mapped ledger Actual keeps SP-2402 above its Active-budget risk threshold for UXS-013.
   ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
    'Salary - PSC','2026',7000000.00,0,7000000.00, now() - interval '1 day',
-   '5a000000-0000-0000-0000-000000000002')
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Subcontractor Costs - PSC','2026',100000.00,0,100000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Contingency Costs - PSC','2026',100000.00,0,100000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001')
   -- ⚑ NOTE the deliberate absence: 'Entertainment Expenses - PSC' (Permits & Fees) is MAPPED but has no
   -- row here, so its actual is a real, computed 0 — the third state.
 on conflict do nothing;

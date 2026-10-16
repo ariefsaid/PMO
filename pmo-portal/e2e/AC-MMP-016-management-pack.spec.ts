@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely named project + invoice and deletes them; the revenue entitlement is granted by rewriting this page's org_features read, never by mutating the org.
+// @e2e-isolation: self-isolated — creates its own uniquely named project + invoice + progress entry and deletes progress/invoice before project; the revenue entitlement is granted by rewriting this page's org_features read, never by mutating the org.
 /**
  * AC-MMP-016 — Finance runs the monthly management pack: opens it from the rail, picks this month, sees the
  * project's invoiced figure, records 50% progress, sees recognised and unbilled move, and exports a CSV that
@@ -74,6 +74,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     expect(line).toContain(',500000,');
   } finally {
     await admin.from('sales_invoices').delete().eq('id', invoiceId);
+    await admin.from('project_progress_entries').delete().eq('project_id', projectId);
     await admin.from('projects').delete().eq('id', projectId);
   }
 });

@@ -24,6 +24,8 @@ const projects: TopProject[] = [
     budget: 4_700_000,
     spent: 2_100_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
   {
     // 98% utilization → at-risk
@@ -35,6 +37,8 @@ const projects: TopProject[] = [
     budget: 2_000_000,
     spent: 1_960_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
 ];
 

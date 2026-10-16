@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('money completeness and risk consistency', () => {
+  const categories = [
+    { category: 'Labor', mapped: true, amount: '10.00' },
+    { category: 'Materials', mapped: false, amount: null },
+  ];
+
+  it('requires every budgeted ERP category, but PO-basis completeness is successful read', () => {
+    const actuals = { currency: 'IDR', as_of: null, total: '10.00', excludes_restricted_rows: false, categories };
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor', 'Materials'] })).toBe(false);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor'] })).toBe(true);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, categories: [] })).toBe(false);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, coverageCount: 0, coverageTotal: 0 })).toBe(false);
+    expect(isActualComplete({ basis: 'pmo', readSucceeded: true })).toBe(true);
+    expect(isActualComplete({ basis: 'pmo', readSucceeded: false })).toBe(false);
+  });
+
+  it.each([
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'USD', actualComplete: true }, true],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'IDR', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'IDR', spent: 90, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'USD', actualComplete: false }, false],
+    [{ status: 'Ongoing Project', budget: 0, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 0, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Close Out', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 89.99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Won, Pending KoM', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
+    [{ status: 'On Hold', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
+  ] as const)('applies one at-risk truth table', (input, expected) => expect(isMoneyAtRisk(input)).toBe(expected));
+});
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {

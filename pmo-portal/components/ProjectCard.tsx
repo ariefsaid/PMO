@@ -6,9 +6,9 @@ import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
-import { formatExactMoney } from '@/src/lib/projectFinances';
+import { formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { isAtRisk } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
 import ProjectStatusControl from './ProjectStatusControl';
@@ -55,14 +55,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     : projectMoney.hasActiveBudget
       ? formatCurrency(activeBudget!, projectMoney.activeBudgetCurrency ?? currency)
       : t('uxs02.noActiveBudget', 'No active budget');
-  const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency;
-  const hasIncompleteCoverage = projectMoney?.actuals.categories.some((category) => !category.mapped || category.amount == null) ?? false;
-  const actualIsComplete = Boolean(projectMoney && !hasIncompleteCoverage && !projectMoney.actuals.excludesRestrictedRows);
+  const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency
+    && projectMoney?.actuals.currency === project.currency;
+  const actualIsComplete = isActualComplete({ basis: projectMoney?.ledgerBasis ?? (projectMoney ? 'erp' : 'unavailable'),
+    readSucceeded: Boolean(projectMoney), complete: projectMoney?.actuals.complete,
+    categories: projectMoney?.actuals.categories, excludesRestrictedRows: projectMoney?.actuals.excludesRestrictedRows });
   const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
     ? Math.round((actual / activeBudget) * 100)
     : null;
-  const atRisk = actual != null && actualIsComplete && activeBudget != null && budgetCurrencyMatches
-    && isAtRisk({ status: project.status as string, budget: activeBudget, spent: actual });
+  const atRisk = isMoneyAtRisk({ status: project.status as string, budget: activeBudget,
+    budgetCurrency: projectMoney?.activeBudgetCurrency ?? null, projectCurrency: project.currency, spent: actual,
+    actualCurrency: projectMoney?.actuals.currency ?? null, actualComplete: actualIsComplete });
   const budgetUsageUnavailable = !projectMoney || (projectMoney.hasActiveBudget && actual == null)
     ? t('uxs02.unavailable', 'Unavailable')
     : projectMoney.hasActiveBudget && activeBudget === 0
@@ -112,7 +115,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
                 : t('uxs02.freshnessUnavailable', 'Update time unavailable')}
             </dd>
           )}
-          {hasIncompleteCoverage && (
+          {!actualIsComplete && projectMoney?.ledgerBasis === 'erp' && (
             <dd className="text-[11px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</dd>
           )}
           {projectMoney?.actuals.excludesRestrictedRows && (

@@ -14,7 +14,7 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { deriveActualPosition, deriveContractRemainingFromPosition, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
@@ -86,13 +86,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   const budgetUtilPctValue = actualSpend !== null && activeBudget > 0 ? Math.round((actualSpend / activeBudget) * 100) : null;
   // The risk gate consumes complete Actual (DD-MONEY-1) and the Active budget; missing Actuals
   // cannot be promoted to a zero-cost, low-risk result.
-  const budgetUtil = actualSpend !== null && isAtRiskByCommitted({
-    status: project.status as string,
-    budget: activeBudget,
-    committedSpend: actualSpend,
-  })
-    ? budgetUtilPctValue
-    : null;
+  const budgetUtil = isMoneyAtRisk({
+    status: project.status as string, budget: activeBudget,
+    budgetCurrency: projectFinances?.budget?.currency ?? project.currency, projectCurrency: project.currency,
+    spent: actualSpend, actualCurrency: actualPosition.currency,
+    actualComplete: actualPosition.complete,
+  }) ? budgetUtilPctValue : null;
 
   // D15: finance summary tile data (only computed when showFinanceSummary is true).
   const contractAfterCost = actualPosition.complete

@@ -12,6 +12,7 @@ export interface ProjectMoneyActuals {
   total: string | null;
   asOf: string | null;
   excludesRestrictedRows: boolean;
+  complete?: boolean;
   categories: ProjectMoneyCategory[];
 }
 
@@ -38,6 +39,7 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
       total?: string | null;
       as_of?: string | null;
       excludes_restricted_rows?: boolean | null;
+      complete?: boolean | null;
       categories?: Array<{ category: string; mapped: boolean; amount: string | null }> | null;
     } | null;
     active_budget_amount: string | null;
@@ -52,6 +54,7 @@ export async function getProjectsMoneyCollection(ids: string[]): Promise<Record<
         total: row.actuals.total ?? null,
         asOf: row.actuals.as_of ?? null,
         excludesRestrictedRows: row.actuals.excludes_restricted_rows ?? false,
+        complete: row.actuals.complete ?? false,
         categories: (row.actuals.categories ?? []).map((category) => ({
           category: category.category,
           mapped: category.mapped,

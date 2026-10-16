@@ -48,7 +48,7 @@ import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollecti
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
-import { deriveActualPosition, formatExactMoney } from '@/src/lib/projectFinances';
+import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -59,7 +59,7 @@ import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { isAtRisk } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 
 /**
@@ -175,11 +175,12 @@ const Projects: React.FC = () => {
       const money = projectMoney?.[p.id];
       const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
       const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-      const completeCoverage = Boolean(money && money.actuals.categories.length > 0
-        && money.actuals.categories.every((category) => category.mapped && category.amount != null)
-        && !money.actuals.excludesRestrictedRows);
-      if (!money || actual == null || !completeCoverage || budget == null || money.activeBudgetCurrency !== money.actuals.currency) return false;
-      return isAtRisk({ status: p.status as string, budget, spent: actual });
+      if (!money || actual == null || budget == null) return false;
+      return isMoneyAtRisk({ status: p.status as string, budget,
+        budgetCurrency: money.activeBudgetCurrency, projectCurrency: p.currency,
+        spent: actual, actualCurrency: money.actuals.currency,
+        actualComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }) });
     },
     [projectMoney],
   );
@@ -690,12 +691,11 @@ const Projects: React.FC = () => {
         if (actual == null) {
           return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        if (money.activeBudgetCurrency !== money.actuals.currency) {
+        if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
           return <span className="text-[11px] text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
         }
-        const completeCoverage = money.actuals.categories.length > 0
-          && money.actuals.categories.every((category) => category.mapped && category.amount != null)
-          && !money.actuals.excludesRestrictedRows;
+        const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
         if (!completeCoverage) {
           return <span className="text-[11px] text-muted-foreground">{money.actuals.excludesRestrictedRows
             ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')
