@@ -3309,6 +3309,9 @@
       "mainContent": "Skip to main content"
     }
   },
+  "uxs25": {
+    "approvalsCountSuffix": "{{count}} pending"
+  },
   "table": {
     "actions": "Actions",
     "openRow": "Open {{name}}",

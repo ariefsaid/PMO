@@ -3309,6 +3309,9 @@
       "mainContent": "Langsung ke konten utama"
     }
   },
+  "uxs25": {
+    "approvalsCountSuffix": "{{count}} persetujuan menunggu"
+  },
   "table": {
     "actions": "Tindakan",
     "openRow": "Buka {{name}}",
