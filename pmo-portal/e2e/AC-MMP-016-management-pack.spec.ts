@@ -35,8 +35,11 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     tax_amount: 0, status: 'Unpaid', invoice_date: `${ym}-15`,
   });
   if (iErr) throw new Error(`seed invoice failed: ${iErr.message}`);
-
   try {
+    const { error: progressErr } = await admin.from('project_progress_entries').insert({
+      project_id: projectId, month: `${ym}-01`, pct_complete: 25, note: 'Synthetic progress-basis fixture',
+    });
+    if (progressErr) throw new Error(`seed progress failed: ${progressErr.message}`);
     await page.route('**/rest/v1/org_features*', async (route) => {
       const response = await route.fetch();
       if (!response.ok()) {

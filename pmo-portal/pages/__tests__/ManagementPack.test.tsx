@@ -58,19 +58,37 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
   });
 
-  it('AC-MMP-012: Executive sees the pack; Finance may record progress on every project', () => {
+  it('AC-MMP-012: only open projects already on progress basis offer progress editing', () => {
+    const progressFacts = {
+      ...facts,
+      projects: [
+        project('p1', 'Alpha', 'u-pm'),
+        { ...project('p2', 'Beta', 'u-other'), status: 'Close Out' },
+        project('p3', 'Gamma', 'u-other'),
+      ],
+      progress: [
+        { project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' },
+        { project_id: 'p2', month: '2026-03-01', pct_complete: 80, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' },
+      ],
+    };
     h.role = 'Executive';
+    h.query.data = buildManagementPack(progressFacts);
     const { unmount } = renderPage();
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     unmount();
     h.role = 'Finance';
     renderPage();
-    expect(screen.getAllByRole('button', { name: 'Record progress' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Record progress' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Record progress' }).closest('tr')).toHaveTextContent('Alpha');
   });
 
-  it('AC-MMP-012: a PM may record progress only on the project they manage', () => {
+  it('AC-MMP-012: a PM may record progress only on the open project they manage', () => {
     h.role = 'Project Manager';
     h.userId = 'u-pm';
+    h.query.data = buildManagementPack({
+      ...facts,
+      progress: [{ project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' }],
+    });
     renderPage();
     const buttons = screen.getAllByRole('button', { name: 'Record progress' });
     expect(buttons).toHaveLength(1);
@@ -104,6 +122,26 @@ describe('AC-MMP-013 honest states', () => {
     h.query = { data: buildManagementPack({ ...facts, projects: [], invoiced: [] }), isPending: false, isError: false, error: null, refetch: vi.fn() };
     renderPage();
     expect(screen.getByText('No projects to report')).toBeInTheDocument();
+  });
+});
+
+describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
+  it('RF-035: separates cumulative through-date figures from selected-period rows', () => {
+    renderPage();
+    expect(screen.getByText('Cumulative amounts · since project start through Apr 26')).toBeInTheDocument();
+    expect(screen.getByText('Monthly figures · selected period Mar 26–Apr 26')).toBeInTheDocument();
+  });
+
+  it('RF-036: labels contract-currency backlog and subtotal unavailable pending reconciliation', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    renderPage();
+    const unavailable = screen.getAllByText('Unavailable');
+    expect(unavailable.length).toBeGreaterThanOrEqual(2);
+    expect(unavailable[0]).toHaveAttribute('title',
+      'A foreign-currency invoice needs reconciliation before this balance can be known.');
   });
 });
 

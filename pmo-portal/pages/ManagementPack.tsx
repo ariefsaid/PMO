@@ -18,11 +18,11 @@ import { monthInputToIso } from '@/src/lib/reports/months';
 import { formatCurrencyAuto, formatCurrencyCents, formatUtcMonthYear } from '@/src/lib/format';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
-type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled';
+type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled' | 'backlog';
 type TotalsRow = PackTotalsMonth & { currency: string };
 
 const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'];
-const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled'];
+const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 const money = (cents: number | null, currency: string) =>
   cents === null ? '—' : formatCurrencyCents(fromCents(cents), currency);
@@ -116,6 +116,8 @@ const ManagementPack: React.FC = () => {
 
   const canRecord = (row: PackRow) =>
     row.kind === 'contract' &&
+    !!row.latestProgress &&
+    ['Won, Pending KoM', 'Ongoing Project', 'On Hold'].includes(row.projectStatus ?? '') &&
     !!row.projectId &&
     may('edit', 'projectProgress', { currentUserId: currentUser?.id ?? null, record: { project_manager_id: row.projectManagerId } });
 
@@ -123,8 +125,10 @@ const ManagementPack: React.FC = () => {
     const m = at(row);
     const value = m ? m[key] : null;
     return (
-      <span data-testid={`pack-cell-${key}`} className="tabular text-right font-mono text-[13px]">
-        {money(value, row.currency)}
+      <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
+        {key === 'backlog' && row.kind === 'contract' && value === null ? (
+          <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+        ) : money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-xs text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}
@@ -162,7 +166,7 @@ const ManagementPack: React.FC = () => {
       header: t('managementPack.col.contract', 'Contract'),
       align: 'num',
       cell: (row) => (
-        <span data-testid="pack-cell-contract" className="tabular text-right font-mono text-[13px]">
+        <span data-testid="pack-cell-contract" className="tabular text-right text-[13px]">
           {money(row.contractNet, row.currency)}
         </span>
       ),
@@ -202,7 +206,13 @@ const ManagementPack: React.FC = () => {
       key: k,
       header: label[k],
       align: 'num',
-      cell: (r) => <span className="tabular text-right font-mono text-[13px]">{money(r[k], r.currency)}</span>,
+      cell: (r) => (
+        <span className="tabular text-right text-[13px]">
+          {k === 'backlog' && r.backlog === null
+            ? <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+            : money(r[k], r.currency)}
+        </span>
+      ),
     })),
   ];
 
@@ -249,13 +259,20 @@ const ManagementPack: React.FC = () => {
           ))}
         </div>
       )}
+      {pack && state === undefined && (
+        <p className="mb-3 text-sm text-muted-foreground">
+          {t('uxs34.cumulativeScope', 'Cumulative amounts · since project start through {{month}}', { month: monthLabel(pack.to) })}
+        </p>
+      )}
       {pack && state === undefined && pack.totals.map((tot) => {
         const m = tot.months[tot.months.length - 1];
         return (
           <div key={tot.currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
             {KPI_MEASURES.map((k) => (
               <KPITile key={k} label={`${label[k]} · ${tot.currency}`}
-                value={formatCurrencyAuto(fromCents(m[k]), tot.currency)} icon="dollar" tone="blue" />
+                value={m[k] === null ? '—' : formatCurrencyAuto(fromCents(m[k]), tot.currency)} icon="dollar" tone="blue"
+                help={k === 'backlog' && m[k] === null ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.') : undefined}
+                helpLabel={k === 'backlog' && m[k] === null ? t('uxs34.backlogUnavailable', 'Unavailable') : undefined} />
             ))}
           </div>
         );
@@ -292,7 +309,15 @@ const ManagementPack: React.FC = () => {
           <Card className="overflow-hidden mb-6">
             <DataTable rows={pack.rows} columns={columns} rowKey={(row) => row.key} />
           </Card>
-          <h2 className="mb-2 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
+          <h2 className="mb-1 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
+          <p className="mb-2 text-sm text-muted-foreground">
+            {t('uxs34.monthlyScope', 'Monthly figures · selected period {{from}}–{{to}}', {
+              from: monthLabel(pack.from), to: monthLabel(pack.to),
+            })}
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            {t('uxs34.currencyScope', 'Currencies with no activity, contract, or meaningful balance in this range are omitted.')}
+          </p>
           <Card className="overflow-hidden">
             <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} />
           </Card>

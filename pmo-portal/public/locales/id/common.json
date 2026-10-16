@@ -4303,6 +4303,13 @@
       "saved": "Progres disimpan"
     }
   },
+  "uxs34": {
+    "cumulativeScope": "Jumlah kumulatif · sejak awal proyek hingga {{month}}",
+    "monthlyScope": "Angka bulanan · periode terpilih {{from}}–{{to}}",
+    "currencyScope": "Mata uang tanpa aktivitas, kontrak, atau saldo bermakna dalam rentang ini tidak ditampilkan.",
+    "backlogUnavailable": "Belum tersedia",
+    "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
+  },
   "comments": {
     "title": "Komentar",
     "empty": "Belum ada komentar.",

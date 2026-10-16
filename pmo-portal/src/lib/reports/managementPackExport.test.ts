@@ -52,6 +52,17 @@ describe('AC-MMP-011 management pack export', () => {
     expect(table.body[3][col('Project')]).toBe('Unassigned');
   });
 
+  it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {
+    const packWithForeignBilling = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 5, invoice_count: 1 }],
+    });
+    const exported = buildManagementPackExport(packWithForeignBilling, labels);
+    const backlog = exported.header.indexOf('Backlog');
+    expect(exported.body[0][backlog]).toBe('');
+    expect(exported.body[1][backlog]).toBe('');
+  });
+
   it('AC-MMP-011: the file name carries the as-at month', () => {
     expect(managementPackFileStem(pack)).toBe('Management-pack_2026-02');
   });

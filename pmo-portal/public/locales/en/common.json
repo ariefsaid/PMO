@@ -4303,6 +4303,13 @@
       "saved": "Progress saved"
     }
   },
+  "uxs34": {
+    "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
+    "monthlyScope": "Monthly figures · selected period {{from}}–{{to}}",
+    "currencyScope": "Currencies with no activity, contract, or meaningful balance in this range are omitted.",
+    "backlogUnavailable": "Unavailable",
+    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
+  },
   "comments": {
     "title": "Comments",
     "empty": "No comments yet.",
