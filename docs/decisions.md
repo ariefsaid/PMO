@@ -2950,6 +2950,10 @@ unknown is never zero (PRODUCT.md).
   read that one figure. The never-written `projects.spent` and `budget_line_items.actual_amount` are no longer
   read. This ends `OD-BUDGET-2`'s interim "reads 0 before the procurement module" for ERP-run orgs; its
   committed basis still defines **Committed**.
+  *Clarified 2026-10-16 (Director):* "reads its ledger from ERPNext" means the org has an **active ERPNext
+  binding** (`external_org_bindings`, tier `erpnext`, status `active`), read through one server helper that
+  every surface uses. It is not a domain-ownership row: no `ledger::gl_entries` domain is ever assigned, so
+  keying on one silently sent every org, ERP-run ones included, to the committed-PO basis.
 - **DD-MONEY-2 — margin means profit.** "Margin" is billed-work revenue less Actual (FR-PFIN-017).
   `OD-MARGIN-1`'s on-hand lens keeps its formula fed by DD-MONEY-1's Actual, but it's labelled as contract
   remaining after cost so far, never "realized margin", because early in a project it isn't profit.
