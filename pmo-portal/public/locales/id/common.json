@@ -4645,7 +4645,17 @@
     "receivedDateSummary": "Penerimaan oleh klien tercatat pada {{date}}.",
     "manualHandoffHelp": "Unduh PDF yang telah disetujui, lalu kirimkan kepada klien di luar PMO. Mengunduh bukan berarti faktur sudah dikirim.",
     "preparingPdf": "Menyiapkan PDF…",
-    "downloadApprovedPdf": "Unduh PDF yang disetujui"
+    "downloadApprovedPdf": "Unduh PDF yang disetujui",
+    "collectionSummary": "Rincian penagihan faktur",
+    "invoiceDate": "Tanggal faktur",
+    "dueDate": "Tanggal jatuh tempo",
+    "dateNotRecorded": "Belum dicatat",
+    "dueDateUnavailable": "Tanggal jatuh tempo tidak tersedia",
+    "status": "Status",
+    "collection": "Penagihan",
+    "outstandingUnavailable": "Jumlah terutang tidak tersedia",
+    "overdue": "Terlambat",
+    "daysOverdue": "Terlambat {{count}} hari"
   },
   "uxs06": {
     "statusReceived": "Diterima",

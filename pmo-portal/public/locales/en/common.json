@@ -4645,7 +4645,17 @@
     "receivedDateSummary": "Client receipt was recorded for {{date}}.",
     "manualHandoffHelp": "Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.",
     "preparingPdf": "Preparing PDF…",
-    "downloadApprovedPdf": "Download approved PDF"
+    "downloadApprovedPdf": "Download approved PDF",
+    "collectionSummary": "Invoice collection details",
+    "invoiceDate": "Invoice date",
+    "dueDate": "Due date",
+    "dateNotRecorded": "Not recorded",
+    "dueDateUnavailable": "Due date not available",
+    "status": "Status",
+    "collection": "Collection",
+    "outstandingUnavailable": "Outstanding amount not available",
+    "overdue": "Overdue",
+    "daysOverdue": "{{count}} days overdue"
   },
   "uxs06": {
     "statusReceived": "Received",

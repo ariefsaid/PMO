@@ -362,6 +362,49 @@ const SalesInvoices: React.FC = () => {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
             </header>
+            <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
+                  <dd className="mt-1 text-sm">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
+                  <dd className="mt-1 text-sm">
+                    {(() => {
+                      const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
+                      return dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available');
+                    })()}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
+                  <dd className="mt-1">
+                    {isPartlyPaid(viewTarget)
+                      ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+                      : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.collection', 'Collection')}</dt>
+                  <dd className="mt-1 text-sm tabular">
+                    {viewTarget.erp_outstanding_amount == null
+                      ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
+                      : formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                  </dd>
+                </div>
+                {(() => {
+                  const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
+                  const overdueDays = overdueAgeDays(dueDate, organizationToday);
+                  return overdueDays != null && overdueDays > 0 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') ? (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
+                      <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
+                    </div>
+                  ) : null;
+                })()}
+              </dl>
+            </section>
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>

@@ -258,6 +258,35 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
   });
 
+  it('RF-024 shows invoice dates, status, overdue age, outstanding and customer context on the detail record', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
+      invoice_date: '2026-07-01', erp_payment_terms_days: 30, erp_due_date: null,
+      erp_outstanding_amount: 5000,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByText('Invoice date')).toBeInTheDocument();
+    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Due date')).toBeInTheDocument();
+    expect(screen.getByText('Jul 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('77 days overdue')).toBeInTheDocument();
+    expect(screen.getByText('Partly paid')).toBeInTheDocument();
+    expect(screen.getByText('Acme Energy')).toBeInTheDocument();
+    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+  });
+
+  it('RF-024 does not turn an unknown due date or outstanding amount into zero', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
+      invoice_date: null, erp_payment_terms_days: null, erp_due_date: null,
+      erp_outstanding_amount: null,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByText('Due date not available')).toBeInTheDocument();
+    expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+  });
+
   it('UX-053 offers the approved PDF as a manual handoff and keeps delivery separate from receipt', () => {
     salesInvoicesState.data[0] = {
       ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1,

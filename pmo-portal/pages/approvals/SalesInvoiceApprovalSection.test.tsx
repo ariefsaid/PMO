@@ -10,6 +10,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const h = vi.hoisted(() => ({
   data: [] as unknown[],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }],
   isError: false,
   isPending: false,
   enabled: [] as boolean[],
@@ -39,7 +40,7 @@ vi.mock('@/src/auth/usePermission', async (importOriginal) => {
   };
 });
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useInvoiceProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }] }),
+  useInvoiceProjectOptions: () => ({ data: h.projectOptions }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({
   useAssignableProfiles: () => ({ data: [{ id: 'u-fin1', full_name: 'Fina Author' }] }),
@@ -49,6 +50,7 @@ vi.mock('@/src/hooks/useCommandIntent', () => ({
 }));
 
 import { SalesInvoiceApprovalSection } from './SalesInvoiceApprovalSection';
+import { SalesInvoiceApprovalPreview } from './SalesInvoiceApprovalRow';
 import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
 import { MemoryRouter } from 'react-router';
 import { within } from '@testing-library/react';
@@ -87,6 +89,7 @@ beforeEach(() => {
   h.userId = 'u-fin2';
   h.route = 'pmo';
   h.deny = [];
+  h.projectOptions[0].label = 'Alpha Platform';
 });
 
 const region = () => screen.getByRole('region', { name: 'Customer invoices awaiting you' });
@@ -95,6 +98,35 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
+  it('RF-028 keeps the full project identity readable in invoice evidence', () => {
+    const projectName = 'North Coast Materials Recovery and Logistics Programme';
+    h.projectOptions[0].label = projectName;
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceApprovalPreview inv={draft({ pmo_native: false })} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    const projectLink = screen.getByRole('link', { name: `Open ${projectName}` });
+    expect(projectLink).toHaveTextContent(projectName);
+    expect(projectLink.parentElement).toHaveAttribute('title', projectName);
+  });
+
+  it('RF-026 omits PMO-only author and customer-order facts for an ERP-origin invoice', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceApprovalPreview inv={draft({ pmo_native: false, reference_number: null, native_lines: null })} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.queryByText('Raised by')).not.toBeInTheDocument();
+    expect(screen.queryByText('Customer PO')).not.toBeInTheDocument();
+    expect(screen.getByText('Line items are kept in ERPNext for this invoice.')).toBeInTheDocument();
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.queryByText(/DPP|rate not recorded/i)).not.toBeInTheDocument();
+  });
   it('shows loading instead of hiding the section while invoices are pending', () => {
     h.isPending = true;
     renderSection();
