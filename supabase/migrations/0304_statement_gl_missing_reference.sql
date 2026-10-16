@@ -44,17 +44,29 @@ language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-declare deleted_count integer;
+declare
+  deleted_count integer;
+  bound_company text;
 begin
   if p_org_id is null or p_company is null or btrim(p_company) = ''
-     or p_replay_id is null or p_watermark is null or p_watermark = '' then
+     or p_replay_id is null or (p_watermark is not null and p_watermark = '') then
     raise exception 'invalid complete GL replay finish' using errcode = '22023';
   end if;
 
+  -- Serialize with binding changes so an obsolete company replay cannot clear the next replay flag.
+  select config ->> 'company' into bound_company
+    from public.external_org_bindings
+   where org_id = p_org_id and external_tier = 'erpnext'
+   for update;
+  if not found or bound_company is distinct from p_company then
+    return jsonb_build_object('deleted', 0, 'replay_id', p_replay_id, 'stale_binding', true);
+  end if;
+
+  -- Retire legacy NULL and old-company rows only when a complete replay of the current binding ends.
   delete from public.erp_gl_entry_mirror
    where org_id = p_org_id
-     and company = p_company
-     and replay_seen_id is distinct from p_replay_id;
+     and (company is distinct from p_company
+          or (company = p_company and replay_seen_id is distinct from p_replay_id));
   get diagnostics deleted_count = row_count;
 
   update public.erp_gl_entry_mirror
@@ -63,15 +75,17 @@ begin
      and company = p_company
      and replay_seen_id = p_replay_id;
 
-  insert into public.external_sync_watermarks (org_id, external_tier, domain, watermark_cursor)
-  values (p_org_id, 'erpnext', 'ledger::GL Entry', p_watermark)
-  on conflict (org_id, external_tier, domain) do update
-    set watermark_cursor = excluded.watermark_cursor
-    where public.external_sync_watermarks.watermark_cursor < excluded.watermark_cursor;
+  if p_watermark is not null then
+    insert into public.external_sync_watermarks (org_id, external_tier, domain, watermark_cursor)
+    values (p_org_id, 'erpnext', 'ledger::GL Entry', p_watermark)
+    on conflict (org_id, external_tier, domain) do update
+      set watermark_cursor = excluded.watermark_cursor
+      where public.external_sync_watermarks.watermark_cursor < excluded.watermark_cursor;
+  end if;
 
   update public.external_org_bindings
      set statement_full_ledger_replay_needed = false
-   where org_id = p_org_id and external_tier = 'erpnext';
+   where org_id = p_org_id and external_tier = 'erpnext' and config ->> 'company' = p_company;
 
   return jsonb_build_object('deleted', deleted_count, 'replay_id', p_replay_id);
 end;
