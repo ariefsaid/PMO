@@ -12,7 +12,7 @@ import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
-const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => ({
+const { projectsState, myTasksState, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -25,6 +25,7 @@ const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => (
     'p-safe': { deliveryPct: 50, committedSpend: 40_000, budget: 80_000 },
     'p-zero': { deliveryPct: null, committedSpend: 0, budget: 0 },
   },
+  projectMoneyState: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -53,6 +54,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -121,6 +123,13 @@ beforeEach(() => {
   projectsState.isPending = false;
   projectsState.isError = false;
   myTasksState.data = [];
+  projectMoneyState.isPending = false;
+  projectMoneyState.isError = false;
+  projectMoneyState.data = {
+    'p-risk': { actuals: { currency: 'USD', total: '95000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] }, activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    'p-safe': { actuals: { currency: 'USD', total: '40000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '40000.00' }] }, activeBudgetAmount: '80000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    'p-zero': { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+  };
 });
 
 describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => {
@@ -128,9 +137,9 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
     // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
-    const budgetBar = within(row).getByRole('progressbar', { name: 'Budget used 95%' });
-    expect(budgetBar).toHaveAttribute('aria-label', 'Budget used 95%');
-    expect(within(row).getByText('$95.0K of $100.0K budget')).toBeInTheDocument();
+    const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget' });
+    expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget');
+    expect(within(row).getByText('$95.0K of $100.0K Active budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
@@ -149,9 +158,9 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('Safe Project').closest('tr')!;
     // Seek by aria-label — robust to column count (a rowMenu column was added)
-    const budgetBar = within(row).getByRole('progressbar', { name: 'Budget used 50%' });
-    expect(budgetBar).toHaveAttribute('aria-label', 'Budget used 50%');
-    expect(within(row).getByText('$40.0K of $80.0K budget')).toBeInTheDocument();
+    const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget' });
+    expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget');
+    expect(within(row).getByText('$40.0K of $80.0K Active budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {
@@ -159,11 +168,8 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const row = screen.getByText('Zero Budget Project').closest('tr')!;
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
-    // Zero budget → muted dash; no budget progressbar label in this row
-    expect(within(row).queryByRole('progressbar', { name: /Budget used/i })).toBeNull();
-    // The row can carry more than one em-dash now that the table has an optional End customer
-    // column — assert the dash exists (and not a false "$0 of $0 budget").
-    expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
-    expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
+    // A known zero Active budget is not confused with an absent budget.
+    expect(within(row).queryByRole('progressbar', { name: /Active budget/i })).toBeNull();
+    expect(within(row).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
   });
 });

@@ -95,7 +95,22 @@
     "receivableHelp": "Choose the account used to record customer invoices for this company.",
     "domainHelp": "The connected service will maintain this type of business information. Review existing records and access before continuing.",
     "domainField": "Business information"
-  },
+  },,
+  "uxs02": {
+    "unavailable": "Unavailable",
+    "activeBudget": "Active budget",
+    "noActiveBudget": "No active budget",
+    "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
+    "updated": "Updated {{date}}",
+    "freshnessUnavailable": "Update time unavailable",
+    "riskUnavailableTitle": "Couldn't check project budget risk",
+    "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
+    "incompleteCoverage": "Incomplete source coverage",
+    "restrictedRowsExcluded": "Restricted rows excluded",
+    "budgetUsed": "{{percent}}% of Active budget",
+    "budgetSummary": "{{actual}} of {{budget}} Active budget",
+    "currencyMismatch": "Budget currency differs from Actual",
+    "atRisk": "At risk"  },
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
@@ -3057,7 +3072,6 @@
       "progress": "Progress",
       "project": "Project",
       "status": "Status",
-      "committed": "Committed",
       "endCustomer": "End customer",
       "endCustomerShort": "End"
     },
@@ -3071,7 +3085,7 @@
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",
       "noMatchTitle": "No projects match these filters",
-      "nothingAtRiskSub": "Every active project is under 90% budget — nothing needs attention right now.",
+      "nothingAtRiskSub": "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
       "nothingAtRiskTitle": "Nothing at risk"
     },
     "filters": {
@@ -3142,10 +3156,6 @@
     "card": {
       "delivery": "Delivery",
       "deliveryPercent": "Delivery {{percent}}%",
-      "budgetUsedPercent": "Budget used {{percent}}%",
-      "budgetSummary": "{{spent}} of {{budget}} budget",
-      "committedPercent": "Committed: {{percent}}% of contract",
-      "actualPercent": "Actual spend: {{percent}}% of contract",
       "editProject": "Edit {{name}}"
     },
     "kanban": {

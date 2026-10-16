@@ -12,7 +12,7 @@ import React from 'react';
 
 // ─── Shared mocks (hoisted so vi.mock factories can reference them) ─────────
 
-const { projState, tsState, deliverySummaryState } = vi.hoisted(() => ({
+const { projState, tsState, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
   projState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: false,
@@ -31,6 +31,7 @@ const { projState, tsState, deliverySummaryState } = vi.hoisted(() => ({
     pl3: { deliveryPct: 50, committedSpend: 150_000, budget: 300_000 },
     pl4: { deliveryPct: 92, committedSpend: 555_000, budget: 600_000 },
   },
+  projectMoneyState: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -84,6 +85,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimesheets', () => ({
   useTimesheets: () => tsState,
@@ -228,6 +230,13 @@ const projectListFixtures = [
   },
 ];
 
+const setProjectMoney = (projects: Array<{ id: string; spent: number; budget: number }>) => {
+  projectMoneyState.data = Object.fromEntries(projects.map((project) => [project.id, {
+    actuals: { currency: 'USD', total: `${project.spent}.00`, asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: `${project.spent}.00` }] },
+    activeBudgetAmount: `${project.budget}.00`, activeBudgetCurrency: 'USD', hasActiveBudget: true,
+  }]));
+};
+
 const renderProjectsPage = (url = '/projects') =>
   render(
     <ImpersonationProvider realRole="Project Manager">
@@ -246,6 +255,7 @@ describe('AC-IXD-DASH-W5-C2C — Projects list: at-risk rows sort to top in All 
     projState.data = projectListFixtures;
     projState.isPending = false;
     projState.isError = false;
+    setProjectMoney(projectListFixtures);
   });
 
   it('C2C-LIST-1: at-risk rows appear before safe rows in the "All" view', () => {
@@ -292,6 +302,7 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     projState.data = projectListFixtures;
     projState.isPending = false;
     projState.isError = false;
+    setProjectMoney(projectListFixtures);
   });
 
   it('C2C-I3-1: at-risk row shows budget utilization % in the Budget used column', () => {
@@ -302,10 +313,10 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     // Locate the Budget-used cell via its progressbar (robust to the rowMenu
     // column PJ added, which shifts positional cell indices).
     const budgetUsedCell = within(atRiskRow!)
-      .getByRole('progressbar', { name: /budget used/i })
+      .getByRole('progressbar', { name: /of Active budget/i })
       .closest('td,[role="cell"]') as HTMLElement;
     expect(budgetUsedCell).toHaveTextContent('95%');
-    expect(budgetUsedCell).toHaveTextContent('$475.0K of $500.0K budget');
+    expect(budgetUsedCell).toHaveTextContent('$475.0K of $500.0K Active budget');
   });
 
   it('C2C-I3-2: the at-risk pill in the project cell is text+dot (not color-only) — a11y', () => {

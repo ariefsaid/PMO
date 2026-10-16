@@ -44,9 +44,11 @@ import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet
 import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
+import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatExactMoney } from '@/src/lib/projectFinances';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
@@ -56,7 +58,7 @@ import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { isAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 
 /**
@@ -72,7 +74,7 @@ const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, Pro
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 const Projects: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -163,21 +165,22 @@ const Projects: React.FC = () => {
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
   const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
+  const { data: projectMoney, isPending: moneyPending, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
 
-  // I6: committed-spend-based at-risk (not stale p.spent/p.budget). Derives from the SAME
-  // committed-spend summary used in the Budget used column, and routes through the shared
-  // canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
-  const isAtRiskCommitted = React.useCallback(
+  // Financial risk uses the canonical mapped Actual over an explicit Active budget.
+  // Missing snapshots/budgets stay unknown and cannot become zero-based risk signals.
+  const isAtRiskActual = React.useCallback(
     (p: ProjectWithRefs) => {
-      const summary = deliverySummary?.[p.id];
-      if (!summary) return false;
-      return isAtRiskByCommitted({
-        status: p.status as string,
-        budget: summary.budget,
-        committedSpend: summary.committedSpend,
-      });
+      const money = projectMoney?.[p.id];
+      const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
+      const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
+      const completeCoverage = Boolean(money && money.actuals.categories.length > 0
+        && money.actuals.categories.every((category) => category.mapped && category.amount != null)
+        && !money.actuals.excludesRestrictedRows);
+      if (!money || actual == null || !completeCoverage || budget == null || money.activeBudgetCurrency !== money.actuals.currency) return false;
+      return isAtRisk({ status: p.status as string, budget, spent: actual });
     },
-    [deliverySummary],
+    [projectMoney],
   );
 
   const filtered = useMemo(() => {
@@ -194,9 +197,8 @@ const Projects: React.FC = () => {
             return ONGOING.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
-          // I6: at-risk now uses committed-spend from delivery summary, not stale p.spent.
           case 'at-risk':
-            return isAtRiskCommitted(p);
+            return isAtRiskActual(p);
           default:
             return true;
         }
@@ -227,8 +229,8 @@ const Projects: React.FC = () => {
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+    return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
+  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -407,7 +409,7 @@ const Projects: React.FC = () => {
       colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
       exportValue: (p) => p.name,
       cell: (p) => {
-        const atRisk = isAtRiskCommitted(p);
+        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <span
@@ -595,15 +597,34 @@ const Projects: React.FC = () => {
       header: t('projects.columns.actual', 'Actual'),
       colClassName: 'min-[1280px]:w-[94px] min-[1280px]:max-w-[94px]',
       align: 'num',
-      // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
-      // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
+      // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
-        const actualSpend = deliverySummary?.[p.id]?.committedSpend;
-        if (deliveryPending || actualSpend == null) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        const money = projectMoney?.[p.id];
+        const actual = money?.actuals.total;
+        if (moneyError || !money) {
+          return <span className="text-[12px] text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        return <span className="text-muted-foreground">{formatCurrency(actualSpend, p.currency)}</span>;
+        const incomplete = money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+        if (actual == null) {
+          return (
+            <div className="flex flex-col gap-0.5 text-right">
+              <span className="text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>
+              {incomplete && <span className="text-[10px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+              {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
+            </div>
+          );
+        }
+        return (
+          <div className="flex flex-col gap-0.5 text-right">
+            <span className="text-muted-foreground">{formatExactMoney(actual, money.actuals.currency || p.currency, i18n.language) ?? t('uxs02.unavailable', 'Unavailable')}</span>
+            <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
+              ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
+              : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>
+            {incomplete && <span className="text-[10px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+            {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
+          </div>
+        );
       },
     },
     {
@@ -637,27 +658,41 @@ const Projects: React.FC = () => {
       header: t('projects.columns.budgetUsed', 'Budget used'),
       colClassName: 'min-[1280px]:w-[116px] min-[1280px]:max-w-[116px]',
       cell: (p) => {
-        // I7: defer while delivery summary is loading to prevent flash of $0/$0.
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
-        if (deliveryPending) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        const money = projectMoney?.[p.id];
+        const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
+        const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
+        if (moneyError || !money) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        const summary = deliverySummary?.[p.id];
-        // If no summary or no budget, show a muted dash instead of misleading "$0 of $0 budget".
-        if (!summary || summary.budget <= 0) {
-          return <span className="text-[12px] text-muted-foreground">—</span>;
+        if (!money.hasActiveBudget || activeBudget == null) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.noActiveBudget', 'No active budget')}</span>;
         }
-        const budgetUsedPct = Math.round((summary.committedSpend / summary.budget) * 100);
+        if (activeBudget === 0) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}</span>;
+        }
+        if (actual == null) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
+        }
+        if (money.activeBudgetCurrency !== money.actuals.currency) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
+        }
+        const completeCoverage = money.actuals.categories.length > 0
+          && money.actuals.categories.every((category) => category.mapped && category.amount != null)
+          && !money.actuals.excludesRestrictedRows;
+        if (!completeCoverage) {
+          return <span className="text-[11px] text-muted-foreground">{money.actuals.excludesRestrictedRows
+            ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')
+            : t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>;
+        }
+        const percent = Math.round((actual / activeBudget) * 100);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
-            {/* ⚑ Not extracted — embeds two values. This is the one that MOST wants a key
-                (Indonesian will not keep "X of Y budget" word order), and it is exactly the
-                DD-I18N-7 shape: format the money first, interpolate the finished strings. It
-                stays English until `t()` interpolation is safe under the unit suite. */}
-            <div className="max-w-[120px] whitespace-normal text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
+            <ProgressBar value={percent} showValue compact tone={percent >= 90 ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+            <div className="max-w-[120px] whitespace-normal text-[10px] text-muted-foreground">
+              {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual, money.actuals.currency || p.currency), budget: formatCompactCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}
             </div>
+            {percent >= 90 && <span className="text-[10px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
           </div>
         );
       },
@@ -1168,7 +1203,16 @@ const Projects: React.FC = () => {
       }
     >
       {/* Body */}
-      {view === 'kanban' ? (
+      {filter === 'at-risk' && moneyPending ? (
+        <ListState variant="loading" rows={3} />
+      ) : filter === 'at-risk' && moneyError ? (
+        <ListState
+          variant="error"
+          title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
+          sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
+          onRetry={() => void refetchMoney()}
+        />
+      ) : view === 'kanban' ? (
         <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
@@ -1201,7 +1245,7 @@ const Projects: React.FC = () => {
               filter === 'at-risk'
                 ? t(
                     'projects.empty.nothingAtRiskSub',
-                    'Every active project is under 90% budget — nothing needs attention right now.',
+                    "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
                   )
                 : filtersActive
                   ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
@@ -1231,7 +1275,7 @@ const Projects: React.FC = () => {
             filter === 'at-risk'
               ? t(
                   'projects.empty.nothingAtRiskSub',
-                  'Every active project is under 90% budget — nothing needs attention right now.',
+                  "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
                 )
               : filtersActive
                 ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
@@ -1256,6 +1300,7 @@ const Projects: React.FC = () => {
               project={p}
               onOpen={(proj) => onOpen(proj, 'card')}
               deliverySummary={deliverySummary?.[p.id]}
+              projectMoney={projectMoney?.[p.id]}
               onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
             />
           ))}

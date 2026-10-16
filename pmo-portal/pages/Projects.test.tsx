@@ -48,7 +48,7 @@ const seedWithWon = [
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
-const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
+const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
@@ -60,6 +60,12 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
     p1: { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 },
     p2: { deliveryPct: 25, committedSpend: 0, budget: 0 },
     p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
+  },
+  projectMoneyState: {
+    data: {} as Record<string, { actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
   },
 }));
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
@@ -92,6 +98,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
@@ -503,41 +510,134 @@ describe('Projects index — New project create + gating', () => {
   });
 });
 
-// ── AC-MONEY-01: Projects table "Actual" column uses delivery committedSpend ──
-describe('Projects table — Actual column uses live committed spend (AC-MONEY-01)', () => {
-  // The bug: the "Actual" column in the table reads p.spent (dead stored column, always 0
-  // in production). deliverySummary already contains committedSpend per project, which is
-  // the live Ordered..Paid procurement sum. The column must read deliverySummary[p.id].committedSpend.
+// ── S-02: collection Actual is the same mapped ledger basis as Project finances ──
+describe('Projects table — Actual uses the canonical collection money read (AC-S02-008)', () => {
   beforeEach(() => {
     sessionStorage.clear();
-    // Seed with project.spent=0 (as in production) but deliverySummary has non-zero committedSpend
-    projectsState.data = [
-      { ...seed[0], spent: 0 }, // stored column dead
-    ] as unknown as ProjectWithRefs[];
+    projectsState.data = [{ ...seed[0], spent: 0 }] as unknown as ProjectWithRefs[];
     projectsState.isPending = false;
     projectsState.isError = false;
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    projectMoneyState.isPending = false;
+    projectMoneyState.isError = false;
   });
 
   afterEach(() => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
+    projectMoneyState.data = {};
   });
 
-  it('AC-MONEY-01: Actual column shows committedSpend from delivery summary, not dead project.spent', () => {
-    // deliverySummaryState.p1.committedSpend = 2_100_000 (from the hoisted mock above)
-    // project.spent = 0 (dead column)
+  it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {
     renderPage();
-    // The "Actual" column header should be in the table
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
-    // $2,100,000 must appear — from deliverySummary.p1.committedSpend
-    expect(screen.getByText('$2,100,000')).toBeInTheDocument();
-    // $0 must NOT appear as the actual value (that would be the dead stored column)
-    // Note: $0 may appear as "—" for budget columns, but the Actual cell itself must not be $0
-    const tbody = document.querySelector('tbody');
-    const actualCells = Array.from(tbody?.querySelectorAll('td') ?? [])
-      .filter(td => td.textContent === '$0');
-    // No cell in the table body should show bare $0 for the Actual column
-    // when committedSpend is non-zero
-    expect(actualCells.length).toBe(0);
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
+    expect(within(body).queryByText('$2,100,000')).not.toBeInTheDocument();
+    expect(within(body).getByText(/Updated/)).toBeInTheDocument();
+    expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
+  });
+
+  it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(body).getByText('No active budget')).toBeInTheDocument();
+    expect(within(body).getByText('Incomplete source coverage')).toBeInTheDocument();
+    expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
+    expect(within(body).queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('$0.00')).toBeInTheDocument();
+    expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
+    expect(within(body).getByLabelText(/0% of Active budget/)).toBeInTheDocument();
+  });
+
+  it('AC-S02: at-risk filtering shows loading and retryable error states instead of claiming nothing is at risk', async () => {
+    projectMoneyState.isPending = true;
+    const { unmount } = renderPage('Project Manager', '/projects?filter=at-risk');
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
+    unmount();
+
+    projectMoneyState.isPending = false;
+    projectMoneyState.isError = true;
+    const { unmount: unmountError } = renderPage('Project Manager', '/projects?filter=at-risk');
+    expect(screen.getByText("Couldn't check project budget risk")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(projectMoneyState.refetch).toHaveBeenCalled();
+    unmountError();
+    projectMoneyState.isError = false;
+  });
+
+  it('AC-S02: partial and restricted Actual do not drive budget utilization or at-risk filtering', () => {
+    for (const actuals of [
+      { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }, { category: 'Materials', mapped: false, amount: null }] },
+      { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] },
+    ]) {
+      projectMoneyState.data = { p1: { actuals, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+      const { unmount } = renderPage('Project Manager', '/projects?filter=at-risk');
+      expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+      unmount();
+      const { unmount: unmountAll } = renderPage();
+      const body = document.querySelector('tbody')!;
+      expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
+      expect(within(body).getAllByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage').length).toBeGreaterThan(0);
+      unmountAll();
+    }
+  });
+
+  it('AC-S02: missing freshness is explicit when Actual is known', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] }, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('Update time unavailable')).toBeInTheDocument();
+  });
+
+  it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
+  });
+
+  it('AC-S02-013: only mapped Actual at or above 90% of a same-currency Active budget is at risk', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage();
+    const utilization = screen.getByLabelText(/90% of Active budget/);
+    expect(utilization).toBeInTheDocument();
+    expect(utilization.parentElement?.parentElement).toHaveTextContent('At risk');
+  });
+
+  it('AC-S02: does not classify cross-currency Actual and Active budget as at risk', () => {
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'EUR', hasActiveBudget: true },
+    };
+    renderPage('Project Manager', '/projects?filter=at-risk');
+    expect(screen.getByText('Nothing at risk')).toBeInTheDocument();
+    expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
   });
 });
 

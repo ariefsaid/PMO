@@ -95,7 +95,22 @@
     "receivableHelp": "Pilih akun yang digunakan untuk mencatat faktur pelanggan perusahaan ini.",
     "domainHelp": "Layanan yang terhubung akan mengelola jenis informasi bisnis ini. Tinjau data dan akses yang ada sebelum melanjutkan.",
     "domainField": "Informasi bisnis"
-  },
+  },,
+  "uxs02": {
+    "unavailable": "Tidak tersedia",
+    "activeBudget": "Anggaran Aktif",
+    "noActiveBudget": "Tidak ada anggaran aktif",
+    "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
+    "updated": "Diperbarui {{date}}",
+    "freshnessUnavailable": "Waktu pembaruan tidak tersedia",
+    "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
+    "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
+    "incompleteCoverage": "Cakupan sumber belum lengkap",
+    "restrictedRowsExcluded": "Baris terbatas dikecualikan",
+    "budgetUsed": "{{percent}}% dari anggaran Aktif",
+    "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
+    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
+    "atRisk": "Berisiko"  },
   "fx": {
     "saveRate": "Simpan kurs",
     "saveRates": "Simpan kurs",
@@ -3057,7 +3072,6 @@
       "progress": "Progres",
       "project": "Proyek",
       "status": "Status",
-      "committed": "Komitmen",
       "endCustomer": "Pelanggan akhir",
       "endCustomerShort": "Akhir"
     },
@@ -3071,7 +3085,7 @@
       "clearFilters": "Hapus filter",
       "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",
       "noMatchTitle": "Tidak ada proyek yang cocok dengan filter",
-      "nothingAtRiskSub": "Semua proyek aktif masih di bawah 90% anggaran — tidak ada yang perlu perhatian saat ini.",
+      "nothingAtRiskSub": "Belum ada sinyal risiko anggaran yang terkonfirmasi. Data pengeluaran atau Anggaran Aktif yang tidak lengkap belum dapat dinilai.",
       "nothingAtRiskTitle": "Tidak ada yang berisiko"
     },
     "filters": {
@@ -3142,10 +3156,6 @@
     "card": {
       "delivery": "Penyelesaian",
       "deliveryPercent": "Penyelesaian {{percent}}%",
-      "budgetUsedPercent": "Anggaran terpakai {{percent}}%",
-      "budgetSummary": "{{spent}} dari anggaran {{budget}}",
-      "committedPercent": "Komitmen: {{percent}}% dari kontrak",
-      "actualPercent": "Realisasi: {{percent}}% dari kontrak",
       "editProject": "Edit {{name}}"
     },
     "kanban": {
