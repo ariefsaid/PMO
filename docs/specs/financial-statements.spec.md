@@ -1,6 +1,6 @@
 # Financial statements in PMO (#897)
 
-**Status: DRAFT — owner sign-off pending.** · 2026-10-16
+**Status: SIGNED OFF by owner 2026-10-16** (OQ-001 → month/quarter/fiscal year only; Executive sees company statements).
 
 **Issue:** [#897](https://github.com/ariefsaid/PMO/issues/897), under #894.
 
@@ -33,8 +33,8 @@ Also excluded: consolidation/multiple companies, account maintenance, account-cu
 
 | Real role | Company statements, account breakdowns, account master and ledger lines | Project income / expense / net totals |
 |---|---|---|
-| **Admin**, **Finance** | Yes | Yes |
-| **Executive**, **Project Manager**, **Engineer** | No | Yes, only projects they are authorized to view |
+| **Admin**, **Finance**, **Executive** (owner 2026-10-16) | Yes | Yes |
+| **Project Manager**, **Engineer** | No | Yes, only projects they are authorized to view |
 | Inactive, anonymous, other org | No | No |
 
 RLS enforces this contract on both ledger mirrors, account master and statements; aggregate RPCs recheck org, active membership and project visibility. Client inputs cannot broaden scope; ordinary users cannot write read-models. `can()`/`usePermission` on the real role is **UX only**; impersonation grants nothing. This is a target contract, not an assertion about deployed policies.
@@ -73,7 +73,7 @@ All are **planned**, not yet executed. Each row assigns one canonical owning tes
 |---|---|---|
 | **AC-001 — Fixture reconciliation, zero-rupiah difference** | **Given** synthetic fixtures and independently captured ERP results covering opening entries, unclosed earlier/current profit, posted/cancelled closing vouchers, cancelled originals/reversals, USD-bank IDR postings, project/unassigned lines, finance books and fiscal-year boundaries, **when** shipped aggregation produces every statement and comparison, **then** all accounts, subtotals, profit rows and totals equal the oracle at report precision; project plus remainder ties, and a changed amount makes the proof fail. | **Unit — Vitest**, parameterized oracle test |
 | **AC-002 — RIS live rehearsal reconciliation** | **Given** the RIS rehearsal site, complete refresh, recorded version/settings/filters and operator-prepared closed/unclosed cases, **when** automation reads ERP reports and matching PMO statements as Finance, **then** every Phase-1 statement, including project P&L and prior columns, ties at every account/subtotal/total with zero-rupiah difference and matching UI totals. Source changes invalidate capture; mismatches fail. The runner never posts/closes. | **Curated E2E — Playwright**, parameterized rehearsal journey |
-| **AC-003 — Statement privacy** | **Given** every §2 role, inactive/anonymous callers and another org, **when** they directly read company/account-detail snapshots, accounts or either ledger mirror, **then** only active same-org Admin/Finance receive rows; ordinary users cannot write read-models. | **Integration — pgTAP**, role/tenancy matrix |
+| **AC-003 — Statement privacy** | **Given** every §2 role, inactive/anonymous callers and another org, **when** they directly read company/account-detail snapshots, accounts or either ledger mirror, **then** only active same-org Admin/Finance/Executive receive rows; ordinary users cannot write read-models. | **Integration — pgTAP**, role/tenancy matrix |
 | **AC-004 — Project totals only** | **Given** project staff with/without project visibility, **when** totals are requested, including forged scope inputs, **then** only authorized project income/expense/net and dates/currency/provenance return; no account, party, voucher or company-wide payload returns. | **Integration — pgTAP**, aggregate/RLS contract |
 | **AC-005 — Master lifecycle** | **Given** multiple pages, disabled historical accounts and renamed/merged/moved accounts, **when** refreshed, **then** both periods restate once under the current hierarchy; failed pages, unresolved accounts or incomplete rescans preserve the old generation/time. | **Unit — Vitest**, mocked feed contract |
 | **AC-006 — Atomic publication** | **Given** prior snapshots and concurrent publications, **when** publication succeeds or fails, **then** readers see one complete generation with both columns per scope, never partial, duplicate or cross-scope results. | **Integration — pgTAP**, publication contract |
@@ -85,5 +85,5 @@ All are **planned**, not yet executed. Each row assigns one canonical owning tes
 
 ## 6. Open questions (recommendations, not silent assumptions)
 
-- **OQ-001 — Custom periods?** The owner specified a chosen period but not picker granularity. **Recommend** month/quarter/fiscal year for Phase 1. If custom dates are required, use the preceding equal-length range, explicitly labelled, and constrain each trial-balance range to one ERP fiscal year rather than silently accepting ERPNext's date clamping. Confirm at sign-off.
+- **OQ-001 — RESOLVED (owner 2026-10-16): month, quarter or fiscal year only; no custom dates in Phase 1.** Original question: Custom periods? The owner specified a chosen period but not picker granularity. **Recommend** month/quarter/fiscal year for Phase 1. If custom dates are required, use the preceding equal-length range, explicitly labelled, and constrain each trial-balance range to one ERP fiscal year rather than silently accepting ERPNext's date clamping. Confirm at sign-off.
 - **OQ-002 — Live settings / opening-balance equivalence?** Code cannot establish the rehearsal company's current reporting settings, calendar, finance books, precision or complete retained history. **Recommend** operator read-only capture and proof that full-ledger replay equals ERPNext's Account Closing Balance path, including unclosed prior years. Never alter ERP settings to force a match. If proof fails, keep statements unavailable and return the source-read design to planner/owner; no balancing plug or acceptance of a difference.
