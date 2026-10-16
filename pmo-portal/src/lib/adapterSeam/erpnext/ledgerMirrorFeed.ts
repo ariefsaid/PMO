@@ -42,6 +42,7 @@ const ERPNEXT_TIER = 'erpnext';
  *  (thenable PostgrestFilterBuilder) — callers cast `as never` at the boundary. */
 export interface LedgerFeedServiceClient {
   from(table: string): LedgerFeedTable;
+  rpc(name: 'finish_erp_gl_replay', args: { p_org_id: string; p_company: string; p_replay_id: string; p_watermark: string }): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 export interface LedgerFeedTable {
   select(columns: string): LedgerFeedSelectBuilder;
@@ -105,9 +106,21 @@ export async function feedLedgerMirrors(
     maxPages: fullReplay ? (maxPages ?? 300) : maxPages,
   });
   if (fullReplay && !glResult.caughtUp) throw new AppError('Full statement replay page budget exhausted; mirror and watermark were not changed', 'external-unreachable');
-  const glFed = await upsertMirrorRows(serviceClient, 'erp_gl_entry_mirror', orgId, glResult.rows.map(glRowToMirror));
+  const replayId = fullReplay ? crypto.randomUUID() : null;
+  const glRows = glResult.rows.map((row) => ({ ...glRowToMirror(row), ...(replayId ? { replay_seen_id: replayId } : {}) }));
+  const glFed = await upsertMirrorRows(serviceClient, 'erp_gl_entry_mirror', orgId, glRows);
   const glNext = maxModified(glResult.rows);
-  const glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
+  let glFinalCursor: string | null;
+  if (fullReplay) {
+    if (glNext === null) throw new AppError('Full statement replay returned no watermark; replay remains pending', 'external-unreachable');
+    const { error } = await serviceClient.rpc('finish_erp_gl_replay', {
+      p_org_id: orgId, p_company: company, p_replay_id: replayId!, p_watermark: glNext,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    glFinalCursor = glNext;
+  } else {
+    glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
+  }
 
   const pleCursor = await readWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN);
   const pleResult = await fetchPaymentLedgerEntries(client, {
