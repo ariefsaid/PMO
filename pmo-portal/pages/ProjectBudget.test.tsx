@@ -778,16 +778,19 @@ describe('ProjectBudget New version form (empty state)', () => {
 // ---------------------------------------------------------------------------
 describe('ProjectBudget version selector (budget-dropdown)', () => {
   // T1/T2: AC-BD-01 — labelled selector present when ≥1 version exists
-  it('BU-3: Indonesian selector option labels are Draf, Aktif, and Diarsipkan', async () => {
+  it('UX-034: Indonesian version options do not repeat status already shown on the selected version', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion, draftVersion, archivedVersion];
     await financeTestI18n.changeLanguage('id');
     renderPage();
     const selector = screen.getByRole('combobox', { name: /versi/i });
     const optionLabels = Array.from((selector as HTMLSelectElement).options).map((option) => option.textContent ?? '');
-    expect(optionLabels.some((label) => label.includes('(Draf)'))).toBe(true);
-    expect(optionLabels.some((label) => label.includes('(Aktif)'))).toBe(true);
-    expect(optionLabels.some((label) => label.includes('(Diarsipkan)'))).toBe(true);
+    expect(optionLabels).toEqual(expect.arrayContaining([
+      `v${activeVersion.version} · ${activeVersion.name}`,
+      `v${draftVersion.version} · ${draftVersion.name}`,
+      `v${archivedVersion.version} · ${archivedVersion.name}`,
+    ]));
+    expect(optionLabels.join(' ')).not.toMatch(/\((Draf|Aktif|Diarsipkan)\)/);
   });
 
   it('AC-BD-01: renders a labelled "Version" combobox with ≥1 version', () => {
@@ -803,12 +806,10 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     budgetState.data = 4700000;
     versionsState.data = [archivedVersion, activeVersion, draftVersion];
     renderPage();
-    const selectorBar = screen.getByTestId('version-selector');
-    // The selector bar pill should show "Active"
-    expect(selectorBar.textContent).toContain('Active');
-    // The combobox value should be the active version's id
+    // The Active version is selected; its status is shown on the card, not repeated in option text.
     const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
     expect(combobox.value).toBe(activeVersion.id);
+    expect(combobox.selectedOptions[0].textContent).toBe(`v${activeVersion.version} · ${activeVersion.name}`);
     resetState();
   });
 
@@ -867,19 +868,19 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
       </MemoryRouter>
     );
     // Should fall back to active, no crash
-    const selectorBar = screen.getByTestId('version-selector');
-    expect(selectorBar.textContent).toContain('Active');
+    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
+    expect(combobox.value).toBe(activeVersion.id);
     expect(screen.queryByText('Developers')).not.toBeInTheDocument();
     resetState();
   });
 
-  // T10a: A4/N1 — option text for a Draft contains "(Draft)" not color-only
-  it('A4/N1: option text includes "(Draft)" for draft version (not color-only status)', () => {
+  // UX-034: status is already visible in the version card's badge, so the option stays concise.
+  it('UX-034: option text omits the status already shown in the version badge', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
     const combobox = screen.getByRole('combobox', { name: /version/i });
-    expect(combobox.textContent).toContain('(Draft)');
+    expect(combobox.textContent).toBe(`v${draftVersion.version} · ${draftVersion.name}`);
     resetState();
   });
 

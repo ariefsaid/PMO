@@ -1281,15 +1281,31 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
       await user.type(f, v);
     };
 
-    it('one open shows an input per category; one Save writes only the changed rows', async () => {
+    it('one open shows an input per category and locks the fiscal year until the draft is saved', async () => {
       const user = await open();
+      const yearPicker = screen.getByRole('combobox', { name: /fiscal year/i });
+      expect(yearPicker).toBeDisabled();
       expect(screen.getByLabelText(/cost to finish: labor/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/cost to finish: materials/i)).toBeInTheDocument();
       await type(user, /cost to finish: materials/i, '45000');
       await user.click(screen.getByRole('button', { name: /^save$/i }));
       await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
       expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
+      expect(yearPicker).toBeEnabled();
       await waitFor(() => expect(screen.queryByLabelText(/cost to finish: labor/i)).not.toBeInTheDocument());
+    });
+
+    it('the year cannot be switched from year A to year B while the editor is open, so a save stays on A', async () => {
+      const user = await open();
+      await type(user, /cost to finish: materials/i, '45000');
+      const picker = screen.getByRole('combobox', { name: /fiscal year/i });
+      expect(picker).toBeDisabled();
+      expect(picker).toHaveValue(ERP_FISCAL_YEAR);
+      expect(within(picker).getByRole('option', { name: PRIOR_ERP_FISCAL_YEAR })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
+      expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
+      expect(upsertEtcMock).not.toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR, expect.anything(), expect.anything());
     });
 
     it('an invalid row blocks the whole save: nothing is written, the bad field is marked', async () => {

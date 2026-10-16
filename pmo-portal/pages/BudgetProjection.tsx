@@ -547,6 +547,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               {t('financeCopy.fiscalYear', "Fiscal year")}<select
                 aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
                 value={fiscalYear ?? ''}
+                disabled={editing || saving}
                 onChange={(e) => setPickedYear(e.target.value)}
                 className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >

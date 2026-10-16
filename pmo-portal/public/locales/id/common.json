@@ -3748,6 +3748,7 @@
   },
   "uxs04": {
     "forecast": "Perkiraan",
+    "forecastUnavailable": "Perkiraan akan tersedia setelah buku besar akuntansi Anda terhubung.",
     "forecastIntro": "Apakah proyek ini selesai sesuai anggaran? Pengeluaran tercatat ditambah biaya hingga selesai dari Anda.",
     "editCostToFinish": "Ubah biaya hingga selesai",
     "budget": "Anggaran",

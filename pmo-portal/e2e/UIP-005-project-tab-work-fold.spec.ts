@@ -83,6 +83,12 @@ for (const role of ['pm', 'finance'] as const) {
             : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
             : panel.getByText('ENG — Detail Design Package', { exact: true });
           await expect(work).toBeVisible();
+          if (tab === 'budget') {
+            const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
+            const remaining = remainingLabel.locator('..').locator('dd');
+            await expect(remainingLabel).toBeVisible();
+            await expect(remaining).toBeVisible();
+          }
           await page.locator('main').evaluate(el => { el.scrollTop = 0; });
           await aboveFold(page, sections);
           await aboveFold(page, work);

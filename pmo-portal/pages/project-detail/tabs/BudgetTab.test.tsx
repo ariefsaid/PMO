@@ -79,6 +79,7 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     // PMO's own budget is never gated — it is PMO-SoT and has nothing to do with any external system.
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel'), 'no permanently-empty ERP panel').not.toBeInTheDocument();
+    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
   });
 
   it('LOW-2 a DISCONNECTED erpnext binding is not an active employ — the panel stays unmounted', async () => {
@@ -88,6 +89,7 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
 
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel')).not.toBeInTheDocument();
+    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
   });
 
   it('LOW-2 while the binding is still unknown the panel stays unmounted — never a flash of an empty ERP panel', async () => {

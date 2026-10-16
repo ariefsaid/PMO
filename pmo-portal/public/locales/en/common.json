@@ -3748,6 +3748,7 @@
   },
   "uxs04": {
     "forecast": "Forecast",
+    "forecastUnavailable": "Forecast appears once your accounting ledger is connected.",
     "forecastIntro": "Will this project finish within budget? Recorded spending plus your cost to finish.",
     "editCostToFinish": "Edit cost to finish",
     "budget": "Budget",

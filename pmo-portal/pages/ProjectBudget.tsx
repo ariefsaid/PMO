@@ -1006,7 +1006,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           {versions.map((v) => (
             // A4/N1/N2: status in text (not color only), no em-dash, no emoji
             <option key={v.id} value={v.id}>
-              {`v${v.version} · ${v.name} (${budgetStatusLabel(v.status, t)})`}
+              {`v${v.version} · ${v.name}`}
             </option>
           ))}
         </select>
