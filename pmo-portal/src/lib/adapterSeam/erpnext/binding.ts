@@ -147,6 +147,7 @@ const MISSING_READ_STATUSES = new Set([401, 403, 404]);
 export function activationReadPermScope(ownedDomains: readonly string[]): ReadPermScope {
   const doctypes = new Set(sweepKindsForOrg(ownedDomains).map(({ doctype }) => doctype));
   for (const ledger of LEDGER_MIRROR_DOCTYPES) doctypes.add(ledger);
+  for (const source of ['Account', 'Company', 'Fiscal Year', 'Accounts Settings', 'System Settings', 'Currency']) doctypes.add(source);
   return { doctypes: [...doctypes] };
 }
 
