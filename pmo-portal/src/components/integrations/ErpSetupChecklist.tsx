@@ -15,18 +15,10 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
+import { COMPANY_DEFAULTS, getErpSetupIncompleteness } from './erpSetupIncompleteness';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
-const COMPANY_DEFAULTS = [
-  'company',
-  'default_payable_account',
-  'default_expense_account',
-  'default_cash_account',
-  'default_bank_account',
-  'cost_center',
-];
-
 export function ErpSetupChecklist(
   { orgId, onRefreshCompany }: {
     orgId: string | undefined;
@@ -150,6 +142,8 @@ export function ErpSetupChecklist(
     expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
+  const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
+  const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
     'text-sm font-medium text-foreground underline underline-offset-4 break-words';
   return (
@@ -157,18 +151,21 @@ export function ErpSetupChecklist(
       aria-labelledby='erp-setup-heading'
       className='mt-5 border-t border-border pt-4'
     >
-      <h4
+      <h3
         id='erp-setup-heading'
-        className='text-sm font-semibold text-foreground'
+        className='text-base font-semibold text-foreground'
       >
-        {t('integrations.erpSetup.title', 'ERPNext setup')}
-      </h4>
-      <p className='mb-3 mt-1 text-sm text-muted-foreground'>
+        {t('uxs08.reviewTitle', 'Business setup review')}
+      </h3>
+      <p className='mb-3 mt-1 max-w-[65ch] text-sm text-muted-foreground'>
         {t(
-          'integrations.erpSetup.description',
-          'A connection is ready for work when its required setup is complete.',
+          'uxs08.reviewDescription',
+          'Review how your organization keeps business information current. Completed links stay in place; only work needing attention needs a decision.',
         )}
       </p>
+      <h4 className='mb-2 text-sm font-semibold text-foreground'>
+        {t('uxs08.dataHeading', 'Keep business information up to date')}
+      </h4>
       {setup.isPending && !setup.data
         ? <ListState variant='loading' rows={4} />
         : setup.isError && !setup.data
@@ -205,10 +202,10 @@ export function ErpSetupChecklist(
               </div>
             )}
             <ul className='divide-y divide-border text-sm'>
-              <li id='erp-setup-domains' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-domains' hidden={!incomplete?.domains} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
-                    {t('integrations.erpSetup.domains', 'Domains employed')}
+                    {t('uxs08.domainsLabel', 'Information updated from ERPNext')}
                   </p>
                   <p className='mt-1 text-muted-foreground break-words'>
                     {setup.data.domains.length
@@ -219,15 +216,15 @@ export function ErpSetupChecklist(
                   </p>
                 </div>
                 <Button variant='outline' size='sm' onClick={openDomains}>
-                  {t('integrations.erpSetup.employ', 'Employ ERP domains')}
+                  {t('uxs08.domainsAction', 'Choose information to keep updated')}
                 </Button>
               </li>
-              <li id='erp-setup-company-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-company-defaults' hidden={!incomplete?.company} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t(
-                      'integrations.erpSetup.companyDefaults',
-                      'Company defaults',
+                      'uxs08.companyLabel',
+                      'Company settings',
                     )}
                   </p>
                   <p className='mt-1 text-muted-foreground tabular-nums'>
@@ -245,17 +242,17 @@ export function ErpSetupChecklist(
                 </div>
                 <Button variant='outline' size='sm' onClick={onRefreshCompany}>
                   {t(
-                    'integrations.erpSetup.refreshCompany',
-                    'Refresh Company defaults',
+                    'uxs08.companyAction',
+                    'Review company settings',
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-activity-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-activity-defaults' hidden={!incomplete?.activity} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t(
-                      'integrations.erpSetup.activityReceivable',
-                      'Activity and receivable defaults',
+                      'uxs08.activityLabel',
+                      'Work and customer billing settings',
                     )}
                   </p>
                   <p className='mt-1 break-words text-muted-foreground'>
@@ -272,15 +269,15 @@ export function ErpSetupChecklist(
                 </div>
                 <Button variant='outline' size='sm' onClick={openDefaults}>
                   {t(
-                    'integrations.erpSetup.setDefaults',
-                    'Set activity and receivable defaults',
+                    'uxs08.activityAction',
+                    'Review work and billing settings',
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-budget-map' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' hidden={!incomplete?.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
-                    {t('integrations.erpSetup.budgetMap', 'Budget account map')}
+                    {t('uxs08.budgetLabel', 'Budget account setup')}
                   </p>
                   <p className='mt-1 text-muted-foreground tabular-nums'>
                     {t(
@@ -297,20 +294,18 @@ export function ErpSetupChecklist(
                   className={actionLink}
                   href='/administration/accounting#budget-account-map'
                 >
-                  {t('integrations.erpSetup.mapBudget', 'Map budget accounts')}
+                  {t('uxs08.budgetAction', 'Review budget account setup')}
                 </a>
               </li>
-              <li id='erp-setup-employee-links' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-employee-links' hidden={!incomplete?.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
-                    {t('integrations.erpSetup.employeeLinks', 'Employee links')}
+                    {t('uxs08.employeeLabel', 'Team members who record time')}
                   </p>
                   <p className='mt-1 text-muted-foreground tabular-nums'>
-                    {t(
-                      'integrations.erpSetup.employeesMissing',
-                      '{{count}} active members need a confirmed ERP employee link',
-                      { count: setup.data.unlinkedEmployeeCount },
-                    )}
+                    {setup.data.unlinkedEmployeeCount > 0
+                      ? t('uxs08.employeeMissing', 'People who record time still needing an ERP employee link: {{count}}', { count: setup.data.unlinkedEmployeeCount })
+                      : null}
                   </p>
                 </div>
                 <a className={actionLink} href='/approvals'>
@@ -320,9 +315,9 @@ export function ErpSetupChecklist(
                   )}
                 </a>
               </li>
-              <li id='erp-setup-project-links' className='py-3'>
+              <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>
-                  {t('integrations.erpSetup.projects', 'Unmapped projects')}
+                  {t('uxs08.projectLabel', 'Project connections')}
                 </p>
                 {setup.data.unmappedProjects.length
                   ? (
@@ -334,8 +329,8 @@ export function ErpSetupChecklist(
                             href={`/projects/${project.id}`}
                           >
                             {t(
-                              'integrations.erpSetup.linkProject',
-                              'Link {{name}}',
+                              'uxs08.projectAction',
+                              'Review proposed link for {{name}}',
                               { name: project.name },
                             )}
                           </a>
@@ -343,16 +338,14 @@ export function ErpSetupChecklist(
                       ))}
                     </ul>
                   )
-                  : (
-                    <p className='mt-1 text-muted-foreground'>
-                      {t(
-                        'integrations.erpSetup.projectsLinked',
-                        'All active PMO projects have an ERP link.',
-                      )}
-                    </p>
-                  )}
+                  : null}
               </li>
             </ul>
+            {!hasOutstandingSetup && (
+              <p className='py-3 text-sm text-muted-foreground' role='status'>
+                {t('uxs08.setupComplete', 'Setup is complete. Confirmed connections are retained; this review will return when something needs attention.')}
+              </p>
+            )}
             <div className='mt-3 flex flex-wrap items-center gap-3'>
               <Button
                 variant='outline'
@@ -362,7 +355,7 @@ export function ErpSetupChecklist(
                   setOnboardError(null);
                 }}
               >
-                {t('integrations.erpSetup.onboard', 'Onboard ERP parties')}
+                {t('uxs08.partiesAction', 'Review company connections')}
               </Button>
               <a className={actionLink} href='/companies'>
                 {t('integrations.erpSetup.reviewParties', 'Review companies')}
@@ -388,11 +381,11 @@ export function ErpSetupChecklist(
         <EntityFormModal
           open
           title={editing === 'defaults'
-            ? t('integrations.erpSetup.defaultsTitle', 'ERPNext defaults')
-            : t('integrations.erpSetup.domainTitle', 'Employ ERP domain')}
+            ? t('uxs08.defaultsDialog', 'Work and billing settings')
+            : t('uxs08.domainDialog', 'Information to keep updated')}
           submitLabel={editing === 'defaults'
             ? t('integrations.erpSetup.saveDefaults', 'Save defaults')
-            : t('integrations.erpSetup.employDomain', 'Employ domain')}
+            : t('uxs08.domainSubmit', 'Save information choices')}
           onSubmit={save}
           onClose={() => setEditing(null)}
           loading={busy}
@@ -407,29 +400,17 @@ export function ErpSetupChecklist(
               <FormGrid>
                 <TextField
                   {...defaults.fieldProps('activityType')}
-                  label={t(
-                    'integrations.erpSetup.activityType',
-                    'Activity type',
-                  )}
+                  label={t('uxs08.activityField', 'Work category')}
                   required
                   fullWidth
-                  helper={t(
-                    'integrations.erpSetup.activityHelp',
-                    'Enter the name of an enabled Activity Type in ERPNext.',
-                  )}
+                  helper={t('uxs08.activityHelp', 'Choose the enabled work category used when time is recorded.')}
                 />
                 <TextField
                   {...defaults.fieldProps('receivableAccount')}
-                  label={t(
-                    'integrations.erpSetup.receivableAccount',
-                    'Receivable account',
-                  )}
+                  label={t('uxs08.receivableField', 'Customer billing account')}
                   required
                   fullWidth
-                  helper={t(
-                    'integrations.erpSetup.receivableHelp',
-                    'Enter an enabled receivable account for the connected Company.',
-                  )}
+                  helper={t('uxs08.receivableHelp', 'Choose the account used to record customer invoices for this company.')}
                 />
               </FormGrid>
             )
@@ -437,13 +418,13 @@ export function ErpSetupChecklist(
               <>
                 <p className='mb-3 text-sm text-muted-foreground'>
                   {t(
-                    'integrations.erpSetup.domainHelp',
-                    'ERPNext will own this domain. Check that its existing records and integration permissions are ready before continuing.',
+                    'uxs08.domainHelp',
+                    'The connected service will maintain this type of business information. Review existing records and access before continuing.',
                   )}
                 </p>
                 <SelectField
                   {...domain.fieldProps('domain')}
-                  label={t('integrations.erpSetup.domainLabel', 'Domain')}
+                  label={t('uxs08.domainField', 'Business information')}
                   options={ERP_DOMAINS.map((value) => ({
                     value,
                     label: domainText(value),
@@ -456,15 +437,15 @@ export function ErpSetupChecklist(
       )}
       <ConfirmDialog
         open={onboarding}
-        title={t('integrations.erpSetup.onboardTitle', 'Onboard ERP parties?')}
+        title={t('uxs08.onboardDialog', 'Review company connections?')}
         description={onboardError ??
           t(
-            'integrations.erpSetup.onboardHelp',
-            'Import Supplier and Customer links from the connected ERPNext instance. Existing resolved links are reused.',
+            'uxs08.onboardDescription',
+            'Review company connections from the connected business system. Existing confirmed links are kept.',
           )}
         confirmLabel={t(
-          'integrations.erpSetup.startOnboard',
-          'Start onboarding',
+          'uxs08.onboardSubmit',
+          'Review connections',
         )}
         loading={busy}
         onConfirm={() => void onboard()}
