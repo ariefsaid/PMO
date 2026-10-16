@@ -3801,6 +3801,7 @@
     "activate": "Aktifkan",
     "activateEditorBlocked": "Anda mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
+    "activatedBySoleOperator": "Diaktifkan oleh operator tunggal",
     "deleteDraft": "Hapus draf",
     "archive": "Arsipkan",
     "cloneToRevise": "Salin untuk revisi",

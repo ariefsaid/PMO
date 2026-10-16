@@ -96,6 +96,7 @@ const draftVersion = {
   created_at: '2026-01-01T00:00:00Z',
   // OD-BUDGET-6: drafted by someone other than the signed-in user (u1), so u1 may activate it.
   created_by: 'u2' as string | null,
+  activation_basis: null,
   line_items: [
     {
       id: 'li-1',
@@ -119,6 +120,7 @@ const activeVersion = {
   org_id: 'org-1',
   currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
+  activation_basis: null,
   line_items: [],
   total: 4700000,
 };
@@ -132,6 +134,7 @@ const archivedVersion = {
   org_id: 'org-1',
   currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
+  activation_basis: null,
   line_items: [],
   total: 0,
 };
@@ -280,6 +283,29 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
 // Version status badges
 // ---------------------------------------------------------------------------
 describe('ProjectBudget version status display', () => {
+  it('AC-1050-08 shows the sole-operator provenance chip and omits it for standard or legacy versions', async () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
+    const soleView = renderPage();
+    expect(screen.getByText('Activated by sole operator')).toBeInTheDocument();
+    soleView.unmount();
+
+    versionsState.data = [{ ...activeVersion, activation_basis: 'standard' }];
+    const standardView = renderPage();
+    expect(screen.queryByText('Activated by sole operator')).not.toBeInTheDocument();
+    standardView.unmount();
+
+    await financeTestI18n.changeLanguage('id');
+    versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
+    const idSoleView = renderPage();
+    expect(screen.getByText('Diaktifkan oleh operator tunggal')).toBeInTheDocument();
+    idSoleView.unmount();
+
+    versionsState.data = [{ ...activeVersion, activation_basis: null }];
+    const legacyView = renderPage();
+    expect(screen.queryByText('Diaktifkan oleh operator tunggal')).not.toBeInTheDocument();
+    legacyView.unmount();
+  });
   it('shows Draft badge for a draft version', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];

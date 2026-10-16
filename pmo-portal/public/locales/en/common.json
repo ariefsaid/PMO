@@ -3801,6 +3801,7 @@
     "activate": "Activate",
     "activateEditorBlocked": "You edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
+    "activatedBySoleOperator": "Activated by sole operator",
     "deleteDraft": "Delete draft",
     "archive": "Archive",
     "cloneToRevise": "Clone to revise",

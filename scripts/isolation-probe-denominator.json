@@ -275,7 +275,7 @@
     "project-documents"
   ],
   "rpcs": [
-    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0296_budget_sole_operator_activation.sql:45"]},
+    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0296_budget_sole_operator_activation.sql:47"]},
     {"name":"assign_sales_invoice_project","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0290_project_finances.sql:83","supabase/migrations/0290_project_finances.sql:86","supabase/migrations/0290_project_finances.sql:88","supabase/migrations/0290_project_finances.sql:92"]},
     {"name":"org_credit_balance","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0067_org_credit_balance.sql:24"]},
     {"name":"operator_usage_summary","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:26"]},

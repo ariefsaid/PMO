@@ -17,6 +17,7 @@ import {
   type BudgetLineItemRow,
   type NewLineItem,
   type ActivateVersionResult,
+  type BudgetActivationMode,
 } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -43,9 +44,9 @@ export function useProjectBudget(projectId: string) {
   });
 }
 
-/** All budget versions for a project, with nested line-items + per-version total. */
+/** RPC contract: budget_activation_mode's complete set of mode strings. */
 export function useBudgetActivationMode(versionId: string | undefined) {
-  return useQuery<string>({
+  return useQuery<BudgetActivationMode>({
     queryKey: ['budget-activation-mode', versionId],
     queryFn: () => getBudgetActivationMode(versionId!),
     enabled: Boolean(versionId),

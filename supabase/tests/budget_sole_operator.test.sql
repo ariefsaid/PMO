@@ -2,7 +2,7 @@
 -- is scoped to active membership in that org and never changes the no-drafter role rule.
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(13);
 
 insert into organizations (id, name) values
   ('a1050000-0000-0000-0000-000000000001','Sole Operator Org'),
@@ -36,6 +36,25 @@ select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000002'),
   'AC-1050-03: an inactive second member does not count');
 select lives_ok($$ select public.activate_budget_version('a1052222-0000-0000-0000-000000000002') $$,
   'AC-1050-03: activation remains available with an inactive second profile');
+
+-- An active-status profile with a future auth ban is excluded; removing the ban makes it count.
+reset role;
+update public.profiles set status='active' where id='a1050000-0000-0000-0000-0000000000a2';
+update auth.users set banned_until = now() + interval '1 day' where id='a1050000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000002'), 'sole_operator',
+  'AC-1050-03: active-status member with a future ban does not count');
+reset role;
+update auth.users set banned_until = null where id='a1050000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.budget_activation_mode('a1052222-0000-0000-0000-000000000002'), 'blocked_editor',
+  'AC-1050-03: the same active member counts once unbanned');
+reset role;
+update public.profiles set status='disabled' where id='a1050000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a1050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 -- A member belonging to a different organization is irrelevant.
 insert into budget_versions (id, org_id, project_id, version, name, status)

@@ -13,6 +13,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
+  Badge,
   StatusPill,
   ListState,
   Toolbar,
@@ -529,6 +530,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
           <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
           <span className="font-semibold">{version.name}</span>
           <StatusBadge status={version.status} />
+          {version.activation_basis === 'sole_operator' && (
+            <Badge>{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</Badge>
+          )}
         </div>
         <span className="ml-auto shrink-0 whitespace-nowrap font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
       </div>
