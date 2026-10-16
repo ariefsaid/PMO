@@ -3720,6 +3720,11 @@
     "overdueDateLoading": "Memuat tanggal organisasi…",
     "overdueDateUnavailable": "Filter keterlambatan tidak tersedia sampai tanggal organisasi diketahui."
   },
+  "uxs37": {
+    "basisDescription": "Nilai pekerjaan yang ditagihkan tidak termasuk pajak; piutang terbuka mencakup pajak yang masih terutang. Setiap nilai tetap menggunakan mata uang faktur.",
+    "billedWorkTaxBasis": "di luar pajak",
+    "openReceivablesTaxBasis": "bruto, termasuk pajak"
+  },
   "financeCopy": {
     "viewInvoice": "Lihat faktur",
     "invoiceRecordTitle": "Faktur {{number}}",

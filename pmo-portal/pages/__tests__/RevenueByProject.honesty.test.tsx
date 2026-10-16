@@ -116,7 +116,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.queryAllByText('$0')).toHaveLength(0);
     expect(screen.queryAllByText('$0.00')).toHaveLength(0);
     // The tiles stay, honestly blank (em-dash), so the layout doesn't jump.
-    expect(screen.getByText('Total Revenue')).toBeInTheDocument();
+    expect(screen.getByText('Total Revenue (net of tax)')).toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
@@ -181,7 +181,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     renderPage();
 
     expect(screen.getByText(indonesianSubtitle)).toBeInTheDocument();
-    expect(screen.getByText('Total Pendapatan')).toBeInTheDocument();
+    expect(screen.getByText('Total Pendapatan (di luar pajak)')).toBeInTheDocument();
+    expect(screen.getByText('Piutang Terbuka (bruto, termasuk pajak)')).toBeInTheDocument();
     expect(screen.getByText('Pendapatan per Proyek')).toBeInTheDocument();
     expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
   });
@@ -253,6 +254,19 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     expect(screen.getAllByText('$1,000.00').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/IDR[\s\u00a0]?2,000,000/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-RF-040: labels net revenue and gross receivables without subtracting guessed VAT', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 250, open_ar: 275, invoice_count: 1 },
+    ];
+
+    renderPage();
+
+    expect(screen.getAllByText('Total Revenue (net of tax)').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Open AR (gross, tax included)').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('$250.00')).toBeInTheDocument();
+    expect(screen.getByText('$275.00')).toBeInTheDocument();
   });
 
   it('AC-831-3: the org-wide total never adds two currencies into one number', () => {
