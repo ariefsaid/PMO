@@ -25,6 +25,9 @@ describe('money completeness and risk consistency', () => {
     [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'USD', actualComplete: false }, false],
     [{ status: 'Ongoing Project', budget: 0, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 0, actualCurrency: 'USD', actualComplete: true }, false],
     [{ status: 'Close Out', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 89.99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Won, Pending KoM', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
+    [{ status: 'On Hold', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
   ] as const)('applies one at-risk truth table', (input, expected) => expect(isMoneyAtRisk(input)).toBe(expected));
 });
 
