@@ -53,7 +53,7 @@ const mockHealth: IntegrationHealth = {
   connected_by: 'u1',
   connected_at: '2026-01-01T00:00:00Z',
   last_sync: '2026-01-02T00:00:00Z',
-  error_count: 0,
+  state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 },
 };
 
 const mockClickUpLists: ClickUpListItem[] = [

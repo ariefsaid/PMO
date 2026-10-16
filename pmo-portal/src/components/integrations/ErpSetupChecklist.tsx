@@ -205,7 +205,7 @@ export function ErpSetupChecklist(
               </div>
             )}
             <ul className='divide-y divide-border text-sm'>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-domains' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.domains', 'Domains employed')}
@@ -222,7 +222,7 @@ export function ErpSetupChecklist(
                   {t('integrations.erpSetup.employ', 'Employ ERP domains')}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-company-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t(
@@ -250,7 +250,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-activity-defaults' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t(
@@ -277,7 +277,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.budgetMap', 'Budget account map')}
@@ -300,7 +300,7 @@ export function ErpSetupChecklist(
                   {t('integrations.erpSetup.mapBudget', 'Map budget accounts')}
                 </a>
               </li>
-              <li className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-employee-links' className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('integrations.erpSetup.employeeLinks', 'Employee links')}
@@ -320,7 +320,7 @@ export function ErpSetupChecklist(
                   )}
                 </a>
               </li>
-              <li className='py-3'>
+              <li id='erp-setup-project-links' className='py-3'>
                 <p className='font-medium'>
                   {t('integrations.erpSetup.projects', 'Unmapped projects')}
                 </p>
