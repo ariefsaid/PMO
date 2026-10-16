@@ -1046,7 +1046,7 @@
       "errorTitle": "Gagal memuat tingkat kemenangan", "errorSub": "Terjadi kesalahan. Coba lagi.", "emptyTitle": "Tidak ada proyek selesai dalam periode ini", "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
       "result": "{{wins}} menang dari {{total}} proyek selesai", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
-    "bva": { "group": "Anggaran vs realisasi menurut proyek", "atRisk": "Berisiko", "barLabel": "{{name}}: {{percent}}% dari kontrak" },
+    "bva": { "atRisk": "Berisiko" },
     "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
     "procurementStatus": { "draft": "Draf", "requested": "Diminta", "approved": "Disetujui", "vendorQuoted": "Penawaran vendor", "ordered": "Dipesan", "received": "Diterima", "vendorInvoiced": "Invoice vendor", "paid": "Dibayar", "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {
@@ -1054,8 +1054,8 @@
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya", "myProjectsHelp": "Proyek yang ditetapkan kepada Anda sebagai manajer proyek.",
       "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
       "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
-      "bvaTitle": "Anggaran vs Realisasi — Proyek Saya", "loadError": "Gagal memuat proyek Anda", "noProjects": "Belum ada proyek yang ditetapkan kepada Anda", "noProjectsSub": "Proyek yang Anda kelola akan muncul di sini.",
-      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan", "notSet": "Belum ditetapkan"
+      "loadError": "Gagal memuat proyek Anda", "noProjects": "Belum ada proyek yang ditetapkan kepada Anda", "noProjectsSub": "Proyek yang Anda kelola akan muncul di sini.",
+      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan"
     },
     "delivery": { "percent": "Progres {{rounded}}%" },
     "engineer": {
@@ -1065,9 +1065,6 @@
       "loadError": "Gagal memuat timesheet Anda", "recentError": "Gagal memuat entri terbaru", "noHours": "Belum ada jam kerja minggu ini", "noHoursSub": "Catat jam kerja untuk melihat ringkasan mingguan.", "projectBreakdownSub": "Catat jam kerja untuk melihat rincian proyek.",
       "hoursByDay": "Jam minggu ini menurut hari", "dayHours": "{{day}}: {{hours}} jam", "byProject": "Minggu ini menurut proyek", "recentEntries": "Entri terbaru", "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam",
       "day": { "sun": "Min", "mon": "Sen", "tue": "Sel", "wed": "Rab", "thu": "Kam", "fri": "Jum", "sat": "Sab" }
-    },
-    "approvals": {
-      "label": "Persetujuan"
     },
     "atRisk": {
       "reviewSingle": "Tinjau {{count}} proyek berisiko",
@@ -1088,8 +1085,7 @@
     },
     "chart": {
       "bva": {
-        "empty": "Belum ada proyek aktif",
-        "title": "Anggaran vs Realisasi — Proyek aktif"
+        "empty": "Belum ada proyek aktif"
       },
       "pipelineMargin": {
         "empty": "Tidak ada pipeline aktif",
@@ -1099,8 +1095,7 @@
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",
         "empty": "Belum ada aktivitas pengadaan",
-        "noun": "permintaan",
-        "title": "Pengadaan menurut status"
+        "noun": "permintaan"
       }
     },
     "empty": {
@@ -1135,13 +1130,10 @@
         "vs": "dari {{gross}} bruto"
       },
       "revenueOnHand": {
-        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi adalah bagian pendapatan yang tersisa setelah biaya aktual hingga kini.",
-        "label": "Pendapatan saat ini",
-        "vs": "Margin terealisasi: {{percent}}"
+        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi adalah bagian pendapatan yang tersisa setelah biaya aktual hingga kini."
       },
       "aboutMetric": "Tentang metrik ini",
       "helpLabel": "Bantuan: {{label}}",
-      "mobileVs": "Pendapatan terkontrak pada kontrak aktif + selesai · {{margin}}",
       "totalContractValue": {
         "help": "Total nilai kontrak di seluruh portofolio aktif.",
         "label": "Total nilai kontrak",
@@ -1152,8 +1144,7 @@
       "totalSpend": {
         "help": "Jumlah realisasi pengeluaran pada proyek teratas portofolio. (Agregat pengeluaran terkomitmen akan menyusul.)",
         "label": "Total pengeluaran proyek",
-        "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran",
-        "vs": "realisasi hingga kini"
+        "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran"
       }
     },
     "mobile": {
