@@ -38,10 +38,10 @@ as $$
       end as actual,
       case when public.domain_externally_owned(p.org_id,'ledger::gl_entries') then
         (select count(*)::int from public.project_mapped_actuals(p.id,null) x
-          where x.actuals_to_date is not null)
+          where x.mapped and x.actuals_to_date is not null)
       else 1 end as actual_coverage_count,
       case when public.domain_externally_owned(p.org_id,'ledger::gl_entries') then
-        (select count(*)::int from public.project_mapped_actuals(p.id,null))
+        (select count(*)::int from public.project_mapped_actuals(p.id,null) x where x.mapped)
       else 1 end as actual_coverage_total,
       public.domain_externally_owned(p.org_id,'ledger::gl_entries') as ledger_owned
     from public.projects p

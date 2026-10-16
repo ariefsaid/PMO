@@ -1,7 +1,7 @@
 -- 0038_dashboard_margin_guards.test.sql — margin div-by-zero guards (empty org)
 -- AC-1104 / FR-SPD-001/003
 begin;
-select plan(3);
+select plan(4);
 
 -- Create a fresh org with an Executive user but NO projects
 insert into organizations (id, name) values
@@ -38,6 +38,9 @@ select is(
   0::numeric,
   'AC-1104: pipeline_weighted_value = 0 for empty org (FR-SPD-003)'
 );
+
+select is(get_executive_dashboard()->>'on_hand_realized_margin',null,
+  'AC-UX-S03-17: no on-hand evidence does not manufacture a realized profit figure (DD-MONEY-2)');
 
 reset role;
 select * from finish();

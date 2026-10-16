@@ -12,7 +12,7 @@
 -- Isolated UUID prefix 00750000-… ensures no seed-data dependency.
 -- Caller: test-org Executive (mirrors 0074 pattern).
 begin;
-select plan(3);
+select plan(4);
 
 -- ── Test org + user ──────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -51,6 +51,21 @@ update budget_versions
    set status = 'Active'
  where id = '00750000-0000-0000-0000-000000000b01';
 
+-- A second delivery project has a large commitment but only a Draft budget. It must not
+-- enter the dashboard's active-budget risk signal (DD-MONEY-4).
+insert into projects (id,org_id,name,status,contract_value,tax_treatment,tax_amount,budget,spent) values
+ ('00750000-0000-0000-0000-0000000000d2','00750000-0000-0000-0000-000000000001',
+  'DRAFT_BUDGET_NOT_AT_RISK','Ongoing Project',50000,'exclusive',0,1,0);
+insert into budget_versions (id,org_id,project_id,version,name,status) values
+ ('00750000-0000-0000-0000-0000000000b2','00750000-0000-0000-0000-000000000001',
+  '00750000-0000-0000-0000-0000000000d2',1,'Draft only','Draft');
+insert into budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount) values
+ ('00750000-0000-0000-0000-0000000000c3','00750000-0000-0000-0000-000000000001',
+  '00750000-0000-0000-0000-0000000000b2','Labor','Draft estimate',10);
+insert into procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
+ ('00750000-0000-0000-0000-0000000000e2','00750000-0000-0000-0000-000000000001',
+  'Draft-budget PO','Ordered',1000,'00750000-0000-0000-0000-0000000000d2','00750000-0000-0000-0000-0000000000a1');
+
 -- Ordered PO of $95,000 (committed basis: Ordered..Paid).
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
   ('00750000-0000-0000-0000-000000000e01', '00750000-0000-0000-0000-000000000001',
@@ -68,7 +83,7 @@ set local request.jwt.claims to
 select is(
   (get_executive_dashboard() ->> 'projects_at_risk')::int,
   1,
-  'AC-W2-1-RPC-01: projects_at_risk uses DERIVED Active-version budget (stored projects.budget=0 no longer hides the overrun)'
+  'AC-W2-1-RPC-01: only the Active-budget project is at risk; Draft-budget commitments are excluded (DD-MONEY-4)'
 );
 
 -- AC-W2-1-RPC-02: top_projects.budget is the derived Σ (100,000), not the stored 0.
@@ -94,6 +109,10 @@ select is(
   100000::numeric,
   'AC-W2-1-RPC-03: get_projects_delivery.budget = Σ Active-version line-items, not stored projects.budget'
 );
+
+select is((select (e->>'budget')::numeric from json_array_elements(get_executive_dashboard()->'top_projects') e
+           where e->>'name'='DRAFT_BUDGET_NOT_AT_RISK'),0::numeric,
+  'AC-UX-S03-18: Draft budget is not exposed as an active budget');
 
 reset role;
 select * from finish();
