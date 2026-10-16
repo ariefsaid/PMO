@@ -72,6 +72,7 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
@@ -242,12 +243,14 @@ describe('Approvals page states', () => {
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 
-  it('AC-NAR-002 (C-1) the page copy names customer invoices among what waits on the viewer', () => {
+  // Deliberate UX change for S-18/RF-042: the inbox-wide subtitle still names supported types,
+  // while the clear-queue claim lists only scopes available to this viewer.
+  it('AC-NAR-002 (C-1): caught-up scope omits customer invoices this viewer cannot approve', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
     expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
-    expect(screen.getByTestId('approvals-caught-up')).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
   it('AC-904: timesheet error + Retry re-runs the query (NFR-TS-UI-001)', () => {
@@ -314,10 +317,13 @@ describe('Approvals page data', () => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals desktop bulk actions (AC-912)', () => {
-  it('AC-912: Select reveals labelled desktop checkboxes while preserving the selected preview', async () => {
+  // S-18/UX-061 (journey step updated, deliberate UX change): the bulk trigger no longer reads the
+  // ambiguous "Select" — it names what it selects, and the toolbar that opens states the eligible
+  // count/scope (asserted in the UX-061 describe below). The selection goal-oracle is unchanged.
+  it('AC-912: Select items reveals labelled desktop checkboxes while preserving the selected preview', async () => {
     queryState.data = desktopSheets;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
     expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByText('Dave Engineer')).toBeInTheDocument();
@@ -327,7 +333,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
@@ -342,23 +348,123 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('all');
-    await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
     expect(screen.getAllByRole('checkbox')).toHaveLength(4);
     expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
     expect(screen.getByRole('button', { name: /Approve 3/i })).toBeInTheDocument();
   });
 
-  it('AC-912: empty and procurement-only desktop queues hide Select', () => {
+  it('AC-912: empty and procurement-only desktop queues hide Select items', () => {
     queryState.data = [];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^select items$/i })).not.toBeInTheDocument();
 
     queryState.data = desktopSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('procurement');
-    expect(screen.queryByRole('button', { name: /^select$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^select items$/i })).not.toBeInTheDocument();
   });
+
+  // ── S-18 / UX-061 — the bulk trigger names what it selects, and selection mode opens with the
+  // eligible count/scope stated, so the owner never clicks to find out what "Select" would do. ──
+  describe('S-18 UX-061: Select names its scope and selection mode states the eligible count', () => {
+    it('entering selection mode announces how many of the queued sheets can be bulk-approved', async () => {
+      queryState.data = desktopSheets; // 3 Submitted sheets, all approvable
+      renderPage();
+      await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+      expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
+    });
+
+    it('a sheet that is no longer approvable narrows the announced eligible count, and its checkbox never appears', async () => {
+      // ts-2 raced to Approved since it was queued — still listed, but not bulk-approvable.
+      queryState.data = [
+        desktopSheets[0],
+        { ...desktopSheets[1], status: 'Approved' },
+      ];
+      renderPage();
+      await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+      expect(screen.getByText(/1 of 2 timesheets in this queue can be approved together/i)).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: /Erin Analyst/i })).not.toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S-18 / UX-060 — ONE approval queue grammar at phone width. The old stacked branch rendered
+// procurement expand-rows AND a separate timesheet "Team approvals queue" with its own Select —
+// two interaction systems in one inbox. Phone now renders the SAME queue + preview grammar as
+// desktop (stacked), preserving each type's evidence and decision rules.
+// ---------------------------------------------------------------------------
+describe('S-18 UX-060: phone width renders the unified queue + preview grammar', () => {
+  it('procurement and timesheet items share ONE queue region and ONE preview region — no second queue system', () => {
+    queryState.data = submittedSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all', false);
+
+    const queue = screen.getByTestId('approvals-queue-region');
+    expect(within(queue).getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('button', { name: /Dave Engineer/i })).toBeInTheDocument();
+
+    // The two retired interaction systems are gone from the inbox entirely.
+    expect(screen.queryByTestId('approvals-timesheets-mobile-section')).not.toBeInTheDocument();
+    expect(screen.queryByText(/team approvals queue/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/purchase requests awaiting you/i)).not.toBeInTheDocument();
+
+    // The same preview region as desktop, with the first pending item already previewed.
+    const preview = screen.getByTestId('approvals-preview-region');
+    expect(within(preview).getByRole('heading', { name: /Structural steel/i })).toBeInTheDocument();
+  });
+
+  it('selecting a timesheet row previews it in the same preview region with its decision controls', async () => {
+    queryState.data = submittedSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all', false);
+
+    await userEvent.click(screen.getByRole('button', { name: /Dave Engineer/i }));
+    const preview = screen.getByTestId('approvals-preview-region');
+    expect(within(preview).getByText('Dave Engineer')).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /return/i })).toBeInTheDocument();
+  });
+
+  it('the shared bulk Select grammar works at phone width too', async () => {
+    queryState.data = desktopSheets;
+    renderPage('timesheets', false);
+    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+    expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S-18 / RF-042 — the empty inbox explains PMO scope: documents entered directly in ERP are
+// approved in ERP, so "all caught up" must never claim no approvals exist anywhere.
+// ---------------------------------------------------------------------------
+it('S-18 RF-042: the caught-up empty state scopes the claim to PMO and points ERP-entered documents to ERP', () => {
+  queryState.data = [];
+  procState.data = [];
+  renderPage('all');
+  const caughtUp = screen.getByTestId('approvals-caught-up');
+  expect(caughtUp).toHaveTextContent(/in PMO/i);
+  expect(caughtUp).toHaveTextContent(/ERPNext/i);
+  // The clear-queue summary names only scopes available to this role in the inbox.
+  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/timesheets/i);
+  expect(caughtUp).not.toHaveTextContent(/customer invoices/i);
+});
+
+it('S-18: Finance sees only approval kinds that Finance can act on', () => {
+  authState.role = 'Finance';
+  queryState.data = [];
+  procState.data = [];
+  renderPage('all');
+  const caughtUp = screen.getByTestId('approvals-caught-up');
+  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/expense claims/i);
+  expect(caughtUp).toHaveTextContent(/customer invoices/i);
+  expect(caughtUp).not.toHaveTextContent(/timesheets/i);
 });
 
 // ---------------------------------------------------------------------------

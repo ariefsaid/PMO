@@ -478,7 +478,7 @@
       "groupLabel": "Setujui massal",
       "hoursUnit": "jam",
       "rowSelect": "Pilih {{week}} milik {{owner}}",
-      "select": "Pilih",
+      "select": "Pilih item",
       "selectAll": "Pilih semua minggu yang dapat disetujui",
       "selectedCount": "{{count}} dipilih",
       "toast": {
@@ -510,7 +510,9 @@
       "title": "Konfirmasi apa yang tercatat di ERPNext"
     },
     "caughtUp": {
-      "sub": "Tidak ada yang menunggu persetujuan Anda saat ini. Permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan yang baru akan muncul di sini.",
+      "and": "dan",
+      "noKinds": "persetujuan",
+      "sub": "Tidak ada yang menunggu persetujuan Anda di PMO saat ini. {{kinds}} baru yang dibuat di PMO akan muncul di sini. Dokumen yang dibuat langsung di ERPNext disetujui di ERPNext.",
       "title": "Semua sudah beres"
     },
     "employeeLinks": {
@@ -529,10 +531,6 @@
         "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
         "title": "Timesheet"
       }
-    },
-    "mobile": {
-      "procurementLabel": "Permintaan pembelian menunggu Anda",
-      "timesheetsLabel": "Timesheet menunggu Anda"
     },
     "noProjectLinked": "Tidak ada proyek tertaut",
     "previewEmpty": {
@@ -4507,6 +4505,13 @@
       "formUnknown": "Tidak dapat memeriksa apakah posting biaya aktif. Anda tetap dapat menyimpannya di PMO.",
       "cardInactive": "Belum diposting ke akuntansi: posting biaya tidak aktif untuk organisasi ini.",
       "cardUnknown": "Tidak dapat memeriksa apakah klaim ini akan masuk ke akuntansi."
+    }
+  },
+  "uxs18": {
+    "bulk": {
+      "scopeAll": "Semua {{count}} timesheet di antrean ini dapat disetujui sekaligus.",
+      "scopeOne": "1 timesheet di antrean ini dapat disetujui.",
+      "scopeSome": "{{eligible}} dari {{total}} timesheet di antrean ini dapat disetujui sekaligus."
     }
   }
 }

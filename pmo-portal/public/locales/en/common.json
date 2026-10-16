@@ -478,7 +478,7 @@
       "groupLabel": "Bulk approve",
       "hoursUnit": "h",
       "rowSelect": "Select {{owner}}'s {{week}}",
-      "select": "Select",
+      "select": "Select items",
       "selectAll": "Select all approvable weeks",
       "selectedCount": "{{count}} selected",
       "toast": {
@@ -510,7 +510,9 @@
       "title": "Confirm what ERPNext holds"
     },
     "caughtUp": {
-      "sub": "Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.",
+      "and": "and",
+      "noKinds": "approvals",
+      "sub": "Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -529,10 +531,6 @@
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
-    },
-    "mobile": {
-      "procurementLabel": "Purchase requests awaiting you",
-      "timesheetsLabel": "Timesheets awaiting you"
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
@@ -4507,6 +4505,13 @@
       "formUnknown": "Couldn't check whether expense posting is active. You can still save this in PMO.",
       "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
       "cardUnknown": "Couldn't check whether this claim will reach accounting."
+    }
+  },
+  "uxs18": {
+    "bulk": {
+      "scopeAll": "All {{count}} timesheets in this queue can be approved together.",
+      "scopeOne": "The 1 timesheet in this queue can be approved.",
+      "scopeSome": "{{eligible}} of {{total}} timesheets in this queue can be approved together."
     }
   }
 }

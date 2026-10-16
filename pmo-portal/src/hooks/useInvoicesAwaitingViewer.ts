@@ -11,6 +11,8 @@ export interface InvoicesAwaitingViewer {
   /** The viewer may approve invoices but ownership or the drafts are still loading. */
   isPending: boolean;
   isError: boolean;
+  /** Whether native-revenue invoice approvals are active for this viewer. */
+  enabled?: boolean;
   refetch: () => unknown;
 }
 
@@ -40,6 +42,7 @@ export function useInvoicesAwaitingViewer(): InvoicesAwaitingViewer {
     rows,
     isPending: canApprove && (mode === undefined || (active && isPending)),
     isError: active && isError,
+    enabled: active,
     refetch,
   };
 }
