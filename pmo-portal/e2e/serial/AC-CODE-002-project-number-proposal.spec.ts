@@ -14,8 +14,8 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
   const customPattern = `E2E-{CLIENT}-{YY}-{SEQ4}`;
 
   await login(page, 'admin@acme.test');
-  await page.goto('/administration/accounting');
-  await expect(page.getByTestId('administration-panel-accounting')).toBeVisible();
+  await page.goto('/administration/projects');
+  await expect(page.getByTestId('administration-panel-projects')).toBeVisible();
   const patternInput = page.getByRole('textbox', { name: 'Project number pattern' });
   await expect(patternInput).toBeVisible({ timeout: 15_000 });
   const originalPattern = await patternInput.inputValue();
@@ -74,8 +74,8 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
   } finally {
     // The org-wide setting is shared by every test; always restore its original effective value.
     await login(page, 'admin@acme.test');
-    await page.goto('/administration/accounting');
-    await expect(page.getByTestId('administration-panel-accounting')).toBeVisible();
+    await page.goto('/administration/projects');
+    await expect(page.getByTestId('administration-panel-projects')).toBeVisible();
     const restoreInput = page.getByRole('textbox', { name: 'Project number pattern' });
     await expect(restoreInput).toBeVisible({ timeout: 15_000 });
     const currentPattern = await restoreInput.inputValue();

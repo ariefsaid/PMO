@@ -116,13 +116,17 @@ vi.mock('@/src/components/integrations/IntegrationsView', () => ({
 }));
 vi.mock('./admin/OrgProjectNumberPattern', () => ({ default: () => <div data-testid="project-number-pattern-panel">Project number pattern panel</div> }));
 vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>Project classification panel</div> }));
-vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div>Tax default panel</div> }));
+vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div id="org-tax-default" tabIndex={-1}>Tax default panel</div> }));
+vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approvers" tabIndex={-1} /> }));
+vi.mock('./admin/OrgWithholdingAccount', () => ({ default: () => <h2 id="withholding-account-heading" tabIndex={-1}>Receipt withholding</h2> }));
+vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Vendor bill tax accounts</h2> }));
+vi.mock('./admin/OrgDownPaymentItem', () => ({ default: () => <h2 id="down-payment-item-heading" tabIndex={-1}>Down payments</h2> }));
 vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
   panelMounts.accounting += 1;
-  return <div>Budget account map panel</div>;
+  return <div id="budget-account-map" tabIndex={-1}>Budget account map panel</div>;
 } }));
 // #775 phase B — proven by its own test (AC-EXP-130); kept off the network here like its BudgetAccountMap sibling.
-vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => null }));
+vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => <div id="expense-account-map" tabIndex={-1} /> }));
 vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));
@@ -284,15 +288,23 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/accounting');
     const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
 
-    expect(within(nav).getByRole('link', { name: 'Default tax treatment' })).toHaveAttribute('href', '/administration/accounting#org-tax-default');
-    expect(within(nav).getByRole('link', { name: 'Spend approvers' })).toHaveAttribute('href', '/administration/accounting#spend-approvers');
-    expect(within(nav).getByRole('link', { name: 'Budget account map' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
-    expect(within(nav).getByRole('link', { name: 'Expense account map' })).toHaveAttribute('href', '/administration/accounting#expense-account-map');
-    expect(within(nav).getByRole('link', { name: 'Down payments' })).toHaveAttribute('href', '/administration/accounting#down-payment-item-heading');
+    const destinations = [
+      ['Default tax treatment', 'org-tax-default'],
+      ['Spend approvers', 'spend-approvers'],
+      ['Receipt withholding', 'withholding-account-heading'],
+      ['Vendor bill tax accounts', 'vendor-tax-accounts-heading'],
+      ['Down payments', 'down-payment-item-heading'],
+      ['Budget account map', 'budget-account-map'],
+      ['Expense account map', 'expense-account-map'],
+    ] as const;
 
-    await userEvent.click(within(nav).getByRole('link', { name: 'Spend approvers' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('#spend-approvers');
-    await waitFor(() => expect(document.getElementById('spend-approvers')).toHaveFocus());
+    for (const [label, id] of destinations) {
+      const link = within(nav).getByRole('link', { name: label });
+      expect(link).toHaveAttribute('href', `/administration/accounting#${id}`);
+      await userEvent.click(link);
+      expect(screen.getByTestId('location')).toHaveTextContent(`#${id}`);
+      await waitFor(() => expect(document.getElementById(id)).toHaveFocus());
+    }
   });
 
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {
