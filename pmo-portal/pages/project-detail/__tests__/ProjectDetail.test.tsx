@@ -77,6 +77,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
     deleteLineItem: { mutateAsync: vi.fn() },
   }),
 }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -274,10 +277,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     committedSpendState.data = 2_350_000;
     renderAt('/projects/p1');
 
-    expect(screen.getByText('Committed')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,350,000').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
-    expect(screen.getByLabelText('Budget committed: 50% of budget')).toBeInTheDocument();
+    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
+    expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Actual spending: 50% of budget')).toBeInTheDocument();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {

@@ -1,9 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { deriveMargin, formatExactMoney } from '@/src/lib/projectFinances';
+import { usePermission } from '@/src/auth/usePermission';
+import { deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
@@ -11,6 +13,8 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t, i18n } = useTranslation();
+  const may = usePermission();
+  const canReviewSetup = may('manage', 'integration');
   const query = useProjectFinances(project.id);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
   const money = (value: string | null, currency: string | null) => currency
@@ -38,8 +42,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   const data = query.data;
   const actuals = data.actuals;
-  const contract = project.contract_value === null || !isTaxTreatment(project.tax_treatment)
-    ? unknown : money(String(project.contract_value), project.currency);
+  const mappedCategories = actuals.categories.filter((row) => row.mapped).length;
+  const hasCoverage = actuals.categories.length > 0;
+  const completeCoverage = hasCoverage && mappedCategories === actuals.categories.length && !actuals.excludes_restricted_rows;
+  const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
   const field = (label: string, value: string, basis?: React.ReactNode) => (
     <div className="min-w-0">
@@ -57,9 +63,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     >
       {title}
       <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {field(t('projectFinances.contract', 'Contract value'), contract, isTaxTreatment(project.tax_treatment) && (
-          <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-contract-basis" />
-        ))}
+        {field(t('uxs01.cashReceived', 'Cash received'), t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet'))}
         {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
         {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),
@@ -96,36 +100,36 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         );
       })}
-      <p className="text-xs text-muted-foreground">
+      {hasSettlement && <p className="text-xs text-muted-foreground">
         {t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.')}
-      </p>
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold">{t('projectFinances.budget', 'Budget')}</h3>
-        {data.budget ? (
-          <p className="break-words tabular-nums">
-            {data.budget.status === 'Draft'
-              ? t('projectFinances.draft', 'Draft — not active')
-              : t('projectFinances.active', 'Active')}
-            {` · ${data.budget.name} · v${data.budget.version} · ${data.budget.currency} · ${money(data.budget.amount, data.budget.currency)}`}
-          </p>
-        ) : <p>{t('projectFinances.noBudget', 'No budget')}</p>}
-      </div>
+      </p>}
       <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
-          {t('projectFinances.mappedCosts', 'Costs')}{actuals.currency ? ` · ${actuals.currency}` : ''}
+          {t('uxs01.recordedSpending', 'Recorded spending')}{actuals.currency ? ` · ${actuals.currency}` : ''}
         </h3>
         <p className="break-words font-semibold tabular-nums">{money(actuals.total, actuals.currency)}</p>
-        <p className="text-xs text-muted-foreground">
-          {actuals.as_of ? formatInstantDate(actuals.as_of) : t('projectFinances.actualsUnavailable', 'Not available yet')}
-        </p>
+        {hasCoverage && <p className="text-xs text-muted-foreground" role="status">
+          {completeCoverage
+            ? t('uxs01.completeCoverage', 'Complete category coverage')
+            : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
+        </p>}
+        {!hasCoverage && <p className="text-xs text-muted-foreground" role="status">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
+        {actuals.as_of
+          ? <p className="text-xs text-muted-foreground">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actuals.as_of) })}</p>
+          : <p className="text-xs text-muted-foreground">{t('projectFinances.actualsUnavailable', 'Not available yet')}</p>}
+        {!completeCoverage && (canReviewSetup
+          ? <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('uxs01.reviewSetup', 'Review spending setup')}</Link>
+          : <p className="text-xs text-muted-foreground">{t('uxs01.setupHandoff', 'Ask Finance or Admin to review spending setup.')}</p>)}
         {actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
-        <div className="overflow-x-auto">
+        <details className="min-w-0">
+          <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <caption className="sr-only">{t('projectFinances.mappedCosts', 'Costs')}</caption>
+            <caption className="sr-only">{t('uxs01.categoryDetails', 'Recorded spending by category')}</caption>
             <thead>
               <tr>
                 <th scope="col" className="text-left">{t('projectFinances.category', 'Category')}</th>
-                <th scope="col" className="text-right">{t('projectFinances.actuals', 'Actual')}</th>
+                <th scope="col" className="text-right">{t('uxs01.recordedSpending', 'Recorded spending')}</th>
               </tr>
             </thead>
             <tbody>
@@ -141,7 +145,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </details>
       </div>
       <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
         {t('projectDetail.overview.invoicing.scopeNote', 'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.')}

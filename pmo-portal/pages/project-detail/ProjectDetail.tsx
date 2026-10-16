@@ -95,7 +95,7 @@ const ProjectDetail: React.FC = () => {
     [t, canSeeBilling],
   );
 
-  const { data: committedSpend = 0 } = useProjectCommittedSpend(projectId || null);
+  const { data: committedSpend = 0, commitmentSource = 'pmo' } = useProjectCommittedSpend(projectId || null, true);
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
@@ -217,6 +217,7 @@ const ProjectDetail: React.FC = () => {
           <OverviewTab
             project={project}
             committedSpend={committedSpend}
+            commitmentSource={commitmentSource}
             setTab={setTab}
             // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
             // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
@@ -279,6 +280,7 @@ const ProjectDetail: React.FC = () => {
           <ProjectDetailHeader
             project={project}
             committedSpend={committedSpend}
+            commitmentSource={commitmentSource}
             onEditProject={openEditProject}
           />
 
@@ -314,6 +316,7 @@ const ProjectDetail: React.FC = () => {
             <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}
+              commitmentSource={commitmentSource}
               onEditProject={openEditProject}
             />
 

@@ -19,6 +19,9 @@ vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 // B-0.2: ProjectDetailHeader now calls useProjectBudget (derived budget for Spend%).
 // Provide a minimal mock so we don't need a QueryClientProvider here.
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [] }) })); // OD-TAX-4: header reads the project's invoices (VAT flag lock)
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '0.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] } }, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
 }));

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { axe } from 'jest-axe';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,8 +17,10 @@ const h = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn().mockResolvedValue(undefined),
   },
+  canReviewSetup: false,
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canReviewSetup }));
 
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 
@@ -48,6 +51,7 @@ beforeEach(() => {
   h.query.isPending = false;
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
+  h.canReviewSetup = false;
 });
 
 describe('ProjectFinancesSection reading states', () => {
@@ -88,7 +92,7 @@ describe('ProjectFinancesSection reading states', () => {
     render(<ProjectFinancesSection project={project} />);
     expect(screen.getByText('No submitted invoices')).toBeInTheDocument();
     expect(screen.getByText('Not available yet')).toBeInTheDocument();
-    expect(screen.getByText('No budget')).toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -98,9 +102,10 @@ describe('ProjectFinancesSection reading states', () => {
         categories: [{ category: 'Labor', mapped: false, amount: null }] },
     });
     render(<ProjectFinancesSection project={project} />);
+    fireEvent.click(screen.getByText('Show category details'));
     const row = screen.getByRole('row', { name: /Labor/ });
     expect(within(row).getByText('Not available yet')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Recorded spending' })).toBeInTheDocument();
     expect(screen.queryByText(/GL|mapping/i)).not.toBeInTheDocument();
   });
 
@@ -122,10 +127,10 @@ describe('ProjectFinancesSection reading states', () => {
     expect(idr.getByText('Mixed tax bases')).toBeInTheDocument();
     expect(eur.getAllByText('Unavailable')).toHaveLength(2);
     expect(screen.getByText('Settled against invoices (cash, withholding and credits), not cash received.')).toBeInTheDocument();
-    expect(screen.queryByText('Cash received', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
   });
 
-  it('AC-PFIN-013/015 shows billed-work margin, budget state and honest restricted/unavailable explanations', () => {
+  it('AC-PFIN-013/015 keeps billing detail distinct and gives honest restricted/unavailable spending explanations', () => {
     h.query.data = payload({
       invoices: [
         { currency: 'USD', invoice_count: 1, invoiced: '150.00', settled: '0.00', outstanding: '150.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '130.00', missing_work: 0 },
@@ -137,8 +142,10 @@ describe('ProjectFinancesSection reading states', () => {
     const { rerender } = render(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByTestId('project-finances-USD')).getByText('$80.00')).toBeInTheDocument();
     expect(within(screen.getByTestId('project-finances-IDR')).getByText('Unavailable — different currencies')).toBeInTheDocument();
-    expect(screen.getByText(/Draft — not active.*Draft budget.*v2.*USD/)).toBeInTheDocument();
-    expect(screen.getByText('Costs')).toBeInTheDocument();
+    expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget')).not.toBeInTheDocument();
+    expect(screen.getByText('Recorded spending')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Show category details'));
     expect(screen.getByText('labor')).toBeInTheDocument();
 
     h.query.data = payload({
@@ -148,7 +155,7 @@ describe('ProjectFinancesSection reading states', () => {
     });
     rerender(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByTestId('project-finances-USD')).getByText('Actuals exclude restricted rows')).toBeInTheDocument();
-    expect(screen.getByText(/Active.*Active budget.*v3.*USD/)).toBeInTheDocument();
+    expect(screen.queryByText('Budget')).not.toBeInTheDocument();
 
     h.query.data = payload({
       invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '150.00', settled: '0.00', outstanding: '150.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: null, missing_work: 1 }],
@@ -159,6 +166,53 @@ describe('ProjectFinancesSection reading states', () => {
     expect(usd.getByText('Billed-work revenue unavailable')).toBeInTheDocument();
     expect(usd.getByText('Unavailable')).toBeInTheDocument();
     expect(usd.queryByText('$100.00')).not.toBeInTheDocument();
+  });
+
+  it('UX-023/024/025 summarizes incomplete spending coverage and labels freshness without exposing repeated setup errors', () => {
+    h.query.data = payload({
+      actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false, categories: [
+        { category: 'Labor', mapped: true, amount: '50.00' },
+        { category: 'Materials', mapped: false, amount: null },
+        { category: 'Equipment', mapped: false, amount: null },
+      ] },
+    });
+    render(<ProjectFinancesSection project={project} />);
+
+    expect(screen.getByText('Recorded spending')).toBeInTheDocument();
+    expect(screen.getByText('Partial coverage · 1 of 3 categories recorded')).toBeInTheDocument();
+    expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
+    expect(screen.getByText('Cash received', { exact: true }).closest('div')).toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
+    expect(screen.getByText(/Ask Finance or Admin to review spending setup/)).toBeInTheDocument();
+    expect(screen.queryByText('GL actuals')).not.toBeInTheDocument();
+    expect(screen.getByText('Show category details')).toBeInTheDocument();
+  });
+
+  it('UX-024 gives setup managers a direct review path instead of a generic handoff', () => {
+    h.canReviewSetup = true;
+    h.query.data = payload({
+      actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false, categories: [
+        { category: 'Labor', mapped: false, amount: null },
+      ] },
+    });
+    render(<MemoryRouter><ProjectFinancesSection project={project} /></MemoryRouter>);
+
+    expect(screen.getByRole('link', { name: 'Review spending setup' })).toHaveAttribute(
+      'href', '/administration/accounting#budget-account-map',
+    );
+    expect(screen.queryByText(/Ask Finance or Admin/)).not.toBeInTheDocument();
+  });
+
+  it('UX-032 explains settlement only when at least one settlement is known', () => {
+    h.query.data = payload();
+    const { rerender } = render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText(/Settled against invoices/)).not.toBeInTheDocument();
+
+    h.query.data = payload({ invoices: [
+      { currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 },
+    ] });
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.getByText(/Settled against invoices/)).toBeInTheDocument();
+    expect(screen.getByText('Cash received')).toBeInTheDocument();
   });
 
   it('AC-PFIN-015 keeps long money strings semantic dt/dd fields that can wrap on narrow content', () => {

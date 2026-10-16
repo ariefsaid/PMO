@@ -27,7 +27,8 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '500000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '500000.00' }] } }, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -89,8 +90,8 @@ describe('AC-B-0-4: OverviewTab budget-utilization card — loading/error states
   it('AC-B-0-4: normal state shows the utilization bar (not an error)', () => {
     renderTab();
     expect(screen.getByText(/Budget utilization/i)).toBeInTheDocument();
-    // The committed / budget line appears in normal state
-    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
+    // Complete mapped Actuals are compared with the Active budget.
+    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
   });
 
   it('AC-B-0-4: loading state renders a ListState skeleton (not "$0 of $0")', () => {
@@ -113,8 +114,8 @@ describe('AC-B-0-4: OverviewTab budget-utilization card — loading/error states
 
     // "Couldn't load budget" error heading must be visible
     expect(screen.getByText(/Couldn't load budget/i)).toBeInTheDocument();
-    // The utilization bar / "budget committed" text must NOT be present
-    expect(screen.queryByText(/budget committed/i)).toBeNull();
+    // The utilization bar / actual-spending comparison must NOT be present
+    expect(screen.queryByText(/recorded spending against the active budget/i)).toBeNull();
     // Should NOT show the false-zero state
     expect(document.body.textContent).not.toMatch(/\$0 of \$0/);
   });

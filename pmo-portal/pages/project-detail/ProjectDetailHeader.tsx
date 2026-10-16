@@ -23,6 +23,9 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import type { CommitmentSource } from '@/src/hooks/useProcurements';
+import { deriveContractRemainingAfterCost, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -72,18 +75,13 @@ interface PendingContractValue {
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
+  commitmentSource?: CommitmentSource;
   onEditProject?: () => void;
-}
-
-/** Currency with a true minus glyph (U+2212) for negatives (number rigor). */
-function signedCurrency(value: number, currency: string): string {
-  if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
-  return formatCurrency(value, currency);
 }
 
 /**
  * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
- * strip (Contract / Committed / Actual / On-hand margin / Spend %).
+ * strip (Contract / PMO purchase orders / Actual / Contract remaining after cost / Spend %).
  *
  * CRUD affordances (crud-components §9.1, rbac-visibility §B2), all gated on the REAL
  * JWT role (ADR-0016); RLS/RPC remain the enforcement authority:
@@ -97,9 +95,10 @@ function signedCurrency(value: number, currency: string): string {
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
   committedSpend,
+  commitmentSource = 'pmo',
   onEditProject,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -130,16 +129,26 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const contract = project.contract_value ?? 0;
   const committed = committedSpend ?? 0;
-  // AC-MONEY-01: "Actual" is the committed-PO basis (Ordered..Paid), not the dead stored
-  // projects.spent column which is never populated (0001_init_schema.sql:79 DEFERRED).
-  // committed == actual (Ordered..Paid sum) — both reflect realized procurement spend.
-  //
-  // B-0.2 fix: Spend% must use the DERIVED budget (Σ Active-version line-items) not the
-  // dead stored projects.budget column (which is never populated). Mirror OverviewTab.
-  const { data: derivedBudget } = useProjectBudget(project.id);
+  // Keep the PMO purchase-order amount distinct from Actual; Actual is read from the scoped
+  // project-finances source and is withheld unless category coverage is complete.
+  // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
+  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const margin = contract - committed;
-  const spendPct = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
+  const financeQuery = useProjectFinances(project.id);
+  const actuals = financeQuery.data?.actuals;
+  const actualsComplete = actuals !== undefined && actuals.currency === project.currency && hasCompleteActuals(actuals);
+  const actualAmount = actualsComplete && actuals.total !== null ? Number(actuals.total) : null;
+  const actualLabel = actualsComplete && actuals && actuals.total !== null
+    ? formatExactMoney(actuals.total, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+    : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
+      ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+      : t('uxs01.actualUnavailable', 'Unavailable');
+  const contractAfterCost = actuals ? deriveContractRemainingAfterCost(project.contract_value, actuals, project.currency) : null;
+  const contractAfterCostUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
+  const contractAfterCostLabel = contractAfterCost === null
+    ? t('uxs01.actualUnavailable', 'Unavailable')
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
+  const spendPct = actualAmount !== null && activeBudget > 0 ? Math.round((actualAmount / activeBudget) * 100) : null;
 
   const status = project.status as string;
   const isOnHand = ON_HAND_STATUSES.includes(status);
@@ -186,7 +195,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       label: t('projectDetail.header.tile.contract', 'Contract'),
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
-          <span data-testid="contract-value-amount">{formatCurrency(contract, project.currency)}</span>
+          <span data-testid="contract-value-amount">{project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}</span>
           <div className="basis-full min-w-0">
             <FxEquivalent
               amount={project.contract_value}
@@ -219,25 +228,39 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       // The basis is rendered once below the KPI row so the compact Contract tile
       // can keep its value and read-only/edit affordance together without wrapping.
     },
-    { label: t('projectDetail.header.tile.committed', 'Committed'), value: formatCurrency(committed, project.currency) },
-    // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
-    // Both tiles intentionally show the same number — they are the same realized-spend
-    // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
-    // "Actual" is the human label per the original finance-strip design. The dead
-    // projects.spent column (always 0) is NOT used here.
-    { label: t('projectDetail.header.tile.actual', 'Actual'), value: formatCurrency(committed, project.currency) },
     {
-      label: t('projectDetail.header.tile.margin', 'On-hand margin'),
-      value: signedCurrency(margin, project.currency),
-      tone: margin < 0 ? 'neg' : 'pos',
+      label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+      value: commitmentSource === 'pmo'
+        ? formatCurrency(committed, project.currency)
+        : commitmentSource === 'not-tracked'
+          ? t('uxs01.notTrackedInPmo', 'Not tracked in PMO yet')
+          : t('uxs01.actualUnavailable', 'Unavailable'),
     },
-    { label: t('projectDetail.header.tile.spend', 'Spend'), value: `${spendPct}%` },
+    // Actual comes from the project-finances source and is withheld unless coverage is complete.
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualLabel },
+    {
+      label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+      value: contractAfterCostLabel,
+      ...(contractAfterCostUnits === null ? {} : { tone: contractAfterCostUnits < 0n ? 'neg' as const : 'pos' as const }),
+    },
+    {
+      label: t('projectDetail.header.tile.spend', 'Spend'),
+      value: budgetPending
+        ? t('uxs01.budgetLoading', 'Loading budget…')
+        : budgetError
+          ? t('uxs01.actualUnavailable', 'Unavailable')
+          : activeBudget <= 0
+            ? t('uxs01.noActiveBudget', 'No active budget')
+            : spendPct === null
+              ? t('uxs01.actualUnavailable', 'Unavailable')
+              : `${spendPct}%`,
+    },
   ];
 
   const beginValueEdit = () => {
     // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
     // are deliberately NOT seeded — see the state declaration.
-    setValueDraft(formatMoneyInputValue(contract));
+    setValueDraft(project.contract_value == null ? '' : formatMoneyInputValue(project.contract_value));
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
     setVatDraft(project.subject_to_vat ?? true);

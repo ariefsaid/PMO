@@ -81,6 +81,8 @@ const activeVersion: BudgetVersionWithItems = {
 
 // ── Mock states ───────────────────────────────────────────────────────────────
 
+const derivedBudgetState = { value: 900_000 as number | undefined };
+
 const procState: { data: ProcurementWithRefs[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = {
   data: procRows,
   isPending: false,
@@ -135,7 +137,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => budgetState,
   // AC-W2-1-FE-01: budget utilization now reads from useProjectBudget (derived from Active version
   // line-items). Return 900,000 to match the test project's intended budget so util% assertions work.
-  useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBudget: () => ({ data: derivedBudgetState.value, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() },
     activate: { mutateAsync: vi.fn() },
@@ -157,7 +159,7 @@ const financeQuery = vi.hoisted(() => ({
       project_id: 'p1', contract_invoiced: '110.00', remaining_to_invoice: '110.00',
       invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 }],
       budget: null,
-      actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] },
+      actuals: { currency: 'USD', as_of: null, total: '320000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '320000.00' }] },
     },
     isPending: false,
     isError: false,
@@ -185,6 +187,7 @@ const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpen
   );
 
 beforeEach(() => {
+  derivedBudgetState.value = 900_000;
   procState.data = procRows;
   procState.isPending = false;
   procState.isError = false;
@@ -208,7 +211,7 @@ beforeEach(() => {
     project_id: 'p1', contract_invoiced: '110.00', remaining_to_invoice: '110.00',
     invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 }],
     budget: null,
-    actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] },
+    actuals: { currency: 'USD', as_of: null, total: '320000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '320000.00' }] },
   };
 });
 
@@ -221,39 +224,40 @@ describe('project invoicing summary', () => {
       expect(screen.getAllByTestId('project-finances')).toHaveLength(1);
       expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
-      expect(section).toHaveTextContent('$220.00');
+      expect(section).not.toHaveTextContent('$220.00');
       expect(section).toHaveTextContent('$110.00');
       expect(section).toHaveTextContent('$100.00');
-      expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
       expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       view.unmount();
     }
-    expect(financeQuery.calls).toHaveBeenCalledTimes(allowedRoles.length);
+    // Overview and its Project finances summary share the same React Query key; each calls the hook, while the request is cached/deduplicated.
+    expect(financeQuery.calls).toHaveBeenCalledTimes(allowedRoles.length * 2);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
   });
 
   it('AC-PFIN-019 does not fetch or render the new finance section for Engineer and retains delivery content', () => {
     renderTab(project, vi.fn(), 150_000, 'Engineer');
     expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
-    expect(financeQuery.calls).not.toHaveBeenCalled();
+    // The shared hook is invoked for Actuals, but useProjectFinances disables its query for this role.
+    expect(financeQuery.calls).toHaveBeenCalledTimes(1);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
     expect(screen.getByText(/Procurement summary/i)).toBeInTheDocument();
     expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
   });
-  it('AC-PFIN-020: keeps the existing project contract basis and refuses a contract value with unknown basis', () => {
+  it('UX-022/AC-PFIN-020 keeps contract value out of the finance drill-down headline', () => {
     const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs);
     const section = screen.getByTestId('project-finances');
-    expect(section).toHaveTextContent('$220.00');
-    expect(screen.getByTestId('project-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(section).not.toHaveTextContent('Contract value');
+    expect(section).not.toHaveTextContent('$220.00');
+    expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
     view.unmount();
 
     const unknownBasis = { ...project, contract_value: 1_000_000, tax_treatment: 'unknown' } as ProjectWithRefs;
     const unknownView = renderTab(unknownBasis);
-    const contractField = screen.getByText('Contract value').closest('div');
-    expect(contractField).toHaveTextContent('Unavailable');
-    expect(contractField).not.toHaveTextContent('$1,000,000');
-    expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
+    expect(unknownView.getByTestId('project-finances')).not.toHaveTextContent('$1,000,000');
     unknownView.unmount();
   });
 
@@ -297,13 +301,13 @@ describe('OverviewTab T14: Procurement summary card', () => {
     expect(document.body.textContent).toMatch(/1 Closed/);
   });
 
-  it('T14: shows committed total (excludes Cancelled rows) as tabular currency', () => {
+  it('UX-026/T14: labels procurement totals as request value, distinct from PMO purchase orders', () => {
     renderTab();
     // Committed: r1(50k)+r2(80k)+r4(20k)=150k; r3(Cancelled) excluded
     // $150,000 also appears as Budget snapshot activeTotal — use count >= 1
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
-    // Also verify the "committed across N requests" label
-    expect(screen.getByText(/committed across/i)).toBeInTheDocument();
+    // The procurement amount is total request value, not the separate Committed measure.
+    expect(screen.getByText(/Total request value:/i)).toBeInTheDocument();
   });
 
   it('T14: shows top 3 recent requests (newest first)', () => {
@@ -340,18 +344,27 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('T16: shows actual spent on the committed-PO basis (AC-MONEY-01)', () => {
-    // The Budget-snapshot "Actual spent" now reads committed-PO spend (the live basis used by
-    // the D15 tile + header), NOT the dead projects.spent column. Use a distinct committedSpend
-    // (320k) so it doesn't collide with the $150k activeTotal.
-    renderTab(project, vi.fn(), 320_000);
+  it('UX-014/023: Actual uses complete mapped project-finances data, not committed spend or stored project.spent', () => {
+    // Actual is $320k even when the separate committed-spend prop says $450k.
+    renderTab(project, vi.fn(), 450_000);
     expect(screen.getAllByText(/\$320,000/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText('Actual spending: 36% of budget')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Budget committed: 50% of budget')).not.toBeInTheDocument();
   });
 
-  it('T16: budget utilization uses committed spend over active budget, not actual spent over contract', () => {
+  it('DD-MONEY-4 shows no-active-budget instead of a zero utilization denominator', () => {
+    budgetState.data = [];
+    derivedBudgetState.value = undefined;
     renderTab(project, vi.fn(), 450_000);
-    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
-    expect(screen.getByLabelText('Budget committed: 50% of budget')).toBeInTheDocument();
+    expect(screen.getAllByText('No active budget')).toHaveLength(2);
+    expect(screen.queryByText(/budget committed/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Budget committed/i)).not.toBeInTheDocument();
+  });
+
+  it('DD-MONEY-4: budget utilization uses Actual over the active budget, not committed spend or contract', () => {
+    renderTab(project, vi.fn(), 450_000);
+    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Actual spending: 36% of budget')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
   });
 
@@ -362,10 +375,17 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     // (item J: token utility class, not an inline hsl(var(--destructive)) style).
     const overEl = container.querySelector('[data-testid="budget-variance"]');
     expect(overEl).not.toBeNull();
-    // Over-budget shows +$X (positive sign prefix, matches FinanceDashboard VarianceCell).
-    expect(overEl!.textContent).toContain('+');
-    expect(overEl!.className).toContain('text-destructive');
+    // The label states the actionable overrun directly; no sign inversion is needed.
+    expect(overEl!.textContent).toContain('Over budget by $170,000');
+    expect(overEl!.className).toContain('text-destructive-text');
     expect(overEl!.getAttribute('style')).toBeNull();
+  });
+
+  it('UX-027 describes under-budget money as remaining and over-budget money as an overrun', () => {
+    financeQuery.query.data.actuals.total = '50000.00';
+    financeQuery.query.data.actuals.categories[0].amount = '50000.00';
+    const { container } = renderTab(project, vi.fn(), 400_000);
+    expect(container.querySelector('[data-testid="budget-variance"]')).toHaveTextContent('Budget remaining $100,000');
   });
 
   it('T16: shows category breakdown bars', () => {
@@ -387,7 +407,7 @@ describe('OverviewTab T16: Budget snapshot card', () => {
   it('T16: empty state when no Active budget version exists', () => {
     budgetState.data = [];
     renderTab();
-    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No active budget/i)).toHaveLength(1);
   });
 
   it('T16: loading state while budget versions are pending', () => {
@@ -426,23 +446,22 @@ describe('OverviewTab T18: Row 2 layout + footer links', () => {
   });
 });
 
-// ── AC-MONEY-01: OverviewTab D15 financial summary Actual tile ────────────────
-describe('OverviewTab D15 financial summary — Actual tile derives from committedSpend (AC-MONEY-01)', () => {
-  // The D15 financial-summary aside (Engineer view) has its own StatTiles strip
-  // with an "Actual" tile. It must show committedSpend (live basis), not project.spent
-  // (dead stored column, always 0 in production).
+// ── DD-MONEY-1: OverviewTab D15 finance summary respects authorized Actual source ─
+describe('OverviewTab D15 financial summary — Actual requires authorized complete coverage (DD-MONEY-1)', () => {
+  // Engineer cannot read the project-finances source, so its distinct PO amount is not substituted for Actual.
   const deadSpentProject: ProjectWithRefs = {
     ...project,
     spent: 0, // as in production
   } as unknown as ProjectWithRefs;
 
-  const renderFinanceSummary = (committedSpend: number) =>
+  const renderFinanceSummary = (committedSpend: number, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'pmo') =>
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter>
           <OverviewTab
           project={deadSpentProject}
           committedSpend={committedSpend}
+          commitmentSource={commitmentSource}
           setTab={vi.fn()}
           showFinanceSummary={true}
           />
@@ -450,7 +469,14 @@ describe('OverviewTab D15 financial summary — Actual tile derives from committ
       </ImpersonationProvider>,
     );
 
-  it('AC-MONEY-01: D15 Actual tile shows committedSpend when project.spent is 0', () => {
+  it('DD-MONEY-3: delivery-role summary labels ERP-owned procurement as not tracked, not zero', () => {
+    renderFinanceSummary(0, 'not-tracked');
+    const aside = screen.getByTestId('financial-summary');
+    expect(aside).toHaveTextContent('Not tracked in PMO yet');
+    expect(aside).not.toHaveTextContent('$0');
+  });
+
+  it('DD-MONEY-1: D15 does not invent Actual for a role without project-finances access', () => {
     renderFinanceSummary(3_700_000);
     // The financial-summary aside is rendered (Engineer view, on-hand project)
     const aside = screen.getByTestId('financial-summary');
@@ -459,8 +485,9 @@ describe('OverviewTab D15 financial summary — Actual tile derives from committ
     const tiles = aside.querySelectorAll('[data-testid="stat-tile"]');
     const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
     expect(actualTile).toBeTruthy();
-    // Must show the live committed-basis spend, not the dead stored $0
-    expect(actualTile!.textContent).toContain('$3,700,000');
+    // This role cannot read the authorized project-finances source; committed PO spend is not a substitute.
+    expect(actualTile!.textContent).toContain('Unavailable');
+    expect(actualTile!.textContent).not.toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
   });
 });

@@ -23,6 +23,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-12', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -210,8 +211,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     renderHeader('Project Manager');
     // The 5-tile strip remains in the header for finance-forward roles.
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Committed')).toBeInTheDocument();
-    expect(screen.getByText('On-hand margin')).toBeInTheDocument();
+    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     // The contract-value SoD row is also in the header (not demoted).
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
@@ -219,21 +220,21 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
   it('AC-IXD-PROJ-W5-C3-02: Finance (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Finance');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('On-hand margin')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-03: Executive (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Executive');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('On-hand margin')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-04: Admin (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Admin');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('On-hand margin')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
@@ -246,8 +247,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     // The header must NOT contain the financial-summary aside (it moved to OverviewTab).
     expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
     // Finance StatTile labels must not appear in the isolated header render.
-    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
-    expect(screen.queryByText('Committed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     // The contract-value SoD row is also absent from the header.
     expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
   });
@@ -269,7 +270,7 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
     // Finance tile labels are absent from the header.
     expect(screen.queryByText('Contract')).not.toBeInTheDocument();
-    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-08: the "Financial summary" aside (in OverviewTab) has aria-label and is an aside element — verified in position tests', () => {
