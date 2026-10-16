@@ -10,10 +10,10 @@
 # boundary is CROSS-FAMILY again (deepseek vs codex), which the all-codex roster had given up.
 defaults:
   coding_agent: pi
-  model: openai-codex/gpt-5.6-terra # provider/id — a bare pattern is ambiguous across providers
+  model: openai-codex/gpt-6-luna # provider/id — a bare pattern is ambiguous across providers
   # Roster-wide ladder, so an agent added later is never single-substrate by accident. Any agent may
   # override with its own `fallbacks:`; every one below does.
-  fallbacks: [zai/glm-5.3-flash, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+  fallbacks: [zai/glm-5.3-flash]  # owner 2026-10-16: latest models only — GPT implements, GLM reviews (glm-5.3-flash takes images)
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -75,9 +75,9 @@ agents:
   # code reviewer runs on zai/glm-5.3-flash (cross-family). fe_reviewer stays codex — it looks at renders.
 
   - name: planner
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: terra and GLM are the THINKERS; terra leads because
+    model: openai-codex/gpt-6.1-sol   # owner 2026-10-16: sol plans and specs
     # GLM-5.3 hits its 5-hour cap constantly and a capped first rung spends a retry to learn that every run.
-    fallbacks: [zai/glm-5.3-flash, openai-codex/gpt-5.6-luna]   # GLM second, luna as the workhorse floor
+    fallbacks: [openai-codex/gpt-6-luna, zai/glm-5.3-flash]
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -102,8 +102,8 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: openai-codex/gpt-6-luna   # owner 2026-10-05: luna xhigh builds; GLM reviews
-    fallbacks: [openai-codex/gpt-5.6-luna, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+    model: openai-codex/gpt-6-luna   # owner 2026-10-16: GPT implements, never GLM
+    fallbacks: [zai/glm-5.3-flash]
     thinking: xhigh
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
@@ -123,9 +123,9 @@ agents:
       - write
 
   - name: scout
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-21: deepseek is the cheapest workhorse
+    model: openai-codex/gpt-6-luna   # owner 2026-10-16: latest models only (DeepSeek dropped, out of credit)
     # on the board ($0.1/M out) and recon is exactly the mechanical work it is for.
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-4.7]   # any rung that answers is fine
+    fallbacks: [zai/glm-5.3-flash]
     color: "#fbbf24"
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
@@ -152,7 +152,7 @@ agents:
 
   - name: reviewer
     model: zai/glm-5.3-flash   # owner 2026-10-05: GLM reviews, cross-family to the luna builder
-    fallbacks: [openai-codex/gpt-5.6-terra]
+    fallbacks: [openai-codex/gpt-6-luna]
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -171,8 +171,8 @@ agents:
       - write
 
   - name: fe_builder
-    model: openai-codex/gpt-6-luna   # owner 2026-10-05: luna xhigh builds — fe_reviewer owns the pixels
-    fallbacks: [openai-codex/gpt-5.6-luna, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+    model: openai-codex/gpt-6-luna   # owner 2026-10-16: GPT implements, never GLM
+    fallbacks: [zai/glm-5.3-flash]
     thinking: xhigh
                                                  # its self-check is the a11y tree / DOM via agent-browser
                                                  # (pi-delegation §3a); pixel judgment stays with fe_reviewer
@@ -193,8 +193,8 @@ agents:
       - write
 
   - name: fe_reviewer
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: MUST stay codex — GLM is not multimodal and this reviewer looks at renders
-    fallbacks: [openai-codex/gpt-5.6-luna]   # NO GLM RUNG: this reviewer LOOKS AT RENDERS and GLM is not multimodal — capability, not availability
+    model: zai/glm-5.3-flash   # owner 2026-10-16: glm-5.3-flash is multimodal on zai and reviews renders
+    fallbacks: [openai-codex/gpt-6-luna]   # also multimodal
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
@@ -212,8 +212,8 @@ agents:
       - write
 
   - name: documenter
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash    # owner 2026-08-21: prose is workhorse work
-    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3-flash]   # prose, not judgement
+    model: openai-codex/gpt-6-luna    # owner 2026-10-16: latest models only (DeepSeek dropped)
+    fallbacks: [zai/glm-5.3-flash]
     color: "#e879f9"
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:
