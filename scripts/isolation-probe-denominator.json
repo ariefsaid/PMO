@@ -288,7 +288,7 @@
     {"name":"operator_agent_run_stats","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:58"]},
     {"name":"operator_list_orgs","class":"inert","expect_denial":[],"source":["supabase/migrations/0069_usage_summary_rpcs.sql:67"],"shape":"empty-array"},
     {"name":"org_has_member_email","class":"inert","expect_denial":[],"source":["supabase/migrations/0214_member_email_probe_pinned.sql:22"],"shape":"false"},
-    {"name":"finish_erp_gl_replay","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0303_statement_gl_replay_finish.sql:45"]},
+    {"name":"finish_erp_gl_replay","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0303_statement_gl_replay_finish.sql:64"]},
     {"name":"get_process_gates","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0130_si_rpcs_active_member.sql:56"]},
     {"name":"get_projects_money_collection","class":"inert","expect_denial":[],"source":["supabase/migrations/0299_projects_money_collection.sql:12"],"shape":"empty-array"},
     {"name":"mark_erp_statement_replay_for_missing_accounts","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0304_statement_gl_missing_reference.sql:34"]}
