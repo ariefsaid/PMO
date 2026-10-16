@@ -4,12 +4,20 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-15) — v0.20.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-16) — v0.21.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-15):** release **v0.20.0** — `production` == `main` == `6ec6491f` (tag `v0.20.0`);
-hosted DB at **0291**; all edge functions stamped `6ec6491f`. After-push probes (owner-run): anon-executable
-definers = the 4 RLS helpers · `second-org-smoke` 0 fails · `second-org-roles-smoke` 81/0 · `isolation-probe`
-241 checks / 0 leaks (189 skips need a disposable tenant A).
+**Live (owner yes, 2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
+hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
+definers = the 4 RLS helpers · `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
+248 checks / 0 leaks (194 skips need a disposable tenant A).
+
+**What v0.21.0 carries (over v0.20.0):** ERPNext v16 budget push — one Budget per account, revisions amend only the
+changed accounts (#1033/#1040, 0293, ADR-0087; rehearsal-proven on v16.33) · M365 document linking phase 1 (#1037,
+0292) · the erpnext-sweep cron-tick fix that shipped as the untagged v0.20.1 hotfix (#1038).
+
+**RIS (2026-10-16):** 2026 books loaded into its ERPNext and adopted into PMO; all 25 ERP projects linked to their PMO
+projects; every RIS sales invoice carries its project; ledger mirror current. Budget activation is now possible on v16.
+Follow-ups: #1043 (bulk sync linking — fewer clicks), #1044 (project page shows system internals).
 
 **What v0.20.0 carries (over v0.19.0):** project finances — ERPNext invoices adopted onto their project, Finance/Admin
 assign the rest, one finance view (#1008/#1028, 0290) · JISDOR exchange-rate table + rupiah equivalents (#1012/#1026,
