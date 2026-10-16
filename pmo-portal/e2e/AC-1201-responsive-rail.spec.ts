@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — pure nav/assert; viewport resize + nav rail visibility; no DB writes.
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, waitForFonts } from './helpers';
 
 // AC-1201 — Responsive rail collapse (single source of truth at the 920px
 // breakpoint). Durable regression guard for the C1 bugs that slipped jsdom
@@ -48,6 +48,8 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
   // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
   await hamburger.click();
   // The drawer rail is the Primary-navigation <nav> NOT under .rail-persistent.
+  const drawerNav = page.locator('nav[aria-label="Primary navigation"]').nth(1);
+  await expect(drawerNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
   const drawerNavCount = await page.evaluate(() => {
     const navs = Array.from(
       document.querySelectorAll('nav[aria-label="Primary navigation"]')
@@ -56,4 +58,25 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
     return drawer ? drawer.querySelectorAll('a').length : 0;
   });
   expect(drawerNavCount).toBeGreaterThan(0);
+});
+
+test('UX-001 Approvals stays within the 800px rail viewport while Sales remains in navigation', async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await login(page, 'admin@acme.test');
+  await page.goto('/projects');
+
+  const nav = page.locator('.rail-persistent nav[aria-label="Primary navigation"]');
+  const approvals = nav.getByRole('link', { name: /Approvals/ });
+  const sales = nav.getByRole('link', { name: 'Sales Pipeline' });
+  await expect(approvals).toBeVisible();
+  await expect(sales).toBeAttached();
+  await waitForFonts(page);
+
+  const railBox = await nav.boundingBox();
+  const approvalsBox = await approvals.boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(approvalsBox).not.toBeNull();
+  expect(approvalsBox!.y).toBeGreaterThanOrEqual(railBox!.y);
+  expect(approvalsBox!.y + approvalsBox!.height).toBeLessThanOrEqual(railBox!.y + railBox!.height);
+  expect(approvalsBox!.y + approvalsBox!.height).toBeLessThanOrEqual(DESKTOP.height);
 });

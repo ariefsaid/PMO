@@ -3303,7 +3303,8 @@
         "workforce": "SDM"
       },
       "myViews": "Tampilan Saya",
-      "primaryNavigation": "Navigasi utama"
+      "primaryNavigation": "Navigasi utama",
+      "approvalsCountSuffix": "{{count}} persetujuan menunggu"
     },
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
