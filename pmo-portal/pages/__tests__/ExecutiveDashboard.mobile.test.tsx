@@ -233,7 +233,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const book = screen.getByTestId('mobile-contract-book');
     const help = within(book).getByRole('button', { name: /^About this metric: \S/ });
     await userEvent.click(help);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/Margin is billed-work revenue less Actual; it is not cash received/i);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Margin is measured on billed work only: billed-work revenue less Actual\. It is not cash received/i);
     expect(within(book).queryByRole('link')).not.toBeInTheDocument();
   });
 

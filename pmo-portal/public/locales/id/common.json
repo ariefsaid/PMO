@@ -1130,7 +1130,7 @@
         "vs": "dari {{gross}} bruto"
       },
       "revenueOnHand": {
-        "help": "Margin hanya diukur pada pekerjaan yang telah ditagihkan: pendapatan tertagih dikurangi Aktual, bukan nilai kontrak yang tersisa setelah biaya."
+        "help": "Nilai kontrak di seluruh proyek yang sedang berjalan. Margin hanya diukur pada pekerjaan yang telah ditagihkan: pendapatan tertagih dikurangi Aktual. Margin bukan kas yang sudah diterima."
       },
       "aboutMetric": "Tentang metrik ini",
       "helpLabel": "Bantuan: {{label}}",

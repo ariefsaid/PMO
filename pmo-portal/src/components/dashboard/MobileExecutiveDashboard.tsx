@@ -278,7 +278,7 @@ const ContractBook: React.FC<{
         vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(onHandContractRemaining) + ' · '
           + realizedMarginLabel + ': ' + money(realizedMargin)}
         helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
-        help={t('dashboard.kpi.revenueOnHand.help', 'Contract value across delivery projects. Margin is billed-work revenue less Actual; it is not cash received.')}
+        help={t('dashboard.kpi.revenueOnHand.help', 'Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received.')}
       />
 
       {/* Tile 2: Total contract value — same canonical KPITile.

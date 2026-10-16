@@ -278,7 +278,7 @@ const ExecutiveDashboard: React.FC = () => {
             helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
             help={t(
               'dashboard.kpi.revenueOnHand.help',
-              'Contract value across delivery projects. Margin is billed-work revenue less Actual; it is not cash received.',
+              'Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received.',
             )}
           />
           {/* AC-IXD-DASH-W5-C2A: Pipeline (weighted) → /sales (the pipeline IS the weighted-value view) */}
@@ -364,7 +364,7 @@ const ExecutiveDashboard: React.FC = () => {
             )}
             help={t(
               'dashboard.kpi.totalSpend.help',
-              "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
+              "On-hand portfolio Actual recorded to date.",
             )}
           />
         </section>

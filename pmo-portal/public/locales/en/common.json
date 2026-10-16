@@ -1130,7 +1130,7 @@
         "vs": "of {{gross}} gross"
       },
       "revenueOnHand": {
-        "help": "Margin is measured on billed work only; it is billed-work revenue less Actual, not contract value remaining after costs."
+        "help": "Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received."
       },
       "aboutMetric": "About this metric",
       "helpLabel": "Help: {{label}}",
