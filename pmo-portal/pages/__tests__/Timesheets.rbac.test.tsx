@@ -111,7 +111,7 @@ describe('CW-6: Timesheets approvals cross-link gate (was AC-W3-N2)', () => {
       { id: 'ts-d', user_id: 'u-self', week_start_date: weekStr, status: 'Draft', entries: [] },
     ] as unknown as TimesheetWithEntries[];
     renderAs('Project Manager');
-    expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /team review/i })).toHaveAttribute(
       'href',
       '/approvals?scope=timesheets',
     );

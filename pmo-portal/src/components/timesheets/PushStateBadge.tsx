@@ -1,20 +1,13 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, StatusPill, type StatusVariant } from '@/src/components/ui';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import type { TimesheetPushState } from '@/src/lib/db/timesheetPush';
 
-const LABEL: Record<TimesheetPushState['push_state'], string> = {
-  pending: 'Pending ERP push',
-  pushing: 'Pushing to ERP…',
-  pushed: 'Pushed to ERP',
-  failed: 'ERP push failed',
-  held: 'ERP push held',
-};
-
 const VARIANT: Record<TimesheetPushState['push_state'], StatusVariant> = {
   pending: 'neutral',
   pushing: 'progress',
-  pushed: 'won',
+  pushed: 'neutral',
   failed: 'lost',
   held: 'warn',
 };
@@ -52,14 +45,24 @@ export const PushStateBadge: React.FC<PushStateBadgeProps> = ({
   onRetry,
   retryLoading = false,
 }) => {
+  const { t } = useTranslation();
   if (!state) return null;
+  // UX-084: accounting-update wording, secondary to the approval status pill beside it. Literal keys
+  // (i18n completeness gate).
+  const label: Record<TimesheetPushState['push_state'], string> = {
+    pending: t('uxs28.push.pending', 'Accounting update waiting'),
+    pushing: t('uxs28.push.pushing', 'Updating accounting…'),
+    pushed: t('uxs28.push.pushed', 'Accounting up to date'),
+    failed: t('uxs28.push.failed', 'Accounting update needs attention'),
+    held: t('uxs28.push.held', 'Accounting update on hold'),
+  };
   const needsAttention = state.push_state === 'failed' || state.push_state === 'held';
   const copy = describePushError(state.push_error);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <StatusPill variant={VARIANT[state.push_state] ?? 'neutral'}>
-        {LABEL[state.push_state] ?? state.push_state}
+        {label[state.push_state] ?? state.push_state}
       </StatusPill>
       {state.push_state === 'pushed' && state.ts_number && (
         <span className="text-[12px] text-muted-foreground">{state.ts_number}</span>
