@@ -58,7 +58,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
-const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'Paid', 'Cancelled'];
+const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 /** M-7: PMO invoices are never "Submitted" (DD-NAR-3: Draft → Unpaid → Paid); a part-paid one is its own filter. */
 const NATIVE_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 
@@ -79,7 +79,7 @@ function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback
 function matchesStatus(inv: SalesInvoiceRow, filter: StatusFilter): boolean {
   if (filter === 'All') return true;
   if (filter === 'PartlyPaid') return isPartlyPaid(inv);
-  if (filter === 'Unpaid') return inv.status === 'Unpaid' && !isPartlyPaid(inv);
+  if (filter === 'Unpaid' || filter === 'Submitted') return inv.status === filter && !isPartlyPaid(inv);
   return inv.status === filter;
 }
 
@@ -299,11 +299,17 @@ const SalesInvoices: React.FC = () => {
   const sortedInvoices = useMemo(() => {
     if (searchParams.get('sort') !== 'oldest-overdue') return filtered;
     return filtered
-      .map((invoice, index) => ({ invoice, index, age: overdueAgeDays(
-        deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
-        organizationToday,
-      ) }))
-      .sort((a, b) => (b.age ?? -1) - (a.age ?? -1) || a.index - b.index)
+      .map((invoice, index) => {
+        const age = overdueAgeDays(
+          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
+          organizationToday,
+        );
+        const overdueUnpaid = (invoice.status === 'Submitted' || invoice.status === 'Unpaid') && age !== null && age > 0;
+        return { invoice, index, age, overdueUnpaid };
+      })
+      .sort((a, b) => Number(b.overdueUnpaid) - Number(a.overdueUnpaid)
+        || (a.overdueUnpaid && b.overdueUnpaid ? (b.age ?? 0) - (a.age ?? 0) : 0)
+        || a.index - b.index)
       .map(({ invoice }) => invoice);
   }, [filtered, organizationToday, searchParams]);
 
@@ -447,7 +453,7 @@ const SalesInvoices: React.FC = () => {
               <span className="truncate text-xs text-muted-foreground" title={project?.label ?? ''}>
                 {project?.label ?? (projectOptionsPending ? t('financeCopy.projectLoading', 'Project details loading') : t('financeCopy.projectUnavailable', 'Project details unavailable'))}
               </span>
-            ) : <span className="truncate text-xs text-muted-foreground">{t('uxs05.projectNotRecorded', 'Project not recorded')}</span>}
+            ) : <span className="truncate text-xs text-muted-foreground">{t('financeCopy.projectNotRecorded', 'Project not recorded')}</span>}
           </span>
         );
       },
@@ -559,7 +565,9 @@ const SalesInvoices: React.FC = () => {
         return (
           <span className="flex flex-col">
             <span>{due ? formatDateOnly(due) : '—'}</span>
-            {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{t(age === 1 ? 'uxs05.overdueDay' : 'uxs05.overdueDays', age === 1 ? '{{count}} day overdue' : '{{count}} days overdue', { count: age })}</span>}
+            {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{age === 1
+              ? t('uxs05.overdueDay', '{{count}} day overdue', { count: age })
+              : t('uxs05.overdueDays', '{{count}} days overdue', { count: age })}</span>}
           </span>
         );
       },
@@ -754,7 +762,7 @@ const SalesInvoices: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Sales Invoices" />
+          <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
         )
       }
     >

@@ -167,17 +167,24 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(table).not.toContain('ACC-SINV-2026-00002');
   });
 
-  it('sorts open overdue invoices by age, oldest first', async () => {
+  it('AC-S05-M1 sorts overdue unpaid invoices by age and keeps all other rows stable below', async () => {
     const user = userEvent.setup();
     salesInvoicesState.data = [
-      { ...SEED_INVOICES[0], status: 'Unpaid', erp_outstanding_amount: 1 },
-      { ...SEED_INVOICES[1], status: 'Unpaid', erp_outstanding_amount: 1 },
+      { ...SEED_INVOICES[0], status: 'Paid', invoice_date: '2020-01-01', erp_outstanding_amount: 0 },
+      { ...SEED_INVOICES[1], status: 'Unpaid', invoice_date: '2026-07-15', erp_due_date: '2026-09-15', erp_outstanding_amount: 1 },
+      { ...SEED_INVOICES[0], id: 'inv-overdue-oldest', si_number: 'ACC-SINV-2024-OLD', status: 'Unpaid', invoice_date: '2024-01-01', erp_due_date: '2024-02-01', erp_outstanding_amount: 1 },
+      { ...SEED_INVOICES[1], id: 'inv-cancelled', si_number: 'ACC-SINV-CANCELLED', status: 'Cancelled', invoice_date: '2020-01-01', erp_due_date: '2020-02-01', erp_outstanding_amount: 0 },
     ];
     renderAt('/sales-invoices');
     await user.click(screen.getByRole('button', { name: 'Oldest overdue first' }));
     const rows = screen.getAllByRole('row');
-    expect(rows[1]).toHaveTextContent('ACC-SINV-2026-00001');
-    expect(rows[2]).toHaveTextContent('ACC-SINV-2026-00002');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Invoice #'),
+      expect.stringContaining('ACC-SINV-2024-OLD'),
+      expect.stringContaining('ACC-SINV-2026-00002'),
+      expect.stringContaining('ACC-SINV-2026-00001'),
+      expect.stringContaining('ACC-SINV-CANCELLED'),
+    ]);
   });
 
   it('shows project attribution and uses its reference only when the invoice has none', () => {

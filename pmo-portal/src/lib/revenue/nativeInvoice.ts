@@ -30,13 +30,13 @@ export function invoiceGross(inv: { amount: number | null; tax_amount: number; t
   return Math.round((inv.amount + inv.tax_amount) * 100) / 100;
 }
 
-/** DD-NAR-3: "Partly paid" is how a PMO invoice that is Unpaid with part of its gross settled reads. Never stored. */
+/** A submitted/unpaid invoice with a known balance below gross reads "Partly paid". Never stored. */
 export function isPartlyPaid(
   inv: Pick<SalesInvoiceRow, 'status' | 'erp_outstanding_amount' | 'amount' | 'tax_amount' | 'tax_treatment'> & {
     pmo_native?: boolean;
   },
 ): boolean {
-  if (!inv.pmo_native || inv.status !== 'Unpaid' || inv.erp_outstanding_amount == null) return false;
+  if ((inv.status !== 'Unpaid' && inv.status !== 'Submitted') || inv.erp_outstanding_amount == null) return false;
   const gross = invoiceGross(inv);
   return gross != null && inv.erp_outstanding_amount > 0 && inv.erp_outstanding_amount < gross;
 }

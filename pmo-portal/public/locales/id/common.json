@@ -3710,7 +3710,6 @@
   },
   "uxs05": {
     "project": "Proyek",
-    "projectNotRecorded": "Proyek belum dicatat",
     "customerReference": "Referensi pelanggan",
     "projectReferenceFallback": "Referensi proyek: {{reference}}",
     "overdueDay": "Terlambat {{count}} hari",
@@ -3723,7 +3722,7 @@
     "overdueDateUnavailable": "Filter keterlambatan tidak tersedia sampai tanggal organisasi diketahui."
   },
   "financeCopy": {
-    "viewInvoice": "Lihat invoice",
+    "viewInvoice": "Lihat faktur",
     "invoiceRecordTitle": "Faktur {{number}}",
     "invoiceRecordNotFound": "Faktur tidak ditemukan",
     "invoiceRecordNotFoundBody": "Faktur ini tidak lagi tersedia.",

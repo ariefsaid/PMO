@@ -3710,7 +3710,6 @@
   },
   "uxs05": {
     "project": "Project",
-    "projectNotRecorded": "Project not recorded",
     "customerReference": "Customer reference",
     "projectReferenceFallback": "Project reference: {{reference}}",
     "overdueDay": "{{count}} day overdue",

@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   exportColumns: [] as Array<{ key: string; exportValue?: (row: SalesInvoiceRow) => unknown }>,
+  exportRows: [] as SalesInvoiceRow[],
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => h.invoices,
@@ -87,10 +88,13 @@ vi.mock('@/src/components/export', async () => {
     ...actual,
     ExportButton: ({
       columns,
+      rows: exportRows,
     }: {
       columns: Array<{ key: string; exportValue?: (row: SalesInvoiceRow) => unknown }>;
+      rows: SalesInvoiceRow[];
     }) => {
       h.exportColumns = columns;
+      h.exportRows = exportRows;
       return <button type="button">Export invoices</button>;
     },
   };
@@ -203,6 +207,7 @@ beforeEach(() => {
   h.invoices.isError = false;
   h.rateArgs = [];
   h.exportColumns = [];
+  h.exportRows = [];
 });
 afterEach(() => cleanup());
 
@@ -224,6 +229,20 @@ describe('AC-FX-012 sales invoice equivalents', () => {
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-12', true]);
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
     expect(h.rateArgs.some((args) => args[3] === true && args[0] !== 'USD')).toBe(false);
+  });
+
+  it('AC-S05-M2 exports invoice rows in the same active overdue sort order as the table', () => {
+    h.invoices.data = [
+      invoice({ id: 'recent', si_number: 'SI-RECENT', invoice_date: '2026-10-10', status: 'Unpaid', erp_outstanding_amount: 1 }),
+      invoice({ id: 'oldest', si_number: 'SI-OLDEST', invoice_date: '2020-01-01', erp_due_date: '2020-01-02', status: 'Unpaid', erp_outstanding_amount: 1 }),
+      invoice({ id: 'paid', si_number: 'SI-PAID', invoice_date: '2019-01-01', erp_due_date: '2019-01-02', status: 'Paid', erp_outstanding_amount: 0 }),
+    ];
+    renderAt('/sales-invoices?sort=oldest-overdue');
+    expect(h.exportRows.map((row) => row.id)).toEqual(['oldest', 'recent', 'paid']);
+    const visibleRows = screen.getAllByRole('row').slice(1).map((row) => row.textContent);
+    expect(visibleRows[0]).toContain('SI-OLDEST');
+    expect(visibleRows[1]).toContain('SI-RECENT');
+    expect(visibleRows[2]).toContain('SI-PAID');
   });
 
   it('keeps export columns on original invoice values and shows date-based equivalents on the routable detail preview', () => {
