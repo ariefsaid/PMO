@@ -76,8 +76,11 @@ const BudgetAccountMap: React.FC = () => {
 
   const rows = useMemo(() => data ?? [], [data]);
   const catalogue = catalogueQuery.data;
-  const categoriesNeedingPosting = BUDGET_CATEGORIES.filter((category) =>
-    !(data ?? []).some((row) => row.category === category && row.isPushTarget),
+  const categoriesNeedingPosting = useMemo(
+    () => BUDGET_CATEGORIES.filter((category) =>
+      !(data ?? []).some((row) => row.category === category && row.isPushTarget),
+    ),
+    [data],
   );
   const proposals = useMemo(
     () => proposeBudgetAccountMap(catalogue?.accounts ?? [], categoriesNeedingPosting, rows.map((row) => row.erpAccount)),
@@ -167,7 +170,7 @@ const BudgetAccountMap: React.FC = () => {
     if (failures.length) {
       setProposalError(t('uxs10.proposalPartial', { defaultValue: 'Some proposals were not saved ({{categories}}). Existing choices remain unchanged; review those categories and try again.', categories: failures.join(', ') }));
     } else {
-      toast(t('uxs10.proposalSaved', 'Posting map confirmed'), t('uxs10.proposalSavedDetail', { defaultValue: '{{count}} category choices were saved.', count: saved }), 'success');
+      toast(t('uxs10.proposalSaved', 'Posting map confirmed'), t('uxs10.proposalSavedDetail', { defaultValue_one: '{{count}} category choice was saved.', defaultValue_other: '{{count}} category choices were saved.', count: saved }), 'success');
     }
   };
 
@@ -233,7 +236,7 @@ const BudgetAccountMap: React.FC = () => {
         {t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}
       </p>
 
-      <div className="mt-4 border-y border-border py-3" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
+      {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
@@ -241,7 +244,7 @@ const BudgetAccountMap: React.FC = () => {
           </div>
           {proposals.length > 0 && canManage && (
             <Button variant="primary" onClick={() => setConfirmProposals(true)}>
-              {t('uxs10.reviewProposals', { defaultValue: 'Review {{count}} proposals', count: proposals.length })}
+              {t('uxs10.reviewProposals', { defaultValue_one: 'Review {{count}} proposal', defaultValue_other: 'Review {{count}} proposals', count: proposals.length })}
             </Button>
           )}
         </div>
@@ -250,7 +253,7 @@ const BudgetAccountMap: React.FC = () => {
         {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; these choices come from the current ERP chart.')}</p>}
         {catalogue && proposals.length === 0 && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
         {proposalError && <p className="mt-2 text-[13px] text-destructive-text" role="alert">{proposalError}</p>}
-      </div>
+      </div>}
       {/* ⚑ AC-MOBILE-OVERFLOW-001 — below `sm` each row is a stacked card; from `sm` up an ordinary table. The
           account list wraps (`flex-wrap`, `break-words`), so long account names never push past 390px. */}
       <table className="mt-3.5 w-full border-collapse">

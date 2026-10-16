@@ -115,7 +115,8 @@ beforeEach(() => {
 describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
   it('retains the mapped category and proposes only the unmatched direct-cost category', async () => {
     renderPage();
-    expect(await screen.findByRole('button', { name: 'Review 1 proposals' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Suggested posting accounts' })).toBeInTheDocument();
     expect(screen.getByText(/existing choices are kept/i)).toBeInTheDocument();
     expect(screen.queryByText('6100 - Office')).not.toBeInTheDocument();
   });
@@ -123,12 +124,32 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
   it('confirms proposed choices once before saving them', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Review 1 proposals' }));
+    await user.click(await screen.findByRole('button', { name: 'Review 1 proposal' }));
     const confirm = await screen.findByRole('dialog', { name: 'Confirm proposed posting accounts?' });
     expect(within(confirm).getByText(/Materials → 5200 - Materials/)).toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
     await user.click(within(confirm).getByRole('button', { name: 'Confirm proposals' }));
     await waitFor(() => expect(createMock).toHaveBeenCalledWith('Materials', '5200 - Materials', true));
+  });
+
+  it('hides the proposal panel when every budget category already has a posting account', async () => {
+    listMock.mockResolvedValue(['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses'].map((category, index) => ({
+      id: `mapped-${index}`, category, erpAccount: `Account ${index}`, isPushTarget: true,
+    })));
+    renderPage();
+    expect(await screen.findByText('Budget account map')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Suggested posting accounts' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/no clear direct-cost match/i)).not.toBeInTheDocument();
+  });
+
+  it('shows partial-save feedback when one proposal fails to persist', async () => {
+    const user = userEvent.setup();
+    createMock.mockRejectedValue(new Error('save failed'));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review 1 proposal' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Confirm proposed posting accounts?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Confirm proposals' }));
+    expect(await screen.findByText(/Some proposals were not saved \(Materials\)/)).toHaveAttribute('role', 'alert');
   });
 
   it('keeps the account chart loading state distinct from a loaded empty proposal set', async () => {
