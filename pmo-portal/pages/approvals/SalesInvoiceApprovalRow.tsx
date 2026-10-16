@@ -5,7 +5,7 @@ import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { formatCurrencyCents } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { invoiceGross, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
@@ -21,6 +21,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.label ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
   const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
+  const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
@@ -72,8 +73,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
           <dd className="tabular">
-            {money(inv.amount)}
-            {showFx && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
+            {money(net)}
+            {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3">
