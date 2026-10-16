@@ -1,5 +1,5 @@
--- 0296_budget_sole_operator_activation.sql — OD-BUDGET-6 sole-operator exception.
--- Reversal: rollback/0296_budget_sole_operator_activation_down.sql.
+-- 0298_budget_sole_operator_activation.sql — OD-BUDGET-6 sole-operator exception.
+-- Reversal: rollback/0298_budget_sole_operator_activation_down.sql.
 alter table public.budget_versions
   add column activation_basis text check (activation_basis in ('standard','sole_operator'));
 -- The column-level revoke is defense-in-depth only: 0176's INSERT allow-list and 0178's

@@ -1,4 +1,4 @@
--- Rollback 0296_budget_sole_operator_activation.sql.
+-- Rollback 0298_budget_sole_operator_activation.sql.
 drop function if exists public.budget_activation_mode(uuid);
 revoke all on function public.activate_budget_version(uuid) from public, anon;
 create or replace function public.activate_budget_version(version_id uuid)
