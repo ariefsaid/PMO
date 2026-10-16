@@ -3997,7 +3997,6 @@
     "invoiceCancelled": "Invoice cancelled",
     "invoiceSubmitted": "Invoice submitted",
     "invoiceCreated": "Invoice created",
-    "statusScheduled": "Scheduled",
     "paidAmountPositive": "Paid amount must be positive, with no more than 2 decimal places.",
     "receivedAmountPositive": "Received amount must be positive, with no more than 2 decimal places.",
     "paymentDateRequired": "Date is required.",
@@ -4052,7 +4051,6 @@
     "searchItemCodeOrName": "Search item code or name…",
     "describeWorkOrGoods": "Describe the work or goods…",
     "currency": "Currency",
-    "statusReceived": "Received",
     "draftInvoiceLabel": "Draft · {{customer}}",
     "preErpBadge": "Pre-ERP",
     "totalDueAmount": "Total due {{amount}}",
@@ -4569,5 +4567,24 @@
     "moreEarlier": "earlier rates on the next pages",
     "previewCoverage": "Dates from {{first}} to {{last}} — {{count}} with rates",
     "previewGaps": "No rate for {{dates}}"
+  },
+  "uxs06": {
+    "statusReceived": "Received",
+    "statusExpected": "Expected",
+    "none": "None",
+    "notReported": "Not reported",
+    "unappliedCol": "Not yet applied",
+    "invoiceAndMore": "{{first}} +{{count}} more",
+    "receiptTotal": "Receipt total",
+    "backToReceipts": "Back to Incoming Payments",
+    "receiptTitle": "Receipt {{number}}",
+    "settledTitle": "Invoices this receipt settled",
+    "applied": "Applied",
+    "coverageUnknown": "The accounting system has not reported which invoices this receipt settled.",
+    "onAccount": "This receipt is not applied to any invoice. The cash is held on account.",
+    "invoiceNotInPmo": "This invoice is not in PMO yet.",
+    "unappliedNote": "{{amount}} of this receipt is not yet applied to an invoice.",
+    "receiptNotFound": "We couldn't find this receipt",
+    "receiptNotFoundBody": "It may have been removed, or you may not have access to it."
   }
 }

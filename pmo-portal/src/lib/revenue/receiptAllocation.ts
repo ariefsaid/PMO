@@ -33,3 +33,18 @@ export function knownUnappliedCash(row: IncomingPaymentRow): number | null {
   const remainder = cents(row.received_amount) + cents(row.withheld_amount) - applied;
   return remainder < 0 ? null : remainder / 100;
 }
+
+/**
+ * The allocations to show for a row. A receipt PMO itself recorded settles exactly its one named invoice (PMO is the
+ * authority, so nothing is "unreported"); an ERP-mirrored receipt shows only what the ERP reported (`null` = unknown).
+ */
+export function displayAllocations(
+  row: IncomingPaymentRow,
+  invoiceNumberOf: (invoiceId: string) => string | null,
+): ReceiptAllocation[] | null {
+  const mirrored = receiptAllocations(row);
+  if (mirrored !== null || !row.pmo_native) return mirrored;
+  const number = row.sales_invoice_id ? invoiceNumberOf(row.sales_invoice_id) : null;
+  if (!row.sales_invoice_id || number === null || row.amount == null) return null;
+  return [{ invoice_id: row.sales_invoice_id, invoice_number: number, amount: row.amount.toFixed(2), currency: row.currency }];
+}

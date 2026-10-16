@@ -12,7 +12,7 @@ const row = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
   created_at: '2026-10-07T00:00:00Z', ...over,
 }) as IncomingPaymentRow;
 
-const allocation = (invoice_number: string, amount: string, currency = 'IDR', invoice_id: string | null = null) =>
+const allocation = (invoice_number: string, amount: string | null, currency: string | null = 'IDR', invoice_id: string | null = null) =>
   ({ invoice_id, invoice_number, amount, currency });
 
 describe('receiptAllocations — ERP-authored allocation coverage (S-06)', () => {
