@@ -51,11 +51,9 @@ import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/
 import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
 import { pillVariantForProjectStatus, projectIconColor } from '../components/projects';
 import ProjectCard from '../components/ProjectCard';
-import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
@@ -155,6 +153,7 @@ const Projects: React.FC = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [classificationOpen, setClassificationOpen] = useState(false);
+  const [optionalColumnsVisible, setOptionalColumnsVisible] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -271,13 +270,21 @@ const Projects: React.FC = () => {
   );
   // #758: the end-customer filter uses ALL the org's companies (the end customer need not be a
   // Client-type company).
-  const endCustomerFilterOptions = useMemo(
-    () => [
+  const endCustomerFilterOptions = useMemo(() => {
+    const associated = new Map<string, NonNullable<ProjectWithRefs['end_client']>>();
+    for (const project of all) {
+      if (project.end_client_id && project.end_client) associated.set(project.end_client_id, project.end_client);
+    }
+    // Keep a URL-restored selection visible even if its project is not in this result set.
+    if (filterEndCustomer !== 'All' && !associated.has(filterEndCustomer)) {
+      const selected = allCompanies.find((company) => company.id === filterEndCustomer);
+      if (selected) associated.set(selected.id, selected);
+    }
+    return [
       { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
-      ...allCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
-    ],
-    [allCompanies, t],
-  );
+      ...[...associated].map(([id, company]) => ({ value: id, label: companyDisplayName(company) })),
+    ];
+  }, [all, allCompanies, filterEndCustomer, t]);
   const importDescriptor = useMemo(
     () =>
       makeProjectImportDescriptor(
@@ -404,6 +411,10 @@ const Projects: React.FC = () => {
     />
   ) : null;
 
+  const hasEndCustomerData = filtered.some((project) => Boolean(project.end_client));
+  const hasDeliveryData = deliveryPending || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
+  const hasBudgetData = moneyPending || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
+  const hiddenOptionalColumnCount = Number(!hasEndCustomerData) + Number(!hasDeliveryData) + Number(!hasBudgetData);
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -445,16 +456,16 @@ const Projects: React.FC = () => {
                 <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>
                 <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
               </div>
-              {p.code && (
-                <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
-                  <span className="sr-only">{t('projects.identifiers.client', 'Client Project Code')}: </span>
-                  <span className="break-words md:truncate" title={p.code}>{p.code}</span>
-                </div>
-              )}
-              {p.customer_contract_ref && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
-                  {p.customer_contract_ref}
-                </div>
+              {(p.code || p.customer_contract_ref) && (
+                <details className="mt-0.5">
+                  <summary className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                    {t('uxs14.projectReferences', 'More project references')}
+                  </summary>
+                  <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">
+                    {p.code && <div>{t('projects.identifiers.client', 'Client Project Code')}: <span className="break-words md:truncate" title={p.code}>{p.code}</span></div>}
+                    {p.customer_contract_ref && <div>{t('uxs14.contractReference', 'Customer contract reference')}: <span className="break-words md:truncate" title={p.customer_contract_ref}>{p.customer_contract_ref}</span></div>}
+                  </div>
+                </details>
               )}
             </div>
           </div>
@@ -485,12 +496,8 @@ const Projects: React.FC = () => {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
-      header: all.some((project) => project.end_client)
-        ? t('projects.columns.endCustomer', 'End customer')
-        : <span aria-label={t('projects.columns.endCustomer', 'End customer')} title={t('projects.columns.endCustomer', 'End customer')}>{t('projects.columns.endCustomerShort', 'End')}</span>,
-      colClassName: all.some((project) => project.end_client)
-        ? 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2'
-        : 'min-[1280px]:w-[52px] min-[1280px]:max-w-[52px] min-[1280px]:px-2',
+      header: t('projects.columns.endCustomer', 'End customer'),
+      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2',
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()} title={p.end_client ? companyDisplayName(p.end_client) : undefined}>
@@ -517,6 +524,9 @@ const Projects: React.FC = () => {
         }),
       // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
+        if (p.project_manager_id == null) {
+          return <span className="text-[12px] text-muted-foreground">{t('projects.unassigned', 'Unassigned')}</span>;
+        }
         const label = projectManagerLabel({
           managerId: p.project_manager_id,
           fullName: p.pm?.full_name,
@@ -665,7 +675,7 @@ const Projects: React.FC = () => {
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={roundedDelivery} showValue compact aria-label={`Delivery ${roundedDelivery}%`} />
+            <ProgressBar value={roundedDelivery} showValue compact tone={roundedDelivery >= 100 ? 'success' : undefined} aria-label={`Delivery ${roundedDelivery}%`} />
           </div>
         );
       },
@@ -714,23 +724,14 @@ const Projects: React.FC = () => {
         );
       },
     },
-    {
-      key: 'transition',
-      header: t('projects.columns.action', 'Action'),
-      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px]',
-      cell: (p) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <ProjectStatusControl
-            project={{
-              id: p.id,
-              status: p.status as ProjectStatus,
-              customer_contract_ref: p.customer_contract_ref,
-            }}
-          />
-        </div>
-      ),
-    },
   ];
+  const visibleColumns = columns.filter((column) => {
+    if (optionalColumnsVisible) return true;
+    if (column.key === 'end-customer') return hasEndCustomerData;
+    if (column.key === 'progress') return hasDeliveryData;
+    if (column.key === 'budget-used') return hasBudgetData;
+    return true;
+  });
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
@@ -1144,6 +1145,13 @@ const Projects: React.FC = () => {
         */
         !isEngineer ? (
           <>
+            <MobileToolbarDisclosure
+              label={t('uxs14.filters', 'Filters')}
+              count={secondaryCount}
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+            >
+            <div className="flex min-w-0 flex-wrap gap-2">
             <SelectField
               hideLabel
               label={t('projects.filters.customerLabel', 'Filter by customer')}
@@ -1177,12 +1185,20 @@ const Projects: React.FC = () => {
               options={pmFilterOptions}
               className="w-auto"
             />
+            </div>
+            </MobileToolbarDisclosure>
             {classificationFilters}
           </>
         ) : classificationFilters
       }
       exportAction={
-        <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
+        <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen} onOpenChange={setMoreOpen}>
+          <div className="flex flex-wrap gap-2">
+            <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
+            <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
+            <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
+          </div>
+        </MobileToolbarDisclosure>
       }
       view={
         /* All four views remain reachable; DataTable reflows Table into cards below md. */
@@ -1201,22 +1217,6 @@ const Projects: React.FC = () => {
           onChange={onViewChange}
           ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
         />
-      }
-      importAction={
-        <>
-          <ImportButton
-            entity="project"
-            descriptor={importDescriptor}
-            onImported={() => void refetch()}
-            label={t('projects.import', 'Import')}
-          />
-          <ImportButton
-            entity="budgetLine"
-            label={t('projects.importBudgets', 'Import budgets')}
-            descriptor={budgetImportDescriptor}
-            onImported={() => void refetch()}
-          />
-        </>
       }
     >
       {/* Body */}
@@ -1243,10 +1243,25 @@ const Projects: React.FC = () => {
           }}
         />
       ) : view === 'table' ? (
-        <div className="[&_th]:px-1.5 [&_td]:px-1.5">
+        <>
+          {hiddenOptionalColumnCount > 0 && !optionalColumnsVisible && (
+            <div className="mb-2 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(true)}>
+                {t('uxs14.showOptionalColumns', 'Show optional columns')}
+              </Button>
+            </div>
+          )}
+          {optionalColumnsVisible && hiddenOptionalColumnCount > 0 && (
+            <div className="mb-2 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(false)}>
+                {t('uxs14.hideEmptyColumns', 'Hide empty columns')}
+              </Button>
+            </div>
+          )}
+          <div className="[&_th]:px-1.5 [&_td]:px-1.5">
           <DataTable<ProjectWithRefs>
             rows={filtered}
-            columns={columns}
+            columns={visibleColumns}
             rowKey={(p) => p.id}
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
@@ -1276,7 +1291,8 @@ const Projects: React.FC = () => {
                   : undefined
             }
           />
-        </div>
+          </div>
+        </>
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"

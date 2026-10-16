@@ -92,9 +92,10 @@ describe('AC-CODE-003 active Projects identities', () => {
     expect(cardFor('Active site')).not.toHaveTextContent('Client Project Code:');
   });
 
-  it('AC-CODE-003: keeps each identifier readable on a narrow project card', () => {
+  it('AC-CODE-003: keeps disclosed identifiers readable on a narrow project row', async () => {
     mockMobileViewport();
     renderProjects('/projects?view=table');
+    await userEvent.click(screen.getAllByText('More project references')[0]);
     const pmoNumber = screen.getByTitle('PMO-26-7711');
     const clientCode = screen.getByTitle('CLIENT-81');
 

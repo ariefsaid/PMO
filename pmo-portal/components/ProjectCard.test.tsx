@@ -73,9 +73,10 @@ describe('ProjectCard', () => {
     expect(screen.getByTestId('project-status-control')).toBeInTheDocument();
   });
 
-  it('shows the customer contract ref when set', () => {
+  it('shows the customer contract ref on demand', async () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getByText('CPO-2026-001')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('More project references'));
+    expect(screen.getByTitle('CPO-2026-001')).toBeInTheDocument();
   });
 
   it('renders em-dashes for a missing customer and PM rather than blank', () => {

@@ -21,6 +21,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -140,22 +141,25 @@ describe('AC-IXD-PIPE-W5-C5 — Projects toolbar Engineer scope (N19)', () => {
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-5: PM toolbar shows the "Filter by customer" dropdown (unchanged)', () => {
+  it('AC-IXD-PIPE-W5-C5-N19-5: PM toolbar exposes the "Filter by customer" dropdown in Filters', async () => {
     renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(
       screen.getByRole('combobox', { name: /filter by customer/i }),
     ).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-6: PM toolbar shows the "Filter by project manager" dropdown (unchanged)', () => {
+  it('AC-IXD-PIPE-W5-C5-N19-6: PM toolbar exposes the "Filter by project manager" dropdown in Filters', async () => {
     renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(
       screen.getByRole('combobox', { name: /filter by project manager/i }),
     ).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-7: Finance toolbar shows both manager-oriented dropdowns (unchanged)', () => {
+  it('AC-IXD-PIPE-W5-C5-N19-7: Finance toolbar exposes both manager-oriented dropdowns in Filters', async () => {
     renderAs('Finance');
+    await userEvent.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(
       screen.getByRole('combobox', { name: /filter by customer/i }),
     ).toBeInTheDocument();

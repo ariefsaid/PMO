@@ -455,12 +455,16 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Reflow (OD-W4-4):** single-renders — `<table>` at `md` (768px), stacked card list below. One branch
   in the DOM (no flash, no `aria-hidden` dup). Touch targets extend to ≥44px via `.touch-target`.
 
-**Recognition before compression** (2026-10-09, UI polish UIP-003/007). Primary record identity gets enough
+**Recognition before compression** (2026-10-09, UI polish UIP-003/007; refined for S-14, 2026-10-16). Primary record identity gets enough
 space to distinguish same-prefix records before ancillary columns. On the desktop Projects table, target a
 minimum 240px identity region and two readable lines; at 1440 the whole table fits with no clipped control
-(customer ≥12 visible characters; PM as initials with the full name as its accessible name). Use bounded
-table scrolling only below ~1280 — never reduce a name to a few characters. Keep full accessible names,
-numeric comparison alignment and available fields. Repeating procurement rows share one column template
+(customer ≥12 visible characters; assigned PM initials retain the full accessible name, while an unassigned
+PM is the plain `Unassigned` label, never a person-like avatar). Keep the project name and customer immediate;
+disclose secondary identifiers on demand. Keep status/search/current view immediate, group secondary filters
+and transfer tools in labelled disclosures, and offer a discoverable restore control whenever data-empty
+optional columns are hidden. Completed delivery is success, not danger. Use bounded table scrolling only below
+~1280 — never reduce a name to a few characters. Keep full accessible names, numeric comparison alignment
+and available fields. Repeating procurement rows share one column template
 (header and cells from one definition) with aligned headers and a gutter between adjacent numeric columns.
 
 ### Kanban Card (signature)

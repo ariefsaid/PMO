@@ -51,10 +51,13 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
           await intended.locator('..').screenshot({ path: testInfo.outputPath(`UIP-003-identity-1440-${theme}.png`) });
         }
         const scroller = page.getByTestId('dt-table-branch');
+        const restoreOptionalColumns = page.getByRole('button', { name: 'Show optional columns', exact: true });
+        if (await restoreOptionalColumns.isVisible()) await restoreOptionalColumns.click();
         await scroller.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
-        for (const column of ['Customer', 'End customer', 'Contract', 'Actual', 'Progress', 'Budget used', 'Action']) {
+        for (const column of ['Customer', 'End customer', 'Contract', 'Actual', 'Progress', 'Budget used']) {
           await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();
         }
+        await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
         await scroller.evaluate((el) => { el.scrollLeft = 0; });
       }
       const narrowed = page.url();

@@ -40,6 +40,14 @@
     "noDomains": "No connected information is currently updating from ERPNext",
     "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
   },
+  "uxs14": {
+    "filters": "Filters",
+    "moreActions": "More actions",
+    "showOptionalColumns": "Show optional columns",
+    "hideEmptyColumns": "Hide empty columns",
+    "projectReferences": "More project references",
+    "contractReference": "Customer contract reference"
+  },
   "uxs10": {
     "mapPrinciple": "One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.",
     "rowOptions": "Account options",
@@ -3065,7 +3073,6 @@
     },
     "atRiskPill": "At risk",
     "columns": {
-      "action": "Action",
       "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
@@ -3074,8 +3081,7 @@
       "progress": "Progress",
       "project": "Project",
       "status": "Status",
-      "endCustomer": "End customer",
-      "endCustomerShort": "End"
+      "endCustomer": "End customer"
     },
     "confirm": {
       "archiveConfirm": "Archive project",

@@ -48,13 +48,17 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
     await expect(pmAvatar).toHaveAccessibleName(/\s/);
     await expect(pmAvatar).toHaveAttribute('title', accessiblePmName!);
 
-    for (const header of [
-      'Project', 'Customer', 'End customer', 'PM', 'Status', 'Contract',
-      'Actual', 'Progress', 'Budget used', 'Action',
-    ]) {
+    for (const header of ['Project', 'Customer', 'PM', 'Status', 'Contract', 'Actual']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
-        `default Projects column "${header}" should be visible at 1440px`).toBeVisible();
+        `core Projects column "${header}" should be visible at 1440px`).toBeVisible();
     }
+    const restoreOptionalColumns = page.getByRole('button', { name: 'Show optional columns', exact: true });
+    if (await restoreOptionalColumns.isVisible()) await restoreOptionalColumns.click();
+    for (const header of ['End customer', 'Progress', 'Budget used']) {
+      await expect(table.getByRole('columnheader', { name: header, exact: true }),
+        `restored optional Projects column "${header}" should remain discoverable`).toBeVisible();
+    }
+    await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
 
     const { tableWidth, tableScrollWidth, scrollerClientWidth, scrollerScrollWidth } =
       await scroller.evaluate((element) => {
@@ -80,10 +84,10 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
       `Projects table scroller scrollWidth ${scrollerScrollWidth}px exceeds clientWidth ${scrollerClientWidth}px`,
     ).toBeLessThanOrEqual(scrollerClientWidth);
 
-    const action = table.getByRole('button', { name: 'Change status' }).first();
+    const action = table.getByRole('button', { name: 'Row actions' }).first();
     const actionBounds = await action.boundingBox();
     const scrollerBounds = await scroller.boundingBox();
-    expect(actionBounds, 'Projects Action button should be rendered').not.toBeNull();
+    expect(actionBounds, 'Projects row menu should be rendered').not.toBeNull();
     expect(scrollerBounds, 'Projects table viewport should be rendered').not.toBeNull();
     expect(actionBounds!.x).toBeGreaterThanOrEqual(scrollerBounds!.x);
     expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(scrollerBounds!.x + scrollerBounds!.width);
