@@ -96,7 +96,7 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
-const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'pmo') => {
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked') => {
   roleBox.value = role;
   return render(
     <MemoryRouter>
@@ -143,7 +143,7 @@ describe('ProjectDetailHeader — content', () => {
 
   it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
     desktopBox.value = false;
-    renderHeader('Finance');
+    renderHeader('Finance', onHand, 2_100_000, 'pmo');
     const disclosure = screen.getByText('Financial summary').closest('details');
     expect(disclosure).not.toHaveAttribute('open');
     expect(screen.getByText('$5,000,000')).not.toBeVisible();
@@ -153,9 +153,9 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByText('$5,000,000')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
     expect(disclosure).toHaveTextContent('PMO purchase orders$2,100,000');
-    expect(disclosure).toHaveTextContent('Actual$1,800,000');
-    expect(disclosure).toHaveTextContent('Contract remaining after cost$3,200,000.00');
-    expect(disclosure).toHaveTextContent('Spend43%');
+    expect(disclosure).toHaveTextContent('Actual$2,100,000.00');
+    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000.00');
+    expect(disclosure).toHaveTextContent('Spend50%');
   });
 
   it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
@@ -551,6 +551,27 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
     ...onHand,
     spent: 0, // as in production — the dead stored column
   } as unknown as ProjectWithRefs;
+
+  it('DD-MONEY-1/A3 withholds PMO Actual until the purchase-order read succeeds', () => {
+    roleBox.value = 'Finance';
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+      commitmentSource="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual).toHaveTextContent('Loading Actual…');
+    expect(actual).not.toHaveTextContent('$2,100,000');
+  });
+
+  it('DD-MONEY-1: ERP Actual keeps its source currency and withholds project-currency ratios', () => {
+    financeBox.data = { actuals: { currency: 'IDR', total: '1800000.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const tiles = Array.from(document.querySelectorAll('[data-testid="stat-tile"]'));
+    const actual = tiles.find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual?.textContent).toContain('IDR');
+    expect(actual?.textContent).toContain('Complete category coverage');
+    expect(screen.getByText('Contract remaining after cost').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Spend').parentElement).toHaveTextContent('Unavailable');
+  });
 
   it('DD-MONEY-1: incomplete Actuals are never shown as a complete headline amount', () => {
     financeBox.data.actuals.total = '1780000.00';

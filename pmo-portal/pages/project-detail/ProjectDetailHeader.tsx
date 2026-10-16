@@ -25,7 +25,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import type { CommitmentSource } from '@/src/hooks/useProcurements';
-import { deriveContractRemainingAfterCost, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, moneyUnits } from '@/src/lib/projectFinances';
+import { deriveActualPosition, deriveContractRemainingFromPosition, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -34,6 +34,7 @@ import {
   currencySymbol,
   formatCurrency,
   formatDateOnly,
+  formatInstantDate,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -76,6 +77,8 @@ export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
   commitmentSource?: CommitmentSource;
+  commitmentPending?: boolean;
+  commitmentError?: boolean;
   onEditProject?: () => void;
 }
 
@@ -96,6 +99,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
   committedSpend,
   commitmentSource = 'pmo',
+  commitmentPending = false,
+  commitmentError = false,
   onEditProject,
 }) => {
   const { t, i18n } = useTranslation();
@@ -128,7 +133,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
 
   const contract = project.contract_value ?? 0;
-  const committed = committedSpend ?? 0;
+  const committed = committedSpend;
   // Keep the PMO purchase-order amount distinct from Actual; Actual is read from the scoped
   // project-finances source and is withheld unless category coverage is complete.
   // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
@@ -136,14 +141,26 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const activeBudget = derivedBudget ?? 0;
   const financeQuery = useProjectFinances(project.id);
   const actuals = financeQuery.data?.actuals;
-  const actualsComplete = actuals !== undefined && actuals.currency === project.currency && hasCompleteActuals(actuals);
-  const actualAmount = actualsComplete && actuals.total !== null ? Number(actuals.total) : null;
-  const actualLabel = actualsComplete && actuals && actuals.total !== null
-    ? formatExactMoney(actuals.total, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
-      ? t('uxs01.actualPartial', 'Incomplete — see spending details')
-      : t('uxs01.actualUnavailable', 'Unavailable');
-  const contractAfterCost = actuals ? deriveContractRemainingAfterCost(project.contract_value, actuals, project.currency) : null;
+  const actualPosition = deriveActualPosition({ commitmentSource: may('view', 'salesInvoice') ? commitmentSource : 'unavailable',
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
+  const actualAmount = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
+    ? Number(actualPosition.amount) : null;
+  const actualLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+    : commitmentSource === 'pmo' && commitmentPending
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : t('uxs01.actualUnavailable', 'Unavailable');
+  const actualCoverage = actualPosition.basis === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : actuals?.categories.length
+      ? actuals.categories.every((category) => category.mapped) && !actuals.excludes_restricted_rows
+        ? t('uxs01.completeCoverage', 'Complete category coverage')
+        : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: actuals.categories.filter((category) => category.mapped).length, total: actuals.categories.length })
+      : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
+  const contractAfterCost = actualPosition.complete
+    ? deriveContractRemainingFromPosition(project.contract_value, actualPosition, project.currency) : null;
   const contractAfterCostUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
   const contractAfterCostLabel = contractAfterCost === null
     ? t('uxs01.actualUnavailable', 'Unavailable')
@@ -231,13 +248,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     {
       label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
       value: commitmentSource === 'pmo'
-        ? formatCurrency(committed, project.currency)
+        ? commitmentPending
+          ? t('uxs01.actualLoading', 'Loading Actual…')
+          : commitmentError || committed === undefined
+            ? t('uxs01.actualUnavailable', 'Unavailable')
+            : formatCurrency(committed, project.currency)
         : commitmentSource === 'not-tracked'
           ? t('uxs01.notTrackedInPmo', 'Not tracked in PMO yet')
           : t('uxs01.actualUnavailable', 'Unavailable'),
     },
     // Actual comes from the project-finances source and is withheld unless coverage is complete.
-    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualLabel },
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualLabel,
+      sub: actualPosition.complete ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</> : undefined },
     {
       label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
       value: contractAfterCostLabel,

@@ -129,6 +129,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,
+  useProjectCommittedSpend: () => ({ data: 150_000, isPending: false, isError: false, commitmentSource: 'not-tracked' }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: (projectId: string) => { invoiceQuery.calls(projectId); return revenueState; },
@@ -181,7 +182,7 @@ const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpen
   render(
     <ImpersonationProvider realRole={role}>
       <MemoryRouter>
-        <OverviewTab project={p} committedSpend={committedSpend} setTab={setTab} />
+        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" setTab={setTab} />
       </MemoryRouter>
     </ImpersonationProvider>,
   );

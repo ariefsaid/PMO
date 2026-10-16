@@ -44,6 +44,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procurementsState,
   useProjectProcurements: () => procurementsState,
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' }),
 }));
 
 vi.mock('react-router', () => ({

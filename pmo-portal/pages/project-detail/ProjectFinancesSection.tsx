@@ -5,7 +5,8 @@ import { Button, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
-import { deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { deriveActualPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
@@ -16,6 +17,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const may = usePermission();
   const canReviewSetup = may('manage', 'integration');
   const query = useProjectFinances(project.id);
+  const commitments = useProjectCommittedSpend(project.id, true);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
   const money = (value: string | null, currency: string | null) => currency
     ? formatExactMoney(value, currency, i18n.language) ?? unknown
@@ -42,6 +44,9 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   const data = query.data;
   const actuals = data.actuals;
+  const actualPosition = deriveActualPosition({ commitmentSource: commitments.commitmentSource ?? 'unavailable',
+    committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
+    projectCurrency: project.currency, actuals });
   const mappedCategories = actuals.categories.filter((row) => row.mapped).length;
   const hasCoverage = actuals.categories.length > 0;
   const completeCoverage = hasCoverage && mappedCategories === actuals.categories.length && !actuals.excludes_restricted_rows;
@@ -70,6 +75,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-remaining-basis" />)}
       </dl>
       {data.invoices.length === 0 && <p role="status">{t('projectFinances.noInvoices', 'No submitted invoices')}</p>}
+      {!data.budget && <p role="status">{t('uxs01.noBudget', 'No budget')}</p>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals);
         const incomplete = t('projectFinances.incomplete', 'Incomplete — ERP outstanding missing');
@@ -105,23 +111,25 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       </p>}
       <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
-          {t('uxs01.recordedSpending', 'Recorded spending')}{actuals.currency ? ` · ${actuals.currency}` : ''}
+          {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
         </h3>
-        <p className="break-words font-semibold tabular-nums">{money(actuals.total, actuals.currency)}</p>
-        {hasCoverage && <p className="text-xs text-muted-foreground" role="status">
+        <p className="break-words font-semibold tabular-nums">{money(actualPosition.amount, actualPosition.currency)}</p>
+        {actualPosition.basis === 'pmo'
+          ? <p className="text-xs text-muted-foreground" role="status">{t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}</p>
+          : hasCoverage && <p className="text-xs text-muted-foreground" role="status">
           {completeCoverage
             ? t('uxs01.completeCoverage', 'Complete category coverage')
             : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
         </p>}
-        {!hasCoverage && <p className="text-xs text-muted-foreground" role="status">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
-        {actuals.as_of
-          ? <p className="text-xs text-muted-foreground">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actuals.as_of) })}</p>
-          : <p className="text-xs text-muted-foreground">{t('projectFinances.actualsUnavailable', 'Not available yet')}</p>}
-        {!completeCoverage && (canReviewSetup
+        {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground" role="status">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
+        {actualPosition.basis === 'erp' && (actualPosition.asOf
+          ? <p className="text-xs text-muted-foreground">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</p>
+          : <p className="text-xs text-muted-foreground">{t('projectFinances.actualsUnavailable', 'Not available yet')}</p>)}
+        {actualPosition.basis === 'erp' && !completeCoverage && (canReviewSetup
           ? <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('uxs01.reviewSetup', 'Review spending setup')}</Link>
           : <p className="text-xs text-muted-foreground">{t('uxs01.setupHandoff', 'Ask Finance or Admin to review spending setup.')}</p>)}
-        {actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
-        <details className="min-w-0">
+        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
+        {actualPosition.basis === 'erp' && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -146,7 +154,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             </tbody>
           </table>
           </div>
-        </details>
+        </details>}
       </div>
       <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
         {t('projectDetail.overview.invoicing.scopeNote', 'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.')}

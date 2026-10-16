@@ -45,6 +45,35 @@ export type Margin =
   | { amount: ExactMoney; reason: null }
   | { amount: null; reason: 'different-currencies' | 'work-unavailable' | 'actuals-unavailable' | 'restricted-rows' };
 
+export type ActualPosition = {
+  amount: ExactMoney | null;
+  currency: string | null;
+  asOf: string | null;
+  basis: 'pmo' | 'erp' | 'unavailable';
+  complete: boolean;
+};
+
+export function deriveActualPosition(input: {
+  commitmentSource: 'pmo' | 'not-tracked' | 'unavailable';
+  committedSpend: number | undefined;
+  commitmentPending: boolean;
+  commitmentError: boolean;
+  projectCurrency: string;
+  actuals: ProjectFinances['actuals'] | undefined;
+}): ActualPosition {
+  if (input.commitmentSource === 'pmo') {
+    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+      return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
+    }
+    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+  }
+  const actuals = input.commitmentSource === 'not-tracked' ? input.actuals : undefined;
+  if (!actuals || !hasCompleteActuals(actuals)) {
+    return { amount: null, currency: actuals?.currency ?? null, asOf: actuals?.as_of ?? null, basis: input.commitmentSource === 'not-tracked' ? 'erp' : 'unavailable', complete: false };
+  }
+  return { amount: actuals.total, currency: actuals.currency, asOf: actuals.as_of, basis: 'erp', complete: true };
+}
+
 /** A headline Actual is trustworthy only when every reported category is covered. */
 export function hasCompleteActuals(actuals: ProjectFinances['actuals']): boolean {
   return actuals.currency !== null
@@ -59,9 +88,18 @@ export function deriveContractRemainingAfterCost(
   actuals: ProjectFinances['actuals'],
   currency: string,
 ): ExactMoney | null {
-  if (contractValue === null || !Number.isFinite(contractValue) || actuals.currency !== currency || !hasCompleteActuals(actuals)) return null;
+  if (!hasCompleteActuals(actuals)) return null;
+  return deriveContractRemainingFromPosition(contractValue, { amount: actuals.total, currency: actuals.currency }, currency);
+}
+
+export function deriveContractRemainingFromPosition(
+  contractValue: number | null,
+  actual: { amount: ExactMoney | null; currency: string | null },
+  currency: string,
+): ExactMoney | null {
+  if (contractValue === null || !Number.isFinite(contractValue) || actual.currency !== currency) return null;
   const contract = moneyUnits(String(contractValue));
-  const cost = moneyUnits(actuals.total);
+  const cost = moneyUnits(actual.amount);
   return contract === null || cost === null ? null : moneyText(contract - cost);
 }
 
@@ -96,6 +134,7 @@ export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinan
   if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
   const revenue = moneyUnits(bucket.work_revenue);
   if (revenue === null || bucket.missing_work > 0) return { amount: null, reason: 'work-unavailable' };
+  if (!hasCompleteActuals(actuals)) return { amount: null, reason: 'actuals-unavailable' };
   const cost = moneyUnits(actuals.total);
   if (cost === null || !actuals.currency) return { amount: null, reason: 'actuals-unavailable' };
   return { amount: moneyText(revenue - cost), reason: null };

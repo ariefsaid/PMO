@@ -18,7 +18,9 @@ const h = vi.hoisted(() => ({
     refetch: vi.fn().mockResolvedValue(undefined),
   },
   canReviewSetup: false,
+  commitments: { data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' as const },
 }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canReviewSetup }));
 
@@ -52,6 +54,7 @@ beforeEach(() => {
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
   h.canReviewSetup = false;
+  h.commitments = { data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' };
 });
 
 describe('ProjectFinancesSection reading states', () => {

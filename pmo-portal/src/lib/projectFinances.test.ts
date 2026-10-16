@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveContractRemainingAfterCost, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {
@@ -88,18 +88,38 @@ describe('exact project-finance money', () => {
     expect(hasCompleteActuals({ ...actuals, excludes_restricted_rows: true })).toBe(false);
   });
 
+  it('DD-MONEY-1 selects committed PMO spend unless ERP owns procurement, independent of ERP snapshot', () => {
+    const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
+    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '125.00', currency: 'IDR', basis: 'pmo' });
+    const erpPosition = deriveActualPosition({ commitmentSource: 'not-tracked', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals });
+    expect(erpPosition).toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
+    expect(deriveContractRemainingFromPosition(100, erpPosition, 'IDR')).toBeNull();
+  });
+
+  it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
+    const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
+    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+  });
+
   it('AC-PFIN-013 derives a same-currency margin from billed work and mapped costs only', () => {
     const invoice = { currency: 'USD', invoice_count: 1, invoiced: '150.00', settled: null, outstanding: null,
       missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
     const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
-      excludes_restricted_rows: false, categories: [] };
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
     expect(deriveMargin(invoice, actuals)).toEqual({ amount: '80.00', reason: null });
+    expect(deriveMargin(invoice, { ...actuals, categories: [] })).toEqual({ amount: null, reason: 'actuals-unavailable' });
+    expect(deriveMargin(invoice, { ...actuals, categories: [{ category: 'Materials', mapped: false, amount: null }] }))
+      .toEqual({ amount: null, reason: 'actuals-unavailable' });
   });
 
   it('AC-PFIN-013 withholds margins for currency mismatch or incomplete work and actuals', () => {
     const invoice = { currency: 'IDR', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
       missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
-    const actuals = { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false, categories: [] };
+    const actuals = { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
     expect(deriveMargin(invoice, actuals)).toEqual({ amount: null, reason: 'different-currencies' });
     expect(deriveMargin({ ...invoice, currency: 'USD', work_revenue: null }, actuals))
       .toEqual({ amount: null, reason: 'work-unavailable' });
