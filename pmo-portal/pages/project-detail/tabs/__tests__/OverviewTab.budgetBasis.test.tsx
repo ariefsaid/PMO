@@ -44,7 +44,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procurementsState,
   useProjectProcurements: () => procurementsState,
-  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked' }),
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp' }),
 }));
 
 vi.mock('react-router', () => ({
@@ -97,6 +97,8 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
       <OverviewTab
         project={makeProject()}
         committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
       />,
     );
 
@@ -110,6 +112,8 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
       <OverviewTab
         project={makeProject()}
         committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
       />,
     );
 

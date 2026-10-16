@@ -83,7 +83,7 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => projectTransition,

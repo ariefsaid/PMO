@@ -96,12 +96,12 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
-const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked') => {
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
   roleBox.value = role;
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectDetailHeader project={project} committedSpend={committedSpend} commitmentSource={commitmentSource} />
+        <ProjectDetailHeader project={project} committedSpend={committedSpend} commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -143,7 +143,7 @@ describe('ProjectDetailHeader — content', () => {
 
   it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
     desktopBox.value = false;
-    renderHeader('Finance', onHand, 2_100_000, 'pmo');
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
     const disclosure = screen.getByText('Financial summary').closest('details');
     expect(disclosure).not.toHaveAttribute('open');
     expect(screen.getByText('$5,000,000')).not.toBeVisible();
@@ -555,7 +555,7 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
   it('DD-MONEY-1/A3 withholds PMO Actual until the purchase-order read succeeds', () => {
     roleBox.value = 'Finance';
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
-      commitmentSource="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
+      commitmentSource="pmo" ledgerBasis="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
     const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
     expect(actual).toHaveTextContent('Loading Actual…');
     expect(actual).not.toHaveTextContent('$2,100,000');

@@ -54,22 +54,25 @@ export type ActualPosition = {
 };
 
 export function deriveActualPosition(input: {
-  commitmentSource: 'pmo' | 'not-tracked' | 'unavailable';
+  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
   committedSpend: number | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
-  if (input.commitmentSource === 'pmo') {
+  if (input.ledgerBasis === 'pmo') {
     if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
     return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
   }
-  const actuals = input.commitmentSource === 'not-tracked' ? input.actuals : undefined;
+  if (input.ledgerBasis === 'unavailable') {
+    return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };
+  }
+  const actuals = input.actuals;
   if (!actuals || !hasCompleteActuals(actuals)) {
-    return { amount: null, currency: actuals?.currency ?? null, asOf: actuals?.as_of ?? null, basis: input.commitmentSource === 'not-tracked' ? 'erp' : 'unavailable', complete: false };
+    return { amount: null, currency: actuals?.currency ?? null, asOf: actuals?.as_of ?? null, basis: 'erp', complete: false };
   }
   return { amount: actuals.total, currency: actuals.currency, asOf: actuals.as_of, basis: 'erp', complete: true };
 }

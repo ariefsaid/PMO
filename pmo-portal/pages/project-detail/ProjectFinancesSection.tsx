@@ -44,7 +44,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   const data = query.data;
   const actuals = data.actuals;
-  const actualPosition = deriveActualPosition({ commitmentSource: commitments.commitmentSource ?? 'unavailable',
+  const actualPosition = deriveActualPosition({ ledgerBasis: commitments.ledgerBasis,
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
     projectCurrency: project.currency, actuals });
   const mappedCategories = actuals.categories.filter((row) => row.mapped).length;

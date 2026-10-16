@@ -182,7 +182,7 @@ const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpen
   render(
     <ImpersonationProvider realRole={role}>
       <MemoryRouter>
-        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" setTab={setTab} />
+        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={setTab} />
       </MemoryRouter>
     </ImpersonationProvider>,
   );

@@ -60,7 +60,10 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
     : ownership.isPending || ownership.isError || !ownership.data
       ? 'unavailable'
       : ownership.data.some((row) => row.domain === 'procurement') ? 'not-tracked' : 'pmo';
-  return { ...query, commitmentSource };
+  const ledgerBasis = !includeOwnership || ownership.isPending || ownership.isError || !ownership.data
+    ? 'unavailable' as const
+    : ownership.data.some((row) => row.domain === 'ledger::gl_entries') ? 'erp' as const : 'pmo' as const;
+  return { ...query, commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError };
 }
 
 /**

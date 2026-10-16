@@ -22,6 +22,7 @@ export interface OverviewTabProps {
   project: ProjectWithRefs;
   committedSpend?: number;
   commitmentSource?: CommitmentSource;
+  ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   commitmentPending?: boolean;
   commitmentError?: boolean;
   /** Callback to switch to a sibling tab (budget / procurement). */
@@ -52,19 +53,19 @@ export interface OverviewTabProps {
  * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
-const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, commitmentSource = 'pmo', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
+const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, commitmentSource = 'unavailable', ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const { data: projectFinances } = useProjectFinances(project.id);
   const actuals = may('view', 'salesInvoice') ? projectFinances?.actuals : undefined;
-  const actualPosition = deriveActualPosition({ commitmentSource: may('view', 'salesInvoice') ? commitmentSource : 'unavailable',
+  const actualPosition = deriveActualPosition({ ledgerBasis: may('view', 'salesInvoice') ? ledgerBasis : 'unavailable',
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
   const actualSpend = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
     ? Number(actualPosition.amount) : null;
   const actualSpendLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
     ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : commitmentSource === 'pmo' && commitmentPending
+    : ledgerBasis === 'pmo' && commitmentPending
       ? t('uxs01.actualLoading', 'Loading Actual…')
       : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
         ? t('uxs01.actualPartial', 'Incomplete — see spending details')

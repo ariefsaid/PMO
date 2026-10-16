@@ -80,7 +80,7 @@ const renderTab = (p: ProjectWithRefs, actualSpend = 0) => {
   financeState.data.actuals.categories[0].amount = `${actualSpend}.00`;
   return render(
     <MemoryRouter>
-      <OverviewTab project={p} committedSpend={actualSpend} setTab={vi.fn()} />
+      <OverviewTab project={p} committedSpend={actualSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={vi.fn()} />
     </MemoryRouter>,
   );
 };

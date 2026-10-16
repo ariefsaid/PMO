@@ -88,20 +88,24 @@ describe('exact project-finance money', () => {
     expect(hasCompleteActuals({ ...actuals, excludes_restricted_rows: true })).toBe(false);
   });
 
-  it('DD-MONEY-1 selects committed PMO spend unless ERP owns procurement, independent of ERP snapshot', () => {
+  it('DD-MONEY-1 selects Actual from ledger ownership, independent of procurement ownership', () => {
     const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
-    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
       .toMatchObject({ amount: '125.00', currency: 'IDR', basis: 'pmo' });
-    const erpPosition = deriveActualPosition({ commitmentSource: 'not-tracked', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals });
-    expect(erpPosition).toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
-    expect(deriveContractRemainingFromPosition(100, erpPosition, 'IDR')).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: undefined, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '50.00', basis: 'erp' });
+    expect(deriveContractRemainingFromPosition(100, { amount: '50.00', currency: 'USD' }, 'IDR')).toBeNull();
   });
 
   it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
     const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
-    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
-    expect(deriveActualPosition({ commitmentSource: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'unavailable', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: null, basis: 'unavailable', complete: false });
   });
 
   it('AC-PFIN-013 derives a same-currency margin from billed work and mapped costs only', () => {

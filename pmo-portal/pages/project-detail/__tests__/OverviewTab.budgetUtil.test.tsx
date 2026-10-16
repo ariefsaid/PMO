@@ -76,7 +76,7 @@ const project: ProjectWithRefs = {
 const renderTab = () =>
   render(
     <MemoryRouter>
-      <OverviewTab project={project} committedSpend={500_000} />
+      <OverviewTab project={project} committedSpend={500_000} commitmentSource="not-tracked" ledgerBasis="erp" />
     </MemoryRouter>,
   );
 

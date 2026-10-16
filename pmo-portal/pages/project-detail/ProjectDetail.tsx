@@ -96,7 +96,7 @@ const ProjectDetail: React.FC = () => {
   );
 
   const committedSpendQuery = useProjectCommittedSpend(projectId || null, true);
-  const { data: committedSpend, commitmentSource = 'unavailable' } = committedSpendQuery;
+  const { data: committedSpend, commitmentSource = 'unavailable', ledgerBasis = 'unavailable' } = committedSpendQuery;
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
@@ -219,6 +219,7 @@ const ProjectDetail: React.FC = () => {
             project={project}
             committedSpend={committedSpend}
             commitmentSource={commitmentSource}
+            ledgerBasis={ledgerBasis}
             commitmentPending={committedSpendQuery.isPending}
             commitmentError={committedSpendQuery.isError}
             setTab={setTab}
@@ -284,6 +285,7 @@ const ProjectDetail: React.FC = () => {
             project={project}
             committedSpend={committedSpend}
             commitmentSource={commitmentSource}
+            ledgerBasis={ledgerBasis}
             commitmentPending={committedSpendQuery.isPending}
             commitmentError={committedSpendQuery.isError}
             onEditProject={openEditProject}
@@ -322,6 +324,7 @@ const ProjectDetail: React.FC = () => {
               project={project}
               committedSpend={committedSpend}
               commitmentSource={commitmentSource}
+              ledgerBasis={ledgerBasis}
               commitmentPending={committedSpendQuery.isPending}
               commitmentError={committedSpendQuery.isError}
               onEditProject={openEditProject}

@@ -77,6 +77,7 @@ export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
   commitmentSource?: CommitmentSource;
+  ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   commitmentPending?: boolean;
   commitmentError?: boolean;
   onEditProject?: () => void;
@@ -98,7 +99,8 @@ export interface ProjectDetailHeaderProps {
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
   committedSpend,
-  commitmentSource = 'pmo',
+  commitmentSource = 'unavailable',
+  ledgerBasis = 'unavailable',
   commitmentPending = false,
   commitmentError = false,
   onEditProject,
@@ -141,13 +143,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const activeBudget = derivedBudget ?? 0;
   const financeQuery = useProjectFinances(project.id);
   const actuals = financeQuery.data?.actuals;
-  const actualPosition = deriveActualPosition({ commitmentSource: may('view', 'salesInvoice') ? commitmentSource : 'unavailable',
+  const actualPosition = deriveActualPosition({ ledgerBasis: may('view', 'salesInvoice') ? ledgerBasis : 'unavailable',
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
   const actualAmount = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
     ? Number(actualPosition.amount) : null;
   const actualLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
     ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : commitmentSource === 'pmo' && commitmentPending
+    : ledgerBasis === 'pmo' && commitmentPending
       ? t('uxs01.actualLoading', 'Loading Actual…')
       : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
         ? t('uxs01.actualPartial', 'Incomplete — see spending details')
