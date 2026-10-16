@@ -124,6 +124,24 @@ else
 fi
 
 # --- Project overrides (OVERLAY, not replace) — ported from the MOS convention 2026-08-06 ---
+echo "==> strix (usestrix/strix, Apache-2.0) — security-testing SKILLS only, as review references"
+# Owner 2026-10-16: use Strix's skills, NOT its agent/sandbox/LLM service. Prompt-only .md, pinned.
+# Vetted 2026-10-16 at 972f5097: markdown only (plus an unused __init__.py, not copied).
+# The SKILL.md index lives in .claude/skill-overrides/strix-security/.
+STRIX_REF=972f5097c2bfaf8f1dd8b55744ab8861f0d6b6e5
+git clone -q --filter=blob:none --no-checkout https://github.com/usestrix/strix.git "$TMP/strix"
+git -C "$TMP/strix" sparse-checkout set strix/skills
+git -C "$TMP/strix" checkout -q "$STRIX_REF"
+SX="$TMP/strix/strix/skills"
+rm -rf "${DEST:?}/strix-security"; mkdir -p "$DEST/strix-security/references"
+cp -R "$SX/analysis" "$SX/vulnerabilities" "$DEST/strix-security/references/"
+mkdir -p "$DEST/strix-security/references/stack"
+for f in technologies/supabase technologies/llm_applications protocols/oauth scan_modes/diff \
+         coordination/source_aware_whitebox custom/source_aware_sast custom/dependency_cve_scanning custom/npx_confusion; do
+  cp "$SX/$f.md" "$DEST/strix-security/references/stack/$(basename "$f").md"
+done
+cp "$TMP/strix/LICENSE" "$DEST/strix-security/LICENSE" 2>/dev/null || true
+
 # Our upgraded files (git-tracked in THIS repo under .claude/skill-overrides/) are OVERLAID on top of
 # the pristine vendored skill — our SKILL.md wins while upstream SIBLINGS (tests.md, agents/…) are
 # KEPT. Before overlaying, snapshot the pristine upstream to .claude/skill-original/<name>/
@@ -146,7 +164,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling sssf + mattpocock full eng+prod set"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling sssf strix-security + mattpocock full eng+prod set"
 echo "Project overrides applied from .claude/skill-overrides/ ($(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' '))"
 echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
 node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only
