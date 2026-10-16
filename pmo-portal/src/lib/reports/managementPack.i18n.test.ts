@@ -22,6 +22,7 @@ const KEYS = [
   'managementPack.progressModal.title', 'managementPack.progressModal.month', 'managementPack.progressModal.monthInvalid',
   'managementPack.progressModal.pct', 'managementPack.progressModal.pctHelper', 'managementPack.progressModal.pctInvalid',
   'managementPack.progressModal.note', 'managementPack.progressModal.save', 'managementPack.progressModal.saved',
+  'uxs34.backlogReason', 'uxs34.backlogUnavailable',
 ];
 
 describe('AC-MMP-017 management pack catalogue', () => {
