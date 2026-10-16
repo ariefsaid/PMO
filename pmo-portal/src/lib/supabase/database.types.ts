@@ -3012,6 +3012,7 @@ export type Database = {
       }
       incoming_payments: {
         Row: {
+          allocation_details: Json | null
           amount: number | null
           cancelled_at: string | null
           created_at: string
@@ -3035,6 +3036,7 @@ export type Database = {
           withholding_slip_number: string | null
         }
         Insert: {
+          allocation_details?: Json | null
           amount?: number | null
           cancelled_at?: string | null
           created_at?: string
@@ -3058,6 +3060,7 @@ export type Database = {
           withholding_slip_number?: string | null
         }
         Update: {
+          allocation_details?: Json | null
           amount?: number | null
           cancelled_at?: string | null
           created_at?: string

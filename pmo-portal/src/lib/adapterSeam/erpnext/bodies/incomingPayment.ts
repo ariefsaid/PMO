@@ -101,7 +101,7 @@ function tryMoney(value: unknown): string | null {
 /** S-06: the invoices a Receive entry settled, from its `references` child table. Absent table = coverage unknown
  *  (undefined); an empty one is a known on-account receipt. Only Sales Invoice rows count; an amount the ERP did not
  *  state stays null — never zero. */
-function allocationsOf(references: unknown): Array<{ reference_name: string; allocated_amount: string | null }> | undefined {
+export function allocationsOf(references: unknown): Array<{ reference_name: string; allocated_amount: string | null }> | undefined {
   if (!Array.isArray(references)) return undefined;
   return (references as Array<Record<string, unknown>>)
     .filter((r) => r?.reference_doctype === 'Sales Invoice' && typeof r.reference_name === 'string' && r.reference_name.trim() !== '')
