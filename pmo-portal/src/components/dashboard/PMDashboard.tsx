@@ -2,8 +2,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
-import { useAuth } from '@/src/auth/useAuth';
-import { useProjects } from '@/src/hooks/useProjects';
+import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -11,13 +10,16 @@ import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
-import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
-import type { TopProject } from '@/src/lib/db/dashboard';
-import { isAtRisk } from '@/src/lib/dashboardConstants';
+import type { PMDashboardProject } from '@/src/lib/db/dashboard';
+import { ACTIVE_PROJECT_STATUSES, AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
+
+const hasCompleteActual = (p: PMDashboardProject) => p.spent !== null
+  && (p.actual_coverage_total == null || (p.actual_coverage_count ?? 0) >= p.actual_coverage_total);
 
 // Project-status pill comes from the canonical project-status map
 // (`pillVariantForProjectStatus`), which routes through the single status registry's
@@ -31,37 +33,39 @@ import { pillVariantForProjectStatus } from '@/components/projects';
  * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const statusLabel = useProjectStatusLabel();
-  const { currentUser } = useAuth();
-  const { data: projects, isPending, isError, refetch } = useProjects();
-  // Cross-project aggregate (TopProject-shaped) — org-denominated (FR-L10N-020).
+  const { data: mine = [], isPending, isError, refetch } = usePMDashboardProjects();
   const orgCurrency = useOrgCurrency();
-
-  const mine = useMemo(
-    () => (projects ?? []).filter((p) => p.project_manager_id === currentUser?.id),
-    [projects, currentUser?.id],
-  );
-  const contractValue = useMemo(() => mine.reduce((s, p) => s + (p.contract_value || 0), 0), [mine]);
-  const atRiskCount = useMemo(() => mine.filter(isAtRisk).length, [mine]);
+  const contractCurrency = mine[0]?.currency;
+  const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
+    ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
+  const atRiskCount = useMemo(() => mine.filter((p) => ACTIVE_PROJECT_STATUSES.has(p.status)
+    && p.budget !== null && p.budget > 0 && hasCompleteActual(p)
+    && (p.spent ?? 0) / p.budget >= AT_RISK_THRESHOLD).length, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(
-    () => [...mine].sort((a, b) => (isAtRisk(a) ? 0 : 1) - (isAtRisk(b) ? 0 : 1)),
-    [mine],
+    () => [...mine].sort((a, b) => {
+      const riskA = ACTIVE_PROJECT_STATUSES.has(a.status) && a.budget !== null && a.budget > 0 && hasCompleteActual(a) && (a.spent ?? 0) / a.budget >= AT_RISK_THRESHOLD;
+      const riskB = ACTIVE_PROJECT_STATUSES.has(b.status) && b.budget !== null && b.budget > 0 && hasCompleteActual(b) && (b.spent ?? 0) / b.budget >= AT_RISK_THRESHOLD;
+      return Number(riskB) - Number(riskA);
+    }), [mine],
   );
 
   // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
   const { data: delivery } = useProjectsDelivery(mine.map((p) => p.id));
 
-  const bvaProjects: TopProject[] = mine.map((p) => ({
-    id: p.id, name: p.name, client_name: p.client?.name ?? null,
-    contract_value: p.contract_value, budget: p.budget, spent: p.spent, status: p.status,
-  }));
+  const bvaProjects: PMDashboardProject[] = mine;
 
   return (
     <div className="space-y-4">
       <DashPageHead title={t('dashboard.pm.title', 'My Dashboard')} sub={t('dashboard.pm.subtitle', 'Your projects, budget health, and approvals queue.')} />
+
+      <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
+        <AwaitingApprovalTile includeTimesheets />
+        <Card className="p-4"><div className="text-[12px] font-semibold text-muted-foreground">{t('dashboard.pm.atRisk', 'At risk')}</div><div data-testid="pm-attention-count" className="tabular mt-1 text-[23px] font-bold">{isPending || isError ? t('uxs03.notAvailableYet', 'Not available yet') : atRiskCount}</div></Card>
+      </section>
 
       <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
         {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
@@ -72,7 +76,7 @@ export const PMDashboard: React.FC = () => {
           help={t('dashboard.pm.myProjectsHelp', 'Projects where you are the assigned project manager.')} />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
-          value={formatCurrency(contractValue, orgCurrency)} loading={isPending} error={isError}
+          value={contractValue === null ? t('uxs03.notAvailableYet', 'Not available yet') : formatDashboardMoney(contractValue, contractCurrency ?? orgCurrency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet')} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
@@ -82,13 +86,11 @@ export const PMDashboard: React.FC = () => {
           to="/projects?filter=at-risk"
           linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
           help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />
-        {/* N15: real combined approvals shortcut (PRs you can approve + timesheets) → /approvals. */}
-        <AwaitingApprovalTile includeTimesheets />
       </section>
 
       <DashGrid>
         <Card>
-          <CardHead>{t('dashboard.pm.bvaTitle', 'Budget vs Actual — My Projects')}</CardHead>
+          <CardHead>{t('uxs03.spendingContract', 'Spending vs contract')}</CardHead>
           <div className="px-4 pb-3.5">
             {isError ? (
               <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
@@ -104,7 +106,7 @@ export const PMDashboard: React.FC = () => {
         </Card>
 
         <Card>
-          <CardHead>{t('dashboard.pm.statusTitle', 'Project Status')}</CardHead>
+          <CardHead>{t('dashboard.pm.statusTitle', 'Project Status')} <span className="ml-2 text-[12px] font-normal text-muted-foreground">{t('uxs03.marginToDate', 'Margin to date')}</span></CardHead>
           <div className="px-4 pb-3.5">
             {isPending ? (
               <ListState variant="loading" />
@@ -115,22 +117,15 @@ export const PMDashboard: React.FC = () => {
             ) : (
               <ul className="divide-y divide-border/70">
                 {mineSorted.map((p) => {
-                  // Only show a margin figure for in-delivery projects that have real spend.
-                  // Zero-spend (Tender/Loss rows) would produce (contract - 0)/contract = 100%
-                  // which is misleading — show the muted "Not set" instead (I2 fix; G3
-                  // replaces the bare em-dash with concrete copy).
-                  const isActive = p.status === 'Ongoing Project' || p.status === 'Internal Project';
-                  const hasSpend = p.spent > 0 && p.contract_value > 0;
-                  const margin = isActive && hasSpend
-                    ? ((p.contract_value - p.spent) / p.contract_value) * 100
-                    : null;
+                  const margin = p.realized_margin_pct === null ? null : p.realized_margin_pct * 100;
                   const marginClass =
                     margin === null
                       ? 'text-muted-foreground'
                       : margin < 10
                         ? 'text-destructive'
                         : 'text-foreground';
-                  const projectAtRisk = isAtRisk(p);
+                  const projectAtRisk = ACTIVE_PROJECT_STATUSES.has(p.status) && p.budget !== null && p.budget > 0
+                    && hasCompleteActual(p) && (p.spent ?? 0) / p.budget >= AT_RISK_THRESHOLD;
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
                       <Link
@@ -147,7 +142,7 @@ export const PMDashboard: React.FC = () => {
                       <span
                         className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
                       >
-                        {margin !== null ? `${margin.toFixed(1)}%` : t('dashboard.pm.notSet', 'Not set')}
+                        {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
                       </span>
                     </li>
                   );

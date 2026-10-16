@@ -110,9 +110,9 @@ select is(
   'AC-W2-1-RPC-03: get_projects_delivery.budget = Σ Active-version line-items, not stored projects.budget'
 );
 
-select is((select (e->>'budget')::numeric from json_array_elements(get_executive_dashboard()->'top_projects') e
-           where e->>'name'='DRAFT_BUDGET_NOT_AT_RISK'),0::numeric,
-  'AC-UX-S03-18: Draft budget is not exposed as an active budget');
+select ok((select (e->>'budget')::numeric from json_array_elements(get_executive_dashboard()->'top_projects') e
+          where e->>'name'='DRAFT_BUDGET_NOT_AT_RISK') is null,
+  'AC-UX-S03-18: Draft budget remains unavailable rather than being shown as zero (DD-MONEY-4)');
 
 reset role;
 select * from finish();

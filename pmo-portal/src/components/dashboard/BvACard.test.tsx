@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { formatCurrency } from '@/src/lib/format';
 import { BvACard } from './BvACard';
 import type { TopProject } from '@/src/lib/db/dashboard';
 
 const projects: TopProject[] = [
-  { id: 'p1', name: 'Innovate HQ', client_name: 'Innovate', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project' },
+  { id: 'p1', name: 'Innovate HQ', client_name: 'Innovate', currency: 'USD', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project' },
   // 98% utilization → at-risk (spent/budget > 0.9)
-  { id: 'p2', name: 'Acme Platform', client_name: 'Acme', contract_value: 3_000_000, budget: 2_000_000, spent: 1_960_000, status: 'Ongoing Project' },
+  { id: 'p2', name: 'Acme Platform', client_name: 'Acme', currency: 'USD', contract_value: 3_000_000, budget: 2_000_000, spent: 1_960_000, status: 'Ongoing Project' },
 ];
 
 const renderCard = (p = projects) =>
@@ -19,18 +18,24 @@ const renderCard = (p = projects) =>
   );
 
 describe('BvACard (Exec — real top_projects)', () => {
-  it('renders one row per project with spent / contract tabular readout', () => {
+  it('AC-UX-013: labels spending versus contract and uses contract as the denominator', () => {
     renderCard();
     expect(screen.getByText('Innovate HQ')).toBeInTheDocument();
     expect(
-      screen.getByText(`${formatCurrency(2_100_000, 'USD')} / ${formatCurrency(5_000_000, 'USD')}`),
+      screen.getByText('$2,100,000.00 / $5,000,000.00'),
     ).toBeInTheDocument();
   });
 
-  it('exposes a per-row accessible "{name}: {pct}% of contract" progress label', () => {
+  it('exposes a per-row accessible contract comparison percentage', () => {
     renderCard();
     // Innovate spent 2.1M of 5M contract = 42%
     expect(screen.getByLabelText(/Innovate HQ: 42% of contract/i)).toBeInTheDocument();
+  });
+
+  it('AC-RF-002: unknown Actual is not rendered as zero and has no fabricated bar', () => {
+    renderCard([{ ...projects[0], spent: null }]);
+    expect(screen.getByText(/Not available yet \/ \$5,000,000\.00/)).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   it('flags the over-90%-utilized project with an At risk pill', () => {
@@ -44,6 +49,6 @@ describe('BvACard (Exec — real top_projects)', () => {
 
   it('labels the whole section for assistive tech', () => {
     renderCard();
-    expect(screen.getByRole('group', { name: /Budget vs actual by project/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Spending vs contract/i })).toBeInTheDocument();
   });
 });

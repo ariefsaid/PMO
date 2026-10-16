@@ -1,4 +1,5 @@
 -- Restore the immediately preceding dashboard contract (0286).
+drop function if exists public.get_pm_dashboard_projects();
 create or replace function public.get_executive_dashboard()
   returns json language sql stable security invoker set search_path = public
 as $$

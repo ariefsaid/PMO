@@ -6,7 +6,7 @@ import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { formatCurrency } from '@/src/lib/format';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -30,7 +30,7 @@ import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLink';
 
 const ExecutiveDashboard: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
   // is the very last statement so no hook is conditional.
@@ -119,8 +119,22 @@ const ExecutiveDashboard: React.FC = () => {
       );
     }
 
-    const onHandPct = `${(data.on_hand_margin * 100).toFixed(1)}%`;
-    const weightedPct = `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
+    const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
+      ?? t('uxs03.notAvailableYet', 'Not available yet');
+    const mixedPipelineCurrencies = (data.pipeline_total_value_by_currency ?? []).length > 1;
+    const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
+      .reduce((sum, item) => sum + item.unknown_projects, 0);
+    const marginLabel = unknownMarginProjects > 0
+      ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
+      : t('uxs03.realizedMargin', 'Margin on billed work');
+    const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
+      known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
+    }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
+      known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
+    });
+    const weightedPct = data.pipeline_projected_margin === null
+      ? t(mixedPipelineCurrencies ? 'uxs03.mixedCurrencyTotalUnavailable' : 'uxs03.noActiveBudget', mixedPipelineCurrencies ? 'Unavailable for mixed currencies' : 'No active budget')
+      : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
 
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
     const chartsSection = (
@@ -130,7 +144,7 @@ const ExecutiveDashboard: React.FC = () => {
         <DashGrid>
           <Card data-testid="dashboard-pipeline">
             <span className="sr-only">{`${data.active_projects} ${t('dashboard.sr.activeProjects', 'active projects')}`}</span>
-            <CardHead>{t('dashboard.chart.bva.title', 'Budget vs Actual — Active Projects')}</CardHead>
+            <CardHead>{t('uxs03.spendingContract', 'Spending vs contract')}</CardHead>
             <div className="px-4 pb-3.5">
               {data.top_projects.length === 0 ? (
                 <ListState
@@ -150,7 +164,8 @@ const ExecutiveDashboard: React.FC = () => {
         <DashGrid>
           <Card data-testid="dashboard-proc-status">
             <span className="sr-only">{`${data.procurements_by_status.length} ${t('dashboard.sr.statuses', 'statuses')}`}</span>
-            <CardHead>{t('dashboard.chart.procStatus.title', 'Procurement by Status')}</CardHead>
+            <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
+            <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
             <div className="px-4 pb-4 pt-2">
               {procByStatus.length === 0 ? (
                 <ListState
@@ -184,6 +199,8 @@ const ExecutiveDashboard: React.FC = () => {
                 />
               ) : pipePending ? (
                 <ListState variant="loading" rows={5} />
+              ) : mixedPipelineCurrencies ? (
+                <p className="text-sm text-muted-foreground">{t('uxs03.mixedCurrencyTotalUnavailable', 'Unavailable for mixed currencies')}</p>
               ) : !pipeline || pipeline.stages.length === 0 ? (
                 <ListState
                   variant="empty"
@@ -232,9 +249,13 @@ const ExecutiveDashboard: React.FC = () => {
           actions={<BoardPackAction />}
         />
 
-        {/* KPI band — reflows 6 → 3 → 2 → 1 at 1180 / 920 / 560 (mockup breakpoints).
-            All tiers are arbitrary min-[] — monotonically ascending source order so
-            Tailwind v4 cascade never lets a named sm: (640px) win over a wider tier. */}
+        <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="space-y-2">
+          <AtRiskProjectsLink count={data.projects_at_risk}
+            className="inline-flex min-h-8 items-center font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring" />
+          <AwaitingApprovalTile includeTimesheets />
+        </section>
+
+        {/* KPI band follows actionable work. */}
         <section
           aria-label={t('dashboard.kpiBand.label', 'Portfolio KPIs')}
           className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
@@ -246,13 +267,14 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-on-hand-margin"
             tone="green"
             icon="dollar"
-            label={t('dashboard.kpi.revenueOnHand.label', 'Revenue on hand')}
-            value={formatCurrency(data.on_hand_value, orgCurrency)}
-            vs={t('dashboard.kpi.revenueOnHand.vs', 'Realized margin: {{percent}}', { percent: onHandPct })}
+            label={t('uxs03.contractedRevenue', 'Contracted revenue')}
+            value={money(data.on_hand_value)}
+            vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data.on_hand_contract_remaining)
+              + ' · ' + marginLabel + ': ' + money(data.on_hand_realized_margin) + ' · ' + actualCoverage}
             helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
             help={t(
               'dashboard.kpi.revenueOnHand.help',
-              'Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date.',
+              'Contract value across delivery projects. Margin is billed-work revenue less Actual; it is not cash received.',
             )}
           />
           {/* AC-IXD-DASH-W5-C2A: Pipeline (weighted) → /sales (the pipeline IS the weighted-value view) */}
@@ -261,9 +283,9 @@ const ExecutiveDashboard: React.FC = () => {
             tone="violet"
             icon="pipe"
             label={t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')}
-            value={formatCurrency(data.pipeline_weighted_value, orgCurrency)}
+            value={money(data.pipeline_weighted_value)}
             vs={t('dashboard.kpi.pipelineWeighted.vs', 'of {{gross}} gross', {
-              gross: formatCurrency(data.pipeline_total_value, orgCurrency),
+              gross: money(data.pipeline_total_value),
             })}
             to="/sales"
             linkLabel={t('dashboard.kpi.pipelineWeighted.linkLabel', 'Open the sales pipeline')}
@@ -309,7 +331,7 @@ const ExecutiveDashboard: React.FC = () => {
             tone="amber"
             icon="grid"
             label={t('dashboard.kpi.totalContractValue.label', 'Total contract value')}
-            value={formatCurrency(data.total_contract_value, orgCurrency)}
+            value={money(data.total_contract_value)}
             vs={t('dashboard.kpi.totalContractValue.vs', 'active projects')}
             to="/projects?filter=Ongoing"
             linkLabel={t(
@@ -327,8 +349,10 @@ const ExecutiveDashboard: React.FC = () => {
             tone="red"
             icon="cart"
             label={t('dashboard.kpi.totalSpend.label', 'Total project spend')}
-            value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0), orgCurrency)}
-            vs={t('dashboard.kpi.totalSpend.vs', 'actual to date')}
+            value={money(data.on_hand_actual_known)}
+            vs={t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
+              known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
+            })}
             to="/projects?filter=Ongoing"
             linkLabel={t(
               'dashboard.kpi.totalSpend.linkLabel',
@@ -339,22 +363,6 @@ const ExecutiveDashboard: React.FC = () => {
               "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
             )}
           />
-        </section>
-
-        {/* AC-IFW-DASH-02: discrete at-risk drill link — sits OUTSIDE the Active-projects tile
-            (which is already a whole-tile link to /projects?filter=Ongoing) so no nested
-            interactives. Only shown when there are at-risk projects. */}
-        <AtRiskProjectsLink
-          count={data.projects_at_risk}
-          className="inline-flex min-h-8 items-center font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-        />
-
-        {/* N15: combined approvals shortcut (PRs Exec can approve + timesheets) → /approvals. */}
-        <section
-          aria-label={t('dashboard.approvals.label', 'Approvals')}
-          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-3"
-        >
-          <AwaitingApprovalTile includeTimesheets />
         </section>
 
         {chartsSection}

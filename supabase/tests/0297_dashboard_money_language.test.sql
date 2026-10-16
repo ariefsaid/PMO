@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(19);
 
 insert into public.organizations (id,name) values
   ('02970000-0000-0000-0000-000000000001','Dashboard money language test org');
@@ -47,6 +47,9 @@ values ('02970000-0000-0000-0000-0000000000e1','02970000-0000-0000-0000-00000000
         '02970000-0000-0000-0000-0000000000d3','SI-0297','2026-10-03',300,'exclusive',0,
         'USD','Submitted',1);
 
+update public.projects set project_manager_id='02970000-0000-0000-0000-0000000000a1'
+where id='02970000-0000-0000-0000-0000000000d1';
+
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"02970000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
@@ -89,6 +92,19 @@ select ok(not has_function_privilege('anon','public.get_executive_dashboard()','
   'AC-UX-S03-14: dashboard RPC execute grants preserve 0286 authorization boundary');
 select is((get_executive_dashboard()->>'active_projects')::int,3,
   'AC-UX-S03-15: security-invoker dashboard remains scoped to the caller organization as in 0286');
+select is(json_array_length(get_pm_dashboard_projects()),1,
+  'AC-UX-014: PM read returns only the assigned project in the caller org');
+select ok((select pm.value->>'spent' from json_array_elements(get_pm_dashboard_projects()) pm
+           where pm.value->>'id'='02970000-0000-0000-0000-0000000000d1') is not distinct from
+          (select exec.value->>'spent' from json_array_elements(get_executive_dashboard()->'top_projects') exec
+           where exec.value->>'name'='Ledger without snapshot'),
+  'AC-UX-014: the same project has the same unknown Actual in PM and executive dashboard reads');
+select is((select value->>'realized_margin' from json_array_elements(get_executive_dashboard()->'top_projects') value
+           where value->>'name'='Ledger without snapshot'),null,
+  'AC-RF-001: no billable revenue/cost basis does not imply a full realized margin');
+select is((select value->>'budget' from json_array_elements(get_executive_dashboard()->'top_projects') value
+           where value->>'name'='Pipeline with draft budget'),null,
+  'AC-RF-005: draft pipeline budget is not presented as an active budget on the spending chart');
 
 reset role;
 select * from finish();

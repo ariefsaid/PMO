@@ -181,7 +181,8 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     mockIsDesktop = false;
     renderPage();
     const contractBook = screen.getByTestId('mobile-contract-book');
-    expect(within(contractBook).getByText(/Booked across active \+ closed-out contracts/i)).toBeInTheDocument();
+    expect(within(contractBook).getByText(/Contract remaining after known Actual/i)).toBeInTheDocument();
+    expect(within(contractBook).getByText(/Margin on billed work/i)).toBeInTheDocument();
     expect(within(contractBook).getByText(/Signed value of/i)).toBeInTheDocument();
     expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
   });
@@ -204,7 +205,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
   it('CW-7: every shared metric LABEL on mobile matches a desktop KPI label (same page, reflowed)', () => {
     // Desktop canonical labels (ExecutiveDashboard KPI band).
     const desktopLabels = [
-      'Revenue on hand',
+      'Contracted revenue',
       'Total contract value',
       'Active projects',
       'Total project spend',
@@ -232,7 +233,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const book = screen.getByTestId('mobile-contract-book');
     const help = within(book).getByRole('button', { name: /^About this metric: \S/ });
     await userEvent.click(help);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/Realized margin is the share of revenue remaining/i);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Margin is billed-work revenue less Actual; it is not cash received/i);
     expect(within(book).queryByRole('link')).not.toBeInTheDocument();
   });
 

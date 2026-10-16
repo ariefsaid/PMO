@@ -93,15 +93,14 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/002)', () => {
-  it('AC-IXD-DASH-001: the on-hand revenue tile is labeled "Revenue on hand" (not "…margin")', () => {
+  it('AC-UX-017: the contracted-revenue tile separates margin from contract remaining', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-on-hand-margin');
-    // The label names the number: a revenue figure is "Revenue on hand", never a "margin".
-    expect(within(tile).getByText(/Revenue on hand/i)).toBeInTheDocument();
-    expect(within(tile).queryByText(/on-hand margin/i)).toBeNull();
-    expect(within(tile).queryByText(/^margin$/i)).toBeNull();
-    // The true margin RATIO still rides as the `vs` sub.
-    expect(tile).toHaveTextContent(/Realized margin: 94\.9%/i);
+    expect(within(tile).getByText(/Contracted revenue/i)).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/Contract remaining after known Actual/);
+    expect(tile).toHaveTextContent(/Margin on billed work/);
+    expect(tile).not.toHaveTextContent(/Realized margin/);
+    expect(tile).not.toHaveTextContent(/cash received/i);
   });
 
   it('AC-IXD-DASH-002: exactly ONE forecast-margin tile, named "Pipeline forecast margin"', () => {

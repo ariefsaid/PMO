@@ -30,6 +30,10 @@ beforeEach(() => {
 });
 
 describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
+  it('AC-RF-006: labels work-order remaining separately from project contract remaining', () => {
+    renderCard();
+    expect(screen.getByText('Still to invoice on work orders')).toBeInTheDocument();
+  });
   it('AC-UNB-005 shows each currency total excl. PPN with its count', () => {
     renderCard();
     const totals = screen.getByTestId('still-to-invoice-totals');

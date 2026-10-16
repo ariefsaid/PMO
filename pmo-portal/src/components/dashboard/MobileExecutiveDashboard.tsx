@@ -25,7 +25,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
-import { formatCurrency } from '@/src/lib/format';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
@@ -79,14 +79,20 @@ const Overline: React.FC<{ children: React.ReactNode; className?: string }> = ({
 const AtRiskBlock: React.FC<{
   atRisk: number;
   activeProjects: number;
-  totalSpend: number;
+  totalSpend: number | null;
+  actualProjectCount: number;
+  actualProjectTotal: number;
+  actualCoverageCount: number;
+  actualCoverageTotal: number;
   /** FR-L10N-020: `totalSpend` is a dashboard AGGREGATE — the RPC row carries no currency of its own,
    *  so it is denominated in the org default and threaded from the parent rather than re-read here.
    *  A leaf that called the hook itself would work today and diverge the moment one is rendered for
    *  a different org. */
   currency: string;
-}> = ({ atRisk, activeProjects, totalSpend, currency }) => {
-  const { t } = useTranslation();
+}> = ({ atRisk, activeProjects, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
+  const { t, i18n } = useTranslation();
+  const spendText = formatDashboardMoney(totalSpend, currency, i18n.language)
+    ?? t('uxs03.notAvailableYet', 'Not available yet');
   const isAtRisk = atRisk > 0;
 
   return (
@@ -161,14 +167,18 @@ const AtRiskBlock: React.FC<{
 
         <Link
           to="/projects?filter=Ongoing"
-          aria-label={t('dashboard.mobile.spendLink', 'Open spend breakdown · {{amount}} spent to date', { amount: formatCurrency(totalSpend, currency) })}
+          aria-label={t('dashboard.mobile.spendLink', 'Open spend breakdown · {{amount}} spent to date', { amount: spendText })}
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             {t('dashboard.kpi.totalSpend.label', 'Total project spend')}
           </span>
           <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {formatCurrency(totalSpend, currency)}
+            {spendText}
+          </span>
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: actualProjectCount ?? 0, total: actualProjectTotal ?? 0 })}
+            {' · '}{t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: actualCoverageCount ?? 0, total: actualCoverageTotal ?? 0 })}
           </span>
           <span className="mt-1 block text-[11px] font-semibold text-primary-text">
             {t('dashboard.mobile.breakdown', 'Breakdown')} →
@@ -239,14 +249,17 @@ const MobileApprovalsBand: React.FC<{ count: number; error?: boolean }> = ({ cou
  * asymmetry is carried by the source micro-lines, not by forking the term.
  */
 const ContractBook: React.FC<{
-  onHandValue: number;
-  onHandMargin: number;
-  activeContractValue: number;
+  onHandValue: number | null;
+  onHandContractRemaining: number | null;
+  realizedMargin: number | null;
+  realizedMarginLabel: string;
+  activeContractValue: number | null;
   activeProjects: number;
-}> = ({ onHandValue, onHandMargin, activeContractValue, activeProjects }) => {
-  const { t } = useTranslation();
+}> = ({ onHandValue, onHandContractRemaining, realizedMargin, realizedMarginLabel, activeContractValue, activeProjects }) => {
+  const { t, i18n } = useTranslation();
   const orgCurrency = useOrgCurrency();
-  const marginPct = `${(onHandMargin * 100).toFixed(1)}%`;
+  const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
+    ?? t('uxs03.notAvailableYet', 'Not available yet');
 
   return (
     <div
@@ -260,11 +273,12 @@ const ContractBook: React.FC<{
         testId="mobile-kpi-on-hand"
         tone="green"
         icon="dollar"
-        label={t('dashboard.kpi.revenueOnHand.label', 'Revenue on hand')}
-        value={formatCurrency(onHandValue, orgCurrency)}
-        vs={t('dashboard.kpi.mobileVs', 'Booked across active + closed-out contracts · {{margin}}', { margin: t('dashboard.kpi.revenueOnHand.vs', 'Realized margin: {{percent}}', { percent: marginPct }) })}
+        label={t('uxs03.contractedRevenue', 'Contracted revenue')}
+        value={money(onHandValue)}
+        vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(onHandContractRemaining) + ' · '
+          + realizedMarginLabel + ': ' + money(realizedMargin)}
         helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
-        help={t('dashboard.kpi.revenueOnHand.help', 'Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date.')}
+        help={t('dashboard.kpi.revenueOnHand.help', 'Contract value across delivery projects. Margin is billed-work revenue less Actual; it is not cash received.')}
       />
 
       {/* Tile 2: Total contract value — same canonical KPITile.
@@ -277,7 +291,7 @@ const ContractBook: React.FC<{
         tone="amber"
         icon="grid"
         label={t('dashboard.kpi.totalContractValue.label', 'Total contract value')}
-        value={formatCurrency(activeContractValue, orgCurrency)}
+        value={money(activeContractValue)}
         vs={t('dashboard.kpi.totalContractValue.mobileVs', 'Signed value of the {{count}} projects still in delivery', { count: activeProjects })}
       />
     </div>
@@ -302,7 +316,12 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
 }) => {
   const { t } = useTranslation();
   const orgCurrency = useOrgCurrency();
-  const totalSpend = data.top_projects.reduce((s, p) => s + (p.spent || 0), 0);
+  const totalSpend = data.on_hand_actual_known;
+  const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
+    .reduce((sum, item) => sum + item.unknown_projects, 0);
+  const marginLabel = unknownMarginProjects > 0
+    ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
+    : t('uxs03.realizedMargin', 'Margin on billed work');
 
   return (
     <div className="space-y-3">
@@ -314,6 +333,10 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
           atRisk={data.projects_at_risk}
           activeProjects={data.active_projects}
           totalSpend={totalSpend}
+          actualProjectCount={data.on_hand_actual_project_count ?? 0}
+          actualProjectTotal={data.on_hand_actual_project_total ?? 0}
+          actualCoverageCount={data.on_hand_actual_coverage_count ?? 0}
+          actualCoverageTotal={data.on_hand_actual_coverage_total ?? 0}
           currency={orgCurrency}
         />
       </section>
@@ -328,7 +351,9 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         <Overline className="mb-2">{t('dashboard.mobile.contractBook', 'Contract book')}</Overline>
         <ContractBook
           onHandValue={data.on_hand_value}
-          onHandMargin={data.on_hand_margin}
+          onHandContractRemaining={data.on_hand_contract_remaining}
+          realizedMargin={data.on_hand_realized_margin}
+          realizedMarginLabel={marginLabel}
           activeContractValue={data.total_contract_value}
           activeProjects={data.active_projects}
         />

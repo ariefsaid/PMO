@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { formatCurrency } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ProjectedMarginBars } from './ProjectedMarginBars';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
@@ -27,7 +26,7 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
-    expect(screen.getByText(formatCurrency(600_000, 'USD'))).toBeInTheDocument();
+    expect(screen.getByText('$600,000.00')).toBeInTheDocument();
     // terminal stages excluded
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
     expect(screen.queryByText('Loss Tender')).toBeNull();
