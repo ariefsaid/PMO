@@ -1,5 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation } from 'react-router';
@@ -153,6 +153,32 @@ const OperatorMembershipPending: React.FC = () => {
   );
 };
 
+const AccountingSectionNavigation: React.FC = () => {
+  const { t } = useTranslation();
+  const anchors = [
+    { id: 'org-tax-default', label: t('uxs31.accounting.taxDefault', 'Default tax treatment') },
+    { id: 'spend-approvers', label: t('uxs31.accounting.spendApprovers', 'Spend approvers') },
+    { id: 'withholding-account-heading', label: t('uxs31.accounting.withholding', 'Receipt withholding') },
+    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Vendor bill tax accounts') },
+    { id: 'down-payment-item-heading', label: t('uxs31.accounting.downPayments', 'Down payments') },
+    { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
+    { id: 'expense-account-map', label: t('uxs31.accounting.expenseMap', 'Expense account map') },
+  ];
+  return (
+    <nav aria-label={t('uxs31.accounting.sectionsLabel', 'Accounting setup sections')} className="mb-5">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 border-b border-border pb-3 text-[13px]">
+        {anchors.map(({ id, label }) => (
+          <li key={id}>
+            <Link className="touch-target inline-flex items-center rounded-sm px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:text-foreground" to={{ hash: `#${id}` }}>
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+};
+
 const UsagePanel: React.FC = () => {
   const usageQuery = useUsage();
   const runStatsQuery = useAgentRunStats();
@@ -205,8 +231,8 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionHeader title={label('accounting')} />
+          <AccountingSectionNavigation />
           <div className="space-y-6">
-            <OrgProjectNumberPattern />
             <OrgTaxDefault />
             <SpendApprovers />
             <OrgWithholdingAccount />
@@ -218,7 +244,15 @@ const SelectedAdministrationPanel: React.FC<{
         </div>
       );
     case 'projects':
-      return <div data-testid="administration-panel-projects" className="min-w-0"><SectionHeader title={label('projects')} /><OrgProjectClassificationOptions /></div>;
+      return (
+        <div data-testid="administration-panel-projects" className="min-w-0">
+          <SectionHeader title={label('projects')} />
+          <div className="space-y-6">
+            <OrgProjectNumberPattern />
+            <OrgProjectClassificationOptions />
+          </div>
+        </div>
+      );
     case 'credits':
       return (
         <div data-testid="administration-panel-credits" className="min-w-0">
@@ -269,6 +303,22 @@ const Administration: React.FC = () => {
     : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
+
+  useEffect(() => {
+    if (!hash) return;
+    const targetId = decodeURIComponent(hash.slice(1));
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView?.({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hash, pathname]);
+
+  if (pathname === '/administration/accounting' && hash === '#org-project-number-pattern') {
+    return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
+  }
 
   if (pathname === '/administration') {
     const target = hash === '#budget-account-map'

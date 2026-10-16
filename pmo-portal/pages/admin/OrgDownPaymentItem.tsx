@@ -26,7 +26,7 @@ export default function OrgDownPaymentItem() {
     onError: (err) => { const classified = classifyMutationError(err); setError(classified.detail || classified.headline); },
   });
   return <section aria-labelledby="down-payment-item-heading">
-    <h2 id="down-payment-item-heading" className="text-[15px] font-semibold">Down payments</h2>
+    <h2 id="down-payment-item-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">Down payments</h2>
     <p className="mt-1 text-[13px] text-muted-foreground">The ERPNext item used to bill a down payment and to recover it from billing claims. In ERPNext its income account must be the customer-advance account, or down payments will book as revenue.</p>
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title="Couldn't load the down payment item" onRetry={() => void query.refetch()} />

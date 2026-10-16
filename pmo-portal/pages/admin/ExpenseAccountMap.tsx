@@ -128,7 +128,7 @@ const ExpenseAccountMap: React.FC = () => {
   };
 
   return (
-    <section id="expense-account-map" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
+    <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
         {t(

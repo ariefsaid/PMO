@@ -102,7 +102,7 @@ const SpendApprovers: React.FC = () => {
   };
 
   return (
-    <section id="spend-approvers" aria-label={t('admin.spendApprovers.title', 'Spend approvers')}>
+    <section id="spend-approvers" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.spendApprovers.title', 'Spend approvers')}>
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
         {t('admin.spendApprovers.title', 'Spend approvers')}
       </h2>

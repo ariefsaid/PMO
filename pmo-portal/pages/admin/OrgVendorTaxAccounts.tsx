@@ -86,7 +86,7 @@ export default function OrgVendorTaxAccounts() {
 
   return (
     <section aria-labelledby="vendor-tax-accounts-heading">
-      <h2 id="vendor-tax-accounts-heading" className="text-[15px] font-semibold">
+      <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
         {t('admin.vendorTaxAccounts.heading', 'Vendor bill tax accounts')}
       </h2>
       <p className="mt-1 text-[13px] text-muted-foreground">

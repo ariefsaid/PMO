@@ -114,6 +114,8 @@ vi.mock('@/src/components/integrations/IntegrationsView', () => ({
     return <div>Organization integrations panel</div>;
   },
 }));
+vi.mock('./admin/OrgProjectNumberPattern', () => ({ default: () => <div data-testid="project-number-pattern-panel">Project number pattern panel</div> }));
+vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>Project classification panel</div> }));
 vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div>Tax default panel</div> }));
 vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
   panelMounts.accounting += 1;
@@ -267,6 +269,30 @@ describe('Administration route-backed shell', () => {
     expect(screen.getByRole('heading', { name: 'Organization integrations' })).toBeInTheDocument();
     // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
+  });
+
+  it('UX-073: project numbering is in Project setup and the old Accounting deep link redirects there', async () => {
+    renderShell('/administration/accounting#org-project-number-pattern');
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/projects#org-project-number-pattern'));
+    expect(screen.getByRole('link', { name: 'Project setup' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-projects')).toContainElement(screen.getByTestId('project-number-pattern-panel'));
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+  });
+
+  it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
+    renderShell('/administration/accounting');
+    const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
+
+    expect(within(nav).getByRole('link', { name: 'Default tax treatment' })).toHaveAttribute('href', '/administration/accounting#org-tax-default');
+    expect(within(nav).getByRole('link', { name: 'Spend approvers' })).toHaveAttribute('href', '/administration/accounting#spend-approvers');
+    expect(within(nav).getByRole('link', { name: 'Budget account map' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(within(nav).getByRole('link', { name: 'Expense account map' })).toHaveAttribute('href', '/administration/accounting#expense-account-map');
+    expect(within(nav).getByRole('link', { name: 'Down payments' })).toHaveAttribute('href', '/administration/accounting#down-payment-item-heading');
+
+    await userEvent.click(within(nav).getByRole('link', { name: 'Spend approvers' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('#spend-approvers');
+    await waitFor(() => expect(document.getElementById('spend-approvers')).toHaveFocus());
   });
 
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {

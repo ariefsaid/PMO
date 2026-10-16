@@ -175,6 +175,7 @@ const BudgetAccountMap: React.FC = () => {
     // ⚑ I-8 — the budget projection's banner LINKS here (`/administration/accounting#budget-account-map`).
     <section
       id="budget-account-map"
+      className="scroll-mt-4"
       aria-label={t('admin.budgetMap.sectionLabel', 'Budget category to ERP account map')}
       ref={sectionRef}
       tabIndex={-1}

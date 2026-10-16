@@ -386,7 +386,7 @@
     },
     "projectNumberPattern": {
       "title": "Project number pattern",
-      "description": "Format PMO-assigned project numbers. Use {CLIENT}, {YY}, and {SEQ4} exactly once each.",
+      "description": "Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.",
       "immutable": "This affects future proposals only; existing project numbers do not change.",
       "loadError": {
         "title": "Couldn't load the project number pattern"
@@ -4512,6 +4512,22 @@
       "scopeAll": "All {{count}} timesheets in this queue can be approved together.",
       "scopeOne": "The 1 timesheet in this queue can be approved.",
       "scopeSome": "{{eligible}} of {{total}} timesheets in this queue can be approved together."
+    }
+  },
+  "uxs31": {
+    "projectNumberPattern": {
+      "preview": "Preview:",
+      "previewNote": "Illustrative only; the actual number is assigned when a project is created."
+    },
+    "accounting": {
+      "sectionsLabel": "Accounting setup sections",
+      "taxDefault": "Default tax treatment",
+      "spendApprovers": "Spend approvers",
+      "withholding": "Receipt withholding",
+      "vendorTax": "Vendor bill tax accounts",
+      "downPayments": "Down payments",
+      "budgetMap": "Budget account map",
+      "expenseMap": "Expense account map"
     }
   }
 }

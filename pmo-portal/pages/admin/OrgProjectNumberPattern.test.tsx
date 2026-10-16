@@ -61,6 +61,33 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     expect(h.save).not.toHaveBeenCalled();
   });
 
+  it('UX-075: describes the built-in pattern as valid without a client segment and a custom pattern as requiring all three tokens', async () => {
+    renderPanel();
+    await screen.findByRole('textbox', { name: /project number pattern/i });
+    expect(screen.getByText(/the built-in pattern is PRJ-\{YY\}-\{SEQ4\}/i)).toBeInTheDocument();
+    expect(screen.getByText(/a custom pattern must use \{CLIENT\}, \{YY\}, and \{SEQ4\} exactly once each/i)).toBeInTheDocument();
+  });
+
+  it('UX-075: shows a supported-token preview for the saved default pattern', async () => {
+    renderPanel();
+    await screen.findByRole('textbox', { name: /project number pattern/i });
+    const year = String(new Date().getFullYear() % 100).padStart(2, '0');
+    const preview = screen.getByTestId('org-project-number-pattern-preview');
+    expect(preview).toHaveTextContent(/^Preview: PRJ-/);
+    expect(preview).toHaveTextContent(`PRJ-${year}-0312`);
+    expect(preview).toHaveTextContent(/assigned when a project is created/i);
+  });
+
+  it('UX-075: updates the preview while a custom pattern is typed and hides it when the draft is invalid', async () => {
+    renderPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    const year = String(new Date().getFullYear() % 100).padStart(2, '0');
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+    expect(screen.getByTestId('org-project-number-pattern-preview')).toHaveTextContent(`PRE-NSN-${year}-0312`);
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}' } });
+    expect(screen.queryByTestId('org-project-number-pattern-preview')).not.toBeInTheDocument();
+  });
+
   it('reports a save failure without changing the effective value', async () => {
     h.save.mockRejectedValue(new Error('write failed'));
     renderPanel();
