@@ -474,7 +474,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(row).getByText('Innovate Corp')).toBeInTheDocument();
     expect(within(row).getByText('PMO-SYN-001')).toBeInTheDocument();
     expect(within(row).getByTitle('CLIENT-SYN-44')).not.toBeVisible();
-    await userEvent.click(within(row).getByLabelText('More references for Innovate Corp HQ Fit-Out'));
+    await userEvent.click(within(row).getByLabelText('More project references for Innovate Corp HQ Fit-Out'));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects');
     expect(within(row).getByTitle('CLIENT-SYN-44')).toBeVisible();
   });
@@ -917,6 +917,13 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     const scopedSelect = screen.getByRole('combobox', { name: /filter by end customer/i });
     expect(within(scopedSelect).getByRole('option', { name: 'Asset Owner Alpha' })).toBeInTheDocument();
     expect(within(scopedSelect).queryByRole('option', { name: 'Unrelated Supplier' })).not.toBeInTheDocument();
+  });
+
+  it('RF-009: the optional-column restore control is absent when no table rows exist', () => {
+    projectsState.data = [] as unknown as ProjectWithRefs[];
+    renderPage();
+    expect(screen.getByText('No projects yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
   });
 
   it('UX-021: all-empty optional columns hide with a discoverable restore control', async () => {

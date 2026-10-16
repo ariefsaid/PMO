@@ -139,12 +139,14 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       }
       foot={
         <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-          <span
-            aria-hidden
-            className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
-          >
-            {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
-          </span>
+          {project.project_manager_id != null && (
+            <span
+              aria-hidden
+              className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+            >
+              {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
+            </span>
+          )}
           <span className="max-w-[14ch] truncate">{pmLabel}</span>
         </span>
       }

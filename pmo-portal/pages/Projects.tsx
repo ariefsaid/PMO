@@ -457,7 +457,7 @@ const Projects: React.FC = () => {
               </div>
               {(p.code || p.customer_contract_ref) && (
                 <details className="mt-0.5" onClick={(event) => event.stopPropagation()}>
-                  <summary aria-label={t('uxs14.projectReferencesFor', 'More references for {{name}}', { name: p.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: p.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                     {t('uxs14.projectReferences', 'More project references')}
                   </summary>
                   <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">
@@ -674,7 +674,7 @@ const Projects: React.FC = () => {
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={roundedDelivery} showValue compact tone={roundedDelivery >= 100 ? 'success' : 'primary'} aria-label={`Delivery ${roundedDelivery}%`} />
+            <ProgressBar value={roundedDelivery} showValue compact tone={roundedDelivery >= 100 ? 'success' : 'primary'} aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: roundedDelivery })} />
           </div>
         );
       },
@@ -891,7 +891,7 @@ const Projects: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         {!isEngineer && (
           <MobileToolbarDisclosure
-            label={t('projects.mobile.filters', 'Filters')}
+            label={t('uxs14.filters', 'Filters')}
             count={secondaryCount}
             open={filtersOpen}
             closeOnSelectChange
@@ -1020,7 +1020,7 @@ const Projects: React.FC = () => {
 
         {moreActionsChildren.length > 0 && (
           <MobileToolbarDisclosure
-            label={t('projects.mobile.more', 'More actions')}
+            label={t('uxs14.moreActions', 'More actions')}
             open={moreOpen}
             onOpenChange={(next) => {
               setMoreOpen(next);

@@ -187,6 +187,8 @@ describe('ProjectKanbanBoard', () => {
     expect(within(won).getByText('Unnamed user · aaaaaaaa')).toBeInTheDocument();
     const ongoing = screen.getByTestId('kanban-col-ongoing');
     expect(within(ongoing).getByText('Unassigned')).toBeInTheDocument();
+    const unassignedCard = within(ongoing).getByText('No PM Card').closest<HTMLElement>('[data-testid="project-card"]')!;
+    expect(Array.from(unassignedCard.querySelectorAll('span[aria-hidden="true"]')).some((span) => span.className.includes('size-[16px]'))).toBe(false);
     // The assigned-blank card must NOT read as unassigned.
     expect(within(won).queryByText('Unassigned')).not.toBeInTheDocument();
   });

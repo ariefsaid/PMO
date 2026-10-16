@@ -428,8 +428,8 @@ describe('AC-PRJUX-006 — English and Bahasa resolve every new label', () => {
     const enMobile = en.projects.mobile;
     const idMobile = id.projects.mobile;
     const keyAssertions: Array<[string, unknown, unknown]> = [
-      ['projects.mobile.filters', enMobile.filters, idMobile.filters],
-      ['projects.mobile.more', enMobile.more, idMobile.more],
+      ['uxs14.filters', en.uxs14.filters, id.uxs14.filters],
+      ['uxs14.moreActions', en.uxs14.moreActions, id.uxs14.moreActions],
       ['projects.mobile.clearAll', enMobile.clearAll, idMobile.clearAll],
       ['projects.mobile.removeCustomer', enMobile.removeCustomer, idMobile.removeCustomer],
       ['projects.mobile.removeManager', enMobile.removeManager, idMobile.removeManager],

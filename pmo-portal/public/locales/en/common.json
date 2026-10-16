@@ -46,7 +46,7 @@
     "showOptionalColumns": "Show optional columns",
     "hideEmptyColumns": "Hide empty columns",
     "projectReferences": "More project references",
-    "projectReferencesFor": "More references for {{name}}",
+    "projectReferencesFor": "More project references for {{name}}",
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
@@ -3146,8 +3146,6 @@
     "export": "Export",
     "import": "Import",
     "mobile": {
-      "filters": "Filters",
-      "more": "More actions",
       "activeCount": "Active filters",
       "customer": "Customer",
       "manager": "Project manager",

@@ -75,7 +75,7 @@ describe('ProjectCard', () => {
 
   it('shows the customer contract ref on demand', async () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    await userEvent.click(screen.getByLabelText('More references for Innovate Corp HQ Fit-Out'));
+    await userEvent.click(screen.getByLabelText('More project references for Innovate Corp HQ Fit-Out'));
     expect(screen.getByTitle('CPO-2026-001')).toBeInTheDocument();
   });
 

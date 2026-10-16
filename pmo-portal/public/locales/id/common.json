@@ -46,7 +46,7 @@
     "showOptionalColumns": "Tampilkan kolom opsional",
     "hideEmptyColumns": "Sembunyikan kolom kosong",
     "projectReferences": "Referensi proyek lainnya",
-    "projectReferencesFor": "Referensi lainnya untuk {{name}}",
+    "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
     "contractReference": "Referensi kontrak pelanggan"
   },
   "uxs10": {
@@ -3146,8 +3146,6 @@
     "export": "Ekspor",
     "import": "Impor",
     "mobile": {
-      "filters": "Filter",
-      "more": "Aksi lainnya",
       "activeCount": "Filter aktif",
       "customer": "Klien",
       "manager": "Manajer proyek",
