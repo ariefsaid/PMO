@@ -98,6 +98,16 @@ function tryMoney(value: unknown): string | null {
   }
 }
 
+/** S-06: the invoices a Receive entry settled, from its `references` child table. Absent table = coverage unknown
+ *  (undefined); an empty one is a known on-account receipt. Only Sales Invoice rows count; an amount the ERP did not
+ *  state stays null — never zero. */
+function allocationsOf(references: unknown): Array<{ reference_name: string; allocated_amount: string | null }> | undefined {
+  if (!Array.isArray(references)) return undefined;
+  return (references as Array<Record<string, unknown>>)
+    .filter((r) => r?.reference_doctype === 'Sales Invoice' && typeof r.reference_name === 'string' && r.reference_name.trim() !== '')
+    .map((r) => ({ reference_name: r.reference_name as string, allocated_amount: r.allocated_amount == null ? null : tryMoney(r.allocated_amount) }));
+}
+
 export function peReceiveFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;
   // The marked deduction carries PMO's stated tax fact; unrelated ERP adjustments are not inferred.
@@ -145,6 +155,7 @@ export function peReceiveFromDoc(doc: unknown): PmoRecord {
     customer: (d.party as string | null) ?? null,
     date: (d.posting_date as string | null) ?? null,
     references: (d.references as Array<{ reference_doctype?: string; reference_name?: string | null; allocated_amount?: unknown }> | null) ?? [],
+    ...(Array.isArray(d.references) ? { allocations: allocationsOf(d.references) } : {}),
     reference_number: (d.reference_no as string | null) ?? null, // also the anchor carrier
     amount, // header (+ marked withholding) = money oracle
     ...(received !== undefined ? { received_amount: received } : {}),
