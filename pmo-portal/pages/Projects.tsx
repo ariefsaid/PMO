@@ -1243,14 +1243,14 @@ const Projects: React.FC = () => {
         />
       ) : view === 'table' ? (
         <>
-          {hiddenOptionalColumnCount > 0 && !optionalColumnsVisible && (
+          {filtered.length > 0 && hiddenOptionalColumnCount > 0 && !optionalColumnsVisible && (
             <div className="mb-2 flex justify-end">
               <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(true)}>
                 {t('uxs14.showOptionalColumns', 'Show optional columns')}
               </Button>
             </div>
           )}
-          {optionalColumnsVisible && hiddenOptionalColumnCount > 0 && (
+          {filtered.length > 0 && optionalColumnsVisible && hiddenOptionalColumnCount > 0 && (
             <div className="mb-2 flex justify-end">
               <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(false)}>
                 {t('uxs14.hideEmptyColumns', 'Hide empty columns')}

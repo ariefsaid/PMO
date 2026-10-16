@@ -147,7 +147,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
               {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
             </span>
           )}
-          <span className="max-w-[14ch] truncate">{pmLabel}</span>
+          <span className={project.project_manager_id == null ? undefined : 'max-w-[14ch] truncate'}>{pmLabel}</span>
         </span>
       }
       onOpen={onActivate}
