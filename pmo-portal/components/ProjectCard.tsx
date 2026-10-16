@@ -134,7 +134,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <ProgressBar
             value={Math.round(deliverySummary.deliveryPct)}
             showValue
-            tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : undefined}
+            tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
             aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
           />
           <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
@@ -178,7 +178,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
 
       {(project.pmo_project_number || project.code || project.customer_contract_ref) && (
         <details>
-          <summary className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary aria-label={t('uxs14.projectReferencesFor', 'More references for {{name}}', { name: project.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('uxs14.projectReferences', 'More project references')}
           </summary>
           <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">

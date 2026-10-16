@@ -442,6 +442,18 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(row).queryByRole('img')).not.toBeInTheDocument();
   });
 
+  it('UX-020: near-complete delivery does not inherit a budget-risk danger threshold', () => {
+    const previousDelivery = deliverySummaryState.p1;
+    try {
+      projectsState.data = [{ ...seed[0], status: 'Ongoing Project' }] as unknown as ProjectWithRefs[];
+      deliverySummaryState.p1 = { deliveryPct: 95, committedSpend: 2_100_000, budget: 4_700_000 };
+      renderPage();
+      expect(screen.getByLabelText('Delivery 95%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-primary');
+    } finally {
+      deliverySummaryState.p1 = previousDelivery;
+    }
+  });
+
   it('UX-020: completed delivery uses success styling rather than risk styling', () => {
     const previousDelivery = deliverySummaryState.p1;
     try {
@@ -462,7 +474,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(row).getByText('Innovate Corp')).toBeInTheDocument();
     expect(within(row).getByText('PMO-SYN-001')).toBeInTheDocument();
     expect(within(row).getByTitle('CLIENT-SYN-44')).not.toBeVisible();
-    await userEvent.click(within(row).getByText('More project references'));
+    await userEvent.click(within(row).getByLabelText('More references for Innovate Corp HQ Fit-Out'));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects');
     expect(within(row).getByTitle('CLIENT-SYN-44')).toBeVisible();
   });

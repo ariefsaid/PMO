@@ -75,7 +75,7 @@ describe('ProjectCard', () => {
 
   it('shows the customer contract ref on demand', async () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    await userEvent.click(screen.getByText('More project references'));
+    await userEvent.click(screen.getByLabelText('More references for Innovate Corp HQ Fit-Out'));
     expect(screen.getByTitle('CPO-2026-001')).toBeInTheDocument();
   });
 
@@ -126,6 +126,11 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByText('$4,700,000')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('UX-020: near-complete card delivery is not colored as a financial risk', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 95, committedSpend: 0, budget: 0 }} />);
+    expect(screen.getByLabelText('Delivery 95%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-primary');
   });
 
   it('I5: when deliverySummary is provided, shows Delivery alongside Actual-based budget usage', () => {

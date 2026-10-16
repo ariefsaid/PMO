@@ -46,6 +46,7 @@
     "showOptionalColumns": "Tampilkan kolom opsional",
     "hideEmptyColumns": "Sembunyikan kolom kosong",
     "projectReferences": "Referensi proyek lainnya",
+    "projectReferencesFor": "Referensi lainnya untuk {{name}}",
     "contractReference": "Referensi kontrak pelanggan"
   },
   "uxs10": {

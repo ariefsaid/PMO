@@ -463,7 +463,7 @@ PM is the plain `Unassigned` label, never a person-like avatar). Keep the projec
 the table keeps the stable PMO Project Number beneath the title, while client code and customer contract
 reference stay disclosed; compact grid cards disclose all three. Keep status/search/current view immediate, group secondary filters
 and transfer tools in labelled disclosures, and offer a discoverable restore control whenever data-empty
-optional columns are hidden. Completed delivery is success, not danger. Use bounded table scrolling only below
+optional columns are hidden. Delivery progress stays primary until completion, then success; it never borrows a budget-risk threshold. Use bounded table scrolling only below
 ~1280 — never reduce a name to a few characters. Keep full accessible names, numeric comparison alignment
 and available fields. Repeating procurement rows share one column template
 (header and cells from one definition) with aligned headers and a gutter between adjacent numeric columns.

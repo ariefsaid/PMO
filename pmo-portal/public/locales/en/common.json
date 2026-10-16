@@ -46,6 +46,7 @@
     "showOptionalColumns": "Show optional columns",
     "hideEmptyColumns": "Hide empty columns",
     "projectReferences": "More project references",
+    "projectReferencesFor": "More references for {{name}}",
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
