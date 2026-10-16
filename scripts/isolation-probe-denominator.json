@@ -26,6 +26,7 @@
     {"table":"credit_reservations","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"credits","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"crm_activities","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"erp_account_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_actuals_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_ap_aging_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_ar_aging_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
