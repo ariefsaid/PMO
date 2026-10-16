@@ -16,6 +16,7 @@ import {
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
 import { formatCurrencyAuto, formatCurrencyCents, formatUtcMonthYear } from '@/src/lib/format';
+import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
 type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled' | 'backlog';
@@ -116,8 +117,7 @@ const ManagementPack: React.FC = () => {
 
   const canRecord = (row: PackRow) =>
     row.kind === 'contract' &&
-    !!row.latestProgress &&
-    ['Won, Pending KoM', 'Ongoing Project', 'On Hold'].includes(row.projectStatus ?? '') &&
+    PROGRESS_RECORDABLE_PROJECT_STATUSES.has(row.projectStatus ?? '') &&
     !!row.projectId &&
     may('edit', 'projectProgress', { currentUserId: currentUser?.id ?? null, record: { project_manager_id: row.projectManagerId } });
 

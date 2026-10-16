@@ -23,6 +23,13 @@ export const ACTIVE_PROJECT_STATUSES = new Set([
   'Internal Project',
 ]);
 
+/** Progress may be recorded during pending handover, active delivery, or a pause; terminal and internal work is excluded. */
+export const PROGRESS_RECORDABLE_PROJECT_STATUSES = new Set([
+  'Won, Pending KoM',
+  'Ongoing Project',
+  'On Hold',
+]);
+
 /**
  * The canonical at-risk rule in ONE place (the only place the status-gate, the budget>0
  * guard, and the `>= AT_RISK_THRESHOLD` inequality live). Both public helpers below delegate

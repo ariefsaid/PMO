@@ -58,16 +58,14 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
   });
 
-  it('AC-MMP-012: only open projects already on progress basis offer progress editing', () => {
+  it('AC-MMP-012: an open project with no progress entry can record its first entry; closed projects cannot', () => {
     const progressFacts = {
       ...facts,
       projects: [
-        project('p1', 'Alpha', 'u-pm'),
+        project('p1', 'Alpha', 'u-fin'),
         { ...project('p2', 'Beta', 'u-other'), status: 'Close Out' },
-        project('p3', 'Gamma', 'u-other'),
       ],
       progress: [
-        { project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' },
         { project_id: 'p2', month: '2026-03-01', pct_complete: 80, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' },
       ],
     };
@@ -80,6 +78,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     renderPage();
     expect(screen.getAllByRole('button', { name: 'Record progress' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Record progress' }).closest('tr')).toHaveTextContent('Alpha');
+    expect(within(screen.getByText('Beta').closest('tr')!).queryByRole('button', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 
   it('AC-MMP-012: a PM may record progress only on the open project they manage', () => {
