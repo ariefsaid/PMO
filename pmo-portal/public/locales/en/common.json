@@ -3303,14 +3303,12 @@
         "workforce": "Workforce"
       },
       "myViews": "My Views",
-      "primaryNavigation": "Primary navigation"
+      "primaryNavigation": "Primary navigation",
+      "approvalsCountSuffix": "{{count}} pending"
     },
     "skipLink": {
       "mainContent": "Skip to main content"
     }
-  },
-  "uxs25": {
-    "approvalsCountSuffix": "{{count}} pending"
   },
   "table": {
     "actions": "Actions",

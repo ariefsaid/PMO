@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { MemoryRouter } from 'react-router';
 
-const { approvalsData, userId, activeRole } = vi.hoisted(() => ({
+const { approvalsData, userId, roleState } = vi.hoisted(() => ({
   approvalsData: {
     procurements: [
       { id: 'p1', status: 'Requested', requested_by_id: 'someone-else', approvalRoute: { route: 'flat' } },
@@ -20,14 +20,14 @@ const { approvalsData, userId, activeRole } = vi.hoisted(() => ({
     expenseError: false,
   },
   userId: 'current-user',
-  activeRole: 'Admin',
+  roleState: { activeRole: 'Admin' },
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: activeRole, realRole: activeRole }),
+  useEffectiveRole: () => ({ effectiveRole: roleState.activeRole, realRole: roleState.activeRole }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: userId, org_id: 'synthetic-org' }, role: activeRole }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: userId, org_id: 'synthetic-org' }, role: roleState.activeRole }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true } }),
@@ -39,12 +39,13 @@ vi.mock('@/src/lib/features', () => ({
 
 import { Rail } from '../Rail';
 
-function renderRail(onNavigate = vi.fn()) {
+function renderRail(onNavigate = vi.fn(), role = 'Admin') {
+  roleState.activeRole = role;
   const queryClient = new QueryClient();
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
   queryClient.setQueryData(['procurements', 'synthetic-org'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
-  queryClient.setQueryData(['timesheets-awaiting', 'synthetic-org', userId, activeRole], approvalsData.timesheets);
+  queryClient.setQueryData(['timesheets-awaiting', 'synthetic-org', userId, roleState.activeRole], approvalsData.timesheets);
   queryClient.setQueryData(['salesInvoices', 'synthetic-org', 'native-drafts'], [
     { ...approvalsData.invoices[0], author_user_id: 'someone-else', author_user_ids: ['someone-else'] },
   ]);
@@ -52,7 +53,7 @@ function renderRail(onNavigate = vi.fn()) {
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={{
         currentUser: { id: userId, org_id: 'synthetic-org' },
-        role: activeRole,
+        role: roleState.activeRole,
       } as AuthContextValue}>
         <MemoryRouter initialEntries={['/projects']}>
           <Rail onNavigate={onNavigate} />
@@ -78,7 +79,7 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     expect(screen.getByRole('link', { name: /Approvals,.*5 pending/i })).toBeInTheDocument();
   });
 
-  it('keeps the same counted destination available from the phone drawer and closes on navigation', () => {
+  it('calls navigation for the counted Approvals link and retains its href', () => {
     const { onNavigate } = renderRail();
     const approvalLink = screen.getByRole('link', { name: /Approvals,.*5 pending/i });
 
@@ -86,6 +87,14 @@ describe('Rail — persistent approvals access (UX-001)', () => {
 
     expect(onNavigate).toHaveBeenCalledOnce();
     expect(approvalLink).toHaveAttribute('href', '/approvals');
+  });
+
+  it('does not render an empty pinned strip for Engineer', () => {
+    renderRail(vi.fn(), 'Engineer');
+
+    const rail = screen.getByRole('complementary');
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).not.toBeInTheDocument();
+    expect(within(rail).queryByRole('link', { name: /Approvals/i })).not.toBeInTheDocument();
   });
 
   it('does not present an unknown count as zero when a queue source is unavailable', async () => {

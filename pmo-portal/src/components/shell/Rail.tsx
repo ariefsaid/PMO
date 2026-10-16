@@ -351,9 +351,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="shrink-0 border-b border-border p-2.5">
-          {items.filter((item) => item.to === '/approvals').map(renderItem)}
-        </div>
+        {items.some((item) => item.to === '/approvals') && (
+          <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
+            {items.filter((item) => item.to === '/approvals').map(renderItem)}
+          </div>
+        )}
         <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {GROUP_ORDER.map((group) => {
             const groupItems = items.filter((i) => i.to !== '/approvals' && i.group === group);

@@ -3303,14 +3303,12 @@
         "workforce": "SDM"
       },
       "myViews": "Tampilan Saya",
-      "primaryNavigation": "Navigasi utama"
+      "primaryNavigation": "Navigasi utama",
+      "approvalsCountSuffix": "{{count}} persetujuan menunggu"
     },
     "skipLink": {
       "mainContent": "Langsung ke konten utama"
     }
-  },
-  "uxs25": {
-    "approvalsCountSuffix": "{{count}} persetujuan menunggu"
   },
   "table": {
     "actions": "Tindakan",

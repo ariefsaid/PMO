@@ -17,13 +17,13 @@ export const ApprovalsNavCount: React.FC = () => {
   const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
   const currentUser = auth?.currentUser;
-  const realRole = auth?.role ?? null;
+  // Authorization and counts use the real role, never the view-as role.
   const role = auth?.role ?? null;
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
-  const canApproveProcurement = can('transition', 'procurement', { realRole });
-  const canApproveTimesheets = can('transition', 'approval', { realRole });
-  const canApproveInvoices = can('transition', 'salesInvoice', { realRole });
+  const canApproveProcurement = can('transition', 'procurement', { realRole: role });
+  const canApproveTimesheets = can('transition', 'approval', { realRole: role });
+  const canApproveInvoices = can('transition', 'salesInvoice', { realRole: role });
 
   const ownershipKey = useMemo(() => ['external-domain-ownership', orgId] as const, [orgId]);
   const ownershipState = queryClient?.getQueryState(ownershipKey);
@@ -63,7 +63,7 @@ export const ApprovalsNavCount: React.FC = () => {
   );
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  if (!queryClient || !currentUser || !realRole) return null;
+  if (!queryClient || !currentUser || !role) return null;
 
   const queues = queueKeys.map((key) => ({
     data: queryClient.getQueryData<unknown[]>(key),
@@ -71,7 +71,7 @@ export const ApprovalsNavCount: React.FC = () => {
   }));
   const ownershipReady = ownershipState?.status === 'success';
   if (
-    !ownershipReady ||
+    (includeInvoices && !ownershipReady) ||
     queues.some(({ data, state }) => data === undefined || state?.status !== 'success' || state.isInvalidated)
   ) return null;
 
@@ -80,21 +80,21 @@ export const ApprovalsNavCount: React.FC = () => {
     ? pendingProcurementApprovals(
         queues[index++].data as Parameters<typeof pendingProcurementApprovals>[0],
         userId,
-        realRole === 'Admin',
+        role === 'Admin',
       ).length
     : 0;
   const expenseRows = canApproveProcurement
     ? claimsAwaitingViewer(
         queues[index++].data as Parameters<typeof claimsAwaitingViewer>[0],
         userId,
-        realRole,
+        role,
       ).length
     : 0;
   const timesheetRows = canApproveTimesheets ? queues[index++].data!.length : 0;
   const invoiceRows = includeInvoices
     ? (queues[index].data as Record<string, unknown>[]).filter((invoice) =>
         can('submit_sales_invoice', 'salesInvoice', {
-          realRole,
+          realRole: role,
           currentUserId: userId,
           record: {
             author_id: invoice.author_user_id as string | null,
@@ -111,7 +111,7 @@ export const ApprovalsNavCount: React.FC = () => {
         {count}
       </span>
       <span className="sr-only">
-        , {t('uxs25.approvalsCountSuffix', '{{count}} pending', { count })}
+        , {t('shell.rail.approvalsCountSuffix', '{{count}} pending', { count })}
       </span>
     </span>
   );
