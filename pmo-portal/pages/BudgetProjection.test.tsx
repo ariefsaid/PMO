@@ -152,25 +152,26 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
     render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
-    expect(screen.getByText('$100,000')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ubah estimasi sisa Biaya khusus' })).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('$100,000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ubah biaya hingga selesai' })).toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders budget categories in Bahasa from the shipped catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
     expect(await screen.findByText('Tenaga kerja')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Proyeksi anggaran' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Perkiraan' })).toBeInTheDocument();
   });
 
   it('renders the category row: PMO budget, ERP actuals, PMO ETC, projected final, variance, utilization', async () => {
     renderPage();
     expect(await screen.findByText('Labor')).toBeInTheDocument();
-    expect(screen.getByText('$100,000')).toBeInTheDocument(); // pmoBudgetAmount
-    expect(screen.getByText('$40,000')).toBeInTheDocument(); // actualsToDate
-    expect(screen.getByText('$75,000')).toBeInTheDocument(); // projectedFinalCost
-    expect(screen.getByText('$25,000')).toBeInTheDocument(); // projectedVariance
-    expect(screen.getByText('75%')).toBeInTheDocument(); // projectedUtilization
+    const grid = within(screen.getByRole('table'));
+    expect(grid.getByText('$100,000')).toBeInTheDocument(); // pmoBudgetAmount
+    expect(grid.getByText('$40,000')).toBeInTheDocument(); // actualsToDate
+    expect(grid.getByText('$75,000')).toBeInTheDocument(); // projectedFinalCost
+    expect(grid.getByText('$25,000')).toBeInTheDocument(); // projectedVariance
+    expect(grid.getByText('75%')).toBeInTheDocument(); // projectedUtilization
   });
 
   // ── H-4 (audit r3): the screen's fiscal year must come from the data, never from the calendar. ──
@@ -353,26 +354,26 @@ describe('BudgetProjection — an unread ledger is not a zero (NEW-4)', () => {
   it('NEW-4 dates the actuals it DOES show, so an operator can weigh how current they are', async () => {
     renderPage();
     await screen.findByText('Labor');
-    expect(screen.getByText(/actuals as of/i)).toBeInTheDocument();
+    expect(screen.getByText(/recorded spending as of/i)).toBeInTheDocument();
   });
 
   it('AC-PLC-005: dates the actuals reading on the viewer-timezone calendar day', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, actualsAsOf: '2026-06-14T23:30:00.000Z' }]);
     setActiveLocale({ ...EN_LOCALE, timezone: 'UTC' });
     const { unmount } = renderPage();
-    expect(await screen.findByText(/actuals as of jun 14, 2026/i)).toBeInTheDocument();
+    expect(await screen.findByText(/recorded spending as of jun 14, 2026/i)).toBeInTheDocument();
     unmount();
 
     setActiveLocale({ ...EN_LOCALE, timezone: 'Asia/Jakarta' });
     renderPage();
-    expect(await screen.findByText(/actuals as of jun 15, 2026/i)).toBeInTheDocument();
+    expect(await screen.findByText(/recorded spending as of jun 15, 2026/i)).toBeInTheDocument();
   });
 
   it('NEW-4 claims no "as of" date when there is no reading to date', async () => {
     fetchMock.mockResolvedValue([neverRead]);
     renderPage();
     await screen.findByText('Labor');
-    expect(screen.queryByText(/actuals as of/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/recorded spending as of/i)).not.toBeInTheDocument();
   });
 });
 
@@ -459,8 +460,10 @@ describe('BudgetProjection — the two Actual columns are disambiguated (C-4)', 
   it('C-4 names the SOURCE of its actuals column and says which figure governs', async () => {
     renderPage();
     await screen.findByText('Labor');
-    expect(screen.getByRole('columnheader', { name: /actuals to date \(ERP ledger\)/i })).toBeInTheDocument();
-    expect(screen.getByText(/posted ERP ledger|differ from the .Actual./i)).toBeInTheDocument();
+    // UX-037: business words in the header; the source is stated once, on demand, in plain words.
+    expect(screen.getByRole('columnheader', { name: /^recorded spending$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /ERP|ETC|PMO/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/accounting ledger has posted/i)).toBeInTheDocument();
   });
 });
 
@@ -730,8 +733,8 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
   it('Finance (OD-BUDGET-3) can edit the ETC for a category', async () => {
     const user = userEvent.setup();
     renderPage('Finance');
-    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
-    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
+    const field = screen.getByLabelText(/cost to finish: labor/i);
     await user.clear(field);
     await user.type(field, '40000');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -742,8 +745,8 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     setActiveLocale(EN_LOCALE);
     const user = userEvent.setup();
     renderPage('Finance');
-    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
-    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
+    const field = screen.getByLabelText(/cost to finish: labor/i);
     await user.clear(field);
     await user.type(field, '1.234');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -756,8 +759,8 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     setActiveLocale(ID_LOCALE);
     const user = userEvent.setup();
     renderPage('Finance');
-    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
-    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
+    const field = screen.getByLabelText(/cost to finish: labor/i);
     await user.clear(field);
     await user.type(field, '1.234');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -768,7 +771,7 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
   it('an Engineer (not OD-BUDGET-3) sees the ETC read-only — no edit affordance', async () => {
     renderPage('Engineer');
     await screen.findByText('Labor');
-    expect(screen.queryByRole('button', { name: /edit.*labor.*etc/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit cost to finish$/i })).not.toBeInTheDocument();
   });
 
   // ── I-4: the editor was a hand-rolled <input>+<span>: the validation message was not wired to the
@@ -776,8 +779,8 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
   it('I-4 an invalid amount marks the field invalid and wires the message to it', async () => {
     const user = userEvent.setup();
     renderPage('Finance');
-    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
-    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
+    const field = screen.getByLabelText(/cost to finish: labor/i);
     await user.clear(field);
     await user.type(field, '-5');
     await user.click(screen.getByRole('button', { name: /save/i }));
@@ -794,33 +797,33 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
   it('I-3 opening the editor moves focus INTO it, and cancelling returns focus to the trigger', async () => {
     const user = userEvent.setup();
     renderPage('Finance');
-    const trigger = await screen.findByRole('button', { name: /edit.*labor.*etc/i });
+    const trigger = await screen.findByRole('button', { name: /^edit cost to finish$/i });
     await user.click(trigger);
-    await waitFor(() => expect(screen.getByLabelText(/estimate to complete/i)).toHaveFocus());
+    await waitFor(() => expect(screen.getByLabelText(/cost to finish: labor/i)).toHaveFocus());
 
     await user.click(screen.getByRole('button', { name: /cancel/i }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /edit.*labor.*etc/i })).toHaveFocus(),
+      expect(screen.getByRole('button', { name: /^edit cost to finish$/i })).toHaveFocus(),
     );
   });
 
   it('I-3 saving also returns focus to the trigger, never to <body>', async () => {
     const user = userEvent.setup();
     renderPage('Finance');
-    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
+    await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
     await user.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /edit.*labor.*etc/i })).toHaveFocus(),
+      expect(screen.getByRole('button', { name: /^edit cost to finish$/i })).toHaveFocus(),
     );
   });
 
   // ── I-2: the trigger printed the whole category name, so the ETC column's width changed per row and
   //    the money in it stopped lining up. The category belongs in the accessible name, not on screen.
-  it('I-2 the Edit trigger shows a fixed label and keeps the category in its accessible name only', async () => {
+  it('I-2 UX-039 there is ONE edit trigger for the whole table, never one per category', async () => {
+    fetchMock.mockResolvedValue([ROW, { ...ROW, category: 'Materials' }]);
     renderPage('Finance');
-    const trigger = await screen.findByRole('button', { name: /edit.*labor.*etc/i });
-    expect(trigger.textContent).toContain('Edit');
-    expect(trigger.textContent).not.toMatch(/^Edit Labor ETC$/);
+    await screen.findByText('Materials');
+    expect(screen.getAllByRole('button', { name: /edit cost to finish/i })).toHaveLength(1);
   });
 });
 
@@ -1193,5 +1196,158 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     );
     expect(within(row).queryAllByTitle(/phase these lines/i)).toHaveLength(0);
     expect(screen.getByText('-$75,000')).toBeInTheDocument(); // the alarm itself is untouched
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// S-04 (UX-034..039) — the Forecast answers "will it finish within budget?" first.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('S-04 Forecast — outcome first, plain words, visible reasons, one multi-row edit', () => {
+  const LABOR = { ...ROW, category: 'Labor' as const, pmoBudgetAmount: 400000, actualsToDate: 180000, pmoEtc: 250000, projectedFinalCost: 430000, projectedVariance: -30000, projectedUtilization: 1.075 };
+  const MATERIALS = { ...ROW, category: 'Materials' as const, pmoBudgetAmount: 100000, actualsToDate: 20000, pmoEtc: 30000, projectedFinalCost: 50000, projectedVariance: 50000, projectedUtilization: 0.5 };
+  const UNMAPPED = { ...ROW, category: 'Travel' as const, pmoBudgetAmount: 10000, actualsToDate: null, pmoEtc: 0, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null };
+
+  it('UX-034/035 the five answers lead: Budget, Recorded spending, Cost to finish, Forecast final cost, Forecast overrun', async () => {
+    fetchMock.mockResolvedValue([LABOR, MATERIALS]);
+    renderPage();
+    const summary = within(await screen.findByTestId('forecast-summary'));
+    expect(summary.getByText('Budget').nextElementSibling).toHaveTextContent('$500,000');
+    expect(summary.getByText('Recorded spending').nextElementSibling).toHaveTextContent('$200,000');
+    expect(summary.getByText('Cost to finish').nextElementSibling).toHaveTextContent('$280,000');
+    expect(summary.getByText('Forecast final cost').nextElementSibling).toHaveTextContent('$480,000');
+    // 500,000 − 480,000 = 20,000 left, so it is "remaining", not an overrun
+    expect(summary.getByText('Forecast remaining').nextElementSibling).toHaveTextContent('$20,000');
+  });
+
+  it('UX-035 an overrun is named an overrun', async () => {
+    fetchMock.mockResolvedValue([LABOR]);
+    renderPage();
+    const summary = within(await screen.findByTestId('forecast-summary'));
+    expect(summary.getByText('Forecast overrun').nextElementSibling).toHaveTextContent('$30,000');
+    expect(summary.queryByText('Forecast remaining')).not.toBeInTheDocument();
+  });
+
+  it('UX-035 the outcome columns come before the inputs in the table', async () => {
+    renderPage();
+    await screen.findByText('Labor');
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(heads).toEqual([
+      'Category', 'Budget', 'Forecast final cost', 'Forecast remaining / (overrun)',
+      'Recorded spending', 'Cost to finish', 'Forecast budget used',
+    ]);
+  });
+
+  it('UX-038 the percentage says it is forecast usage', async () => {
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.getByRole('columnheader', { name: 'Forecast budget used' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^utilization$/i })).not.toBeInTheDocument();
+  });
+
+  it('UX-036 an unmapped category gives a VISIBLE reason once, and invalidates the totals that need it', async () => {
+    fetchMock.mockResolvedValue([LABOR, UNMAPPED]);
+    renderPage();
+    const reason = await screen.findByTestId('reason-Travel');
+    expect(reason).toHaveTextContent(/no ledger account mapped/i);
+    expect(screen.queryByTestId('reason-Labor')).not.toBeInTheDocument();
+    const summary = within(screen.getByTestId('forecast-summary'));
+    expect(summary.getByText('Recorded spending').nextElementSibling).not.toHaveTextContent('$');
+    expect(summary.getByText('Forecast final cost').nextElementSibling).not.toHaveTextContent('$');
+    expect(summary.getByText(/spending unavailable for Travel/i)).toBeVisible();
+  });
+
+  it('UX-037 ERP enforcement + document name sit behind a disclosure, not in the way', async () => {
+    pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', erpBudgetName: 'BUD-0007', fiscalYear: ERP_FISCAL_YEAR })]);
+    renderPage();
+    await screen.findByText('Labor');
+    const doc = await screen.findByText('BUD-0007');
+    const disclosure = doc.closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(screen.queryByRole('columnheader', { name: /\(PMO\)|ERP ledger|ETC/ })).not.toBeInTheDocument();
+  });
+
+  describe('UX-039 one multi-row cost-to-finish edit', () => {
+    const open = async (rows = [LABOR, MATERIALS]) => {
+      fetchMock.mockResolvedValue(rows);
+      const user = userEvent.setup();
+      renderPage('Finance');
+      await user.click(await screen.findByRole('button', { name: /^edit cost to finish$/i }));
+      return user;
+    };
+    const type = async (user: ReturnType<typeof userEvent.setup>, label: RegExp, v: string) => {
+      const f = screen.getByLabelText(label);
+      await user.clear(f);
+      await user.type(f, v);
+    };
+
+    it('one open shows an input per category and locks the fiscal year until the draft is saved', async () => {
+      const user = await open();
+      const yearPicker = screen.getByRole('combobox', { name: /fiscal year/i });
+      expect(yearPicker).toBeDisabled();
+      expect(screen.getByLabelText(/cost to finish: labor/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/cost to finish: materials/i)).toBeInTheDocument();
+      await type(user, /cost to finish: materials/i, '45000');
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
+      expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
+      expect(yearPicker).toBeEnabled();
+      await waitFor(() => expect(screen.queryByLabelText(/cost to finish: labor/i)).not.toBeInTheDocument());
+    });
+
+    it('the year cannot be switched from year A to year B while the editor is open, so a save stays on A', async () => {
+      const user = await open();
+      await type(user, /cost to finish: materials/i, '45000');
+      const picker = screen.getByRole('combobox', { name: /fiscal year/i });
+      expect(picker).toBeDisabled();
+      expect(picker).toHaveValue(ERP_FISCAL_YEAR);
+      expect(within(picker).getByRole('option', { name: PRIOR_ERP_FISCAL_YEAR })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
+      expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
+      expect(upsertEtcMock).not.toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR, expect.anything(), expect.anything());
+    });
+
+    it('an invalid row blocks the whole save: nothing is written, the bad field is marked', async () => {
+      const user = await open();
+      await type(user, /cost to finish: labor/i, '1000');
+      await type(user, /cost to finish: materials/i, '-5');
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      expect(await screen.findByText(/valid, non-negative/i, { selector: 'span[role="alert"]' })).toBeInTheDocument();
+      expect(screen.getByLabelText(/cost to finish: materials/i)).toHaveAttribute('aria-invalid', 'true');
+      expect(upsertEtcMock).not.toHaveBeenCalled();
+    });
+
+    it('cancel discards every draft and writes nothing', async () => {
+      const user = await open();
+      await type(user, /cost to finish: labor/i, '1');
+      await user.click(screen.getByRole('button', { name: /cancel/i }));
+      expect(upsertEtcMock).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText(/cost to finish: labor/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^edit cost to finish$/i })).toBeInTheDocument();
+    });
+
+    it('a partial failure says which rows saved and which did not, and keeps the editor open', async () => {
+      upsertEtcMock.mockImplementation(async (_p: string, _y: string, category: string) => {
+        if (category === 'Materials') throw new Error('network down');
+      });
+      const user = await open();
+      await type(user, /cost to finish: labor/i, '1000');
+      await type(user, /cost to finish: materials/i, '2000');
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(2));
+      const toast = await findToastAnnouncement('alert', /some changes were not saved/i);
+      expect(toast).toHaveTextContent(/saved: labor/i);
+      expect(toast).toHaveTextContent(/not saved: materials/i);
+      // still editing, and the failed row is flagged
+      expect(screen.getByLabelText(/cost to finish: materials/i)).toBeInTheDocument();
+      expect(await screen.findByText(/not saved\. try again/i)).toBeInTheDocument();
+    });
+
+    it('no edit affordance without the budgetLine edit right', async () => {
+      renderPage('Engineer');
+      await screen.findByText('Labor');
+      expect(screen.queryByRole('button', { name: /edit cost to finish/i })).not.toBeInTheDocument();
+    });
   });
 });

@@ -60,6 +60,16 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     expect(screen.getByTestId('pmo-budget-grid')).toBeInTheDocument();
   });
 
+  it('UX-034 the Forecast comes BEFORE the version ledger in document order', async () => {
+    bindingMock.mockReturnValue({ data: binding('active'), isSuccess: true });
+
+    render(<BudgetTab projectId="proj-1" />);
+
+    const forecast = await screen.findByTestId('erp-projection-panel');
+    const ledger = screen.getByTestId('pmo-budget-grid');
+    expect(forecast.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('LOW-2 an org with NO erpnext binding never sees the panel — its remedy copy would be unfollowable', async () => {
     // A real non-ERP org: no erpnext binding at all (it may still employ some OTHER tier for OTHER domains).
     bindingMock.mockReturnValue({ data: null, isSuccess: true });
@@ -69,6 +79,7 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     // PMO's own budget is never gated — it is PMO-SoT and has nothing to do with any external system.
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel'), 'no permanently-empty ERP panel').not.toBeInTheDocument();
+    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
   });
 
   it('LOW-2 a DISCONNECTED erpnext binding is not an active employ — the panel stays unmounted', async () => {
@@ -78,6 +89,7 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
 
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel')).not.toBeInTheDocument();
+    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
   });
 
   it('LOW-2 while the binding is still unknown the panel stays unmounted — never a flash of an empty ERP panel', async () => {

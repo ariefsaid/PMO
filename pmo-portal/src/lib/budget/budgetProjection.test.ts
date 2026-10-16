@@ -283,3 +283,47 @@ describe('deriveProjectionCell — a SUPPRESSED budget attribution states nothin
     expect(cell.projectedUtilization).toBeNull();
   });
 });
+
+import { summarizeProjection } from './budgetProjection';
+
+describe('summarizeProjection (UX-036/S-04: unknown is never 0)', () => {
+  const row = (o: Partial<Parameters<typeof summarizeProjection>[0][number]> & { category: string }) => ({
+    pmoBudgetAmount: 400000, budgetKnownAbsent: false, actualsToDate: 180000, pmoEtc: 250000, ...o,
+  });
+
+  it('sums budget, recorded, cost to finish, final cost and remaining/overrun', () => {
+    const s = summarizeProjection([
+      row({ category: 'Labor' }),
+      row({ category: 'Materials', pmoBudgetAmount: 100000.1, actualsToDate: 20000.2, pmoEtc: 0 }),
+    ]);
+    expect(s).toMatchObject({ budget: 500000.1, recorded: 200000.2, costToFinish: 250000, finalCost: 450000.2 });
+    expect(s.remaining).toBe(49999.9);
+  });
+
+  it('negative remaining = forecast overrun', () => {
+    expect(summarizeProjection([row({ category: 'Labor', pmoBudgetAmount: 400000 })]).remaining).toBe(-30000);
+  });
+
+  it('a category with no budget line is a known 0 budget, not an unknown', () => {
+    const s = summarizeProjection([row({ category: 'Labor' }), row({ category: 'Other', pmoBudgetAmount: null, budgetKnownAbsent: true, actualsToDate: 0, pmoEtc: 0 })]);
+    expect(s.budget).toBe(400000);
+    expect(s.unknownBudget).toEqual([]);
+  });
+
+  it('unmapped recorded spending invalidates recorded, final cost and remaining — names the category', () => {
+    const s = summarizeProjection([row({ category: 'Labor' }), row({ category: 'Travel', actualsToDate: null })]);
+    expect(s.recorded).toBeNull();
+    expect(s.finalCost).toBeNull();
+    expect(s.remaining).toBeNull();
+    expect(s.unknownRecorded).toEqual(['Travel']);
+    expect(s.budget).toBe(800000);
+  });
+
+  it('an unknown budget invalidates budget and remaining but not final cost', () => {
+    const s = summarizeProjection([row({ category: 'Labor', pmoBudgetAmount: null })]);
+    expect(s.budget).toBeNull();
+    expect(s.remaining).toBeNull();
+    expect(s.finalCost).toBe(430000);
+    expect(s.unknownBudget).toEqual(['Labor']);
+  });
+});

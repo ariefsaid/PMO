@@ -339,7 +339,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     // the goal (the Budget section is shown on the deep-link) stays honest; we no
     // longer assert the duplicate heading the change removed.
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
+    // S-04 / DD-MONEY-4: with no Active version the lead says so — never "$0" as a budget.
+    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', () => {

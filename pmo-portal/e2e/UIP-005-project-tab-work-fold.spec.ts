@@ -75,7 +75,7 @@ for (const role of ['pm', 'finance'] as const) {
         await page.evaluate(value => { localStorage.setItem('theme', value); document.documentElement.classList.toggle('dark', value === 'dark'); }, theme);
         for (const tab of ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks']) {
           await page.goto(`${projectPath}/${tab}`);
-          const work = tab === 'budget' ? panel.getByTestId('derived-budget')
+          const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
             : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
             : tab === 'work-orders' ? panel.getByText('Contract drawdown', { exact: true }).first()
             : tab === 'billing' ? panel.getByText('Billing summary', { exact: true })
@@ -83,6 +83,12 @@ for (const role of ['pm', 'finance'] as const) {
             : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
             : panel.getByText('ENG — Detail Design Package', { exact: true });
           await expect(work).toBeVisible();
+          if (tab === 'budget') {
+            const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
+            const remaining = remainingLabel.locator('..').locator('dd');
+            await expect(remainingLabel).toBeVisible();
+            await expect(remaining).toBeVisible();
+          }
           await page.locator('main').evaluate(el => { el.scrollTop = 0; });
           await aboveFold(page, sections);
           await aboveFold(page, work);
