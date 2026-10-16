@@ -48,6 +48,7 @@ import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnex
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveInvoiceProject } from './projectInvoiceAttribution.ts';
+import { allocationDetailsPatch } from './receiptAllocations.ts';
 
 export { ERPNEXT_TIER };
 
@@ -526,6 +527,7 @@ async function mintMirrorRow(
         ...(canonical.received_amount !== undefined ? { received_amount: canonical.received_amount } : {}),
         ...(canonical.withheld_amount !== undefined ? { withheld_amount: canonical.withheld_amount } : {}),
         ...(canonical.withholding_slip_number !== undefined ? { withholding_slip_number: canonical.withholding_slip_number } : {}),
+        ...(await allocationDetailsPatch(serviceClient, orgId, canonical)),
         id,
         org_id: orgId,
         customer_id: customerId,
@@ -726,6 +728,7 @@ async function revenueFieldPatch(
   putIfPresent(patch, 'received_amount', canonical.received_amount);
   if (canonical.withheld_amount !== undefined) patch.withheld_amount = canonical.withheld_amount;
   if (canonical.withholding_slip_number !== undefined) patch.withholding_slip_number = canonical.withholding_slip_number;
+  Object.assign(patch, await allocationDetailsPatch(serviceClient, orgId, canonical));
   // The late-link repair: a Receive PE adopted BEFORE the Sales Invoice it cites kept
   // sales_invoice_id = NULL forever. An unresolvable reference leaves the column UNTOUCHED — a
   // repair pass must never un-link a payment that is already correctly linked.

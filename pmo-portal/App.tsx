@@ -178,6 +178,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
+  { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —

@@ -3787,6 +3787,7 @@
     "approveInvoice": "Setujui faktur",
     "invoiceApproved": "Faktur disetujui",
     "nativeCancelInvoiceBody": "Ini membatalkan faktur di PMO sehingga tidak lagi dihitung sebagai tagihan. Faktur yang memiliki penerimaan hanya dapat dibatalkan setelah penerimaannya dibatalkan.",
+    "statusPaid": "Dibayar",
     "statusPartlyPaid": "Dibayar sebagian",
     "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
     "overpaidBy": "Kelebihan bayar {{amount}}",
@@ -4022,7 +4023,6 @@
     "invoiceCancelled": "Faktur dibatalkan",
     "invoiceSubmitted": "Faktur diajukan",
     "invoiceCreated": "Faktur dibuat",
-    "statusScheduled": "Terjadwal",
     "paidAmountPositive": "Jumlah dibayar harus lebih dari nol dengan maksimal 2 angka desimal.",
     "receivedAmountPositive": "Jumlah diterima harus lebih dari nol dengan maksimal 2 angka desimal.",
     "paymentDateRequired": "Tanggal wajib diisi.",
@@ -4077,7 +4077,6 @@
     "searchItemCodeOrName": "Cari kode atau nama item…",
     "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…",
     "currency": "Mata uang",
-    "statusReceived": "Diterima",
     "draftInvoiceLabel": "Draf · {{customer}}",
     "preErpBadge": "Pra-ERP",
     "totalDueAmount": "Total tagihan {{amount}}",
@@ -4594,5 +4593,24 @@
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
     "previewCoverage": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
     "previewGaps": "Tidak ada kurs untuk {{dates}}"
+  },
+  "uxs06": {
+    "statusReceived": "Diterima",
+    "statusExpected": "Diharapkan",
+    "none": "Tidak ada",
+    "notReported": "Belum dilaporkan",
+    "unappliedCol": "Belum dialokasikan",
+    "invoiceAndMore": "{{first}} +{{count}} lainnya",
+    "receiptTotal": "Total penerimaan",
+    "backToReceipts": "Kembali ke Pembayaran Masuk",
+    "receiptTitle": "Penerimaan {{number}}",
+    "settledTitle": "Faktur yang dilunasi penerimaan ini",
+    "applied": "Dialokasikan",
+    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi penerimaan ini.",
+    "onAccount": "Penerimaan ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
+    "invoiceNotInPmo": "Faktur ini belum ada di PMO.",
+    "unappliedNote": "{{amount}} dari penerimaan ini belum dialokasikan ke faktur.",
+    "receiptNotFound": "Penerimaan ini tidak ditemukan",
+    "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
   }
 }

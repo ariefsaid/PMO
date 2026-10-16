@@ -5,6 +5,7 @@ import { isProjectFinances, type ProjectFinances } from '@/src/lib/projectFinanc
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
 /** Row shapes matching the DB schema (snake_case) from migration 0104. */
@@ -81,6 +82,8 @@ export interface IncomingPaymentRow {
   received_amount?: number | null;
   withheld_amount?: number | null;
   withholding_slip_number?: string | null;
+  /** S-06: the ERP-authored invoice allocations (null/absent = coverage unknown; [] = none reported). */
+  allocation_details?: ReceiptAllocation[] | null;
   id: string;
   org_id: string;
   customer_id: string | null;

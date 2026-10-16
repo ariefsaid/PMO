@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -85,6 +85,7 @@ beforeEach(async () => {
   h.createPaymentMutate.mockReset();
   h.createPaymentMutate.mockResolvedValue({ id: 'ip-new' });
   h.payments.data = [];
+  h.payments.isError = false;
   h.invoices.data = [];
   h.route = 'pmo';
   h.toast.mockClear();
@@ -377,5 +378,162 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect((await screen.findAllByText('The payment date cannot be before the invoice date.')).length).toBeGreaterThan(0);
     expect(h.createPaymentMutate).not.toHaveBeenCalled();
+  });
+});
+
+// ── S-06: what cash settled (RF-030..RF-034) ─────────────────────────────────────────────────────────────
+const alloc = (invoice_number: string, amount: string | null, invoice_id: string | null = null, currency: string | null = 'IDR') =>
+  ({ invoice_id, invoice_number, amount, currency });
+const erpReceipt = (over: Partial<IncomingPaymentRow> = {}) => receipt({
+  id: 'ip-erp', pmo_native: false, pmo_number: null, ip_number: 'ACC-PAY-0001', sales_invoice_id: 'si-a',
+  erp_docstatus: 1, amount: 75_000, received_amount: 75_000, withheld_amount: 0, ...over,
+});
+const renderAt = (path: string) => render(
+  <FinanceI18nTestProvider>
+    <ImpersonationProvider realRole="Finance">
+      <MemoryRouter initialEntries={[path]}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/incoming-payments" element={<IncomingPayments />} />
+            <Route path="/incoming-payments/:receiptId" element={<IncomingPayments />} />
+            <Route path="/sales-invoices/:invoiceId" element={<p>invoice record</p>} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>
+    </ImpersonationProvider>
+  </FinanceI18nTestProvider>,
+);
+const twoInvoices = [alloc('ACC-SINV-A', '25000.00', 'si-a'), alloc('ACC-SINV-B', '30000.00', 'si-b')];
+
+describe('Incoming Payments list — what cash settled (S-06)', () => {
+  beforeEach(() => { h.route = 'external'; });
+
+  it('RF-033 an ERP receipt reads Received / Expected, never the invoice words Paid / Scheduled', () => {
+    h.payments.data = [
+      erpReceipt({ allocation_details: twoInvoices }),
+      erpReceipt({ id: 'ip-2', ip_number: 'ACC-PAY-0002', status: 'Scheduled', erp_docstatus: 0, allocation_details: [] }),
+    ];
+    renderAt('/incoming-payments');
+    expect(within(rowFor('ACC-PAY-0001')).getByText('Received')).toBeInTheDocument();
+    expect(within(rowFor('ACC-PAY-0002')).getByText('Expected')).toBeInTheDocument();
+    const filters = screen.getByRole('tablist', { name: 'Filter by status' });
+    expect(within(filters).getByRole('tab', { name: 'Expected' })).toBeInTheDocument();
+    expect(within(filters).queryByRole('tab', { name: 'Scheduled' })).toBeNull();
+    expect(within(filters).queryByRole('tab', { name: 'Paid' })).toBeNull();
+  });
+
+  it('RF-030 a multi-invoice receipt names its first invoice and how many more, not just one', () => {
+    h.payments.data = [erpReceipt({ allocation_details: twoInvoices })];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('ACC-SINV-A +1 more');
+  });
+
+  it('RF-032 tax withheld is None when known to be zero and Not reported when the source did not say', () => {
+    h.payments.data = [
+      erpReceipt({ allocation_details: twoInvoices, withheld_amount: 0 }),
+      erpReceipt({ id: 'ip-2', ip_number: 'ACC-PAY-0002', withheld_amount: null, allocation_details: twoInvoices }),
+    ];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('None');
+    expect(rowFor('ACC-PAY-0002')).toHaveTextContent('Not reported');
+  });
+
+  it('RF-031 cash the accounting system has not matched to an invoice is shown, apart from matched cash', () => {
+    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY-0001')).toHaveTextContent(/40,000/);
+    expect(screen.getByRole('columnheader', { name: 'Not yet applied' })).toBeInTheDocument();
+  });
+
+  it('RF-031 unknown allocation coverage never shows a figure for unapplied cash', () => {
+    h.payments.data = [erpReceipt({ allocation_details: null })];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY-0001')).not.toHaveTextContent(/75,000.*75,000.*75,000/);
+    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('Not reported');
+  });
+
+  it('RF-034 opening a row goes to its read-only receipt page', async () => {
+    h.payments.data = [erpReceipt({ allocation_details: twoInvoices })];
+    const user = userEvent.setup();
+    renderAt('/incoming-payments');
+    await user.click(within(rowFor('ACC-PAY-0001')).getByRole('link', { name: 'ACC-PAY-0001' }));
+    expect(await screen.findByRole('heading', { name: /ACC-PAY-0001/ })).toBeInTheDocument();
+  });
+});
+
+describe('Receipt page — every allocation (S-06)', () => {
+  beforeEach(() => { h.route = 'external'; });
+
+  it('RF-030/034 lists each invoice the receipt settled with its own amount, linked to the invoice', () => {
+    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
+    renderAt('/incoming-payments/ip-erp');
+    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    expect(within(table).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
+    expect(within(table).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
+    expect(within(table).getByText(/25,000/)).toBeInTheDocument();
+    expect(within(table).getByText(/30,000/)).toBeInTheDocument();
+  });
+
+  it('does not assign the receipt currency to an allocation whose currency was not reported', () => {
+    h.payments.data = [erpReceipt({ allocation_details: [alloc('ACC-SINV-A', '25000.00', 'si-a', null)] })];
+    renderAt('/incoming-payments/ip-erp');
+    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    expect(within(table).getByText('Not reported')).toBeInTheDocument();
+    expect(within(table).queryByText(/25,000/)).toBeNull();
+  });
+
+  it('RF-031 states the cash not yet applied to any invoice, separate from the matched cash', () => {
+    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent(/40,000/);
+  });
+
+  it('RF-032 withheld tax reads Not reported when unknown, and None only when known to be zero', () => {
+    h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('Not reported');
+  });
+
+  it('shows None for known-zero unapplied cash in the list, matching the detail page', () => {
+    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, allocation_details: [] })];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY')).toHaveTextContent('None');
+  });
+
+  it('RF-031 a receipt the source reports as unapplied to any invoice says so; unknown coverage says it is unknown', () => {
+    h.payments.data = [erpReceipt({ sales_invoice_id: null, allocation_details: [] })];
+    const { unmount } = renderAt('/incoming-payments/ip-erp');
+    expect(screen.getByText(/not applied to any invoice/i)).toBeInTheDocument();
+    unmount();
+    h.payments.data = [erpReceipt({ allocation_details: null })];
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.getByText(/has not reported which invoices/i)).toBeInTheDocument();
+  });
+
+  it('a PMO-recorded receipt shows its one invoice with the whole receipt applied', () => {
+    h.invoices.data = [openInvoice];
+    h.route = 'pmo';
+    h.payments.data = [receipt()];
+    renderAt('/incoming-payments/ip-1');
+    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    expect(within(table).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
+    expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('None');
+  });
+
+  it('a receipt read error shows a retryable error instead of not found', () => {
+    h.payments.isError = true;
+    h.payments.refetch.mockClear();
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Couldn\'t load incoming payments'))).toBe(true);
+    expect(screen.queryByText(/couldn.t find this receipt/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /retry|coba lagi/i }));
+    expect(h.payments.refetch).toHaveBeenCalled();
+  });
+
+  it('an unknown receipt id says it was not found after a successful read', () => {
+    h.payments.data = [erpReceipt()];
+    h.payments.isError = false;
+    renderAt('/incoming-payments/nope');
+    expect(screen.getByText(/couldn.t find this receipt/i)).toBeInTheDocument();
   });
 });

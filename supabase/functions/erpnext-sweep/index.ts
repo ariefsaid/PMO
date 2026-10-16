@@ -61,6 +61,7 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 // HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
 import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
+import { buildAllocationDetails, salesInvoiceLookup } from '../_shared/receiptAllocations.ts';
 import { resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
@@ -70,7 +71,7 @@ import { budgetFromDocFields } from '../../../pmo-portal/src/lib/adapterSeam/erp
 import { TS_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/timesheet.ts';
 import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
-import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
+import { PE_RECEIVE_FROM_DOC_FIELDS, allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { PE_PAY_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/paymentEntry.ts';
 import { PI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseInvoice.ts';
 import { PO_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseOrder.ts';
@@ -1191,6 +1192,9 @@ export interface RepairUnlinkedReceiptsDeps {
   resolveSalesInvoicePmoId: (siErpName: string) => Promise<string | null>;
   /** Write the repaired link. */
   link: (ipId: string, salesInvoicePmoId: string) => Promise<void>;
+  /** S-06: re-mirror the receipt's invoice allocations (the ERP document's `references`, normalised). Called only when the
+   *  document states them — a missing table is unknown coverage and writes nothing. */
+  mirrorAllocations?: (ipId: string, allocations: NonNullable<ReturnType<typeof allocationsOf>>) => Promise<void>;
 }
 
 /**
@@ -1208,6 +1212,8 @@ export async function repairUnlinkedReceipts(
   for (const receipt of unlinked) {
     try {
       const doc = await deps.fetchDoc(receipt.erpName);
+      const allocations = allocationsOf(doc.references);
+      if (allocations !== undefined) await deps.mirrorAllocations?.(receipt.id, allocations);
       const references = doc.references as Array<{ reference_name?: string | null }> | undefined;
       const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
       if (!siErpName) continue; // an unreferenced receipt is a valid on-account payment
@@ -1345,11 +1351,18 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
     const client = await erpClientForOrg(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: async () => {
-        const { data, error } = await serviceClient.from('incoming_payments')
-          .select('id').eq('org_id', org.orgId).is('sales_invoice_id', null).not('erp_docstatus', 'is', null)
-          .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
-        if (error) throw new AppError(error.message, error.code);
-        const rows = (data as Array<{ id: string }> | null) ?? [];
+        // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
+        const base = () => serviceClient.from('incoming_payments')
+          .select('id').eq('org_id', org.orgId).not('erp_docstatus', 'is', null);
+        const [unlinked, unmirrored, unresolved] = await Promise.all([
+          base().is('sales_invoice_id', null).limit(UNLINKED_RECEIPT_SCAN_LIMIT),
+          base().is('allocation_details', null).limit(UNLINKED_RECEIPT_SCAN_LIMIT),
+          base().filter('allocation_details', 'cs', '[{"invoice_id":null}]').limit(UNLINKED_RECEIPT_SCAN_LIMIT),
+        ]);
+        const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
+        if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
+        const rows = [...new Map([unlinked, unmirrored, unresolved]
+          .flatMap((r) => (r.data as Array<{ id: string }> | null) ?? []).map((r) => [r.id, r])).values()];
         if (rows.length === 0) return [];
         // The ERP name lives on external_refs (the mirror row carries no ERP name column).
         const { data: refs, error: refErr } = await serviceClient.from('external_refs')
@@ -1365,6 +1378,12 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
           .eq('org_id', org.orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
         if (error) throw new AppError(error.message, error.code);
         return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+      },
+      mirrorAllocations: async (ipId, allocations) => {
+        const details = await buildAllocationDetails(allocations, salesInvoiceLookup(serviceClient, org.orgId));
+        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_details: details })
+          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+        if (error) throw new AppError(error.message, error.code);
       },
       link: async (ipId, salesInvoicePmoId) => {
         const { error } = await (serviceClient.from('incoming_payments').update({ sales_invoice_id: salesInvoicePmoId })
