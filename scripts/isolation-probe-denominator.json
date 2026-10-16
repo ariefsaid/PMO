@@ -301,6 +301,7 @@
     {"name":"reserve_credits","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0077_reserve_credits.sql:78"]},
     {"name":"claim_erp_sweep_lock","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0294_statement_account_source.sql:49"]},
     {"name":"release_erp_sweep_lock","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0294_statement_account_source.sql:50"]},
+    {"name":"replace_erp_account_chart","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0296_replace_erp_account_chart.sql:53"]},
     {"name":"set_procurement_invoice_efaktur","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0272_efaktur_number.sql:120"]},
     {"name":"set_sales_invoice_efaktur","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0272_efaktur_number.sql:70"]},
     {"name":"set_vendor_tax_defaults","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0273_vendor_tax_defaults.sql:98","supabase/migrations/0273_vendor_tax_defaults.sql:94"]},

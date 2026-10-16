@@ -19,7 +19,7 @@ function fakeClient() {
     };
     return builder;
   };
-  return { calls, from: vi.fn(query) };
+  return { calls, from: vi.fn(query), rpc: vi.fn(async (_name: string, _args: unknown) => ({ data: { upserted: 2, deleted: 1 }, error: null })) };
 }
 
 describe('account mirror reconciliation', () => {
@@ -27,8 +27,11 @@ describe('account mirror reconciliation', () => {
     const service = fakeClient();
     const result = await feedAccountMirror(service as never, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'refresh-1', asOf: '2026-01-02T00:00:00Z', accounts: [row('Assets', null, 1, 4), row('Cash', 'Assets', 2, 3)] });
     expect(result).toMatchObject({ upserted: 2, removed: true });
-    expect(service.calls.map((c) => c.method)).toEqual(['upsert', 'delete']);
-    expect(service.calls[0].values).toEqual(expect.arrayContaining([expect.objectContaining({ erp_name: 'Cash', org_id: 'org-synthetic', refresh_id: 'refresh-1' })]));
+    expect(service.calls).toEqual([]);
+    expect(service.rpc).toHaveBeenCalledWith('replace_erp_account_chart', expect.objectContaining({
+      p_org_id: 'org-synthetic', p_company: 'Synthetic Co',
+      p_rows: expect.arrayContaining([expect.objectContaining({ erp_name: 'Cash', org_id: 'org-synthetic', refresh_id: 'refresh-1' })]),
+    }));
   });
 
   it('AC-005: rejects missing parent and duplicate identity before any mirror write', async () => {

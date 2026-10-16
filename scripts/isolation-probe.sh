@@ -142,6 +142,7 @@ c=$(rpc operator_grant_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0,\"p_note
 c=$(rpc reserve_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0.01,\"p_run_id\":\"b0000000-0000-4000-8000-0000000000aa\"}")
 c=$(rpc claim_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"15 minutes\"}")
 c=$(rpc release_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+c=$(rpc replace_erp_account_chart "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_rows\":[]}")
 c=$(rpc create_vault_secret_for_org "{\"p_org_id\":\"$A_ORG\",\"p_external_tier\":\"clickup\",\"p_secret_value\":\"probe\",\"p_secret_name\":\"probe_b_forgery\",\"p_actor_id\":\"$A_PROFILE\"}")
 c=$(rpc m365_disconnect_cascade "{\"p_org_id\":\"$A_ORG\",\"p_user_id\":\"$A_PROFILE\",\"p_reason\":\"probe\"}")
 c=$(rpc audit_m365_event "{\"p_action\":\"m365.probe\",\"p_org_id\":\"$A_ORG\",\"p_actor_id\":\"$A_PROFILE\",\"p_entity_id\":\"$A_PROFILE\",\"p_detail\":{\"probe\":\"#490 forgery test\"}}")

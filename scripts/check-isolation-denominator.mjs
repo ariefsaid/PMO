@@ -196,7 +196,12 @@ export function validateDenominator(parsed) {
     if (r.shape != null && !['empty-array', 'false'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
     if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
     if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
-    if (!parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`))) throw new Error(`invalid denominator: RPC ${r.name} is absent from definer_functions`);
+    const isDefiner = parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`));
+    const isDeclaredFunction = r.source.some(s => {
+      const [file] = s.split(':');
+      return fs.readFileSync(path.join(ROOT, file), 'utf8').includes(`function public.${r.name}(`);
+    });
+    if (!isDefiner && !isDeclaredFunction) throw new Error(`invalid denominator: RPC ${r.name} has no cited function definition`);
   }
   return parsed;
 }

@@ -8720,6 +8720,10 @@ export type Database = {
         Args: { p_clearance_id: string; p_si_id: string }
         Returns: undefined
       }
+      replace_erp_account_chart: {
+        Args: { p_company: string; p_org_id: string; p_rows: Json }
+        Returns: Json
+      }
       replace_erp_snapshot: {
         Args: { p_org_id: string; p_rows: Json; p_table: string }
         Returns: number

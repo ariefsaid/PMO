@@ -13,7 +13,10 @@ interface AccountTable {
   eq(column: string, value: string): AccountQuery;
   not(column: string, operator: string, value: string): AccountQuery;
 }
-export interface AccountMirrorServiceClient { from(table: string): AccountTable }
+export interface AccountMirrorServiceClient {
+  from(table: string): AccountTable;
+  rpc(name: 'replace_erp_account_chart', args: { p_org_id: string; p_company: string; p_rows: Record<string, unknown>[] }): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
 export interface FeedAccountMirrorOpts {
   orgId: string; company: string; refreshId: string; asOf: string;
   accounts: readonly StatementAccountSourceRow[];
@@ -45,7 +48,6 @@ function validateChart(accounts: readonly StatementAccountSourceRow[], company: 
  * only after it succeeds, so failure leaves the sweep's replay/delayed status uncleared. */
 export async function feedAccountMirror(sc: AccountMirrorServiceClient, opts: FeedAccountMirrorOpts): Promise<{ upserted: number; removed: boolean }> {
   validateChart(opts.accounts, opts.company);
-  const table = sc.from('erp_account_mirror') as unknown as AccountTable;
   const rows = opts.accounts.map((account) => ({
     org_id: opts.orgId, company: opts.company, erp_name: account.name, account_name: account.account_name,
     root_type: account.root_type, report_type: account.report_type, parent_account: account.parent_account,
@@ -55,15 +57,10 @@ export async function feedAccountMirror(sc: AccountMirrorServiceClient, opts: Fe
     disabled: Boolean(account.disabled), erp_modified: account.modified ?? null,
     as_of: opts.asOf, refresh_id: opts.refreshId,
   }));
-  if (rows.length) {
-    const { error } = await table.upsert(rows, { onConflict: 'org_id,company,erp_name' });
-    if (error) throw new AppError(error.message, error.code);
-  }
-  const deleteQuery = table.delete().eq('org_id', opts.orgId).eq('company', opts.company);
-  const names = opts.accounts.map((account) => account.name);
-  const result = names.length
-    ? await deleteQuery.not('erp_name', 'in', `(${names.map((name) => `"${name.replaceAll('"', '""')}"`).join(',')})`)
-    : await deleteQuery;
-  if (result.error) throw new AppError(result.error.message, result.error.code);
-  return { upserted: rows.length, removed: true };
+  const { data, error } = await sc.rpc('replace_erp_account_chart', {
+    p_org_id: opts.orgId, p_company: opts.company, p_rows: rows,
+  });
+  if (error) throw new AppError(error.message, error.code);
+  const counts = data as { upserted?: number; deleted?: number } | null;
+  return { upserted: counts?.upserted ?? rows.length, removed: true };
 }
