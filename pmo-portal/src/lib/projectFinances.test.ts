@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveMargin, formatExactMoney, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveContractRemainingAfterCost, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {
@@ -66,6 +66,26 @@ describe('exact project-finance money', () => {
       actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } },
   ])('AC-PFIN-015 rejects malformed top-level project-finance data', (value) => {
     expect(isProjectFinances(value)).toBe(false);
+  });
+
+  it('DD-MONEY-2 derives contract remaining after cost with exact minor-unit arithmetic', () => {
+    const actuals = { currency: 'USD', as_of: null, total: '0.10', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '0.10' }] };
+    const remaining = deriveContractRemainingAfterCost(0.30, actuals, 'USD');
+    expect(remaining).toBe('0.20');
+    expect(formatSignedExactMoney(deriveContractRemainingAfterCost(0.10, { ...actuals, total: '0.30' }, 'USD')!, 'USD', 'en-US'))
+      .toBe('−$0.20');
+    expect(deriveContractRemainingAfterCost(0.30, { ...actuals, total: null }, 'USD')).toBeNull();
+  });
+
+  it('UX-023 treats known zero as complete but rejects missing, partial, or restricted Actuals', () => {
+    const actuals = { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] };
+    expect(hasCompleteActuals(actuals)).toBe(true);
+    expect(hasCompleteActuals({ ...actuals, categories: [] })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, total: null })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, categories: [...actuals.categories, { category: 'Materials', mapped: false, amount: null }] })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, excludes_restricted_rows: true })).toBe(false);
   });
 
   it('AC-PFIN-013 derives a same-currency margin from billed work and mapped costs only', () => {

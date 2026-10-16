@@ -1,3 +1,5 @@
+import { formatExactMoney } from './format';
+
 export type ExactMoney = string;
 
 export interface InvoiceFinanceBucket {
@@ -42,6 +44,33 @@ export interface ProjectFinances {
 export type Margin =
   | { amount: ExactMoney; reason: null }
   | { amount: null; reason: 'different-currencies' | 'work-unavailable' | 'actuals-unavailable' | 'restricted-rows' };
+
+/** A headline Actual is trustworthy only when every reported category is covered. */
+export function hasCompleteActuals(actuals: ProjectFinances['actuals']): boolean {
+  return actuals.currency !== null
+    && actuals.total !== null
+    && actuals.categories.length > 0
+    && actuals.categories.every((category) => category.mapped)
+    && !actuals.excludes_restricted_rows;
+}
+
+export function deriveContractRemainingAfterCost(
+  contractValue: number | null,
+  actuals: ProjectFinances['actuals'],
+  currency: string,
+): ExactMoney | null {
+  if (contractValue === null || !Number.isFinite(contractValue) || actuals.currency !== currency || !hasCompleteActuals(actuals)) return null;
+  const contract = moneyUnits(String(contractValue));
+  const cost = moneyUnits(actuals.total);
+  return contract === null || cost === null ? null : moneyText(contract - cost);
+}
+
+export function formatSignedExactMoney(value: ExactMoney, currency: string, locale: string): string | null {
+  const units = moneyUnits(value);
+  if (units === null) return null;
+  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale);
+  return formatted === null ? null : `${units < 0n ? '−' : ''}${formatted}`;
+}
 
 export interface AssignInvoiceProjectInput {
   siId: string;
@@ -95,4 +124,4 @@ export function isProjectFinances(value: unknown): value is ProjectFinances {
       && typeof v.mapped === 'boolean' && exact(v.amount));
 }
 
-export { formatExactMoney } from './format';
+export { formatExactMoney };
