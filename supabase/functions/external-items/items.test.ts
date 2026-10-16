@@ -30,6 +30,11 @@ const profile = () =>
     assertEquals(call.headers.get('authorization')?.startsWith('Bearer ey'), true);
     return jsonResponse({ org_id: 'org-test' }, { headers: objectHeaders });
   });
+const actor = (role: string) => supabaseRpc('actor_authorization_state', (call) => {
+  assertEquals(call.headers.get('authorization')?.startsWith('Bearer ey'), true);
+  assertEquals(call.bodyJson, { p_org_id: 'org-test', p_user_id: 'user-test' });
+  return jsonResponse({ role, active: true });
+});
 const binding = (status = 'active', config: Record<string, unknown> = { company: 'Test Co' }) =>
   supabaseSelect('external_org_bindings', (call) => {
     assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
@@ -178,6 +183,7 @@ describe('external-items shipped handler', () => {
     await withFetchMock(
       [
         profile(),
+        actor('Admin'),
         binding(),
         supabaseSelect('erp_account_mirror', (call) => {
           assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
@@ -207,6 +213,7 @@ describe('external-items shipped handler', () => {
     await withFetchMock(
       [
         profile(),
+        actor('Admin'),
         binding(),
         supabaseSelect('erp_account_mirror', () => jsonResponse([])),
         binding(),
@@ -233,6 +240,38 @@ describe('external-items shipped handler', () => {
         });
       },
     );
+  });
+
+  it('refuses Project Manager and Engineer before the account mirror or ERP fallback', async () => {
+    for (const role of ['Project Manager', 'Engineer']) {
+      for (const fallback of [false, true]) {
+        const routes = [profile(), actor(role)];
+        if (fallback) routes.push(binding());
+        await withFetchMock(routes, async ({ calls }) => {
+          const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+          assertEquals(response.status, 403);
+          assertEquals(await response.json(), { error: 'FORBIDDEN' });
+          assertEquals(calls.length, 2);
+          assertEquals(calls.some((call) => call.url.pathname.includes('erp_account_mirror')), false);
+          assertEquals(calls.some((call) => call.url.host === 'erp.example.com'), false);
+        });
+      }
+    }
+  });
+
+  it('allows Admin, Finance, and Executive to read the account catalogue', async () => {
+    for (const role of ['Admin', 'Finance', 'Executive']) {
+      await withFetchMock([
+        profile(), actor(role), binding(),
+        supabaseSelect('erp_account_mirror', () => jsonResponse([{
+          erp_name: '5100 - Labor', account_name: 'Labor', account_number: '5100',
+          parent_account: 'Cost of Sales - Test Co', root_type: 'Expense', is_group: false, disabled: false,
+        }])),
+      ], async () => {
+        const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+        assertEquals(response.status, 200);
+      });
+    }
   });
 
   it('AC-520-7 lists the binding company\'s enabled purchase tax templates for the vendor-invoice picker', async () => {
