@@ -516,6 +516,10 @@ verify_jwt = false
 [functions.external-invoice-pdf]
 verify_jwt = false
 
+# S-17: read-only invoice evidence proxy verifies caller JWT and membership inside the handler.
+[functions.external-invoice-evidence]
+verify_jwt = false
+
 # ── Edge Function: clickup-onboard ─────────────────────────────────────────────
 # verify_jwt = false: an operator onboarding action, not a browser-JWT path. The handler verifies
 # the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust

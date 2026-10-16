@@ -27,8 +27,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const facts: Array<{ label: string; value: React.ReactNode }> = [
     { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
     { label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' },
-    { label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' },
-    { label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' },
+    ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
+    ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
   ];
 
   return (
@@ -37,7 +37,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
-            <dd className="mt-1 truncate text-[13px] font-medium">{f.value}</dd>
+            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-[13px] font-medium">{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -80,7 +80,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
           <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
-            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} />
+            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
             <span>{money(inv.tax_amount)}</span>
           </dd>
         </div>

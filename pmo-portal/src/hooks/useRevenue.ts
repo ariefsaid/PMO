@@ -10,6 +10,8 @@ import {
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
+import type { SalesInvoiceEvidence } from '@/src/lib/adapterSeam/erpnext/invoiceEvidence';
+import { getSalesInvoiceEvidence } from '@/src/lib/repositories/invoiceEvidence';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import { efakturRefusal } from '@/src/lib/efaktur';
@@ -45,6 +47,18 @@ export function useSalesInvoice(id: string | undefined) {
   });
 }
 
+/** Lazy read-only ERP evidence for an invoice detail; never fetched for PMO-native invoices. */
+export function useSalesInvoiceEvidence(id: string | undefined, enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<SalesInvoiceEvidence>({
+    queryKey: ['salesInvoiceEvidence', orgId, id],
+    queryFn: () => getSalesInvoiceEvidence(id!),
+    enabled: Boolean(orgId && id && enabled),
+    retry: false,
+  });
+}
+
 /**
  * #784 (DD-NAR-12): the PMO drafts the approvals queue offers — PMO-native Drafts only (partial index
  * sales_invoices_native_draft_idx). `enabled` lets the queue skip the read for a viewer who cannot approve.
@@ -64,13 +78,16 @@ export function useNativeDraftInvoices(enabled: boolean) {
  * Org-scoped incoming payments list over the repository seam (ADR-0017).
  * Optional `customerId` narrows to one customer.
  */
-export function useIncomingPayments(customerId?: string) {
+export function useIncomingPayments(customerId?: string, enabled = true, salesInvoiceId?: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<IncomingPaymentRow[]>({
-    queryKey: ['incomingPayments', orgId, customerId ?? 'all'],
-    queryFn: () => repositories.revenue.listPayments(customerId ? { customerId } : undefined),
-    enabled: Boolean(orgId),
+    queryKey: ['incomingPayments', orgId, customerId ?? 'all', salesInvoiceId ?? 'all-invoices'],
+    queryFn: () => repositories.revenue.listPayments({
+      ...(customerId ? { customerId } : {}),
+      ...(salesInvoiceId ? { salesInvoiceId } : {}),
+    }),
+    enabled: Boolean(orgId && enabled),
   });
 }
 

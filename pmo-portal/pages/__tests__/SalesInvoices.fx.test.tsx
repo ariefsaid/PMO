@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   exportRows: [] as SalesInvoiceRow[],
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoiceEvidence: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useSalesInvoices: () => h.invoices,
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevenueMutations: () => ({

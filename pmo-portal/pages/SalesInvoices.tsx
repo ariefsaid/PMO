@@ -31,7 +31,7 @@ import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAssignInvoiceProject, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
+import { useAssignInvoiceProject, useSalesInvoices, useRevenueMutations, useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useInvoiceProjectOptions, type InvoiceProjectOption } from '@/src/hooks/useFkOptions';
 import { InvoiceProjectModal } from '@/src/components/InvoiceProjectModal';
 import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
@@ -49,6 +49,7 @@ import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandInt
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
+import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
 import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -154,6 +155,111 @@ const validate = (
 
 /** DD-TAX-4a: a project subject to VAT with no recorded rate cannot be invoiced in PMO until its rate is recorded. */
 const needsVatRate = (project?: InvoiceProjectOption): boolean => Boolean(project?.subjectToVat && project.taxRate == null);
+
+const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
+  const { t } = useTranslation();
+  const evidence = useSalesInvoiceEvidence(invoice.id, !invoice.pmo_native && invoice.erp_docstatus !== null);
+  const payments = useIncomingPayments(undefined, true, invoice.id);
+  const paymentEvidence = useMemo(() => {
+    const rows = (payments.data ?? []).filter((payment) =>
+      payment.status !== 'Scheduled' && !payment.erp_cancelled_at && !payment.cancelled_at,
+    );
+    const allocations = rows.flatMap((payment) => {
+      const reported = displayAllocations(payment, (id) => id === invoice.id ? invoice.si_number : null);
+      return (reported ?? []).filter((allocation) =>
+        allocation.invoice_id === invoice.id || Boolean(invoice.si_number && allocation.invoice_number === invoice.si_number),
+      ).map((allocation) => ({ payment, allocation }));
+    });
+    return {
+      allocations,
+      hasUnknown: rows.some((payment) =>
+        (payment.sales_invoice_id === invoice.id || (payment.allocation_details ?? []).some((allocation) => allocation.invoice_id === invoice.id))
+        && displayAllocations(payment, (id) => id === invoice.id ? invoice.si_number : null) === null,
+      ),
+    };
+  }, [invoice.id, invoice.si_number, payments.data]);
+
+  return (
+    <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
+      <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
+      {evidence.isPending ? (
+        <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
+      ) : evidence.isError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
+          <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
+          <div>
+            <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>
+            {evidence.data?.lines == null ? (
+              <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
+            ) : evidence.data.lines.length === 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.noLines', 'No line details were returned.')}</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-border/70">
+                {evidence.data.lines.map((line, index) => (
+                  <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                    <span className="min-w-0 flex-1 break-words">
+                      <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
+                      {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                    </span>
+                    <span className="tabular text-right text-muted-foreground">
+                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
+                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h3 className="text-sm font-medium">{t('uxs17.billingContact', 'Billing contact')}</h3>
+            {evidence.data?.contact ? (
+              <address className="mt-1 space-y-1 text-sm not-italic">
+                {evidence.data.contact.name && <p>{evidence.data.contact.name}</p>}
+                {evidence.data.contact.email && <p><a className="underline underline-offset-2" href={`mailto:${evidence.data.contact.email}`}>{evidence.data.contact.email}</a></p>}
+                {evidence.data.contact.phone && <p><a className="underline underline-offset-2" href={`tel:${evidence.data.contact.phone}`}>{evidence.data.contact.phone}</a></p>}
+              </address>
+            ) : <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.noBillingContact', 'No billing contact details were returned.')}</p>}
+          </div>
+        </div>
+      )}
+      <div className="mt-5 border-t border-border/70 pt-3">
+        <h3 className="mb-1 text-sm font-medium">{t('uxs17.appliedReceipts', 'Applied receipts')}</h3>
+        {payments.isPending ? (
+          <p className="text-sm text-muted-foreground">{t('uxs17.receiptsLoading', 'Loading receipt allocations…')}</p>
+        ) : payments.isError ? (
+          <p className="text-sm text-muted-foreground">{t('uxs17.receiptsUnavailable', 'Applied receipt details are unavailable.')}</p>
+        ) : paymentEvidence.allocations.length ? (
+          <>
+            <ul className="divide-y divide-border/70">
+              {paymentEvidence.allocations.map(({ payment, allocation }, index) => {
+                const amount = allocation.amount == null ? null : Number(allocation.amount);
+                return (
+                  <li key={`${payment.id}-${index}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                    <span>{payment.ip_number ?? payment.reference_number ?? t('uxs17.receiptReferenceUnavailable', 'Receipt reference not recorded')}
+                      {payment.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(payment.date)}</span>}
+                    </span>
+                    <span className="tabular">{amount == null || !Number.isFinite(amount) || !allocation.currency
+                      ? t('uxs17.allocationAmountUnavailable', 'Applied amount not available')
+                      : formatCurrencyCents(amount, allocation.currency)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {paymentEvidence.hasUnknown && <p className="mt-2 text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>}
+          </>
+        ) : paymentEvidence.hasUnknown ? (
+          <p className="text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('uxs17.noAppliedReceipts', 'No applied receipts are recorded for this invoice.')}</p>
+        )}
+      </div>
+    </section>
+  );
+};
 
 const SalesInvoices: React.FC = () => {
   const { t } = useTranslation();
@@ -362,6 +468,87 @@ const SalesInvoices: React.FC = () => {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
             </header>
+            <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
+                  <dd className="mt-1 text-sm">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
+                  <dd className="mt-1 text-sm">
+                    {(() => {
+                      const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
+                      return dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available');
+                    })()}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
+                  <dd className="mt-1">
+                    {isPartlyPaid(viewTarget)
+                      ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+                      : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.collection', 'Collection')}</dt>
+                  <dd className="mt-1 text-sm tabular">
+                    {viewTarget.erp_outstanding_amount == null
+                      ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
+                      : formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                  </dd>
+                </div>
+                {(() => {
+                  const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
+                  const overdueDays = overdueAgeDays(dueDate, organizationToday);
+                  return overdueDays != null && overdueDays > 0 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') ? (
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
+                      <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
+                    </div>
+                  ) : null;
+                })()}
+              </dl>
+            </section>
+            {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
+              <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedByClient', 'Received by client')
+                      : t('uxs17.readyToSend', 'Ready to send')}
+                  </h2>
+                  <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDateOnly(viewTarget.received_date) })
+                      : t('uxs17.manualHandoffHelp', 'Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.')}
+                  </p>
+                </div>
+                {!viewTarget.received_date && (
+                  <div className="flex flex-wrap gap-2">
+                    {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
+                      <Button
+                        variant="primary"
+                        disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
+                        onClick={() => void pdfDownload.download(viewTarget)}
+                      >
+                        <Icon name="download" />
+                        {pdfDownload.inFlightIds.has(viewTarget.id)
+                          ? t('uxs17.preparingPdf', 'Preparing PDF…')
+                          : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
+                      </Button>
+                    )}
+                    {canRecordReceipt && (
+                      <Button variant="outline" onClick={() => setReceiptTarget(viewTarget)}>
+                        {t('financeCopy.recordReceivedDate', 'Record received date')}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+            <SalesInvoiceEvidenceSection invoice={viewTarget} />
             <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">

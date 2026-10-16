@@ -528,7 +528,7 @@ export interface RevenueRepository {
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */
-  listPayments(params?: { customerId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
+  listPayments(params?: { customerId?: string; salesInvoiceId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
   /** Get a single incoming payment by id. */
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */

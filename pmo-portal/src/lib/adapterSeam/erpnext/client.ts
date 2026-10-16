@@ -466,7 +466,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
           await sleep(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        console.error(`[erpnext-client] upstream ${res.status} ${opts.method} ${opts.path}:`, (parsed.message ?? '').slice(0, 300));
+        console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
         throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
 
