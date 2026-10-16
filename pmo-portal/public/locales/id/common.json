@@ -4489,5 +4489,19 @@
       "failed": "Pembaruan akuntansi perlu perhatian",
       "held": "Pembaruan akuntansi ditahan"
     }
+  },
+  "uxs12": {
+    "expensePosting": {
+      "adminInactive": "ERPNext sudah terhubung, tetapi posting biaya belum diaktifkan. Admin dapat mengaktifkannya di Integrasi pada pengaturan ERPNext.",
+      "adminUnknown": "Tidak dapat memeriksa apakah posting biaya siap. Coba periksa lagi.",
+      "retryReadiness": "Periksa lagi",
+      "mapIncomplete": "{{count}} dari {{total}} akun belum dipetakan. Posting yang memerlukan akun yang belum dipetakan akan berhenti sampai akun itu dipetakan.",
+      "saveRefused": "Posting biaya belum siap saat ini, jadi akun tidak disimpan. Periksa pengaturan koneksi ERPNext di Integrasi.",
+      "formNotConnected": "Posting biaya ke akuntansi tidak aktif. Anda tetap dapat menyimpannya di PMO, tetapi tidak akan masuk ke akuntansi.",
+      "formInactive": "ERPNext sudah terhubung, tetapi posting biaya belum diaktifkan. Anda tetap dapat menyimpannya di PMO, tetapi tidak akan masuk ke akuntansi. Admin dapat mengaktifkannya di Integrasi.",
+      "formUnknown": "Tidak dapat memeriksa apakah posting biaya aktif. Anda tetap dapat menyimpannya di PMO.",
+      "cardInactive": "Belum diposting ke akuntansi: posting biaya tidak aktif untuk organisasi ini.",
+      "cardUnknown": "Tidak dapat memeriksa apakah klaim ini akan masuk ke akuntansi."
+    }
   }
 }

@@ -1,13 +1,28 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  EntityFormModal, FormGrid, FormSection, SelectField, TextField, useEntityForm, type SubmitError,
+  EntityFormModal, FormGrid, FormSection, GateNotice, SelectField, TextField, useEntityForm, type SubmitError,
 } from '@/src/components/ui';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BudgetCategory, ExpenseClaimInput, ExpenseKind } from '@/src/lib/db/expenseClaims';
+import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
+
+/** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
+ *  stays available; this is display only — it never blocks, switches posting on, or re-queues older claims. */
+const PostingReadinessNote: React.FC = () => {
+  const { t } = useTranslation();
+  const { state } = useExpensePostingReadiness();
+  if (state === 'checking' || state === 'ready') return null;
+  const message = state === 'unavailable'
+    ? t('uxs12.expensePosting.formUnknown', "Couldn't check whether expense posting is active. You can still save this in PMO.")
+    : state === 'inactive'
+      ? t('uxs12.expensePosting.formInactive', "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.")
+      : t('uxs12.expensePosting.formNotConnected', "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.");
+  return <GateNotice variant="blocked" role="status" className="mb-3">{message}</GateNotice>;
+};
 
 /** Create / edit the header of a claim or an advance (#775, FR-EXP-061). A claim's amount is never entered here
  *  — the server sums its lines (0247 §3). Amounts parse in the user's number locale at 2 decimals (#468). */
@@ -125,6 +140,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       errorSummary={errorSummary}
       submitError={saveError}
     >
+      {!initial && <PostingReadinessNote />}
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField id={titleField.id} label={t('expenses.form.title.label', 'Title')} required value={titleField.value}
