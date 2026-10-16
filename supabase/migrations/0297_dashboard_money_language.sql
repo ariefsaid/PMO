@@ -80,7 +80,7 @@ as $$
   pipeline_currency as (
     select currency, sum(contract_value) as total_value,
       sum(contract_value*win_prob) as weighted_value,
-      sum(case when active_budget > 0 then (contract_value-active_budget)*win_prob else null end) as forecast_margin,
+      sum(case when active_budget > 0 then contract_value-active_budget else null end) as forecast_margin,
       count(*) filter(where active_budget is null or active_budget<=0) as no_active_budget
     from pipeline group by currency
   ),
