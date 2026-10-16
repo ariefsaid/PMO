@@ -143,8 +143,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const activeBudget = derivedBudget ?? 0;
   const financeQuery = useProjectFinances(project.id);
   const actuals = financeQuery.data?.actuals;
-  const actualPosition = deriveActualPosition({ ledgerBasis: may('view', 'salesInvoice') ? ledgerBasis : 'unavailable',
-    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
+  const authorizedActuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : actuals;
+  const actualPosition = deriveActualPosition({ ledgerBasis,
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals: authorizedActuals });
   const actualAmount = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
     ? Number(actualPosition.amount) : null;
   const actualLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency

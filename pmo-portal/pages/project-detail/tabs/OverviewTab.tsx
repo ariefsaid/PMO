@@ -58,8 +58,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   const navigate = useNavigate();
   const may = usePermission();
   const { data: projectFinances } = useProjectFinances(project.id);
-  const actuals = may('view', 'salesInvoice') ? projectFinances?.actuals : undefined;
-  const actualPosition = deriveActualPosition({ ledgerBasis: may('view', 'salesInvoice') ? ledgerBasis : 'unavailable',
+  const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
+  const actualPosition = deriveActualPosition({ ledgerBasis,
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
   const actualSpend = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
     ? Number(actualPosition.amount) : null;

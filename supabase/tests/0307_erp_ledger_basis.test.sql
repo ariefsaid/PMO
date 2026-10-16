@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(17);
 
 insert into public.organizations (id,name) values
  ('03070000-0000-0000-0000-000000000001','ERP ledger basis org'),
@@ -23,7 +23,9 @@ insert into public.procurements (id,org_id,title,status,total_value,project_id,r
  ('03070000-0000-0000-0000-0000000000f1','03070000-0000-0000-0000-000000000001','ERP PO','Ordered',75,'03070000-0000-0000-0000-0000000000d1','03070000-0000-0000-0000-0000000000a1'),
  ('03070000-0000-0000-0000-0000000000f2','03070000-0000-0000-0000-000000000002','PMO PO','Ordered',75,'03070000-0000-0000-0000-0000000000d2','03070000-0000-0000-0000-0000000000a5');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
-values ('03070000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','03070000-0000-0000-0000-0000000000a1',now());
+values
+ ('03070000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','03070000-0000-0000-0000-0000000000a1',now()),
+ ('03070000-0000-0000-0000-000000000002','clickup','https://clickup.example.test','test-ref','active','03070000-0000-0000-0000-0000000000a5',now());
 insert into public.budget_category_account_map (org_id,category,erp_account,is_push_target)
 values ('03070000-0000-0000-0000-000000000001','Labor','0307-LABOR',true);
 insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at)
@@ -54,6 +56,23 @@ update public.external_org_bindings set status='disconnected' where org_id='0307
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select ok(not public.org_reads_erp_ledger(),'non-active ERPNext binding selects PMO basis');
+reset role;
+update public.external_org_bindings set status='active' where org_id='03070000-0000-0000-0000-000000000001' and external_tier='erpnext';
+reset role;
+update public.profiles set status='disabled' where id='03070000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select ok(not public.org_reads_erp_ledger(),'disabled member of ERP org does not read ERP ledger');
+reset role;
+update public.profiles set status='active' where id='03070000-0000-0000-0000-0000000000a1';
+update auth.users set banned_until=now() + interval '1 hour' where id='03070000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select ok(not public.org_reads_erp_ledger(),'banned member of ERP org does not read ERP ledger');
+reset role;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select ok(not public.org_reads_erp_ledger(),'active non-ERP binding does not select ERP ledger');
 reset role;
 set local role anon;
 select ok(not has_function_privilege('anon','public.org_reads_erp_ledger()','EXECUTE'),'anon cannot execute helper');

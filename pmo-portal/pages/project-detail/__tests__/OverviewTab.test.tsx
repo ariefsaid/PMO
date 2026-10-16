@@ -455,7 +455,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
     spent: 0, // as in production
   } as unknown as ProjectWithRefs;
 
-  const renderFinanceSummary = (committedSpend: number, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'pmo') =>
+  const renderFinanceSummary = (committedSpend: number, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'pmo', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'unavailable') =>
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter>
@@ -463,6 +463,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
           project={deadSpentProject}
           committedSpend={committedSpend}
           commitmentSource={commitmentSource}
+          ledgerBasis={ledgerBasis}
           setTab={vi.fn()}
           showFinanceSummary={true}
           />
@@ -477,8 +478,22 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
     expect(aside).not.toHaveTextContent('$0');
   });
 
-  it('DD-MONEY-1: D15 does not invent Actual for a role without project-finances access', () => {
-    renderFinanceSummary(3_700_000);
+  it('DD-MONEY-1: non-ERP Engineer sees committed PMO spend as Actual and utilization', () => {
+    render(
+      <ImpersonationProvider realRole="Engineer">
+        <MemoryRouter>
+          <OverviewTab project={deadSpentProject} committedSpend={300_000} commitmentSource="pmo" ledgerBasis="pmo" setTab={vi.fn()} showFinanceSummary />
+        </MemoryRouter>
+      </ImpersonationProvider>,
+    );
+    const aside = screen.getByTestId('financial-summary');
+    expect(aside).toHaveTextContent('$300,000');
+    expect(aside).toHaveTextContent('Committed PMO purchase orders');
+    expect(aside).toHaveTextContent('33%');
+  });
+
+  it('DD-MONEY-1: ERP Engineer without project-finances access does not invent Actual', () => {
+    renderFinanceSummary(3_700_000, 'not-tracked', 'erp');
     // The financial-summary aside is rendered (Engineer view, on-hand project)
     const aside = screen.getByTestId('financial-summary');
     expect(aside).toBeInTheDocument();
