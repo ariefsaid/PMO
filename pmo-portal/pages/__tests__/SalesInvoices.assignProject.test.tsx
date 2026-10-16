@@ -32,7 +32,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useInvoicePdfDownload', () => ({ useInvoicePdfDownload: () => ({ inFlightIds: new Set(), download: vi.fn() }) }));
-vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFailed: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFailed: vi.fn(), trackSearchUsed: vi.fn() }));
 
 import SalesInvoices from '../SalesInvoices';
 
