@@ -236,18 +236,26 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
 
 /**
  * List all incoming payments in the caller's org (RLS scopes org).
- * Optional `customerId` filters to one customer.
+ * Optional `customerId` filters to one customer. `salesInvoiceId` narrows to receipts attached to that
+ * invoice either by the native FK or by an ERP-reported JSON allocation, before paging.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
  *
  * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
  * list via successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
-  params?: { customerId?: string } & PageParams,
+  params?: { customerId?: string; salesInvoiceId?: string } & PageParams,
 ): Promise<IncomingPaymentRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
     if (params?.customerId) query = query.eq('customer_id', params.customerId);
+    if (params?.salesInvoiceId) {
+      const invoiceId = params.salesInvoiceId;
+      query = query.or(`sales_invoice_id.eq.${invoiceId},allocation_details.cs.[{"invoice_id":"${invoiceId}"}]`)
+        .neq('status', 'Scheduled')
+        .is('erp_cancelled_at', null)
+        .is('cancelled_at', null);
+    }
     return query
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })

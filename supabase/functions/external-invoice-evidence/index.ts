@@ -70,7 +70,7 @@ export async function handleInvoiceEvidenceRequest(req: Request): Promise<Respon
   try { invoiceId = (await req.json())?.salesInvoiceId; } catch { return refuse('BAD_REQUEST'); }
   if (typeof invoiceId !== 'string' || !UUID.test(invoiceId)) return refuse('BAD_REQUEST');
   const { data: invoice, error: invoiceError } = await caller.from('sales_invoices')
-    .select('id,org_id').eq('id', invoiceId).maybeSingle();
+    .select('id,org_id').eq('id', invoiceId).eq('org_id', orgId).maybeSingle();
   if (invoiceError || !invoice || invoice.org_id !== orgId) return refuse('NOT_FOUND');
   const { data: link, error: linkError } = await caller.from('external_refs')
     .select('external_record_id,external_tier').eq('org_id', orgId).eq('domain', 'revenue')

@@ -28,6 +28,7 @@ const actor = (role = 'Project Manager', active = true) => supabaseRpc('actor_au
 });
 const invoice = () => supabaseSelect('sales_invoices', (call) => {
   callerHeaders(call); assertEquals(call.url.searchParams.get('id'), `eq.${INVOICE_ID}`);
+  assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
   return jsonResponse({ id: INVOICE_ID, org_id: 'org-test' }, { headers: objectHeaders });
 });
 const link = () => supabaseSelect('external_refs', (call) => {
@@ -61,6 +62,21 @@ const request = async (body: unknown = { salesInvoiceId: INVOICE_ID }) => create
         contact: { name: 'Billing Desk', email: 'billing@example.test', phone: '+62-TEST-000' },
       });
       assertEquals(response.headers.get('cache-control'), 'no-store');
+    });
+  });
+
+  it('refuses an invoice returned from another org before reading ERP evidence', async () => {
+    const foreignInvoice = supabaseSelect('sales_invoices', (call) => {
+      callerHeaders(call);
+      assertEquals(call.url.searchParams.get('id'), `eq.${INVOICE_ID}`);
+      assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
+      return jsonResponse({ id: INVOICE_ID, org_id: 'org-other' }, { headers: objectHeaders });
+    });
+    await withFetchMock([profile(), actor(), foreignInvoice], async ({ calls }) => {
+      const response = await handleInvoiceEvidenceRequest(await request());
+      assertEquals(response.status, 404);
+      assertEquals(calls.some((call) => call.url.pathname === '/rest/v1/external_refs'), false);
+      assertEquals(calls.some((call) => call.url.host === ERP_HOST), false);
     });
   });
 

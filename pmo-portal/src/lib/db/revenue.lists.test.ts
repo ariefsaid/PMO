@@ -16,6 +16,9 @@ interface Call {
   orders: Array<{ column: string; ascending?: boolean }>;
   range: [number, number] | null;
   eq: Array<[string, unknown]>;
+  or: string[];
+  neq: Array<[string, unknown]>;
+  is: Array<[string, unknown]>;
 }
 
 const h = vi.hoisted(() => {
@@ -26,10 +29,13 @@ const h = vi.hoisted(() => {
   };
 
   function builder(table: string) {
-    const call: Call = { table, columns: '', orders: [], range: null, eq: [] };
+    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [] };
     const b = {
       select(columns: string) { call.columns = columns; return b; },
       eq(column: string, value: unknown) { call.eq.push([column, value]); return b; },
+      or(filters: string) { call.or.push(filters); return b; },
+      neq(column: string, value: unknown) { call.neq.push([column, value]); return b; },
+      is(column: string, value: unknown) { call.is.push([column, value]); return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         call.orders.push({ column, ascending: opts?.ascending });
         return b;
@@ -177,6 +183,17 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
 });
 
 describe('db/revenue listIncomingPayments — same cap, same fix', () => {
+  it('filters invoice detail receipts server-side and excludes scheduled or cancelled receipts', async () => {
+    h.state.pages.incoming_payments = [paymentRows(1)];
+
+    await listIncomingPayments({ salesInvoiceId: 'inv-123' });
+
+    expect(h.state.calls).toHaveLength(1);
+    expect(h.state.calls[0].or).toEqual(['sales_invoice_id.eq.inv-123,allocation_details.cs.[{"invoice_id":"inv-123"}]']);
+    expect(h.state.calls[0].neq).toContainEqual(['status', 'Scheduled']);
+    expect(h.state.calls[0].is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+  });
+
   it('returns EVERY payment past the 1000-row cap', async () => {
     h.state.pages.incoming_payments = [paymentRows(1000), paymentRows(20, 1000)];
 

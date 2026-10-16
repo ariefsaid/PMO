@@ -306,6 +306,24 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
   });
 
+  it('shows only this invoice’s settled receipts for PMO-native detail and ignores scheduled, cancelled, and unrelated unknown rows', () => {
+    salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: true, status: 'Paid' };
+    incomingPaymentsState.data = ([
+      ...structuredClone(hoisted.incomingPaymentsState.data),
+      { ...hoisted.incomingPaymentsState.data[0], id: 'scheduled', status: 'Scheduled' },
+      { ...hoisted.incomingPaymentsState.data[0], id: 'cancelled', erp_cancelled_at: '2026-10-09' },
+      { ...hoisted.incomingPaymentsState.data[0], id: 'unrelated-unknown', sales_invoice_id: null, allocation_details: null },
+    ] as unknown) as typeof incomingPaymentsState.data;
+
+    renderAt('/sales-invoices/inv-1');
+
+    const receipts = screen.getByRole('heading', { name: 'Applied receipts' }).parentElement!;
+    expect(screen.getByRole('heading', { name: 'Bill evidence' })).toBeInTheDocument();
+    expect(receipts).toHaveTextContent('SYNTHETIC-RECEIPT-1');
+    expect(receipts).not.toHaveTextContent('Receipt allocations have not all been reported.');
+    expect(receipts.querySelectorAll('li')).toHaveLength(1);
+  });
+
   it('RF-024 does not turn an unknown due date or outstanding amount into zero', () => {
     salesInvoicesState.data[0] = {
       ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,

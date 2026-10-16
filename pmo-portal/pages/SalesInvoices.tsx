@@ -159,9 +159,11 @@ const needsVatRate = (project?: InvoiceProjectOption): boolean => Boolean(projec
 const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
   const { t } = useTranslation();
   const evidence = useSalesInvoiceEvidence(invoice.id, !invoice.pmo_native && invoice.erp_docstatus !== null);
-  const payments = useIncomingPayments(undefined, true);
+  const payments = useIncomingPayments(undefined, true, invoice.id);
   const paymentEvidence = useMemo(() => {
-    const rows = payments.data ?? [];
+    const rows = (payments.data ?? []).filter((payment) =>
+      payment.status !== 'Scheduled' && !payment.erp_cancelled_at && !payment.cancelled_at,
+    );
     const allocations = rows.flatMap((payment) => {
       const reported = displayAllocations(payment, (id) => id === invoice.id ? invoice.si_number : null);
       return (reported ?? []).filter((allocation) =>
@@ -170,7 +172,10 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
     });
     return {
       allocations,
-      hasUnknown: rows.some((payment) => displayAllocations(payment, (id) => id === invoice.id ? invoice.si_number : null) === null),
+      hasUnknown: rows.some((payment) =>
+        (payment.sales_invoice_id === invoice.id || (payment.allocation_details ?? []).some((allocation) => allocation.invoice_id === invoice.id))
+        && displayAllocations(payment, (id) => id === invoice.id ? invoice.si_number : null) === null,
+      ),
     };
   }, [invoice.id, invoice.si_number, payments.data]);
 
@@ -543,7 +548,7 @@ const SalesInvoices: React.FC = () => {
                 )}
               </section>
             )}
-            {!viewTarget.pmo_native && viewTarget.erp_docstatus !== null && <SalesInvoiceEvidenceSection invoice={viewTarget} />}
+            <SalesInvoiceEvidenceSection invoice={viewTarget} />
             <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">

@@ -78,12 +78,15 @@ export function useNativeDraftInvoices(enabled: boolean) {
  * Org-scoped incoming payments list over the repository seam (ADR-0017).
  * Optional `customerId` narrows to one customer.
  */
-export function useIncomingPayments(customerId?: string, enabled = true) {
+export function useIncomingPayments(customerId?: string, enabled = true, salesInvoiceId?: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<IncomingPaymentRow[]>({
-    queryKey: ['incomingPayments', orgId, customerId ?? 'all'],
-    queryFn: () => repositories.revenue.listPayments(customerId ? { customerId } : undefined),
+    queryKey: ['incomingPayments', orgId, customerId ?? 'all', salesInvoiceId ?? 'all-invoices'],
+    queryFn: () => repositories.revenue.listPayments({
+      ...(customerId ? { customerId } : {}),
+      ...(salesInvoiceId ? { salesInvoiceId } : {}),
+    }),
     enabled: Boolean(orgId && enabled),
   });
 }
