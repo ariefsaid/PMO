@@ -48,15 +48,20 @@ function validateChart(accounts: readonly StatementAccountSourceRow[], company: 
  * only after it succeeds, so failure leaves the sweep's replay/delayed status uncleared. */
 export async function feedAccountMirror(sc: AccountMirrorServiceClient, opts: FeedAccountMirrorOpts): Promise<{ upserted: number; removed: boolean }> {
   validateChart(opts.accounts, opts.company);
-  const rows = opts.accounts.map((account) => ({
+  const rows = opts.accounts.map((account) => {
+    if (typeof account.account_currency !== 'string' || account.account_currency.trim() === '') {
+      throw new AppError(`Missing account currency for ${account.name}`, 'commit-rejected');
+    }
+    return {
     org_id: opts.orgId, company: opts.company, erp_name: account.name, account_name: account.account_name,
     root_type: account.root_type, report_type: account.report_type, parent_account: account.parent_account,
     is_group: account.is_group, account_number: account.account_number ?? null,
-    account_currency: account.account_currency ?? 'IDR', lft: account.lft, rgt: account.rgt,
+    account_currency: account.account_currency, lft: account.lft, rgt: account.rgt,
     account_type: account.account_type ?? null, include_in_gross: Boolean(account.include_in_gross),
     disabled: Boolean(account.disabled), erp_modified: account.modified ?? null,
     as_of: opts.asOf, refresh_id: opts.refreshId,
-  }));
+  };
+  });
   const { data, error } = await sc.rpc('replace_erp_account_chart', {
     p_org_id: opts.orgId, p_company: opts.company, p_rows: rows,
   });

@@ -102,6 +102,15 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
     expect(rows).toHaveLength(3); // 3 distinct groups
   });
 
+  it('sums replayed >2dp source tokens exactly before the snapshot cents boundary', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: '0.123456789', credit: '0', is_cancelled: false },
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: '0.126543211', credit: '0', is_cancelled: false },
+    ]);
+    await refreshActuals(client as unknown as never, 'org-1', {});
+    expect(client.inserted[0]).toEqual([expect.objectContaining({ debit: 0.25, credit: 0, net: 0.25 })]);
+  });
+
   it('#901 a cancelled GL original and its reversal never count — actuals fall back to the live rows', async () => {
     const client = makeClient([
       { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cost of Goods Sold - PSC', fiscal_year: '2026', debit: 7000, credit: 0, is_cancelled: false },

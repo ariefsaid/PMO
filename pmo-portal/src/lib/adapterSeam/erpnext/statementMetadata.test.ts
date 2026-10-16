@@ -22,6 +22,19 @@ describe('statement metadata', () => {
     });
   });
 
+  it('AC-005: uses documented Frappe defaults when optional System Settings are blank', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/Company/Synthetic%20Co')) return response({ data: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null } });
+      if (path.endsWith('/Fiscal%20Year')) return response({ data: [{ name: 'FY-X', year_start_date: '2025-04-01', year_end_date: '2026-03-31' }] });
+      if (path.endsWith('/Accounts%20Settings')) return response({ data: { ignore_is_opening_check: 0, ignore_account_closing_balance: 0 } });
+      if (path.endsWith('/System%20Settings')) return response({ data: { currency_precision: '', float_precision: null, rounding_method: '' } });
+      if (path.endsWith('/Currency/IDR')) return response({ data: { smallest_currency_fraction_value: 100 } });
+      throw new Error(`unexpected path ${path}`);
+    }) as typeof fetch;
+    await expect(fetchStatementMetadata(client(fetchImpl), { company: 'Synthetic Co' })).resolves.toMatchObject({ precision: 2, floatPrecision: 3, roundingMethod: "Banker's Rounding" });
+  });
+
   it('AC-005: rejects unsupported currency and malformed or missing required metadata', async () => {
     const fetchImpl = vi.fn(async () => response({ data: { name: 'Synthetic Co', default_currency: 'USD' } })) as typeof fetch;
     await expect(fetchStatementMetadata(client(fetchImpl), { company: 'Synthetic Co' })).rejects.toThrow(/IDR/i);
