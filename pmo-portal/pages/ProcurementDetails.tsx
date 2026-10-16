@@ -5,7 +5,6 @@ import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
-  MobileActionBar,
   CardHead,
   CardPad,
   Button,
@@ -987,43 +986,6 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* ░░ DECISION STRIP — relocated (IxD Change 1) ░░
-          Owner IxD: the decision zone is a COMPACT, NON-STICKY action strip placed
-          directly below the lifecycle stepper and ABOVE the tabs. Previously it was a
-          sticky-bottom bar floating over the page; now it sits in normal flow so the
-          stage-appropriate action(s) read as the first thing after the stepper, with
-          minimal vertical whitespace. SoD hint is a single muted inline line; Notes is
-          progressive-disclosure (revealed only after Approve/Reject is clicked). The
-          GR/VI inline capture stays grouped here (transition-coupled). The decision
-          zone still renders inside RecordActionZone (enforcement contract) — only its
-          placement + sticky behaviour change; the SoD/transition machine is untouched. */}
-      <ProcurementDecisionZone
-        p={p}
-        actions={actions}
-        gateMsg={gateMsg}
-        routeNote={routeNote}
-        isDraft={isDraft}
-        isRequester={isRequester}
-        isApprover={isApprover}
-        showNotes={showNotes}
-        notesInput={notesInput}
-        setNotesInput={setNotesInput}
-        showVICapture={showVICapture}
-        setShowVICapture={setShowVICapture}
-        submitVICapture={submitVICapture}
-        canShowGRForm={canShowGRForm}
-        canShowVIForm={canShowVIForm}
-        showCreateGR={showCreateGR}
-        setShowCreateGR={setShowCreateGR}
-        showCreateVI={showCreateVI}
-        setShowCreateVI={setShowCreateVI}
-        setPendingConfirm={setPendingConfirm}
-        setMutationError={setMutationError}
-        mutationError={mutationError}
-        onActionClick={onActionClick}
-        mutations={mutations}
-      />
-
       {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
           Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
           progression). The other tabs home the Line items / Documents / Vendor quotes. */}
@@ -1191,6 +1153,35 @@ const ProcurementDetails: React.FC = () => {
         )}
       </div>
 
+      {/* One responsive decision area follows the request value and financial evidence.
+          The same controls serve desktop and phone; no mirrored mobile approval button. */}
+      <ProcurementDecisionZone
+        p={p}
+        actions={actions}
+        gateMsg={gateMsg}
+        routeNote={routeNote}
+        isDraft={isDraft}
+        isRequester={isRequester}
+        isApprover={isApprover}
+        showNotes={showNotes}
+        notesInput={notesInput}
+        setNotesInput={setNotesInput}
+        showVICapture={showVICapture}
+        setShowVICapture={setShowVICapture}
+        submitVICapture={submitVICapture}
+        canShowGRForm={canShowGRForm}
+        canShowVIForm={canShowVIForm}
+        showCreateGR={showCreateGR}
+        setShowCreateGR={setShowCreateGR}
+        showCreateVI={showCreateVI}
+        setShowCreateVI={setShowCreateVI}
+        setPendingConfirm={setPendingConfirm}
+        setMutationError={setMutationError}
+        mutationError={mutationError}
+        onActionClick={onActionClick}
+        mutations={mutations}
+      />
+
       {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
       />}
@@ -1268,43 +1259,6 @@ const ProcurementDetails: React.FC = () => {
         onConfirm={() => void commitConfirm()}
       />
 
-      {/* B-C-2 + A-IMP-2 (AC-S6-1): sticky mobile primary action bar.
-          On a long procurement record the decision card can be far below the fold.
-          On mobile (≤920px) the stage-appropriate primary action is anchored at
-          the viewport bottom so it is always reachable without scrolling.
-          CSS-only: `hidden max-[920px]:flex` — single DOM, no dual a11y tree.
-          Only rendered when at least one action is available; terminal/no-action
-          states omit the bar entirely (nothing to anchor).
-          The in-card action row remains the canonical slot; this bar mirrors the
-          primary CTA only, providing the mobile reach affordance. */}
-      {actions.length > 0 && !showVICapture && (
-        <MobileActionBar
-          data-testid="mobile-sticky-action"
-          aria-hidden="true"
-          className="hidden max-[920px]:flex fixed bottom-0 left-0 right-0 z-10 items-center gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-sm"
-        >
-          {actions
-            .filter((a) => a.variant === 'primary')
-            .slice(0, 1)
-            .map((action) => {
-              const isSubmitBlocked =
-                action.to === 'Requested' && isDraft && p.items.length === 0;
-              return (
-                <Button
-                  key={`sticky-${action.to}`}
-                  variant="primary"
-                  tabIndex={-1}
-                  className="flex-1"
-                  loading={mutations.transition.isPending}
-                  disabled={isSubmitBlocked}
-                  onClick={() => onActionClick(action)}
-                >
-                  {action.label}
-                </Button>
-              );
-            })}
-        </MobileActionBar>
-      )}
     </div>
   );
 };

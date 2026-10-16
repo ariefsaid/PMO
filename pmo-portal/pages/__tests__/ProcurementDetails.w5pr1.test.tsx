@@ -258,17 +258,11 @@ function appearsBeforeInDOM(a: Element, b: Element): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-W5-1 (a) — Decision strip placement (IxD Change 1 reversal)
-//
-// Prior intent ("act last": evidence-before-decision) was deliberately REVERSED by
-// the owner: the decision strip is now a compact, non-sticky strip placed directly
-// below the lifecycle stepper and ABOVE the tabs. So the decision actions now PRECEDE
-// the active tab's evidence in DOM order. The strip still renders through the
-// RecordActionZone (enforcement contract), and the SoD/transition machine is intact —
-// only the placement changed. The lifecycle STEPPER (the case-at-a-glance) precedes
-// the strip, so the strip is not the very first thing on the page.
+// AC-IXD-PROC-W5-1 (a) — S-20 decision area follows request evidence.
+// The lifecycle, identity/value and selected tab's supporting evidence precede the
+// single decision area; SoD, confirmation and transition authority remain unchanged.
 // ---------------------------------------------------------------------------
-describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the tab evidence', () => {
+describe('AC-IXD-PROC-W5-1 (a): decision area follows request evidence', () => {
   beforeEach(() => {
     mockRole = 'Finance';
     detailState.isPending = false;
@@ -289,7 +283,7 @@ describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1a: the decision strip precedes the line-items evidence in DOM order (above the tabs)', () => {
+  it('AC-IXD-PROC-W5-1a / AC-S20-001: the line-items evidence precedes the decision area in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage('items');
 
@@ -297,12 +291,12 @@ describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the
     const lineItemsSection = screen.getByTestId('line-items-section');
 
     expect(
-      appearsBeforeInDOM(approveBtn, lineItemsSection),
-      'decision strip (Approve) must precede the line-items evidence in DOM order',
+      appearsBeforeInDOM(lineItemsSection, approveBtn),
+      'line-items evidence must precede the decision action in DOM order',
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1a: the decision strip precedes the vendor-quotes evidence in DOM order (above the tabs)', () => {
+  it('AC-IXD-PROC-W5-1a / AC-S20-001: vendor-quote evidence precedes the decision area in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage('quotes');
 
@@ -310,8 +304,8 @@ describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the
     const vendorQuotes = screen.getByTestId('vendor-quotes');
 
     expect(
-      appearsBeforeInDOM(approveBtn, vendorQuotes),
-      'decision strip (Approve) must precede the vendor-quotes evidence in DOM order',
+      appearsBeforeInDOM(vendorQuotes, approveBtn),
+      'vendor-quote evidence must precede the decision action in DOM order',
     ).toBe(true);
   });
 
@@ -332,13 +326,12 @@ describe('AC-IXD-PROC-W5-1 (a): decision strip sits under the stepper, above the
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
   });
 
-  it('AC-IXD-PROC-W5-1a: the PR-2 DecisionSupportPanel insertion slot comment exists (slot is clearly marked)', () => {
-    // The slot does NOT render a visible element yet — it is a comment/placeholder.
-    // We verify that the decision-card renders WITHOUT crashing, and that no
-    // DecisionSupportPanel content appears (it is PR-2's responsibility).
+  it('AC-S20-001: budget evidence precedes the decision area', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.queryByTestId('decision-support-panel')).toBeNull();
+    const evidence = screen.getByRole('heading', { name: /budget impact/i });
+    const decision = screen.getByTestId('decision-card');
+    expect(appearsBeforeInDOM(evidence, decision)).toBe(true);
   });
 });
 

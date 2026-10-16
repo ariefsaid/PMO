@@ -5,10 +5,9 @@
  *   The SalesKanbanBoard empty-column copy must say "No projects in <stage>",
  *   not "No deals in <stage>". Same noun as the rest of the app post-CW-1.
  *
- * CW-STICKY-1: RecordActionZone sticky on desktop
- *   The ProcurementDetails decision card must carry sticky bottom positioning
- *   on desktop (≥920px) so the Approve/Reject/advance zone is never below the fold.
- *   On mobile (≤920px) the existing mobile-sticky-action bar handles it.
+ * AC-S20-001: one responsive decision area follows request evidence
+ *   The ProcurementDetails decision card is the only approval action area; the same
+ *   area uses sticky positioning on phone and desktop without a mirrored CTA.
  *
  * CW-EDIT-1: Procurement RecordHeader exposes Edit in the action zone (record-scoped gate)
  *   The Edit button must appear inside the RecordHeader action zone (not buried elsewhere)
@@ -217,15 +216,9 @@ const renderPage = (id = 'proc-cw-001') =>
   );
 
 // ---------------------------------------------------------------------------
-// IxD Change 1: decision strip is NON-STICKY, in normal flow under the stepper.
-//
-// Supersedes CW-STICKY-1 (which required desktop sticky-bottom). Owner IxD reversal:
-// the decision zone is a compact, non-sticky strip placed directly below the stepper
-// and above the tabs — no floating sticky bar over page content. It still renders
-// through the RecordActionZone (the enforcement contract holds), just without the
-// sticky positioning.
+// AC-S20-001: the one decision area is responsive, evidence-first and not mirrored.
 // ---------------------------------------------------------------------------
-describe('IxD Change 1: decision strip is non-sticky, in normal flow (under the stepper)', () => {
+describe('AC-S20-001: one responsive evidence-first decision area', () => {
   beforeEach(() => {
     mockIsDesktop = true;
     mockEffectiveRole = 'Project Manager';
@@ -235,17 +228,17 @@ describe('IxD Change 1: decision strip is non-sticky, in normal flow (under the 
     detailState.error = null;
   });
 
-  it('IxD Change 1: the decision-zone wrapper carries NO sticky/bottom positioning on desktop', () => {
+  it('AC-S20-001: the decision area is the single sticky action zone', () => {
     renderPage();
     const card = screen.getByTestId('decision-card');
     const zone = card.closest('[data-testid="record-action-zone"]');
     expect(zone).not.toBeNull();
-    // The strip is in normal flow — no sticky / bottom anchoring on the action zone.
-    expect(zone!.className).not.toMatch(/sticky/);
-    expect(zone!.className).not.toMatch(/bottom-/);
+    expect(zone!.className).toContain('sticky');
+    expect(zone!.className).toContain('bottom-0');
+    expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
   });
 
-  it('IxD Change 1: the decision strip still renders through the RecordActionZone (enforcement holds)', () => {
+  it('AC-S20-001: decision controls remain inside RecordActionZone (enforcement holds)', () => {
     renderPage();
     const zone = screen.getByTestId('record-action-zone');
     expect(within(zone).getByTestId('decision-card')).toBeInTheDocument();
