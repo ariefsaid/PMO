@@ -255,6 +255,22 @@ const IncomingPayments: React.FC = () => {
   if (receiptId) {
     const record = all.find((p) => p.id === receiptId);
     if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" rows={3} /></main>;
+    if (state === 'error') {
+      return (
+        <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
+            <Icon name="back" className="size-4" />
+            {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
+          </Button>
+          <ListState
+            variant="error"
+            title={t('financeCopy.incomingPaymentsLoadFailed', "Couldn't load incoming payments")}
+            onRetry={() => void refetch()}
+            retryLabel={t('ui.listState.retry', 'Retry')}
+          />
+        </main>
+      );
+    }
     if (!record) {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
@@ -370,7 +386,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => {
         const unapplied = knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) });
         return unapplied === null ? <span className="text-muted-foreground">{notReported}</span>
-          : unapplied === 0 ? '—' : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
+          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
       },
       exportValue: (p) => knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) }) ?? '',
     },

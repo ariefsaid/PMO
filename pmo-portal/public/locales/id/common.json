@@ -3762,6 +3762,7 @@
     "approveInvoice": "Setujui faktur",
     "invoiceApproved": "Faktur disetujui",
     "nativeCancelInvoiceBody": "Ini membatalkan faktur di PMO sehingga tidak lagi dihitung sebagai tagihan. Faktur yang memiliki penerimaan hanya dapat dibatalkan setelah penerimaannya dibatalkan.",
+    "statusPaid": "Dibayar",
     "statusPartlyPaid": "Dibayar sebagian",
     "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
     "overpaidBy": "Kelebihan bayar {{amount}}",

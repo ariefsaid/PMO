@@ -3762,6 +3762,7 @@
     "approveInvoice": "Approve invoice",
     "invoiceApproved": "Invoice approved",
     "nativeCancelInvoiceBody": "This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.",
+    "statusPaid": "Paid",
     "statusPartlyPaid": "Partly paid",
     "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
     "overpaidBy": "Overpaid by {{amount}}",

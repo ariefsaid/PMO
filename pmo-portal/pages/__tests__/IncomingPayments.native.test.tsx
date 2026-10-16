@@ -85,6 +85,7 @@ beforeEach(async () => {
   h.createPaymentMutate.mockReset();
   h.createPaymentMutate.mockResolvedValue({ id: 'ip-new' });
   h.payments.data = [];
+  h.payments.isError = false;
   h.invoices.data = [];
   h.route = 'pmo';
   h.toast.mockClear();
@@ -493,6 +494,12 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('Not reported');
   });
 
+  it('shows None for known-zero unapplied cash in the list, matching the detail page', () => {
+    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, allocation_details: [] })];
+    renderAt('/incoming-payments');
+    expect(rowFor('ACC-PAY')).toHaveTextContent('None');
+  });
+
   it('RF-031 a receipt the source reports as unapplied to any invoice says so; unknown coverage says it is unknown', () => {
     h.payments.data = [erpReceipt({ sales_invoice_id: null, allocation_details: [] })];
     const { unmount } = renderAt('/incoming-payments/ip-erp');
@@ -513,8 +520,19 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('None');
   });
 
-  it('an unknown receipt id says it was not found', () => {
+  it('a receipt read error shows a retryable error instead of not found', () => {
+    h.payments.isError = true;
+    h.payments.refetch.mockClear();
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Couldn\'t load incoming payments'))).toBe(true);
+    expect(screen.queryByText(/couldn.t find this receipt/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /retry|coba lagi/i }));
+    expect(h.payments.refetch).toHaveBeenCalled();
+  });
+
+  it('an unknown receipt id says it was not found after a successful read', () => {
     h.payments.data = [erpReceipt()];
+    h.payments.isError = false;
     renderAt('/incoming-payments/nope');
     expect(screen.getByText(/couldn.t find this receipt/i)).toBeInTheDocument();
   });
