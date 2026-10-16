@@ -107,8 +107,23 @@ test('AC-APR-040 a within-budget request is decided by the project approver, and
 
   // The named approver decides it.
   await signIn(page, 'finance@acme.test');
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/procurement/${procurementId}`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
+  const evidence = page.getByRole('heading', { name: 'Budget impact' });
+  const decision = page.getByTestId('decision-card');
+  await expect(evidence).toBeVisible();
+  await expect(decision).toBeVisible();
+  expect(await page.evaluate(() => {
+    const evidenceNode = [...document.querySelectorAll('h3')]
+      .find((node) => node.textContent?.trim() === 'Budget impact');
+    const decisionNode = document.querySelector('[data-testid="decision-card"]');
+    return Boolean(evidenceNode && decisionNode
+      && (evidenceNode.compareDocumentPosition(decisionNode) & Node.DOCUMENT_POSITION_FOLLOWING));
+  })).toBe(true);
+  await decision.scrollIntoViewIfNeeded();
+  await expect(page.getByTestId('mobile-sticky-action')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Approve', includeHidden: true })).toHaveCount(1);
   await page.getByRole('button', { name: 'Approve' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 10_000 });
