@@ -34,4 +34,9 @@ begin
 end; $$;
 revoke all on function public.activate_budget_version(uuid) from public, anon;
 grant execute on function public.activate_budget_version(uuid) to authenticated;
+-- Undo the change-history registry classification BEFORE the column drop.
+update public.record_history_config
+   set captured = captured - 'activation_basis'
+ where entity_type = 'budget_version';
+
 alter table public.budget_versions drop column activation_basis;

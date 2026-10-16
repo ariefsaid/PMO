@@ -77,3 +77,10 @@ end; $$;
 
 revoke all on function public.activate_budget_version(uuid) from public, anon;
 grant execute on function public.activate_budget_version(uuid) to authenticated;
+
+-- Change-history registry: classify the new column (record_changes_catalog_gate). The basis is
+-- audit-meaningful, so it's captured, not omitted.
+update public.record_history_config
+   set captured = captured || '{"activation_basis":"enum"}'::jsonb
+ where entity_type = 'budget_version'
+   and not (captured ? 'activation_basis');
