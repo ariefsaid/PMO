@@ -15,18 +15,10 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
+import { COMPANY_DEFAULTS, getErpSetupIncompleteness } from './erpSetupIncompleteness';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
-const COMPANY_DEFAULTS = [
-  'company',
-  'default_payable_account',
-  'default_expense_account',
-  'default_cash_account',
-  'default_bank_account',
-  'cost_center',
-];
-
 export function ErpSetupChecklist(
   { orgId, onRefreshCompany }: {
     orgId: string | undefined;
@@ -150,15 +142,8 @@ export function ErpSetupChecklist(
     expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
-  const incomplete = {
-    domains: setup.data?.domains.length === 0,
-    company: COMPANY_DEFAULTS.some((key) => !setup.data?.defaults[key]),
-    activity: !setup.data?.defaults.default_activity_type || !setup.data?.defaults.default_receivable_account,
-    budget: (setup.data?.budgetMappedCategories.length ?? 0) < Constants.public.Enums.budget_category.length,
-    employees: (setup.data?.unlinkedEmployeeCount ?? 0) > 0,
-    projects: (setup.data?.unmappedProjects.length ?? 0) > 0,
-  };
-  const hasOutstandingSetup = Object.values(incomplete).some(Boolean);
+  const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
+  const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
     'text-sm font-medium text-foreground underline underline-offset-4 break-words';
   return (
@@ -217,7 +202,7 @@ export function ErpSetupChecklist(
               </div>
             )}
             <ul className='divide-y divide-border text-sm'>
-              <li id='erp-setup-domains' hidden={!incomplete.domains} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-domains' hidden={!incomplete?.domains} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t('uxs08.domainsLabel', 'Information updated from ERPNext')}
@@ -234,7 +219,7 @@ export function ErpSetupChecklist(
                   {t('uxs08.domainsAction', 'Choose information to keep updated')}
                 </Button>
               </li>
-              <li id='erp-setup-company-defaults' hidden={!incomplete.company} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-company-defaults' hidden={!incomplete?.company} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t(
@@ -262,7 +247,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-activity-defaults' hidden={!incomplete.activity} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-activity-defaults' hidden={!incomplete?.activity} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div className='min-w-0'>
                   <p className='font-medium'>
                     {t(
@@ -289,7 +274,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-budget-map' hidden={!incomplete.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' hidden={!incomplete?.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('uxs08.budgetLabel', 'Budget account setup')}
@@ -312,7 +297,7 @@ export function ErpSetupChecklist(
                   {t('uxs08.budgetAction', 'Review budget account setup')}
                 </a>
               </li>
-              <li id='erp-setup-employee-links' hidden={!incomplete.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-employee-links' hidden={!incomplete?.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('uxs08.employeeLabel', 'Team members who record time')}
@@ -320,7 +305,7 @@ export function ErpSetupChecklist(
                   <p className='mt-1 text-muted-foreground tabular-nums'>
                     {setup.data.unlinkedEmployeeCount > 0
                       ? t('uxs08.employeeMissing', 'People who record time still needing an ERP employee link: {{count}}', { count: setup.data.unlinkedEmployeeCount })
-                      : t('uxs08.employeeComplete', 'Everyone who records time has an ERP employee link')}
+                      : null}
                   </p>
                 </div>
                 <a className={actionLink} href='/approvals'>
@@ -330,7 +315,7 @@ export function ErpSetupChecklist(
                   )}
                 </a>
               </li>
-              <li id='erp-setup-project-links' hidden={!incomplete.projects} className='py-3'>
+              <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>
                   {t('uxs08.projectLabel', 'Project connections')}
                 </p>
@@ -353,14 +338,7 @@ export function ErpSetupChecklist(
                       ))}
                     </ul>
                   )
-                  : (
-                    <p className='mt-1 text-muted-foreground'>
-                      {t(
-                        'uxs08.projectComplete',
-                        'All active projects have a confirmed connection',
-                      )}
-                    </p>
-                  )}
+                  : null}
               </li>
             </ul>
             {!hasOutstandingSetup && (

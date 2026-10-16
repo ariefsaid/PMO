@@ -26,7 +26,7 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { formatInstantDate, formatList } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
 import { repositories } from '@/src/lib/repositories';
-import { Constants } from '@/src/lib/supabase/database.types';
+import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
@@ -397,13 +397,14 @@ export const IntegrationsView: React.FC = () => {
 
           const healthState = healthQueries[tier].state;
           const erpSetup = tier === 'erpnext' ? erpSetupQuery.data : undefined;
-          const setupSteps = erpSetup ? [
-            { key: 'domains', missing: erpSetup.domains.length === 0 },
-            { key: 'company-defaults', missing: ['company', 'default_payable_account', 'default_expense_account', 'default_cash_account', 'default_bank_account', 'cost_center'].some((key) => !erpSetup.defaults[key]) },
-            { key: 'activity-defaults', missing: !erpSetup.defaults.default_activity_type || !erpSetup.defaults.default_receivable_account },
-            { key: 'budget-map', missing: erpSetup.budgetMappedCategories.length < Constants.public.Enums.budget_category.length },
-            { key: 'employee-links', missing: erpSetup.unlinkedEmployeeCount > 0 },
-            { key: 'project-links', missing: erpSetup.unmappedProjects.length > 0 },
+          const setupIncompleteness = erpSetup ? getErpSetupIncompleteness(erpSetup) : null;
+          const setupSteps = setupIncompleteness ? [
+            { key: 'domains', missing: setupIncompleteness.domains },
+            { key: 'company-defaults', missing: setupIncompleteness.company },
+            { key: 'activity-defaults', missing: setupIncompleteness.activity },
+            { key: 'budget-map', missing: setupIncompleteness.budget },
+            { key: 'employee-links', missing: setupIncompleteness.employees },
+            { key: 'project-links', missing: setupIncompleteness.projects },
           ] : [];
           const missingSetupSteps = setupSteps.filter((step) => step.missing);
           const setupIncomplete = Boolean(erpSetup && missingSetupSteps.length > 0);

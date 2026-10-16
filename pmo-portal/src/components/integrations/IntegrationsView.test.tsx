@@ -16,6 +16,7 @@ import type { ErpSetupReadiness, IntegrationBinding, IntegrationHealth } from '@
 import { AppError } from '@/src/lib/appError';
 import { withErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
+import { Constants } from '@/src/lib/supabase/database.types';
 
 const erpSetup = vi.hoisted(() => ({
   getErpSetup: vi.fn<() => Promise<ErpSetupReadiness>>(async () => ({defaults:{company:'Example Company',default_receivable_account:null,default_activity_type:null},domains:[],unmappedProjects:[{id:'project-2',name:'Example Delivery',code:'SYNTH-2'}],budgetMappedCategories:[],unlinkedEmployeeCount:2})),
@@ -1694,10 +1695,31 @@ describe('ERP setup checklist', () => {
     expect(screen.queryByRole('link', {name:/Review proposed link for/})).not.toBeInTheDocument();
     expect(await screen.findByRole('button', {name:'Review company settings'})).toBeInTheDocument();
     expect(screen.queryByText(/active members need a confirmed ERP employee link/i)).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', {name:'Review company settings'})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name:'Choose information to keep updated'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name:'Employ ERP domains'})).not.toBeInTheDocument();
     expect(screen.queryByText('Domains employed')).not.toBeInTheDocument();
+  });
+
+  it('UX-S08 hides employee and project rows and reports completion when all setup is complete', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
+    });
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText(/Setup is complete\. Confirmed connections are retained/)).toBeInTheDocument();
+    expect(document.getElementById('erp-setup-employee-links')).toHaveAttribute('hidden');
+    expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
+  });
+
+  it('UX-S08 shows only the unresolved employee or project row', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:2,
+    });
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText(/People who record time still needing an ERP employee link: 2/)).toBeInTheDocument();
+    expect(document.getElementById('erp-setup-employee-links')).not.toHaveAttribute('hidden');
+    expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });
 
   it('AC-SETUP-002 exposes every outstanding setup step with a real fix action', async () => {
