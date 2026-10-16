@@ -1,5 +1,5 @@
--- 0034_dashboard_on_hand_margin.test.sql — on-hand actual weighted margin oracle
--- AC-1100 / FR-SPD-001 / OD-MARGIN-1
+-- 0034_dashboard_on_hand_margin.test.sql — on-hand contract remainder after Actual oracle
+-- AC-1100 / DD-MONEY-1 / DD-MONEY-2
 -- DECOUPLED from seed: uses its own isolated org with exactly the on-hand projects
 -- needed to prove the margin formula. UUID prefix 00340000-…
 --
@@ -59,17 +59,17 @@ insert into procurements (id, org_id, title, status, total_value, project_id, re
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-1100: on_hand_margin = (10,000,000 − 405,000) / 10,000,000 = 0.9595
+-- DD-MONEY-2: this is contract remaining after cost, not profit/margin.
 select ok(
-  abs((get_executive_dashboard() ->> 'on_hand_margin')::numeric - 0.9595) < 1e-6,
-  'AC-1100: on-hand weighted margin = 0.9595 (committed spend 405000, contract 10000000) (FR-SPD-001)'
+  abs((get_executive_dashboard() ->> 'on_hand_contract_remaining')::numeric - 9595000) < 1e-6,
+  'AC-1100: contract remaining after known committed cost = 9595000 (DD-MONEY-2)'
 );
 
 -- AC-1100: on_hand_value = 5,000,000 + 3,000,000 + 2,000,000 = 10,000,000
 select is(
   (get_executive_dashboard() ->> 'on_hand_value')::numeric,
   10000000::numeric,
-  'AC-1100: on_hand_value = 10000000 (three on-hand Ongoing Project fixtures) (FR-SPD-001)'
+  'AC-1100: on_hand_value = 10000000 (three on-hand Ongoing Project fixtures)'
 );
 
 reset role;
