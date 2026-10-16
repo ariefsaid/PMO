@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-16) — v0.21.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.21.0 is LIVE, v0.22.0 on `dev`; run the four commands below before quoting any number
 
 **Live (owner yes, 2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
 hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
@@ -40,8 +40,35 @@ labels (#1022 + #1024, 0289, UXS-031).
 values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app
 operator work (outcomes, budget account map, budget activation by a second person, ERPNext project links).
 
-**First after v0.22.0 (owner 2026-10-16):** #1071 (test hygiene) · #1073 (small correctness fixes) — then the
-UX waves 3–4 queue (docs/ux/2026-10-16-fix-backlog.md).
+**v0.22.0 — on `dev`, release PR to `main` next (2026-10-17):**
+- UX waves 1–2 (slices S-01…S-38 merged, #1061–#1092).
+- Sole-operator budget activation (#1052).
+- Financial statements B1 data foundation (#897 series).
+- Release-review fixes #1088, #1090 and #1091. The last is the one-Actual rule: ERP ledger for orgs with an active
+  ERPNext binding (`org_reads_erp_ledger()`, 0307), committed POs otherwise. Completeness and at-risk are one
+  predicate (`isActualComplete` / `isMoneyAtRisk` in `src/lib/projectFinances.ts`), and currencies never mix.
+- Migrations 0294–0299, 0301, 0307, 0309. **Next free migration: 0310.**
+
+**Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
+1. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
+   must close before financial statements are shown to users.
+2. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
+   then merge. Its publication hardening is #1068.
+3. **#1071** test hygiene, then **#1073** small correctness fixes.
+4. **Release-review follow-ups**:
+   - #1081 one shared project-money tile builder;
+   - #1089 Finance budget review, top-projects card and approvals badge on the one-Actual rule;
+   - #1083 management pack: earlier foreign-currency invoices.
+5. **Close shipped issues once v0.22.0 is live.** #1050 shipped in #1052; #1033 shipped in v0.21.0. Check #1044,
+   #1045 and #1048 against what shipped first.
+6. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including the 7 high-priority findings still open:
+   UX-029, 042, 044, 052, 078, 079 and 082.
+7. **Triage**: #1068, #1069, #1070, #1072.
+
+**Owner actions after v0.22.0:**
+- Activate the Kajian budget (sole-operator path).
+- Answer: should the accountant list be in Indonesian?
+- Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
 
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
@@ -52,7 +79,8 @@ not started: roles & permissions (#902) and month-end close without an ERP (#894
 demo-login panel off the prod URL · RIS Microsoft sign-in (Option B registration) · a disposable tenant A for the
 isolation probe's write checks.
 
-**How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator. Builds,
+**How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator (from
+2026-10-17, for a few days, Sol, via the local-only handoff in `docs/private/orchestration/HANDOFF.md`). Builds,
 fixes and reviews go to pi (`pi-dispatch build|review|review-money|plan`, routing at the top of
 `docs/pi-delegation.md`) or the factory (`adws/adw_simple_sdlc.py`) — ONE reviewer per PR; Claude orchestrates,
 merges and deploys. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
