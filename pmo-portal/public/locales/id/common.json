@@ -3353,7 +3353,6 @@
     },
     "addAProject": "Tambahkan proyek",
     "addProject": "Tambah proyek",
-    "approvalsLink": "Persetujuan",
     "deleteRow": {
       "confirmLabel": "Hapus baris",
       "description": "Ini akan menghapus <strong>{{project}}</strong> beserta semua jamnya dari minggu ini. Anda dapat menambahkannya kembali, tetapi jam yang sudah diisi tidak akan dipulihkan.",
@@ -3398,7 +3397,6 @@
       "sub": "Atasan Anda mengembalikannya. Periksa hari yang ditandai, perbaiki, lalu ajukan ulang.",
       "title": "Minggu ini dikembalikan untuk diperbaiki"
     },
-    "review": "Tinjau {{n}} yang menunggu",
     "save": "Simpan",
     "status": {
       "draftNotSubmitted": "Draf — belum diajukan",
@@ -4456,5 +4454,25 @@
     "current":"Proyek saat ini", "fromTo":"Dari {{old}} ke {{new}}. Hanya atribusi PMO; tagihan ERP tidak berubah.",
     "discardTitle":"Buang pilihan proyek?", "discardDetail":"Proyek yang dipilih tidak akan disimpan.",
     "discard":"Buang", "keep":"Lanjutkan mengedit", "unassignedFilter":"Tagihan tanpa proyek"
+  },
+  "uxs28": {
+    "nav": {
+      "label": "Tampilan timesheet",
+      "myTime": "Waktu saya",
+      "teamReview": "Tinjauan tim",
+      "teamReviewAwaiting": "Tinjauan tim · {{n}} menunggu"
+    },
+    "save": {
+      "dirty": "Perubahan belum disimpan",
+      "saved": "Semua perubahan tersimpan",
+      "nothing": "Belum ada yang perlu disimpan"
+    },
+    "push": {
+      "pending": "Pembaruan akuntansi menunggu",
+      "pushing": "Memperbarui akuntansi…",
+      "pushed": "Akuntansi sudah terbaru",
+      "failed": "Pembaruan akuntansi perlu perhatian",
+      "held": "Pembaruan akuntansi ditahan"
+    }
   }
 }

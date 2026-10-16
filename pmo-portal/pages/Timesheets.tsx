@@ -63,6 +63,15 @@ const formatDate = (date: Date): string => {
 // Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
 // Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
 
+// RF-061: recognizable code + short name in the picker; the added row shows the full name.
+// ponytail: native <option> has no title/aria slot in the shared SelectField, so the full identity
+// lands on the row, not the option.
+const PICKER_NAME_MAX = 36;
+const pickerLabel = (code: string | null, name: string): string => {
+  const short = name.length > PICKER_NAME_MAX ? `${name.slice(0, PICKER_NAME_MAX - 1).trimEnd()}…` : name;
+  return code ? `${code} · ${short}` : short;
+};
+
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -429,6 +438,12 @@ const TimesheetsPage: React.FC = () => {
     );
   };
 
+  // UX-063: unsaved = the edit buffer differs from the server week (same diff Save commits).
+  const dirty = useMemo(() => {
+    const d = diffEntries(editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id ?? '');
+    return d.upserts.length + d.deletes.length > 0;
+  }, [editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id]);
+
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
     [currentWeekEntries]
@@ -597,20 +612,29 @@ const TimesheetsPage: React.FC = () => {
         {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
             there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
             competes as a second approvals surface. Non-approvers (Engineer) see no link at all. */}
+        {/* UX-062: two named jobs. My time is this page; Team review is the canonical Approvals
+            inbox (scoped to timesheets), one click away. Engineers get no switch (no review job). */}
         {isApprover && (
-          /* Fix #8 (AC-FIX8-PM-*): when there are timesheets awaiting review, surface a
-             clear "Review N awaiting" affordance so the PM's review job is not demoted to
-             a generic "Approvals" label. Zero-pending keeps the neutral "Approvals" label. */
-          <Link
-            to="/approvals?scope=timesheets"
-            className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+          <nav
+            aria-label={t('uxs28.nav.label', 'Timesheet views')}
+            className="inline-flex items-center gap-1"
           >
-            <Icon name="check" aria-hidden />
-            {pendingCount > 0
-              ? t('timesheets.review', 'Review {{n}} awaiting', { n: String(pendingCount) })
-              : t('timesheets.approvalsLink', 'Approvals')}
-            <Icon name="chev" aria-hidden />
-          </Link>
+            <span
+              aria-current="page"
+              className="inline-flex h-8 items-center rounded-md bg-accent px-2.5 text-[13px] font-semibold text-foreground"
+            >
+              {t('uxs28.nav.myTime', 'My time')}
+            </span>
+            <Link
+              to="/approvals?scope=timesheets"
+              className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              {pendingCount > 0
+                ? t('uxs28.nav.teamReviewAwaiting', 'Team review · {{n}} awaiting', { n: String(pendingCount) })
+                : t('uxs28.nav.teamReview', 'Team review')}
+              <Icon name="chev" aria-hidden />
+            </Link>
+          </nav>
         )}
         <span className="ml-auto inline-flex items-center gap-0.5">
           <Button
@@ -749,7 +773,7 @@ const TimesheetsPage: React.FC = () => {
                     if (value) addProject(value);
                   }}
                   disabled={pickerOptions.length === 0}
-                  options={pickerOptions.map((p) => ({ value: p.id, label: p.name }))}
+                  options={pickerOptions.map((p) => ({ value: p.id, label: pickerLabel(p.code, p.name) }))}
                   placeholder={
                     pickerOptions.length === 0
                       ? t('timesheets.picker.none', 'No projects to add')
@@ -759,6 +783,19 @@ const TimesheetsPage: React.FC = () => {
                 />
               </div>
             </div>
+          )}
+          {editable && (
+            <span
+              data-testid="timesheets-save-status"
+              role="status"
+              className="text-[13px] text-muted-foreground"
+            >
+              {dirty
+                ? t('uxs28.save.dirty', 'Unsaved changes')
+                : currentWeekEntries.length > 0
+                  ? t('uxs28.save.saved', 'All changes saved')
+                  : t('uxs28.save.nothing', 'Nothing to save yet')}
+            </span>
           )}
           <span
             data-testid="timesheets-weekly-total"
@@ -828,7 +865,7 @@ const TimesheetsPage: React.FC = () => {
             <Button
               variant="outline"
               onClick={commitSave}
-              disabled={!editValid || saveWeek.isPending || deleteRow.isPending}
+              disabled={!dirty || !editValid || saveWeek.isPending || deleteRow.isPending}
               loading={saveWeek.isPending}
             >
               <Icon name="check" />
@@ -852,7 +889,7 @@ const TimesheetsPage: React.FC = () => {
       {editable && !isDesktop && (
         <MobileActionStrip
           total={editTotals.weekly}
-          canSave={editValid && !saveWeek.isPending && !deleteRow.isPending}
+          canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending}
           canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
           showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
           saving={saveWeek.isPending}

@@ -81,25 +81,25 @@ beforeEach(() => {
 });
 
 describe('Timesheets — PM review-scent (fix #8)', () => {
-  it('AC-FIX8-PM-01: when N timesheets awaiting, link copy is "Review N awaiting"', () => {
+  it('AC-FIX8-PM-01: when N timesheets awaiting, the Team review link carries the count', () => {
     awaitingState.data = [{ id: 'ts-1' }, { id: 'ts-2' }, { id: 'ts-3' }];
     renderAsPM();
     // The link text should include the count and "awaiting" or "review"
-    const link = screen.getByRole('link', { name: /review 3 awaiting/i });
+    const link = screen.getByRole('link', { name: /team review.*3 awaiting/i });
     expect(link).toBeInTheDocument();
   });
 
   it('AC-FIX8-PM-02: the review link still navigates to /approvals?scope=timesheets', () => {
     awaitingState.data = [{ id: 'ts-1' }];
     renderAsPM();
-    const link = screen.getByRole('link', { name: /review 1 awaiting/i });
+    const link = screen.getByRole('link', { name: /team review.*1 awaiting/i });
     expect(link).toHaveAttribute('href', '/approvals?scope=timesheets');
   });
 
-  it('AC-FIX8-PM-03: when no pending timesheets, link reads "Approvals" (no action needed)', () => {
+  it('AC-FIX8-PM-03: when no pending timesheets, link reads plain "Team review"', () => {
     awaitingState.data = [];
     renderAsPM();
-    const link = screen.getByRole('link', { name: /^Approvals$/i });
+    const link = screen.getByRole('link', { name: /^Team review$/i });
     expect(link).toBeInTheDocument();
   });
 });

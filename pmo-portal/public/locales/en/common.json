@@ -3353,7 +3353,6 @@
     },
     "addAProject": "Add a project",
     "addProject": "Add project",
-    "approvalsLink": "Approvals",
     "deleteRow": {
       "confirmLabel": "Delete row",
       "description": "This removes <strong>{{project}}</strong> and all its hours from this week. You can add it back, but the entered hours won’t be restored.",
@@ -3398,7 +3397,6 @@
       "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
       "title": "This week was returned for changes"
     },
-    "review": "Review {{n}} awaiting",
     "save": "Save",
     "status": {
       "draftNotSubmitted": "Draft — not submitted",
@@ -4456,5 +4454,25 @@
     "current":"Current project", "fromTo":"From {{old}} to {{new}}. PMO attribution only; the ERP invoice is unchanged.",
     "discardTitle":"Discard project selection?", "discardDetail":"The selected project will not be saved.",
     "discard":"Discard", "keep":"Keep editing", "unassignedFilter":"Unassigned invoices"
+  },
+  "uxs28": {
+    "nav": {
+      "label": "Timesheet views",
+      "myTime": "My time",
+      "teamReview": "Team review",
+      "teamReviewAwaiting": "Team review · {{n}} awaiting"
+    },
+    "save": {
+      "dirty": "Unsaved changes",
+      "saved": "All changes saved",
+      "nothing": "Nothing to save yet"
+    },
+    "push": {
+      "pending": "Accounting update waiting",
+      "pushing": "Updating accounting…",
+      "pushed": "Accounting up to date",
+      "failed": "Accounting update needs attention",
+      "held": "Accounting update on hold"
+    }
   }
 }
