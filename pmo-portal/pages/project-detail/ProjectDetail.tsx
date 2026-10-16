@@ -3,9 +3,8 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tabs, tabId, tabPanelId, ListState, MobileActionBar, useToast, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -32,7 +31,6 @@ import BillingTab from './tabs/BillingTab';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import { ProjectErpLink } from './ProjectErpLink';
-import ProjectStatusControl from '../../components/ProjectStatusControl';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents' | 'history';
@@ -64,7 +62,6 @@ const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const isDesktop = useIsDesktop();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
   const canSeeBilling = may('view', 'progressClaim');
@@ -201,8 +198,6 @@ const ProjectDetail: React.FC = () => {
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
   const group = projectStatusGroup(project.status as never);
   const isPipeline = group === 'pipeline' || group === 'lost';
-  const canTransitionProject = may('transition', 'project');
-
   const tabPanel = (
     <div
       role="tabpanel"
@@ -318,8 +313,7 @@ const ProjectDetail: React.FC = () => {
         </>
       ) : (
         <>
-          <div className="grid gap-8 pb-24 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:pb-0">
-            <div className="min-w-0">
+          <div className="min-w-0">
             <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}
@@ -329,12 +323,11 @@ const ProjectDetail: React.FC = () => {
               commitmentError={committedSpendQuery.isError}
               onEditProject={openEditProject}
             />
+            <ProjectDetailRail project={project} onEditProject={openEditProject} />
 
-            {/* UIP-005: identity → compact phase context → tabs → selected work.
-                Full phase editing lives inside the Overview panel. */}
+            {/* Common chrome stays compact; the selected section follows immediately. */}
             {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
 
-            {/* Tab URLs, role gates and roving focus remain unchanged. */}
             <Tabs<PTab>
               items={tabItems}
               value={tab}
@@ -344,29 +337,6 @@ const ProjectDetail: React.FC = () => {
             />
             {tabPanel}
           </div>
-
-            <ProjectDetailRail
-              project={project}
-              onEditProject={openEditProject}
-              showActionSection={isDesktop}
-            />
-          </div>
-
-          {!isDesktop && canTransitionProject && (
-            <MobileActionBar
-              data-testid="mobile-sticky-action"
-              className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 pt-3 backdrop-blur-sm"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
-            >
-              <div className="mx-auto flex max-w-5xl justify-end">
-                <ProjectStatusControl
-                  project={project}
-                  triggerVariant="primary"
-                  triggerSize="sm"
-                />
-              </div>
-            </MobileActionBar>
-          )}
         </>
       )}
       {editOpen && (

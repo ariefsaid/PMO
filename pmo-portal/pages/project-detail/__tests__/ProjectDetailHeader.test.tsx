@@ -182,11 +182,16 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
   });
-  it('AC-CODE-003: labels PMO Project Number separately from Client Project Code and keeps Customer PO metadata', () => {
+  it('UX-007/RF-057: leads with customer and order context, with codes available on demand', async () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    expect(screen.getByText(/Innovate Corp · PMO Project Number: PMO-26-7711 · Client Project Code: CLIENT-81 · PO CPO-2026-001/)).toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
+    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
+    expect(screen.getByText(/PMO Project Number: PMO-26-7711/)).not.toBeVisible();
+    await userEvent.click(screen.getByText('More project details'));
+    expect(screen.getByText('PMO Project Number: PMO-26-7711')).toBeInTheDocument();
+    expect(screen.getByText('Client Project Code: CLIENT-81')).toBeInTheDocument();
   });
 
   it('keeps the JISDOR caption on one compact line after the original amount', () => {

@@ -64,9 +64,13 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
     <aside
       data-testid="project-detail-rail"
       aria-label={t('projectDetail.rail.ariaLabel', 'Project details rail')}
-      className="min-w-0 lg:sticky lg:top-4"
+      className="min-w-0 border-t border-border/70 pt-3"
     >
-      <div className="space-y-8 border-t border-border/70 pt-4 lg:border-t-0 lg:pt-0">
+      <details>
+        <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
+          {t('uxs13.projectDetailsAndActions', 'Project details and actions')}
+        </summary>
+        <div className="space-y-8 pt-3">
         {showActionSection && (
           <section aria-label={t('projectDetail.rail.actionsAriaLabel', 'Project rail actions')}>
             <RailSectionLabel>{t('projectDetail.rail.recordHeading', 'Record')}</RailSectionLabel>
@@ -138,8 +142,8 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
           </dl>
         </section>
         <ProjectErpLink projectId={project.id} />
-      </div>
-
+        </div>
+      </details>
     </aside>
   );
 };

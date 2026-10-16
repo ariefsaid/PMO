@@ -252,7 +252,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       <Card variant="bare">
-        <CardHead>{t('projectDetail.billing.summary.title', 'Billing summary')}</CardHead>
+        <CardHead><h2 className="text-base font-semibold">{t('projectDetail.billing.summary.title', 'Billing summary')}</h2></CardHead>
         <CardPad>
           {billing.isPending ? (
             <ListState variant="loading" rows={2} />
@@ -279,7 +279,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       <Card variant="bare">
         <CardHead className="justify-between">
-          <span>{t('projectDetail.billing.boq.title', 'Bill of quantities')}</span>
+          <h2 className="text-base font-semibold">{t('projectDetail.billing.boq.title', 'Bill of quantities')}</h2>
           <div className="flex gap-1.5">
             {canAssess && boqRows.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
@@ -308,7 +308,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       <Card variant="bare">
         <CardHead className="justify-between">
-          <span>{t('projectDetail.billing.claims.title', 'Billing claims')}</span>
+          <h2 className="text-base font-semibold">{t('projectDetail.billing.claims.title', 'Billing claims')}</h2>
           {canBill && (
             <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )}

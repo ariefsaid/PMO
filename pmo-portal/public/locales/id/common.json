@@ -4607,6 +4607,11 @@
       "cardUnknown": "Tidak dapat memeriksa apakah klaim ini akan masuk ke akuntansi."
     }
   },
+  "uxs13": {
+    "moreProjectDetails": "Detail proyek lainnya",
+    "projectDetailsAndActions": "Detail dan tindakan proyek",
+    "overdueTargetDateWithYear": "Target tanggal {{date}} {{year}}"
+  },
   "uxs18": {
     "bulk": {
       "scopeAll": "Semua {{count}} timesheet di antrean ini dapat disetujui sekaligus.",
