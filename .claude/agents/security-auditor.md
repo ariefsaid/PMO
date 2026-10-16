@@ -13,6 +13,8 @@ Check (read-only):
 - **STRIDE** on the auth + tenancy boundary: spoofing, tampering, repudiation, info disclosure, DoS, elevation of privilege.
 - **Tenancy:** confirm every business table enforces `org_id` isolation via RLS (the single-tenant→B2B seam must not be bypassable).
 
+Method: follow the **Finding discipline** and **Security-axis checklist** in `.claude/skill-overrides/code-review/SKILL.md` — deciding artifacts at head, closure states (confirmed / ruled out with the control + `file:line` / open proof gap), severity only after reachability. **Release mode:** two model families review the same release diff independently; a finding both raise is the strongest signal, and a High raised by one is re-checked by the other from the locations, not the conclusion.
+
 Report: findings ranked Critical / High / Medium / Low, each with location (`file:line` / policy name), the concrete attack, and a remediation. State explicitly if no High/Critical found. Do not modify code.
 
 ## Charter
