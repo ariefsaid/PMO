@@ -23,6 +23,13 @@ export function receiptNumber(p: { ip_number: string | null; pmo_number?: string
   return p.ip_number ?? p.pmo_number ?? null;
 }
 
+/** The invoice value before tax: inclusive amounts have their tax removed; exclusive amounts are already net. */
+export function invoiceNet(inv: { amount: number | null; tax_amount: number; tax_treatment: string }): number | null {
+  if (inv.amount == null) return null;
+  if (inv.tax_treatment === 'inclusive') return Math.round((inv.amount - inv.tax_amount) * 100) / 100;
+  return inv.amount;
+}
+
 /** What the client owes in full, by 0188's rule: an inclusive amount already holds its tax. */
 export function invoiceGross(inv: { amount: number | null; tax_amount: number; tax_treatment: string }): number | null {
   if (inv.amount == null) return null;

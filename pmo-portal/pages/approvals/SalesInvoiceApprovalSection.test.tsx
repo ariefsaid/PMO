@@ -110,6 +110,17 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submit).toHaveBeenCalledWith({ siId: 'si-n1', intent: { id: 'i-1', idempotencyKey: 'k-1' } });
   });
+  it('AC-1048-02 an inclusive invoice shows net before tax, tax, and total due reconciled', async () => {
+    h.data = [draft({ amount: 1_110_000, tax_amount: 110_000, tax_treatment: 'inclusive' })];
+    const user = userEvent.setup();
+    renderSection();
+    await expand(user);
+    const panel = document.getElementById(within(region()).getByRole('button', { name: 'Show invoice details for Acme Energy' }).getAttribute('aria-controls')!)!;
+    const p = within(panel);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+  });
   it('AC-NAR-002 (I-1) the approver sees the whole invoice before Approve — never approves blind', async () => {
     h.data = [draft({ native_lines: [
       { item_code: 'SVC', description: 'Site survey', qty: 2, rate: 400_000, amount: 800_000 },

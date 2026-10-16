@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   invoiceGross,
+  invoiceNet,
   invoiceNumber,
   isPartlyPaid,
   nativeInvoiceSummary,
@@ -12,6 +13,14 @@ import {
 const unpaid = { pmo_native: true, status: 'Unpaid' as const, amount: 1_000_000, tax_amount: 110_000, tax_treatment: 'exclusive', erp_outstanding_amount: 610_000 };
 
 describe('nativeInvoice display rules (#784)', () => {
+  it('AC-1048-01 derives net and gross consistently for inclusive and exclusive invoices', () => {
+    const inclusive = { amount: 1_110_000, tax_amount: 110_000, tax_treatment: 'inclusive' };
+    expect(invoiceNet(inclusive)).toBe(1_000_000);
+    expect(invoiceNet(inclusive)! + inclusive.tax_amount).toBe(invoiceGross(inclusive));
+    expect(invoiceNet({ amount: 1_000_000, tax_amount: 110_000, tax_treatment: 'exclusive' })).toBe(1_000_000);
+    expect(invoiceNet({ amount: null, tax_amount: 0, tax_treatment: 'exclusive' })).toBeNull();
+    expect(invoiceNet({ amount: 1_110_000.01, tax_amount: 110_000.006, tax_treatment: 'inclusive' })).toBe(1_000_000);
+  });
   it('AC-NAR-003 an exclusive invoice owes its amount plus tax; an inclusive one owes its amount', () => {
     expect(invoiceGross(unpaid)).toBe(1_110_000);
     expect(invoiceGross({ amount: 1_110_000, tax_amount: 110_000, tax_treatment: 'inclusive' })).toBe(1_110_000);
