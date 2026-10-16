@@ -14,12 +14,17 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
-import { ACTIVE_PROJECT_STATUSES, AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { isActualComplete } from '@/src/lib/projectFinances';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 
-const hasCompleteActual = (p: PMDashboardProject) => p.spent !== null
-  && (p.actual_coverage_total == null || (p.actual_coverage_count ?? 0) >= p.actual_coverage_total);
+const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
+  status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
+  spent: p.spent, actualCurrency: p.actual_currency ?? p.currency,
+  actualComplete: isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
+    coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total }),
+});
 
 // Project-status pill comes from the canonical project-status map
 // (`pillVariantForProjectStatus`), which routes through the single status registry's
@@ -40,15 +45,13 @@ export const PMDashboard: React.FC = () => {
   const contractCurrency = mine[0]?.currency;
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
     ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
-  const atRiskCount = useMemo(() => mine.filter((p) => ACTIVE_PROJECT_STATUSES.has(p.status)
-    && p.budget !== null && p.budget > 0 && hasCompleteActual(p)
-    && (p.spent ?? 0) / p.budget >= AT_RISK_THRESHOLD).length, [mine]);
+  const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(
     () => [...mine].sort((a, b) => {
-      const riskA = ACTIVE_PROJECT_STATUSES.has(a.status) && a.budget !== null && a.budget > 0 && hasCompleteActual(a) && (a.spent ?? 0) / a.budget >= AT_RISK_THRESHOLD;
-      const riskB = ACTIVE_PROJECT_STATUSES.has(b.status) && b.budget !== null && b.budget > 0 && hasCompleteActual(b) && (b.spent ?? 0) / b.budget >= AT_RISK_THRESHOLD;
+      const riskA = projectAtRisk(a);
+      const riskB = projectAtRisk(b);
       return Number(riskB) - Number(riskA);
     }), [mine],
   );
@@ -124,8 +127,7 @@ export const PMDashboard: React.FC = () => {
                       : margin < 10
                         ? 'text-destructive'
                         : 'text-foreground';
-                  const projectAtRisk = ACTIVE_PROJECT_STATUSES.has(p.status) && p.budget !== null && p.budget > 0
-                    && hasCompleteActual(p) && (p.spent ?? 0) / p.budget >= AT_RISK_THRESHOLD;
+                  const atRisk = projectAtRisk(p);
                   return (
                     <li key={p.id} className="flex items-center gap-2.5 py-3">
                       <Link
@@ -135,7 +137,7 @@ export const PMDashboard: React.FC = () => {
                         {p.name}
                       </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
-                      {projectAtRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
+                      {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
                       <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
                       <StatusPill variant={pillVariantForProjectStatus(p.status)}>{statusLabel(p.status)}</StatusPill>

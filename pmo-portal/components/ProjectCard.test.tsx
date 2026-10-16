@@ -153,7 +153,8 @@ describe('ProjectCard', () => {
   it('AC-S02: the compact Actual summary uses Actual currency, not project currency', () => {
     const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-    expect(screen.getByText('$125.0K of $500.0K Active budget')).toBeInTheDocument();
+    expect(screen.getByText('$125,000.00')).toBeInTheDocument();
+    expect(screen.getByText('Budget currency differs from Actual')).toBeInTheDocument();
   });
 
   it('formats the exact Actual with the selected number locale, independently of UI language', () => {

@@ -19,6 +19,9 @@ export interface TopProject {
   currency: string;
   budget: number | null;
   spent: number | null;
+  actual_currency?: string | null;
+  actual_complete?: boolean;
+  budget_currency?: string | null;
   actual_coverage_count?: number | null;
   actual_coverage_total?: number | null;
   realized_margin?: number | null;

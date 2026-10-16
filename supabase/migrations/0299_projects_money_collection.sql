@@ -27,7 +27,14 @@ begin
     return query
       select v_project_id,
              case when public.org_reads_erp_ledger()
-               then public.get_project_finances(v_project_id)->'actuals'
+               then jsonb_set(public.get_project_finances(v_project_id)->'actuals','{complete}',to_jsonb(
+                 coalesce((select count(distinct li.category) = count(distinct li.category) filter
+                   (where exists (select 1 from public.project_mapped_actuals(v_project_id,null) x
+                     where x.category=li.category and x.mapped and x.actuals_to_date is not null))
+                   from public.budget_versions b join public.budget_line_items li on li.budget_version_id=b.id
+                   where b.project_id=v_project_id and b.status='Active'),false)
+                 and not coalesce((public.get_project_finances(v_project_id)->'actuals'->>'excludes_restricted_rows')::boolean,true)
+               ))
                else jsonb_build_object(
                  'currency', (select p.currency from public.projects p where p.id = v_project_id),
                  'total', (select coalesce(sum(pr.total_value), 0)::text
@@ -36,6 +43,7 @@ begin
                              and pr.status::text = any(public.committed_procurement_statuses())),
                  'as_of', null,
                  'excludes_restricted_rows', false,
+                 'complete', true,
                  'categories', '[]'::jsonb
                )
              end,

@@ -10,6 +10,27 @@
  */
 export const AT_RISK_THRESHOLD = 0.9;
 
+export interface MoneyRiskInput {
+  status: string;
+  budget: number | null;
+  budgetCurrency: string | null;
+  projectCurrency: string;
+  spent: number | null;
+  actualCurrency: string | null;
+  actualComplete: boolean;
+}
+
+/** One cross-surface at-risk rule: known complete Actual, same currency, positive budget. */
+export function isMoneyAtRisk(p: MoneyRiskInput): boolean {
+  return ACTIVE_PROJECT_STATUSES.has(p.status)
+    && p.actualComplete
+    && p.budget !== null && Number.isFinite(p.budget) && p.budget > 0
+    && p.spent !== null && Number.isFinite(p.spent)
+    && p.actualCurrency !== null && p.actualCurrency === p.budgetCurrency
+    && p.actualCurrency === p.projectCurrency
+    && p.spent / p.budget >= AT_RISK_THRESHOLD;
+}
+
 /**
  * Statuses that count as "active" (delivery in progress) for the at-risk gate.
  * Aligns with the ONGOING partition in Projects.tsx and the at-risk filter.

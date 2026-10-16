@@ -74,6 +74,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     expect(line).toContain(',500000,');
   } finally {
     await admin.from('sales_invoices').delete().eq('id', invoiceId);
+    await admin.from('project_progress_entries').delete().eq('project_id', projectId);
     await admin.from('projects').delete().eq('id', projectId);
   }
 });

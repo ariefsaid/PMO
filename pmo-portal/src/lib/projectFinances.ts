@@ -78,12 +78,43 @@ export function deriveActualPosition(input: {
 }
 
 /** A headline Actual is trustworthy only when every reported category is covered. */
-export function hasCompleteActuals(actuals: ProjectFinances['actuals']): boolean {
+export function hasCompleteActuals(
+  actuals: ProjectFinances['actuals'],
+  budgetedCategories?: readonly string[],
+): boolean {
+  const required = budgetedCategories?.length
+    ? actuals.categories.filter((category) => budgetedCategories.includes(category.category))
+    : actuals.categories;
   return actuals.currency !== null
     && actuals.total !== null
-    && actuals.categories.length > 0
-    && actuals.categories.every((category) => category.mapped)
+    && required.length > 0
+    && required.every((category) => category.mapped && category.amount !== null)
     && !actuals.excludes_restricted_rows;
+}
+
+/** PO-basis completeness is the successful read itself; an empty PO set is known zero. */
+export function isActualComplete(input: {
+  basis: 'pmo' | 'erp' | 'unavailable';
+  readSucceeded: boolean;
+  complete?: boolean | null;
+  actuals?: ProjectFinances['actuals'] | null;
+  categories?: ReadonlyArray<{ category: string; mapped: boolean; amount: string | null }>;
+  excludesRestrictedRows?: boolean;
+  coverageCount?: number | null;
+  coverageTotal?: number | null;
+  budgetedCategories?: readonly string[];
+}): boolean {
+  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis !== 'erp' || !input.readSucceeded) return false;
+  if (input.complete !== null && input.complete !== undefined) return input.complete;
+  if (input.actuals) return hasCompleteActuals(input.actuals, input.budgetedCategories);
+  if (input.coverageTotal !== null && input.coverageTotal !== undefined) {
+    return input.coverageCount !== null && input.coverageCount !== undefined
+      && input.coverageCount >= input.coverageTotal && !input.excludesRestrictedRows;
+  }
+  const categories = input.categories ?? [];
+  return (categories.length === 0 || categories.every((category) => category.mapped && category.amount !== null))
+    && !input.excludesRestrictedRows;
 }
 
 export function deriveContractRemainingAfterCost(

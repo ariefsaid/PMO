@@ -25,7 +25,7 @@ describe('getProjectsMoneyCollection (AC-S02-001..006)', () => {
     expect(result.p1).toEqual({
       ledgerBasis: 'erp',
       actuals: { currency: 'USD', total: '125.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: true,
-        categories: [{ category: 'Labor', mapped: true, amount: '125.00' }, { category: 'Materials', mapped: false, amount: null }] },
+        complete: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }, { category: 'Materials', mapped: false, amount: null }] },
       activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     });
   });

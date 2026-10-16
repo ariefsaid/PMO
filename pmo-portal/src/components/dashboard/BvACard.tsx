@@ -6,7 +6,8 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import type { TopProject } from '@/src/lib/db/dashboard';
-import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { isActualComplete } from '@/src/lib/projectFinances';
 
 export interface BvACardProps {
   projects: TopProject[];
@@ -26,12 +27,15 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
   <div role="group" aria-label={t('uxs03.spendingContract', 'Spending vs contract')} className="flex flex-col">
     {projects.map((p, i) => {
       const contract = p.contract_value;
-      const actualComplete = p.spent !== null
-        && (p.actual_coverage_total == null || (p.actual_coverage_count ?? 0) >= p.actual_coverage_total);
-      const pct = contract !== null && contract > 0 && actualComplete
+      const actualComplete = isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
+        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
+      const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
         ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
-      const utilization = p.budget !== null && p.budget > 0 && actualComplete ? (p.spent ?? 0) / p.budget : null;
-      const atRisk = utilization !== null && utilization >= AT_RISK_THRESHOLD;
+      const currenciesMatch = (p.actual_currency ?? p.currency) === (p.budget_currency ?? p.currency)
+        && (p.actual_currency ?? p.currency) === p.currency;
+      const utilization = p.budget !== null && p.budget > 0 && actualComplete && currenciesMatch ? (p.spent ?? 0) / p.budget : null;
+      const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
+        spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
       const dot = chartTheme.categorical[i % chartTheme.categorical.length];
 
       return (
@@ -55,7 +59,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             </Link>
             {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
-              {money(actualComplete ? p.spent : null, p.currency)} / {money(contract, p.currency)}
+              {money(actualComplete ? p.spent : null, p.actual_currency ?? p.currency)} / {money(contract, p.currency)}
             </span>
             {/* D-2 (AC-JR-W3B-04): decorative trailing chevron removed — it was a false
                 affordance implying the row is clickable while only the name Link above is
