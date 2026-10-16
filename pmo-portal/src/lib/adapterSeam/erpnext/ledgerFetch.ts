@@ -142,13 +142,14 @@ async function fetchAllPages(
   fields: readonly string[],
   pageSize: number,
   maxPages: number,
+  responseNumbers?: 'ledger_decimal_text',
 ): Promise<{ rows: Record<string, unknown>[]; caughtUp: boolean }> {
   const rows: Record<string, unknown>[] = [];
   let limitStart = 0;
   // A full page is not proof that the source is drained. Stop after the bounded budget and let the
   // inclusive modified watermark re-read the boundary row on the next tick.
   for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
-    const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart) });
+    const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart), responseNumbers });
     const page = (body as { data?: Record<string, unknown>[] } | null)?.data;
     if (!Array.isArray(page) || page.length === 0) return { rows, caughtUp: true };
     rows.push(...page);
@@ -176,7 +177,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
-  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages);
+  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
   return {
     ...result,
     rows: result.rows.map((r) => {

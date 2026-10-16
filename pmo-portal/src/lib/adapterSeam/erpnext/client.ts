@@ -221,6 +221,8 @@ export interface ErpRequestOptions {
    *  unpaged AR/AP ageing report RPC (one row per voucher → `AGING_REPORT_MAX_BYTES`,
    *  agingSnapshot.ts) — raise it to their own named ceilings. */
   maxResponseBytes?: number;
+  /** Preserve raw numeric lexemes for GL debit/credit, avoiding JSON Number precision loss. */
+  responseNumbers?: 'ledger_decimal_text';
 }
 
 interface ParsedFrappeError {
@@ -332,10 +334,19 @@ async function readBodyText(res: Response, maxBytes: number): Promise<string | n
 
 /** Parses a capped response body as JSON: null on an empty body or malformed JSON (semantics
  *  unchanged); only the byte cap can reject the read itself. */
-async function safeParseBody(res: Response, maxBytes: number): Promise<unknown> {
+async function safeParseBody(res: Response, maxBytes: number, responseNumbers?: ErpRequestOptions['responseNumbers']): Promise<unknown> {
   const text = await readBodyText(res, maxBytes);
   if (!text) return null;
   try {
+    if (responseNumbers === 'ledger_decimal_text') {
+      return JSON.parse(text, (key, value, context?: { source?: string }) => {
+        if ((key === 'debit' || key === 'credit') && typeof value === 'number') {
+          if (!context?.source) throw new Error('runtime cannot preserve raw ledger decimal tokens');
+          return context.source;
+        }
+        return value;
+      });
+    }
     return JSON.parse(text);
   } catch {
     return null;
@@ -348,6 +359,13 @@ async function safeParseBody(res: Response, maxBytes: number): Promise<unknown> 
  * `maxRetries` (honoring `Retry-After`).
  */
 export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOptions): Promise<unknown> {
+  if (opts.responseNumbers === 'ledger_decimal_text') {
+    const supported = (() => {
+      try { return JSON.parse('{"v":0.123456789}', (_key, value, context?: { source?: string }) => context?.source === '0.123456789' ? true : value).v === true; }
+      catch { return false; }
+    })();
+    if (!supported) throw new ErpError(0, 'external-unreachable', 'runtime cannot preserve raw ledger decimal tokens', false);
+  }
   const sleep = deps.sleep ?? defaultSleep;
   const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
@@ -437,7 +455,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       }
 
       if (res.status === 429 || res.status >= 500) {
-        const body = await safeParseBody(res, maxBodyBytes);
+        const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
         const parsed = parseFrappeErrorBody(body);
         // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
         if (res.status === 500 && isTypeErrorBucket(parsed)) {
@@ -452,7 +470,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
 
-      const body = await safeParseBody(res, maxBodyBytes);
+      const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
         throw new ErpError(res.status, 'commit-rejected', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);

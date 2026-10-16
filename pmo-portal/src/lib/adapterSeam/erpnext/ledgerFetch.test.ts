@@ -100,6 +100,14 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(rows[0]).toMatchObject({ name: 'GLE-D2', is_cancelled: true, docstatus: 2 });
   });
 
+  it('AC-001: preserves raw JSON numeric tokens at full GL precision before Number conversion', async () => {
+    const raw = '{"data":[{"name":"GL-DECIMAL","company":"Synthetic Co","account":"Cash","debit":0.123456789,"credit":12345678901234567890.123456789,"modified":"2026-01-01"}]}';
+    const fetchImpl = async () => new Response(raw, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Synthetic Co' });
+    expect(rows[0].debit).toBe('0.123456789');
+    expect(rows[0].credit).toBe('12345678901234567890.123456789');
+  });
+
   it('AC-001: captures explicit company, opening and finance-book fields without defaults for unknown values', async () => {
     const fetchImpl = async () => jsonResponse({ data: [
       { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '0.123456789', credit: '0', is_opening: 'Yes', finance_book: 'Accrual', modified: '2026-01-01' },
