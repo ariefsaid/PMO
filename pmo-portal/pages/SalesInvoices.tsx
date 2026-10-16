@@ -362,6 +362,43 @@ const SalesInvoices: React.FC = () => {
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
             </header>
+            {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
+              <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedByClient', 'Received by client')
+                      : t('uxs17.readyToSend', 'Ready to send')}
+                  </h2>
+                  <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDateOnly(viewTarget.received_date) })
+                      : t('uxs17.manualHandoffHelp', 'Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.')}
+                  </p>
+                </div>
+                {!viewTarget.received_date && (
+                  <div className="flex flex-wrap gap-2">
+                    {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
+                      <Button
+                        variant="primary"
+                        disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
+                        onClick={() => void pdfDownload.download(viewTarget)}
+                      >
+                        <Icon name="download" />
+                        {pdfDownload.inFlightIds.has(viewTarget.id)
+                          ? t('uxs17.preparingPdf', 'Preparing PDF…')
+                          : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
+                      </Button>
+                    )}
+                    {canRecordReceipt && (
+                      <Button variant="outline" onClick={() => setReceiptTarget(viewTarget)}>
+                        {t('financeCopy.recordReceivedDate', 'Record received date')}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
             <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">

@@ -85,6 +85,8 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
+    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
@@ -105,6 +107,10 @@ vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ 
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
+}));
+
+vi.mock('@/src/hooks/useInvoicePdfDownload', () => ({
+  useInvoicePdfDownload: () => ({ download: vi.fn(), inFlightIds: new Set<string>() }),
 }));
 
 vi.mock('@/src/lib/analytics', () => ({
@@ -250,6 +256,30 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Invoice preview')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).not.toBeInTheDocument();
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
+  });
+
+  it('UX-053 offers the approved PDF as a manual handoff and keeps delivery separate from receipt', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1,
+      invoice_date: '2026-10-01', received_date: null,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByText('Ready to send')).toBeInTheDocument();
+    expect(screen.getByText(/Download the approved PDF and send it to your client outside PMO/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
+    expect(screen.queryByText('Sent')).not.toBeInTheDocument();
+  });
+
+  it('UX-053 shows the recorded client-receipt date instead of implying a send action', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1,
+      received_date: '2026-10-10',
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
+    expect(screen.getByText('Client receipt was recorded for Oct 10, 2026.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
 
   it('UXS-014 opens from the list and browser Back restores the search URL', async () => {

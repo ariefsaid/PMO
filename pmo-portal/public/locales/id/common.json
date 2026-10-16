@@ -4638,6 +4638,15 @@
     "previewCoverage": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
     "previewGaps": "Tidak ada kurs untuk {{dates}}"
   },
+  "uxs17": {
+    "deliverySection": "Pengiriman kepada klien",
+    "receivedByClient": "Sudah diterima klien",
+    "readyToSend": "Siap dikirim",
+    "receivedDateSummary": "Penerimaan oleh klien tercatat pada {{date}}.",
+    "manualHandoffHelp": "Unduh PDF yang telah disetujui, lalu kirimkan kepada klien di luar PMO. Mengunduh bukan berarti faktur sudah dikirim.",
+    "preparingPdf": "Menyiapkan PDF…",
+    "downloadApprovedPdf": "Unduh PDF yang disetujui"
+  },
   "uxs06": {
     "statusReceived": "Diterima",
     "statusExpected": "Diharapkan",

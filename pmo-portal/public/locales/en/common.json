@@ -4638,6 +4638,15 @@
     "previewCoverage": "Dates from {{first}} to {{last}} — {{count}} with rates",
     "previewGaps": "No rate for {{dates}}"
   },
+  "uxs17": {
+    "deliverySection": "Client delivery",
+    "receivedByClient": "Received by client",
+    "readyToSend": "Ready to send",
+    "receivedDateSummary": "Client receipt was recorded for {{date}}.",
+    "manualHandoffHelp": "Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.",
+    "preparingPdf": "Preparing PDF…",
+    "downloadApprovedPdf": "Download approved PDF"
+  },
   "uxs06": {
     "statusReceived": "Received",
     "statusExpected": "Expected",
