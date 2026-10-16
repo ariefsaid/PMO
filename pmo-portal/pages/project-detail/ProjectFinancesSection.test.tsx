@@ -95,10 +95,10 @@ describe('ProjectFinancesSection reading states', () => {
   it('AC-PFIN-015 shows an unmatched cost category in plain words, not system terms (#1045)', () => {
     h.query.data = payload({
       actuals: { currency: 'IDR', as_of: '2026-10-16T00:00:00Z', total: null, excludes_restricted_rows: false,
-        categories: [{ category: 'labor', mapped: false, amount: null }] },
+        categories: [{ category: 'Labor', mapped: false, amount: null }] },
     });
     render(<ProjectFinancesSection project={project} />);
-    const row = screen.getByRole('row', { name: /labor/ });
+    const row = screen.getByRole('row', { name: /Labor/ });
     expect(within(row).getByText('Not available yet')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     expect(screen.queryByText(/GL|mapping/i)).not.toBeInTheDocument();
