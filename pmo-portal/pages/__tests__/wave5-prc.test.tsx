@@ -40,6 +40,13 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isError: false }),
 }));
+vi.mock('@/src/hooks/useDashboard', () => ({
+  usePMDashboardProjects: () => ({
+    ...projState,
+    data: (projState.data ?? []).filter((p) => p.project_manager_id === 'pm-1'),
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projState,
   useClientCompanies: () => ({ data: [] }),

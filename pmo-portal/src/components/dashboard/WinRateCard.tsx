@@ -158,6 +158,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
             </span>
           </div>
           {declinedNote}
+          <p className="mt-2 text-xs text-muted-foreground">{t('uxs03.recordedOutcomesOnly', 'Recorded outcomes only; unrecorded decisions are not counted.')}</p>
         </>
       )}
     </section>

@@ -52,11 +52,12 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByRole('group', { name: /Time frame/i })).toBeInTheDocument();
   });
 
-  it('renders a basis-aware won/closed readout and a Won/Lost dot+text legend', () => {
+  it('AC-RF-004: limits the metric to recorded outcomes and keeps a basis-aware readout', () => {
     render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/2 won of 3 closed/i)).toBeInTheDocument();
     expect(screen.getByText('Won')).toBeInTheDocument();
     expect(screen.getByText('Lost')).toBeInTheDocument();
+    expect(screen.getByText('Recorded outcomes only; unrecorded decisions are not counted.')).toBeInTheDocument();
   });
 
   // AC-DEC-002 (#774): declined-to-bid deals sit outside both denominators but are still reported.

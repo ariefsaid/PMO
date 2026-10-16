@@ -7783,6 +7783,7 @@ export type Database = {
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
+      get_pm_dashboard_projects: { Args: never; Returns: Json }
       get_expense_advance_aging: {
         Args: never
         Returns: {

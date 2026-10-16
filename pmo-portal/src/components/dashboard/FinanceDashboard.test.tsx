@@ -6,7 +6,10 @@ import { FinanceDashboard } from './FinanceDashboard';
 
 const dash = {
   active_projects: 2, total_contract_value: 8_000_000, currency: 'USD',
-  on_hand_margin: 0.25, on_hand_value: 6_000_000,
+  on_hand_margin: 0.25, on_hand_value: 6_000_000, on_hand_contract_remaining: 4_500_000,
+  on_hand_realized_margin: 1_500_000, on_hand_actual_known: 4_000_000,
+  on_hand_actual_project_count: 2, on_hand_actual_project_total: 2,
+  on_hand_actual_coverage_count: 2, on_hand_actual_coverage_total: 2,
   pipeline_weighted_value: 800_000, pipeline_projected_margin: 0.2, pipeline_total_value: 2_000_000,
   projects_at_risk: 1,
   projects_by_status: [], procurements_by_status: [{ status: 'Paid', count: 2 }, { status: 'Vendor Invoiced', count: 1 }],
@@ -95,17 +98,29 @@ describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
 });
 
 describe('FinanceDashboard (real — exec RPC + procurements)', () => {
-  it('shows total contracted revenue from the RPC', () => {
+  it('shows contract value in progress, distinct from the on-hand contract value', () => {
     renderPane();
     expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('$8,000,000');
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Contract value in progress');
   });
-  it('shows total project spend (Σ top_projects.spent)', () => {
+
+  it('labels PMO purchasing scope and explains an empty request chart', () => {
+    const previous = procurements.splice(0);
     renderPane();
-    expect(screen.getByTestId('kpi-spend')).toHaveTextContent(formatCurrency(4_000_000, 'USD'));
+    expect(screen.getByText('PMO purchasing requests')).toBeInTheDocument();
+    expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
+    expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
+    procurements.push(...previous);
   });
-  it('shows on-hand margin', () => {
+  it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('25.0%');
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4,000,000.00');
+  });
+  it('shows billed-work margin separately from contract remaining', () => {
+    renderPane();
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1,500,000.00');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Margin to date');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4,500,000.00');
   });
   it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();

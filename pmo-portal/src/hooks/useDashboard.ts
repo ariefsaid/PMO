@@ -2,6 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
   getExecutiveDashboard, type ExecutiveDashboard,
+  getPMDashboardProjects, type PMDashboardProject,
   getWinRate, type WinRate,
   getSalesPipeline, type SalesPipeline, type PipelineProject,
   getFinanceBudgetReview, type BudgetReviewRow,
@@ -11,6 +12,16 @@ import { useAuth } from '@/src/auth/useAuth';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
  * (FR-QRY-DASH-001). Aggregates are computed in SQL (RPC) and RLS-scoped to the caller's org. */
+export function usePMDashboardProjects() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<PMDashboardProject[]>({
+    queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
+    queryFn: getPMDashboardProjects,
+    enabled: Boolean(orgId && currentUser?.id),
+  });
+}
+
 export function useDashboard() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
