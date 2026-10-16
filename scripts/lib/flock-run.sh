@@ -60,21 +60,52 @@ held_var     = sys.argv[4]
 waiting_desc = sys.argv[5]
 cmd          = sys.argv[6:]
 joined       = " ".join(cmd)
-f = open(lock_path, "w")
+# FLOCK_SLOTS=N (default 1) turns the mutex into an N-slot semaphore: slot 0 is lock_path itself,
+# slots 1..N-1 are lock_path.1 .. lock_path.<N-1>. A wrapper with N=1 (or an older copy of this
+# script) still contends only for slot 0, so mixed versions stay compatible.
+# ponytail: polls free slots every second; a FIFO queue only if starvation shows up.
+slots = max(1, int(os.environ.pop("FLOCK_SLOTS", "1") or "1"))  # pop: a nested lock (e.g. the db lock) must not inherit our slot count
+paths = [lock_path] + ["%s.%d" % (lock_path, i) for i in range(1, slots)]
 t0 = time.time()
-if timeout > 0:
-    while True:
-        try:
-            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            break
-        except BlockingIOError:
-            if time.time() - t0 > timeout:
-                sys.stderr.write("[%s] gave up after %.0fs waiting for %s\n" % (label, timeout, lock_path))
+if slots > 1:
+    files = [open(p, "a") for p in paths]
+    f = None
+    announced = False
+    while f is None:
+        for cand, fh in zip(paths, files):
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                f, lock_path = fh, cand
+                break
+            except BlockingIOError:
+                pass
+        if f is None:
+            if timeout > 0 and time.time() - t0 > timeout:
+                sys.stderr.write("[%s] gave up after %.0fs waiting for a free slot of %s\n" % (label, timeout, paths[0]))
                 sys.exit(75)  # EX_TEMPFAIL
+            if not announced:
+                sys.stderr.write("[%s] waiting for %s (%d slots, %s)...\n" % (label, waiting_desc, slots, paths[0]))
+                announced = True
             time.sleep(1)
+    for fh in files:
+        if fh is not f:
+            fh.close()
+    f.seek(0); f.truncate()
 else:
-    sys.stderr.write("[%s] waiting for %s (%s)...\n" % (label, waiting_desc, lock_path))
-    fcntl.flock(f, fcntl.LOCK_EX)  # blocks; kernel releases it when this process exits
+    f = open(lock_path, "w")
+    if timeout > 0:
+        while True:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() - t0 > timeout:
+                    sys.stderr.write("[%s] gave up after %.0fs waiting for %s\n" % (label, timeout, lock_path))
+                    sys.exit(75)  # EX_TEMPFAIL
+                time.sleep(1)
+    else:
+        sys.stderr.write("[%s] waiting for %s (%s)...\n" % (label, waiting_desc, lock_path))
+        fcntl.flock(f, fcntl.LOCK_EX)  # blocks; kernel releases it when this process exits
 waited = time.time() - t0
 sys.stderr.write("[%s] ACQUIRED (waited %.0fs) - running: %s\n" % (label, waited, joined))
 f.write("pid=%d started=%s\n" % (os.getpid(), time.strftime("%H:%M:%S"))); f.flush()

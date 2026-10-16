@@ -32,5 +32,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "PMO_TEST_LOCK_HELD" \
+# 3 concurrent heavy suites machine-wide (PMO + MOS share these files): owner 2026-10-16, "skip the
+# lock but mind OOM/CPU" on a 10-core/24 GB Mac with local vitest maxWorkers=2. PMO_TEST_LOCK_SLOTS=1 restores the mutex.
+FLOCK_SLOTS="${PMO_TEST_LOCK_SLOTS:-3}" exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "PMO_TEST_LOCK_HELD" \
   "the shared test suite" -- "$@"
