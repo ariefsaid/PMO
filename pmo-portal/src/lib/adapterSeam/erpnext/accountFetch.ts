@@ -7,6 +7,12 @@ export interface StatementAccountSourceRow extends Record<string, unknown> {
   account_name: string;
   root_type: string;
   report_type: string;
+  parent_account: string | null;
+  account_number: string | null;
+  account_currency: string;
+  account_type: string | null;
+  include_in_gross: boolean;
+  modified: string | null;
   is_group: boolean;
   disabled: boolean;
   lft: number;

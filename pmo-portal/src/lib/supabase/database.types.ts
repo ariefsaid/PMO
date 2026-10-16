@@ -1491,6 +1491,80 @@ export type Database = {
           },
         ]
       }
+      erp_account_mirror: {
+        Row: {
+          account_currency: string
+          account_name: string
+          account_number: string | null
+          account_type: string | null
+          as_of: string
+          company: string
+          disabled: boolean
+          erp_modified: string | null
+          erp_name: string
+          id: string
+          include_in_gross: boolean
+          is_group: boolean
+          lft: number
+          org_id: string
+          parent_account: string | null
+          refresh_id: string
+          report_type: string
+          rgt: number
+          root_type: string
+        }
+        Insert: {
+          account_currency: string
+          account_name: string
+          account_number?: string | null
+          account_type?: string | null
+          as_of?: string
+          company: string
+          disabled?: boolean
+          erp_modified?: string | null
+          erp_name: string
+          id?: string
+          include_in_gross?: boolean
+          is_group: boolean
+          lft: number
+          org_id?: string
+          parent_account?: string | null
+          refresh_id: string
+          report_type: string
+          rgt: number
+          root_type: string
+        }
+        Update: {
+          account_currency?: string
+          account_name?: string
+          account_number?: string | null
+          account_type?: string | null
+          as_of?: string
+          company?: string
+          disabled?: boolean
+          erp_modified?: string | null
+          erp_name?: string
+          id?: string
+          include_in_gross?: boolean
+          is_group?: boolean
+          lft?: number
+          org_id?: string
+          parent_account?: string | null
+          refresh_id?: string
+          report_type?: string
+          rgt?: number
+          root_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_account_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_actuals_snapshot: {
         Row: {
           account: string | null
@@ -1780,15 +1854,18 @@ export type Database = {
         Row: {
           account: string
           as_of: string
+          company: string | null
           cost_center: string | null
           credit: number | null
           debit: number | null
           erp_docstatus: number | null
           erp_modified: string
           erp_name: string
+          finance_book: string | null
           fiscal_year: string | null
           id: string
           is_cancelled: boolean
+          is_opening: string | null
           org_id: string
           party: string | null
           party_type: string | null
@@ -1800,15 +1877,18 @@ export type Database = {
         Insert: {
           account: string
           as_of?: string
+          company?: string | null
           cost_center?: string | null
           credit?: number | null
           debit?: number | null
           erp_docstatus?: number | null
           erp_modified: string
           erp_name: string
+          finance_book?: string | null
           fiscal_year?: string | null
           id?: string
           is_cancelled?: boolean
+          is_opening?: string | null
           org_id?: string
           party?: string | null
           party_type?: string | null
@@ -1820,15 +1900,18 @@ export type Database = {
         Update: {
           account?: string
           as_of?: string
+          company?: string | null
           cost_center?: string | null
           credit?: number | null
           debit?: number | null
           erp_docstatus?: number | null
           erp_modified?: string
           erp_name?: string
+          finance_book?: string | null
           fiscal_year?: string | null
           id?: string
           is_cancelled?: boolean
+          is_opening?: string | null
           org_id?: string
           party?: string | null
           party_type?: string | null
@@ -1904,6 +1987,32 @@ export type Database = {
             foreignKeyName: "erp_payment_ledger_mirror_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sweep_lock: {
+        Row: {
+          holder: string
+          locked_until: string
+          org_id: string
+        }
+        Insert: {
+          holder: string
+          locked_until: string
+          org_id: string
+        }
+        Update: {
+          holder?: string
+          locked_until?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sweep_lock_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -2500,6 +2609,10 @@ export type Database = {
           org_id: string
           secret_ref: string
           site_url: string
+          statement_calendar: Json | null
+          statement_full_ledger_replay_needed: boolean
+          statement_last_attempt_at: string | null
+          statement_update_delayed: boolean
           status: string
           updated_at: string
           version_major: number | null
@@ -2517,6 +2630,10 @@ export type Database = {
           org_id?: string
           secret_ref: string
           site_url: string
+          statement_calendar?: Json | null
+          statement_full_ledger_replay_needed?: boolean
+          statement_last_attempt_at?: string | null
+          statement_update_delayed?: boolean
           status?: string
           updated_at?: string
           version_major?: number | null
@@ -2534,6 +2651,10 @@ export type Database = {
           org_id?: string
           secret_ref?: string
           site_url?: string
+          statement_calendar?: Json | null
+          statement_full_ledger_replay_needed?: boolean
+          statement_last_attempt_at?: string | null
+          statement_update_delayed?: boolean
           status?: string
           updated_at?: string
           version_major?: number | null
@@ -7173,6 +7294,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_erp_sweep_lock: {
+        Args: { p_holder: string; p_org_id: string; p_ttl: string }
+        Returns: boolean
+      }
       claim_outbox_for_commit: {
         Args: { p_id: string; p_lease?: string }
         Returns: {
@@ -8579,6 +8704,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_erp_sweep_lock: {
+        Args: { p_holder: string; p_org_id: string }
+        Returns: boolean
+      }
       release_outbox_hold: {
         Args: {
           p_expected_domain?: string
