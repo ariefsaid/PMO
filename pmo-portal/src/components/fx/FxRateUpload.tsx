@@ -295,6 +295,14 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   <span>
                     {t('fx.unchangedCount', '{{count}} unchanged', { count: preview.unchanged })}
                   </span>
+                  {preview.coverage.firstDate && preview.coverage.lastDate && (
+                    <span className="text-muted-foreground">
+                      {t('uxs38.previewCoverage', 'Covers {{first}} → {{last}}', {
+                        first: formatDateOnly(preview.coverage.firstDate),
+                        last: formatDateOnly(preview.coverage.lastDate),
+                      })}
+                    </span>
+                  )}
                   {preview.duplicates > 0 && (
                     <span>
                       {t('fx.duplicates', '{{count}} identical duplicates ignored', {

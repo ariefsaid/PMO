@@ -1,7 +1,24 @@
-import type { FxCommitCounts, FxRateRow } from '@/src/lib/repositories/types';
+import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 import type { FxParsed } from './fxRateParser';
 
-export type FxPreview = FxParsed & FxCommitCounts;
+/**
+ * The calendar-day window the file's accepted rows actually cover — nulls when nothing was
+ * accepted. Interior gaps are deliberate: JISDOR does not publish every calendar day, so a
+ * weekend inside the window is coverage, not a hole to fill (S-38: no invented prior-day rate).
+ */
+export type FxCoverage = { firstDate: string | null; lastDate: string | null };
+
+export type FxPreview = FxParsed & FxCommitCounts & { coverage: FxCoverage };
+
+function coverageWindow(rows: FxRateInput[]): FxCoverage {
+  let firstDate: string | null = null;
+  let lastDate: string | null = null;
+  for (const { rate_date } of rows) {
+    if (firstDate === null || rate_date < firstDate) firstDate = rate_date;
+    if (lastDate === null || rate_date > lastDate) lastDate = rate_date;
+  }
+  return { firstDate, lastDate };
+}
 
 export function buildFxPreview(
   parsed: FxParsed,
@@ -15,5 +32,5 @@ export function buildFxPreview(
     else if (current === incoming.rate) counts.unchanged += 1;
     else counts.changed += 1;
   }
-  return { ...parsed, ...counts };
+  return { ...parsed, ...counts, coverage: coverageWindow(parsed.rows) };
 }

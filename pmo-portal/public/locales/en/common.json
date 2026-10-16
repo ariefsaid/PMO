@@ -4538,5 +4538,12 @@
     "noEligible": "Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.",
     "escalate": "Nobody listed can approve right now. These requests go to the overhead approvers.",
     "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers."
+  },
+  "uxs38": {
+    "emptyScope": "Reference rates affect displayed rupiah equivalents only — accounting records are never changed.",
+    "emptyNeedRole": "An Admin or Finance member can upload them from this page.",
+    "pageSummary": "Rates shown: {{count}} · dates {{first}} to {{last}}",
+    "moreEarlier": "earlier rates on the next pages",
+    "previewCoverage": "Covers {{first}} → {{last}}"
   }
 }
