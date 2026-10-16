@@ -4442,9 +4442,9 @@
     "work":"Pendapatan pekerjaan ditagihkan (neto pajak, tanpa uang muka)", "margin":"Margin",
     "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
     "draft":"Draf — belum aktif", "active":"Aktif", "noBudget":"Belum ada anggaran", "budget":"Anggaran",
-    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Pembacaan buku besar belum tersedia",
-    "mappingUnavailable":"Pemetaan akun belum tersedia", "mappedCosts":"Biaya buku besar terpetakan",
-    "category":"Kategori", "actuals":"Aktual buku besar", "unavailable":"Tidak tersedia",
+    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
+    "mappingUnavailable":"Belum tersedia", "mappedCosts":"Biaya",
+    "category":"Kategori", "actuals":"Aktual", "unavailable":"Tidak tersedia",
     "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
     "noInvoices":"Belum ada tagihan yang diajukan", "mixedTaxBases":"Dasar pajak berbeda",
     "contractInvoiced":"Ditagihkan terhadap kontrak", "remaining":"Sisa untuk ditagihkan"

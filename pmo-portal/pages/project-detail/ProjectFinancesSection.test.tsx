@@ -87,9 +87,21 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload();
     render(<ProjectFinancesSection project={project} />);
     expect(screen.getByText('No submitted invoices')).toBeInTheDocument();
-    expect(screen.getByText('GL reading unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Not available yet')).toBeInTheDocument();
     expect(screen.getByText('No budget')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('AC-PFIN-015 shows an unmatched cost category in plain words, not system terms (#1045)', () => {
+    h.query.data = payload({
+      actuals: { currency: 'IDR', as_of: '2026-10-16T00:00:00Z', total: null, excludes_restricted_rows: false,
+        categories: [{ category: 'Labor', mapped: false, amount: null }] },
+    });
+    render(<ProjectFinancesSection project={project} />);
+    const row = screen.getByRole('row', { name: /Labor/ });
+    expect(within(row).getByText('Not available yet')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
+    expect(screen.queryByText(/GL|mapping/i)).not.toBeInTheDocument();
   });
 
   it('AC-PFIN-015/017 keeps currencies separate and does not infer settlement when outstanding is missing', () => {
@@ -126,7 +138,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(screen.getByTestId('project-finances-USD')).getByText('$80.00')).toBeInTheDocument();
     expect(within(screen.getByTestId('project-finances-IDR')).getByText('Unavailable — different currencies')).toBeInTheDocument();
     expect(screen.getByText(/Draft — not active.*Draft budget.*v2.*USD/)).toBeInTheDocument();
-    expect(screen.getByText('Mapped GL costs')).toBeInTheDocument();
+    expect(screen.getByText('Costs')).toBeInTheDocument();
     expect(screen.getByText('labor')).toBeInTheDocument();
 
     h.query.data = payload({

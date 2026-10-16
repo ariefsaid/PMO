@@ -72,7 +72,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         const reasons = {
           'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
           'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
-          'actuals-unavailable': t('projectFinances.actualsUnavailable', 'GL reading unavailable'),
+          'actuals-unavailable': t('projectFinances.actualsUnavailable', 'Not available yet'),
           'restricted-rows': t('projectFinances.restricted', 'Actuals exclude restricted rows'),
         };
         return (
@@ -112,20 +112,20 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       </div>
       <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
-          {t('projectFinances.mappedCosts', 'Mapped GL costs')}{actuals.currency ? ` · ${actuals.currency}` : ''}
+          {t('projectFinances.mappedCosts', 'Costs')}{actuals.currency ? ` · ${actuals.currency}` : ''}
         </h3>
         <p className="break-words font-semibold tabular-nums">{money(actuals.total, actuals.currency)}</p>
         <p className="text-xs text-muted-foreground">
-          {actuals.as_of ? formatInstantDate(actuals.as_of) : t('projectFinances.actualsUnavailable', 'GL reading unavailable')}
+          {actuals.as_of ? formatInstantDate(actuals.as_of) : t('projectFinances.actualsUnavailable', 'Not available yet')}
         </p>
         {actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <caption className="sr-only">{t('projectFinances.mappedCosts', 'Mapped GL costs')}</caption>
+            <caption className="sr-only">{t('projectFinances.mappedCosts', 'Costs')}</caption>
             <thead>
               <tr>
                 <th scope="col" className="text-left">{t('projectFinances.category', 'Category')}</th>
-                <th scope="col" className="text-right">{t('projectFinances.actuals', 'GL actuals')}</th>
+                <th scope="col" className="text-right">{t('projectFinances.actuals', 'Actual')}</th>
               </tr>
             </thead>
             <tbody>
@@ -135,7 +135,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                     {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
                   </th>
                   <td className="break-words text-right tabular-nums">
-                    {row.mapped ? money(row.amount, actuals.currency) : t('projectFinances.mappingUnavailable', 'Account mapping unavailable')}
+                    {row.mapped ? money(row.amount, actuals.currency) : t('projectFinances.mappingUnavailable', 'Not available yet')}
                   </td>
                 </tr>
               ))}
