@@ -171,6 +171,17 @@ describe('UX-081 resolved approval route (S-32)', () => {
     expect(note).toHaveTextContent('go to the overhead approvers');
   });
 
+  it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
+    listSpendApprovers.mockResolvedValue([
+      { id: 'sa-1', projectId: null, projectName: null, profileId: 'u-gone', fullName: 'Gus Gone' },
+    ]);
+    listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
+    renderPanel('Admin');
+    const note = await screen.findByTestId('spend-route-project');
+    expect(note).toHaveTextContent('Only an Admin can decide');
+    expect(note).not.toHaveTextContent('go to the overhead approvers');
+  });
+
   it('UX-081: a project list nobody on it can act on escalates to a working senior set (FR-APR-014)', async () => {
     listSpendApprovers.mockResolvedValue([
       { id: 'sa-1', projectId: null, projectName: null, profileId: 'u-exec', fullName: 'Eve Exec' },
@@ -184,6 +195,17 @@ describe('UX-081 resolved approval route (S-32)', () => {
     const note = await screen.findByTestId('spend-route-project');
     await waitFor(() => expect(note).toHaveTextContent('Nobody listed can approve right now'));
     expect(note).toHaveTextContent('go to the overhead approvers');
+  });
+
+  it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
+    listSpendApprovers.mockResolvedValue([
+      { id: 'sa-2', projectId: 'p-1', projectName: 'HQ Fit-Out', profileId: 'u-gone', fullName: 'Gus Gone' },
+    ]);
+    listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
+    renderPanel('Admin');
+    const note = await screen.findByTestId('spend-route-project');
+    expect(note).toHaveTextContent('Standard rules: any of');
+    expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 
   it('UX-081: dead project and senior sets leave only an Admin (DD-APR-4 cascade)', async () => {

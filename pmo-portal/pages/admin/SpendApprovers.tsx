@@ -138,6 +138,7 @@ const SpendApprovers: React.FC = () => {
   const renderRoute = (rows: SpendApproverRow[], scope: 'org' | 'project') => {
     if (rows.length === 0) {
       if (scope === 'org' || orgRows.length === 0) return flatRouteNote(scope);
+      if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
       return (
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
           {t('uxs32.projectEmpty', {
