@@ -3,7 +3,7 @@ begin;
 select plan(7);
 
 insert into public.external_org_bindings(org_id,external_tier,site_url,secret_ref,config)
-values ('00000000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','synthetic-ref','{}')
+values ('00000000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','synthetic-ref','{"company":"Replay Co"}')
 on conflict (org_id,external_tier) do nothing;
 insert into public.erp_account_mirror(org_id,company,erp_name,account_name,root_type,report_type,is_group,account_currency,lft,rgt,refresh_id)
 values ('00000000-0000-0000-0000-000000000001','Replay Co','Known Account','Known Account','Asset','Balance Sheet',false,'IDR',1,2,'30000000-0000-0000-0000-000000000001')
