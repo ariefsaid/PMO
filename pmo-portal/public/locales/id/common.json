@@ -4538,5 +4538,14 @@
     "noEligible": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan permintaan ini sampai ada yang memenuhi syarat ditambahkan.",
     "escalate": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Permintaan ini diteruskan ke penyetuju overhead.",
     "projectEmpty": "Belum ada penyetuju proyek. Permintaan dalam anggaran mengikuti aturan standar — {{roles}} dapat menyetujui. Permintaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
+  },
+  "uxs38": {
+    "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan — catatan akuntansi tidak pernah diubah.",
+    "emptyNeedRole": "Admin atau anggota Finance dapat mengunggahnya dari halaman ini.",
+    "pageSummary": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "pageGaps": "Tidak ada kurs untuk {{dates}}",
+    "moreEarlier": "kurs lebih lama di halaman berikutnya",
+    "previewCoverage": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "previewGaps": "Tidak ada kurs untuk {{dates}}"
   }
 }

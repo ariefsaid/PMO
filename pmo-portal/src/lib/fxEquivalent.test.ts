@@ -35,6 +35,8 @@ describe('display-only JISDOR equivalent', () => {
     [Infinity, match],
     [100, { ...match, rate: Infinity }],
     [100, { ...match, rate: -1 }],
+    // S-38: a zero rate is an unknown rate, not a free conversion — it must refuse, never format.
+    [100, { ...match, rate: 0 }],
   ] as const)(
     'refuses an invalid amount or rate rather than formatting a false number',
     (amount, rate) => {

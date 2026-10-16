@@ -16,6 +16,7 @@ import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
 import { repositories } from '@/src/lib/repositories';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 import FxRateForm from '@/src/components/fx/FxRateForm';
@@ -48,6 +49,10 @@ const AdministrationExchangeRates: React.FC = () => {
   const canCreate = may('create', 'fxRate', { record: { viewOnly } });
   const canEdit = may('edit', 'fxRate', { record: { viewOnly } });
   const busy = orgDay.isPending || orgDay.isError || !orgDay.day;
+  // S-38 (RF-054): an empty reference-rate history must offer its setup path where the user
+  // is looking. When the list is empty the Upload action moves into the empty state (one
+  // primary action), so the header stands down instead of duplicating it.
+  const listEmpty = rates.isSuccess && (rates.data?.rows.length ?? 0) === 0;
 
   const openUpload = () => {
     if (!may('upload', 'fxRate', { record: { viewOnly } }) || busy) return;
@@ -164,7 +169,7 @@ const AdministrationExchangeRates: React.FC = () => {
         title={<span id="fx-rates-heading">{t('admin.nav.exchangeRates', 'Exchange rates')}</span>}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {canUpload && (
+            {canUpload && !listEmpty && (
               <Button disabled={busy} onClick={openUpload}>
                 {t('fx.upload', 'Upload rates')}
               </Button>
@@ -212,11 +217,52 @@ const AdministrationExchangeRates: React.FC = () => {
       ) : !rates.data?.rows.length ? (
         <ListState
           variant="empty"
+          icon="upload"
           title={t('fx.empty', 'No JISDOR rates yet')}
-          sub={t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")}
+          sub={
+            canUpload
+              ? `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
+                  'uxs38.emptyScope',
+                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
+                )}`
+              : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
+                  'uxs38.emptyScope',
+                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
+                )} ${t(
+                  'uxs38.emptyNeedRole',
+                  'An Admin or Finance member can upload them from this page.',
+                )}`
+          }
+          stateId="fx-rates-empty"
+          role={realRole ?? undefined}
+          module="administration"
+          action={
+            canUpload
+              ? { label: t('fx.upload', 'Upload rates'), onClick: openUpload }
+              : undefined
+          }
         />
       ) : (
         <>
+          <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
+            {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
+              first: formatDateOnly(rates.data.rows[rates.data.rows.length - 1].rate_date),
+              last: formatDateOnly(rates.data.rows[0].rate_date),
+              count: new Set(rates.data.rows.map((row) => row.rate_date)).size,
+            })}
+            {(() => {
+              const gaps = missingFxRateDates(rates.data.rows.map((row) => row.rate_date));
+              return gaps.length > 0 ? (
+                <> · {t('uxs38.pageGaps', 'No rate for {{dates}}', { dates: gaps.map(formatDateOnly).join(', ') })}</>
+              ) : null;
+            })()}
+            {rates.data.nextCursor && (
+              <>
+                {' · '}
+                {t('uxs38.moreEarlier', 'earlier rates on the next pages')}
+              </>
+            )}
+          </p>
           <DataTable<FxRateRow>
             rows={rates.data.rows}
             columns={columns}

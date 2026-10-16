@@ -213,3 +213,91 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     await waitFor(() => expect(h.list).toHaveBeenCalledTimes(2));
   });
 });
+
+describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup path', () => {
+  it('offers the reviewed setup path: consequence copy, reference-vs-accounting scope, and one Upload action that opens the dialog', async () => {
+    h.role = 'Finance';
+    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    renderPage();
+
+    expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
+    // The missing rates have a named consequence (RF-054): rupiah equivalents stay unavailable.
+    expect(
+      screen.getByText(/Upload BI's JISDOR history to show rupiah equivalents/),
+    ).toBeInTheDocument();
+    // Reference equivalents are not accounting figures — the page says so before any upload.
+    expect(
+      screen.getByText(/accounting records are never changed/i),
+    ).toBeInTheDocument();
+    // Exactly one primary setup action (the empty state carries it; the header stands down).
+    const uploadButtons = screen.getAllByRole('button', { name: 'Upload rates' });
+    expect(uploadButtons).toHaveLength(1);
+    fireEvent.click(uploadButtons[0]);
+    expect(await screen.findByRole('dialog', { name: 'Upload rates' })).toBeInTheDocument();
+  });
+
+  it('without upload permission the path names who can act and renders no dead control', async () => {
+    h.role = 'PM';
+    h.list.mockResolvedValue({ rows: [], nextCursor: null });
+    renderPage();
+
+    expect(await screen.findByText('No JISDOR rates yet')).toBeInTheDocument();
+    expect(
+      screen.getByText(/An Admin or Finance member can upload them from this page/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload rates' })).not.toBeInTheDocument();
+  });
+
+  it('loaded pages state the shown coverage and flag earlier pages instead of implying the whole history', async () => {
+    renderPage();
+    await screen.findByRole('table');
+    const summary = screen.getByTestId('fx-page-summary');
+    expect(summary).toHaveTextContent('Dates from Sep 12, 2026 to Oct 31, 2026 — 50 with rates');
+    expect(summary).toHaveTextContent('earlier rates on the next pages');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const lastPage = await screen.findByTestId('fx-page-summary');
+    expect(lastPage).toHaveTextContent('Dates from Sep 11, 2026 to Sep 11, 2026 — 1 with rates');
+    expect(lastPage).not.toHaveTextContent('earlier rates on the next pages');
+  });
+
+  it('page history names missing calendar dates in the displayed range', async () => {
+    const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    renderPage();
+    const summary = await screen.findByTestId('fx-page-summary');
+    expect(summary).toHaveTextContent('3 with rates');
+    expect(summary).toHaveTextContent(/No rate for Oct 28, 2026, Oct 30, 2026/);
+  });
+
+  it('upload preview states the reviewed file’s coverage window before confirmation', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Upload rates' }));
+    const input = screen.getByLabelText(/Choose BI Excel or date,rate CSV/);
+    const file = new File(
+      ['date,rate\n2026-10-05,16100\n2026-10-07,16150\n2026-10-09,16200'],
+      'rates.csv',
+      { type: 'text/csv' },
+    );
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText('3 new')).toBeInTheDocument();
+    const summary = screen.getByLabelText('Import preview summary');
+    expect(summary).toHaveTextContent('Dates from Oct 5, 2026 to Oct 9, 2026 — 3 with rates');
+    expect(summary).toHaveTextContent('No rate for Oct 6, 2026, Oct 8, 2026');
+  });
+
+  it('shows the publication date when a valid file contains one accepted rate', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Upload rates' }));
+    const input = screen.getByLabelText(/Choose BI Excel or date,rate CSV/);
+    const file = new File(['date,rate\n2026-10-12,16400'], 'rates.csv', {
+      type: 'text/csv',
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText('1 new')).toBeInTheDocument();
+    const summary = screen.getByLabelText('Import preview summary');
+    expect(summary).toHaveTextContent('Dates from Oct 12, 2026 to Oct 12, 2026 — 1 with rates');
+    expect(summary).not.toHaveTextContent('No rate for');
+  });
+});

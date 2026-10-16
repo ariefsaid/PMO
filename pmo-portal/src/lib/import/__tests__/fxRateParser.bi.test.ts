@@ -35,5 +35,10 @@ describe('AC-FX-014: original Bank Indonesia JISDOR workbook', () => {
       byDate.get('2025-01-03'),
       byDate.get('2025-01-02'),
     ]).toEqual([17930, 17899, 17884, 17877, 16193, 16217, 16236]);
+    // S-38: unpublished days stay absent — the importer must never invent a rate for a
+    // day BI did not publish (a weekend gap is not a prior-day rate in disguise).
+    expect(byDate.has('2025-01-04')).toBe(false); // Saturday
+    expect(byDate.has('2025-01-05')).toBe(false); // Sunday
+    expect(byDate.size).toBe(422);
   });
 });
