@@ -73,6 +73,16 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
   if (purpose !== 'sales' && purpose !== 'purchase' && purpose !== 'purchase-tax-templates' && purpose !== 'budget-accounts')
     return json({ error: 'BAD_REQUEST' }, 400);
 
+  if (purpose === 'budget-accounts') {
+    const { data: actorState, error: actorError } = await caller.rpc('actor_authorization_state', {
+      p_org_id: profile.org_id,
+      p_user_id: userId,
+    });
+    const standing = actorState as { role: string | null; active: boolean } | null;
+    if (actorError || !standing?.active || !['Admin', 'Finance', 'Executive'].includes(standing.role ?? ''))
+      return json({ error: 'FORBIDDEN' }, 403);
+  }
+
   const service = createClient(url, key, clientOptions);
   if (purpose === 'budget-accounts') {
     const { data: binding, error: bindingError } = await service
