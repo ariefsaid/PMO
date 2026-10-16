@@ -327,10 +327,11 @@ export const IntegrationsView: React.FC = () => {
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
-        {t(
-          'integrations.organization.scope',
-          'Organization integrations connect your team\u2019s external services. They are separate from your personal connections in My integrations \u2014 a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.',
-        )}
+        {t('uxs07.organizationScope', 'Organization integrations are shared by your organization. Manage personal connections in ')}
+        <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
+          {t('uxs07.personalConnections', 'My integrations')}
+        </a>
+        {t('uxs07.scopeTail', '. Personal connections do not activate organization integrations.')}
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
@@ -472,10 +473,17 @@ export const IntegrationsView: React.FC = () => {
                       </Button>
                     )}
                     {showDisconnect && (
-                      <Button variant="destructive" size="sm" onClick={() => handleDisconnectClick(tier)}>
-                        <Icon name="plug" className="size-3.55" aria-hidden="true" />
-                        {t('integrations.organization.readiness.disconnectAction', 'Disconnect {{service}}', { service: tierLabel(tier) })}
-                      </Button>
+                      <details className="text-sm">
+                        <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {t('uxs07.connectionOptions', 'Connection options')}
+                        </summary>
+                        <div className="absolute z-10 mt-1 rounded-md border border-border bg-card p-2 shadow-sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleDisconnectClick(tier)}>
+                            <Icon name="plug" className="size-3.55" aria-hidden="true" />
+                            {t('integrations.organization.readiness.disconnectAction', 'Disconnect {{service}}', { service: tierLabel(tier) })}
+                          </Button>
+                        </div>
+                      </details>
                     )}
                   </CanWrite>
                 </div>
@@ -612,13 +620,13 @@ export const IntegrationsView: React.FC = () => {
       {/* Employed domains section (existing read-only panel, AC-IRUX-007) */}
       <div className="mt-6">
         <h4 className="mb-3 text-sm font-semibold text-foreground">
-          {t('integrations.organization.readiness.ownership.title', 'Employed domains (source of truth)')}
+          {t('uxs07.ownershipTitle', 'Information updated from connected services')}
         </h4>
         <div data-testid="integrations-tier-list">
         {ownershipQuery?.isPending ? (
           <div className="rounded-lg border border-border bg-card">
             <p className="px-4 pt-4 text-sm text-muted-foreground" role="status">
-              {t('integrations.organization.readiness.ownership.loading', 'Checking employed domains…')}
+              {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
             </p>
             <ListState variant="loading" rows={2} />
           </div>
@@ -626,8 +634,8 @@ export const IntegrationsView: React.FC = () => {
           <div data-testid="ownership-error">
             <ListState
               variant="error"
-              title={t('integrations.organization.readiness.ownership.unavailableTitle', 'Employed domains unavailable')}
-              sub={t('integrations.organization.readiness.ownership.unavailableSub', 'Your source-of-truth domains could not be read. Try again.')}
+              title={t('uxs07.ownershipUnavailable', 'Automatic updates unavailable')}
+              sub={t('uxs07.ownershipUnavailableHelp', 'PMO could not check which information updates automatically. Try again.')}
               onRetry={ownershipQuery.refetch}
               retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
             />
@@ -637,8 +645,8 @@ export const IntegrationsView: React.FC = () => {
             <div className="rounded-lg border border-border bg-card" data-testid="ownership-empty">
               <ListState
                 variant="empty"
-                title={t('integrations.organization.readiness.ownership.emptyTitle', 'No employed domains set')}
-                sub={t('integrations.organization.readiness.ownership.emptySub', 'Add your source-of-truth domains to connect data provenance.')}
+                title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
+                sub={t('uxs07.ownershipEmptyHelp', 'Choose which information should stay current from each connected service.')}
               />
             </div>
           </div>
@@ -661,7 +669,7 @@ export const IntegrationsView: React.FC = () => {
                     ))}
                   </ul>
                   <p className="mt-2 text-sm text-muted-foreground">
-                      {t('integrations.organization.readiness.ownership.ownsDomains', 'Owns {{count}} domains as source of truth.', { count: domains.length })}
+                      {t('uxs07.ownershipDomains', '{{service}} updates {{count}} information areas here.', { count: domains.length, service: tierLabel(tier) })}
                   </p>
                   {tier === 'clickup' && (
                     <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
@@ -852,7 +860,7 @@ export const IntegrationsView: React.FC = () => {
 interface HealthPanelProps {
   state: TierHealthState;
   onRetry: () => void;
-  t: (key: string, def: string, options?: Record<string, number>) => string;
+  t: (key: string, def: string, options?: Record<string, string | number>) => string;
 }
 
 /** The per-tier health read: loading / unavailable / available (AC-IRUX-003/004). */
@@ -886,12 +894,16 @@ const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, t }) => {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
       <span className="flex items-center gap-1 text-muted-foreground">
-        <Icon name="alert" className="size-3.55 shrink-0" aria-hidden="true" />
-        <span className="tabular-nums">{outstandingLabel}</span>
+        {outstanding === 0
+          ? <Icon name="check" className="size-3.55 shrink-0" aria-hidden="true" />
+          : <Icon name="alert" className="size-3.55 shrink-0" aria-hidden="true" />}
+        <span className="tabular-nums">{outstanding === 0 ? t('uxs07.outstandingZero', 'No updates waiting') : outstandingLabel}</span>
       </span>
-      <span className="flex items-center gap-1 text-muted-foreground">
-        <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-        <span>{t('integrations.organization.readiness.health.liveRecordCheck', 'To confirm data is usable, check an actual transferred record, not the connection alone.')}</span>
+      <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
+        <span>{t('uxs07.liveRecordCheck', 'Not yet verified — review a connected record to confirm the data is usable.')}</span>
+        <a className="font-medium text-foreground underline underline-offset-4" href={state.health.tier === 'erpnext' ? '/companies' : '/projects'}>
+          {t('uxs07.reviewRecords', 'Review connected records')}
+        </a>
       </span>
     </div>
   );

@@ -517,6 +517,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       wrapWithRole('Admin', <IntegrationsView />);
 
       const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      fireEvent.click(clickupCard.getByText('Connection options'));
       await waitFor(() => expect(clickupCard.getByRole('button', { name: /^disconnect clickup$/i })).toBeInTheDocument());
       fireEvent.click(clickupCard.getByRole('button', { name: /^disconnect clickup$/i }));
 
@@ -839,8 +840,8 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(screen.queryByText(/Jan 2, 2026/)).not.toBeInTheDocument();
       // Outstanding outbound work is labelled as outstanding, never as all-errors.
       expect(screen.getByText(/3 outbound items pending or need attention/i)).toBeInTheDocument();
-      // A live transferred record must be checked to prove usable data movement.
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /review connected records/i })).toHaveAttribute('href', '/projects');
     });
 
     it('AC-IRUX-004: a null watermark with a single outstanding item renders the singular label and no sync-time claim', async () => {
@@ -858,7 +859,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       await waitFor(() => expect(screen.getByText(/outbound item pending/i)).toBeInTheDocument());
       expect(screen.getByText(/1 outbound item pending or needs attention/i)).toBeInTheDocument();
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
     });
 
     it('AC-IRUX-003: one tier’s unavailable health leaves a healthy sibling’s recorded progress legible, with a Retry on the failed card', async () => {
@@ -896,7 +897,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(within(erpnextCard.getByText(/Outbound work status unavailable/i).closest('div')!).getByRole('button', { name: /Retry outbound status/i })).toBeInTheDocument();
       const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
       const clickupHealthWrap = clickupCard.getByText(/2 outbound items/i).closest('div')!;
-      expect(clickupHealthWrap).toHaveTextContent(/check an actual transferred record/i);
+      expect(clickupHealthWrap).toHaveTextContent(/not yet verified/i);
     });
 
     it('AC-IRUX-003: a slow ERPNext read does not delay ClickUp outbound status', async () => {
@@ -932,8 +933,8 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/No updates waiting/i)).toBeInTheDocument());
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
     });
 
@@ -1078,6 +1079,7 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(
       screen.getByRole('button', { name: /approve in microsoft 365/i }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/only if microsoft asks/i);
     // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
     // block (a mutation here guards against someone forcing it into the TIERS array).
     const m365Card = screen.getByTestId('m365-org-approval');
@@ -1106,17 +1108,16 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The org surface labels its scope explicitly…
     expect(scope).toHaveTextContent(/organization/i);
-    // …and states that a personal connection does not activate an organization integration
-    // (AC-ADMIA-006: never imply personal ⇒ org readiness).
-    expect(scope).toHaveTextContent(/does not activate an organization integration/i);
+    // Personal connections remain separate from organization readiness.
+    expect(scope).toHaveTextContent(/shared by your organization/i);
   });
 
   it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The personal surface is referenced by its user-facing name "My integrations"…
-    expect(scope).toHaveTextContent(/My integrations/i);
-    // …and its raw route string must not leak into user-facing copy.
+    expect(screen.getByRole('link', { name: /my integrations/i })).toHaveAttribute('href', '/integrations');
+    // The personal surface is a real navigation destination, not a route string in prose.
     expect(scope.textContent).not.toContain('/integrations');
   });
 });
@@ -1303,7 +1304,7 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
     expect(screen.getByTestId('ownership-error')).toBeInTheDocument();
-    expect(screen.getByText(/Employed domains unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Automatic updates unavailable/i)).toBeInTheDocument();
     const retry = screen.getByRole('button', { name: /^Retry$/i });
     fireEvent.click(retry);
     expect(refetch).toHaveBeenCalled();
@@ -1316,7 +1317,7 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true } as any);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(screen.getByText(/No employed domains set/i)).toBeInTheDocument();
+    expect(screen.getByText(/No information is set to update automatically/i)).toBeInTheDocument();
     const tierList = screen.getByTestId('integrations-tier-list');
     expect(within(tierList).queryByRole('button')).toBeNull();
   });
@@ -1631,7 +1632,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
     // …the separately derived health read stays truthful (await the async read)…
-    await waitFor(() => expect(card.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
+    await waitFor(() => expect(card.getByText(/No updates waiting/i)).toBeInTheDocument());
     // The identity display has a safe fallback…
     expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
     // …while the independent binding state stays Connected…
@@ -1756,9 +1757,23 @@ describe('ERP domain setup actions', () => {
     erpSetup.getErpSetup.mockRejectedValueOnce(new Error('private checklist detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
     const unavailable=await screen.findByText('ERP setup unavailable');
+    expect(within(unavailable.closest('section')!).getByRole('link',{name:'Open accounting setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
     expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
     expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(2);
+  });
+  it('AC-UX-072 preserves the last known readiness and offers an operator handoff after a refresh failure', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults: { company: 'Example Company', default_receivable_account: null, default_activity_type: null },
+      domains: ['companies'], unmappedProjects: [], budgetMappedCategories: [], unlinkedEmployeeCount: 0,
+    } as never).mockRejectedValueOnce(new Error('temporary failure'));
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText('Companies')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh checklist' }));
+    expect(await screen.findByText('Showing the last saved setup check')).toBeInTheDocument();
+    expect(screen.getByText('Companies')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open accounting setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(screen.getByRole('button', { name: 'Check setup again' })).toBeInTheDocument();
   });
   it('AC-EXP-128 the expenses domain is offered exactly when its release guard (#901) is open', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};

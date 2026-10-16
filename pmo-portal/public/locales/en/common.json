@@ -1,5 +1,28 @@
 {
   "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
+  "uxs07": {
+    "organizationScope": "Organization integrations are shared by your organization. Manage personal connections in ",
+    "personalConnections": "My integrations",
+    "scopeTail": ". Personal connections do not activate organization integrations.",
+    "connectionOptions": "Connection options",
+    "reviewRecords": "Review connected records",
+    "liveRecordCheck": "Not yet verified — review a connected record to confirm the data is usable.",
+    "outstandingZero": "No updates waiting",
+    "ownershipTitle": "Information updated from connected services",
+    "ownershipLoading": "Checking which information is updated automatically…",
+    "ownershipUnavailable": "Automatic updates unavailable",
+    "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
+    "ownershipEmpty": "No information is set to update automatically",
+    "ownershipEmptyHelp": "Choose which information should stay current from each connected service.",
+    "ownershipDomains": "{{service}} updates {{count}} information areas here.",
+    "setupUnavailableHelp": "Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.",
+    "lastKnownTitle": "Showing the last saved setup check",
+    "lastKnownBody": "The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.",
+    "retryCheck": "Check setup again",
+    "operatorHandoff": "Open accounting setup",
+    "noDomains": "No connected information is currently updating from ERPNext",
+    "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
+  },
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
@@ -3423,7 +3446,6 @@
   },
   "integrations": {
     "organization": {
-      "scope": "Organization integrations connect your team’s external services. They are separate from your personal connections in My integrations — a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.",
       "readiness": {
         "connected": "Connected",
         "disconnected": "Disconnected",
@@ -3467,9 +3489,7 @@
           "unavailableSub": "Outstanding outbound work could not be read. Try again.",
           "retry": "Retry outbound status",
           "outstandingOne": "{{count}} outbound item pending or needs attention",
-          "outstandingMany": "{{count}} outbound items pending or need attention",
-          "liveRecordCheck": "To confirm data is usable, check an actual transferred record, not the connection alone.",
-          "outstandingZero": "0 outbound items pending or need attention"
+          "outstandingMany": "{{count}} outbound items pending or need attention"
         },
         "map": {
           "title": "ClickUp binding map",
@@ -3494,16 +3514,6 @@
           "projectsRetry": "Retry projects",
           "listUnavailable": "List unavailable",
           "unknown": "Unknown"
-        },
-        "ownership": {
-          "title": "Employed domains (source of truth)",
-          "loading": "Checking employed domains…",
-          "unavailableTitle": "Employed domains unavailable",
-          "unavailableSub": "Your source-of-truth domains could not be read. Try again.",
-          "emptyTitle": "No employed domains set",
-          "emptySub": "No external source-of-truth domains are configured for this organization.",
-          "ownsDomains_one": "Owns {{count}} domain as source of truth.",
-          "ownsDomains_other": "Owns {{count}} domains as source of truth."
         },
         "disconnect": {
           "title": "Disconnect?",
@@ -3581,7 +3591,6 @@
     "m365OrgApproval": {
       "heading": "Microsoft 365",
       "badge": "Organization approval",
-      "description": "Approve the PMO Portal app for your organization in Microsoft 365. This one-time step lets your team connect their own Microsoft 365 accounts to PMO Portal.",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."
@@ -3594,9 +3603,7 @@
       "onboarded": "ERP parties are onboarded. Review the Companies list.",
       "onboardFailed": "Party onboarding did not complete. Try again.",
       "unavailable": "ERP setup unavailable",
-      "unavailableHelp": "The checklist could not be read. Try again.",
       "domains": "Domains employed",
-      "noDomains": "No ERP domains employed",
       "employ": "Employ ERP domains",
       "companyDefaults": "Company defaults",
       "configured": "{{count}} of {{total}} configured",
