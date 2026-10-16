@@ -10,6 +10,14 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.21.0](https://github.com/ariefsaid/PMO/compare/v0.20.0...v0.21.0) (2026-10-16)
+
+
+### Features
+
+* **budget:** ERPNext v16 budget push — one Budget per account ([#1033](https://github.com/ariefsaid/PMO/issues/1033)) ([#1040](https://github.com/ariefsaid/PMO/issues/1040)) ([0d4390a](https://github.com/ariefsaid/PMO/commit/0d4390a44f2d00ad1aac23f120633cf6566da175))
+* **m365:** document linking phase 1 — schema, custody reads, verification ([#1020](https://github.com/ariefsaid/PMO/issues/1020)) ([#1037](https://github.com/ariefsaid/PMO/issues/1037)) ([0f65efc](https://github.com/ariefsaid/PMO/commit/0f65efc3e0460078813ea5ef117731917a9536cb))
+
 ## [0.20.0](https://github.com/ariefsaid/PMO/compare/v0.19.0...v0.20.0) (2026-10-15)
 
 
