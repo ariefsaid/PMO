@@ -59,6 +59,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   deriveProjectBudget,
+  getBudgetActivationMode,
   listBudgetVersions,
   createLineItem,
   updateLineItem,
@@ -166,6 +167,27 @@ describe('AC-M365DOC-052 typed budget document links', () => {
 // ---------------------------------------------------------------------------
 // Phase B — DAL reads
 // ---------------------------------------------------------------------------
+
+describe('getBudgetActivationMode', () => {
+  it('calls the activation-mode RPC with the version id and returns its mode', async () => {
+    makeRpcBuilder({ data: 'sole_operator', error: null });
+    await expect(getBudgetActivationMode('version-1')).resolves.toBe('sole_operator');
+    expect(mockRpc).toHaveBeenCalledWith('budget_activation_mode', { version_id: 'version-1' });
+  });
+
+  it('maps RPC errors through the shared AppError pattern', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'denied', code: '42501' } });
+    await expect(getBudgetActivationMode('version-1')).rejects.toMatchObject({
+      message: 'denied', code: '42501',
+    });
+    await expect(getBudgetActivationMode('version-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects an unexpected mode returned by the RPC', async () => {
+    makeRpcBuilder({ data: 'unknown', error: null });
+    await expect(getBudgetActivationMode('version-1')).rejects.toThrow('Unexpected budget activation mode');
+  });
+});
 
 describe('deriveProjectBudget', () => {
   it('budget = Σ Active version line-items (AC-720, FR-BV-001)', async () => {
