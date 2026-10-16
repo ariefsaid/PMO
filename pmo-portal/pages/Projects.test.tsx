@@ -58,9 +58,10 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
   deliverySummaryState: {
-    p1: { deliveryPct: 50, committedSpend: 2_100_000, budget: 4_700_000 },
-    p2: { deliveryPct: 25, committedSpend: 0, budget: 0 },
+    p1: { deliveryPct: 50 as number | null, committedSpend: 2_100_000, budget: 4_700_000 },
+    p2: { deliveryPct: 25 as number | null, committedSpend: 0, budget: 0 },
     p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
+    isError: false,
   },
   projectMoneyState: {
     data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
@@ -97,7 +98,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
-  useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
+  useProjectsDeliverySummary: () => ({ data: deliverySummaryState, isError: deliverySummaryState.isError, isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
@@ -392,6 +393,28 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
 
+  it('RF-009: failed summary reads keep optional columns visible for unavailable-state recovery', () => {
+    const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
+    const priorDeliveryError = deliverySummaryState.isError;
+    const priorMoney = projectMoneyState.data;
+    const priorMoneyError = projectMoneyState.isError;
+    try {
+      deliverySummaryState.p1 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p2 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p3 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.isError = true;
+      projectMoneyState.data = {};
+      projectMoneyState.isError = true;
+      renderPage();
+      expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
+    } finally {
+      Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
+      projectMoneyState.data = priorMoney;
+      projectMoneyState.isError = priorMoneyError;
+    }
+  });
+
   it('RF-011: an unassigned project is labelled, not rendered as a person avatar', () => {
     projectsState.data = [{ ...seed[0], project_manager_id: null, pm: null }] as unknown as ProjectWithRefs[];
     renderPage();
@@ -416,6 +439,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(row).getByText('PMO-SYN-001')).toBeInTheDocument();
     expect(within(row).getByTitle('CLIENT-SYN-44')).not.toBeVisible();
     await userEvent.click(within(row).getByText('More project references'));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects');
     expect(within(row).getByTitle('CLIENT-SYN-44')).toBeVisible();
   });
 

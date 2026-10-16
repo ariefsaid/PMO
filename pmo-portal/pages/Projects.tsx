@@ -268,8 +268,7 @@ const Projects: React.FC = () => {
     ],
     [clientCompanies, t],
   );
-  // #758: the end-customer filter uses ALL the org's companies (the end customer need not be a
-  // Client-type company).
+  // #758 / RF-012: options come from actual end-customer associations (any company type); preserve a URL-restored selection if its row is outside this result set.
   const endCustomerFilterOptions = useMemo(() => {
     const associated = new Map<string, NonNullable<ProjectWithRefs['end_client']>>();
     for (const project of all) {
@@ -412,8 +411,8 @@ const Projects: React.FC = () => {
   ) : null;
 
   const hasEndCustomerData = filtered.some((project) => Boolean(project.end_client));
-  const hasDeliveryData = deliveryPending || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
-  const hasBudgetData = moneyPending || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
+  const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
+  const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   const hiddenOptionalColumnCount = Number(!hasEndCustomerData) + Number(!hasDeliveryData) + Number(!hasBudgetData);
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -457,7 +456,7 @@ const Projects: React.FC = () => {
                 <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
               </div>
               {(p.code || p.customer_contract_ref) && (
-                <details className="mt-0.5">
+                <details className="mt-0.5" onClick={(event) => event.stopPropagation()}>
                   <summary className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                     {t('uxs14.projectReferences', 'More project references')}
                   </summary>
