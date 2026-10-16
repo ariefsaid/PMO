@@ -1037,6 +1037,7 @@ export type Database = {
       budget_versions: {
         Row: {
           activated_at: string | null
+          activation_basis: string | null
           created_at: string
           created_by: string | null
           currency: string
@@ -1052,6 +1053,7 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          activation_basis?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -1067,6 +1069,7 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          activation_basis?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -7213,6 +7216,7 @@ export type Database = {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
       }
+      budget_activation_mode: { Args: { version_id: string }; Returns: string }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string

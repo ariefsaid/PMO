@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   deriveProjectBudget,
+  getBudgetActivationMode,
   listBudgetVersions,
   createBudgetVersion,
   cloneVersion as dalCloneVersion,
@@ -43,6 +44,14 @@ export function useProjectBudget(projectId: string) {
 }
 
 /** All budget versions for a project, with nested line-items + per-version total. */
+export function useBudgetActivationMode(versionId: string | undefined) {
+  return useQuery<string>({
+    queryKey: ['budget-activation-mode', versionId],
+    queryFn: () => getBudgetActivationMode(versionId!),
+    enabled: Boolean(versionId),
+  });
+}
+
 export function useBudgetVersions(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;

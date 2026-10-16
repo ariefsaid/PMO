@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
+import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -663,7 +663,7 @@ interface ProjectBudgetProps {
  *  (owner rule: nothing writes on a single click). B1-B5 + delete-line-item. */
 type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
-  | { kind: 'activate'; id: string; label: string }
+  | { kind: 'activate'; id: string; label: string; soleOperator: boolean }
   | { kind: 'clone'; id: string; label: string }
   | { kind: 'archive'; id: string; label: string }
   | { kind: 'deleteDraft'; id: string; label: string }
@@ -715,6 +715,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     );
   }, [versions, selectedId]);
 
+  const activationModeQuery = useBudgetActivationMode(selected?.id);
+
   // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
     return (
@@ -739,13 +741,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     );
   }
 
-  // OD-BUDGET-6 (UX only — activate_budget_version is the authority): a second person activates.
+  // Server mode only widens the cosmetic affordance for the current sole operator; the RPC remains authoritative.
+  const soleOperator = activationModeQuery.data === 'sole_operator';
   const canActivate =
     !!selected &&
-    can('transition', 'budgetVersion', {
+    (soleOperator || can('transition', 'budgetVersion', {
       currentUserId,
       record: { status: selected.status, created_by: selected.created_by, editor_ids: selected.editor_ids },
-    });
+    }));
   const activateBlockedReason =
     !selected || !canWrite || canActivate || selected.status !== 'Draft'
       ? null
@@ -767,7 +770,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
   const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
   const requestActivate = (id: string) =>
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
+    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
   const requestClone = (id: string) =>
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
   const requestArchive = (id: string) =>
@@ -885,7 +888,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   };
   const confirmDescriptions: ConfirmDescriptions = {
     create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
-    activate: (c) => t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
+    activate: (c) => c.soleOperator
+      ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
+      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
     clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
     archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
     deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),

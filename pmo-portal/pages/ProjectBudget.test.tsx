@@ -23,6 +23,7 @@ const versionsState = {
   isError: false,
   refetch: vi.fn(),
 };
+const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
@@ -36,6 +37,7 @@ const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  useBudgetActivationMode: () => activationModeState,
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
@@ -141,6 +143,9 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
+  activationModeState.data = undefined;
+  activationModeState.isPending = false;
+  activationModeState.isError = false;
   roleState.realRole = 'Project Manager';
 }
 
@@ -366,6 +371,20 @@ describe('ProjectBudget Draft version actions', () => {
     // …and it does NOT tell the operator to retry a push that was never attempted.
     expect(toast).not.toHaveTextContent(/retry/i);
     resetState();
+  });
+
+  it('AC-1050-07: sole operator sees Activate and must confirm the exception before activation', async () => {
+    budgetState.data = 100;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    activationModeState.data = 'sole_operator';
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent("You're the only person in this organisation, so you can activate a budget you prepared yourself.");
+    expect(mockActivate).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: /Activate version/i }));
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
   });
 
   it('OD-BUDGET-6: the drafter sees why they cannot activate instead of an Activate button', () => {

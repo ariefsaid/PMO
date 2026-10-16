@@ -78,6 +78,12 @@ export interface ImportProvenance {
  * (FR-BV-002). The stale `projects.budget` header is never read (FR-BV-003).
  * org_id is NEVER sent — RLS scopes via `auth_org_id()` (NFR-BV-PERF-001).
  */
+export async function getBudgetActivationMode(versionId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('budget_activation_mode', { version_id: versionId });
+  if (error) throw toAppError(error);
+  return data;
+}
+
 export async function deriveProjectBudget(projectId: string): Promise<number> {
   const { data, error } = await supabase.rpc('get_project_budget', {
     p_project_id: projectId,

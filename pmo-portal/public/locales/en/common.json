@@ -3777,6 +3777,7 @@
     "amountMustBeGreaterThanZero": "Amount must be greater than 0",
     "confirmCreateDescription": "This creates a new Draft budget version named \"{{name}}\".",
     "confirmActivateDescription": "This makes {{version}} the live active budget and supersedes the current active version.",
+    "confirmSoleOperatorActivation": "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.",
     "confirmCloneDescription": "This copies {{version}} into a new editable Draft.",
     "confirmArchiveDescription": "This removes {{version}} as the active budget. You can clone it later to revise.",
     "confirmDeleteDraftDescription": "This permanently deletes the draft {{version}}. This cannot be undone.",

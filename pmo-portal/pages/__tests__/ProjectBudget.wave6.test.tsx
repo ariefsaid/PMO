@@ -38,6 +38,7 @@ const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },

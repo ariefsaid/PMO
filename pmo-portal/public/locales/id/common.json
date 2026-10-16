@@ -3777,6 +3777,7 @@
     "amountMustBeGreaterThanZero": "Jumlah harus lebih besar dari 0",
     "confirmCreateDescription": "Ini membuat versi anggaran Draf baru bernama \"{{name}}\".",
     "confirmActivateDescription": "Ini menjadikan {{version}} sebagai anggaran aktif dan menggantikan versi yang saat ini aktif.",
+    "confirmSoleOperatorActivation": "Anda adalah satu-satunya orang di organisasi ini, jadi Anda dapat mengaktifkan anggaran yang Anda siapkan sendiri. Setelah rekan bergabung, orang lain harus mengaktifkannya.",
     "confirmCloneDescription": "Ini menyalin {{version}} menjadi Draf baru yang dapat diubah.",
     "confirmArchiveDescription": "Ini menonaktifkan {{version}} sebagai anggaran aktif. Anda dapat menyalinnya nanti untuk membuat revisi.",
     "confirmDeleteDraftDescription": "Ini menghapus draf {{version}} secara permanen. Tindakan ini tidak dapat dibatalkan.",
