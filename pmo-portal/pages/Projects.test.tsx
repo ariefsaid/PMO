@@ -212,7 +212,7 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByRole('img', { name: 'Alice Manager' }).length).toBeGreaterThan(0);
   });
 
-  it('keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
+  it('RF-010: keeps contract basis concise while exposing the complete qualifier to assistive technology', () => {
     const previous = projectsState.data;
     projectsState.data = [{
       ...seed[0], tax_treatment: 'exclusive', tax_rate: 11,
@@ -393,6 +393,25 @@ describe('Projects table — compact layout (#1)', () => {
     expect(within(tbody as HTMLElement).queryByText('Alice Manager')).not.toBeInTheDocument();
   });
 
+  it('RF-009: hides optional progress and budget columns when loaded data is absent', () => {
+    const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
+    const priorMoney = projectMoneyState.data;
+    try {
+      deliverySummaryState.p1 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p2 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      deliverySummaryState.p3 = { deliveryPct: null, committedSpend: 0, budget: 0 };
+      projectMoneyState.data = {};
+      projectMoneyState.isError = false;
+      renderPage();
+      expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
+    } finally {
+      Object.assign(deliverySummaryState, priorDelivery);
+      projectMoneyState.data = priorMoney;
+    }
+  });
+
   it('RF-009: failed summary reads keep optional columns visible for unavailable-state recovery', () => {
     const priorDelivery = { p1: deliverySummaryState.p1, p2: deliverySummaryState.p2, p3: deliverySummaryState.p3 };
     const priorDeliveryError = deliverySummaryState.isError;
@@ -424,10 +443,15 @@ describe('Projects table — compact layout (#1)', () => {
   });
 
   it('UX-020: completed delivery uses success styling rather than risk styling', () => {
-    projectsState.data = [{ ...seed[0], status: 'Close Out' }] as unknown as ProjectWithRefs[];
-    deliverySummaryState.p1 = { deliveryPct: 100, committedSpend: 2_100_000, budget: 4_700_000 };
-    renderPage();
-    expect(screen.getByLabelText('Delivery 100%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-success');
+    const previousDelivery = deliverySummaryState.p1;
+    try {
+      projectsState.data = [{ ...seed[0], status: 'Close Out' }] as unknown as ProjectWithRefs[];
+      deliverySummaryState.p1 = { deliveryPct: 100, committedSpend: 2_100_000, budget: 4_700_000 };
+      renderPage();
+      expect(screen.getByLabelText('Delivery 100%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-success');
+    } finally {
+      deliverySummaryState.p1 = previousDelivery;
+    }
   });
 
   it('UX-019: project identity leads with name and customer while secondary references are disclosed', async () => {
@@ -871,7 +895,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     expect(screen.getAllByText('Site Owner Beta').length).toBeGreaterThan(0);
   });
 
-  it('UX-021: end-customer choices come from project associations, not unrelated companies', async () => {
+  it('RF-012: end-customer choices come from project associations, not unrelated companies', async () => {
     companiesState.data = [
       ...companiesState.data,
       { id: '9c9c9c9c-0000-4000-8000-0000000000c3', name: 'Unrelated Supplier', type: 'Vendor' },
