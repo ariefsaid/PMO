@@ -248,7 +248,7 @@ else if (args.some(a => a === 'apikey: service')) {
   const entry = JSON.parse(fs.readFileSync(process.env.PROBE_DENOM)).rpcs?.find(r => r.name === fn);
   const expected = entry?.expect_denial?.[0];
   if (expected) { code = expected.http; body = {code: expected.sqlstate}; }
-  else body = fn === 'org_has_member_email' ? false : [];
+  else body = ['org_has_member_email', 'org_reads_erp_ledger'].includes(fn) ? false : [];
   if ((fn === 'org_credit_balance' && mode === 'unexpected-rpc') || (fn === 'activate_budget_version' && mode === 'unexpected-verified-target')) {code = 500; body = {code:'P0002'};}
   if (fn === 'org_credit_balance' && mode === 'run-401') {code = 401; body = {code:'42501'};}
   if (fn === 'org_credit_balance' && mode === 'unexpected-empty') {code = 200; body = null;}

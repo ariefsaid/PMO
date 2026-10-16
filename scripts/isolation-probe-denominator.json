@@ -1,114 +1,877 @@
 {
   "tables": [
-    {"table":"agent_attachments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_automation_fires","has_org":false,"pk":"automation_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"agent_automations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_dispatch_watermarks","has_org":false,"pk":"source","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"agent_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_runs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_threads","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_usage","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"alert_send_log","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"audit_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"boq_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_category_account_map","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_line_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_projections","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_version_account_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_version_editors","has_org":true,"pk":"budget_version_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_version_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_version_document_links","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"budget_versions","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"clickup_webhook_inbox","has_org":false,"pk":"id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"comments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"companies","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"contacts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"credit_reservations","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"credits","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"crm_activities","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_account_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_actuals_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_ap_aging_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_ar_aging_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_employees","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_gl_entry_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_payment_ledger_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_sweep_lock","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"error_events","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"expense_account_map","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"expense_advance_returns","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"expense_claim_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"expense_claim_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"expense_claims","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"expense_posting_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_command_outbox","has_org":true,"pk":"id","columns":"id,org_id,domain,pmo_record_id,external_tier,operation,state,external_record_id,canonical,payload,payload_digest,attempt_count,claim_generation,claimed_at,reconcile_after,last_error,actor_user_id,created_at,updated_at","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_domain_ownership","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_org_bindings","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_project_bindings","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_ref_lineage","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_reference_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_refs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"external_sync_watermarks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"fx_rates","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"incident_reports","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"incoming_payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"m365_pkce_states","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"meeting_access_grants","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"meeting_attendees","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"meetings","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"ms_graph_connections","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"notifications","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"ops_job_heartbeats","has_org":false,"pk":"job_name","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"org_features","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"org_m365_document_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"organizations","has_org":false,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"payment_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"pipeline_stage_config","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"platform_operators","has_org":false,"pk":"user_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"procurement_doc_counters","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_invoice_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_invoices","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_quotation_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_quotations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_receipt_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_receipts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurement_status_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"procurements","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"profiles","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"progress_assessment_quantities","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"progress_claim_evidence","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"progress_claim_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"progress_claims","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"project_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"project_milestones","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"project_number_counters","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
-    {"table":"project_progress_entries","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"projects","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"purchase_order_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"purchase_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"purchase_request_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"purchase_requests","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"record_changes","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"record_history_config","has_org":false,"pk":"entity_type","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"request_rate_counters","has_org":false,"pk":"bucket_key","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
-    {"table":"rfq_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"rfqs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"sales_invoice_authors","has_org":true,"pk":"sales_invoice_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"sales_invoice_submit_authorizations","has_org":true,"pk":"sales_invoice_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"sales_invoices","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"spend_approvers","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"task_dependencies","has_org":true,"pk":"task_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"tasks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"timesheet_entries","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"timesheet_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"timesheets","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"user_views","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"vendor_withholding_slip_bills","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"vendor_withholding_slips","has_org":true,"pk":"id","columns":"id,org_id,vendor_id,slip_number,slip_date,tax_period,pph_type,currency,tax_base,withheld_amount,invoice_count,status,revision,created_by,created_at,updated_at,voided_by,voided_at,void_reason","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+    {
+      "table": "agent_attachments",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "agent_automation_fires",
+      "has_org": false,
+      "pk": "automation_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "agent_automations",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "agent_dispatch_watermarks",
+      "has_org": false,
+      "pk": "source",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "agent_events",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "agent_runs",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "agent_threads",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "agent_usage",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "alert_send_log",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "audit_events",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "boq_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_category_account_map",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_line_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_projections",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_version_account_erp_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_version_editors",
+      "has_org": true,
+      "pk": "budget_version_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_version_erp_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_version_document_links",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "budget_versions",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "clickup_webhook_inbox",
+      "has_org": false,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "comments",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "companies",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "contacts",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "credit_reservations",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "credits",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "crm_activities",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_account_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_actuals_snapshot",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_ap_aging_snapshot",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_ar_aging_snapshot",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_employees",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_gl_entry_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_payment_ledger_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "erp_sweep_lock",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "error_events",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_account_map",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_advance_returns",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_claim_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_claim_lines",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_claims",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "expense_posting_erp_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_command_outbox",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id,domain,pmo_record_id,external_tier,operation,state,external_record_id,canonical,payload,payload_digest,attempt_count,claim_generation,claimed_at,reconcile_after,last_error,actor_user_id,created_at,updated_at",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_domain_ownership",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_org_bindings",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_project_bindings",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_ref_lineage",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_reference_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_refs",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "external_sync_watermarks",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "fx_rates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "incident_reports",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "incoming_payments",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "m365_pkce_states",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "meeting_access_grants",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "meeting_attendees",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "meetings",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "ms_graph_connections",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "notifications",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "ops_job_heartbeats",
+      "has_org": false,
+      "pk": "job_name",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "org_features",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "org_m365_document_settings",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "organizations",
+      "has_org": false,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "payment_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "payments",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "pipeline_stage_config",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "platform_operators",
+      "has_org": false,
+      "pk": "user_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "procurement_doc_counters",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_documents",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_invoice_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_invoices",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_quotation_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_quotations",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_receipt_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_receipts",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurement_status_events",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "procurements",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "profiles",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "progress_assessment_quantities",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "progress_claim_evidence",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "progress_claim_lines",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "progress_claims",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "project_documents",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "project_milestones",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "project_number_counters",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "project_progress_entries",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "projects",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "purchase_order_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "purchase_orders",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "purchase_request_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "purchase_requests",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "record_changes",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "record_history_config",
+      "has_org": false,
+      "pk": "entity_type",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "request_rate_counters",
+      "has_org": false,
+      "pk": "bucket_key",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no org_id; blind read covers the declared B visibility"
+    },
+    {
+      "table": "rfq_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "rfqs",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "sales_invoice_authors",
+      "has_org": true,
+      "pk": "sales_invoice_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "sales_invoice_submit_authorizations",
+      "has_org": true,
+      "pk": "sales_invoice_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "sales_invoices",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "spend_approvers",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "task_dependencies",
+      "has_org": true,
+      "pk": "task_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "tasks",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "timesheet_entries",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "timesheet_erp_mirror",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "timesheets",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "user_views",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "vendor_withholding_slip_bills",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "vendor_withholding_slips",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id,vendor_id,slip_number,slip_date,tax_period,pph_type,currency,tax_base,withheld_amount,invoice_count,status,revision,created_by,created_at,updated_at,voided_by,voided_at,void_reason",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "work_orders",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
   ],
   "definer_functions": [
     "_m365_disconnect_cascade_core(uuid,uuid,text,uuid)",
@@ -121,23 +884,23 @@
     "approved_timesheet_for_push(uuid,uuid)",
     "assert_is_active_member(uuid)",
     "assert_org_destroyable(uuid)",
+    "assign_sales_invoice_project(uuid,uuid)",
     "attach_claim_evidence(uuid,uuid)",
     "attest_timesheet_no_erp_document(uuid,text)",
     "audit_agent_denial(text,jsonb)",
     "audit_m365_event(text,uuid,uuid,uuid,jsonb)",
-    "assign_sales_invoice_project(uuid,uuid)",
     "auth_org_id()",
     "auth_role()",
     "budget_activation_mode(uuid)",
     "can_read_meeting(uuid)",
     "cancel_native_receipt(uuid)",
     "capture_vendor_invoice(uuid,procurement_invoice_status,date,text,numeric,text,text,numeric,numeric,text,integer,integer,text,numeric,text)",
+    "claim_erp_sweep_lock(uuid,uuid,interval)",
     "claim_outbox_for_commit(uuid,interval)",
     "claim_sales_invoice_author(uuid)",
     "cleanup_external_connect_attempt(uuid,text,text,uuid)",
     "clickup_sweep_tick()",
     "clickup_webhook_worker_tick()",
-    "claim_erp_sweep_lock(uuid,uuid,interval)",
     "clone_budget_version(uuid)",
     "confirm_erp_employee_link(uuid,uuid)",
     "confirm_outbox(uuid,integer)",
@@ -155,8 +918,8 @@
     "deactivate_external_binding(uuid,text,uuid)",
     "delete_vault_secret(text)",
     "erpnext_sweep_tick()",
-    "finalize_external_connect(uuid,text,text,boolean,boolean,uuid)",
     "fill_sales_invoice_project(uuid,uuid,uuid,text)",
+    "finalize_external_connect(uuid,text,text,boolean,boolean,uuid)",
     "get_process_gates(uuid)",
     "get_project_vat_editability(uuid)",
     "grant_sales_invoice_submit_clearance(uuid,uuid,uuid)",
@@ -198,6 +961,7 @@
     "org_feature_enabled(uuid,text)",
     "org_has_feature(uuid,text)",
     "org_has_member_email(uuid,text)",
+    "org_reads_erp_ledger()",
     "org_usage_summary()",
     "outbox_reconcile_candidates(uuid)",
     "propose_project_number(uuid)",
@@ -275,38 +1039,473 @@
     "project-documents"
   ],
   "rpcs": [
-    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0298_budget_sole_operator_activation.sql:47"]},
-    {"name":"assign_sales_invoice_project","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0290_project_finances.sql:83","supabase/migrations/0290_project_finances.sql:86","supabase/migrations/0290_project_finances.sql:88","supabase/migrations/0290_project_finances.sql:92"]},
-    {"name":"org_credit_balance","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0067_org_credit_balance.sql:24"]},
-    {"name":"operator_usage_summary","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:26"]},
-    {"name":"operator_agent_run_stats","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0217_operator_readers_raise.sql:58"]},
-    {"name":"operator_list_orgs","class":"inert","expect_denial":[],"source":["supabase/migrations/0069_usage_summary_rpcs.sql:67"],"shape":"empty-array"},
-    {"name":"org_has_member_email","class":"inert","expect_denial":[],"source":["supabase/migrations/0214_member_email_probe_pinned.sql:22"],"shape":"false"},
-    {"name":"get_process_gates","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0130_si_rpcs_active_member.sql:56"]},
-    {"name":"actor_authorization_state","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0135_tier_scoped_ownership_and_actor_state.sql:74"]},
-    {"name":"admin_set_user_status","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0065_admin_set_user_status.sql:56"]},
-    {"name":"audit_m365_event","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0211_audit_m365_event_service_only.sql:11"]},
-    {"name":"cancel_native_receipt","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0275_native_revenue.sql:497"]},
-    {"name":"capture_vendor_invoice","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0180_rpc_active_member_gate.sql:686","supabase/migrations/0273_vendor_tax_defaults.sql:292"]},
-    {"name":"correct_vendor_withholding_slip","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0281_vendor_withholding_slips.sql:176","supabase/migrations/0281_vendor_withholding_slips.sql:173"]},
-    {"name":"create_native_sales_invoice","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0275_native_revenue.sql:266","supabase/migrations/0275_native_revenue.sql:218"]},
-    {"name":"create_procurement_invoice","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0273_vendor_tax_defaults.sql:232"]},
-    {"name":"create_progress_claim","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0262_billing_by_work_order.sql:466","supabase/migrations/0262_billing_by_work_order.sql:456"]},
-    {"name":"create_vault_secret_for_org","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0180_rpc_active_member_gate.sql:1053"]},
-    {"name":"m365_disconnect_cascade","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0111_m365_cascade_triggers.sql:96"]},
-    {"name":"operator_grant_credits","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0076_audit_events.sql:150"]},
-    {"name":"operator_toggle_feature","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0070_org_features.sql:80"]},
-    {"name":"record_expense_advance_return","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0270_expense_postings.sql:62"]},
-    {"name":"record_native_receipt","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0275_native_revenue.sql:419"]},
-    {"name":"record_vendor_withholding_slip","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0281_vendor_withholding_slips.sql:144","supabase/migrations/0281_vendor_withholding_slips.sql:119"]},
-    {"name":"reserve_credits","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0077_reserve_credits.sql:78"]},
-    {"name":"claim_erp_sweep_lock","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0294_statement_account_source.sql:49"]},
-    {"name":"release_erp_sweep_lock","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0294_statement_account_source.sql:50"]},
-    {"name":"replace_erp_account_chart","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0296_replace_erp_account_chart.sql:53"]},
-    {"name":"set_procurement_invoice_efaktur","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0272_efaktur_number.sql:120"]},
-    {"name":"set_sales_invoice_efaktur","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0272_efaktur_number.sql:70"]},
-    {"name":"set_vendor_tax_defaults","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0273_vendor_tax_defaults.sql:98","supabase/migrations/0273_vendor_tax_defaults.sql:94"]},
-    {"name":"transition_native_sales_invoice","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0275_native_revenue.sql:335"]},
-    {"name":"void_vendor_withholding_slip","class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0281_vendor_withholding_slips.sql:198","supabase/migrations/0281_vendor_withholding_slips.sql:195"]}
+    {
+      "name": "activate_budget_version",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0298_budget_sole_operator_activation.sql:47"
+      ]
+    },
+    {
+      "name": "actor_authorization_state",
+      "class": "inert",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0135_tier_scoped_ownership_and_actor_state.sql:74"
+      ]
+    },
+    {
+      "name": "admin_set_user_status",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0065_admin_set_user_status.sql:56"
+      ]
+    },
+    {
+      "name": "assign_sales_invoice_project",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        },
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0290_project_finances.sql:83",
+        "supabase/migrations/0290_project_finances.sql:86",
+        "supabase/migrations/0290_project_finances.sql:88",
+        "supabase/migrations/0290_project_finances.sql:92"
+      ]
+    },
+    {
+      "name": "audit_m365_event",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0211_audit_m365_event_service_only.sql:11"
+      ]
+    },
+    {
+      "name": "cancel_native_receipt",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0275_native_revenue.sql:497"
+      ]
+    },
+    {
+      "name": "capture_vendor_invoice",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0180_rpc_active_member_gate.sql:686",
+        "supabase/migrations/0273_vendor_tax_defaults.sql:292"
+      ]
+    },
+    {
+      "name": "claim_erp_sweep_lock",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0294_statement_account_source.sql:49"
+      ]
+    },
+    {
+      "name": "correct_vendor_withholding_slip",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0281_vendor_withholding_slips.sql:176",
+        "supabase/migrations/0281_vendor_withholding_slips.sql:173"
+      ]
+    },
+    {
+      "name": "create_native_sales_invoice",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0275_native_revenue.sql:266",
+        "supabase/migrations/0275_native_revenue.sql:218"
+      ]
+    },
+    {
+      "name": "create_procurement_invoice",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0273_vendor_tax_defaults.sql:232"
+      ]
+    },
+    {
+      "name": "create_progress_claim",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0262_billing_by_work_order.sql:466",
+        "supabase/migrations/0262_billing_by_work_order.sql:456"
+      ]
+    },
+    {
+      "name": "create_vault_secret_for_org",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0180_rpc_active_member_gate.sql:1053"
+      ]
+    },
+    {
+      "name": "get_process_gates",
+      "class": "inert",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0130_si_rpcs_active_member.sql:56"
+      ]
+    },
+    {
+      "name": "m365_disconnect_cascade",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0111_m365_cascade_triggers.sql:96"
+      ]
+    },
+    {
+      "name": "operator_agent_run_stats",
+      "class": "inert",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0217_operator_readers_raise.sql:58"
+      ]
+    },
+    {
+      "name": "operator_grant_credits",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0076_audit_events.sql:150"
+      ]
+    },
+    {
+      "name": "operator_list_orgs",
+      "class": "inert",
+      "expect_denial": [],
+      "source": [
+        "supabase/migrations/0069_usage_summary_rpcs.sql:67"
+      ],
+      "shape": "empty-array"
+    },
+    {
+      "name": "operator_toggle_feature",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0070_org_features.sql:80"
+      ]
+    },
+    {
+      "name": "operator_usage_summary",
+      "class": "inert",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0217_operator_readers_raise.sql:26"
+      ]
+    },
+    {
+      "name": "org_credit_balance",
+      "class": "inert",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0067_org_credit_balance.sql:24"
+      ]
+    },
+    {
+      "name": "org_has_member_email",
+      "class": "inert",
+      "expect_denial": [],
+      "source": [
+        "supabase/migrations/0214_member_email_probe_pinned.sql:22"
+      ],
+      "shape": "false"
+    },
+    {
+      "name": "org_reads_erp_ledger",
+      "class": "read",
+      "expect_denial": [],
+      "source": [
+        "supabase/migrations/0307_erp_ledger_basis.sql:2"
+      ],
+      "shape": "boolean"
+    },
+    {
+      "name": "record_expense_advance_return",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0270_expense_postings.sql:62"
+      ]
+    },
+    {
+      "name": "record_native_receipt",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0275_native_revenue.sql:419"
+      ]
+    },
+    {
+      "name": "record_vendor_withholding_slip",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0281_vendor_withholding_slips.sql:144",
+        "supabase/migrations/0281_vendor_withholding_slips.sql:119"
+      ]
+    },
+    {
+      "name": "release_erp_sweep_lock",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0294_statement_account_source.sql:50"
+      ]
+    },
+    {
+      "name": "replace_erp_account_chart",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0296_replace_erp_account_chart.sql:53"
+      ]
+    },
+    {
+      "name": "reserve_credits",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0077_reserve_credits.sql:78"
+      ]
+    },
+    {
+      "name": "set_procurement_invoice_efaktur",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0272_efaktur_number.sql:120"
+      ]
+    },
+    {
+      "name": "set_sales_invoice_efaktur",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0272_efaktur_number.sql:70"
+      ]
+    },
+    {
+      "name": "set_vendor_tax_defaults",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0273_vendor_tax_defaults.sql:98",
+        "supabase/migrations/0273_vendor_tax_defaults.sql:94"
+      ]
+    },
+    {
+      "name": "transition_native_sales_invoice",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0275_native_revenue.sql:335"
+      ]
+    },
+    {
+      "name": "void_vendor_withholding_slip",
+      "class": "write",
+      "expect_denial": [
+        {
+          "http": 500,
+          "sqlstate": "P0002"
+        },
+        {
+          "http": 403,
+          "sqlstate": "42501"
+        }
+      ],
+      "source": [
+        "supabase/migrations/0281_vendor_withholding_slips.sql:198",
+        "supabase/migrations/0281_vendor_withholding_slips.sql:195"
+      ]
+    }
   ]
 }

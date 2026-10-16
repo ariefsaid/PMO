@@ -21,8 +21,9 @@ values ('02970000-0000-0000-0000-0000000000b1','02970000-0000-0000-0000-00000000
 insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount)
 values ('02970000-0000-0000-0000-0000000000c1','02970000-0000-0000-0000-000000000001',
         '02970000-0000-0000-0000-0000000000b1','Labor','Draft estimate',1000);
-insert into public.external_domain_ownership (org_id,external_tier,domain)
-values ('02970000-0000-0000-0000-000000000001','erpnext','ledger::gl_entries');
+insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
+values ('02970000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active',
+        '02970000-0000-0000-0000-0000000000a1',now());
 insert into public.organizations (id,name)
 values ('02970000-0000-0000-0000-000000000002','Foreign dashboard org');
 insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,

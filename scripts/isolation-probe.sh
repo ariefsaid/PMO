@@ -111,6 +111,11 @@ rpc(){
       jq -e 'true' "$BODY" >/dev/null 2>&1 || { probe_error "rpc $fn invalid JSON"; return; }
       shape=$(jq -r '.shape // ""' <<< "$spec")
       if [ -n "$shape" ] && [ "$code" != 200 ]; then probe_error "rpc $fn unexpected shape HTTP $code"; return; fi
+      if [ "$rpc_class" = read ]; then
+        jq -e 'type=="boolean"' "$BODY" >/dev/null || { probe_error "rpc $fn expected boolean"; return; }
+        say "  PASS  rpc $fn (own-org boolean read)" >&2
+        return
+      fi
       if [ "$shape" = empty-array ]; then
         jq -e 'type=="array"' "$BODY" >/dev/null || { probe_error "rpc $fn expected empty array"; return; }
         jq -e 'length==0' "$BODY" >/dev/null && { say "  EXPECTED-DENIAL  rpc $fn" >&2; return; }
@@ -129,6 +134,7 @@ rpc(){
 }
 A_PROFILE=$(jq -r '.[]|select(.table=="profiles")|.id' "$A_ROWS_JSON")
 A_PROC=$(jq -r '.[]|select(.table=="procurements")|.id' "$A_ROWS_JSON")
+c=$(rpc org_reads_erp_ledger "{}")
 c=$(rpc org_credit_balance "{\"p_org_id\":\"$A_ORG\"}")
 c=$(rpc operator_usage_summary "{\"p_org_id\":\"$A_ORG\"}")
 c=$(rpc operator_agent_run_stats "{\"p_org_id\":\"$A_ORG\"}")
