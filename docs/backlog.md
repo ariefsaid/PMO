@@ -40,6 +40,9 @@ labels (#1022 + #1024, 0289, UXS-031).
 values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app
 operator work (outcomes, budget account map, budget activation by a second person, ERPNext project links).
 
+**First after v0.22.0 (owner 2026-10-16):** #1071 (test hygiene) · #1073 (small correctness fixes) — then the
+UX waves 3–4 queue (docs/ux/2026-10-16-fix-backlog.md).
+
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
 request-review handoff (**needs a spec**) · #981 zero-credit help (**blocked on an owner fact**). Larger programs,
