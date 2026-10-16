@@ -21,6 +21,26 @@ async function aboveFold(page: Page, target: Locator) {
   })).toBe(true);
 }
 
+test.describe('UX-006: effective phone action targets', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('the routine phase-edit action receives the coarse-pointer hit area', async ({ page }) => {
+    await login(page, 'pm@acme.test');
+    await page.goto(`${projectPath}/overview`);
+    const edit = page.getByRole('button', { name: 'Edit progress for Engineering Design', exact: true });
+    await expect(edit).toBeVisible();
+    const hitArea = await edit.evaluate((el) => {
+      const pseudo = getComputedStyle(el, '::before');
+      const box = el.getBoundingClientRect();
+      const height = Math.max(parseFloat(pseudo.height), parseFloat(pseudo.minHeight));
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top - 1);
+      return { height, extendedHitTargetsButton: hit === el };
+    });
+    expect(hitArea.height).toBeGreaterThanOrEqual(44);
+    expect(hitArea.extendedHitTargetsButton).toBe(true);
+  });
+});
+
 for (const role of ['pm', 'finance'] as const) {
   test(`UIP-006: ${role} contract and committed KPI value tops align at 1440px`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
