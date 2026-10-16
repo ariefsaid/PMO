@@ -72,6 +72,7 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
@@ -452,6 +453,18 @@ it('S-18 RF-042: the caught-up empty state scopes the claim to PMO and points ER
   expect(caughtUp).toHaveTextContent(/purchase requests/i);
   expect(caughtUp).toHaveTextContent(/timesheets/i);
   expect(caughtUp).not.toHaveTextContent(/customer invoices/i);
+});
+
+it('S-18: Finance sees only approval kinds that Finance can act on', () => {
+  authState.role = 'Finance';
+  queryState.data = [];
+  procState.data = [];
+  renderPage('all');
+  const caughtUp = screen.getByTestId('approvals-caught-up');
+  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/expense claims/i);
+  expect(caughtUp).toHaveTextContent(/customer invoices/i);
+  expect(caughtUp).not.toHaveTextContent(/timesheets/i);
 });
 
 // ---------------------------------------------------------------------------

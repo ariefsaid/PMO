@@ -510,6 +510,8 @@
       "title": "Confirm what ERPNext holds"
     },
     "caughtUp": {
+      "and": "and",
+      "noKinds": "approvals",
       "sub": "Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.",
       "title": "You’re all caught up"
     },

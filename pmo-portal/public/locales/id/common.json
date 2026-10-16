@@ -510,6 +510,8 @@
       "title": "Konfirmasi apa yang tercatat di ERPNext"
     },
     "caughtUp": {
+      "and": "dan",
+      "noKinds": "persetujuan",
       "sub": "Tidak ada yang menunggu persetujuan Anda di PMO saat ini. {{kinds}} baru yang dibuat di PMO akan muncul di sini. Dokumen yang dibuat langsung di ERPNext disetujui di ERPNext.",
       "title": "Semua sudah beres"
     },

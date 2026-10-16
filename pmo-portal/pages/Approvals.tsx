@@ -618,6 +618,8 @@ const ApprovalsPage: React.FC = () => {
 
   const canApproveProcurement = may('transition', 'procurement');
   const canApproveTimesheets = may('transition', 'approval');
+  const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
+  const canApproveInvoices = may('transition', 'salesInvoice');
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
@@ -626,10 +628,10 @@ const ApprovalsPage: React.FC = () => {
   const invoices = useInvoicesAwaitingViewer();
   const expenseQuery = useExpenseClaimsAwaitingDecision();
   const expenseRows = useMemo(
-    () => canApproveProcurement
+    () => canApproveExpenses
       ? claimsAwaitingViewer(expenseQuery.data ?? [], selfId, realRole)
       : [],
-    [canApproveProcurement, expenseQuery.data, selfId, realRole],
+    [canApproveExpenses, expenseQuery.data, selfId, realRole],
   );
 
   const procurementRows = useMemo(
@@ -641,13 +643,13 @@ const ApprovalsPage: React.FC = () => {
   const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
   const timesheetBulk = useTimesheetBulkApprove(timesheetRows);
 
-  const canShowExpenses = canApproveProcurement && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
-  const canShowInvoices = invoices.rows.length > 0 || invoices.isPending || invoices.isError;
+  const canShowExpenses = canApproveExpenses && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
+  const canShowInvoices = canApproveInvoices && (invoices.rows.length > 0 || invoices.isPending || invoices.isError);
   const availableKinds: Scope[] = [
     ...(canApproveProcurement ? ['procurement' as const] : []),
     ...(canApproveTimesheets ? ['timesheets' as const] : []),
-    ...(canShowExpenses ? ['expense' as const] : []),
-    ...(canShowInvoices ? ['invoice' as const] : []),
+    ...(canApproveExpenses ? ['expense' as const] : []),
+    ...(canApproveInvoices && invoices.enabled !== false ? ['invoice' as const] : []),
   ];
   const availableScopes: Scope[] = [
     ...(availableKinds.length > 1 ? (['all'] as const) : []),
@@ -692,8 +694,13 @@ const ApprovalsPage: React.FC = () => {
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
   };
-  // Mirror the actual scopes available to this viewer; do not claim inaccessible types are in this inbox.
-  const caughtUpKinds = availableKinds.map((kind) => scopeLabels[kind].toLowerCase()).join(', ');
+  // Only name queues this viewer can act on; the empty state must not imply inaccessible work is theirs.
+  const caughtUpLabels = availableKinds.map((kind) => scopeLabels[kind].toLowerCase());
+  const caughtUpKinds = caughtUpLabels.length === 0
+    ? t('approvals.caughtUp.noKinds', 'approvals')
+    : caughtUpLabels.length === 1
+      ? caughtUpLabels[0]
+      : `${caughtUpLabels.slice(0, -1).join(', ')} ${t('approvals.caughtUp.and', 'and')} ${caughtUpLabels[caughtUpLabels.length - 1]}`;
 
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
