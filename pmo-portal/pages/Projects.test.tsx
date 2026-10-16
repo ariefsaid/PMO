@@ -923,6 +923,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     projectsState.data = seed as unknown as ProjectWithRefs[];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
+    expect(screen.getByRole('button', { name: /hide empty columns/i })).toBeInTheDocument();
     await userEvent.type(screen.getByRole('searchbox', { name: /search projects/i }), 'no matching project');
     expect(screen.getByText('No projects match these filters')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
