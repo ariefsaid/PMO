@@ -7,6 +7,8 @@ import {
   type ProcurementWithRefs,
 } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
+import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { repositories } from '@/src/lib/repositories';
 
 /**
  * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
@@ -43,14 +45,31 @@ export function useProjectProcurements(projectId: string | null | undefined) {
  * Committed spend for ONE project (OD-W5-4): Σ PO total_value in Ordered..Paid — the same basis the
  * dashboards use. Powers the DecisionSupportPanel's "Committed spend" figure. Org-scoped via RLS.
  */
-export function useProjectCommittedSpend(projectId: string | null | undefined) {
+export type CommitmentSource = 'pmo' | 'not-tracked' | 'unavailable';
+
+export function useProjectCommittedSpend(projectId: string | null | undefined, includeOwnership = false) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<number>({
+  const query = useQuery<number>({
     queryKey: ['project-committed-spend', orgId, projectId],
     queryFn: () => getProjectCommittedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
+  const ownership = useExternalDomainOwnership(includeOwnership);
+  const ledger = useQuery<boolean>({
+    queryKey: ['org-reads-erp-ledger', orgId],
+    queryFn: () => repositories.revenue.getOrgReadsErpLedger(),
+    enabled: Boolean(orgId && includeOwnership),
+  });
+  const commitmentSource: CommitmentSource | undefined = !includeOwnership
+    ? undefined
+    : ownership.isPending || ownership.isError || !ownership.data
+      ? 'unavailable'
+      : ownership.data.some((row) => row.domain === 'procurement') ? 'not-tracked' : 'pmo';
+  const ledgerBasis = !includeOwnership || ledger.isPending || ledger.isError || ledger.data === undefined
+    ? 'unavailable' as const
+    : ledger.data ? 'erp' as const : 'pmo' as const;
+  return { ...query, commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError };
 }
 
 /**

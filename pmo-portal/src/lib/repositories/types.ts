@@ -537,6 +537,8 @@ export interface RevenueRepository {
   setProject(siId: string, projectId: string): Promise<void>;
   /** Checked project-scoped finance payload from the invoker read RPC. */
   getProjectFinances(projectId: string): Promise<ProjectFinances>;
+  /** Server-authoritative, caller-org ERP ledger basis signal. */
+  getOrgReadsErpLedger(): Promise<boolean>;
 
 }
 

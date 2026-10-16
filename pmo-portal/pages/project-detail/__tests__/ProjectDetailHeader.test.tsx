@@ -38,7 +38,18 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop
 // B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
 // budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
 // stale stored budget 4_700_000 on the onHand fixture).
-const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false } }));
+const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false, isError: false } }));
+const { financeBox } = vi.hoisted(() => ({
+  financeBox: {
+    data: {
+      actuals: {
+        currency: 'USD', total: '1800000.00', excludes_restricted_rows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' as string | null }],
+      },
+    },
+  },
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetBox,
 }));
@@ -85,12 +96,12 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
-const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000) => {
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
   roleBox.value = role;
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectDetailHeader project={project} committedSpend={committedSpend} />
+        <ProjectDetailHeader project={project} committedSpend={committedSpend} commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -99,12 +110,16 @@ const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHan
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
+  financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
   vatBox.data = { eligible: true, reason: null, hasInvoices: false };
   vatBox.isPending = false;
   vatBox.isFetching = false;
   vatBox.isError = false;
   vatBox.refetch.mockReset();
   desktopBox.value = true;
+  budgetBox.data = 4_200_000;
+  budgetBox.isPending = false;
+  budgetBox.isError = false;
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -128,7 +143,7 @@ describe('ProjectDetailHeader — content', () => {
 
   it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
     desktopBox.value = false;
-    renderHeader('Finance');
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
     const disclosure = screen.getByText('Financial summary').closest('details');
     expect(disclosure).not.toHaveAttribute('open');
     expect(screen.getByText('$5,000,000')).not.toBeVisible();
@@ -137,9 +152,9 @@ describe('ProjectDetailHeader — content', () => {
     expect(disclosure).toHaveAttribute('open');
     expect(screen.getByText('$5,000,000')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
-    expect(disclosure).toHaveTextContent('Committed$2,100,000');
-    expect(disclosure).toHaveTextContent('Actual$2,100,000');
-    expect(disclosure).toHaveTextContent('On-hand margin$2,900,000');
+    expect(disclosure).toHaveTextContent('PMO purchase orders$2,100,000');
+    expect(disclosure).toHaveTextContent('Actual$2,100,000.00');
+    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000.00');
     expect(disclosure).toHaveTextContent('Spend50%');
   });
 
@@ -192,12 +207,36 @@ describe('ProjectDetailHeader — content', () => {
     renderHeader();
     expect(screen.getByText('Contract')).toBeInTheDocument();
     expect(screen.getByText('Actual')).toBeInTheDocument();
-    expect(screen.getByText('On-hand margin')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.getAllByText('$5,000,000').length).toBeGreaterThan(0);
-    expect(screen.getByText('$2,900,000')).toBeInTheDocument();
+    expect(screen.getByText('$3,200,000.00')).toBeInTheDocument();
   });
 
-  it('shows a negative committed margin with a true minus glyph and destructive tone (edge)', () => {
+  it('does not call an unknown contract value zero or claim no active budget while its read is pending', () => {
+    budgetBox.data = undefined;
+    budgetBox.isPending = true;
+    renderHeader('Project Manager', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Loading budget…')).toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+  });
+
+  it('DD-MONEY-3 does not show zero PMO commitments when procurement is ERP-owned', () => {
+    renderHeader('Project Manager', onHand, 0, 'not-tracked');
+    expect(screen.getByText('Not tracked in PMO yet')).toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('uses a named contract-after-cost measure and never calls it margin (UX-022, DD-MONEY-2)', () => {
+    budgetBox.data = undefined;
+    renderHeader('Project Manager', onHand, 0);
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+  });
+
+  it('shows a negative contract-after-cost figure with a true minus glyph and destructive tone (edge)', () => {
+    financeBox.data.actuals.total = '6000000.00';
     renderHeader('Project Manager', onHand, 6_000_000);
     expect(screen.getByText(/−\$1,000,000/)).toBeInTheDocument();
   });
@@ -484,6 +523,8 @@ describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => 
     // committedSpend=500_000 → real Spend% = 50%; if dead column used → 0%.
     const zeroStoredBudget = { ...onHand, budget: 0 } as unknown as ProjectWithRefs;
     budgetBox.data = 1_000_000; // derived budget from useProjectBudget
+    financeBox.data.actuals.total = '500000.00';
+    financeBox.data.actuals.categories[0].amount = '500000.00';
 
     renderHeader('Project Manager', zeroStoredBudget, 500_000);
 
@@ -503,25 +544,55 @@ describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => 
   });
 });
 
-// ── AC-MONEY-01: Actual tile derives from committedSpend, not project.spent ──
-describe('ProjectDetailHeader — Actual tile derives from committedSpend (AC-MONEY-01)', () => {
-  // The bug: project.spent is a dead stored column (always 0 in production).
-  // committedSpend is the live Ordered..Paid procurement sum. The Actual tile
-  // must display committedSpend so it shows real realized spend, not $0.
+// ── DD-MONEY-1: Actual follows complete mapped project-finances data ──
+describe('ProjectDetailHeader — Actual tile derives from mapped project finances (DD-MONEY-1)', () => {
+  // The dead stored project.spent field and separate committed PO total must not drive Actual.
   const deadSpentProject = {
     ...onHand,
     spent: 0, // as in production — the dead stored column
   } as unknown as ProjectWithRefs;
 
-  it('AC-MONEY-01: Actual tile shows committedSpend when project.spent is 0 (dead column)', () => {
-    // Cascade Foods case: stored spent=0, but there is a $3.7M Paid PO → committedSpend=3_700_000
-    renderHeader('Project Manager', deadSpentProject, 3_700_000);
-    // Locate the "Actual" stat-tile and verify its value is $3,700,000 (the live basis)
+  it('DD-MONEY-1/A3 withholds PMO Actual until the purchase-order read succeeds', () => {
+    roleBox.value = 'Finance';
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+      commitmentSource="pmo" ledgerBasis="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual).toHaveTextContent('Loading Actual…');
+    expect(actual).not.toHaveTextContent('$2,100,000');
+  });
+
+  it('DD-MONEY-1: ERP Actual keeps its source currency and withholds project-currency ratios', () => {
+    financeBox.data = { actuals: { currency: 'IDR', total: '1800000.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const tiles = Array.from(document.querySelectorAll('[data-testid="stat-tile"]'));
+    const actual = tiles.find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual?.textContent).toContain('IDR');
+    expect(actual?.textContent).toContain('Complete category coverage');
+    expect(screen.getByText('Contract remaining after cost').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Spend').parentElement).toHaveTextContent('Unavailable');
+  });
+
+  it('DD-MONEY-1: incomplete Actuals are never shown as a complete headline amount', () => {
+    financeBox.data.actuals.total = '1780000.00';
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader();
+    const actualTile = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile?.textContent).toContain('Incomplete — see spending details');
+    expect(actualTile?.textContent).not.toContain('$1,780,000');
+  });
+
+  it('DD-MONEY-1: Actual shows complete mapped costs and stays distinct from committed spend', () => {
+    financeBox.data.actuals.total = '3700000.00';
+    financeBox.data.actuals.categories[0].amount = '3700000.00';
+    renderHeader('Project Manager', deadSpentProject, 4_000_000);
+    // Locate the "Actual" stat-tile, which is deliberately not the separate PO total.
     const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
     const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
     expect(actualTile).toBeTruthy();
-    // The tile must show the committed-basis spend ($3,700,000), not the dead stored $0
+    // The tile shows mapped actuals ($3,700,000), not the dead stored $0 or $4m committed amount.
     expect(actualTile!.textContent).toContain('$3,700,000');
+    expect(actualTile!.textContent).not.toContain('$4,000,000');
     expect(actualTile!.textContent).not.toContain('$0');
   });
 });

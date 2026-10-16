@@ -2,14 +2,16 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, type StatTile } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { ProjectFinancesSection } from '../ProjectFinancesSection';
-import { useProjectProcurements } from '@/src/hooks/useProcurements';
+import { useProjectProcurements, type CommitmentSource } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
+import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { deriveActualPosition, deriveContractRemainingFromPosition, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
@@ -19,6 +21,10 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 export interface OverviewTabProps {
   project: ProjectWithRefs;
   committedSpend?: number;
+  commitmentSource?: CommitmentSource;
+  ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
+  commitmentPending?: boolean;
+  commitmentError?: boolean;
   /** Callback to switch to a sibling tab (budget / procurement). */
   setTab?: (tab: 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents') => void;
   /**
@@ -30,12 +36,6 @@ export interface OverviewTabProps {
    * finance-forward roles; the Engineer never gets a contract-value edit control.
    */
   showFinanceSummary?: boolean;
-}
-
-/** Currency with a true minus glyph (U+2212) for negatives (matches header treatment). */
-function signedCurrency(value: number, currency: string): string {
-  if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
-  return formatCurrency(value, currency);
 }
 
 /**
@@ -53,40 +53,62 @@ function signedCurrency(value: number, currency: string): string {
  * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
-const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setTab, showFinanceSummary = false }) => {
-  const { t } = useTranslation();
+const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, commitmentSource = 'unavailable', ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
-  const contract = project.contract_value ?? 0;
-  const committed = committedSpend ?? 0;
+  const { data: projectFinances } = useProjectFinances(project.id);
+  const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
+  const actualPosition = deriveActualPosition({ ledgerBasis,
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
+  const actualSpend = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
+    ? Number(actualPosition.amount) : null;
+  const actualSpendLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+    : ledgerBasis === 'pmo' && commitmentPending
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : t('uxs01.actualUnavailable', 'Unavailable');
+  const actualCoverage = actualPosition.basis === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : actuals?.categories.length
+      ? actuals.categories.every((category) => category.mapped) && !actuals.excludes_restricted_rows
+        ? t('uxs01.completeCoverage', 'Complete category coverage')
+        : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: actuals.categories.filter((category) => category.mapped).length, total: actuals.categories.length })
+      : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
-  // B-0.4: also destructure isPending/isError so the utilization card shows a distinct loading/
-  // error state instead of collapsing pending/error to "$0 of $0" (mirror Budget-snapshot card).
+  // B-0.4: budget state remains distinct from a missing or unavailable Actual reading.
   const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError, refetch: budgetUtilRefetch } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const budgetUtilPctValue = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
-  // AC-W6-IXD-ATRISK (B-1): committed budget-basis util shown when at-risk. Routes through the
-  // shared canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
-  const budgetUtil = isAtRiskByCommitted({
+  const budgetUtilPctValue = actualSpend !== null && activeBudget > 0 ? Math.round((actualSpend / activeBudget) * 100) : null;
+  // The risk gate consumes complete Actual (DD-MONEY-1) and the Active budget; missing Actuals
+  // cannot be promoted to a zero-cost, low-risk result.
+  const budgetUtil = actualSpend !== null && isAtRiskByCommitted({
     status: project.status as string,
     budget: activeBudget,
-    committedSpend: committed,
+    committedSpend: actualSpend,
   })
     ? budgetUtilPctValue
     : null;
 
   // D15: finance summary tile data (only computed when showFinanceSummary is true).
-  const margin = contract - committed;
-  const spendPctTile = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
+  const contractAfterCost = actualPosition.complete
+    ? deriveContractRemainingFromPosition(project.contract_value, actualPosition, project.currency) : null;
+  const contractAfterCostUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
+  const contractAfterCostLabel = contractAfterCost === null
+    ? t('uxs01.actualUnavailable', 'Unavailable')
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
+  const spendPctTile = actualSpend !== null && activeBudget > 0 ? Math.round((actualSpend / activeBudget) * 100) : null;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
         {
           label: t('projectDetail.overview.finance.contract', 'Contract'),
           value: (
             <>
-              <span>{formatCurrency(contract, project.currency)}</span>
+              <span>{project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}</span>
               <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
             </>
           ),
@@ -95,22 +117,38 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="overview-contract-tax-basis" />,
         },
         {
-          label: t('projectDetail.overview.finance.committed', 'Committed'),
-          value: formatCurrency(committed, project.currency),
+          label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+          value: commitmentSource === 'pmo'
+            ? commitmentPending
+              ? t('uxs01.actualLoading', 'Loading Actual…')
+              : commitmentError || committedSpend === undefined
+                ? t('uxs01.actualUnavailable', 'Unavailable')
+                : formatCurrency(committedSpend, project.currency)
+            : commitmentSource === 'not-tracked'
+              ? t('uxs01.notTrackedInPmo', 'Not tracked in PMO yet')
+              : t('uxs01.actualUnavailable', 'Unavailable'),
         },
-        // AC-MONEY-01: "Actual" = committed-PO basis, not dead projects.spent column.
         {
           label: t('projectDetail.overview.finance.actual', 'Actual'),
-          value: formatCurrency(committed, project.currency),
+          value: actualSpendLabel,
+          sub: actualPosition.complete ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</> : undefined,
         },
         {
-          label: t('projectDetail.overview.finance.onHandMargin', 'On-hand margin'),
-          value: signedCurrency(margin, project.currency),
-          tone: margin < 0 ? 'neg' : 'pos',
+          label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+          value: contractAfterCostLabel,
+          ...(contractAfterCostUnits === null ? {} : { tone: contractAfterCostUnits < 0n ? 'neg' as const : 'pos' as const }),
         },
         {
           label: t('projectDetail.overview.finance.spend', 'Spend'),
-          value: `${spendPctTile}%`,
+          value: budgetUtilPending
+            ? t('uxs01.budgetLoading', 'Loading budget…')
+            : budgetUtilError
+              ? t('uxs01.actualUnavailable', 'Unavailable')
+              : activeBudget <= 0
+                ? t('uxs01.noActiveBudget', 'No active budget')
+                : spendPctTile === null
+                  ? t('uxs01.actualUnavailable', 'Unavailable')
+                  : `${spendPctTile}%`,
         },
       ]
     : [];
@@ -128,11 +166,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
 
   // T16/T17 — Budget snapshot
   const { data: budgetVersions, isPending: budgetPending, isError: budgetError, refetch: budgetRefetch } = useBudgetVersions(project.id);
+  const hasActiveBudget = budgetVersions?.some((version) => version.status === 'Active') ?? false;
   const snapshot = useMemo(
-    // AC-MONEY-01: "Actual spent" uses the committed-PO basis (same as the D15 "Actual" tile +
-    // the header), not the dead stored projects.spent column.
-    () => activeSnapshot(budgetVersions ?? [], committed),
-    [budgetVersions, committed],
+    () => actualSpend === null ? null : activeSnapshot(budgetVersions ?? [], actualSpend),
+    [budgetVersions, actualSpend],
   );
 
   return (
@@ -159,7 +196,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   {t('projectDetail.overview.finance.contractValue', 'Contract value')}
                 </span>
                 <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-                  {formatCurrency(contract, project.currency)}
+                  {project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}
                 </span>
                 <TaxBasisLabel
                   treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
@@ -198,17 +235,21 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
             />
           ) : (
             <CardPad className="flex flex-col gap-3">
-              <div className="text-[12px] text-muted-foreground">
-                <span className="font-semibold tabular text-foreground">{formatCurrency(committed, project.currency)}</span>{' '}
-                {t('projectDetail.overview.budgetUtil.of', 'of')}{' '}
-                <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget, project.currency)}</span>{' '}
-                {t('projectDetail.overview.budgetUtil.budgetCommitted', 'budget committed')}
-              </div>
-              <ProgressBar
-                value={budgetUtilPctValue}
-                showValue
-                aria-label={`${t('projectDetail.overview.budgetUtil.barLabel', 'Budget committed')}: ${budgetUtilPctValue}% ${t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}`}
-              />
+              {activeBudget <= 0 ? <p className="text-sm text-muted-foreground">{t('uxs01.noActiveBudget', 'No active budget')}</p>
+                : budgetUtilPctValue === null ? <p className="text-sm text-muted-foreground">{t('uxs01.actualUnavailable', 'Unavailable')}</p>
+                  : <>
+                <div className="text-[12px] text-muted-foreground">
+                  <span className="font-semibold tabular text-foreground">{actualSpendLabel}</span>{' '}
+                  {t('projectDetail.overview.budgetUtil.of', 'of')}{' '}
+                  <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget, project.currency)}</span>{' '}
+                  {t('uxs01.actualUsedAgainstBudget', 'recorded spending against the active budget')}
+                </div>
+                <ProgressBar
+                  value={budgetUtilPctValue}
+                  showValue
+                  aria-label={`${t('uxs01.actualSpending', 'Actual spending')}: ${budgetUtilPctValue}% ${t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}`}
+                />
+              </>}
               {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
                   When at-risk, show the spent/budget figure + the "At risk" flag below the
                   contract bar (the I3 two-metric split: contract bar above, budget below).
@@ -287,8 +328,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               <div className="text-[12px] text-muted-foreground">
                 {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
                 <Trans
-                  i18nKey="projectDetail.overview.procSummary.committedAcross"
-                  defaults="<amount>{{amount}}</amount> committed across {{n}} {{unit}}"
+                  i18nKey="uxs01.totalRequestValueAcross"
+                  defaults="Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
                   values={{
                     amount: formatCurrency(procSummary.committedTotal, project.currency),
                     n: String(procSummary.count),
@@ -364,11 +405,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
             <ListState
               variant="empty"
               icon="inbox"
-              title={t('projectDetail.overview.budgetSnapshot.empty.title', 'No active budget')}
-              sub={t(
-                'projectDetail.overview.budgetSnapshot.empty.sub',
-                'Activate a budget version on the Budget tab to see a snapshot here.',
-              )}
+              title={hasActiveBudget ? t('uxs01.actualUnavailable', 'Unavailable') : t('uxs01.noActiveBudget', 'No active budget')}
+              sub={hasActiveBudget
+                ? t('uxs01.budgetActualUnavailable', 'Actual spending is incomplete, so it cannot be compared with this budget.')
+                : t('projectDetail.overview.budgetSnapshot.empty.sub', 'Activate a budget version on the Budget tab to see a snapshot here.')}
             />
           ) : (
             <CardPad className="flex flex-col gap-3">
@@ -388,15 +428,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                 </div>
                 <div className="col-span-2">
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    {t('projectDetail.overview.budgetSnapshot.variance', 'Variance')}
+                    {t('uxs01.budgetPosition', 'Budget position')}
                   </dt>
                   <dd
                     data-testid="budget-variance"
-                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance > 0 ? ' text-destructive' : ''}`}
+                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance > 0 ? ' text-destructive-text' : ''}`}
                   >
-                    {/* AC-W2-9-02: variance = spent - budget (positive = over-budget, destructive).
-                        Mirror FinanceDashboard VarianceCell: +$X when over, show abs when under. */}
-                    {snapshot.variance > 0 ? '+' : ''}{formatCurrency(snapshot.variance, project.currency)}
+                    {snapshot.variance > 0
+                      ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: formatCurrency(snapshot.variance, project.currency) })
+                      : snapshot.variance < 0
+                        ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: formatCurrency(Math.abs(snapshot.variance), project.currency) })
+                        : t('uxs01.onBudget', 'On budget')}
                   </dd>
                 </div>
               </dl>

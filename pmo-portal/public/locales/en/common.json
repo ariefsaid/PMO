@@ -2424,9 +2424,7 @@
       "taxTreatment": "Tax treatment",
       "tile": {
         "actual": "Actual",
-        "committed": "Committed",
         "contract": "Contract",
-        "margin": "On-hand margin",
         "spend": "Spend"
       },
       "toast": {
@@ -2527,18 +2525,14 @@
         "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
         "empty": {
-          "sub": "Activate a budget version on the Budget tab to see a snapshot here.",
-          "title": "No active budget"
+          "sub": "Activate a budget version on the Budget tab to see a snapshot here."
         },
         "error": "Couldn't load budget",
         "openBudgetTab": "Open Budget tab",
-        "title": "Budget snapshot",
-        "variance": "Variance"
+        "title": "Budget snapshot"
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "barLabel": "Budget committed",
-        "budgetCommitted": "budget committed",
         "error": "Couldn't load budget",
         "of": "of",
         "ofBudget": "of budget",
@@ -2546,11 +2540,9 @@
       },
       "finance": {
         "actual": "Actual",
-        "committed": "Committed",
         "contract": "Contract",
         "contractValue": "Contract value",
         "lockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
-        "onHandMargin": "On-hand margin",
         "readOnly": "Read-only",
         "spend": "Spend",
         "title": "Financial summary"
@@ -2560,7 +2552,6 @@
       },
       "procSummary": {
         "closed": "Closed",
-        "committedAcross": "<amount>{{amount}}</amount> committed across {{n}} {{unit}}",
         "completed": "Completed",
         "empty": {
           "sub": "Requests raised against this project will appear here.",
@@ -4512,19 +4503,49 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "title":"Project finances", "lifetime":"Lifetime to date", "contract":"Contract value",
+    "title":"Project finances", "lifetime":"Lifetime to date",
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
     "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
     "incomplete":"Incomplete — ERP outstanding missing",
     "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
-    "draft":"Draft — not active", "active":"Active", "noBudget":"No budget", "budget":"Budget",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "mappingUnavailable":"Not available yet", "mappedCosts":"Costs",
-    "category":"Category", "actuals":"Actual", "unavailable":"Unavailable",
+    "mappingUnavailable":"Not available yet",
+    "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
     "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
     "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
+  },
+  "uxs01": {
+    "recordedSpending": "Recorded spending",
+    "pmoPurchaseOrders": "PMO purchase orders",
+    "pmoCoverage": "Committed PMO purchase orders",
+    "notTrackedInPmo": "Not tracked in PMO yet",
+    "actualSpending": "Actual spending",
+    "actualUnavailable": "Unavailable",
+    "actualLoading": "Loading Actual…",
+    "actualPartial": "Incomplete — see spending details",
+    "actualUsedAgainstBudget": "recorded spending against the active budget",
+    "budgetActualUnavailable": "Actual spending is incomplete, so it cannot be compared with this budget.",
+    "completeCoverage": "Complete category coverage",
+    "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
+    "coverageUnavailable": "Spending coverage unavailable",
+    "updated": "Updated {{date}}",
+    "setupHandoff": "Ask Finance or Admin to review spending setup.",
+    "reviewSetup": "Review spending setup",
+    "showCategoryDetails": "Show category details",
+    "categoryDetails": "Recorded spending by category",
+    "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
+    "contractRemainingAfterCost": "Contract remaining after cost",
+    "noActiveBudget": "No active budget",
+    "noBudget": "No budget",
+    "budgetLoading": "Loading budget…",
+    "budgetPosition": "Budget position",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "budgetRemaining": "Budget remaining {{amount}}",
+    "onBudget": "On budget",
+    "cashReceived": "Cash received",
+    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet"
   },
   "invoiceProject": {
     "assign":"Assign project", "change":"Change project", "project":"Project", "save":"Save project",

@@ -3,12 +3,12 @@ import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwner
 import { useAuth } from '@/src/auth/useAuth';
 
 /** The caller's own-org employed external tiers + externally-owned domains (AC-EAS-015 source). */
-export function useExternalDomainOwnership() {
+export function useExternalDomainOwnership(enabled = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: ['external-domain-ownership', orgId],
     queryFn: listOwnExternalDomainOwnership,
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && enabled),
   });
 }

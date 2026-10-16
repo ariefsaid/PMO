@@ -1,9 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-vi.mock('@/src/lib/db/procurements', () => ({
+const { ownershipState, ledgerSignal } = vi.hoisted(() => ({ ownershipState: { data: [] as { id: string; orgId: string; externalTier: string; domain: string }[] | undefined, isPending: false, isError: false }, ledgerSignal: vi.fn().mockResolvedValue(false) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ownershipState }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { getOrgReadsErpLedger: () => ledgerSignal() } } }));
+vi.mock('@/src/lib/db/procurements', () => ({ 
   listProcurements: vi.fn().mockResolvedValue([
     { id: 'pc1', title: 'Workstations & AV', project: null, vendor: null, requested_by: null },
   ]),
@@ -30,12 +33,55 @@ describe('useProcurements', () => {
   });
 });
 
-describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2)', () => {
-  it('returns the committed-spend total for a project', async () => {
-    const { result } = renderHook(() => useProjectCommittedSpend('proj-1'), { wrapper: wrap });
+describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
+  beforeEach(() => {
+    ownershipState.data = [];
+    ledgerSignal.mockReset().mockResolvedValue(false);
+    ownershipState.isPending = false;
+    ownershipState.isError = false;
+  });
+
+  it('returns the PMO purchase-order total for a PMO-owned project', async () => {
+    const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(200000);
+    expect(result.current.commitmentSource).toBe('pmo');
     expect(getProjectCommittedSpend).toHaveBeenCalledWith('proj-1');
+  });
+
+  it('marks ERP-owned procurement as not tracked in PMO rather than treating zero as all commitments', async () => {
+    ownershipState.data = [{ id: 'own-1', orgId: 'org-1', externalTier: 'ERPNext', domain: 'procurement' }];
+    const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
+    await waitFor(() => expect(result.current.commitmentSource).toBe('not-tracked'));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(200000);
+  });
+
+  it('does not present a commitment total before ownership is known', () => {
+    ownershipState.data = undefined;
+    ownershipState.isPending = true;
+    const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
+    expect(result.current.commitmentSource).toBe('unavailable');
+  });
+
+  it('uses the active ERP ledger signal independently of procurement ownership', async () => {
+    ownershipState.data = [{ id: 'own-1', orgId: 'org-1', externalTier: 'ERPNext', domain: 'procurement' }];
+    ledgerSignal.mockResolvedValue(true);
+    const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
+    await waitFor(() => expect(result.current.ledgerBasis).toBe('erp'));
+    expect(result.current.commitmentSource).toBe('not-tracked');
+  });
+
+  it('withholds Actual basis while the ledger helper is pending or errors', async () => {
+    ledgerSignal.mockImplementation(() => new Promise(() => {}));
+    const pending = renderHook(() => useProjectCommittedSpend('proj-pending', true), { wrapper: wrap });
+    expect(pending.result.current.ledgerBasis).toBe('unavailable');
+    pending.unmount();
+
+    ledgerSignal.mockReset().mockRejectedValue(new Error('unavailable'));
+    const failed = renderHook(() => useProjectCommittedSpend('proj-error', true), { wrapper: wrap });
+    await waitFor(() => expect(ledgerSignal).toHaveBeenCalled());
+    await waitFor(() => expect(failed.result.current.ledgerBasis).toBe('unavailable'));
   });
 
   it('is disabled (no fetch) when projectId is null', () => {

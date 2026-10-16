@@ -305,6 +305,15 @@ export async function setSalesInvoiceProject(siId: string, projectId: string): P
   if (error) throwWrite(error);
 }
 
+export async function getOrgReadsErpLedger(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('org_reads_erp_ledger');
+  if (error) throwWrite(error);
+  if (typeof data !== 'boolean') {
+    throw new AppError('Ledger basis reading unavailable', 'invalid-ledger-basis');
+  }
+  return data;
+}
+
 export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
   const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
   if (error) throwWrite(error);
