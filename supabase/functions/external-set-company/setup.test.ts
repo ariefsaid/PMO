@@ -44,7 +44,7 @@ function base(role = "Admin", active = true) {
           call.url.searchParams.get("select") === "org_id, role" ||
             call.url.searchParams.get("select") === "org_id,role"
             ? { org_id: "org-1", role }
-            : [{ id: "admin-1" }, { id: "member-2" }],
+            : [{ id: "admin-1" }, { id: "member-2" }, { id: "member-3" }],
         ),
     ),
     supabaseSelect("platform_operators", () => jsonResponse(null)),
@@ -119,7 +119,7 @@ Deno.test("AC-SETUP-003 Admin saves validated ERP activity and receivable defaul
     );
   });
 });
-Deno.test("AC-SETUP-002 readiness lists actionable configuration and unmapped projects from own org", async () => {
+Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and counts only active time-entry participants", async () => {
   await withFetchMock([
     ...base(),
     supabaseSelect("external_domain_ownership", (call) => {
@@ -135,6 +135,12 @@ Deno.test("AC-SETUP-002 readiness lists actionable configuration and unmapped pr
       }]);
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("timesheet_entries", (call) => {
+      assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
+      assertEquals(call.url.searchParams.get("timesheets.org_id"), "eq.org-1");
+      assertEquals(call.url.searchParams.get("hours"), "gt.0");
+      return jsonResponse([{ timesheets: { user_id: "member-2" }, hours: 4 }]);
+    }),
     supabaseSelect(
       "erp_employees",
       () => jsonResponse([{ profile_id: "admin-1", link_state: "confirmed" }]),
@@ -839,6 +845,7 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
         { id: "m3", category: "Materials", erp_account: "Materials - EX", is_push_target: false },
         { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
       ])),
+    supabaseSelect("timesheet_entries", () => jsonResponse([])),
     supabaseSelect("erp_employees", () => jsonResponse([])),
   ], async () => {
     const response = await handleSetCompanyRequest(

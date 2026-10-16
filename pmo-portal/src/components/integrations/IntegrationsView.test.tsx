@@ -1679,37 +1679,58 @@ describe('ERP setup checklist', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
   });
+  it('UX-009, UX-085, RF-048 and RF-049 present setup by business outcome and retain only open work', async () => {
+    const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:null,default_expense_account:null,default_cash_account:null,default_bank_account:null,cost_center:null,default_activity_type:null,default_receivable_account:null},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[],unlinkedEmployeeCount:0,
+    } satisfies ErpSetupReadiness);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByRole('heading', {name:'Business setup review'})).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name:'Keep business information up to date'})).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name:/Review proposed link for/})).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {name:'Review company settings'})).toBeInTheDocument();
+    expect(screen.queryByText(/active members need a confirmed ERP employee link/i)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {name:'Review company settings'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'Choose information to keep updated'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'Employ ERP domains'})).not.toBeInTheDocument();
+    expect(screen.queryByText('Domains employed')).not.toBeInTheDocument();
+  });
+
   it('AC-SETUP-002 exposes every outstanding setup step with a real fix action', async () => {
     const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    expect(await screen.findByRole('heading',{name:'ERPNext setup'})).toBeInTheDocument();
-    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'Set activity and receivable defaults'})).toBeInTheDocument();
-    expect(screen.getByRole('link',{name:'Map budget accounts'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
+    expect(await screen.findByRole('heading',{name:'Business setup review'})).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:'Choose information to keep updated'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Review work and billing settings'})).toBeInTheDocument();
+    expect(screen.getByRole('link',{name:'Review budget account setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     expect(screen.getByRole('link',{name:'Review employee links'})).toHaveAttribute('href','/approvals');
-    expect(screen.getByRole('link',{name:'Link Example Delivery'})).toHaveAttribute('href','/projects/project-2');
+    expect(screen.getByRole('link',{name:'Review proposed link for Example Delivery'})).toHaveAttribute('href','/projects/project-2');
   });
   it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
     erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));
     wrapWithRole('Admin', <IntegrationsView />);
-    fireEvent.click(await screen.findByRole('button', {name:'Set activity and receivable defaults'}));
-    fireEvent.change(screen.getByRole('textbox', {name:'Activity type'}), {target:{value:'Execution'}});
-    fireEvent.change(screen.getByRole('textbox', {name:'Receivable account'}), {target:{value:'Debtors - EX'}});
+    fireEvent.click(await screen.findByRole('button', {name:'Review work and billing settings'}));
+    fireEvent.change(screen.getByRole('textbox', {name:'Work category'}), {target:{value:'Execution'}});
+    fireEvent.change(screen.getByRole('textbox', {name:'Customer billing account'}), {target:{value:'Debtors - EX'}});
     fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
     expect(await screen.findByText('Could not save ERP defaults. Check the values and try again.')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', {name:'Activity type'})).toHaveValue('Execution');
+    expect(screen.getByRole('textbox', {name:'Work category'})).toHaveValue('Execution');
     expect(screen.queryByText('private upstream detail')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
-    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'ERPNext defaults'})).not.toBeInTheDocument());
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Work and billing settings'})).not.toBeInTheDocument());
     expect(erpSetup.saveErpDefaults).toHaveBeenLastCalledWith({activityType:'Execution',receivableAccount:'Debtors - EX'});
   });
   it('read-only viewers have no ERP setup mutation controls', async () => {
     wrapWithRole('Engineer', <IntegrationsView />);
-    expect(screen.queryByRole('button',{name:'Employ ERP domains'})).not.toBeInTheDocument();
-    expect(screen.queryByRole('button',{name:'Set activity and receivable defaults'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Choose information to keep updated'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Review work and billing settings'})).not.toBeInTheDocument();
   });
 });
 describe('ERP domain setup actions', () => {
@@ -1723,7 +1744,7 @@ describe('ERP domain setup actions', () => {
     erpSetup.getErpSetup.mockResolvedValueOnce(readiness as never).mockResolvedValueOnce({...readiness,defaults:{...readiness.defaults,default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main'}} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
     expect(await screen.findByText('1 of 6 configured')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Refresh Company defaults'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review company settings'}));
     fireEvent.click(screen.getByRole('combobox',{name:'Company'}));
     fireEvent.click(await screen.findByRole('option',{name:'Example Company'}));
     fireEvent.click(screen.getByRole('button',{name:'Activate'}));
@@ -1738,18 +1759,18 @@ describe('ERP domain setup actions', () => {
     erpSetup.employErpDomain.mockRejectedValueOnce(new Error('private domain detail'));
     erpSetup.onboardErpParties.mockRejectedValueOnce(new Error('private onboarding detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    fireEvent.change(screen.getByRole('combobox',{name:'Domain'}),{target:{value:'timesheets'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    fireEvent.change(screen.getByRole('combobox',{name:'Business information'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     expect(await screen.findByText('Could not employ this domain. Check ERP read permissions and try again.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox',{name:'Domain'})).toHaveValue('timesheets');
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
-    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Employ ERP domain'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    expect(screen.getByRole('combobox',{name:'Business information'})).toHaveValue('timesheets');
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Information to keep updated'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     expect(await screen.findByText('Party onboarding did not complete. Try again.')).toBeInTheDocument();
     expect(screen.queryByText(/private .* detail/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     expect(await screen.findByText('ERP parties are onboarded. Review the Companies list.')).toBeInTheDocument();
     expect(erpSetup.employErpDomain).toHaveBeenCalledTimes(2);
     expect(erpSetup.onboardErpParties).toHaveBeenCalledTimes(2);
@@ -1764,7 +1785,7 @@ describe('ERP domain setup actions', () => {
     const unavailable=await screen.findByText('ERP setup unavailable');
     expect(within(unavailable.closest('section')!).getByRole('link',{name:'Open accounting setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
-    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:'Choose information to keep updated'})).toBeInTheDocument();
     expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(2);
   });
   it('UX-067 leads with incomplete ERP setup and links to its first missing step', async () => {
@@ -1804,8 +1825,8 @@ describe('ERP domain setup actions', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    const select=screen.getByRole('combobox', {name:'Domain'});
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    const select=screen.getByRole('combobox', {name:'Business information'});
     const offered=within(select).queryByRole('option',{name:'Expenses'});
     if (!EXPENSES_EMPLOYABLE) {
       expect(offered).toBeNull();
@@ -1813,7 +1834,7 @@ describe('ERP domain setup actions', () => {
     }
     expect(offered).not.toBeNull();
     fireEvent.change(select,{target:{value:'expenses'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('expenses'));
   });
   it('Admin confirms a domain assignment and can run the existing party onboarding action', async () => {
@@ -1822,13 +1843,13 @@ describe('ERP domain setup actions', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    fireEvent.change(screen.getByRole('combobox', {name:'Domain'}),{target:{value:'timesheets'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    fireEvent.change(screen.getByRole('combobox', {name:'Business information'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('timesheets'));
-    await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Employ ERP domain'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Information to keep updated'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     await waitFor(()=>expect(erpSetup.onboardErpParties).toHaveBeenCalled());
   });
 });

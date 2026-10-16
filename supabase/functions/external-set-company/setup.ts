@@ -194,11 +194,14 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ).order("id").limit(limit);
         if (active) query = query.eq("status", "active");
         if (table === "projects") query = query.is("archived_at", null);
+        if (table === "timesheet_entries") {
+          query = query.gt("hours", 0).eq("timesheets.org_id", ctx.orgId);
+        }
         if (after) query = query.gt("id", after);
         return query as never;
       },
     );
-  const [ownership, projects, accounts, members, employees] = await Promise.all(
+  const [ownership, projects, accounts, members, employees, timeEntries] = await Promise.all(
     [
       ctx.serviceClient.from("external_domain_ownership").select("domain").eq(
         "org_id",
@@ -208,6 +211,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
       read("budget_category_account_map", "id,category,erp_account,is_push_target"),
       read("profiles", "id", true),
       read("erp_employees", "id,profile_id,link_state"),
+      read("timesheet_entries", "id,timesheets!inner(user_id)"),
     ],
   );
   if (ownership.error) {
@@ -217,6 +221,12 @@ async function readErpSetup(ctx: ErpSetupContext) {
     employees.filter((row) => row.link_state === "confirmed").map((row) =>
       row.profile_id
     ),
+  );
+  const timeEntryParticipants = new Set(
+    timeEntries.flatMap((row) => {
+      const timesheet = row.timesheets as { user_id?: unknown } | null;
+      return typeof timesheet?.user_id === "string" ? [timesheet.user_id] : [];
+    }),
   );
   const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
   return {
@@ -245,8 +255,11 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ).map((row) => row.category),
       ),
     ],
-    unlinkedEmployeeCount:
-      members.filter((row) => !linkedProfiles.has(row.id)).length,
+    // Only people with recorded time-entry participation need an ERP employee link.
+    // Role membership alone is not evidence that a person uses time entry.
+    unlinkedEmployeeCount: members.filter((row) =>
+      timeEntryParticipants.has(row.id) && !linkedProfiles.has(row.id)
+    ).length,
   };
 }
 
