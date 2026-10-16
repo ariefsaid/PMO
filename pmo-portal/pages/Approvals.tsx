@@ -692,11 +692,9 @@ const ApprovalsPage: React.FC = () => {
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
   };
-  // Role-aware: name only the kinds this viewer can actually be asked to decide.
-  const caughtUpKinds = ([
-      ...(canApproveProcurement ? ['procurement', 'expense', 'invoice'] as const : []),
-      ...(canApproveTimesheets ? ['timesheets'] as const : []),
-    ]).map((kind) => scopeLabels[kind].toLowerCase()).join(', ');
+  // Mirror the actual scopes available to this viewer; do not claim inaccessible types are in this inbox.
+  const caughtUpKinds = availableKinds.map((kind) => scopeLabels[kind].toLowerCase()).join(', ');
+
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
     if ((activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement) {

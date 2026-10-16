@@ -242,12 +242,14 @@ describe('Approvals page states', () => {
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 
-  it('AC-NAR-002 (C-1) the page copy names customer invoices among what waits on the viewer', () => {
+  // Deliberate UX change for S-18/RF-042: the inbox-wide subtitle still names supported types,
+  // while the clear-queue claim lists only scopes available to this viewer.
+  it('AC-NAR-002 (C-1): caught-up scope omits customer invoices this viewer cannot approve', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
     expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
-    expect(screen.getByTestId('approvals-caught-up')).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
   it('AC-904: timesheet error + Retry re-runs the query (NFR-TS-UI-001)', () => {
@@ -446,8 +448,10 @@ it('S-18 RF-042: the caught-up empty state scopes the claim to PMO and points ER
   const caughtUp = screen.getByTestId('approvals-caught-up');
   expect(caughtUp).toHaveTextContent(/in PMO/i);
   expect(caughtUp).toHaveTextContent(/ERPNext/i);
-  // The kinds list survives (AC-NAR-002 C-1 copy contract).
-  expect(caughtUp).toHaveTextContent(/customer invoices/i);
+  // The clear-queue summary names only scopes available to this role in the inbox.
+  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/timesheets/i);
+  expect(caughtUp).not.toHaveTextContent(/customer invoices/i);
 });
 
 // ---------------------------------------------------------------------------
