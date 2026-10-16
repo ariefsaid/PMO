@@ -28,7 +28,7 @@ begin
       select v_project_id,
              case when public.org_reads_erp_ledger()
                then jsonb_set(public.get_project_finances(v_project_id)->'actuals','{complete}',to_jsonb(
-                 coalesce((select count(distinct li.category) = count(distinct li.category) filter
+                 coalesce((select count(distinct li.category) > 0 and count(distinct li.category) = count(distinct li.category) filter
                    (where exists (select 1 from public.project_mapped_actuals(v_project_id,null) x
                      where x.category=li.category and x.mapped and x.actuals_to_date is not null))
                    from public.budget_versions b join public.budget_line_items li on li.budget_version_id=b.id

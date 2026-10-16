@@ -15,6 +15,8 @@ const projects: TopProject[] = [
     budget: 4_700_000,
     spent: 2_100_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
   {
     id: 'd2',
@@ -25,6 +27,8 @@ const projects: TopProject[] = [
     budget: 2_000_000,
     spent: 1_960_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
 ];
 

@@ -77,8 +77,8 @@ export function deriveActualPosition(input: {
   return { amount: actuals.total, currency: actuals.currency, asOf: actuals.as_of, basis: 'erp', complete: true };
 }
 
-/** A headline Actual is trustworthy only when every reported category is covered. */
-export function hasCompleteActuals(
+/** A headline Actual is trustworthy only when every required category is covered. */
+function categoriesComplete(
   actuals: ProjectFinances['actuals'],
   budgetedCategories?: readonly string[],
 ): boolean {
@@ -90,6 +90,13 @@ export function hasCompleteActuals(
     && required.length > 0
     && required.every((category) => category.mapped && category.amount !== null)
     && !actuals.excludes_restricted_rows;
+}
+
+export function hasCompleteActuals(
+  actuals: ProjectFinances['actuals'],
+  budgetedCategories?: readonly string[],
+): boolean {
+  return isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories });
 }
 
 /** PO-basis completeness is the successful read itself; an empty PO set is known zero. */
@@ -107,13 +114,14 @@ export function isActualComplete(input: {
   if (input.basis === 'pmo') return input.readSucceeded;
   if (input.basis !== 'erp' || !input.readSucceeded) return false;
   if (input.complete !== null && input.complete !== undefined) return input.complete;
-  if (input.actuals) return hasCompleteActuals(input.actuals, input.budgetedCategories);
+  if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);
   if (input.coverageTotal !== null && input.coverageTotal !== undefined) {
-    return input.coverageCount !== null && input.coverageCount !== undefined
+    return input.coverageTotal > 0 && input.coverageCount !== null && input.coverageCount !== undefined
       && input.coverageCount >= input.coverageTotal && !input.excludesRestrictedRows;
   }
   const categories = input.categories ?? [];
-  return (categories.length === 0 || categories.every((category) => category.mapped && category.amount !== null))
+  return categories.length > 0
+    && categories.every((category) => category.mapped && category.amount !== null)
     && !input.excludesRestrictedRows;
 }
 

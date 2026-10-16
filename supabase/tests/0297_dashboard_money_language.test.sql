@@ -1,8 +1,8 @@
 begin;
 select plan(20);
 
-insert into public.organizations (id,name) values
-  ('02970000-0000-0000-0000-000000000001','Dashboard money language test org');
+insert into public.organizations (id,name,default_currency) values
+  ('02970000-0000-0000-0000-000000000001','Dashboard money language test org','USD');
 insert into auth.users (id,email) values
   ('02970000-0000-0000-0000-0000000000a1','dashboard-money@example.test');
 insert into public.profiles (id,org_id,full_name,email,role,status) values
@@ -15,12 +15,9 @@ values
    'Ledger without snapshot','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false),
   ('02970000-0000-0000-0000-0000000000d2','02970000-0000-0000-0000-000000000001',
    'Pipeline with draft budget','Negotiation','USD',5000,'exclusive',0,0,1,1,false);
-insert into public.budget_versions (id,org_id,project_id,version,name,status)
+insert into public.budget_versions (id,org_id,project_id,version,name,status,currency)
 values ('02970000-0000-0000-0000-0000000000b1','02970000-0000-0000-0000-000000000001',
-        '02970000-0000-0000-0000-0000000000d2',1,'Draft only','Draft');
-insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount)
-values ('02970000-0000-0000-0000-0000000000c1','02970000-0000-0000-0000-000000000001',
-        '02970000-0000-0000-0000-0000000000b1','Labor','Draft estimate',1000);
+        '02970000-0000-0000-0000-0000000000d2',1,'Draft only','Draft','USD');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
 values ('02970000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active',
         '02970000-0000-0000-0000-0000000000a1',now());
@@ -37,6 +34,15 @@ values
    'Known mapped actual','Ongoing Project','USD',2000,'exclusive',0,0,1,1,false),
   ('02970000-0000-0000-0000-0000000000d4','02970000-0000-0000-0000-000000000001',
    'Other currency','Ongoing Project','IDR',3000,'exclusive',0,0,1,1,false);
+insert into public.budget_versions (id,org_id,project_id,version,name,status,currency)
+values ('02970000-0000-0000-0000-0000000000b2','02970000-0000-0000-0000-000000000001',
+        '02970000-0000-0000-0000-0000000000d3',1,'Active mapped budget','Draft','USD');
+insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount)
+values ('02970000-0000-0000-0000-0000000000c1','02970000-0000-0000-0000-000000000001',
+        '02970000-0000-0000-0000-0000000000b1','Labor','Draft estimate',1000),
+       ('02970000-0000-0000-0000-0000000000c2','02970000-0000-0000-0000-000000000001',
+        '02970000-0000-0000-0000-0000000000b2','Labor','Active mapped category',500);
+update public.budget_versions set status='Active' where id='02970000-0000-0000-0000-0000000000b2';
 insert into public.budget_category_account_map (org_id,category,erp_account,is_push_target)
 values ('02970000-0000-0000-0000-000000000001','Labor','0297-LABOR',true);
 insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at)

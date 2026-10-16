@@ -12,6 +12,8 @@ describe('money completeness and risk consistency', () => {
     const actuals = { currency: 'IDR', as_of: null, total: '10.00', excludes_restricted_rows: false, categories };
     expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor', 'Materials'] })).toBe(false);
     expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor'] })).toBe(true);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, categories: [] })).toBe(false);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, coverageCount: 0, coverageTotal: 0 })).toBe(false);
     expect(isActualComplete({ basis: 'pmo', readSucceeded: true })).toBe(true);
     expect(isActualComplete({ basis: 'pmo', readSucceeded: false })).toBe(false);
   });

@@ -5,9 +5,9 @@ import { BvACard } from './BvACard';
 import type { TopProject } from '@/src/lib/db/dashboard';
 
 const projects: TopProject[] = [
-  { id: 'p1', name: 'Innovate HQ', client_name: 'Innovate', currency: 'USD', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project' },
+  { id: 'p1', name: 'Innovate HQ', client_name: 'Innovate', currency: 'USD', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project', actual_complete: true, actual_currency: 'USD' },
   // 98% utilization → at-risk (spent/budget > 0.9)
-  { id: 'p2', name: 'Acme Platform', client_name: 'Acme', currency: 'USD', contract_value: 3_000_000, budget: 2_000_000, spent: 1_960_000, status: 'Ongoing Project' },
+  { id: 'p2', name: 'Acme Platform', client_name: 'Acme', currency: 'USD', contract_value: 3_000_000, budget: 2_000_000, spent: 1_960_000, status: 'Ongoing Project', actual_complete: true, actual_currency: 'USD' },
 ];
 
 const renderCard = (p = projects) =>

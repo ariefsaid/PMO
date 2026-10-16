@@ -54,14 +54,16 @@ as $$
       case when public.org_reads_erp_ledger() then (select o.default_currency from public.organizations o where o.id=p.org_id)
         else p.currency end as actual_currency,
       case when not public.org_reads_erp_ledger() then true else
-        (select count(distinct li.category) = count(distinct li.category) filter
+        (select count(distinct li.category) > 0 and count(distinct li.category) = count(distinct li.category) filter
           (where exists (select 1 from public.project_mapped_actuals(p.id,null) x
             where x.category=li.category and x.mapped and x.actuals_to_date is not null))
          from public.budget_versions v join public.budget_line_items li on li.budget_version_id=v.id
          where v.project_id=p.id and v.status='Active') end as actual_complete,
       case when public.org_reads_erp_ledger() then
-        (select sum(x.actuals_to_date) from public.project_mapped_actuals(p.id,null) x
-          where x.actuals_to_date is not null)
+        case when (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
+          then (select sum(x.actuals_to_date) from public.project_mapped_actuals(p.id,null) x
+            where x.actuals_to_date is not null)
+          else null end
       else coalesce((select sum(pr.total_value) from public.procurements pr
         where pr.project_id=p.id and pr.status::text=any(public.committed_procurement_statuses())),0)
       end as actual,
@@ -121,7 +123,7 @@ as $$
       and (not public.org_reads_erp_ledger() or (
         (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
         and (select v.currency=p.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc limit 1)
-        and (select count(distinct li.category) = count(distinct li.category) filter
+        and (select count(distinct li.category) > 0 and count(distinct li.category) = count(distinct li.category) filter
           (where exists (select 1 from public.project_mapped_actuals(p.id,null) x
             where x.category=li.category and x.mapped and x.actuals_to_date is not null))
          from public.budget_versions v join public.budget_line_items li on li.budget_version_id=v.id
@@ -200,13 +202,15 @@ as $$
     (select v.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc,v.created_at desc,v.id desc limit 1) as budget_currency,
     case when public.org_reads_erp_ledger() then (select o.default_currency from public.organizations o where o.id=p.org_id) else p.currency end as actual_currency,
     case when not public.org_reads_erp_ledger() then true else
-      (select count(distinct li.category) = count(distinct li.category) filter
+      (select count(distinct li.category) > 0 and count(distinct li.category) = count(distinct li.category) filter
         (where exists (select 1 from public.project_mapped_actuals(p.id,null) x
           where x.category=li.category and x.mapped and x.actuals_to_date is not null))
        from public.budget_versions v join public.budget_line_items li on li.budget_version_id=v.id
        where v.project_id=p.id and v.status='Active') end as actual_complete,
     case when public.org_reads_erp_ledger() then
-      (select sum(x.actuals_to_date) from public.project_mapped_actuals(p.id,null) x where x.actuals_to_date is not null)
+      case when (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
+        then (select sum(x.actuals_to_date) from public.project_mapped_actuals(p.id,null) x where x.actuals_to_date is not null)
+        else null end
       else coalesce((select sum(pr.total_value) from public.procurements pr where pr.project_id=p.id
         and pr.status::text=any(public.committed_procurement_statuses())),0) end as spent,
     public.org_reads_erp_ledger() as ledger_owned,

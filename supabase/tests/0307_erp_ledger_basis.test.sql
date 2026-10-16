@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(20);
 
 insert into public.organizations (id,name) values
  ('03070000-0000-0000-0000-000000000001','ERP ledger basis org'),
@@ -80,6 +80,19 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims to '{}';
 select ok(not public.org_reads_erp_ledger(),'non-member receives false');
+reset role;
+update auth.users set banned_until=null where id='03070000-0000-0000-0000-0000000000a1';
+update public.organizations set default_currency='IDR' where id='03070000-0000-0000-0000-000000000001';
+insert into public.budget_versions (id,org_id,project_id,version,name,status,currency) values
+ ('03070000-0000-0000-0000-0000000000c1','03070000-0000-0000-0000-000000000001','03070000-0000-0000-0000-0000000000d1',1,'Active ledger budget','Draft','USD');
+insert into public.budget_line_items (org_id,budget_version_id,category,description,budgeted_amount,fiscal_year) values
+ ('03070000-0000-0000-0000-000000000001','03070000-0000-0000-0000-0000000000c1','Labor','Mapped ledger category',100,'FY-2026');
+update public.budget_versions set status='Active' where id='03070000-0000-0000-0000-0000000000c1';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select x->>'spent' from json_array_elements(public.get_executive_dashboard()->'top_projects') x where x->>'id'='03070000-0000-0000-0000-0000000000d1'),null,'A1 mismatched project currency makes the Actual amount unknown, not a USD figure');
+select is((select x->>'actual_currency' from json_array_elements(public.get_executive_dashboard()->'top_projects') x where x->>'id'='03070000-0000-0000-0000-0000000000d1'),'IDR','A1 dashboard returns the ledger Actual currency for correct formatting');
+select is((get_executive_dashboard()->>'projects_at_risk')::int,0,'A1 mismatched-currency Actual is excluded from risk despite exceeding budget');
 reset role;
 select * from finish();
 rollback;

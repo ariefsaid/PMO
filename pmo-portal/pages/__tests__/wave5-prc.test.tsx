@@ -112,22 +112,22 @@ const pmFixtures = [
   {
     id: 'p1', name: 'Safe Project', contract_value: 2_000_000, currency: 'USD',
     budget: 1_000_000, spent: 100_000, status: 'Ongoing Project',
-    project_manager_id: 'pm-1', client: { name: 'Alpha' }, pm: null,
+    project_manager_id: 'pm-1', client: { name: 'Alpha' }, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   },
   {
     id: 'p2', name: 'High Burn Project', contract_value: 1_500_000, currency: 'USD',
     budget: 1_000_000, spent: 950_000, status: 'Ongoing Project',
-    project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null,
+    project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   },
   {
     id: 'p3', name: 'At Threshold Project', contract_value: 1_200_000, currency: 'USD',
     budget: 1_000_000, spent: 900_000, status: 'Ongoing Project',
-    project_manager_id: 'pm-1', client: { name: 'Gamma' }, pm: null,
+    project_manager_id: 'pm-1', client: { name: 'Gamma' }, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   },
   {
     id: 'p4', name: 'Completed High Burn', contract_value: 800_000, currency: 'USD',
     budget: 500_000, spent: 490_000, status: 'Close Out',
-    project_manager_id: 'pm-1', client: null, pm: null,
+    project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
   },
 ];
 const otherUser = {
