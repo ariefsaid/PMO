@@ -20,6 +20,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const seed = [
   { id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
@@ -528,6 +529,14 @@ describe('Projects table — Actual uses the canonical collection money read (AC
   afterEach(() => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     projectMoneyState.data = {};
+    resetActiveLocale();
+  });
+
+  it('formats exact Actual with the selected number locale rather than the translation language', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('US$125.000,00')).toBeInTheDocument();
   });
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {

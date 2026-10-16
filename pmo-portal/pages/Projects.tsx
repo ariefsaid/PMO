@@ -49,6 +49,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
 import { formatExactMoney } from '@/src/lib/projectFinances';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
@@ -74,7 +75,7 @@ const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, Pro
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 const Projects: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -617,7 +618,7 @@ const Projects: React.FC = () => {
         }
         return (
           <div className="flex flex-col gap-0.5 text-right">
-            <span className="text-muted-foreground">{formatExactMoney(actual, money.actuals.currency || p.currency, i18n.language) ?? t('uxs02.unavailable', 'Unavailable')}</span>
+            <span className="text-muted-foreground">{formatExactMoney(actual, money.actuals.currency || p.currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}</span>
             <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
               ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
               : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>
@@ -686,13 +687,14 @@ const Projects: React.FC = () => {
             : t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>;
         }
         const percent = Math.round((actual / activeBudget) * 100);
+        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={percent} showValue compact tone={percent >= 90 ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
             <div className="max-w-[120px] whitespace-normal text-[10px] text-muted-foreground">
               {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual, money.actuals.currency || p.currency), budget: formatCompactCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}
             </div>
-            {percent >= 90 && <span className="text-[10px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
+            {atRisk && <span className="text-[10px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
           </div>
         );
       },

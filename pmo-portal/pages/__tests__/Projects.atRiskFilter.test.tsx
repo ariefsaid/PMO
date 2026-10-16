@@ -179,6 +179,14 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('at-risk labels use the exact canonical predicate, not rounded percentages or status-blind values', () => {
+    renderWithUrl('/projects');
+    const roundedSafeRow = screen.getByText('Rounded To 90 But Safe').closest('tr');
+    const closeOutRow = screen.getByText('Completed Not At Risk').closest('tr');
+    expect(roundedSafeRow).not.toHaveTextContent('At risk');
+    expect(closeOutRow).not.toHaveTextContent('At risk');
+  });
+
   it('AC-IXD-DASH-W5-C2A-PROJ-2: at-risk filter uses canonical Actual, not stale p.spent', () => {
     renderWithUrl('/projects?filter=at-risk');
     // At risk: p2 (committedSpend/budget = 95%) and p3 (90%) — both active
