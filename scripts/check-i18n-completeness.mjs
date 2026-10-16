@@ -49,6 +49,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -210,16 +211,41 @@ export function collectKeyRefs(src) {
   return keys;
 }
 
-/** Literal English defaults on t() calls; offsets are validated against stripped code so comments don't count. */
+/** Parse with the app's installed TypeScript compiler; no additional dependency is needed. */
+const requireFromApp = createRequire(path.join(APP, 'package.json'));
+const ts = requireFromApp('typescript');
+
+/** Literal English defaults on t() calls, decoded by the TypeScript parser. */
 export function collectInlineDefaults(src) {
-  const stripped = blankComments(src);
+  const sourceFile = ts.createSourceFile('source.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const found = [];
-  const re = /\bt\(\s*(['"])([^'"\n]+)\1\s*,\s*(?:(['"])([^'"\n]*)\3|\{[^}]*?\bdefaultValue\s*:\s*(['"])([^'"\n]*)\5\s*\})/gs;
-  let m;
-  while ((m = re.exec(src))) {
-    if (!/(?<![A-Za-z0-9_$.])t\(/.test(stripped.slice(m.index, m.index + 8))) continue;
-    found.push({ key: m[2], value: m[4] ?? m[6], index: m.index });
-  }
+  const literalText = (node) =>
+    ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : undefined;
+  const isTarget = (expression) =>
+    (ts.isIdentifier(expression) && expression.text === 't') ||
+    (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
+      expression.expression.text === 'i18n' && expression.name.text === 't');
+
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && isTarget(node.expression)) {
+      const key = node.arguments[0] && literalText(node.arguments[0]);
+      const options = node.arguments[1];
+      let value = options && literalText(options);
+      if (value === undefined && options && ts.isObjectLiteralExpression(options)) {
+        for (const property of options.properties) {
+          if (ts.isPropertyAssignment(property) &&
+              ((ts.isIdentifier(property.name) && property.name.text === 'defaultValue') ||
+               (ts.isStringLiteral(property.name) && property.name.text === 'defaultValue'))) {
+            value = literalText(property.initializer);
+            if (value !== undefined) break;
+          }
+        }
+      }
+      if (key !== undefined && value !== undefined) found.push({ key, value, index: node.getStart(sourceFile) });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
   return found;
 }
 
@@ -823,9 +849,10 @@ function selfTest() {
   {
     const stringCall = `t('${OK_KEY}', 'Hello there')`;
     const optionsCall = `t('${OK_KEY}', { defaultValue: 'Hello there' })`;
-    const source = `const a = ${stringCall};\nconst b = ${optionsCall};`;
+    const namespacedCall = `i18n.t('${OK_KEY}', { defaultValue: 'Hello there' })`;
+    const source = `const a = ${stringCall};\nconst b = ${optionsCall};\nconst c = ${namespacedCall};`;
     const matching = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': source } });
-    check('matching string and defaultValue defaults pass', !matching.defaultMismatches.length, JSON.stringify(matching.defaultMismatches));
+    check('matching string, defaultValue, and i18n.t defaults pass', !matching.defaultMismatches.length, JSON.stringify(matching.defaultMismatches));
     const mismatchSource = `const a = t('${OK_KEY}', 'Good morning');\nconst b = t('${OK_KEY}', { defaultValue: 'Welcome' });`;
     const mismatch = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': mismatchSource } });
     check('string and defaultValue mismatches fail', mismatch.newDefaultMismatches.length === 2,
@@ -835,6 +862,22 @@ function selfTest() {
     check('an allowlisted mismatch is not new', !allowlisted.newDefaultMismatches.length && !allowlisted.staleDefaultBaseline.length, '');
     const stale = analyse({ ...clean, defaultMismatchBaseline: [{ key: OK_KEY, defaultValue: 'Obsolete', catalogueValue: 'Older' }] });
     check('a stale mismatch baseline entry fails', stale.staleDefaultBaseline.length === 1, JSON.stringify(stale.staleDefaultBaseline));
+  }
+
+  // Compiler parsing must retain later option properties and decode JS escapes. These cases
+  // prevent regressions to regex collection that truncates strings or requires defaultValue last.
+  {
+    const optionWithTrailingProps = `t('${OK_KEY}', { defaultValue: 'Welcome', value: name })`;
+    const escapedQuote = `t('${OK_KEY}', { defaultValue: 'The project\\'s state changed' })`;
+    const unicodeEscape = `t('${OK_KEY}', { defaultValue: 'H\\u0065llo there' })`;
+    const trailing = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': optionWithTrailingProps } });
+    check('defaultValue followed by other properties is collected',
+      trailing.newDefaultMismatches.some((m) => m.defaultValue === 'Welcome'), JSON.stringify(trailing.defaultMismatches));
+    const quote = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': escapedQuote } });
+    check('escaped quote does not truncate a mismatch',
+      quote.newDefaultMismatches.some((m) => m.defaultValue === "The project's state changed"), JSON.stringify(quote.defaultMismatches));
+    const unicode = analyse({ ...clean, launchScopeFiles: { 'pages/Probe.tsx': unicodeEscape } });
+    check('decoded unicode escape equal to catalogue passes', !unicode.defaultMismatches.length, JSON.stringify(unicode.defaultMismatches));
   }
 
   // 1. Plant a MISSING key: a launch-scope screen references a key the catalogue does not hold.
