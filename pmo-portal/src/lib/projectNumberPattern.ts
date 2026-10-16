@@ -5,6 +5,22 @@ export type ProjectNumberPatternValidation =
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
 const REQUIRED_TOKENS = ['CLIENT', 'YY', 'SEQ4'] as const;
 
+/**
+ * Illustrative values for the Admin preview (UX-075). The database assigns the real client
+ * segment (from the project's company), year (org timezone) and sequence at creation time;
+ * this preview shows only how the saved pattern expands, never a promised next number.
+ */
+export const PREVIEW_CLIENT_SEGMENT = 'NSN';
+export const PREVIEW_SEQUENCE = '0312';
+
+/** Expand a VALID pattern's supported tokens with illustrative values; callers hide it when invalid. */
+export function previewProjectNumber(pattern: string, twoDigitYear: number): string {
+  return pattern
+    .replaceAll('{CLIENT}', PREVIEW_CLIENT_SEGMENT)
+    .replaceAll('{YY}', String(twoDigitYear).padStart(2, '0'))
+    .replaceAll('{SEQ4}', PREVIEW_SEQUENCE);
+}
+
 /** Validate the display pattern only; tenant, timezone, and sequence are resolved by the database. */
 export function validateProjectNumberPattern(pattern: string): ProjectNumberPatternValidation {
   if (!pattern.trim()) return { valid: false, reason: 'Pattern cannot be empty. Enter a project-number pattern.' };

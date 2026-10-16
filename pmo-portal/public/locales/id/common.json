@@ -386,7 +386,7 @@
     },
     "projectNumberPattern": {
       "title": "Pola nomor proyek",
-      "description": "Format nomor proyek yang ditetapkan PMO. Gunakan {CLIENT}, {YY}, dan {SEQ4} masing-masing tepat satu kali.",
+      "description": "Atur format nomor proyek PMO. Format bawaan adalah PRJ-{YY}-{SEQ4}; format khusus harus menggunakan {CLIENT}, {YY}, dan {SEQ4} masing-masing tepat satu kali.",
       "immutable": "Perubahan hanya berlaku untuk usulan berikutnya; nomor proyek yang sudah ada tidak berubah.",
       "loadError": {
         "title": "Pola nomor proyek tidak dapat dimuat"
@@ -4512,6 +4512,22 @@
       "scopeAll": "Semua {{count}} timesheet di antrean ini dapat disetujui sekaligus.",
       "scopeOne": "1 timesheet di antrean ini dapat disetujui.",
       "scopeSome": "{{eligible}} dari {{total}} timesheet di antrean ini dapat disetujui sekaligus."
+    }
+  },
+  "uxs31": {
+    "projectNumberPattern": {
+      "preview": "Pratinjau:",
+      "previewNote": "Sekadar ilustrasi; nomor sebenarnya ditetapkan saat proyek dibuat."
+    },
+    "accounting": {
+      "sectionsLabel": "Bagian pengaturan akuntansi",
+      "taxDefault": "Perlakuan pajak bawaan",
+      "spendApprovers": "Penyetuju pengeluaran",
+      "withholding": "Pajak yang dipotong pelanggan",
+      "vendorTax": "Akun pajak tagihan pemasok",
+      "downPayments": "Uang muka",
+      "budgetMap": "Pemetaan akun anggaran",
+      "expenseMap": "Pemetaan akun biaya"
     }
   }
 }
