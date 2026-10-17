@@ -83,6 +83,23 @@ stays intact in-repo, flip the mode to revert):
    version gate, not per-PR — ADR-0030 §E.)*
 
 ## Director posture (main session)
+
+### Execution continuity (owner directive, 2026-10-17)
+
+A status question steers the active task; answer briefly in commentary, then immediately execute
+its next step in the same turn. Keep working through the authorized queue, including while CI or
+workers run, using independent work where dependencies allow. Check the actual worker/CI state;
+if a worker has stopped, resolve its blocker and resume it rather than describing it as running.
+
+Before sending a final response, verify one of these conditions: the agreed scope is complete
+with required evidence; the owner explicitly asked to stop/pause; or an external blocker prevents
+all remaining useful authorized work. For a blocker, state exactly what is needed from whom and
+record the next executable step. A completed subtask, a status answer, waiting CI, or “in progress”
+is not a completion condition. A final response ends active orchestration: never imply continued
+work without a verified running mechanism. Context compaction preserves the task, not completion;
+record the current artifact, actual lane/CI state, blocker and next action in the private handoff,
+then continue. Apply this check to every Director and successor session.
+
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
 ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
 prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
