@@ -1,5 +1,5 @@
--- 0305 — a binding company change invalidates the statement source and schedules a full replay.
--- Rollback: rollback/0305_statement_company_replay_down.sql
+-- 0314 — a binding company change invalidates the statement source and schedules a full replay.
+-- Rollback: rollback/0314_statement_company_replay_down.sql
 create or replace function public.request_statement_replay_on_company_change()
 returns trigger
 language plpgsql
