@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 
-const mockTrackAgentFeedbackRated = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/analytics', () => ({ trackAgentFeedbackRated: mockTrackAgentFeedbackRated }));
+type Analytics = typeof import('@/src/lib/analytics');
+const mockTrackAgentFeedbackRated = vi.hoisted(() => vi.fn<Analytics['trackAgentFeedbackRated']>());
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAgentFeedbackRated: mockTrackAgentFeedbackRated,
+} satisfies Analytics));
 
 import { FeedbackControl } from './FeedbackControl';
 

@@ -19,10 +19,12 @@ import React, { useState } from 'react';
  *    from where Tab walked into the background behind the dialog.
  */
 
-const analytics = vi.hoisted(() => ({ trackFormValidationFailed: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => ({
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackFormValidationFailed: vi.fn<Analytics['trackFormValidationFailed']>() }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
   trackFormValidationFailed: analytics.trackFormValidationFailed,
-}));
+} satisfies Analytics));
 
 import { EntityFormModal } from '../EntityFormModal';
 import { useEntityForm } from '../useEntityForm';

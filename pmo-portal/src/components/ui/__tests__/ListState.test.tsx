@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
+} satisfies Analytics));
 
 import { ListState } from '../ListState';
 

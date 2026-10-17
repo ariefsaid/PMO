@@ -4,8 +4,15 @@ import type { ValidatedGroup } from '../types';
 
 // SECURITY (2026-07-27 review round 2 #2): a bulk commit run must NOT fire one `save_failed`
 // event per failed case/record — mock the analytics facade to assert the aggregate shape.
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => analytics);
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({
+  trackSaveFailed: vi.fn<Analytics['trackSaveFailed']>(),
+  trackBulkImportFailed: vi.fn<Analytics['trackBulkImportFailed']>(),
+}));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  ...analytics,
+} satisfies Analytics));
 
 // ─── Mock the DB create functions ─────────────────────────────────────────────
 

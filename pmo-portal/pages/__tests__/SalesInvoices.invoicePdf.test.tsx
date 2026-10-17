@@ -1,6 +1,6 @@
 /** #912 — "Download PDF" on the Sales Invoices list (AC-PDF-003 offering, AC-PDF-011 behaviour). */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { findToastAnnouncement, queryToastAnnouncement } from '@/src/components/
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import * as analytics from '@/src/lib/analytics';
 
 const { revenue, triggerBlobDownload } = vi.hoisted(() => ({
   revenue: { listInvoices: vi.fn(), downloadInvoicePdf: vi.fn() },
@@ -32,7 +33,12 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn
 // The page waits for revenue ownership (#784 useRevenueMode); this org's ERP owns revenue (ERP-path invoices).
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }], isError: false }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: async () => [] }) }));
-vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackFilterApplied: vi.fn<Analytics['trackFilterApplied']>(),
+  trackSearchUsed: vi.fn<Analytics['trackSearchUsed']>(),
+} satisfies Analytics));
 
 import SalesInvoices from '../SalesInvoices';
 
@@ -102,6 +108,21 @@ beforeEach(() => {
   revenue.listInvoices.mockResolvedValue(ROWS);
   revenue.downloadInvoicePdf.mockReset();
   triggerBlobDownload.mockReset();
+});
+
+it('AC-TH-001 debounced invoice search retains the analytics facade export', async () => {
+  renderPage('Finance');
+  await rowFor('ACC-SINV-2026-00001');
+  vi.useFakeTimers();
+  try {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search sales invoices' }),
+      { target: { value: 'ACC-SINV-2026-00001' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(analytics.trackSearchUsed).toHaveBeenCalledWith('sales-invoices-list', 1, 'salesInvoices');
+  } finally {
+    cleanup();
+    vi.useRealTimers();
+  }
 });
 
 describe('SalesInvoices — Download PDF is offered only where it can succeed', () => {

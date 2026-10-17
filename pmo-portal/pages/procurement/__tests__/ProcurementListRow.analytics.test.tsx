@@ -11,7 +11,8 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
-const analytics = vi.hoisted(() => ({ trackProcurementDetailOpened: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackProcurementDetailOpened: vi.fn<Analytics['trackProcurementDetailOpened']>() }));
 
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
@@ -20,9 +21,10 @@ vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => navigateMock };
 });
-vi.mock('@/src/lib/analytics', () => ({
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
   trackProcurementDetailOpened: analytics.trackProcurementDetailOpened,
-}));
+} satisfies Analytics));
 
 import { ProcurementListRow } from '../ProcurementListRow';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';

@@ -34,7 +34,12 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'use
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: h.projectOptions, isPending: h.projectOptionsPending, isError: h.projectOptionsError }) }));
-vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFailed: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackFilterApplied: vi.fn<Analytics['trackFilterApplied']>(),
+  trackSaveFailed: vi.fn<Analytics['trackSaveFailed']>(),
+} satisfies Analytics));
 
 import SalesInvoices from '../SalesInvoices';
 

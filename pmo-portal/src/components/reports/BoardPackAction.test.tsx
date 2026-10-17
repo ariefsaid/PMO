@@ -4,12 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 
-const h = vi.hoisted(() => ({ revenue: true, role: 'Executive', track: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+const h = vi.hoisted(() => ({ revenue: true, role: 'Executive', track: vi.fn<Analytics['trackComingSoonClicked']>() }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.revenue }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role, canImpersonate: false, viewAs: vi.fn() }),
 }));
-vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: h.track }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackComingSoonClicked: h.track,
+} satisfies Analytics));
 
 import { BoardPackAction } from './BoardPackAction';
 

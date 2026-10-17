@@ -59,7 +59,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
-vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackFilterApplied: vi.fn<Analytics['trackFilterApplied']>(),
+} satisfies Analytics));
 
 import IncomingPayments from '../IncomingPayments';
 import SalesInvoices from '../SalesInvoices';

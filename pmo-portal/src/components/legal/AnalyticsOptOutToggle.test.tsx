@@ -3,13 +3,17 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ConsentState } from '@/src/lib/analytics';
 
+type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({
-  analyticsOptOut: vi.fn(),
-  analyticsOptIn: vi.fn(),
-  getAnalyticsConfig: vi.fn(),
-  getConsentState: vi.fn(),
+  analyticsOptOut: vi.fn<Analytics['analyticsOptOut']>(),
+  analyticsOptIn: vi.fn<Analytics['analyticsOptIn']>(),
+  getAnalyticsConfig: vi.fn<Analytics['getAnalyticsConfig']>(),
+  getConsentState: vi.fn<Analytics['getConsentState']>(),
 }));
-vi.mock('@/src/lib/analytics', () => analytics);
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  ...analytics,
+} satisfies Analytics));
 
 import { AnalyticsOptOutToggle } from './AnalyticsOptOutToggle';
 
