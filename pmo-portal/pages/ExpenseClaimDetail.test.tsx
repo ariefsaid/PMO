@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyCents, formatMoneyInputValue } from '@/src/lib/format';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
 const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
 
@@ -12,6 +13,8 @@ const h = vi.hoisted(() => ({
   claim: null as unknown,
   route: null as unknown,
   outstanding: null as number | null,
+  projects: [] as Array<{ id: string; name: string }>,
+  agingRows: [] as Array<Record<string, unknown>>,
   userId: 'eng',
   realRole: 'Engineer',
   m: {
@@ -25,7 +28,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
   useExpenseAdvanceOutstanding: () => ({ data: h.outstanding }),
-  useExpenseAdvanceAging: () => ({ data: { rows: [], truncated: false } }),
+  useExpenseAdvanceAging: () => ({ data: { rows: h.agingRows, truncated: false } }),
   useExpenseClaimMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useExpenseReceipts', () => ({
@@ -34,7 +37,8 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
     download: vi.fn(), progress: null, uploadError: null, clearUploadError: vi.fn(),
   }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
+vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
 // #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
 vi.mock('./expenses/ExpensePostingsCard', () => ({ ExpensePostingsCard: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
@@ -60,7 +64,27 @@ const renderAt = () =>
   );
 const as = (userId: string, role: string) => { h.userId = userId; h.realRole = role; };
 
-beforeEach(() => { h.route = null; h.outstanding = null; });
+beforeEach(() => {
+  h.route = null;
+  h.outstanding = null;
+  h.projects = [];
+  h.agingRows = [];
+  h.m.update.mutateAsync.mockReset();
+  h.m.update.mutateAsync.mockResolvedValue(undefined);
+  setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+});
+afterEach(() => resetActiveLocale());
+
+const renderAtWithI18n = () =>
+  render(
+    <FinanceI18nTestProvider>
+      <MemoryRouter initialEntries={['/expenses/c1']}>
+        <ToastProvider>
+          <Routes><Route path="/expenses/:claimId" element={<ExpenseClaimDetail />} /></Routes>
+        </ToastProvider>
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
+  );
 
 describe('ExpenseClaimDetail', () => {
   it('AC-EXP-061 the claimant of a Draft can add lines and submit', () => {
@@ -145,6 +169,80 @@ describe('ExpenseClaimDetail', () => {
     expect(dialog).toHaveTextContent(money(700, 'IDR'));
     expect(dialog).toHaveTextContent(`Up to ${money(250, 'IDR')} is outstanding.`);
     expect(dialog).toHaveTextContent('Amount returned');
+  });
+
+  it('AC-UWC-004 retains claim edit prefill and sends the existing line-derived update patch', async () => {
+    h.claim = {
+      ...base, title: 'Original visit', project_id: 'project-1',
+      project: { name: 'Project one' }, budget_category: 'Special expenses',
+      purpose: 'Original purpose', advance_id: 'advance-1',
+    };
+    h.projects = [{ id: 'project-1', name: 'Project one' }];
+    h.agingRows = [{ advanceId: 'advance-1', claimantId: 'eng', claimNumber: 'ADV-1', outstanding: 50, currency: 'IDR' }];
+    as('eng', 'Engineer');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Edit details');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    const textboxes = within(dialog).getAllByRole('textbox');
+    const selects = within(dialog).getAllByRole('combobox');
+    expect(textboxes[0]).toHaveValue('Original visit');
+    expect(selects[0]).toHaveValue('project-1');
+    expect(selects[1]).toHaveValue('Special expenses');
+    expect(textboxes[1]).toHaveValue('Original purpose');
+    expect(selects[2]).toHaveValue('advance-1');
+    expect(dialog).not.toHaveTextContent(/expense posting to accounting isn't active/i);
+
+    await userEvent.clear(textboxes[0]);
+    await userEvent.type(textboxes[0], 'Updated visit');
+    await userEvent.selectOptions(selects[0], '');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(h.m.update.mutateAsync).toHaveBeenCalledWith({
+      id: 'c1', kind: 'claim',
+      patch: expect.objectContaining({ title: 'Updated visit', projectId: null, amount: undefined }),
+    }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-UWC-004 retains localized advance edit values after a failed save and retries the parsed amount', async () => {
+    h.claim = {
+      ...base, kind: 'advance', claim_number: 'ADV-1', title: 'Original advance',
+      amount: 1234.5, project_id: null, budget_category: 'Travel', purpose: 'Original purpose',
+      advance_id: null, status: 'Draft',
+    };
+    as('eng', 'Engineer');
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    h.m.update.mutateAsync.mockRejectedValueOnce(new Error('temporary write failure'))
+      .mockResolvedValueOnce(undefined);
+    renderAtWithI18n();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    const dialog = screen.getByRole('dialog');
+    const textboxes = within(dialog).getAllByRole('textbox');
+    const amount = textboxes[1];
+    expect(amount).toHaveValue(formatMoneyInputValue(1234.5));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/expense posting to accounting isn't active/i);
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '2.500,75');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await within(dialog).findByTestId('entity-modal-save-error')).toHaveTextContent(/nothing was saved/i);
+    expect(amount).toHaveValue('2.500,75');
+    expect(textboxes[0]).toHaveValue('Original advance');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(h.m.update.mutateAsync).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.m.update.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(h.m.update.mutateAsync).toHaveBeenLastCalledWith({
+      id: 'c1', kind: 'advance',
+      patch: expect.objectContaining({ title: 'Original advance', amount: 2500.75 }),
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('AC-EXP-061 the claimant of an Approved claim cannot pay it', () => {

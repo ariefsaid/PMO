@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { previewProjectNumber, validateProjectNumberPattern } from './projectNumberPattern';
+import { previewProjectNumber, projectNumberYear, validateProjectNumberPattern } from './projectNumberPattern';
 
 describe('AC-CODE-001 project-number pattern grammar', () => {
   it('accepts the system default', () => {
@@ -24,6 +24,22 @@ describe('AC-CODE-001 project-number pattern grammar', () => {
     const result = validateProjectNumberPattern(pattern);
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.reason).toMatch(reason);
+  });
+});
+
+describe('AC-UWC-002 organisation-year extraction', () => {
+  const instant = new Date('2026-12-31T18:00:00Z');
+
+  it.each([
+    ['UTC', 'UTC', 26],
+    ['Asia/Jakarta', 'Asia/Jakarta', 27],
+  ])('uses %s calendar year for the shared creation instant', (_name, timezone, expected) => {
+    expect(projectNumberYear(instant, timezone)).toBe(expected);
+  });
+
+  it('returns null for an invalid instant or unusable timezone', () => {
+    expect(projectNumberYear(new Date(Number.NaN), 'UTC')).toBeNull();
+    expect(projectNumberYear(instant, 'Not/A_Real_Zone')).toBeNull();
   });
 });
 

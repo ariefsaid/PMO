@@ -1,7 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { isProjectFinances, type ProjectFinances } from '@/src/lib/projectFinances';
+import { isProjectFinances, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
@@ -328,7 +328,9 @@ export async function getProjectFinances(projectId: string): Promise<ProjectFina
   if (!isProjectFinances(data) || data.project_id !== projectId) {
     throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
   }
-  return data;
+  // The legacy guard intentionally excludes cash_received; read that additive unknown only after it succeeds.
+  const payload = data as unknown as Omit<ProjectFinances, 'cash_received'> & { cash_received?: unknown };
+  return { ...payload, cash_received: parseProjectReceiptCash(payload.cash_received) };
 }
 
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {

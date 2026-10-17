@@ -4569,7 +4569,10 @@
     "budgetRemaining": "Sisa anggaran {{amount}}",
     "onBudget": "Sesuai anggaran",
     "cashReceived": "Kas diterima",
-    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia"
+    "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini",
+    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia",
+    "cashReceivedInvalid": "Tidak tersedia — data kas berbasis kuitansi tidak dapat diverifikasi",
+    "cashReceivedIncomplete": "Belum lengkap — alokasi kuitansi belum dapat memastikan kas"
   },
   "invoiceProject": {
     "assign":"Tetapkan proyek", "change":"Ubah proyek", "project":"Proyek", "save":"Simpan proyek",
@@ -4702,6 +4705,13 @@
     "allocationAmountUnavailable": "Jumlah yang dialokasikan tidak tersedia",
     "receiptsCoverageUnknown": "Belum semua alokasi penerimaan dilaporkan.",
     "noAppliedReceipts": "Tidak ada penerimaan yang dialokasikan untuk faktur ini."
+  },
+  "uxCorrectness": {
+    "projectNumberPattern": {
+      "timezonePending": "Memeriksa tahun organisasi…",
+      "previewUnavailable": "Pratinjau tidak tersedia",
+      "retryPreview": "Coba lagi pratinjau"
+    }
   },
   "uxs06": {
     "statusReceived": "Diterima",

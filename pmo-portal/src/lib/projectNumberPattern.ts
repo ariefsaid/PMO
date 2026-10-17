@@ -1,3 +1,5 @@
+import { formatCalendarDayInTimeZone } from './format';
+
 export type ProjectNumberPatternValidation =
   | { valid: true }
   | { valid: false; reason: string };
@@ -19,6 +21,17 @@ export function previewProjectNumber(pattern: string, twoDigitYear: number): str
     .replaceAll('{CLIENT}', PREVIEW_CLIENT_SEGMENT)
     .replaceAll('{YY}', String(twoDigitYear).padStart(2, '0'))
     .replaceAll('{SEQ4}', PREVIEW_SEQUENCE);
+}
+
+/** Resolve the business year using the same organisation calendar-day formatter as the server contract. */
+export function projectNumberYear(at: Date, timezone: string): number | null {
+  try {
+    const calendarDay = formatCalendarDayInTimeZone(at, timezone);
+    const match = calendarDay.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? Number(match[1].slice(2)) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Validate the display pattern only; tenant, timezone, and sequence are resolved by the database. */

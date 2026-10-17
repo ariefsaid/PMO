@@ -114,7 +114,7 @@ vi.mock('@/src/components/integrations/IntegrationsView', () => ({
     return <div>Organization integrations panel</div>;
   },
 }));
-vi.mock('./admin/OrgProjectNumberPattern', () => ({ default: () => <div data-testid="project-number-pattern-panel">Project number pattern panel</div> }));
+vi.mock('./admin/OrgProjectNumberPattern', () => ({ default: () => <div id="org-project-number-pattern" tabIndex={-1} data-testid="project-number-pattern-panel">Project number pattern panel</div> }));
 vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>Project classification panel</div> }));
 vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div id="org-tax-default" tabIndex={-1}>Tax default panel</div> }));
 vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approvers" tabIndex={-1} /> }));
@@ -275,14 +275,18 @@ describe('Administration route-backed shell', () => {
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
   });
 
-  it('UX-073: project numbering is in Project setup and the old Accounting deep link redirects there', async () => {
-    renderShell('/administration/accounting#org-project-number-pattern');
+  it.each(['/administration#org-project-number-pattern', '/administration/accounting#org-project-number-pattern'])(
+    'AC-UWC-001: legacy project-numbering hash %s selects and focuses Project setup at the canonical URL',
+    async (path) => {
+      renderShell(path);
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/projects#org-project-number-pattern'));
-    expect(screen.getByRole('link', { name: 'Project setup' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('administration-panel-projects')).toContainElement(screen.getByTestId('project-number-pattern-panel'));
-    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
-  });
+      expect(screen.getByRole('link', { name: 'Project setup' })).toHaveAttribute('aria-current', 'page');
+      await waitFor(() => expect(document.activeElement).toHaveAttribute('id', 'org-project-number-pattern'));
+      expect(screen.getByTestId('location')).toHaveTextContent('/administration/projects#org-project-number-pattern');
+      expect(screen.getByTestId('administration-panel-projects')).toContainElement(screen.getByTestId('project-number-pattern-panel'));
+      expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+    },
+  );
 
   it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
     renderShell('/administration/accounting');

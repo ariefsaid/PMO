@@ -1,6 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseProjectReceiptCash } from './projectFinances';
 import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('project receipt cash parser', () => {
+  it('AC-UWC-009 preserves exact known zero and separate source-currency buckets', () => {
+    expect(parseProjectReceiptCash({ state: 'known', buckets: [], receipt_count: 0 })).toEqual({
+      state: 'known', buckets: [], receipt_count: 0,
+    });
+    expect(parseProjectReceiptCash({ state: 'known', buckets: [
+      { currency: 'USD', amount: '12345678901234567890.01' },
+      { currency: 'IDR', amount: '7.00' },
+    ], receipt_count: 1001 })).toEqual({
+      state: 'known', buckets: [
+        { currency: 'USD', amount: '12345678901234567890.01' },
+        { currency: 'IDR', amount: '7.00' },
+      ], receipt_count: 1001,
+    });
+  });
+
+  it('AC-UWC-009 accepts a recognized incomplete state without any amount bucket', () => {
+    expect(parseProjectReceiptCash({ state: 'incomplete', buckets: [], receipt_count: 2,
+      reasons: ['allocation-unreported', 'currency-mismatch'] })).toEqual({
+      state: 'incomplete', buckets: [], receipt_count: 2,
+      reasons: ['allocation-unreported', 'currency-mismatch'],
+    });
+  });
+
+  it('AC-UWC-009 distinguishes an absent legacy field from a malformed present reading', () => {
+    expect(parseProjectReceiptCash(undefined)).toEqual({ state: 'unavailable', buckets: [], reason: 'not-reported' });
+    expect(parseProjectReceiptCash(null)).toEqual({ state: 'unavailable', buckets: [], reason: 'invalid-reading' });
+  });
+
+  it.each([
+    { state: 'unknown', buckets: [], receipt_count: 0 },
+    { state: 'known', buckets: [{ currency: 'USD', amount: '-0.01' }], receipt_count: 1 },
+    { state: 'known', buckets: [{ currency: 'USD', amount: '-0.00' }], receipt_count: 1 },
+    { state: 'known', buckets: [{ currency: 'usd', amount: '1.00' }], receipt_count: 1 },
+    { state: 'known', buckets: [{ currency: 'USD', amount: 'NaN' }], receipt_count: 1 },
+    { state: 'known', buckets: [{ currency: 'USD', amount: '1.00' }, { currency: 'USD', amount: '2.00' }], receipt_count: 2 },
+    { state: 'known', buckets: [], receipt_count: Number.NaN },
+    { state: 'known', buckets: [], receipt_count: 1.5 },
+    { state: 'incomplete', buckets: [{ currency: 'USD', amount: '1.00' }], receipt_count: 1, reasons: ['allocation-invalid'] },
+    { state: 'incomplete', buckets: [], receipt_count: 1, reasons: [] },
+    { state: 'incomplete', buckets: [], receipt_count: 1, reasons: ['unknown-reason'] },
+  ])('AC-UWC-009 rejects malformed or mixed receipt cash payloads %#', (value) => {
+    expect(parseProjectReceiptCash(value)).toEqual({ state: 'unavailable', buckets: [], reason: 'invalid-reading' });
+  });
+});
 
 describe('money completeness and risk consistency', () => {
   const categories = [
