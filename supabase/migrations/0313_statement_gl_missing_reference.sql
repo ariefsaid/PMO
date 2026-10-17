@@ -1,5 +1,5 @@
--- 0304 — detect uncancelled GL references absent from the complete Account chart.
--- Rollback: rollback/0304_statement_gl_missing_reference_down.sql
+-- 0313 — detect uncancelled GL references absent from the complete Account chart.
+-- Rollback: rollback/0313_statement_gl_missing_reference_down.sql
 create or replace function public.mark_erp_statement_replay_for_missing_accounts(p_org_id uuid, p_company text)
 returns boolean
 language plpgsql
