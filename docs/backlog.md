@@ -9,8 +9,8 @@
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 Work toward the signed Phase-1 financial statements milestone (#897): trial balance, profit and loss,
 balance sheet and project profit, including prior-period comparisons and executed reconciliation.
-After test hygiene and the two local prerequisites, finish statement source B1b (#1074), then the
-remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
+Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
+the remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
 **Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
@@ -67,19 +67,21 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Release-review fixes #1088, #1090 and #1091. The last is the one-Actual rule: ERP ledger for orgs with an active
   ERPNext binding (`org_reads_erp_ledger()`, 0307), committed POs otherwise. Completeness and at-risk are one
   predicate (`isActualComplete` / `isMoneyAtRisk` in `src/lib/projectFinances.ts`), and currencies never mix.
-- Migrations 0294–0299, 0301, 0307, 0309. **Dev now includes 0310–0311; the pending statement-source batch reserves 0312–0314.**
+- Migrations 0294–0299, 0301, 0307, 0309. **Dev now includes 0310–0314; production remains at 0309.**
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
 1. **#1071 test hygiene — complete on dev** (PR #1104; owner priority 2026-10-17). It includes keeping long e2e journeys well inside
    their time budget and running the integration lane on wave-closing PRs. UIP-005's theme split is merged (#1099).
 2. **Security hardening held locally — both source changes merged to dev** (#1101 / PR #1115;
    #1102 / PR #1116). Detail stays in `docs/private/` (public repo). Production deployment remains separately gated.
-3. **#1074 statements B1b — in CI** at `6ec7b360`: migrations renumbered to 0312–0314, compatibility
-   changes reviewed, local final gates passed. Final-revision CI and integration proof remain required before merge.
+3. **#1074 statements B1b — merged to dev** at `301d433a`: migrations 0312–0314, source compatibility
+   reviewed and local final gates passed. Final-revision CI passed 10,926 unit tests and 6,291 database
+   assertions; integration passed 337 browser and 12 served checks. All 67 skips were explained; zero
+   timing failures, three warnings tracked in #1106. Exact-tip/merge ancestry and clean-worktree cleanup verified.
 4. **Complete signed Phase-1 financial statements (#897)** on dev: #1109 independent aggregation
    and ERP reference captures → #1110 publication and scoped reads → #1111 company/project views →
-   #1112 executed reconciliation and acceptance. Exact arithmetic and period-catalogue checkpoints
-   pass 42 local unit tests. Native reference preparation is underway; report comparisons, publication,
+   #1112 executed reconciliation and acceptance. Exact arithmetic, period catalogue and account-hierarchy checkpoints
+   pass 88 local unit tests; the source index is being built. Native reference preparation is underway; report comparisons, publication,
    views and acceptance remain outstanding. A local synthetic proof does not replace the required live rehearsal.
 5. **Later correctness and release-review follow-ups**, after statements unless needed as a prerequisite:
    #1073 small correctness fixes; #1081 shared project-money tiles; #1089 Finance alignment;
