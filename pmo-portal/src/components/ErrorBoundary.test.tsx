@@ -86,15 +86,17 @@ const analyticsMock = vi.hoisted(() => ({
 vi.mock('@/src/lib/analytics/client', () => ({
   analyticsClient: analyticsMock,
 }));
-vi.mock('@/src/lib/analytics', () => ({
-  safeTrack: (fn: () => void) => {
+type Analytics = typeof import('@/src/lib/analytics');
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  safeTrack: (fn: Parameters<Analytics['safeTrack']>[0]) => {
     try {
       fn();
     } catch {
       // mirror the real safeTrack's swallow behavior in the test double
     }
   },
-}));
+} satisfies Analytics));
 
 function BoomWithCapture({ crash }: { crash: boolean }): React.ReactElement {
   if (crash) throw new Error('kaboom');

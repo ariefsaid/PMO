@@ -14,16 +14,18 @@ import { AgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import type { AgentEvent, AgentRuntime, AgentRun } from '../lib/agent/runtime/port';
 import { useAssistantPanel, __testOnlyRunStartedAtSize } from './useAssistantPanel';
 
+type Analytics = typeof import('@/src/lib/analytics');
 const mockCapture = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/analytics', () => ({
-  trackAgentPanelOpened: (...args: unknown[]) => mockCapture('agent_panel_opened', args),
-  trackAgentRunStarted: (...args: unknown[]) => mockCapture('agent_run_started', args),
-  trackAgentRunCompleted: (...args: unknown[]) => mockCapture('agent_run_completed', args),
-  trackAgentRunErrored: (...args: unknown[]) => mockCapture('agent_run_errored', args),
-  trackAgentApprovalShown: (...args: unknown[]) => mockCapture('agent_approval_shown', args),
-  trackAgentApprovalDecided: (...args: unknown[]) => mockCapture('agent_approval_decided', args),
-  trackAgentThreadResumed: (...args: unknown[]) => mockCapture('agent_thread_resumed', args),
-}));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAgentPanelOpened: (...args: Parameters<Analytics['trackAgentPanelOpened']>) => mockCapture('agent_panel_opened', args),
+  trackAgentRunStarted: (...args: Parameters<Analytics['trackAgentRunStarted']>) => mockCapture('agent_run_started', args),
+  trackAgentRunCompleted: (...args: Parameters<Analytics['trackAgentRunCompleted']>) => mockCapture('agent_run_completed', args),
+  trackAgentRunErrored: (...args: Parameters<Analytics['trackAgentRunErrored']>) => mockCapture('agent_run_errored', args),
+  trackAgentApprovalShown: (...args: Parameters<Analytics['trackAgentApprovalShown']>) => mockCapture('agent_approval_shown', args),
+  trackAgentApprovalDecided: (...args: Parameters<Analytics['trackAgentApprovalDecided']>) => mockCapture('agent_approval_decided', args),
+  trackAgentThreadResumed: (...args: Parameters<Analytics['trackAgentThreadResumed']>) => mockCapture('agent_thread_resumed', args),
+} satisfies Analytics));
 vi.mock('../lib/db/agentEvents', () => ({ listRunEvents: vi.fn().mockResolvedValue([]) }));
 vi.mock('../lib/db/agentRuns', () => ({ getRunHeartbeat: vi.fn().mockResolvedValue(null) }));
 

@@ -15,8 +15,12 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
-const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: analytics.trackComingSoonClicked }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackComingSoonClicked: analytics.trackComingSoonClicked,
+} satisfies Analytics));
 
 // ── FK option hook stubbed (Combobox in the add form calls useVendorOptions)
 vi.mock('@/src/hooks/useFkOptions', () => ({

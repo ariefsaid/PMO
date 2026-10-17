@@ -105,6 +105,7 @@ jobs:
         run: |
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
+          node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
@@ -371,6 +372,7 @@ jobs:
       # started for every project invocation below since `webServer` is a top-level config, not
       # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
       - name: E2E tests (Playwright / Chromium)
+        id: ordinary_e2e
         working-directory: pmo-portal
         run: |
           # ⚑ PLAYWRIGHT_JSON_OUTPUT_NAME, never a shell redirect. `--reporter=list,json > file` sends BOTH
@@ -393,6 +395,20 @@ jobs:
         # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
         # entry looks stale in another lane's report and the gate fails itself.
         run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+
+      - name: E2E timing budget audit
+        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        working-directory: .
+        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+
+      - name: Upload E2E timing summary
+        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-time-budget-summary
+          path: /tmp/pw-time-budget-summary.json
+          retention-days: 7
+          if-no-files-found: error
 
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI

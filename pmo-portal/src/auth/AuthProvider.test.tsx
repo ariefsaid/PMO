@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, renderHook, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { useState } from 'react';
 
-const trackAuthLogoutSucceeded = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/analytics', () => ({ trackAuthLogoutSucceeded }));
+type Analytics = typeof import('@/src/lib/analytics');
+const trackAuthLogoutSucceeded = vi.hoisted(() => vi.fn<Analytics['trackAuthLogoutSucceeded']>());
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAuthLogoutSucceeded,
+} satisfies Analytics));
 
 // Mutable session/profile the mocked client returns; reset per test.
 const state = vi.hoisted(() => ({

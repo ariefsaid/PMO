@@ -5,14 +5,18 @@ import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
-const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
 const desktop = vi.hoisted(() => ({ value: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: analytics.trackComingSoonClicked }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackComingSoonClicked: analytics.trackComingSoonClicked,
+} satisfies Analytics));
 
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
 const populated = {

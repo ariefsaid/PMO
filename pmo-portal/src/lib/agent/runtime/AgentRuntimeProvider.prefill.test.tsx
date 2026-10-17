@@ -31,7 +31,11 @@ vi.mock('@/src/lib/features', () => ({
   FEATURES: { agentAssistant: true },
 }));
 
-vi.mock('@/src/lib/analytics', () => ({ trackAgentPanelOpened: vi.fn() }));
+type Analytics = typeof import('@/src/lib/analytics');
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAgentPanelOpened: vi.fn<Analytics['trackAgentPanelOpened']>(),
+} satisfies Analytics));
 
 describe('AgentRuntimeProvider prefill', () => {
   it('AC-AT2-008 openPanel(prefill) seeds composer; openPanel() unchanged', () => {

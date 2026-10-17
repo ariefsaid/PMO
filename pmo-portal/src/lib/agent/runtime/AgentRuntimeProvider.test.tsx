@@ -54,8 +54,12 @@ vi.mock('@/src/lib/features', () => ({
   FEATURES: { agentAssistant: true },
 }));
 
-const mockTrackAgentPanelOpened = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/analytics', () => ({ trackAgentPanelOpened: mockTrackAgentPanelOpened }));
+type Analytics = typeof import('@/src/lib/analytics');
+const mockTrackAgentPanelOpened = vi.hoisted(() => vi.fn<Analytics['trackAgentPanelOpened']>());
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAgentPanelOpened: mockTrackAgentPanelOpened,
+} satisfies Analytics));
 
 // ── Lazy import of provider (after mocks are set up) ─────────────────────────
 

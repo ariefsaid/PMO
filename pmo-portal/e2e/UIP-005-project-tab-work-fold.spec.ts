@@ -102,7 +102,9 @@ for (const role of ['pm', 'finance'] as const) {
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     for (const theme of ['light', 'dark'] as const) {
-      test(`UIP-005: ${role} sees tab work immediately at ${viewport.width} (${theme})`, async ({ page }) => {
+      test(`UIP-005: ${role} sees tab work immediately at ${viewport.width} (${theme}) [AC-TH-007]`, {
+        annotation: { type: 'time-budget-ms', description: '90000' },
+      }, async ({ page }) => {
       await page.setViewportSize(viewport);
       await login(page, `${role}@acme.test`);
       await page.goto(`${projectPath}/tasks`);

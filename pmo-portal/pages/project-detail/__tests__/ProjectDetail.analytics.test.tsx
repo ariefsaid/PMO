@@ -11,8 +11,12 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
 // project_tab_viewed (2026-07-13 wiring plan) — ProjectDetail's `setTab` is the single
 // boundary for every tab switch (URL-param deep-links AND clicks land on the same fn).
 
-const analytics = vi.hoisted(() => ({ trackProjectTabViewed: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => ({ trackProjectTabViewed: analytics.trackProjectTabViewed }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackProjectTabViewed: vi.fn<Analytics['trackProjectTabViewed']>() }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackProjectTabViewed: analytics.trackProjectTabViewed,
+} satisfies Analytics));
 
 const projData = [
   {

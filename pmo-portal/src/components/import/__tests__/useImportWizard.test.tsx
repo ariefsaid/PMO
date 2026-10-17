@@ -9,8 +9,15 @@ import { AppError } from '@/src/lib/appError';
 // `save_failed` event per failed row (a 10k-row import failing wholesale would multiply one
 // click into ~10k events — PostHog's overage DISCARDS PERMANENTLY). Mock the analytics facade
 // so the test can assert the aggregate-vs-per-row shape directly.
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => analytics);
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({
+  trackSaveFailed: vi.fn<Analytics['trackSaveFailed']>(),
+  trackBulkImportFailed: vi.fn<Analytics['trackBulkImportFailed']>(),
+}));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  ...analytics,
+} satisfies Analytics));
 beforeEach(() => {
   analytics.trackSaveFailed.mockClear();
   analytics.trackBulkImportFailed.mockClear();
