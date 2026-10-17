@@ -10,7 +10,8 @@
 DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
 files). After-push probes (Director-run): `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
 255 checks / 0 leaks / 0 errors (200 skips: the write checks need a disposable tenant A). The version PR (#1098) merged
-with `--admin` by owner decision: its only failure was UIP-005 exceeding its 120 s budget (split in #1099).
+with `--admin` by owner decision: its only failure was UIP-005 exceeding its 120 s budget. The theme split
+merged to `dev` in #1099 on 2026-10-17; its assertions and 120 s timeout are unchanged (local cases: 19–37 s).
 
 **Previous release (2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
 hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
@@ -57,7 +58,7 @@ operator work (outcomes, budget account map, budget activation by a second perso
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
 1. **#1071 test hygiene**: top of the queue (owner 2026-10-17). It includes keeping long e2e journeys well inside
-   their time budget; UIP-005 is being split by theme on `fix/uip005-split`.
+   their time budget and running the integration lane on wave-closing PRs. UIP-005's theme split is merged (#1099).
 2. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
    must close before financial statements are shown to users.
 3. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
