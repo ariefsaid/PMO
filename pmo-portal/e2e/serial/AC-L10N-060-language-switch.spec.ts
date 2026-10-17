@@ -56,10 +56,13 @@ test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
 
   // 3. Project detail → the SAME settled screen shows the contract value and start date in
-  //    Indonesian convention (AC-L10N-060's goal oracle).
+  //    Indonesian convention (AC-L10N-060's goal oracle). S-13 (#1087, ae6ab208) deliberately
+  //    moved secondary project context into the details/actions disclosure, so open it before
+  //    checking the start date rather than weakening the visibility assertion.
   await page.goto(`/projects/${PROJECT_ID}`);
   await expect(page.locator('main')).toBeVisible();
   await expect(page.getByText(MONEY_ID, { exact: true }).first()).toBeVisible();
+  await page.getByTestId('project-detail-rail').locator('summary').click();
   await expect(page.getByText(DATE_ID, { exact: true }).first()).toBeVisible();
 });
 

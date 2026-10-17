@@ -13,8 +13,9 @@ import { login } from '../helpers';
 //   • Clicking "Create" in the NewVersionForm now STAGES a ConfirmDialog with
 //     confirmLabel="Create version". Must click that confirm before the version exists.
 //   • ProjectBudget now renders ONE VersionCard at a time via a version <select>
-//     (aria-label="Version"). After creating the new version, wait for the option to
-//     appear in the select, then select it to see its card.
+//     (aria-label="Version"). S-04 (#1080, 14445735) deliberately removed the status
+//     from option text because the selected version card already carries its status badge.
+//     Select by version name, then assert Draft on the card.
 //   • "Activate" also stages a ConfirmDialog (confirmLabel="Activate version").
 test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second person activates, project shows formatCurrency(1000000)', async ({ page }) => {
   // This journey owns the PMO activation + derived-value contract, not the live ERPNext boundary.
@@ -73,21 +74,11 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   const versionSelect = page.getByLabel('Version', { exact: true });
   await expect(versionSelect).toBeVisible({ timeout: 10_000 });
 
-  // Wait for the "E2E Test Budget (Draft)" option to appear in the select.
-  await expect(page.locator('option', { hasText: /E2E Test Budget.*Draft/ })).toBeAttached({ timeout: 10_000 });
-
-  // Evaluate the select to find the option value for "E2E Test Budget (Draft)"
-  const draftOptionValue = await page.evaluate(() => {
-    const sel = document.getElementById('budget-version-select') as HTMLSelectElement | null;
-    if (!sel) return null;
-    for (const opt of Array.from(sel.options)) {
-      if (opt.text.includes('E2E Test Budget') && opt.text.includes('Draft')) {
-        return opt.value;
-      }
-    }
-    return null;
-  });
-  expect(draftOptionValue, 'Draft version option not found in select').not.toBeNull();
+  // S-04 (#1080, 14445735) intentionally leaves status out of options; the card owns it.
+  const draftOption = page.locator('option', { hasText: 'E2E Test Budget' });
+  await expect(draftOption).toBeAttached({ timeout: 10_000 });
+  const draftOptionValue = await draftOption.getAttribute('value');
+  expect(draftOptionValue, 'New budget version option not found in select').toBeTruthy();
   await versionSelect.selectOption(draftOptionValue!);
 
   // The version card for the newly selected Draft should now be visible
