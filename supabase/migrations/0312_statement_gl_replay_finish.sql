@@ -1,4 +1,4 @@
--- 0303 — mark-and-sweep reconciliation for complete statement GL replays.
+-- 0312 — mark-and-sweep reconciliation for complete statement GL replays.
 -- The replay UUID is temporary mark-and-sweep bookkeeping, cleared by finish_erp_gl_replay.
 alter table public.erp_gl_entry_mirror
   add column replay_seen_id uuid;

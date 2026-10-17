@@ -1,4 +1,4 @@
--- Restore 0303 finish semantics and remove missing-reference detection.
+-- Restore 0312 finish semantics and remove missing-reference detection.
 drop function if exists public.mark_erp_statement_replay_for_missing_accounts(uuid, text);
 create or replace function public.finish_erp_gl_replay(
   p_org_id uuid,

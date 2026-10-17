@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dbContainer = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
-const migrations = ['0294_statement_account_source', '0295_statement_ledger_source', '0296_replace_erp_account_chart', '0303_statement_gl_replay_finish', '0304_statement_gl_missing_reference', '0305_statement_company_replay'];
+const migrations = ['0294_statement_account_source', '0295_statement_ledger_source', '0296_replace_erp_account_chart', '0312_statement_gl_replay_finish', '0304_statement_gl_missing_reference', '0305_statement_company_replay'];
 const sqlFile = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 function psql(sql) {
