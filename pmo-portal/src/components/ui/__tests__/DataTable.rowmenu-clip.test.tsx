@@ -65,6 +65,21 @@ describe('DataTable RowMenu — clip escape + a11y (AC-W6-IXD-MENU)', () => {
     expect(document.body.contains(menu)).toBe(true);
   });
 
+  it('AC-W6-IXD-MENU: an open row menu layers above transient toasts', async () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />,
+    );
+    const { menu } = await openFirstMenu();
+    // Toasts occupy z-index 1000 and can overlap a bottom-row menu; the action
+    // menu must remain the top interactive layer so pointer events reach items.
+    expect(Number(menu.style.zIndex)).toBeGreaterThan(1000);
+  });
+
   it('AC-W6-IXD-MENU: the menu container carries aria-orientation="vertical"', async () => {
     render(
       <DataTable
