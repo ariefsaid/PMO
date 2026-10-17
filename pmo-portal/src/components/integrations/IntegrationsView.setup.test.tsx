@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -43,7 +41,7 @@ import { useIntegrations } from '@/src/hooks/useIntegrations';
 
 import { useProjects } from '@/src/hooks/useProjects';
 
-import { baseExternalDomainReturn, bindingMapIntegrations, mockBinding, project, wrapWithRole, installIntegrationDefaults } from './IntegrationsView.test-helpers';
+import { baseExternalDomainReturn, bindingMapIntegrations, mockBinding, wrapWithRole, installIntegrationDefaults } from './IntegrationsView.test-helpers';
 
 import { IntegrationsView } from './IntegrationsView';
 
