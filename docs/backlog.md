@@ -86,8 +86,9 @@ operator work (outcomes, budget account map, budget activation by a second perso
 5. **Later correctness and release-review follow-ups**, after statements unless needed as a prerequisite:
    #1073 small correctness fixes; #1081 shared project-money tiles; #1089 Finance alignment;
    #1083 management-pack invoice presence.
-6. **Close shipped issues once verified.** #1050 shipped in #1052; #1033 shipped in v0.21.0. Check #1044,
-   #1045 and #1048 against what shipped first.
+6. **Shipped-issue verification completed (2026-10-18).** Closed #1050 (PR #1052), #1033 (PR #1040),
+   #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
+   #1044 remains open for the broader cross-record-page acceptance.
 7. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including UX-029, 042, 044, 052, 078, 079 and 082.
 8. **Triage**: #1068, #1069, #1070, #1072.
 
