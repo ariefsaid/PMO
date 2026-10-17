@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.21.0 is LIVE, v0.22.0 on `dev`; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.22.0 is being deployed to production; run the four commands below before quoting any number
 
 **Live (owner yes, 2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
 hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
@@ -50,11 +50,12 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Migrations 0294–0299, 0301, 0307, 0309. **Next free migration: 0310.**
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
-1. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
+1. **#1071 test hygiene**: top of the queue (owner 2026-10-17). It includes keeping long e2e journeys well inside
+   their time budget; UIP-005 is being split by theme on `fix/uip005-split`.
+2. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
    must close before financial statements are shown to users.
-2. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
-   then merge. Its publication hardening is #1068.
-3. **#1071** test hygiene, then **#1073** small correctness fixes.
+3. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
+   then merge. Its publication hardening is #1068. Then **#1073** small correctness fixes.
 4. **Release-review follow-ups**:
    - #1081 one shared project-money tile builder;
    - #1089 Finance budget review, top-projects card and approvals badge on the one-Actual rule;
