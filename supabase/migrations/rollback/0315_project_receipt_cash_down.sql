@@ -1,6 +1,5 @@
--- Reverse #1073's additive cash read and its allocation membership index.
+-- Reverse #1073's additive cash read.
 begin;
-drop index if exists public.incoming_payments_allocation_details_gin_idx;
 CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql

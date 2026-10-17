@@ -1,9 +1,5 @@
 -- #1073: exact receipt cash in the existing guarded project-finance read.
 begin;
-create index incoming_payments_allocation_details_gin_idx
-  on public.incoming_payments using gin (allocation_details jsonb_path_ops)
-  where not pmo_native and allocation_details is not null;
-
 CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql

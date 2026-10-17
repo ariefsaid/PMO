@@ -3260,3 +3260,7 @@ ambiguity. `docs/glossary.md` carries the same note. Owner may override.
 - Approval copy uses neutral `dashboard.kpi.awaitingApproval.*` keys; unavailable remains an em dash/unavailable state, not zero, and explicit label overrides remain verbatim.
 - `Faktur Penjualan` is the shared Sales Invoices noun; rail and Finance breadcrumbs resolve through the shell key, aligned with the page's existing finance-copy key.
 
+## Compatibility-redirect test retention (Discover #1073, 2026-10-18)
+
+Prove compatibility redirects through the exported `AppRoutes` at their actual entry and assert the mounted canonical destination (including fragment focus where applicable). A leaf mounted directly at a path the router redirects elsewhere is not route coverage.
+

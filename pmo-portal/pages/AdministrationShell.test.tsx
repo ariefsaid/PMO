@@ -2,7 +2,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -11,7 +11,14 @@ import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcement
 
 const { roleState, operatorState, listState, mutations, panelMounts } = vi.hoisted(() => ({
   roleState: { value: 'Admin' as Role },
-  operatorState: { value: false, pending: false, error: false, retry: vi.fn() },
+  operatorState: {
+    value: false,
+    pending: false,
+    error: false,
+    revision: 0,
+    listeners: new Set<() => void>(),
+    retry: vi.fn(),
+  },
   listState: {
     data: [
       {
@@ -61,12 +68,22 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => operatorState.value,
-  useOperatorMembership: () => ({
-    isOperator: operatorState.value && !operatorState.error,
-    isPending: operatorState.pending,
-    isError: operatorState.error,
-    retry: operatorState.retry,
-  }),
+  useOperatorMembership: () => {
+    React.useSyncExternalStore(
+      (listener) => {
+        operatorState.listeners.add(listener);
+        return () => operatorState.listeners.delete(listener);
+      },
+      () => operatorState.revision,
+      () => operatorState.revision,
+    );
+    return {
+      isOperator: operatorState.value && !operatorState.error,
+      isPending: operatorState.pending,
+      isError: operatorState.error,
+      retry: operatorState.retry,
+    };
+  },
 }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => listState,
@@ -114,7 +131,26 @@ vi.mock('@/src/components/integrations/IntegrationsView', () => ({
     return <div>Organization integrations panel</div>;
   },
 }));
-vi.mock('./admin/OrgProjectNumberPattern', () => ({ default: () => <div id="org-project-number-pattern" tabIndex={-1} data-testid="project-number-pattern-panel">Project number pattern panel</div> }));
+vi.mock('@/src/hooks/useOrgProjectNumberPattern', () => ({
+  useOrgProjectNumberPatternQuery: () => ({
+    data: 'PRJ-{YY}-{SEQ4}',
+    isError: false,
+    isSuccess: true,
+    refetch: () => Promise.resolve(),
+  }),
+  useOrgProjectNumberTimezoneQuery: () => ({
+    data: { timezone: 'Asia/Jakarta' },
+    isSuccess: true,
+    isPlaceholderData: false,
+    isPending: false,
+    fetchStatus: 'idle',
+    refetch: () => Promise.resolve(),
+  }),
+  ORG_PROJECT_NUMBER_PATTERN_KEY: 'org-project-number-pattern',
+}));
+vi.mock('./AdministrationExchangeRates', () => ({
+  default: () => <div>Exchange rates panel</div>,
+}));
 vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>Project classification panel</div> }));
 vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div id="org-tax-default" tabIndex={-1}>Tax default panel</div> }));
 vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approvers" tabIndex={-1} /> }));
@@ -131,7 +167,12 @@ vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));
 
-import Administration from './Administration';
+import { AppRoutes } from '../App';
+
+const publishOperatorState = () => {
+  operatorState.revision += 1;
+  operatorState.listeners.forEach((listener) => listener());
+};
 
 const LocationProbe: React.FC = () => {
   const location = useLocation();
@@ -161,17 +202,10 @@ const ShellHarness: React.FC<{ path: string }> = ({ path }) => {
       <ImpersonationProvider realRole={roleState.value}>
         <MemoryRouter initialEntries={[path]}>
           <ToastProvider>
-            <Routes>
-              <Route
-                path="*"
-                element={
-                  <>
-                    <Administration />
-                    <LocationProbe />
-                  </>
-                }
-              />
-            </Routes>
+            <>
+              <AppRoutes />
+              <LocationProbe />
+            </>
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
@@ -191,6 +225,8 @@ beforeEach(() => {
   operatorState.value = false;
   operatorState.pending = false;
   operatorState.error = false;
+  operatorState.revision = 0;
+  operatorState.listeners.clear();
   operatorState.retry.mockClear();
   panelMounts.integrations = 0;
   panelMounts.accounting = 0;
@@ -221,6 +257,14 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.credits).toBe(0);
     expect(panelMounts.usage).toBe(0);
     expect(panelMounts.features).toBe(0);
+  });
+
+  it('Finance entering Administration still lands on Exchange rates', async () => {
+    renderShell('/administration', 'Finance');
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/exchange-rates'));
+    expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-exchange-rates')).toHaveTextContent('Exchange rates panel');
   });
 
   it('AC-ADMIA-002: an Operator sees all eight destinations and only mounts the requested panel', async () => {
@@ -283,7 +327,9 @@ describe('Administration route-backed shell', () => {
       expect(screen.getByRole('link', { name: 'Project setup' })).toHaveAttribute('aria-current', 'page');
       await waitFor(() => expect(document.activeElement).toHaveAttribute('id', 'org-project-number-pattern'));
       expect(screen.getByTestId('location')).toHaveTextContent('/administration/projects#org-project-number-pattern');
-      expect(screen.getByTestId('administration-panel-projects')).toContainElement(screen.getByTestId('project-number-pattern-panel'));
+      expect(screen.getByTestId('administration-panel-projects')).toContainElement(
+        screen.getByRole('region', { name: 'Project number pattern' }),
+      );
       expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
     },
   );
@@ -359,6 +405,7 @@ describe('Administration route-backed shell', () => {
 
     operatorState.pending = false;
     operatorState.value = true;
+    publishOperatorState();
     view.rerender(<ShellHarness path="/administration/usage" />);
     // The route must become available after the membership result settles; it must not have
     // committed a transient denial that survives the positive result.

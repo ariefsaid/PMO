@@ -316,10 +316,7 @@ const Administration: React.FC = () => {
     return () => window.cancelAnimationFrame(frame);
   }, [hash, pathname]);
 
-  if (
-    hash === '#org-project-number-pattern'
-    && (pathname === '/administration' || pathname === '/administration/accounting')
-  ) {
+  if (hash === '#org-project-number-pattern' && pathname === '/administration/accounting') {
     return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
   }
 
