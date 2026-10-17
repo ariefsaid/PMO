@@ -34,8 +34,8 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await expect(sidebar.getByRole('link', { name: 'Procurement' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Timesheets' })).toBeVisible();
 
-  const statusCard = page.getByText('Project Status', { exact: true }).locator('..');
-  const flaggedProject = statusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
+  const statusRegion = page.getByRole('region', { name: 'Project Status' });
+  const flaggedProject = statusRegion.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
   await expect(flaggedProject).toBeVisible();
   await flaggedProject.focus();
   await expect(flaggedProject).toBeFocused();
@@ -47,8 +47,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await page.goBack();
   await expect(page).toHaveURL('/');
   await expect(page.getByText('Diego Salvatierra')).toBeVisible();
-  const returnedStatusCard = page.getByText('Project Status', { exact: true }).locator('..');
   await expect(
-    returnedStatusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
+    page.getByRole('region', { name: 'Project Status' }).getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
   ).toBeVisible();
 });

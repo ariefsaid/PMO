@@ -508,6 +508,17 @@ values
   ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
    'Salary - PSC','2026',7000000.00,0,7000000.00, now() - interval '1 day',
    '5a000000-0000-0000-0000-000000000001'),
+  -- SP-2402 has a complete mapped-category read; mapped accounts without spend
+  -- are explicit synthetic zeroes so the PM at-risk signal remains actionable.
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Cost of Goods Sold - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Expenses Included In Asset Valuation - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Entertainment Expenses - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
   ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
    'Subcontractor Costs - PSC','2026',100000.00,0,100000.00, now() - interval '1 day',
    '5a000000-0000-0000-0000-000000000001'),
@@ -517,6 +528,17 @@ values
   -- ⚑ NOTE the deliberate absence: 'Entertainment Expenses - PSC' (Permits & Fees) is MAPPED but has no
   -- row here, so its actual is a real, computed 0 — the third state.
 on conflict do nothing;
+
+-- Synthetic submitted billing on SP-2402 gives the dashboard one fully known,
+-- same-currency billed-work margin while the other projects remain honestly unknown.
+insert into sales_invoices
+  (id, org_id, project_id, customer_id, si_number, invoice_date, amount, tax_amount,
+   tax_treatment, currency, status, erp_docstatus)
+values
+  ('b5000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+   '41000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000003',
+   'DEMO-SI-2402-001','2026-06-15',7700000,0,'exclusive','USD','Submitted',1)
+on conflict (id) do nothing;
 
 -- PMO's own forward estimate (FR-BUD-151) — never pushed to ERP (FR-BUD-160).
 insert into budget_projections (org_id, project_id, fiscal_year, category, pmo_etc) values

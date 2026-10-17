@@ -9,11 +9,14 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await signIn(page, 'exec@acme.test');
   await page.goto('/');
 
-  // ── Exec Dashboard: on-hand margin tile ──────────────────────────────────────
-  // on_hand_margin = 0.949375 → 94.9%
+  // ── Exec Dashboard: contract and billed-work margin stay distinct ────────────
+  // SP-2402 has a synthetic, submitted billed-work invoice and complete mapped
+  // Actual, proving known margin; other projects remain honestly unknown. The
+  // contract-remaining measure stays distinct from billed-work margin.
   const onHandMarginTile = page.getByTestId('kpi-on-hand-margin');
   await expect(onHandMarginTile).toBeVisible();
-  await expect(onHandMarginTile).toContainText('%');
+  await expect(onHandMarginTile).toContainText('Known margin on billed work: $500,000.00');
+  await expect(onHandMarginTile).toContainText('Contract remaining after known Actual:');
 
   // ── Exec Dashboard: pipeline weighted value tile ──────────────────────────────
   // pipeline_weighted_value = 800,000
