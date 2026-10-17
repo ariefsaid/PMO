@@ -4,6 +4,19 @@ import userEvent from '@testing-library/user-event';
 import type { ConsentState } from '@/src/lib/analytics';
 
 type Analytics = typeof import('@/src/lib/analytics');
+const enabledConfig: ReturnType<Analytics['getAnalyticsConfig']> = {
+  enabled: true,
+  demoMode: false,
+  analyticsEnabled: false,
+  replayAndAutocapture: false,
+  posthogKey: '',
+  posthogHost: '',
+  appEnv: 'test',
+  isDev: false,
+  isProd: false,
+  demoAudience: 'internal',
+  demoAccount: 'local',
+};
 const analytics = vi.hoisted(() => ({
   analyticsOptOut: vi.fn<Analytics['analyticsOptOut']>(),
   analyticsOptIn: vi.fn<Analytics['analyticsOptIn']>(),
@@ -24,7 +37,7 @@ function setState(state: ConsentState) {
 beforeEach(() => {
   analytics.analyticsOptOut.mockClear();
   analytics.analyticsOptIn.mockClear();
-  analytics.getAnalyticsConfig.mockReturnValue({ enabled: true });
+  analytics.getAnalyticsConfig.mockReturnValue(enabledConfig);
   setState('active');
 });
 
