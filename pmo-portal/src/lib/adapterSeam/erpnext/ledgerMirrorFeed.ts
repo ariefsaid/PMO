@@ -112,10 +112,13 @@ export async function feedLedgerMirrors(
   const glNext = maxModified(glResult.rows);
   let glFinalCursor: string | null;
   if (fullReplay) {
-    const { error } = await serviceClient.rpc('finish_erp_gl_replay', {
+    const { data, error } = await serviceClient.rpc('finish_erp_gl_replay', {
       p_org_id: orgId, p_company: company, p_replay_id: replayId!, p_watermark: glNext,
     });
     if (error) throw new AppError(error.message, error.code);
+    if ((data as { stale_binding?: unknown } | null)?.stale_binding === true) {
+      throw new AppError('Full statement replay refused: stale binding changed during replay', 'config-rejected');
+    }
     glFinalCursor = glNext;
   } else {
     glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);

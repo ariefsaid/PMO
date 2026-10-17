@@ -120,6 +120,33 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ since: undefined, maxPages: 300 }));
   });
 
+  it('AC-005: a returned stale-binding refusal cannot claim replay completion or continue to PLE', async () => {
+    const base = fakeServiceClient();
+    let replayNeeded = true;
+    const rpc = vi.fn(async () => {
+      const result = { data: { deleted: 0, stale_binding: true }, error: null };
+      if (result.data.stale_binding !== true) replayNeeded = false;
+      return result;
+    });
+    const sc = Object.assign(base, { rpc });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-STALE', { company: 'Synthetic Co' })], caughtUp: true });
+    const pleFetch = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    let returnedCaughtUp = false;
+    try {
+      await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+      returnedCaughtUp = true;
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/stale.*binding/i);
+    }
+    expect(returnedCaughtUp).toBe(false);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(pleFetch).not.toHaveBeenCalled();
+    expect(h(base).gl.get('GL-STALE')).toMatchObject({ replay_seen_id: expect.any(String) });
+    expect(h(base).watermarks.size).toBe(0);
+    expect(replayNeeded).toBe(true);
+  });
+
   it('a fixed fetched GL/PLE set lands as mirror rows (decimal-strings intact) + advances both watermarks', async () => {
     const sc = fakeServiceClient();
     const glSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [
