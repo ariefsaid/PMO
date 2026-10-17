@@ -635,7 +635,7 @@ const Projects: React.FC = () => {
           return (
             <div className="flex flex-col gap-0.5 text-right">
               <span className="text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>
-              {incomplete && <span className="text-[10px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+              {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
               {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
             </div>
           );
@@ -647,7 +647,7 @@ const Projects: React.FC = () => {
             {money.ledgerBasis === 'erp' && <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
               ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
               : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>}
-            {incomplete && <span className="text-[10px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+            {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
             {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
           </div>
         );
@@ -718,7 +718,7 @@ const Projects: React.FC = () => {
             <div className="max-w-[120px] whitespace-normal text-[10px] text-muted-foreground">
               {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual, money.actuals.currency || p.currency), budget: formatCompactCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}
             </div>
-            {atRisk && <span className="text-[10px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
+            {atRisk && <span className="text-[10px] font-semibold text-warning-foreground">{t('uxs02.atRisk', 'At risk')}</span>}
           </div>
         );
       },
