@@ -66,9 +66,12 @@ export async function fetchStatementMetadata(client: ErpClientDeps, opts: { comp
     getResource(client, 'System Settings', 'System Settings', ['currency_precision', 'float_precision', 'rounding_method']),
     getResource(client, 'Currency', currency, ['name', 'smallest_currency_fraction_value']),
   ]);
-  const precision = integer(system.currency_precision, 'currency precision');
-  const floatPrecision = integer(system.float_precision, 'float precision');
-  const roundingMethod = text(system.rounding_method, 'rounding method');
+  // Frappe v16's System Settings defaults: currency_precision=2, float_precision=3,
+  // rounding_method=Banker's Rounding. Blank ERPNext fields mean these defaults, not bad metadata.
+  // Source: https://github.com/frappe/frappe/blob/version-16/frappe/core/doctype/system_settings/system_settings.json
+  const precision = system.currency_precision == null || system.currency_precision === '' ? 2 : integer(system.currency_precision, 'currency precision');
+  const floatPrecision = system.float_precision == null || system.float_precision === '' ? 3 : integer(system.float_precision, 'float precision');
+  const roundingMethod = system.rounding_method == null || system.rounding_method === '' ? "Banker's Rounding" : text(system.rounding_method, 'rounding method');
   if (!['Banker\'s Rounding', "Banker's Rounding (legacy)", 'Commercial Rounding'].includes(roundingMethod)) throw new AppError('Unsupported rounding method', 'config-rejected');
   const fractionValue = currencyDoc.smallest_currency_fraction_value;
   if (typeof fractionValue !== 'number' && typeof fractionValue !== 'string') throw new AppError('Missing currency precision/cutoff metadata', 'commit-rejected');

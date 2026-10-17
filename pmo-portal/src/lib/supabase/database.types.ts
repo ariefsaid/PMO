@@ -1874,6 +1874,7 @@ export type Database = {
           party_type: string | null
           posting_date: string | null
           project: string | null
+          replay_seen_id: string | null
           voucher_no: string | null
           voucher_type: string | null
         }
@@ -1897,6 +1898,7 @@ export type Database = {
           party_type?: string | null
           posting_date?: string | null
           project?: string | null
+          replay_seen_id?: string | null
           voucher_no?: string | null
           voucher_type?: string | null
         }
@@ -1920,6 +1922,7 @@ export type Database = {
           party_type?: string | null
           posting_date?: string | null
           project?: string | null
+          replay_seen_id?: string | null
           voucher_no?: string | null
           voucher_type?: string | null
         }
@@ -7754,6 +7757,15 @@ export type Database = {
         }
         Returns: string
       }
+      finish_erp_gl_replay: {
+        Args: {
+          p_company: string
+          p_org_id: string
+          p_replay_id: string
+          p_watermark: string
+        }
+        Returns: Json
+      }
       fx_rate_on: {
         Args: { base: string; on_date: string; quote: string }
         Returns: {
@@ -8281,6 +8293,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      mark_erp_statement_replay_for_missing_accounts: {
+        Args: { p_company: string; p_org_id: string }
+        Returns: boolean
       }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }

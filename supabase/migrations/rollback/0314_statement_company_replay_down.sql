@@ -1,0 +1,2 @@
+drop trigger if exists external_org_bindings_statement_company_replay on public.external_org_bindings;
+drop function if exists public.request_statement_replay_on_company_change();

@@ -86,6 +86,9 @@ import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
+import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
+import { fetchStatementMetadata } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementMetadata.ts';
+import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -289,6 +292,7 @@ export function inFlightAnchorFilter(
   baseFilter?: (row: Record<string, unknown>) => boolean,
 ): ((row: Record<string, unknown>) => Promise<boolean>) | undefined {
   const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
+  // deno-lint-ignore require-await -- preserve async rejection semantics for a synchronous baseFilter.
   if (!anchorField) return baseFilter ? async (row) => baseFilter(row) : undefined;
   return async (row: Record<string, unknown>): Promise<boolean> => {
     if (baseFilter && !baseFilter(row)) return false;
@@ -398,8 +402,9 @@ export function buildOutboxProbe(args: {
   const { probeDeps, kind, anchorField, anchorMutable, payload } = args;
   // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
   const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
-  if (!anchorField) return async () => null;
+  if (!anchorField) return () => Promise.resolve(null);
   if (!anchorMutable) return (_domain, idempotencyKey) => probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
+  // deno-lint-ignore require-await -- preserve async rejection semantics for malformed persisted payloads.
   return async (_domain, idempotencyKey) => {
     // The direction comes from the KIND (what PMO commanded), falling back to the persisted payload
     // only for a kind that is not one of the two Payment Entry kinds — never a bare 'Pay' default,
@@ -568,6 +573,7 @@ interface OrgBinding {
   activatedAt?: string | null;
   /** Holder fence for statement-source writes in this sweep tick. */
   statementLockHolder?: string;
+  statementReplayNeeded?: boolean;
 }
 
 export interface ErpSweepCycleDeps {
@@ -580,7 +586,7 @@ export interface ErpSweepCycleDeps {
   /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
    *  existing cycle tests stay byte-for-byte; the live wiring always supplies it. */
   repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
-  feedOrgLedgers: (org: OrgBinding) => Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }>;
+  feedOrgLedgers: (org: OrgBinding) => Promise<OrgLedgerFeedResult>;
   refreshOrgAccounting: (org: OrgBinding) => Promise<{ error?: string }>;
   /** P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's SECOND originator: re-drive the mirror's
    *  own work queue (`budget_version_erp_mirror`), re-asserting the SAME still-Active gate the
@@ -605,9 +611,20 @@ export interface ErpSweepCycleDeps {
 export const STATEMENT_SWEEP_WALL_CLOCK_CAP_MS = 150_000;
 export const STATEMENT_SWEEP_LOCK_TTL_MS = 15 * 60_000;
 
+export interface OrgLedgerFeedResult {
+  gl: number;
+  ple: number;
+  /** Raw-source completeness only; statement readiness never changes these flags. */
+  glCaughtUp?: boolean;
+  pleCaughtUp?: boolean;
+  error?: string;
+  statementReady?: boolean;
+  statementError?: string;
+}
+
 export interface ErpSweepCycleResult {
   orgs: number;
-  perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number }; errors: string[] }>;
+  perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
 }
 
 /**
@@ -672,11 +689,15 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
       }
     }
     // (3) ledger-mirror feed.
-    let ledger: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean } | undefined;
+    let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     try {
       const r = await deps.feedOrgLedgers(org);
-      ledger = { gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp };
+      ledger = {
+        gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp,
+        ...(r.statementReady === undefined ? {} : { statementReady: r.statementReady }),
+      };
       if (r.error) errors.push(`ledger:${r.error}`);
+      if (r.statementError) errors.push(`statement:${r.statementError}`);
     } catch (err) {
       errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
     }
@@ -749,7 +770,7 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
  *  not silently swallowed). */
 export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Promise<OrgBinding[]> {
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, site_url, secret_ref, config, activated_at, version_major')
+    .select('org_id, site_url, secret_ref, config, activated_at, version_major, statement_full_ledger_replay_needed')
     .eq('external_tier', ERPNEXT_TIER);
   // task FIX-5: a real DB error must not be silently folded into "no employing orgs this cycle" — log
   // it so an outage is observable in the function logs. The sweep cycle still returns [] (fail-safe:
@@ -758,7 +779,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     console.error(`[erpnext-sweep] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     return [];
   }
-  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null }> | null) ?? [];
+  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null; statement_full_ledger_replay_needed?: boolean }> | null) ?? [];
   const activated = rows.filter((r) => r.activated_at);
   if (activated.length === 0) return [];
 
@@ -817,6 +838,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     versionMajor: r.version_major ?? null,
     activatedAt: r.activated_at,
     ownedDomains: ownedByOrg.get(r.org_id) ?? [],
+    statementReplayNeeded: r.statement_full_ledger_replay_needed === true,
   }));
 }
 
@@ -1419,17 +1441,189 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
   }
 }
 
-/** The ledger-mirror feed for one org (8.6b). */
-async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }> {
+/** The statement-source read budget is intentionally separate from the ordinary ledger client. */
+export const STATEMENT_READ_REQUEST_TIMEOUT_MS = 5_000;
+export const STATEMENT_READ_STAGE_TIMEOUT_MS = 7_000;
+
+type StatementReadOutcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
+type StatementSourceReadResults = {
+  accounts?: StatementReadOutcome<Awaited<ReturnType<typeof fetchStatementAccounts>>>;
+  metadata?: StatementReadOutcome<Awaited<ReturnType<typeof fetchStatementMetadata>>>;
+  timedOut: boolean;
+};
+
+/** One bounded statement-only stage; the ordinary ledger client and its retry budget are untouched. */
+async function readStatementSourcesBounded(client: ErpClientDeps, company: string): Promise<StatementSourceReadResults> {
+  const controller = new AbortController();
+  const boundedClient: ErpClientDeps = {
+    ...client,
+    timeoutMs: STATEMENT_READ_REQUEST_TIMEOUT_MS,
+    maxRetries: 0,
+    fetchImpl: (input, init) => {
+      const requestInit = init as RequestInit | undefined;
+      const signal = requestInit?.signal ? AbortSignal.any([controller.signal, requestInit.signal]) : controller.signal;
+      return client.fetchImpl(input, { ...requestInit, signal });
+    },
+  };
+  let acceptingResults = true;
+  let accounts: StatementSourceReadResults['accounts'];
+  let metadata: StatementSourceReadResults['metadata'];
+  const accountRead = fetchStatementAccounts(boundedClient, { company }).then(
+    (value) => { if (acceptingResults) accounts = { ok: true, value }; },
+    (error: unknown) => { if (acceptingResults) accounts = { ok: false, error }; },
+  );
+  const metadataRead = fetchStatementMetadata(boundedClient, { company }).then(
+    (value) => { if (acceptingResults) metadata = { ok: true, value }; },
+    (error: unknown) => { if (acceptingResults) metadata = { ok: false, error }; },
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const deadline = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error(`Statement source reads exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`));
+      resolve(false);
+    }, STATEMENT_READ_STAGE_TIMEOUT_MS);
+  });
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
-    const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
-      client, orgId: org.orgId, company: org.company,
-    });
-    return { gl: r.glFed, ple: r.pleFed, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp };
-  } catch (err) {
-    return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: err instanceof Error ? err.message : String(err) };
+    await Promise.race([Promise.all([accountRead, metadataRead]).then(() => true), deadline]);
+    return { accounts, metadata, timedOut };
+  } finally {
+    acceptingResults = false;
+    if (timer !== undefined) clearTimeout(timer);
+    if (!controller.signal.aborted) controller.abort();
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** The ledger-mirror feed for one org (8.6b). */
+export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<OrgLedgerFeedResult> {
+  let client: ErpClientDeps;
+  try {
+    client = await erpClientForOrg(serviceClient, org, cache);
+  } catch (err) {
+    return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: errorMessage(err) };
+  }
+
+  const statementErrors: string[] = [];
+  const attemptAt = new Date().toISOString();
+  let delayedError: string | undefined;
+  try {
+    const { error } = await serviceClient.from('external_org_bindings').update({
+      statement_update_delayed: true, statement_last_attempt_at: attemptAt,
+    }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+    if (error) delayedError = error.message;
+  } catch (err) {
+    delayedError = errorMessage(err);
+  }
+  if (delayedError) statementErrors.push(`could not record delayed statement status: ${delayedError}`);
+
+  let reads: StatementSourceReadResults = { timedOut: false };
+  try {
+    reads = await readStatementSourcesBounded(client, org.company);
+  } catch (err) {
+    statementErrors.push(`statement source reads unavailable: ${errorMessage(err)}`);
+  }
+  if (reads.timedOut) statementErrors.push(`statement source read stage exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`);
+  let chartReady = false;
+  if (reads.accounts?.ok) {
+    try {
+      await feedAccountMirror(serviceClient as unknown as Parameters<typeof feedAccountMirror>[0], {
+        orgId: org.orgId, company: org.company, refreshId: crypto.randomUUID(), asOf: attemptAt, accounts: reads.accounts.value,
+      });
+      chartReady = true;
+    } catch (err) {
+      statementErrors.push(`chart unavailable: ${errorMessage(err)}`);
+    }
+  } else {
+    statementErrors.push(`chart unavailable: ${reads.accounts ? errorMessage(reads.accounts.error) : 'statement source read deadline expired'}`);
+  }
+  const metadataResult = reads.metadata;
+  const metadata = metadataResult?.ok ? metadataResult.value : undefined;
+  if (!metadata) statementErrors.push(`report metadata unavailable: ${metadataResult && !metadataResult.ok ? errorMessage(metadataResult.error) : 'statement source read deadline expired'}`);
+
+  let referencesCheckedBefore = false;
+  let referencesBefore: boolean | undefined;
+  if (chartReady) {
+    try {
+      const { data, error } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+        p_org_id: org.orgId, p_company: org.company,
+      });
+      if (error) statementErrors.push(`chart references unavailable before ledger feed: ${error.message}`);
+      else if (typeof data !== 'boolean') statementErrors.push('chart references unavailable before ledger feed: unknown result');
+      else { referencesCheckedBefore = true; referencesBefore = data; }
+    } catch (err) {
+      statementErrors.push(`chart references unavailable before ledger feed: ${errorMessage(err)}`);
+    }
+  }
+
+  let gl = 0;
+  let ple = 0;
+  let glCaughtUp = false;
+  let pleCaughtUp = false;
+  let rawError: string | undefined;
+  try {
+    const result = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
+      client, orgId: org.orgId, company: org.company,
+      // Preserve the binding's original replay intent. Statement readiness is not a raw-history fence.
+      fullReplay: org.statementReplayNeeded === true,
+    });
+    gl = result.glFed;
+    ple = result.pleFed;
+    glCaughtUp = result.glCaughtUp;
+    pleCaughtUp = result.pleCaughtUp;
+    if (!glCaughtUp || !pleCaughtUp) {
+      rawError = [!glCaughtUp ? 'GL feed is incomplete' : '', !pleCaughtUp ? 'Payment Ledger feed is incomplete' : ''].filter(Boolean).join('; ');
+    }
+  } catch (err) {
+    rawError = errorMessage(err);
+  }
+
+  let referencesResolved = false;
+  if (chartReady && !rawError && glCaughtUp && pleCaughtUp) {
+    try {
+      const { data, error } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+        p_org_id: org.orgId, p_company: org.company,
+      });
+      if (error) statementErrors.push(`chart references unavailable after ledger feed: ${error.message}`);
+      else if (typeof data !== 'boolean') statementErrors.push('chart references unavailable after ledger feed: unknown result');
+      else referencesResolved = data === false;
+    } catch (err) {
+      statementErrors.push(`chart references unavailable after ledger feed: ${errorMessage(err)}`);
+    }
+  }
+  if (chartReady && referencesCheckedBefore && referencesBefore === true && !referencesResolved && !statementErrors.some((error) => error.includes('chart references unavailable'))) {
+    statementErrors.push('GL accounts remain unresolved in the complete chart');
+  }
+
+  let statementReady = false;
+  if (chartReady && metadata && referencesCheckedBefore && referencesResolved && !delayedError && statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError) {
+    try {
+      const { error: calendarError } = await serviceClient.from('external_org_bindings').update({
+        statement_calendar: metadata.calendar.map(({ start, end }) => ({ start, end })),
+      }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+      if (calendarError) statementErrors.push(`could not record statement calendar: ${calendarError.message}`);
+      else {
+        const { error: successError } = await serviceClient.from('external_org_bindings').update({
+          statement_update_delayed: false,
+        }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+        if (successError) statementErrors.push(`could not complete statement status: ${successError.message}`);
+        else statementReady = true;
+      }
+    } catch (err) {
+      statementErrors.push(`could not complete statement readiness status: ${errorMessage(err)}`);
+    }
+  }
+
+  return {
+    gl, ple, glCaughtUp, pleCaughtUp,
+    ...(rawError ? { error: rawError } : {}),
+    statementReady,
+    ...(statementErrors.length ? { statementError: statementErrors.join('; ') } : {}),
+  };
 }
 
 /**
@@ -1819,6 +2013,7 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
 /** Read the EXISTING `external_command_outbox` row for this timesheet's deterministic key, if any —
  *  the SAME key the Approvals UI derives (`timesheetPushKey`), so this finds the SAME candidate rather
  *  than minting a second one; the two originators collide safely (ADR-0058). */
+// deno-lint-ignore require-await -- preserve async promise/error behavior while forwarding the query result.
 async function findTimesheetOutboxRow(
   serviceClient: SupabaseClient,
   orgId: string,

@@ -102,6 +102,33 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
     expect(rows).toHaveLength(3); // 3 distinct groups
   });
 
+  it('AC-actuals: selects decimal text and parses high precision amounts without a JS-number round trip', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: '999999999999.124999999', credit: '0', is_cancelled: false },
+    ]);
+    await refreshActuals(client as unknown as never, 'org-1', {});
+    expect(client.selectedColumns[0]).toContain('debit:debit::text');
+    expect(client.selectedColumns[0]).toContain('credit:credit::text');
+    expect(client.inserted[0]).toEqual([expect.objectContaining({ debit: 999999999999.12, net: 999999999999.12 })]);
+  });
+
+  it('fails closed when a required mirrored amount is missing instead of manufacturing zero', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: null, credit: '0', is_cancelled: false },
+    ]);
+    await expect(refreshActuals(client as unknown as never, 'org-1', {})).rejects.toThrow(/missing.*amount/i);
+    expect(client.replaces).toHaveLength(0);
+  });
+
+  it('sums replayed >2dp source tokens exactly before the snapshot cents boundary', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: '0.123456789', credit: '0', is_cancelled: false },
+      { org_id: 'org-1', cost_center: 'Synthetic', account: 'Cash', fiscal_year: '2026', debit: '0.126543211', credit: '0', is_cancelled: false },
+    ]);
+    await refreshActuals(client as unknown as never, 'org-1', {});
+    expect(client.inserted[0]).toEqual([expect.objectContaining({ debit: 0.25, credit: 0, net: 0.25 })]);
+  });
+
   it('#901 a cancelled GL original and its reversal never count — actuals fall back to the live rows', async () => {
     const client = makeClient([
       { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cost of Goods Sold - PSC', fiscal_year: '2026', debit: 7000, credit: 0, is_cancelled: false },

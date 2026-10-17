@@ -34,6 +34,13 @@ describe('account mirror reconciliation', () => {
     }));
   });
 
+  it('AC-005: rejects a missing account currency instead of inventing IDR', async () => {
+    const service = fakeClient();
+    const missingCurrency = { ...row('Cash', null, 1, 2), account_currency: undefined };
+    await expect(feedAccountMirror(service as never, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'r', asOf: '2026-01-02T00:00:00Z', accounts: [missingCurrency as never] })).rejects.toThrow(/currency/i);
+    expect(service.rpc).not.toHaveBeenCalled();
+  });
+
   it('AC-005: rejects missing parent and duplicate identity before any mirror write', async () => {
     const service = fakeClient();
     await expect(feedAccountMirror(service as never, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'r', asOf: '2026-01-02T00:00:00Z', accounts: [row('Child', 'Missing', 2, 3)] })).rejects.toThrow(/parent/i);
