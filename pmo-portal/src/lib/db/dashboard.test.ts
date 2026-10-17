@@ -4,7 +4,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { rpc: vi.fn() },
 }));
 
-import { getExecutiveDashboard, getWinRate, getSalesPipeline } from './dashboard';
+import { getExecutiveDashboard, getPMDashboardProjects, getWinRate, getSalesPipeline } from './dashboard';
 import { supabase } from '@/src/lib/supabase/client';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
@@ -26,6 +26,21 @@ const extendedPayload = {
   top_projects: [{ id: 'p1', name: 'Innovate Corp HQ Fit-Out', client_name: 'Innovate Corp',
     contract_value: 5000000, budget: 4700000, spent: 2100000, status: 'Ongoing Project' }],
 };
+
+describe('getPMDashboardProjects', () => {
+  it('AC-UX-014: reads PM-scoped rows without accepting an org or user argument', async () => {
+    const rows = [{ id: 'p1', name: 'Assigned project', currency: 'USD', spent: null }];
+    rpc.mockResolvedValue({ data: rows, error: null });
+    await expect(getPMDashboardProjects()).resolves.toEqual(rows);
+    expect(rpc).toHaveBeenCalledWith('get_pm_dashboard_projects');
+    expect(rpc.mock.calls[0]).toHaveLength(1);
+  });
+
+  it('throws when the PM dashboard RPC fails', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'pm-dashboard-error' } });
+    await expect(getPMDashboardProjects()).rejects.toThrow('pm-dashboard-error');
+  });
+});
 
 describe('getExecutiveDashboard', () => {
   it('calls rpc("get_executive_dashboard") with no org_id arg, returns the payload (AC-710, FR-DAL-DASH-001)', async () => {

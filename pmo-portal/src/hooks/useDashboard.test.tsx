@@ -16,6 +16,11 @@ const { mockWinRate, mockSalesPipeline } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/lib/db/dashboard', () => ({
+  getPMDashboardProjects: vi.fn().mockResolvedValue([{
+    id: 'pm-project', name: 'PM project', client_name: null, contract_value: 1000, currency: 'USD',
+    budget: null, spent: 250, status: 'Ongoing Project', contract_remaining: 750,
+    realized_margin: null, realized_margin_pct: null,
+  }]),
   getExecutiveDashboard: vi.fn().mockResolvedValue({
     active_projects: 2, total_contract_value: 8000000,
     on_hand_margin: 0.949375, on_hand_value: 8000000,
@@ -52,8 +57,8 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
-import { useDashboard, useWinRate, useSalesPipeline, useLostDeals } from './useDashboard';
-import { getExecutiveDashboard, getWinRate, getSalesPipeline } from '@/src/lib/db/dashboard';
+import { useDashboard, useWinRate, useSalesPipeline, useLostDeals, usePMDashboardProjects } from './useDashboard';
+import { getExecutiveDashboard, getWinRate, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { repositories } from '@/src/lib/repositories';
 
 // Fresh QueryClient per test to avoid cross-test cache bleed.
@@ -64,6 +69,15 @@ const makeWrapper = () => {
   );
   return Wrapper;
 };
+
+describe('usePMDashboardProjects — shipped PM read hook', () => {
+  it('loads assigned project Actual and preserves unknown margin from the dashboard RPC', async () => {
+    const { result } = renderHook(() => usePMDashboardProjects(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getPMDashboardProjects).toHaveBeenCalledTimes(1);
+    expect(result.current.data?.[0]).toMatchObject({ id: 'pm-project', spent: 250, realized_margin: null });
+  });
+});
 
 describe('useDashboard', () => {
   it("keys by ['dashboard', orgId], calls getExecutiveDashboard (AC-709, FR-QRY-DASH-001)", async () => {

@@ -156,7 +156,7 @@ describe('AC-M365LOC-006 — M365OrgApprovalCard is localized (en/id) and code-d
     await renderLocalized('en');
     const card = screen.getByTestId('m365-org-approval');
     expect(card).toHaveTextContent('Organization approval');
-    expect(card).toHaveTextContent(/approve the PMO Portal app for your organization/i);
+    expect(card).toHaveTextContent(/only if microsoft asks for organization approval/i);
     expect(screen.getByRole('button', { name: 'Approve in Microsoft 365' })).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
   });
@@ -165,7 +165,7 @@ describe('AC-M365LOC-006 — M365OrgApprovalCard is localized (en/id) and code-d
     await renderLocalized('id');
     const card = screen.getByTestId('m365-org-approval');
     expect(card).toHaveTextContent('Persetujuan organisasi');
-    expect(card).toHaveTextContent(/setujui aplikasi PMO Portal untuk organisasi Anda/i);
+    expect(card).toHaveTextContent(/hanya jika Microsoft meminta persetujuan organisasi/i);
     expect(screen.getByRole('button', { name: 'Setujui di Microsoft 365' })).toBeInTheDocument();
     // None of the English copy survives in the Bahasa render.
     expect(card.textContent).not.toMatch(/Organization approval|Approve in Microsoft 365/);

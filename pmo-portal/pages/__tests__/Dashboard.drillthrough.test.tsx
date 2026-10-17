@@ -49,6 +49,7 @@ vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: ()
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
+  usePMDashboardProjects: () => ({ data: mine ?? [], isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
@@ -119,7 +120,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/sales');
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-5: "Revenue on hand" tile is NOT a link (OD-W5-C2-D: no single list view)', () => {
+  it('AC-UX-017: contracted revenue separates contract remainder and billed-work margin without a misleading drill link', () => {
     renderExec();
     const tile = screen.getByTestId('kpi-on-hand-margin');
     expect(tile.tagName).toBe('DIV');
@@ -182,7 +183,7 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
     expect(label!.toLowerCase()).toContain('vendor');
   });
 
-  it('AC-IXD-DASH-W5-C2A-FIN-4: "On-hand margin" tile is NOT a link (OD-W5-C2-D)', () => {
+  it('AC-UX-017: the margin-to-date tile is not a link that implies cash or profit finality', () => {
     renderFinance();
     const tile = screen.getByTestId('kpi-margin');
     expect(tile.tagName).toBe('DIV');
@@ -193,13 +194,11 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
 // ── PM dashboard ─────────────────────────────────────────────────────────────
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: null, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme' },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta' },
 ];
 
-vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: mine, isPending: false, isError: false, refetch: vi.fn() }),
-}));
+
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));

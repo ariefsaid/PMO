@@ -97,6 +97,28 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
     const row = buildManagementPack(facts({ invoiced: [inv('p1', 'IDR', '2026-01-01', 1_300_000)] })).rows[0];
     expect(row.months[0].backlog).toBe(-c(100_000));
   });
+
+  it('RF-036: foreign-currency invoices make contract-currency backlog unavailable without reconciliation', () => {
+    const pack = buildManagementPack(facts({
+      invoiced: [inv('p1', 'USD', '2026-02-01', 1_200_000)],
+    }));
+    expect(pack.rows[0].months.map((m) => m.backlog)).toEqual([null, null, null, null]);
+    expect(pack.rows.find((r) => r.kind === 'otherCurrency')?.months[1].backlog).toBeNull();
+    expect(pack.totals.find((t) => t.currency === 'IDR')?.months[0].backlog).toBeNull();
+  });
+
+  it('RF-039: totals omit currencies with no activity, contract, or meaningful balance in range', () => {
+    const pack = buildManagementPack(facts({
+      projects: [{ ...P1, currency: 'IDR' }, { ...P1, id: 'p2', currency: 'USD', contract_net: 0 }],
+      invoiced: [inv(null, 'EUR', '2026-02-01', 10)],
+    }));
+    expect(pack.totals.map((t) => t.currency)).toEqual(['EUR', 'IDR', 'USD']);
+    const noActivity = buildManagementPack(facts({
+      projects: [],
+      invoiced_before: [{ project_id: null, currency: 'JPY', net: 0 }],
+    }));
+    expect(noActivity.totals).toEqual([]);
+  });
 });
 
 describe('AC-MMP-010 currencies and unassigned invoices (DD-MMP-5, DD-CUR-6)', () => {
@@ -127,6 +149,6 @@ describe('AC-MMP-010 currencies and unassigned invoices (DD-MMP-5, DD-CUR-6)', (
     expect(idr[0].invoiced).toBe(c(201_000));
     expect(idr[1].invoiced).toBe(0);
     expect(usd[1].invoiced).toBe(5_000);
-    expect(idr[0].backlog).toBe(c(1_200_000) - c(200_000));
+    expect(idr[0].backlog).toBeNull();
   });
 });

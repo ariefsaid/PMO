@@ -3,7 +3,7 @@
  * ERPNext. One row per intent (label, state text, ERP name, reason); nothing at all for a claim with no postings.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +11,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const { listMock } = vi.hoisted(() => ({ listMock: vi.fn() }));
 // ADR-0017: the card reads through the repository seam, never the DAL module directly.
 vi.mock('@/src/lib/repositories', () => ({ repositories: { expensePostings: { listForClaim: listMock } } }));
+
+const readinessMock = vi.hoisted(() => ({ state: 'ready' as string }));
+vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({
+  useExpensePostingReadiness: () => ({ state: readinessMock.state, retry: vi.fn() }),
+}));
 
 import { ExpensePostingsCard } from './ExpensePostingsCard';
 
@@ -20,7 +25,7 @@ const renderCard = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => listMock.mockReset());
+beforeEach(() => { listMock.mockReset(); readinessMock.state = 'ready'; });
 
 describe('ExpensePostingsCard (AC-EXP-131)', () => {
   it('AC-EXP-131 lists each posting with its label, state text and ERP document', async () => {
@@ -93,5 +98,34 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
     listMock.mockResolvedValue([]);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await vi.waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+  });
+
+  describe('S-12 posting-not-active note (RF-060)', () => {
+    it.each([
+      ['notConnected', "Not posted to accounting: expense posting isn't active for this organization."],
+      ['inactive', "Not posted to accounting: expense posting isn't active for this organization."],
+      ['unavailable', "Couldn't check whether this claim will reach accounting."],
+    ])('%s with no postings says why nothing is posted', async (state, text) => {
+      readinessMock.state = state;
+      listMock.mockResolvedValue([]);
+      renderCard();
+      expect(await screen.findByText(text)).toBeInTheDocument();
+    });
+
+    it.each(['ready', 'checking'])('%s with no postings stays silent', async (state) => {
+      readinessMock.state = state;
+      listMock.mockResolvedValue([]);
+      const { container } = renderCard();
+      await waitFor(() => expect(listMock).toHaveBeenCalled());
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it('does not add the note when postings exist', async () => {
+      readinessMock.state = 'inactive';
+      listMock.mockResolvedValue([{ id: 'm1', posting: 'approval', pushState: 'pushed', pushError: null, erpName: 'JV-1', erpCancelledAt: null, createdAt: 't' }]);
+      renderCard();
+      expect(await screen.findByText('JV-1')).toBeInTheDocument();
+      expect(screen.queryByText(/Not posted to accounting/)).toBeNull();
+    });
   });
 });

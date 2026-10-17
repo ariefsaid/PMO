@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
-import { formatCurrency } from '@/src/lib/format';
 
 const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
 const desktop = vi.hoisted(() => ({ value: true }));
@@ -21,8 +20,15 @@ const populated = {
   total_contract_value: 8000000,
   on_hand_margin: 0.949375,
   on_hand_value: 8000000,
+  on_hand_contract_remaining: 7_595_000,
+  on_hand_realized_margin: 1_200_000,
+  on_hand_actual_known: 4_000_000,
+  on_hand_actual_project_count: 2,
+  on_hand_actual_project_total: 2,
+  on_hand_actual_coverage_count: 2,
+  on_hand_actual_coverage_total: 2,
   pipeline_weighted_value: 800000,
-  pipeline_projected_margin: 0.200,
+  pipeline_projected_margin: 0.200 as number | null,
   pipeline_total_value: 2000000,
   projects_at_risk: 1,
   projects_by_status: [
@@ -36,9 +42,9 @@ const populated = {
   ],
   top_projects: [
     { id: 'p1', name: 'Innovate Corp HQ Fit-Out', client_name: 'Innovate Corp',
-      contract_value: 5000000, budget: 4700000, spent: 2100000, status: 'Ongoing Project' },
+      contract_value: 5000000, currency: 'USD', budget: 4700000, spent: 2100000, status: 'Ongoing Project' },
     { id: 'p3', name: 'Acme Internal Platform', client_name: 'Innovate Corp',
-      contract_value: 3000000, budget: 2000000, spent: 1900000, status: 'Ongoing Project' },
+      contract_value: 3000000, currency: 'USD', budget: 2000000, spent: 1900000, status: 'Ongoing Project' },
   ],
 };
 
@@ -108,12 +114,30 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
+  it('labels contract value on hand distinctly from finance contract value in progress', () => {
+    renderPage();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('Contract value on hand');
+  });
+
+  it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
+    dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
+    renderPage();
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('No pipeline value to calculate margin');
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).not.toHaveTextContent('No active budget');
+  });
+
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
     renderPage();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
 
+  it('AC-UX-016: actionable approvals precede the passive KPI band', () => {
+    const { container } = renderPage();
+    const approvals = screen.getByTestId('kpi-awaiting-approval');
+    const kpis = container.querySelector('[aria-label="Portfolio KPIs"]')!;
+    expect(approvals.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-awaiting-approval');
@@ -124,11 +148,13 @@ describe('ExecutiveDashboard (real data)', () => {
     renderPage();
     expect(screen.getByTestId('dashboard-pipeline')).toHaveTextContent('2');
   });
-  it('procurement-by-status region shows 5 statuses (AC-704)', () => {
+  it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
     renderPage();
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('PMO purchasing requests');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
   });
-  it('budget-vs-actual list shows the project names (AC-705)', () => {
+  it('spending-vs-contract list shows project names and contract denominator', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Acme Internal Platform')).toBeInTheDocument();
@@ -150,8 +176,10 @@ describe('ExecutiveDashboard states', () => {
   it('empty state when org has no projects/procurements (AC-708)', () => {
     dashState.data = {
       active_projects: 0, total_contract_value: 0,
-      on_hand_margin: 0, on_hand_value: 0, pipeline_weighted_value: 0,
-      pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
+      on_hand_margin: 0, on_hand_value: 0, on_hand_contract_remaining: 0, on_hand_realized_margin: 0,
+      on_hand_actual_known: 0, on_hand_actual_project_count: 0, on_hand_actual_project_total: 0,
+      on_hand_actual_coverage_count: 0, on_hand_actual_coverage_total: 0,
+      pipeline_weighted_value: 0, pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
       projects_by_status: [], procurements_by_status: [], top_projects: [],
     };
     renderPage();
@@ -176,18 +204,18 @@ describe('ExecutiveDashboard design polish', () => {
 });
 
 describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
-  it('AC-1114: renders revenue-on-hand / pipeline weighted value / forecast-margin tiles, no avg_gross_margin (FR-SPD-012)', () => {
+  it('AC-1114: renders contracted revenue and billed-work margin without implying contract remainder is profit', () => {
     renderPage();
-    // Revenue-on-hand tile carries the on-hand value + realized-margin % as its `vs` sub.
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('94.9%');
-    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000, 'USD'));
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Margin on billed work');
+    expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
+    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent('$800,000.00');
     // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
-  it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle (FR-SPD-012)', () => {
+  it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
     // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.

@@ -13,9 +13,9 @@ import { signIn, waitForFonts } from './helpers';
  *   the canonical project Budget tab (`/projects/:id/budget`) — one activation from signal to lever
  *   (UXD-A-006). Amounts/ranking are untouched (fence): this spec only follows the existing link.
  *
- * Seed: SP-2402 "Cascade Foods 6.0 MW Ground-Mount PV" is the deliberate at-risk fixture
- * (committed spend over its 6,900,000 budget), so it appears in the at-risk filter and in the
- * budget review rows. Both journeys are navigation-only. The persona's locale preference lives in
+ * Seed: SP-2402 "Cascade Foods 6.0 MW Ground-Mount PV" is the deliberate ERP-ledger at-risk fixture
+ * (complete mapped Actual over its 6,900,000 Active budget), so it appears in the dashboard signal,
+ * at-risk filter, and budget review rows. Both journeys are navigation-only. The persona's locale preference lives in
  * the SHARED demo DB (prior rendered reviews saved Bahasa), so each test pins the profile response
  * to en — the same route-override pattern as AC-BUPOT-021 — instead of assuming a default. id
  * parity is asserted at the component layer.

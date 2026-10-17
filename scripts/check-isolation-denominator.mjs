@@ -189,14 +189,19 @@ export function validateDenominator(parsed) {
   for (const r of parsed.rpcs) {
     if (!r || !/^[a-z_][a-z0-9_]*$/.test(r.name) || rpcNames.has(r.name)) throw new Error('invalid denominator: duplicate or invalid RPC name');
     rpcNames.add(r.name);
-    if (!['inert', 'write'].includes(r.class)) throw new Error(`invalid denominator: RPC ${r.name} class is required`);
+    if (!['inert', 'write', 'read'].includes(r.class)) throw new Error(`invalid denominator: RPC ${r.name} class is required`);
     if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
       throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
     }
-    if (r.shape != null && !['empty-array', 'false'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
+    if (r.shape != null && !['empty-array', 'false', 'boolean'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
     if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
     if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
-    if (!parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`))) throw new Error(`invalid denominator: RPC ${r.name} is absent from definer_functions`);
+    const isDefiner = parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`));
+    const isDeclaredFunction = r.source.some(s => {
+      const [file] = s.split(':');
+      return fs.readFileSync(path.join(ROOT, file), 'utf8').includes(`function public.${r.name}(`);
+    });
+    if (!isDefiner && !isDeclaredFunction) throw new Error(`invalid denominator: RPC ${r.name} has no cited function definition`);
   }
   return parsed;
 }

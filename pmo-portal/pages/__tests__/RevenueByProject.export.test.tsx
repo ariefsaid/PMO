@@ -64,10 +64,12 @@ describe('RevenueByProject export (#831)', () => {
     const col = (name: string) => header.indexOf(name) + 1;
 
     expect(col('Currency')).toBeGreaterThan(0);
+    expect(col('Total Revenue (net of tax)')).toBeGreaterThan(0);
+    expect(col('Open AR (gross, tax included)')).toBeGreaterThan(0);
     expect(ws.getRow(2).getCell(col('Currency')).value).toBe('USD');
     expect(ws.getRow(3).getCell(col('Currency')).value).toBe('IDR');
-    expect(ws.getRow(2).getCell(col('Total Revenue')).value).toBe(1000);
-    expect(ws.getRow(2).getCell(col('Open AR')).value).toBe(250.5);
-    expect(ws.getRow(3).getCell(col('Total Revenue')).value).toBe(2000000);
+    expect(ws.getRow(2).getCell(col('Total Revenue (net of tax)')).value).toBe(1000);
+    expect(ws.getRow(2).getCell(col('Open AR (gross, tax included)')).value).toBe(250.5);
+    expect(ws.getRow(3).getCell(col('Total Revenue (net of tax)')).value).toBe(2000000);
   });
 });

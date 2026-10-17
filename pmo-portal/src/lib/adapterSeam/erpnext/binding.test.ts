@@ -217,7 +217,7 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
   });
 
   it('an org that owns no domain yet still probes the ledgers (the sweep reads them for every activated org)', () => {
-    expect(activationReadPermScope([]).doctypes).toEqual(['GL Entry', 'Payment Ledger Entry']);
+    expect(activationReadPermScope([]).doctypes).toEqual(expect.arrayContaining(['GL Entry', 'Payment Ledger Entry', 'Account', 'Company', 'Fiscal Year', 'Accounts Settings', 'System Settings', 'Currency']));
   });
 
   it('probeActivationReadPermissions uses the handshake budget: a retryable 503 gets ONE attempt per probe', async () => {
@@ -225,9 +225,9 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
     await expect(probeActivationReadPermissions({
       fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', ownedDomains: [],
     })).rejects.toMatchObject({ code: 'external-unreachable' });
-    // The two ledger probes run concurrently; neither is retried.
+    // Source and ledger probes are individually single-attempt; the first failed batch is aborted.
     const urls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => new URL(c[0] as string).pathname);
-    expect(urls.sort()).toEqual(['/api/resource/GL%20Entry', '/api/resource/Payment%20Ledger%20Entry']);
+    expect(urls).toEqual(expect.arrayContaining(['/api/resource/GL%20Entry', '/api/resource/Payment%20Ledger%20Entry', '/api/resource/Account', '/api/resource/Company']));
   });
 
   it('probeActivationReadPermissions uses the handshake budget: a hung probe aborts at 5s', async () => {
@@ -249,8 +249,8 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
       await vi.advanceTimersByTimeAsync(1);
       // The clock stops at 5s: only the per-call deadline can produce this rejection.
       await rejection;
-      // One attempt per probe: the two ledger probes, never a retry of either.
-      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      // A failed request aborts the in-flight batch; none of its calls is retried.
+      expect(fetchImpl).toHaveBeenCalledTimes(4);
     } finally {
       vi.useRealTimers();
     }

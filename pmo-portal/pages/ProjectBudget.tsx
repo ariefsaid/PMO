@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
+import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -13,6 +13,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
+  Badge,
   StatusPill,
   ListState,
   Toolbar,
@@ -215,7 +216,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 control that makes the capability reachable. */}
             <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
             <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-            <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
             <th className="border-b border-border bg-card" />
           </tr>
         </thead>
@@ -294,9 +294,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     />
                   </div>
                 </td>
-                <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount), currency)}
-                </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
                   <Button
@@ -341,9 +338,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular">
                   {formatCurrency(Number(li.budgeted_amount), currency)}
-                </td>
-                <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount), currency)}
                 </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   <Button
@@ -426,7 +420,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   className="w-28"
                 />
               </td>
-              <td />
               <td className="space-x-1 px-3 py-2 text-right">
                 {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
                 <Button
@@ -529,8 +522,16 @@ const VersionCard: React.FC<VersionCardProps> = ({
           <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
           <span className="font-semibold">{version.name}</span>
           <StatusBadge status={version.status} />
+          {version.activation_basis === 'sole_operator' && (
+            <Badge>{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</Badge>
+          )}
         </div>
-        <span className="ml-auto shrink-0 whitespace-nowrap font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
+        <span
+          data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
+          className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
+        >
+          {formatCurrency(version.total, version.currency)}
+        </span>
       </div>
 
       {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
@@ -620,7 +621,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
                       than none. */}
                   <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
                   <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-                  <TH align="right">{t('financeCopy.actualPmoRecorded', 'Actual (PMO recorded)')}</TH>
                 </tr>
               </thead>
               <tbody>
@@ -633,9 +633,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular">
                       {formatCurrency(Number(li.budgeted_amount), version.currency)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                      {formatCurrency(Number(li.actual_amount), version.currency)}
                     </td>
                   </tr>
                 ))}
@@ -663,7 +660,7 @@ interface ProjectBudgetProps {
  *  (owner rule: nothing writes on a single click). B1-B5 + delete-line-item. */
 type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
-  | { kind: 'activate'; id: string; label: string }
+  | { kind: 'activate'; id: string; label: string; soleOperator: boolean }
   | { kind: 'clone'; id: string; label: string }
   | { kind: 'archive'; id: string; label: string }
   | { kind: 'deleteDraft'; id: string; label: string }
@@ -715,6 +712,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     );
   }, [versions, selectedId]);
 
+  const activationModeQuery = useBudgetActivationMode(selected?.id);
+
   // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
     return (
@@ -739,13 +738,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     );
   }
 
-  // OD-BUDGET-6 (UX only — activate_budget_version is the authority): a second person activates.
+  // Server mode only widens the cosmetic affordance for the current sole operator; the RPC remains authoritative.
+  const soleOperator = activationModeQuery.data === 'sole_operator';
   const canActivate =
     !!selected &&
-    can('transition', 'budgetVersion', {
+    (soleOperator || can('transition', 'budgetVersion', {
       currentUserId,
       record: { status: selected.status, created_by: selected.created_by, editor_ids: selected.editor_ids },
-    });
+    }));
   const activateBlockedReason =
     !selected || !canWrite || canActivate || selected.status !== 'Draft'
       ? null
@@ -767,7 +767,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
   const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
   const requestActivate = (id: string) =>
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
+    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
   const requestClone = (id: string) =>
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
   const requestArchive = (id: string) =>
@@ -885,7 +885,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   };
   const confirmDescriptions: ConfirmDescriptions = {
     create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
-    activate: (c) => t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
+    activate: (c) => c.soleOperator
+      ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
+      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
     clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
     archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
     deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
@@ -909,6 +911,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     />
   );
 
+  const hasActive = versions.some((v) => v.status === 'Active');
   const head = (
     // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
     // selected "Budget" tab label (which already names the section). Dropped — the
@@ -916,12 +919,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     // is the section heading; no orphaned hierarchy (the page <h1> is the project name).
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p className="text-sm text-muted-foreground">
-          {t('financeCopy.activeBudget', "Active budget:")}{' '}
-          <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-            {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
-          </span>
-        </p>
+        {/* UX-033: the Active amount is announced ONCE, in the version header below. This line exists only
+            to keep it in view while another version is open — and DD-MONEY-4: with no Active version it says
+            so, instead of presenting a Draft or $0 as the budget. */}
+        {!hasActive ? (
+          <p className="text-sm text-muted-foreground">{t('uxs04.noActiveBudget', 'No active budget')}</p>
+        ) : selected?.status !== 'Active' ? (
+          <p className="text-sm text-muted-foreground">
+            {t('financeCopy.activeBudget', "Active budget:")}{' '}
+            <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
+              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
+            </span>
+          </p>
+        ) : null}
       </div>
       {canWrite && (
         <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
@@ -996,20 +1006,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           {versions.map((v) => (
             // A4/N1/N2: status in text (not color only), no em-dash, no emoji
             <option key={v.id} value={v.id}>
-              {`v${v.version} · ${v.name} (${budgetStatusLabel(v.status, t)})`}
+              {`v${v.version} · ${v.name}`}
             </option>
           ))}
         </select>
-        {/* A4/A5: status pill — tinted, darkened AA text, dot + text (not color-only) */}
-        {selected && (
-          <StatusPill variant={budgetVersionVariant(selected.status)}>{budgetStatusLabel(selected.status, t)}</StatusPill>
-        )}
-        {/* A6: tabular total in selector bar so it's visible without scrolling */}
-        {selected && (
-          <span className="ml-auto text-[13px] font-semibold tabular">
-            {formatCurrency(selected.total, selected.currency)}
-          </span>
-        )}
       </Toolbar>
 
       {/* AC-BD-05: exactly ONE VersionCard */}

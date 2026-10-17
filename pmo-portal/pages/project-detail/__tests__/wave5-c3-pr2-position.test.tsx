@@ -92,6 +92,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -265,8 +266,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     const tabpanel = container.querySelector('[role="tabpanel"]');
     expect(tabpanel).not.toBeNull();
 
-    // "On-hand margin" is a tile label unique to the finance StatTiles strip.
-    const marginLabels = screen.getAllByText('On-hand margin');
+    // The explicit contract-after-cost measure belongs to the finance StatTiles strip.
+    const marginLabels = screen.getAllByText('Contract remaining after cost');
     for (const el of marginLabels) {
       expect(tabpanel!.contains(el)).toBe(true);
     }
@@ -342,8 +343,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(tablist).not.toBeNull();
 
     // For PM the StatTile labels come from the header, which renders BEFORE the tabs.
-    // At least one "On-hand margin" label must precede the tablist.
-    const marginLabels = screen.getAllByText('On-hand margin');
+    // At least one contract-after-cost label must precede the tablist.
+    const marginLabels = screen.getAllByText('Contract remaining after cost');
     const anyPrecedesTablist = marginLabels.some((el) => {
       const position = tablist!.compareDocumentPosition(el);
       return Boolean(position & Node.DOCUMENT_POSITION_PRECEDING);

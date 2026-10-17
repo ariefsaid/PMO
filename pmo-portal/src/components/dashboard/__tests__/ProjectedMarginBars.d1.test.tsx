@@ -10,7 +10,6 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ProjectedMarginBars } from '../ProjectedMarginBars';
-import { formatCurrency } from '@/src/lib/format';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
 const stages: PipelineStage[] = [
@@ -53,6 +52,6 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
       </MemoryRouter>,
     );
     // The weighted value should still be visible inside the link
-    expect(screen.getByText(formatCurrency(600_000, 'USD'))).toBeInTheDocument();
+    expect(screen.getByText('$600,000.00')).toBeInTheDocument();
   });
 });

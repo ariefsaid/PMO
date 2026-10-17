@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ProjectBudget from '../../ProjectBudget';
 import BudgetProjection from '../../BudgetProjection';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
@@ -13,7 +14,7 @@ export interface BudgetTabProps {
  * tokens + StatusPill). Kept as a one-responsibility tab so the detail shell
  * never reaches into budget internals.
  *
- * P3c slice 6 (FR-BUD-151): additively mounts `<BudgetProjection>` below the existing budget grid —
+ * P3c slice 6 (FR-BUD-151): mounts `<BudgetProjection>` (since S-04 ABOVE the budget version grid) —
  * PMO's forward view (never pushed to ERP, FR-BUD-160). It fetches + gates itself independently of
  * `<ProjectBudget>`.
  *
@@ -34,13 +35,23 @@ export interface BudgetTabProps {
  * deliberately unconditional: it is PMO-SoT and has nothing to do with any external system.
  */
 const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
-  const { data: erpnextBinding } = useErpnextBinding();
+  const { t } = useTranslation();
+  const bindingQuery = useErpnextBinding();
+  const { data: erpnextBinding } = bindingQuery;
   const employsExternalBudget = erpnextBinding?.status === 'active';
   return (
-    <>
+    // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
+    // answers — and the version ledger/operations follow. Same two components, only the order changes.
+    <div className="flex flex-col gap-5">
+      {employsExternalBudget ? (
+        <BudgetProjection projectId={projectId} />
+      ) : bindingQuery.isSuccess ? (
+        <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          {t('uxs04.forecastUnavailable', 'Forecast appears once your accounting ledger is connected.')}
+        </p>
+      ) : null}
       <ProjectBudget projectId={projectId} />
-      {employsExternalBudget && <BudgetProjection projectId={projectId} />}
-    </>
+    </div>
   );
 };
 

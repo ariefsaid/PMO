@@ -626,10 +626,14 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
       left = Math.min(left, vw - GUTTER - mw);
       left = Math.max(left, GUTTER);
 
-      // Open downward by default; flip up if it would overflow the bottom.
+      // Open downward by default; flip up if it would overflow the bottom,
+      // then clamp when neither direction has enough room. maxHeight below
+      // keeps the menu scrollable on unusually short viewports.
       const below = r.bottom + MENU_GAP;
-      const flipUp = below + mh > vh - GUTTER && r.top - MENU_GAP - mh >= GUTTER;
-      const top = flipUp ? r.top - MENU_GAP - mh : below;
+      const above = r.top - MENU_GAP - mh;
+      const flipUp = below + mh > vh - GUTTER && above >= GUTTER;
+      const preferredTop = flipUp ? above : below;
+      const top = Math.max(GUTTER, Math.min(preferredTop, vh - GUTTER - mh));
 
       setPos({ top, left });
     };
@@ -731,10 +735,12 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
               position: 'fixed',
               top: pos?.top ?? -9999,
               left: pos?.left ?? -9999,
-              zIndex: 820,
+              // The fixed toast stack is z-[1000] and may overlap the bottom row;
+              // keep row actions above it so the toast cannot intercept menu clicks.
+              zIndex: 1010,
               visibility: pos ? 'visible' : 'hidden',
             }}
-            className="min-w-[160px] rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
+            className="min-w-[160px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
           >
             {items.map((item, i) => {
               // destructive-nav-separation: spatially separate the first danger item

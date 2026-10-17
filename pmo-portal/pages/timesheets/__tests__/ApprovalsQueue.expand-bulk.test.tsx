@@ -113,21 +113,21 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
   it('a Select toggle enters selection mode and shows per-row checkboxes', async () => {
     renderAs('Project Manager');
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     // one checkbox per approvable row + the select-all = 3
     expect(screen.getAllByRole('checkbox').length).toBe(3);
   });
 
   it('non-approver (Finance) gets NO selection affordance at all', () => {
     renderAs('Finance');
-    expect(screen.queryByRole('button', { name: /^Select$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Select items$/i })).not.toBeInTheDocument();
   });
 
   it('selecting rows then Approve N fires the per-sheet approve N times after confirm', async () => {
     // commitBulk uses mutateAsync — mock returns a resolved promise for each call.
     mutateAsyncMock.mockResolvedValue(undefined);
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /select Anita Rao's week/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /select Dev Shah's week/i }));
     // bulk cluster shows the count + Approve N
@@ -148,7 +148,7 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     // stays stuck. This test proves the mutateAsync/allSettled fix works correctly.
     mutateAsyncMock.mockResolvedValue(undefined);
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     // Select all (2 approvable rows — Anita Rao + Dev Shah)
     await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
@@ -164,7 +164,7 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
 
   it('select-all selects only the approvable rows', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     const all = screen.getByRole('checkbox', { name: /select all/i });
     await userEvent.click(all);
     // 2 approvable rows selected → Approve 2
@@ -178,7 +178,7 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
       return Promise.resolve(undefined);
     });
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     const dialog = await screen.findByRole('dialog');
@@ -191,8 +191,16 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
 
   it('Clear exits selection mode', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /^Select$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Clear$/i }));
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  // S-18/UX-061 — selection mode opens by stating the eligible scope/count (same shared
+  // controls the /approvals inbox renders, so both surfaces announce it identically).
+  it('S-18 UX-061: entering selection mode states the eligible count for this queue', async () => {
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    expect(screen.getByText(/all 2 timesheets in this queue can be approved together/i)).toBeInTheDocument();
   });
 });

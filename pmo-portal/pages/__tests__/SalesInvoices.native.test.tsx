@@ -33,6 +33,8 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-12', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoiceEvidence: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
@@ -278,17 +280,17 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.queryByText('ERP-INV-PAID')).toBeNull();
   });
 
-  it('AC-991-002 ERP mode normalizes a PMO-only status to All and preserves other query parameters', async () => {
+  it('AC-S05-I2 ERP mode retains the Partly paid filter and preserves other query parameters', () => {
     h.route = 'external';
     h.invoices.data = [
       nativeInvoice({ id: 'si-erp-submitted', pmo_native: false, si_number: 'ERP-INV-SUBMITTED', status: 'Submitted' }),
       nativeInvoice({ id: 'si-erp-paid', pmo_native: false, si_number: 'ERP-INV-PAID', status: 'Paid' }),
     ];
     renderPage('/sales-invoices?status=PartlyPaid&q=ERP-INV&preserve=yes');
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ERP-INV&preserve=yes'));
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
-    expect(rowFor('ERP-INV-SUBMITTED')).toBeInTheDocument();
-    expect(rowFor('ERP-INV-PAID')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?status=PartlyPaid&q=ERP-INV&preserve=yes');
+    expect(screen.getByRole('tab', { name: 'Partly paid' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('ERP-INV-SUBMITTED')).toBeNull();
+    expect(screen.queryByText('ERP-INV-PAID')).toBeNull();
   });
 
   it('AC-NAR-002 the author of a PMO Draft is not offered "Approve"', async () => {
@@ -541,6 +543,22 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(within(filters).getByRole('tab', { name: 'Partly paid' }));
     expect(screen.getByText('INV-2610070001')).toBeInTheDocument();
     expect(screen.queryByText('INV-2610070002')).toBeNull();
+  });
+
+  it('AC-S05-I2 ERP mode filters and labels partly paid invoices with the shared balance predicate', async () => {
+    h.route = 'external';
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-erp-partial', pmo_native: false, si_number: 'ERP-PARTIAL', status: 'Submitted', erp_outstanding_amount: 1 }),
+      nativeInvoice({ id: 'si-erp-unpaid', pmo_native: false, si_number: 'ERP-UNPAID', status: 'Submitted', erp_outstanding_amount: 1_110_000 }),
+    ];
+    const user = userEvent.setup();
+    renderPage();
+    const filters = screen.getByRole('tablist', { name: 'Filter by status' });
+    expect(within(filters).getByRole('tab', { name: 'Partly paid' })).toBeInTheDocument();
+    expect(within(rowFor('ERP-PARTIAL')).getByText('Partly paid')).toBeInTheDocument();
+    await user.click(within(filters).getByRole('tab', { name: 'Partly paid' }));
+    expect(rowFor('ERP-PARTIAL')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-UNPAID')).toBeNull();
   });
 
   it('(M-7) an ERP-mode page keeps the Submitted filter', () => {

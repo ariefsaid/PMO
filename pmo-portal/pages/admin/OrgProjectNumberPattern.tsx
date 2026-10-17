@@ -5,7 +5,7 @@ import { Button, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgProjectNumberPatternQuery, ORG_PROJECT_NUMBER_PATTERN_KEY } from '@/src/hooks/useOrgProjectNumberPattern';
-import { validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
+import { previewProjectNumber, validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
@@ -48,12 +48,15 @@ const OrgProjectNumberPattern: React.FC = () => {
   };
 
   return (
-    <section id="org-project-number-pattern" aria-label={t('admin.projectNumberPattern.title', 'Project number pattern')}>
+    <section id="org-project-number-pattern" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.projectNumberPattern.title', 'Project number pattern')}>
       <h2 className="text-base font-semibold tracking-tight">
         {t('admin.projectNumberPattern.title', 'Project number pattern')}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('admin.projectNumberPattern.description', 'Format PMO-assigned project numbers. Use {CLIENT}, {YY}, and {SEQ4} exactly once each.')}
+        {t(
+          'admin.projectNumberPattern.description',
+          'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
+        )}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}
@@ -82,6 +85,15 @@ const OrgProjectNumberPattern: React.FC = () => {
               mono
               disabled={mutation.isPending}
             />
+            {validation.valid && (
+              <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
+                {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
+                <span className="font-mono">{previewProjectNumber(draft, new Date().getFullYear() % 100)}</span>
+                <span className="ml-1.5">
+                  {t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}
+                </span>
+              </p>
+            )}
             <Button
               type="button"
               onClick={() => void save()}

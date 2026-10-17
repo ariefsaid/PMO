@@ -15,9 +15,16 @@ export interface TopProject {
   id: string;
   name: string;
   client_name: string | null;
-  contract_value: number;
-  budget: number;
-  spent: number;
+  contract_value: number | null;
+  currency: string;
+  budget: number | null;
+  spent: number | null;
+  actual_currency?: string | null;
+  actual_complete?: boolean;
+  budget_currency?: string | null;
+  actual_coverage_count?: number | null;
+  actual_coverage_total?: number | null;
+  realized_margin?: number | null;
   status: ProjectStatus;
 }
 
@@ -28,14 +35,28 @@ export interface TopProject {
  */
 export interface ExecutiveDashboard {
   active_projects: number;
-  total_contract_value: number;
-  /** OD-MARGIN-1 On-hand lens: Σ(contract_value)/Σ(on-hand), value-weighted (FR-SPD-001). */
-  on_hand_value: number;
-  on_hand_margin: number;
+  total_contract_value: number | null;
+  total_contract_value_by_currency?: Record<string, number>;
+  /** Contract value for active and closed delivery work; nullable for mixed currencies. */
+  on_hand_value: number | null;
+  on_hand_value_by_currency?: Array<{ currency: string; contract_value: number; actual_known: number | null; contract_remaining: number | null; actual_coverage_count: number | null; actual_coverage_total: number | null; realized_margin_known: number | null; unknown_projects: number }>;
+  /** Contract remaining after known Actual, never profit. */
+  on_hand_contract_remaining: number | null;
+  /** Profit on billed work: billed-work revenue less Actual. */
+  on_hand_realized_margin: number | null;
+  on_hand_realized_margin_by_currency?: Array<{ currency: string; known_amount: number | null; unknown_projects: number }>;
+  on_hand_actual_known: number | null;
+  on_hand_actual_project_count: number;
+  on_hand_actual_project_total: number;
+  on_hand_actual_coverage_count: number;
+  on_hand_actual_coverage_total: number;
+  /** Contract-remaining ratio; only available for a single currency. */
+  on_hand_margin: number | null;
   /** OD-MARGIN-1 Pipeline lens: weighted value, total, projected margin (FR-SPD-002/003). */
-  pipeline_total_value: number;
-  pipeline_weighted_value: number;
-  pipeline_projected_margin: number;
+  pipeline_total_value: number | null;
+  pipeline_total_value_by_currency?: Array<{ currency: string; total_value: number; weighted_value: number; forecast_margin: number | null; no_active_budget: number }>;
+  pipeline_weighted_value: number | null;
+  pipeline_projected_margin: number | null;
   projects_at_risk: number;
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
@@ -46,6 +67,18 @@ export interface ExecutiveDashboard {
  * Dual win-rate payload from get_win_rate(p_from, p_to) (FR-SPD-006/007/008).
  * count- and value-weighted rates + raw counts for the period.
  */
+export interface PMDashboardProject extends Omit<TopProject, 'client_name'> {
+  client_name: string | null;
+  contract_remaining: number | null;
+  realized_margin_pct: number | null;
+}
+
+export async function getPMDashboardProjects(): Promise<PMDashboardProject[]> {
+  const { data, error } = await supabase.rpc('get_pm_dashboard_projects');
+  if (error) throw new Error(error.message);
+  return (data as unknown as PMDashboardProject[]) ?? [];
+}
+
 export interface WinRate {
   wins_count: number;
   losses_count: number;

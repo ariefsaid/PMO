@@ -1,10 +1,9 @@
 /**
  * Stream S6 — Wave-0 mobile UX fixes for ProcurementDetails
  *
- * B-C-2 + A-IMP-2 (AC-S6-1): sticky mobile primary action
- *   On mobile (isDesktop=false), the stage-appropriate primary action is anchored
- *   in a fixed bottom bar so it's always reachable. The decision-card action row
- *   is the canonical slot; the sticky bar mirrors the primary CTA on mobile only.
+ * AC-S20-001: one evidence-first responsive decision area
+ *   The canonical decision-card is the sole action area at every viewport; it uses
+ *   sticky positioning for reachability without a mirrored mobile control.
  *
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
@@ -18,7 +17,7 @@
  *   in the success render with the correct hidden/visible CSS classes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -308,9 +307,9 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-S6-1: sticky mobile primary action (B-C-2 + A-IMP-2)
+// AC-S20-001: one evidence-first responsive decision area; no mirrored phone CTA.
 // ---------------------------------------------------------------------------
-describe('AC-S6-1 (B-C-2 + A-IMP-2): sticky mobile primary action bar', () => {
+describe('AC-S20-001: one responsive decision area on phone', () => {
   beforeEach(() => {
     detailState.isPending = false;
     detailState.isError = false;
@@ -319,47 +318,28 @@ describe('AC-S6-1 (B-C-2 + A-IMP-2): sticky mobile primary action bar', () => {
     mockIsDesktop = false;
   });
 
-  it('AC-S6-1: mobile success render with actions shows the sticky-action bar', () => {
-    detailState.data = { ...draftByAlice }; // Draft + has items → Submit Request shown
-    renderPage();
-    // The sticky action bar must be present with the testid
-    const sticky = screen.getByTestId('mobile-sticky-action');
-    expect(sticky).toBeInTheDocument();
-    expect(sticky).toHaveAttribute('data-mobile-action-bar');
-  });
-
-  it('AC-S6-1: the sticky bar carries fixed/sticky bottom positioning classes', () => {
+  it('AC-S20-001: a Draft request has one action zone and one Submit Request control', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
-    const sticky = screen.getByTestId('mobile-sticky-action');
-    const cls = sticky.className;
-    // Must use fixed/sticky positioning at bottom
-    expect(/fixed|sticky/.test(cls)).toBe(true);
-    expect(/bottom-/.test(cls)).toBe(true);
+    expect(screen.getAllByTestId('record-action-zone')).toHaveLength(1);
+    expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
+    expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit request/i })).toHaveLength(1);
   });
 
-  it('AC-S6-1: the sticky bar is only shown on mobile (max-[920px] or hidden on desktop)', () => {
+  it('AC-S20-001: the single decision area uses sticky reachability without a second DOM action', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
-    const sticky = screen.getByTestId('mobile-sticky-action');
-    // Must be hidden on desktop-sized viewports
-    expect(sticky.className).toContain('hidden');
-    expect(sticky.className).toMatch(/max-\[920px\]/);
+    const zone = screen.getByTestId('record-action-zone');
+    expect(zone.className).toContain('sticky');
+    expect(zone.className).toContain('bottom-0');
+    expect(zone.querySelectorAll('button')).toHaveLength(2); // Submit + Cancel, both canonical controls.
   });
 
-  it('AC-S6-1: the sticky bar contains the stage primary action label (Submit Request for Draft)', () => {
-    detailState.data = { ...draftByAlice };
-    renderPage();
-    const sticky = screen.getByTestId('mobile-sticky-action');
-    // The sticky bar is aria-hidden (reach shortcut, not canonical slot) so we check textContent
-    expect(sticky.textContent).toMatch(/submit request/i);
-  });
-
-  it('AC-S6-1: on terminal status (Paid, no actions) the sticky bar is absent or empty', () => {
+  it('AC-S20-001: a terminal request has no mirrored bar or transition action', () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...paidByAlice };
     renderPage();
-    // When no actions are available, the sticky bar should not render
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
   });
 });

@@ -13,6 +13,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
@@ -183,7 +184,7 @@ function VarianceCell({ project, currency }: { project: BudgetReviewRow; currenc
  * - J4 console reframe: tabular nums everywhere, right-aligned money columns
  */
 export const FinanceDashboard: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data, isPending, isError, refetch } = useDashboard();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
@@ -207,16 +208,24 @@ export const FinanceDashboard: React.FC = () => {
     dir: 'desc',
   });
 
-  const totalSpend = useMemo(
-    () => (data?.top_projects ?? []).reduce((s, p) => s + (p.spent || 0), 0),
-    [data?.top_projects],
-  );
-  const outstanding = useMemo(
-    () => (procurements ?? [])
-      .filter((p) => p.status === INVOICED_STATUS)
-      .reduce((s, p) => s + (p.total_value || 0), 0),
-    [procurements],
-  );
+  const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
+    ?? t('uxs03.notAvailableYet', 'Not available yet');
+  const totalSpend = data?.on_hand_actual_known ?? null;
+  const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
+    known: data?.on_hand_actual_project_count ?? 0, total: data?.on_hand_actual_project_total ?? 0,
+  }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
+    known: data?.on_hand_actual_coverage_count ?? 0, total: data?.on_hand_actual_coverage_total ?? 0,
+  });
+  const unknownMarginProjects = (data?.on_hand_realized_margin_by_currency ?? [])
+    .reduce((sum, item) => sum + item.unknown_projects, 0);
+  const marginLabel = unknownMarginProjects > 0
+    ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
+    : t('uxs03.realizedMargin', 'Margin on billed work');
+  const outstanding = useMemo(() => {
+    const invoiced = (procurements ?? []).filter((p) => p.status === INVOICED_STATUS);
+    const currencies = new Set(invoiced.map((p) => p.currency));
+    return currencies.size > 1 ? null : invoiced.reduce((sum, p) => sum + (p.total_value || 0), 0);
+  }, [procurements]);
   const procByStatus = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of procurements ?? []) counts.set(p.status, (counts.get(p.status) ?? 0) + 1);
@@ -312,33 +321,35 @@ export const FinanceDashboard: React.FC = () => {
       <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
 
       {/* KPI band — 5 tiles: reflows 5→3→2→1 at 1180/920/560 (unchanged from PR-A) */}
+      <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
+        <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
+      </section>
       <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
-        <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
-          value={formatCurrency(data?.total_contract_value ?? 0, orgCurrency)} loading={isPending}
+        <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('uxs03.contractValueInProgress', 'Contract value in progress')}
+          value={money(data?.total_contract_value ?? null)} loading={isPending}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see contracted revenue"
           help="Total contract value across active and closed-out projects." />
         {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label="Total project spend"
-          value={formatCurrency(totalSpend, orgCurrency)} loading={isPending}
+          value={money(totalSpend)} loading={isPending} vs={actualCoverage}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see spend breakdown"
-          help="Sum of actual spend across the portfolio's top projects." />
+          help={t('dashboard.kpi.totalSpend.help', 'Total Actual recorded across the on-hand portfolio.')} />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
-        <KPITile testId="kpi-margin" tone="blue" icon="up" label="On-hand margin"
-          value={`${((data?.on_hand_margin ?? 0) * 100).toFixed(1)}%`} loading={isPending}
-          vs={`${formatCurrency(data?.on_hand_value ?? 0, orgCurrency)} on hand`}
-          help="Realized actual margin on active + closed-out contracts." />
+        <KPITile testId="kpi-margin" tone="blue" icon="up" label={t('uxs03.marginToDate', 'Margin to date')}
+          value={money(data?.on_hand_realized_margin ?? null)} loading={isPending}
+          vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data?.on_hand_contract_remaining ?? null)
+            + ' · ' + marginLabel + ' · ' + actualCoverage}
+          help="Margin is billed-work revenue less Actual; it is not cash received." />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
         <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label="Outstanding invoices"
-          value={formatCurrency(outstanding, orgCurrency)} loading={procPending}
+          value={outstanding === null ? t('uxs03.notAvailableYet', 'Not available yet') : money(outstanding)} loading={procPending}
           vs="vendor-invoiced, awaiting payment"
           to="/procurement?status=Vendor+Invoiced"
           linkLabel="Open vendor-invoiced requests awaiting payment"
           help="Sum of procurement value in the Vendor Invoiced state." />
-        {/* N15: PRs-only approvals shortcut (Finance has no timesheet approval) → /approvals. */}
-        <AwaitingApprovalTile includeTimesheets={false} label="PRs awaiting you" />
       </section>
 
       {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
@@ -418,17 +429,19 @@ export const FinanceDashboard: React.FC = () => {
 
       <DashGrid>
         <Card>
-          <CardHead>Procurement by Status</CardHead>
+          <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
+          <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
           <div className="px-4 pb-4 pt-2">
             {procError ? (
               <ListState variant="error" title="Couldn't load procurement" onRetry={() => refetchProc()} />
             ) : procPending ? (
               <ListState variant="loading" rows={6} />
             ) : procByStatus.length === 0 ? (
-              <ListState variant="empty" icon="cart" title="No procurement activity yet" />
+              <ListState variant="empty" icon="cart" title={t('dashboard.chart.procStatus.empty', 'No procurement activity yet')} />
             ) : (
               <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
-                label="Procurement by status" noun="requests" />
+                label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
+                noun={t('dashboard.chart.procStatus.noun', 'requests')} />
             )}
           </div>
         </Card>

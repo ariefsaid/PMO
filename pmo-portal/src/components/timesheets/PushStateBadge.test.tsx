@@ -24,7 +24,7 @@ describe('PushStateBadge', () => {
         canRetry
       />,
     );
-    expect(screen.getByText(/pending/i)).toBeInTheDocument();
+    expect(screen.getByText('Accounting update waiting')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
@@ -35,7 +35,7 @@ describe('PushStateBadge', () => {
         canRetry
       />,
     );
-    expect(screen.getByText(/pushing/i)).toBeInTheDocument();
+    expect(screen.getByText('Updating accounting…')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe('PushStateBadge', () => {
         canRetry
       />,
     );
-    expect(screen.getByText(/pushed/i)).toBeInTheDocument();
+    expect(screen.getByText('Accounting up to date')).toBeInTheDocument();
     expect(screen.getByText(/TS-2026-00042/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
@@ -63,7 +63,7 @@ describe('PushStateBadge', () => {
         onRetry={onRetry}
       />,
     );
-    expect(screen.getByText(/failed/i)).toBeInTheDocument();
+    expect(screen.getByText('Accounting update needs attention')).toBeInTheDocument();
     expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();
     const retry = screen.getByRole('button', { name: /retry/i });
     fireEvent.click(retry);
@@ -77,7 +77,7 @@ describe('PushStateBadge', () => {
         canRetry={false}
       />,
     );
-    expect(screen.getByText(/failed/i)).toBeInTheDocument();
+    expect(screen.getByText('Accounting update needs attention')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
@@ -135,7 +135,7 @@ describe('PushStateBadge', () => {
         onRetry={onRetry}
       />,
     );
-    expect(screen.getByText(/held/i)).toBeInTheDocument();
+    expect(screen.getByText('Accounting update on hold')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
@@ -162,4 +162,16 @@ describe('PushStateBadge', () => {
     const { blocking } = await axeViolations(container);
     expect(blocking).toEqual([]);
   });
+
+  // UX-084 (S-28) — approval stays the primary status; this badge speaks accounting, never the
+  // transfer engine, in every state.
+  it.each(['pending', 'pushing', 'pushed', 'failed', 'held'] as const)(
+    'UX-084: %s never names the transfer engine (no ERP / push wording)',
+    (push_state) => {
+      const { container } = render(
+        <PushStateBadge state={{ push_state, push_error: null, ts_number: null }} canRetry={false} />,
+      );
+      expect(container.textContent ?? '').not.toMatch(/ERP|push/i);
+    },
+  );
 });

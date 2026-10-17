@@ -1,3 +1,5 @@
+import { formatExactMoney } from './format';
+
 export type ExactMoney = string;
 
 export interface InvoiceFinanceBucket {
@@ -43,6 +45,113 @@ export type Margin =
   | { amount: ExactMoney; reason: null }
   | { amount: null; reason: 'different-currencies' | 'work-unavailable' | 'actuals-unavailable' | 'restricted-rows' };
 
+export type ActualPosition = {
+  amount: ExactMoney | null;
+  currency: string | null;
+  asOf: string | null;
+  basis: 'pmo' | 'erp' | 'unavailable';
+  complete: boolean;
+};
+
+export function deriveActualPosition(input: {
+  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
+  committedSpend: number | undefined;
+  commitmentPending: boolean;
+  commitmentError: boolean;
+  projectCurrency: string;
+  actuals: ProjectFinances['actuals'] | undefined;
+}): ActualPosition {
+  if (input.ledgerBasis === 'pmo') {
+    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+      return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
+    }
+    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+  }
+  if (input.ledgerBasis === 'unavailable') {
+    return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };
+  }
+  const actuals = input.actuals;
+  if (!actuals || !hasCompleteActuals(actuals)) {
+    return { amount: null, currency: actuals?.currency ?? null, asOf: actuals?.as_of ?? null, basis: 'erp', complete: false };
+  }
+  return { amount: actuals.total, currency: actuals.currency, asOf: actuals.as_of, basis: 'erp', complete: true };
+}
+
+/** A headline Actual is trustworthy only when every required category is covered. */
+function categoriesComplete(
+  actuals: ProjectFinances['actuals'],
+  budgetedCategories?: readonly string[],
+): boolean {
+  const required = budgetedCategories?.length
+    ? actuals.categories.filter((category) => budgetedCategories.includes(category.category))
+    : actuals.categories;
+  return actuals.currency !== null
+    && actuals.total !== null
+    && required.length > 0
+    && required.every((category) => category.mapped && category.amount !== null)
+    && !actuals.excludes_restricted_rows;
+}
+
+export function hasCompleteActuals(
+  actuals: ProjectFinances['actuals'],
+  budgetedCategories?: readonly string[],
+): boolean {
+  return isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories });
+}
+
+/** PO-basis completeness is the successful read itself; an empty PO set is known zero. */
+export function isActualComplete(input: {
+  basis: 'pmo' | 'erp' | 'unavailable';
+  readSucceeded: boolean;
+  complete?: boolean | null;
+  actuals?: ProjectFinances['actuals'] | null;
+  categories?: ReadonlyArray<{ category: string; mapped: boolean; amount: string | null }>;
+  excludesRestrictedRows?: boolean;
+  coverageCount?: number | null;
+  coverageTotal?: number | null;
+  budgetedCategories?: readonly string[];
+}): boolean {
+  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis !== 'erp' || !input.readSucceeded) return false;
+  if (input.complete !== null && input.complete !== undefined) return input.complete;
+  if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);
+  if (input.coverageTotal !== null && input.coverageTotal !== undefined) {
+    return input.coverageTotal > 0 && input.coverageCount !== null && input.coverageCount !== undefined
+      && input.coverageCount >= input.coverageTotal && !input.excludesRestrictedRows;
+  }
+  const categories = input.categories ?? [];
+  return categories.length > 0
+    && categories.every((category) => category.mapped && category.amount !== null)
+    && !input.excludesRestrictedRows;
+}
+
+export function deriveContractRemainingAfterCost(
+  contractValue: number | null,
+  actuals: ProjectFinances['actuals'],
+  currency: string,
+): ExactMoney | null {
+  if (!hasCompleteActuals(actuals)) return null;
+  return deriveContractRemainingFromPosition(contractValue, { amount: actuals.total, currency: actuals.currency }, currency);
+}
+
+export function deriveContractRemainingFromPosition(
+  contractValue: number | null,
+  actual: { amount: ExactMoney | null; currency: string | null },
+  currency: string,
+): ExactMoney | null {
+  if (contractValue === null || !Number.isFinite(contractValue) || actual.currency !== currency) return null;
+  const contract = moneyUnits(String(contractValue));
+  const cost = moneyUnits(actual.amount);
+  return contract === null || cost === null ? null : moneyText(contract - cost);
+}
+
+export function formatSignedExactMoney(value: ExactMoney, currency: string, locale: string): string | null {
+  const units = moneyUnits(value);
+  if (units === null) return null;
+  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale);
+  return formatted === null ? null : `${units < 0n ? '−' : ''}${formatted}`;
+}
+
 export interface AssignInvoiceProjectInput {
   siId: string;
   projectId: string;
@@ -67,6 +176,7 @@ export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinan
   if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
   const revenue = moneyUnits(bucket.work_revenue);
   if (revenue === null || bucket.missing_work > 0) return { amount: null, reason: 'work-unavailable' };
+  if (!hasCompleteActuals(actuals)) return { amount: null, reason: 'actuals-unavailable' };
   const cost = moneyUnits(actuals.total);
   if (cost === null || !actuals.currency) return { amount: null, reason: 'actuals-unavailable' };
   return { amount: moneyText(revenue - cost), reason: null };
@@ -95,4 +205,4 @@ export function isProjectFinances(value: unknown): value is ProjectFinances {
       && typeof v.mapped === 'boolean' && exact(v.amount));
 }
 
-export { formatExactMoney } from './format';
+export { formatExactMoney };

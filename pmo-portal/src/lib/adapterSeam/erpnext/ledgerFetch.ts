@@ -23,6 +23,7 @@ import { AppError } from '../../appError.ts';
 /** The mirrored GL Entry row shape — feeds erp_gl_entry_mirror. Money is decimal-string (R4). */
 export interface GlEntryRow {
   name: string;
+  company?: string;
   account: string;
   cost_center: string | null;
   fiscal_year: string | null;
@@ -36,6 +37,8 @@ export interface GlEntryRow {
   credit: string | null;
   /** ERPNext `is_cancelled` (a cancelled original or its reversal) OR docstatus 2 — never counted. */
   is_cancelled: boolean;
+  is_opening?: 'Yes' | 'No' | null;
+  finance_book?: string | null;
   docstatus: number | null;
   /** Frappe `modified` — the per-row source-mod cursor (the slice-8 feed's `>=` guard). */
   modified: string;
@@ -83,8 +86,8 @@ export interface LedgerFetchResult<T> {
 }
 
 const GL_FIELDS = [
-  'name', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
-  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'docstatus', 'modified',
+  'name', 'company', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
+  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified',
 ] as const;
 
 const PLE_FIELDS = [
@@ -139,13 +142,14 @@ async function fetchAllPages(
   fields: readonly string[],
   pageSize: number,
   maxPages: number,
+  responseNumbers?: 'ledger_decimal_text',
 ): Promise<{ rows: Record<string, unknown>[]; caughtUp: boolean }> {
   const rows: Record<string, unknown>[] = [];
   let limitStart = 0;
   // A full page is not proof that the source is drained. Stop after the bounded budget and let the
   // inclusive modified watermark re-read the boundary row on the next tick.
   for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
-    const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart) });
+    const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart), responseNumbers });
     const page = (body as { data?: Record<string, unknown>[] } | null)?.data;
     if (!Array.isArray(page) || page.length === 0) return { rows, caughtUp: true };
     rows.push(...page);
@@ -173,13 +177,14 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
   }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
-  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages);
+  const result = await fetchAllPages(client, GL_ENTRY_DOCTYPE, scopeFilters(opts), GL_FIELDS, pageSize, maxPages, 'ledger_decimal_text');
   return {
     ...result,
     rows: result.rows.map((r) => {
       const docstatus = docstatusOf(r.docstatus);
       return {
         name: String(r.name),
+        company: String(r.company ?? opts.company),
         account: String(r.account),
         cost_center: str(r.cost_center),
         fiscal_year: str(r.fiscal_year),
@@ -192,6 +197,8 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
         debit: money(r.debit),
         credit: money(r.credit),
         is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
+        is_opening: r.is_opening === 'Yes' || r.is_opening === 'No' ? r.is_opening : null,
+        finance_book: str(r.finance_book),
         docstatus,
         modified: String(r.modified),
       };

@@ -21,3 +21,5 @@ Verify by reading code (cite `file:line`) and the tests that bind each `AC-###` 
 ## Report
 - ✅ Spec compliant (everything matches after code inspection + test run), or
 - ❌ Issues found: specific list of missing/extra/misunderstood items with `file:line` references and which `AC-###` is affected.
+
+Apply the **Finding discipline** in `.claude/skill-overrides/code-review/SKILL.md` (trace before you flag, triage, a verdict covers one patch).

@@ -107,7 +107,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 10_000 });
 
   // ── Step 3: Add project "Acme Internal Platform" ────────────────────────────
-  await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
+  await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
 
   // A new editable row should appear for Acme Internal Platform.
   await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });
@@ -115,7 +115,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // ── Step 4: Enter hours across two projects ──────────────────────────────────
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
   await fillHourCell(page, PROJECT_NAME, 'Tue', '6');
-  await page.getByLabel('Add a project').selectOption({ label: 'Innovate Corp HQ Fit-Out' });
+  await page.getByLabel('Add a project').selectOption({ label: 'P001 · Innovate Corp HQ Fit-Out' });
   await expect(page.getByText('Innovate Corp HQ Fit-Out', { exact: true })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
@@ -177,7 +177,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 15_000 });
 
   // Re-add the project.
-  await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
+  await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
 
   // Wait for the new row to be stable before filling cells.
   await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible({ timeout: 5_000 });

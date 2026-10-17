@@ -87,6 +87,15 @@ function pleRow(name: string, over: Partial<ledgerFetch.PaymentLedgerEntryRow> =
 }
 
 describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)', () => {
+  it('AC-005: an incomplete full replay fails before mirror or watermark mutation', async () => {
+    const sc = fakeServiceClient();
+    const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-PARTIAL')], caughtUp: false });
+    await expect(feedLedgerMirrors(sc, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true })).rejects.toThrow(/page budget exhausted/i);
+    expect(h(sc).gl.size).toBe(0);
+    expect(h(sc).watermarks.size).toBe(0);
+    expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ since: undefined, maxPages: 300 }));
+  });
+
   it('a fixed fetched GL/PLE set lands as mirror rows (decimal-strings intact) + advances both watermarks', async () => {
     const sc = fakeServiceClient();
     const glSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [

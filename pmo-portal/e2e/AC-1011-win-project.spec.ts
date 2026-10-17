@@ -57,5 +57,7 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   const wonRow = page.getByRole('row').filter({ hasText: DEAL_NAME });
   await expect(wonRow).toBeVisible({ timeout: 15_000 });
   await expect(wonRow.getByText('Won, Pending KoM')).toBeVisible({ timeout: 15_000 });
+  // S-14: secondary references sit behind the row's "More project references" disclosure.
+  await wonRow.getByText('More project references').click();
   await expect(wonRow.getByText('CPO-E2E-1')).toBeVisible({ timeout: 10_000 });
 });

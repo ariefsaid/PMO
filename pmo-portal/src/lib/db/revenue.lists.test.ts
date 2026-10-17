@@ -16,6 +16,9 @@ interface Call {
   orders: Array<{ column: string; ascending?: boolean }>;
   range: [number, number] | null;
   eq: Array<[string, unknown]>;
+  or: string[];
+  neq: Array<[string, unknown]>;
+  is: Array<[string, unknown]>;
 }
 
 const h = vi.hoisted(() => {
@@ -26,10 +29,13 @@ const h = vi.hoisted(() => {
   };
 
   function builder(table: string) {
-    const call: Call = { table, columns: '', orders: [], range: null, eq: [] };
+    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [] };
     const b = {
       select(columns: string) { call.columns = columns; return b; },
       eq(column: string, value: unknown) { call.eq.push([column, value]); return b; },
+      or(filters: string) { call.or.push(filters); return b; },
+      neq(column: string, value: unknown) { call.neq.push([column, value]); return b; },
+      is(column: string, value: unknown) { call.is.push([column, value]); return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         call.orders.push({ column, ascending: opts?.ascending });
         return b;
@@ -127,17 +133,17 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
   // #781 (AC-FIN-001): the list resolves the customer's company NAME in the SAME query (it must
   // never render the opaque `customer_id`), so the projection embeds `companies.name` in the
   // existing explicit-FK join and flattens it to `customer_name`.
-  it('AC-FIN-001: embeds the customer name in the one SI read and flattens it to customer_name', async () => {
+  it('AC-FIN-001: resolves the shared company display name in the one SI read', async () => {
     h.state.pages.sales_invoices = [[
-      { id: 'si-1', si_number: 'ACC-SINV-1', companies: { erp_payment_terms_days: 30, name: 'Acme Co' } },
+      { id: 'si-1', si_number: 'ACC-SINV-1', companies: { erp_payment_terms_days: 30, name: 'Acme Legal Co', short_name: 'Acme' } },
     ]];
 
     const rows = await listSalesInvoices();
 
     expect(h.state.calls[0].columns).toBe(
-      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)',
+      '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)',
     );
-    expect(rows[0].customer_name).toBe('Acme Co');
+    expect(rows[0].customer_name).toBe('Acme');
   });
 
   it('AC-FIN-001: a sales invoice with no resolved company yields customer_name null (never the id)', async () => {
@@ -177,6 +183,17 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
 });
 
 describe('db/revenue listIncomingPayments — same cap, same fix', () => {
+  it('filters invoice detail receipts server-side and excludes scheduled or cancelled receipts', async () => {
+    h.state.pages.incoming_payments = [paymentRows(1)];
+
+    await listIncomingPayments({ salesInvoiceId: 'inv-123' });
+
+    expect(h.state.calls).toHaveLength(1);
+    expect(h.state.calls[0].or).toEqual(['sales_invoice_id.eq.inv-123,allocation_details.cs.[{"invoice_id":"inv-123"}]']);
+    expect(h.state.calls[0].neq).toContainEqual(['status', 'Scheduled']);
+    expect(h.state.calls[0].is).toEqual([['erp_cancelled_at', null], ['cancelled_at', null]]);
+  });
+
   it('returns EVERY payment past the 1000-row cap', async () => {
     h.state.pages.incoming_payments = [paymentRows(1000), paymentRows(20, 1000)];
 

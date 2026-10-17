@@ -17,6 +17,7 @@ const deliverySummaryState = {
   data: null as Record<string, { deliveryPct: number | null; committedSpend: number; budget: number }> | null,
   isPending: false,
 };
+const projectMoneyState = { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() };
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
@@ -44,6 +45,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => deliverySummaryState,
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -110,6 +112,10 @@ describe('Projects delivery progress + budget used', () => {
       p1: { deliveryPct: 50, committedSpend: 2_000_000, budget: 3_800_000 },
       p2: { deliveryPct: null, committedSpend: 0, budget: 900_000 },
     };
+    projectMoneyState.data = {
+      p1: { actuals: { currency: 'USD', total: '2000000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '2000000.00' }] }, activeBudgetAmount: '3800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p2: { actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: '900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
   });
 
   it('AC-DEL-013 AC-DEL-017: renders delivery progress and budget used from the delivery summary', () => {
@@ -117,7 +123,7 @@ describe('Projects delivery progress + budget used', () => {
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
     expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByText('$2.0M of $3.8M budget')).toBeInTheDocument();
+    expect(screen.getByText('$2.0M of $3.8M Active budget')).toBeInTheDocument();
     expect(screen.getByText('53%')).toBeInTheDocument();
     expect(screen.getByText('No phases yet')).toBeInTheDocument();
 
@@ -153,9 +159,9 @@ describe('Projects delivery progress + budget used', () => {
     renderPage();
 
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
-    // [8] = Budget used — the added End customer column (after Customer) shifted the indices left.
-    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[8];
-    expect(within(budgetCell).getByText('—')).toBeInTheDocument();
-    expect(within(budgetCell).queryByText(/\$0 of \$0 budget/i)).not.toBeInTheDocument();
+    const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
+    const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
+    expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

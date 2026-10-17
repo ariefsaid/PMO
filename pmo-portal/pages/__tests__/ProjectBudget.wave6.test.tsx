@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -38,6 +38,7 @@ const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
@@ -163,18 +164,42 @@ describe('AC-W6-IXD-BUDHEAD: Budget tab double-header removed', () => {
     expect(
       screen.queryByRole('heading', { name: /Project Budget/i }),
     ).not.toBeInTheDocument();
-    // The useful lead survives: "Active budget:" + the derived figure.
-    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
-    expect(screen.getByTestId('derived-budget')).toBeInTheDocument();
+    // S-04 / DD-MONEY-4: only a Draft exists, so the lead says there is no Active budget (it never
+    // presents the Draft or a $0 as the budget).
+    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
     // The primary action stays (PM canWrite).
     expect(screen.getByRole('button', { name: /\+ New version/i })).toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading and keeps the Active-budget lead', () => {
+  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading and says there is no active budget', () => {
     versionsState.data = [];
     renderPage();
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
+    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+  });
+
+  it('UX-033: the Active amount is announced ONCE when the Active version is open', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [{ ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 }];
+    const { container } = renderPage();
+    // one amount in the header; no "Active budget:" lead, no pill/amount repeated in the selector bar
+    expect(screen.getByTestId('derived-budget')).toHaveTextContent('$4,700,000');
+    expect(screen.queryByText(/Active budget:/i)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('version-selector')).queryByText('$4,700,000')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-testid="version-status-active"]')).toHaveLength(1);
+  });
+
+  it('UX-033: while a Draft is open, the Active amount stays in view as a reference line', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [
+      { ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 },
+      draftVersionWithItems,
+    ];
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Version'), { target: { value: 'v-draft' } });
     expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
+    expect(screen.getByTestId('derived-budget')).toHaveTextContent('$4,700,000');
   });
 });
 

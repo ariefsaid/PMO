@@ -63,6 +63,7 @@ const draftVersion: BudgetVersionWithItems = {
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 100_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));

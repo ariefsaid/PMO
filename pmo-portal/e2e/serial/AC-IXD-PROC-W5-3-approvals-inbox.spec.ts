@@ -128,8 +128,7 @@ const READY = Boolean(SERVICE_KEY && SERVICE_URL);
  * `seed.sql` seeds the current and the prior week (relative to Postgres `current_date`); the ERPNext
  * lane allocates far-FUTURE weeks (`_tspHelpers.runWeek`, 2027+). 20 weeks back clears both by a
  * margin no host/DB timezone skew can close, and `week_is_monday` (migration 0001) demands a Monday.
- * The week is CHOSEN by the test and written to the DB, then read back out of the DOM, so — unlike
- * the previous "prior ISO week computed in the browser clock" — no clock agreement is required.
+ * The week is chosen by the test and written to the DB, so no clock agreement is required.
  */
 function ownedWeekStart(): string {
   const now = new Date();
@@ -260,16 +259,12 @@ test.afterEach(async () => {
 // every selected week was actually approved.
 //
 // Seed-name-robustness (binding): NO seed person-name is asserted anywhere. Rows are targeted
-// structurally, by the `[data-week-start]` of the week this spec owns (ApprovalsQueue.tsx).
+// structurally, by the unique fixture-author labels displayed on the rows.
 //
-// Viewport (owner decision 2026-07-27, option 1): bulk-approve lives ONLY in the stacked fallback
-// that renders below the `lg` breakpoint (1024px, Approvals.tsx TRIAGE_QUERY). The redesign dropped
-// bulk from the primary split inbox; whether that was deliberate is an OPEN QUESTION
-// (docs/backlog.md). Until it is answered this test drives the real Select → checkboxes →
-// "Approve N" → ConfirmDialog path at a small viewport. If bulk is restored to the split inbox,
-// drop the setViewportSize — the goal-oracle carries over unchanged.
+// Viewport: exercise the real inbox and bulk-approve journey at 800px; the goal-oracle remains that
+// a PM approves multiple timesheets and the owned items leave the queue.
 test(
-  'AC-IXD-TS-W5-3 the PM bulk-approves ≥2 timesheets from the STACKED (<1024px) approvals inbox and the queue count settles',
+  'AC-IXD-TS-W5-3 the PM bulk-approves ≥2 timesheets from the 800px approvals inbox and the queue count settles',
   async ({ page }) => {
     test.skip(
       !READY,
@@ -280,25 +275,23 @@ test(
     admin = createClient(SERVICE_URL, SERVICE_KEY);
     await sweepOwnAuthors(admin);
     owned = await seedOwnedSubmittedWeeks(admin, OWN_SHEETS);
-    const weekStart = owned.weekStart;
 
     // Step 1: pm@ opens /approvals — his queue holds the ≥2 Submitted weeks seeded above.
     await login(page, 'pm@acme.test');
-    // Force the stacked fallback (ApprovalsQueue) by going BELOW the lg breakpoint (1024px).
-    // The split inbox renders at ≥1024px and has NO bulk-approve affordance; the fallback has it.
+    // Exercise the responsive inbox below the lg breakpoint.
     await page.setViewportSize({ width: 800, height: 1000 });
     // CW-6: a PM sees both modules as deep-linkable scope tabs; this test exercises the
     // timesheet queue, so it deep-links straight to that scope.
     await page.goto('/approvals?scope=timesheets');
 
     // Timesheet section visible.
-    const tsSection = page.getByTestId('approvals-timesheets-mobile-section');
+    const tsSection = page.getByTestId('approvals-queue-region');
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
     // The Select button is only shown when there are approvable rows — its presence confirms at
     // least one Submitted sheet is in the queue. The exact owned count is asserted structurally
     // below (and again via the "Approve N" label).
-    const selectBtn = tsSection.getByRole('button', { name: /^(select|pilih)$/i });
+    const selectBtn = tsSection.getByRole('button', { name: /^(select items|pilih item)$/i });
     await expect(selectBtn).toBeVisible({ timeout: 15_000 });
 
     // Enter Select mode.
@@ -308,11 +301,8 @@ test(
     const bulkGroup = page.getByRole('group', { name: /bulk approve|setujui massal/i });
     await expect(bulkGroup).toBeVisible({ timeout: 5_000 });
 
-    // Select every row of the week this test OWNS. Each row wraps its checkbox in a
-    // [data-week-start] container (ApprovalsQueue.tsx), and on the owned week those are exactly the
-    // OWN_SHEETS rows seeded above — nobody else ever writes this week.
-    const ownRows = tsSection.locator(`[data-week-start="${weekStart}"]`);
-    const ownCheckboxes = ownRows.getByRole('checkbox');
+    // Select the rows owned by this test via their unique fixture author labels.
+    const ownCheckboxes = tsSection.getByRole('checkbox', { name: /W5-3 Bulk Author/ });
     await expect(ownCheckboxes).toHaveCount(OWN_SHEETS, { timeout: 15_000 });
     const ownCount = await ownCheckboxes.count();
     expect(ownCount, 'BULK approve means ≥2 rows in one confirm').toBeGreaterThanOrEqual(2);
@@ -366,7 +356,7 @@ test(
 
     // Cross-check: the inbox settled (not loading) confirms this is not a pending-mask.
     await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 5_000 });
-    await expect(tsSection.locator(`[data-week-start="${weekStart}"]`)).toHaveCount(0, { timeout: 15_000 });
+    await expect(tsSection.getByText(/W5-3 Bulk Author/)).toHaveCount(0, { timeout: 15_000 });
 
     // Goal oracle (d) — server truth: every week the PM selected is Approved, BY HIM.
     const { data: after, error: readErr } = await admin

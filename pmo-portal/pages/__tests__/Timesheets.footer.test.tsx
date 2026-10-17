@@ -191,7 +191,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 // ---------------------------------------------------------------------------
 // AC-IXD-TS-004 — redundant rollup panels removed from the entry screen
 // ---------------------------------------------------------------------------
-describe('AC-UXS-023: mobile timesheet completion stays with the week', () => {
+describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('keeps the total and both actions available for a two-project mobile week', () => {
@@ -218,7 +218,7 @@ describe('AC-UXS-023: mobile timesheet completion stays with the week', () => {
     const strip = screen.getByTestId('timesheets-mobile-action-strip');
     expect(strip).toHaveAttribute('data-mobile-action-bar');
     expect(within(strip).getByText('10 hours this week')).toBeInTheDocument();
-    expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeEnabled();
+    expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeDisabled();
     expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeEnabled();
     expect(screen.queryByTestId('timesheets-footer')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();

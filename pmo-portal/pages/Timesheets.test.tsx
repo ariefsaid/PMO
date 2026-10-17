@@ -187,18 +187,17 @@ describe('CW-6: Timesheets no longer hosts its own approvals queue', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    const link = screen.getByRole('link', { name: /approvals/i });
+    const link = screen.getByRole('link', { name: /team review/i });
     expect(link).toHaveAttribute('href', '/approvals?scope=timesheets');
   });
 
-  it('CW-6: the cross-link shows "Review N awaiting" when sheets are pending (fix #8)', () => {
+  it('CW-6/UX-062: the Team review link carries the awaiting count when sheets are pending (fix #8)', () => {
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     awaitingState.data = [{ id: 'a1' }, { id: 'a2' }] as unknown[];
     renderPage();
-    // fix #8: with pending count > 0, copy changes to "Review N awaiting" (more prominent CTA).
-    const link = screen.getByRole('link', { name: /review 2 awaiting/i });
+    const link = screen.getByRole('link', { name: /team review.*2 awaiting/i });
     expect(link.textContent).toContain('2');
     awaitingState.data = [];
   });
@@ -245,14 +244,13 @@ describe('Timesheets returned-for-changes edge state', () => {
 // ---------------------------------------------------------------------------
 
 describe('CW-6: Timesheets approvals cross-link badge', () => {
-  it('CW-6: the approvals cross-link reads "Approvals" (no count) when nothing is pending', () => {
+  it('CW-6/UX-062: the Team review link reads plain "Team review" (no count) when nothing is pending', () => {
     // useTimesheetsAwaitingApproval returns [] (empty) by default in this file's mock
     tsState.data = pmSheet as unknown as TimesheetWithEntries[];
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    // fix #8: zero-pending shows plain "Approvals" (no count in the text).
-    const link = screen.getByRole('link', { name: /^Approvals$/i });
+    const link = screen.getByRole('link', { name: /^Team review$/i });
     expect(link.textContent).not.toContain('0');
   });
 });
@@ -494,7 +492,7 @@ describe('timesheet-entry: project picker (Task 15)', () => {
     const optionLabels = Array.from(picker.options)
       .map((o) => o.textContent)
       .filter((t) => t && !/select a project/i.test(t));
-    expect(optionLabels).toEqual(['Acme Internal Platform']);
+    expect(optionLabels).toEqual(['P003 · Acme Internal Platform']);
   });
 
   it('AC-TSE-005: selecting a project from the picker adds an empty editable row (0×7) and writes nothing', async () => {
@@ -1039,14 +1037,14 @@ describe('Timesheets — the owner sees their own ERP push state (I-16/I-17)', (
   it('I-17 a FAILED push of the owner\'s own week is visible to them, in plain words', async () => {
     ownPushState.data = { push_state: 'failed', push_error: 'external-unreachable', ts_number: null };
     renderPage();
-    expect(await screen.findByText(/ERP push failed/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accounting update needs attention/i)).toBeInTheDocument();
     expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();
   });
 
   it('I-16 a PUSHED week names the ERP document — a state that was unreachable in the running app', async () => {
     ownPushState.data = { push_state: 'pushed', push_error: null, ts_number: 'TS-2026-00042' };
     renderPage();
-    expect(await screen.findByText(/pushed to ERP/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accounting up to date/i)).toBeInTheDocument();
     expect(screen.getByText('TS-2026-00042')).toBeInTheDocument();
   });
 
@@ -1054,13 +1052,13 @@ describe('Timesheets — the owner sees their own ERP push state (I-16/I-17)', (
     ownPushState.data = null;
     renderPage();
     await screen.findByTestId('timesheets-weekly-total');
-    expect(screen.queryByText(/ERP push/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/accounting (update|up to date)|updating accounting/i)).not.toBeInTheDocument();
   });
 
   it('the owner is never offered a Retry here — the push is re-driven from the approver surface', async () => {
     ownPushState.data = { push_state: 'failed', push_error: 'external-unreachable', ts_number: null };
     renderPage();
-    await screen.findByText(/ERP push failed/i);
+    await screen.findByText(/accounting update needs attention/i);
     expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument();
   });
 });
@@ -1111,5 +1109,92 @@ describe('#596: delete-row race', () => {
     await act(async () => { pending?.onError?.(new Error('Timesheet entry not found')); });
     // Exactly ONE row for the project — the restore must not duplicate the re-added row.
     expect(screen.getAllByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveLength(1);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// S-28 — My time vs Team review (UX-062), saved/unsaved (UX-063), picker (RF-061)
+// ---------------------------------------------------------------------------
+describe('S-28: My time and Team review are distinct jobs (UX-062)', () => {
+  beforeEach(() => {
+    projectsState.data = ongoingProjects;
+    awaitingState.data = [];
+  });
+  afterEach(() => {
+    awaitingState.data = [];
+  });
+
+  it('UX-062: an approver sees a labelled My time / Team review switch; My time is the current view', () => {
+    tsState.data = pmSheet as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const nav = screen.getByRole('navigation', { name: /timesheet views/i });
+    expect(within(nav).getByText('My time')).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /team review/i })).toHaveAttribute(
+      'href',
+      '/approvals?scope=timesheets',
+    );
+  });
+});
+
+describe('S-28: saved / unsaved state and Save (UX-063)', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    saveWeekMutate.mockClear();
+    entryMutations.saveWeek.isPending = false;
+    projectsState.data = ongoingProjects;
+  });
+
+  it('UX-063: an empty week has Save disabled and says there is nothing to save', () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/nothing to save/i);
+  });
+
+  it('UX-063: an unchanged saved week shows "All changes saved" and a disabled Save; Submit stays enabled', () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
+    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+  });
+
+  it('UX-063: editing an hour flips to "Unsaved changes" and enables Save; reverting returns to saved', async () => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const mon = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours') as HTMLInputElement;
+    const original = mon.value;
+    await userEvent.clear(mon); await userEvent.type(mon, '3');
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/unsaved changes/i);
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+    await userEvent.clear(mon); await userEvent.type(mon, original);
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent(/all changes saved/i);
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+});
+
+describe('S-28: long project names in the add-project picker (RF-061)', () => {
+  const longName = 'Regional Distribution Centre Phase Two Structural Retrofit and Commissioning Programme';
+  beforeEach(() => {
+    sessionStorage.clear();
+    projectsState.data = [
+      { id: 'pL', name: longName, code: 'P-777', status: 'Ongoing Project' },
+    ];
+  });
+
+  it('RF-061: the option shows code + a shortened name; the added row carries the full name', async () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const picker = screen.getByLabelText(/add a project/i);
+    const option = within(picker).getByRole('option', { name: /P-777/ });
+    expect(option.textContent).toMatch(/^P-777 · /);
+    expect(option.textContent!.length).toBeLessThan(longName.length);
+    expect(option.textContent).toMatch(/…$/);
+    await userEvent.selectOptions(picker, 'pL');
+    expect(screen.getByLabelText(`${longName}, Mon hours`)).toBeInTheDocument();
   });
 });

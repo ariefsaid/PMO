@@ -5,10 +5,9 @@ import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
  * (refactor: procurement-detail-dedup). Lifted verbatim out of the
  * ProcurementDetails god-file to shrink it; behavior + rendered output unchanged.
  *
- * ░░ DECISION STRIP — compact, non-sticky, under the stepper (IxD Change 1) ░░
- * Owner IxD: relocated from a sticky-bottom bar to a COMPACT action strip in normal
- * flow, directly below the lifecycle stepper and above the tabs. Minimal vertical
- * whitespace. Contains:
+ * ░░ DECISION AREA — one responsive action set after review evidence (S-20) ░░
+ * Identity, request value, line items and budget evidence precede this zone. The same
+ * complete action set serves desktop and phone; there is no mirrored mobile CTA. Contains:
  *   • SoD hint (D6) — ONE muted inline line (condensed from a boxed GateNotice) so
  *     the viewer learns WHY they can/can't act without a heavy banner
  *   • Notes — PROGRESSIVE DISCLOSURE: a quiet "Add a note" link reveals the optional
@@ -166,12 +165,9 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   onActionClick,
   mutations,
 }) => {
-  // IxD Change 1: the strip is NON-STICKY and lives directly under the stepper
-  // (above the tabs). The SoD hint is condensed from a boxed GateNotice banner to a
-  // single muted inline line so the strip carries minimal vertical whitespace. The
-  // wording (and its SoD meaning) is unchanged. The Draft-author case is already
-  // covered by the `sod-pre-announce` line below, so the ready hint suppresses there
-  // to avoid two near-identical lines.
+  // The compact SoD hint remains with the decision controls, after the request's
+  // identity, value and supporting evidence. The authority and wording stay unchanged.
+  // The Draft-author case is covered by the `sod-pre-announce` line below.
   const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
 
   // IxD Change 1 — Notes is progressive-disclosure: NOT shown at rest. When
@@ -181,7 +177,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   const [notesRevealed, setNotesRevealed] = React.useState(false);
 
   return (
-    <RecordActionZone sticky={false} className="mb-4">
+    <RecordActionZone className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm mb-4">
       <Card data-testid="decision-card">
         <CardPad className="flex flex-col gap-2.5 py-3">
           {/* D6: SoD / readiness hint — co-located with the (absent or present) action

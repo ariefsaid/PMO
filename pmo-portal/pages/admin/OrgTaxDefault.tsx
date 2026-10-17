@@ -66,7 +66,7 @@ const OrgTaxDefault: React.FC = () => {
   };
 
   return (
-    <section id="org-tax-default" aria-label={t('admin.taxDefault.title', 'Default tax treatment')}>
+    <section id="org-tax-default" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.taxDefault.title', 'Default tax treatment')}>
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
         {t('admin.taxDefault.title', 'Default tax treatment')}
       </h2>

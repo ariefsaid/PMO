@@ -5,20 +5,20 @@ import { PMDashboard } from './PMDashboard';
 import { BahasaProvider } from '@/test/bahasa';
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, budget: 1_000_000, spent: 980_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
-  { id: 'p3', name: 'My Project C', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null },
-  { id: 'p4', name: 'My Project D', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'On Hold', project_manager_id: 'pm-1', client: null, pm: null },
-  { id: 'p5', name: 'My Project E', contract_value: 1_000_000, budget: 500_000, spent: 100_000, status: 'Leads', project_manager_id: 'pm-1', client: null, pm: null },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p3', name: 'My Project C', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'Loss Tender', project_manager_id: 'pm-1', client_name: null },
+  { id: 'p4', name: 'My Project D', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'On Hold', project_manager_id: 'pm-1', client_name: null },
+  { id: 'p5', name: 'My Project E', contract_value: 1_000_000, currency: 'USD', budget: 500_000, spent: 100_000, realized_margin_pct: null, contract_remaining: 900_000, status: 'Leads', project_manager_id: 'pm-1', client_name: null },
 ];
 const other = { id: 'p9', name: 'Someone Else', contract_value: 9_000_000, budget: 1, spent: 0, status: 'Ongoing Project', project_manager_id: 'pm-2', client: null, pm: null };
 
 const projState: { data: unknown[] | undefined; isPending: boolean; isError: boolean } = {
-  data: [...mine, other], isPending: false, isError: false,
+  data: mine, isPending: false, isError: false,
 };
 
-vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ ...projState, refetch: vi.fn() }),
+vi.mock('@/src/hooks/useDashboard', () => ({
+  usePMDashboardProjects: () => ({ ...projState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [{ id: 't1' }, { id: 't2' }], isPending: false, isError: false, refetch: vi.fn() }),
@@ -54,7 +54,7 @@ const renderPane = (locale: 'en' | 'id' = 'en') => render(
 );
 
 beforeEach(() => {
-  projState.data = [...mine, other];
+  projState.data = mine;
   projState.isPending = false;
   projState.isError = false;
 });
@@ -68,10 +68,10 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek yang ditetapkan kepada Anda sebagai manajer proyek.');
     expect(screen.getByRole('link', { name: 'Buka proyek saya' })).toHaveAttribute('href', '/projects?filter=My+Projects');
     expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
-    expect(screen.getByText('Anggaran vs Realisasi — Proyek Saya')).toBeInTheDocument();
+    expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
     expect(screen.getByText('Status Proyek')).toBeInTheDocument();
-    expect(screen.getAllByText('Belum ditetapkan').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000');
+    expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$9.000.000,00');
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
     expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
@@ -90,7 +90,7 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getAllByRole('button', { name: 'Coba lagi' }).length).toBeGreaterThan(0);
 
     cleanup();
-    projState.data = [other]; projState.isPending = false; projState.isError = false;
+    projState.data = []; projState.isPending = false; projState.isError = false;
     renderPane('id');
     expect(screen.getByText('Belum ada proyek yang ditetapkan kepada Anda')).toBeInTheDocument();
     expect(screen.getByText('Proyek yang Anda kelola akan muncul di sini.')).toBeInTheDocument();
@@ -101,13 +101,17 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
   it('sums my contract value, not the whole org', () => {
     renderPane();
-    // 4M + 2M + 1M + 1M + 1M = 9M (excludes the other PM's 9M)
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000');
+    // The server read model supplies assigned projects only; the display preserves the row currency.
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000.00');
   });
-  it('counts my at-risk projects (utilization > 90%)', () => {
+  it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();
-    // only Project B is 98% utilized → 1 at-risk
-    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+    const atRiskTiles = screen.getAllByTestId('kpi-at-risk');
+    expect(atRiskTiles).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: 'Attention and approvals' })).queryByText(/^At risk$/)).not.toBeInTheDocument();
+    expect(atRiskTiles[0]).toHaveTextContent('budget usage > 90%');
+    expect(within(atRiskTiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(within(atRiskTiles[0]).getByRole('button', { name: /Help: At risk/i })).toBeInTheDocument();
   });
   it('N15: combined approvals tile = approvable PRs (1) + timesheets (2) = 3, links to /approvals', () => {
     renderPane();
@@ -128,16 +132,15 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
   it('UIP-011: every Project Status name is an accessible, correctly routed project link', () => {
     renderPane();
-    const statusCard = screen.getByText('Project Status').parentElement;
-    expect(statusCard).not.toBeNull();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
 
     for (const project of mine) {
-      const projectLink = within(statusCard as HTMLElement).getByRole('link', { name: project.name });
+      const projectLink = within(statusCard).getByRole('link', { name: project.name });
       expect(projectLink).toHaveAttribute('href', `/projects/${project.id}`);
       expect(projectLink.className).toContain('focus-visible:outline');
     }
 
-    expect(within(statusCard as HTMLElement).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
+    expect(within(statusCard).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
   });
 });
 
@@ -152,18 +155,18 @@ describe('PMDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => 
 });
 
 describe('PMDashboard Project Status margin — no false-green (I2)', () => {
-  it('G3/I2: shows margin for active ongoing projects only — "Not set" (no em-dash) for non-active rows', () => {
+  it('AC-UX-015: names the trailing metric and shows billed-work margin, not contract remainder', () => {
     // mine fixture: p1=Ongoing+spend, p2=Won pending (not active), p3=Loss Tender (not active), p4=On Hold, p5=Leads
     renderPane();
-    // p1: Ongoing, spent=1M, contract=4M → margin = (4M-1M)/4M = 75% → should show a % figure
+    // Server read model reports 25% profit margin on billed work.
     const allText = document.body.textContent ?? '';
-    expect(allText).toContain('75.0%');
+    expect(allText).toContain('25.0%');
     // G3: non-active Project-Status rows read a concrete "Not set" margin value,
     // never a bare em-dash placeholder (the "—" in the section heading separator
     // is typographic, not a value placeholder, so we scope to the list rows).
     const listItems = document.querySelectorAll('ul li');
     const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project C'));
-    expect(lossTenderItem?.textContent).toContain('Not set');
+    expect(lossTenderItem?.textContent).toMatch(/Belum tersedia|Not available yet/);
     expect(lossTenderItem?.textContent).not.toContain('—');
     expect(lossTenderItem?.textContent).not.toMatch(/\d+\.\d+%/);
   });
@@ -190,7 +193,7 @@ describe('PMDashboard states', () => {
     expect(screen.getAllByRole('button', { name: /Retry/i }).length).toBeGreaterThan(0);
   });
   it('shows an empty state when no projects are assigned to me', () => {
-    projState.data = [other];
+    projState.data = [];
     renderPane();
     expect(screen.getByText(/No projects assigned to you yet/i)).toBeInTheDocument();
   });
@@ -206,9 +209,9 @@ describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
     // Only the active one should count.
     projState.data = [
       // Active, 95% utilized → should count
-      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
       // Inactive (Loss Tender), 95% utilized → must NOT count
-      { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
     // Only the active one qualifies — count must be 1, not 2
@@ -217,7 +220,7 @@ describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
 
   it('AC-AT-RISK-INACTIVE: an active project at 95% budget utilization IS counted as at-risk', () => {
     projState.data = [
-      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null },
+      { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
@@ -250,7 +253,7 @@ describe('AC-W3-G2: PMDashboard "Project Status" card handles loading and error'
   });
 
   it('AC-W3-G2: populated → Project Status card still shows the project list', () => {
-    projState.data = [...mine, other]; projState.isPending = false; projState.isError = false;
+    projState.data = mine; projState.isPending = false; projState.isError = false;
     renderPane();
     // All my projects appear (multiple elements OK — BvA chart + Project Status list).
     expect(screen.getAllByText('My Project A').length).toBeGreaterThan(0);

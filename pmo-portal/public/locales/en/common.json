@@ -1,5 +1,127 @@
 {
   "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
+  "uxs07": {
+    "organizationScope": "Organization integrations are shared by your organization. Manage personal connections in ",
+    "personalConnections": "My integrations",
+    "scopeTail": ". Personal connections do not activate organization integrations.",
+    "connectionOptions": "Connection options",
+    "reviewRecords": "Review connected records",
+    "liveRecordCheck": "Not yet verified — review a connected record to confirm the data is usable.",
+    "pendingZero": "No updates waiting to send",
+    "pendingOne": "{{count}} update waiting to send",
+    "pendingMany": "{{count}} updates waiting to send",
+    "failedAttentionOne": "1 failed update needs attention",
+    "failedAttentionMany": "{{count}} failed updates need attention",
+    "quarantinedAttentionOne": "1 quarantined update needs attention",
+    "quarantinedAttentionMany": "{{count}} quarantined updates need attention",
+    "heldAttentionOne": "1 held update needs attention",
+    "heldAttentionMany": "{{count}} held updates need attention",
+    "reviewFailed": "Review failed updates",
+    "reviewQuarantined": "Review quarantined updates",
+    "reviewHeld": "Review held updates",
+    "notReady": "Not ready yet — {{count}} steps left",
+    "setupChecking": "Checking setup",
+    "setupUnavailable": "Setup status unavailable",
+    "setupAdminRequired": "Ask an administrator to check setup",
+    "ready": "Ready",
+    "finishSetup": "Finish setup",
+    "ownershipTitle": "Information updated from connected services",
+    "ownershipLoading": "Checking which information is updated automatically…",
+    "ownershipUnavailable": "Automatic updates unavailable",
+    "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
+    "ownershipEmpty": "No information is set to update automatically",
+    "ownershipEmptyHelp": "Choose which information should stay current from each connected service.",
+    "ownershipDomains": "{{service}} updates {{count}} information areas here.",
+    "setupUnavailableHelp": "Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.",
+    "lastKnownTitle": "Showing the last saved setup check",
+    "lastKnownBody": "The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.",
+    "retryCheck": "Check setup again",
+    "operatorHandoff": "Open accounting setup",
+    "noDomains": "No connected information is currently updating from ERPNext",
+    "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
+  },
+  "uxs14": {
+    "filters": "Filters",
+    "moreActions": "More actions",
+    "showOptionalColumns": "Show optional columns",
+    "hideEmptyColumns": "Hide empty columns",
+    "projectReferences": "More project references",
+    "projectReferencesFor": "More project references for {{name}}",
+    "contractReference": "Customer contract reference"
+  },
+  "uxs10": {
+    "mapPrinciple": "One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.",
+    "rowOptions": "Account options",
+    "countOnlyAccounts": "{{count}} additional account(s) count toward actuals only",
+    "proposalsLabel": "Suggested posting accounts",
+    "proposalsTitle": "Review suggested posting accounts",
+    "proposalsHelp": "Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.",
+    "reviewProposals_one": "Review {{count}} proposal",
+    "reviewProposals_other": "Review {{count}} proposals",
+    "catalogueLoading": "Loading the account chart…",
+    "catalogueError": "The account chart is unavailable. No suggestions were applied.",
+    "catalogueFallback": "The saved account chart is empty; these choices come from the current ERP chart.",
+    "noProposal": "No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.",
+    "proposalPartial": "Some proposals were not saved ({{categories}}). Existing choices remain unchanged; review those categories and try again.",
+    "proposalSaved": "Posting map confirmed",
+    "proposalSavedDetail_one": "{{count}} category choice was saved.",
+    "proposalSavedDetail_other": "{{count}} category choices were saved.",
+    "confirmTitle": "Confirm proposed posting accounts?",
+    "confirmDescription": "This will set the proposed direct-cost account for: {{choices}}. Your existing mappings will not change.",
+    "confirmAction": "Confirm proposals",
+    "accountSearch": "Search account name or number",
+    "accountNoun": "account",
+    "noPostingAccounts": "No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.",
+    "countOnlyHelp": "This account counts toward actuals for the category; budgets are never posted to it."
+  },
+  "uxs08": {
+    "reviewTitle": "Business setup review",
+    "reviewDescription": "Review how your organization keeps business information current. Completed links stay in place; only work needing attention needs a decision.",
+    "dataHeading": "Keep business information up to date",
+    "domainsLabel": "Information updated from ERPNext",
+    "domainsAction": "Choose information to keep updated",
+    "companyLabel": "Company settings",
+    "companyAction": "Review company settings",
+    "activityLabel": "Work and customer billing settings",
+    "activityAction": "Review work and billing settings",
+    "budgetLabel": "Budget account setup",
+    "budgetAction": "Review budget account setup",
+    "employeeLabel": "Team members who record time",
+    "employeeMissing": "People who record time still needing an ERP employee link: {{count}}",
+    "projectLabel": "Project connections",
+    "projectAction": "Review proposed link for {{name}}",
+    "setupComplete": "Setup is complete. Confirmed connections are retained; this review will return when something needs attention.",
+    "partiesAction": "Review company connections",
+    "defaultsDialog": "Work and billing settings",
+    "domainDialog": "Information to keep updated",
+    "domainSubmit": "Save information choices",
+    "onboardDialog": "Review company connections?",
+    "onboardDescription": "Review company connections from the connected business system. Existing confirmed links are kept.",
+    "onboardSubmit": "Review connections",
+    "activityField": "Work category",
+    "activityHelp": "Choose the enabled work category used when time is recorded.",
+    "receivableField": "Customer billing account",
+    "receivableHelp": "Choose the account used to record customer invoices for this company.",
+    "domainHelp": "The connected service will maintain this type of business information. Review existing records and access before continuing.",
+    "domainField": "Business information"
+  },
+  "uxs02": {
+    "unavailable": "Unavailable",
+    "activeBudget": "Active budget",
+    "noActiveBudget": "No active budget",
+    "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
+    "updated": "Updated {{date}}",
+    "freshnessUnavailable": "Update time unavailable",
+    "riskUnavailableTitle": "Couldn't check project budget risk",
+    "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
+    "incompleteCoverage": "Incomplete source coverage",
+    "erpActual": "ERP actual",
+    "pmoActual": "Committed POs",
+    "restrictedRowsExcluded": "Restricted rows excluded",
+    "budgetUsed": "{{percent}}% of Active budget",
+    "budgetSummary": "{{actual}} of {{budget}} Active budget",
+    "currencyMismatch": "Budget currency differs from Actual",
+    "atRisk": "At risk"  },
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
@@ -386,7 +508,7 @@
     },
     "projectNumberPattern": {
       "title": "Project number pattern",
-      "description": "Format PMO-assigned project numbers. Use {CLIENT}, {YY}, and {SEQ4} exactly once each.",
+      "description": "Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.",
       "immutable": "This affects future proposals only; existing project numbers do not change.",
       "loadError": {
         "title": "Couldn't load the project number pattern"
@@ -478,7 +600,7 @@
       "groupLabel": "Bulk approve",
       "hoursUnit": "h",
       "rowSelect": "Select {{owner}}'s {{week}}",
-      "select": "Select",
+      "select": "Select items",
       "selectAll": "Select all approvable weeks",
       "selectedCount": "{{count}} selected",
       "toast": {
@@ -510,7 +632,9 @@
       "title": "Confirm what ERPNext holds"
     },
     "caughtUp": {
-      "sub": "Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.",
+      "and": "and",
+      "noKinds": "approvals",
+      "sub": "Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.",
       "title": "You’re all caught up"
     },
     "employeeLinks": {
@@ -529,10 +653,6 @@
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
-    },
-    "mobile": {
-      "procurementLabel": "Purchase requests awaiting you",
-      "timesheetsLabel": "Timesheets awaiting you"
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
@@ -1048,7 +1168,7 @@
       "errorTitle": "Couldn't load win rate", "errorSub": "Something went wrong. Try again.", "emptyTitle": "No closed projects in this window", "emptySub": "Try a wider time frame to see your win rate.",
       "result": "{{wins}} won of {{total}} closed", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
-    "bva": { "group": "Budget vs actual by project", "atRisk": "At risk", "barLabel": "{{name}}: {{percent}}% of contract" },
+    "bva": { "atRisk": "At risk" },
     "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
     "procurementStatus": { "draft": "Draft", "requested": "Requested", "approved": "Approved", "vendorQuoted": "Vendor Quoted", "ordered": "Ordered", "received": "Received", "vendorInvoiced": "Vendor Invoiced", "paid": "Paid", "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
@@ -1056,8 +1176,8 @@
       "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "bvaTitle": "Budget vs Actual — My Projects", "loadError": "Couldn't load your projects", "noProjects": "No projects assigned to you yet", "noProjectsSub": "Projects you manage will appear here.",
-      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet", "notSet": "Not set"
+      "loadError": "Couldn't load your projects", "noProjects": "No projects assigned to you yet", "noProjectsSub": "Projects you manage will appear here.",
+      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet"
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },
     "engineer": {
@@ -1067,9 +1187,6 @@
       "loadError": "Couldn't load your timesheets", "recentError": "Couldn't load recent entries", "noHours": "No hours logged this week", "noHoursSub": "Log your hours to see your weekly breakdown.", "projectBreakdownSub": "Log your hours to see a project breakdown.",
       "hoursByDay": "Hours this week by day", "dayHours": "{{day}}: {{hours}} hours", "byProject": "This week by project", "recentEntries": "Recent entries", "entriesEmptySub": "Hours you log will show up here.", "noNote": "No note", "unknownProject": "Unknown", "hoursShort": "{{hours}}h", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "hours",
       "day": { "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat" }
-    },
-    "approvals": {
-      "label": "Approvals"
     },
     "atRisk": {
       "reviewSingle": "Review {{count}} at-risk project",
@@ -1090,8 +1207,7 @@
     },
     "chart": {
       "bva": {
-        "empty": "No active projects yet",
-        "title": "Budget vs Actual — Active Projects"
+        "empty": "No active projects yet"
       },
       "pipelineMargin": {
         "empty": "No open pipeline",
@@ -1101,8 +1217,7 @@
       "procStatus": {
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
-        "noun": "requests",
-        "title": "Procurement by Status"
+        "noun": "requests"
       }
     },
     "empty": {
@@ -1137,13 +1252,10 @@
         "vs": "of {{gross}} gross"
       },
       "revenueOnHand": {
-        "help": "Booked revenue on active + closed-out contracts. Realized margin is the share of revenue remaining after actual costs to date.",
-        "label": "Revenue on hand",
-        "vs": "Realized margin: {{percent}}"
+        "help": "Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received."
       },
       "aboutMetric": "About this metric",
       "helpLabel": "Help: {{label}}",
-      "mobileVs": "Booked across active + closed-out contracts · {{margin}}",
       "totalContractValue": {
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
@@ -1152,10 +1264,9 @@
         "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
-        "help": "Sum of actual spend across the portfolio's top projects. (A committed-spend aggregate is a deferred follow-up.)",
+        "help": "On-hand portfolio Actual recorded to date.",
         "label": "Total project spend",
-        "linkLabel": "Open active projects to see spend breakdown",
-        "vs": "actual to date"
+        "linkLabel": "Open active projects to see spend breakdown"
       }
     },
     "mobile": {
@@ -2339,9 +2450,7 @@
       "taxTreatment": "Tax treatment",
       "tile": {
         "actual": "Actual",
-        "committed": "Committed",
         "contract": "Contract",
-        "margin": "On-hand margin",
         "spend": "Spend"
       },
       "toast": {
@@ -2442,18 +2551,14 @@
         "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
         "empty": {
-          "sub": "Activate a budget version on the Budget tab to see a snapshot here.",
-          "title": "No active budget"
+          "sub": "Activate a budget version on the Budget tab to see a snapshot here."
         },
         "error": "Couldn't load budget",
         "openBudgetTab": "Open Budget tab",
-        "title": "Budget snapshot",
-        "variance": "Variance"
+        "title": "Budget snapshot"
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "barLabel": "Budget committed",
-        "budgetCommitted": "budget committed",
         "error": "Couldn't load budget",
         "of": "of",
         "ofBudget": "of budget",
@@ -2461,11 +2566,9 @@
       },
       "finance": {
         "actual": "Actual",
-        "committed": "Committed",
         "contract": "Contract",
         "contractValue": "Contract value",
         "lockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
-        "onHandMargin": "On-hand margin",
         "readOnly": "Read-only",
         "spend": "Spend",
         "title": "Financial summary"
@@ -2475,7 +2578,6 @@
       },
       "procSummary": {
         "closed": "Closed",
-        "committedAcross": "<amount>{{amount}}</amount> committed across {{n}} {{unit}}",
         "completed": "Completed",
         "empty": {
           "sub": "Requests raised against this project will appear here.",
@@ -2972,7 +3074,6 @@
     },
     "atRiskPill": "At risk",
     "columns": {
-      "action": "Action",
       "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
@@ -2981,9 +3082,7 @@
       "progress": "Progress",
       "project": "Project",
       "status": "Status",
-      "committed": "Committed",
-      "endCustomer": "End customer",
-      "endCustomerShort": "End"
+      "endCustomer": "End customer"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -2995,7 +3094,7 @@
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",
       "noMatchTitle": "No projects match these filters",
-      "nothingAtRiskSub": "Every active project is under 90% budget — nothing needs attention right now.",
+      "nothingAtRiskSub": "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
       "nothingAtRiskTitle": "Nothing at risk"
     },
     "filters": {
@@ -3047,8 +3146,6 @@
     "export": "Export",
     "import": "Import",
     "mobile": {
-      "filters": "Filters",
-      "more": "More actions",
       "activeCount": "Active filters",
       "customer": "Customer",
       "manager": "Project manager",
@@ -3066,10 +3163,6 @@
     "card": {
       "delivery": "Delivery",
       "deliveryPercent": "Delivery {{percent}}%",
-      "budgetUsedPercent": "Budget used {{percent}}%",
-      "budgetSummary": "{{spent}} of {{budget}} budget",
-      "committedPercent": "Committed: {{percent}}% of contract",
-      "actualPercent": "Actual spend: {{percent}}% of contract",
       "editProject": "Edit {{name}}"
     },
     "kanban": {
@@ -3303,7 +3396,8 @@
         "workforce": "Workforce"
       },
       "myViews": "My Views",
-      "primaryNavigation": "Primary navigation"
+      "primaryNavigation": "Primary navigation",
+      "approvalsCountSuffix": "{{count}} pending"
     },
     "skipLink": {
       "mainContent": "Skip to main content"
@@ -3352,7 +3446,6 @@
     },
     "addAProject": "Add a project",
     "addProject": "Add project",
-    "approvalsLink": "Approvals",
     "deleteRow": {
       "confirmLabel": "Delete row",
       "description": "This removes <strong>{{project}}</strong> and all its hours from this week. You can add it back, but the entered hours won’t be restored.",
@@ -3397,7 +3490,6 @@
       "sub": "Your line manager sent it back. Review the flagged days, correct them, and resubmit.",
       "title": "This week was returned for changes"
     },
-    "review": "Review {{n}} awaiting",
     "save": "Save",
     "status": {
       "draftNotSubmitted": "Draft — not submitted",
@@ -3435,7 +3527,6 @@
   },
   "integrations": {
     "organization": {
-      "scope": "Organization integrations connect your team’s external services. They are separate from your personal connections in My integrations — a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.",
       "readiness": {
         "connected": "Connected",
         "disconnected": "Disconnected",
@@ -3477,11 +3568,7 @@
           "loading": "Checking outbound work status…",
           "unavailableTitle": "Outbound work status unavailable",
           "unavailableSub": "Outstanding outbound work could not be read. Try again.",
-          "retry": "Retry outbound status",
-          "outstandingOne": "{{count}} outbound item pending or needs attention",
-          "outstandingMany": "{{count}} outbound items pending or need attention",
-          "liveRecordCheck": "To confirm data is usable, check an actual transferred record, not the connection alone.",
-          "outstandingZero": "0 outbound items pending or need attention"
+          "retry": "Retry outbound status"
         },
         "map": {
           "title": "ClickUp binding map",
@@ -3506,16 +3593,6 @@
           "projectsRetry": "Retry projects",
           "listUnavailable": "List unavailable",
           "unknown": "Unknown"
-        },
-        "ownership": {
-          "title": "Employed domains (source of truth)",
-          "loading": "Checking employed domains…",
-          "unavailableTitle": "Employed domains unavailable",
-          "unavailableSub": "Your source-of-truth domains could not be read. Try again.",
-          "emptyTitle": "No employed domains set",
-          "emptySub": "No external source-of-truth domains are configured for this organization.",
-          "ownsDomains_one": "Owns {{count}} domain as source of truth.",
-          "ownsDomains_other": "Owns {{count}} domains as source of truth."
         },
         "disconnect": {
           "title": "Disconnect?",
@@ -3593,54 +3670,23 @@
     "m365OrgApproval": {
       "heading": "Microsoft 365",
       "badge": "Organization approval",
-      "description": "Approve the PMO Portal app for your organization in Microsoft 365. This one-time step lets your team connect their own Microsoft 365 accounts to PMO Portal.",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."
     },
     "erpSetup": {
-      "title": "ERPNext setup",
-      "description": "A connection is ready for work when its required setup is complete.",
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
       "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
       "onboarded": "ERP parties are onboarded. Review the Companies list.",
       "onboardFailed": "Party onboarding did not complete. Try again.",
       "unavailable": "ERP setup unavailable",
-      "unavailableHelp": "The checklist could not be read. Try again.",
-      "domains": "Domains employed",
-      "noDomains": "No ERP domains employed",
-      "employ": "Employ ERP domains",
-      "companyDefaults": "Company defaults",
       "configured": "{{count}} of {{total}} configured",
-      "refreshCompany": "Refresh Company defaults",
-      "activityReceivable": "Activity and receivable defaults",
       "activityMissing": "Activity type not set",
       "receivableMissing": "Receivable account not set",
-      "setDefaults": "Set activity and receivable defaults",
-      "budgetMap": "Budget account map",
-      "mapBudget": "Map budget accounts",
-      "employeeLinks": "Employee links",
-      "employeesMissing": "{{count}} active members need a confirmed ERP employee link",
       "reviewEmployees": "Review employee links",
-      "projects": "Unmapped projects",
-      "linkProject": "Link {{name}}",
-      "projectsLinked": "All active PMO projects have an ERP link.",
-      "onboard": "Onboard ERP parties",
       "reviewParties": "Review companies",
       "refresh": "Refresh checklist",
-      "defaultsTitle": "ERPNext defaults",
-      "domainTitle": "Employ ERP domain",
       "saveDefaults": "Save defaults",
-      "employDomain": "Employ domain",
-      "activityType": "Activity type",
-      "activityHelp": "Enter the name of an enabled Activity Type in ERPNext.",
-      "receivableAccount": "Receivable account",
-      "receivableHelp": "Enter an enabled receivable account for the connected Company.",
-      "domainHelp": "ERPNext will own this domain. Check that its existing records and integration permissions are ready before continuing.",
-      "domainLabel": "Domain",
-      "onboardTitle": "Onboard ERP parties?",
-      "onboardHelp": "Import Supplier and Customer links from the connected ERPNext instance. Existing resolved links are reused.",
-      "startOnboard": "Start onboarding",
       "domainNames": {
         "companies": "Companies",
         "procurement": "Procurement",
@@ -3708,6 +3754,58 @@
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
+  "uxs04": {
+    "forecast": "Forecast",
+    "forecastUnavailable": "Forecast appears once your accounting ledger is connected.",
+    "forecastIntro": "Will this project finish within budget? Recorded spending plus your cost to finish.",
+    "editCostToFinish": "Edit cost to finish",
+    "budget": "Budget",
+    "recordedSpending": "Recorded spending",
+    "costToFinish": "Cost to finish",
+    "costToFinishFor": "Cost to finish: {{category}}",
+    "forecastFinalCost": "Forecast final cost",
+    "forecastRemaining": "Forecast remaining",
+    "forecastOverrun": "Forecast overrun",
+    "forecastRemainingOver": "Forecast remaining / (overrun)",
+    "forecastBudgetUsed": "Forecast budget used",
+    "recordedAsOf": "Recorded spending as of",
+    "incompleteBudget": "Not complete: budget unknown for {{categories}}",
+    "incompleteRecorded": "Not complete: spending unavailable for {{categories}}",
+    "needsRecorded": "Needs recorded spending for every category",
+    "needsBudgetAndSpending": "Needs a budget and recorded spending for every category",
+    "reasonBudgetedElsewhere": "Budgeted in {{years}}",
+    "reasonBudgetYearUnclear": "Budget year unclear: phase its budget lines",
+    "reasonNoBudgetLine": "No budget line",
+    "reasonNoBudgetThisYear": "No budget on record for this year",
+    "reasonSpendingNotRead": "Spending not read yet",
+    "reasonSpendingUnmapped": "Spending unavailable: no ledger account mapped",
+    "sourcesAndStatus": "Sources and budget enforcement",
+    "sourcesNote": "Recorded spending is what the accounting ledger has posted. The budget is your active version; cost to finish is your own estimate and is never sent to the ERP.",
+    "costToFinishSaved": "Cost to finish saved",
+    "rowNotSaved": "Not saved. Try again.",
+    "someNotSaved": "Some changes were not saved",
+    "savedAndNotSaved": "Saved: {{saved}}. Not saved: {{failed}}. {{reason}}",
+    "noneSaved": "Nothing was saved: {{failed}}. {{reason}}",
+    "noActiveBudget": "No active budget"
+  },
+  "uxs05": {
+    "project": "Project",
+    "customerReference": "Customer reference",
+    "projectReferenceFallback": "Project reference: {{reference}}",
+    "overdueDay": "{{count}} day overdue",
+    "overdueDays": "{{count}} days overdue",
+    "filterProject": "Filter by project",
+    "allProjects": "All projects",
+    "overdueOnly": "Overdue only",
+    "sortOldestOverdue": "Oldest overdue first",
+    "overdueDateLoading": "Loading the organization date…",
+    "overdueDateUnavailable": "Overdue filtering is unavailable until the organization date is known."
+  },
+  "uxs37": {
+    "basisDescription": "Billed work excludes tax; open receivables include tax owed. Each amount stays in its invoice currency.",
+    "billedWorkTaxBasis": "net of tax",
+    "openReceivablesTaxBasis": "gross, tax included"
+  },
   "financeCopy": {
     "viewInvoice": "View invoice",
     "invoiceRecordTitle": "Invoice {{number}}",
@@ -3734,6 +3832,7 @@
     "approveInvoice": "Approve invoice",
     "invoiceApproved": "Invoice approved",
     "nativeCancelInvoiceBody": "This cancels the invoice in PMO and it stops counting as billed. An invoice with receipts can be cancelled only after its receipts are cancelled.",
+    "statusPaid": "Paid",
     "statusPartlyPaid": "Partly paid",
     "recordedBeforeErp": "Recorded in PMO before the ERP was connected",
     "overpaidBy": "Overpaid by {{amount}}",
@@ -3776,6 +3875,7 @@
     "amountMustBeGreaterThanZero": "Amount must be greater than 0",
     "confirmCreateDescription": "This creates a new Draft budget version named \"{{name}}\".",
     "confirmActivateDescription": "This makes {{version}} the live active budget and supersedes the current active version.",
+    "confirmSoleOperatorActivation": "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.",
     "confirmCloneDescription": "This copies {{version}} into a new editable Draft.",
     "confirmArchiveDescription": "This removes {{version}} as the active budget. You can clone it later to revise.",
     "confirmDeleteDraftDescription": "This permanently deletes the draft {{version}}. This cannot be undone.",
@@ -3799,6 +3899,7 @@
     "activate": "Activate",
     "activateEditorBlocked": "You edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
+    "activatedBySoleOperator": "Activated by sole operator",
     "deleteDraft": "Delete draft",
     "archive": "Archive",
     "cloneToRevise": "Clone to revise",
@@ -3818,18 +3919,9 @@
     "versionNameEGBudgetV1": "Version name (e.g. Budget v1)",
     "create": "Create",
     "theRequestFailedCheckYourConnectionAndTryAgain": "The request failed. Check your connection and try again.",
-    "budgetProjection": "Budget projection",
     "noFiscalYearOnRecord": "No fiscal year on record",
     "activateABudgetVersionAndPushItToTheERPToRecordOneOrWaitForTheERPLedgerToSyncItsFirstPostingsForThisProject": "Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project.",
-    "actualsAsOf": "Actuals as of",
     "budgetProjectionFiguresScrollableHorizontally": "Budget projection figures, scrollable horizontally",
-    "projectedFinal": "Projected final",
-    "variance": "Variance",
-    "utilization": "Utilization",
-    "budgetPMO": "Budget (PMO)",
-    "actualsToDateERPLedger": "Actuals to date (ERP ledger)",
-    "eTCPMO": "ETC (PMO)",
-    "estimateToComplete": "Estimate to complete",
     "waitingToReachERPNext": "Waiting to reach ERPNext",
     "budgetQueuedForERPNext": "This budget is queued for ERPNext and has not been sent yet.",
     "sendingToERPNext": "Sending to ERPNext",
@@ -3942,7 +4034,6 @@
     "actionFailed": "Action failed",
     "lineItemUpdated": "Line item updated",
     "budgetEtcAmountInvalid": "Enter a valid, non-negative amount with no more than 2 decimal places",
-    "budgetEtcSaved": "Estimate to complete saved",
     "budgetPushHoldReleased": "Hold released",
     "budgetPushHoldReleasedDetail": "The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.",
     "budgetPushedToERP": "Budget pushed to ERPNext",
@@ -3967,7 +4058,6 @@
     "invoiceCancelled": "Invoice cancelled",
     "invoiceSubmitted": "Invoice submitted",
     "invoiceCreated": "Invoice created",
-    "statusScheduled": "Scheduled",
     "paidAmountPositive": "Paid amount must be positive, with no more than 2 decimal places.",
     "receivedAmountPositive": "Received amount must be positive, with no more than 2 decimal places.",
     "paymentDateRequired": "Date is required.",
@@ -4003,14 +4093,10 @@
     "cancelPaymentQuestion": "Cancel payment?",
     "cancelPaymentDescription": "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.",
     "archiveViewDescription": "\"{{name}}\" will be archived and removed from your list.",
-    "editBudgetCategoryEtc": "Edit {{category}} ETC",
     "budgetLineItemsScrollable": "Budget line items, scrollable horizontally",
-    "actualPmoRecorded": "Actual (PMO recorded)",
     "budgetVersionLineItemsScrollable": "Budget version line items, scrollable horizontally",
     "deleteBudgetLineItemNamed": "Delete line item {{category}}",
     "editBudgetLineItemNamed": "Edit line item {{category}}",
-    "budgetProjectionIntro": "Compare the active budget with recorded actuals and the estimate to complete.",
-    "budgetProjectionActualsProvenance": "Actuals come from the posted ERP ledger and may differ from the Actual column on the Budget tab, which records PMO expenses. Budget and estimate to complete values are recorded in PMO.",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
     "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
@@ -4022,7 +4108,6 @@
     "searchItemCodeOrName": "Search item code or name…",
     "describeWorkOrGoods": "Describe the work or goods…",
     "currency": "Currency",
-    "statusReceived": "Received",
     "draftInvoiceLabel": "Draft · {{customer}}",
     "preErpBadge": "Pre-ERP",
     "totalDueAmount": "Total due {{amount}}",
@@ -4235,6 +4320,13 @@
       "saved": "Progress saved"
     }
   },
+  "uxs34": {
+    "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
+    "monthlyScope": "Monthly figures · selected period {{from}}–{{to}}",
+    "currencyScope": "Currencies with no activity, contract, or meaningful balance in this range are omitted.",
+    "backlogUnavailable": "Unavailable",
+    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
+  },
   "comments": {
     "title": "Comments",
     "empty": "No comments yet.",
@@ -4435,19 +4527,49 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "title":"Project finances", "lifetime":"Lifetime to date", "contract":"Contract value",
+    "title":"Project finances", "lifetime":"Lifetime to date",
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
     "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
     "incomplete":"Incomplete — ERP outstanding missing",
     "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
-    "draft":"Draft — not active", "active":"Active", "noBudget":"No budget", "budget":"Budget",
-    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"GL reading unavailable",
-    "mappingUnavailable":"Account mapping unavailable", "mappedCosts":"Mapped GL costs",
-    "category":"Category", "actuals":"GL actuals", "unavailable":"Unavailable",
+    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
+    "mappingUnavailable":"Not available yet",
+    "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
     "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
     "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
+  },
+  "uxs01": {
+    "recordedSpending": "Recorded spending",
+    "pmoPurchaseOrders": "PMO purchase orders",
+    "pmoCoverage": "Committed PMO purchase orders",
+    "notTrackedInPmo": "Not tracked in PMO yet",
+    "actualSpending": "Actual spending",
+    "actualUnavailable": "Unavailable",
+    "actualLoading": "Loading Actual…",
+    "actualPartial": "Incomplete — see spending details",
+    "actualUsedAgainstBudget": "recorded spending against the active budget",
+    "budgetActualUnavailable": "Actual spending is incomplete, so it cannot be compared with this budget.",
+    "completeCoverage": "Complete category coverage",
+    "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
+    "coverageUnavailable": "Spending coverage unavailable",
+    "updated": "Updated {{date}}",
+    "setupHandoff": "Ask Finance or Admin to review spending setup.",
+    "reviewSetup": "Review spending setup",
+    "showCategoryDetails": "Show category details",
+    "categoryDetails": "Recorded spending by category",
+    "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
+    "contractRemainingAfterCost": "Contract remaining after cost",
+    "noActiveBudget": "No active budget",
+    "noBudget": "No budget",
+    "budgetLoading": "Loading budget…",
+    "budgetPosition": "Budget position",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "budgetRemaining": "Budget remaining {{amount}}",
+    "onBudget": "On budget",
+    "cashReceived": "Cash received",
+    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet"
   },
   "invoiceProject": {
     "assign":"Assign project", "change":"Change project", "project":"Project", "save":"Save project",
@@ -4455,5 +4577,149 @@
     "current":"Current project", "fromTo":"From {{old}} to {{new}}. PMO attribution only; the ERP invoice is unchanged.",
     "discardTitle":"Discard project selection?", "discardDetail":"The selected project will not be saved.",
     "discard":"Discard", "keep":"Keep editing", "unassignedFilter":"Unassigned invoices"
+  },
+  "uxs28": {
+    "nav": {
+      "label": "Timesheet views",
+      "myTime": "My time",
+      "teamReview": "Team review",
+      "teamReviewAwaiting": "Team review · {{n}} awaiting"
+    },
+    "save": {
+      "dirty": "Unsaved changes",
+      "saved": "All changes saved",
+      "nothing": "Nothing to save yet"
+    },
+    "push": {
+      "pending": "Accounting update waiting",
+      "pushing": "Updating accounting…",
+      "pushed": "Accounting up to date",
+      "failed": "Accounting update needs attention",
+      "held": "Accounting update on hold"
+    }
+  },
+  "uxs12": {
+    "expensePosting": {
+      "adminInactive": "ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.",
+      "adminUnknown": "Couldn't check whether expense posting is ready. Try checking again.",
+      "retryReadiness": "Check again",
+      "mapIncomplete": "{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.",
+      "saveRefused": "Expense posting isn't ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.",
+      "formNotConnected": "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.",
+      "formInactive": "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.",
+      "formUnknown": "Couldn't check whether expense posting is active. You can still save this in PMO.",
+      "cardInactive": "Not posted to accounting: expense posting isn't active for this organization.",
+      "cardUnknown": "Couldn't check whether this claim will reach accounting."
+    }
+  },
+  "uxs13": {
+    "moreProjectDetails": "More project details",
+    "projectDetailsAndActions": "Project details and actions",
+    "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
+  },
+  "uxs18": {
+    "bulk": {
+      "scopeAll": "All {{count}} timesheets in this queue can be approved together.",
+      "scopeOne": "The 1 timesheet in this queue can be approved.",
+      "scopeSome": "{{eligible}} of {{total}} timesheets in this queue can be approved together."
+    }
+  },
+  "uxs31": {
+    "projectNumberPattern": {
+      "preview": "Preview:",
+      "previewNote": "Illustrative only; the actual number is assigned when a project is created."
+    },
+    "accounting": {
+      "sectionsLabel": "Accounting setup sections",
+      "taxDefault": "Default tax treatment",
+      "spendApprovers": "Spend approvers",
+      "withholding": "Receipt withholding",
+      "vendorTax": "Vendor bill tax accounts",
+      "downPayments": "Down payments",
+      "budgetMap": "Budget account map",
+      "expenseMap": "Expense account map"
+    }
+  },
+  "uxs03": {
+    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "contractValueInProgress":"Contract value in progress", "noPipelineValue":"No pipeline value to calculate margin", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
+    "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
+    "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
+    "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
+    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart."
+  },
+  "uxs32": {
+    "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
+    "roleRoute": "Standard rules: any of {{roles}} can approve someone else's request.",
+    "holders": "Right now: {{names}}.",
+    "holdersNone": "Nobody active holds these roles right now.",
+    "holdersUnavailable": "Couldn't check who holds these roles right now.",
+    "routeUnavailable": "Couldn't verify who can approve right now.",
+    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.",
+    "escalate": "Nobody listed can approve right now. These requests go to the overhead approvers.",
+    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers."
+  },
+  "uxs38": {
+    "emptyScope": "Reference rates affect displayed rupiah equivalents only — accounting records are never changed.",
+    "emptyNeedRole": "An Admin or Finance member can upload them from this page.",
+    "pageSummary": "Dates from {{first}} to {{last}} — {{count}} with rates",
+    "pageGaps": "No rate for {{dates}}",
+    "moreEarlier": "earlier rates on the next pages",
+    "previewCoverage": "Dates from {{first}} to {{last}} — {{count}} with rates",
+    "previewGaps": "No rate for {{dates}}"
+  },
+  "uxs17": {
+    "deliverySection": "Client delivery",
+    "receivedByClient": "Received by client",
+    "readyToSend": "Ready to send",
+    "receivedDateSummary": "Client receipt was recorded for {{date}}.",
+    "manualHandoffHelp": "Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.",
+    "preparingPdf": "Preparing PDF…",
+    "downloadApprovedPdf": "Download approved PDF",
+    "collectionSummary": "Invoice collection details",
+    "invoiceDate": "Invoice date",
+    "dueDate": "Due date",
+    "dateNotRecorded": "Not recorded",
+    "dueDateUnavailable": "Due date not available",
+    "status": "Status",
+    "collection": "Collection",
+    "outstandingUnavailable": "Outstanding amount not available",
+    "overdue": "Overdue",
+    "daysOverdue": "{{count}} days overdue",
+    "billEvidence": "Bill evidence",
+    "evidenceLoading": "Loading invoice evidence…",
+    "evidenceUnavailable": "Bill evidence is temporarily unavailable.",
+    "evidenceRetry": "Retry invoice evidence",
+    "invoiceLines": "Invoice lines",
+    "linesUnknown": "Line details are not available.",
+    "noLines": "No line details were returned.",
+    "lineDescriptionUnavailable": "Description not available",
+    "billingContact": "Billing contact",
+    "noBillingContact": "No billing contact details were returned.",
+    "appliedReceipts": "Applied receipts",
+    "receiptsLoading": "Loading receipt allocations…",
+    "receiptsUnavailable": "Applied receipt details are unavailable.",
+    "receiptReferenceUnavailable": "Receipt reference not recorded",
+    "allocationAmountUnavailable": "Applied amount not available",
+    "receiptsCoverageUnknown": "Receipt allocations have not all been reported.",
+    "noAppliedReceipts": "No applied receipts are recorded for this invoice."
+  },
+  "uxs06": {
+    "statusReceived": "Received",
+    "statusExpected": "Expected",
+    "none": "None",
+    "notReported": "Not reported",
+    "unappliedCol": "Not yet applied",
+    "invoiceAndMore": "{{first}} +{{count}} more",
+    "receiptTotal": "Receipt total",
+    "backToReceipts": "Back to Incoming Payments",
+    "receiptTitle": "Receipt {{number}}",
+    "settledTitle": "Invoices this receipt settled",
+    "applied": "Applied",
+    "coverageUnknown": "The accounting system has not reported which invoices this receipt settled.",
+    "onAccount": "This receipt is not applied to any invoice. The cash is held on account.",
+    "invoiceNotInPmo": "This invoice is not in PMO yet.",
+    "unappliedNote": "{{amount}} of this receipt is not yet applied to an invoice.",
+    "receiptNotFound": "We couldn't find this receipt",
+    "receiptNotFoundBody": "It may have been removed, or you may not have access to it."
   }
 }

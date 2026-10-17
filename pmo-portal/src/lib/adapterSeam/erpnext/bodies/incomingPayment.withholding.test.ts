@@ -12,6 +12,62 @@ const receipt = { id: 'receipt', paid_amount: '1000.00', received_amount: '980.0
   references: [{ reference_doctype: 'Sales Invoice', reference_name: 'SI-001', allocated_amount: '1000.00' }],
 };
 
+describe('inbound receipt allocations (S-06, RF-030)', () => {
+  it('RF-030 preserves multiple invoice allocations and their settled amounts from the ERP receipt', () => {
+    const mapped = peReceiveFromDoc({ name: 'PE-ALLOC-1', paid_amount: '75.00', received_amount: '75.00', references: [
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: '25.00' },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-B', allocated_amount: '50.00' },
+    ] });
+    expect(mapped.allocations).toEqual([
+      { reference_name: 'SI-A', allocated_amount: '25.00' },
+      { reference_name: 'SI-B', allocated_amount: '50.00' },
+    ]);
+  });
+
+  it('RF-030 an allocation the ERP did not price stays unknown — it never reads as zero', () => {
+    const mapped = peReceiveFromDoc({ name: 'PE-ALLOC-2', paid_amount: '75.00', references: [
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: '25.00' },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-B', allocated_amount: null },
+    ] });
+    expect(mapped.allocations).toEqual([
+      { reference_name: 'SI-A', allocated_amount: '25.00' },
+      { reference_name: 'SI-B', allocated_amount: null },
+    ]);
+  });
+
+  it('RF-030 a Sales Order advance is not an invoice allocation — only Sales Invoice rows are kept', () => {
+    const mapped = peReceiveFromDoc({ name: 'PE-ALLOC-3', paid_amount: '75.00', references: [
+      { reference_doctype: 'Sales Order', reference_name: 'SO-1', allocated_amount: '25.00' },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: '50.00' },
+    ] });
+    expect(mapped.allocations).toEqual([{ reference_name: 'SI-A', allocated_amount: '50.00' }]);
+  });
+
+  it('RF-030 no references key means coverage unknown (undefined); an empty array is known on-account', () => {
+    expect(peReceiveFromDoc({ name: 'PE-ALLOC-4', paid_amount: '75.00' }).allocations).toBeUndefined();
+    expect(peReceiveFromDoc({ name: 'PE-ALLOC-5', paid_amount: '75.00', references: [] }).allocations).toEqual([]);
+  });
+
+  it('RF-030 allocation amounts map through the same money shape as the header (exact 2dp or unknown)', () => {
+    const mapped = peReceiveFromDoc({ name: 'PE-ALLOC-6', paid_amount: '75.00', references: [
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: 25000.5 },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-B', allocated_amount: 'oops' },
+    ] });
+    expect(mapped.allocations).toEqual([
+      { reference_name: 'SI-A', allocated_amount: '25000.50' },
+      { reference_name: 'SI-B', allocated_amount: null },
+    ]);
+  });
+
+  it('RF-030 rows without a usable reference name are skipped, not stored as blank invoices', () => {
+    const mapped = peReceiveFromDoc({ name: 'PE-ALLOC-7', paid_amount: '75.00', references: [
+      { reference_doctype: 'Sales Invoice', reference_name: null, allocated_amount: '25.00' },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: '50.00' },
+    ] });
+    expect(mapped.allocations).toEqual([{ reference_name: 'SI-A', allocated_amount: '50.00' }]);
+  });
+});
+
 describe('client withholding on a Receive Payment Entry', () => {
   it('AC-WHT-002: sends ERPNext cash in both header amounts, allocates the gross and deducts the tax (DD-RCPT-1)', () => {
     expect(peReceiveToBody(receipt, ctx)).toEqual({

@@ -473,6 +473,10 @@ insert into budget_category_account_map (org_id, category, erp_account, is_push_
   -- Mapped but with NO GL rows below -> a REAL, computed zero, which is a DIFFERENT fact from
   -- 'Contingency'/'Subcontractors' (unmapped -> unobtainable/NULL). The seeded screen shows all three.
   ('00000000-0000-0000-0000-000000000001','Permits & Fees','Entertainment Expenses - PSC', true),
+  -- SP-2402's ledger Actual is complete for every budgeted category so the seeded risk signal
+  -- remains valid under DD-MONEY completeness (mapped categories with no rows are known zero).
+  ('00000000-0000-0000-0000-000000000001','Subcontractors','Subcontractor Costs - PSC', true),
+  ('00000000-0000-0000-0000-000000000001','Contingency','Contingency Costs - PSC', true),
   -- #768: Labor's second, READ-ONLY account — its actuals count toward Labor, its budget is never pushed.
   -- No GL rows below, so no seeded figure changes; the account map shows a multi-account category.
   ('00000000-0000-0000-0000-000000000001','Labor','Payroll Allowances - PSC', false)
@@ -499,10 +503,42 @@ values
    '5a000000-0000-0000-0000-000000000001'),
   ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001',
    'Expenses Included In Asset Valuation - PSC','2026',300000.00,0,300000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  -- Synthetic mapped ledger Actual keeps SP-2402 above its Active-budget risk threshold for UXS-013.
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Salary - PSC','2026',7000000.00,0,7000000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  -- SP-2402 has a complete mapped-category read; mapped accounts without spend
+  -- are explicit synthetic zeroes so the PM at-risk signal remains actionable.
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Cost of Goods Sold - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Expenses Included In Asset Valuation - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Entertainment Expenses - PSC','2026',0,0,0, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Subcontractor Costs - PSC','2026',100000.00,0,100000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000002',
+   'Contingency Costs - PSC','2026',100000.00,0,100000.00, now() - interval '1 day',
    '5a000000-0000-0000-0000-000000000001')
   -- ⚑ NOTE the deliberate absence: 'Entertainment Expenses - PSC' (Permits & Fees) is MAPPED but has no
   -- row here, so its actual is a real, computed 0 — the third state.
 on conflict do nothing;
+
+-- Synthetic submitted billing on SP-2402 gives the dashboard one fully known,
+-- same-currency billed-work margin while the other projects remain honestly unknown.
+insert into sales_invoices
+  (id, org_id, project_id, customer_id, si_number, invoice_date, amount, tax_amount,
+   tax_treatment, currency, status, erp_docstatus)
+values
+  ('b5000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001',
+   '41000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000003',
+   'DEMO-SI-2402-001','2026-06-15',7700000,0,'exclusive','USD','Submitted',1)
+on conflict (id) do nothing;
 
 -- PMO's own forward estimate (FR-BUD-151) — never pushed to ERP (FR-BUD-160).
 insert into budget_projections (org_id, project_id, fiscal_year, category, pmo_etc) values

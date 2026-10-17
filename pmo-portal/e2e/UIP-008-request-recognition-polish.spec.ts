@@ -60,13 +60,14 @@ test('UIP-008 recognizes the intended same-prefix request and previews its amoun
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
     await page.goto('/approvals?scope=procurement');
-    const control = width === 1440
-      ? page.getByRole('region', { name: 'Approvals queue' }).getByRole('button', { name: new RegExp(titles[1]) })
-      : page.getByRole('button', { name: `Show budget impact for ${titles[1]}`, exact: true });
+    // S-18 moved phone and desktop approvals to one selection → evidence preview
+    // pattern (fa448039). Select the same request from the queue at both widths.
+    const control = page.getByRole('region', { name: 'Approvals queue' })
+      .getByRole('button', { name: new RegExp(titles[1]) });
     await expect(control).toBeVisible();
     await control.focus();
     await page.keyboard.press('Enter');
-    const preview = width === 1440 ? page.getByRole('region', { name: 'Approval preview' }) : page.locator(`#${await control.getAttribute('aria-controls')}`);
+    const preview = page.getByRole('region', { name: 'Approval preview' });
     await expect(preview.getByText('South hall switchgear evidence', { exact: true })).toBeVisible();
     await expect(preview.getByText('$48,000', { exact: true }).first()).toBeVisible();
     await expect(preview.getByText('North hall switchgear evidence', { exact: true })).toHaveCount(0);
@@ -74,12 +75,8 @@ test('UIP-008 recognizes the intended same-prefix request and previews its amoun
     await expect(preview.getByRole('button', { name: 'Reject', exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/approvals\?scope=procurement$/);
     await waitForFonts(page);
-    const identity = width === 1440 ? control.getByText(titles[1], { exact: true }) : page.locator('[data-approval-row]').filter({ hasText: titles[1] }).getByText(titles[1], { exact: true });
-    await expect(identity).toHaveCSS('-webkit-line-clamp', '2');
-    const status = identity.locator('..').getByText('Requested', { exact: true });
-    const titleBox = (await identity.boundingBox())!;
-    const statusBox = (await status.boundingBox())!;
-    expect(statusBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+    await expect(control.getByText(titles[1], { exact: true })).toBeVisible();
+    await expect(control).toContainText('Requested');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 

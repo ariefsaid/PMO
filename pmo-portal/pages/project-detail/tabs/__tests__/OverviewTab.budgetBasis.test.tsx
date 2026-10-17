@@ -15,10 +15,11 @@ import React from 'react';
 // ---------------------------------------------------------------------------
 // Hoist mock state so vi.mock factories can reference them.
 // ---------------------------------------------------------------------------
-const { projectBudgetState, budgetVersionsState, procurementsState } = vi.hoisted(() => ({
+const { projectBudgetState, budgetVersionsState, procurementsState, projectFinancesState } = vi.hoisted(() => ({
   projectBudgetState: { data: 100000 as number | undefined, isPending: false, isError: false },
   budgetVersionsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   procurementsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  projectFinancesState: { data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '95000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] } }, isPending: false, isError: false },
 }));
 
 // #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
@@ -29,7 +30,8 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => projectFinancesState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -42,6 +44,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procurementsState,
   useProjectProcurements: () => procurementsState,
+  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp' }),
 }));
 
 vi.mock('react-router', () => ({
@@ -82,6 +85,8 @@ function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs 
 
 describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
   beforeEach(() => {
+    projectFinancesState.data.actuals.total = '95000.00';
+    projectFinancesState.data.actuals.categories[0].amount = '95000.00';
     projectBudgetState.data = 100000;
     projectBudgetState.isPending = false;
     projectBudgetState.isError = false;
@@ -92,12 +97,12 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
       <OverviewTab
         project={makeProject()}
         committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
       />,
     );
 
-    // The utilization text should show committed of DERIVED budget, not stored 0.
-    // Before fix: "$95,000 of $0 budget committed"
-    // After fix:  "$95,000 of $100,000 budget committed"
+    // The utilization text compares Actual with the DERIVED budget, not stored 0.
     expect(screen.getByText(/\$100,000/)).toBeInTheDocument();
     expect(screen.queryByText(/of \$0 budget/i)).not.toBeInTheDocument();
   });
@@ -107,12 +112,12 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
       <OverviewTab
         project={makeProject()}
         committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
       />,
     );
 
-    // At-risk pill must appear when committed/derived-budget >= 0.9.
-    // Before fix: stored budget=0 → util% = 0 → pill hidden.
-    // After fix: derived budget=100,000 → 95% → pill shown.
+    // At-risk pill must appear when complete Actual / derived-budget >= 0.9.
     expect(screen.getByText('At risk')).toBeInTheDocument();
   });
 

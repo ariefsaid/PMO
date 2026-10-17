@@ -61,6 +61,7 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 // HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
 import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
+import { buildAllocationDetails, salesInvoiceLookup } from '../_shared/receiptAllocations.ts';
 import { resolveInvoiceProjects } from '../_shared/projectInvoiceAttribution.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
@@ -70,7 +71,7 @@ import { budgetFromDocFields } from '../../../pmo-portal/src/lib/adapterSeam/erp
 import { TS_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/timesheet.ts';
 import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
-import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
+import { PE_RECEIVE_FROM_DOC_FIELDS, allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { PE_PAY_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/paymentEntry.ts';
 import { PI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseInvoice.ts';
 import { PO_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseOrder.ts';
@@ -565,10 +566,15 @@ interface OrgBinding {
    *  per-pass tests keep their fixtures byte-for-byte; absent/null ⇒ the `absent` queue yields NOTHING,
    *  which is the fail-safe answer (never a retroactive push). `listEmployingOrgsLive` always sets it. */
   activatedAt?: string | null;
+  /** Holder fence for statement-source writes in this sweep tick. */
+  statementLockHolder?: string;
 }
 
 export interface ErpSweepCycleDeps {
   listEmployingOrgs: () => Promise<OrgBinding[]>;
+  /** Atomic per-org statement-source lock. Live wiring always supplies both callbacks. */
+  claimStatementLock?: (orgId: string, holder: string) => Promise<boolean>;
+  releaseStatementLock?: (orgId: string, holder: string) => Promise<void>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string }>;
   /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
@@ -590,6 +596,14 @@ export interface ErpSweepCycleDeps {
    *  tests stay byte-for-byte; the live wiring always supplies it. */
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
 }
+
+/**
+ * Supabase Edge Functions document a 150-second wall-clock limit:
+ * https://supabase.com/docs/guides/functions/limits
+ * ponytail: TTL outlives the function's wall-clock cap, so writers can't overlap; per-write fencing only if ticks ever exceed the cap.
+ */
+export const STATEMENT_SWEEP_WALL_CLOCK_CAP_MS = 150_000;
+export const STATEMENT_SWEEP_LOCK_TTL_MS = 15 * 60_000;
 
 export interface ErpSweepCycleResult {
   orgs: number;
@@ -613,6 +627,23 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
+    const lockHolder = crypto.randomUUID();
+    if (deps.claimStatementLock) {
+      let acquired = false;
+      try {
+        acquired = await deps.claimStatementLock(org.orgId, lockHolder);
+      } catch (err) {
+        errors.push(`statement-lock:${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (!acquired) {
+        if (errors.length === 0) errors.push('statement-lock-held');
+        perOrg.push({ orgId: org.orgId, reconcile: null, errors });
+        cache?.delete(org.orgId);
+        continue;
+      }
+      org.statementLockHolder = lockHolder;
+    }
+    try {
     // (1) outbox recovery FIRST.
     let reconcile: ReconcileOrgOutboxResult | null = null;
     try {
@@ -695,6 +726,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
     // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
     // resolution failure can't leave a stale org resident for a later org's passes.
     cache?.delete(org.orgId);
+    } finally {
+      if (deps.releaseStatementLock && org.statementLockHolder) {
+        try {
+          await deps.releaseStatementLock(org.orgId, org.statementLockHolder);
+        } catch (err) {
+          errors.push(`statement-lock-release:${err instanceof Error ? err.message : String(err)}`);
+        }
+        delete org.statementLockHolder;
+      }
+    }
   }
   return { orgs: orgs.length, perOrg };
 }
@@ -1145,12 +1186,17 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
 export interface RepairUnlinkedReceiptsDeps {
   /** The org's ERP-sourced receipts still missing their invoice link (bounded per tick). */
   listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string }>>;
+  /** Stamp every attempt so failures cannot monopolise the bounded scan. */
+  stampAllocationCheck?: (id: string) => Promise<void>;
   /** Re-read one Payment Entry in full (its `references` child rows are not list-endpoint fields). */
   fetchDoc: (erpName: string) => Promise<Record<string, unknown>>;
   /** The PMO id the cited Sales Invoice ERP name now maps to, or `null` if still unmapped. */
   resolveSalesInvoicePmoId: (siErpName: string) => Promise<string | null>;
   /** Write the repaired link. */
   link: (ipId: string, salesInvoicePmoId: string) => Promise<void>;
+  /** S-06: re-mirror the receipt's invoice allocations (the ERP document's `references`, normalised). Called only when the
+   *  document states them — a missing table is unknown coverage and writes nothing. */
+  mirrorAllocations?: (ipId: string, allocations: NonNullable<ReturnType<typeof allocationsOf>>) => Promise<void>;
 }
 
 /**
@@ -1168,15 +1214,25 @@ export async function repairUnlinkedReceipts(
   for (const receipt of unlinked) {
     try {
       const doc = await deps.fetchDoc(receipt.erpName);
+      const allocations = allocationsOf(doc.references);
+      if (allocations !== undefined) await deps.mirrorAllocations?.(receipt.id, allocations);
       const references = doc.references as Array<{ reference_name?: string | null }> | undefined;
       const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
-      if (!siErpName) continue; // an unreferenced receipt is a valid on-account payment
-      const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
-      if (!salesInvoicePmoId) continue; // still unmapped — retry next tick rather than guess
-      await deps.link(receipt.id, salesInvoicePmoId);
-      repaired += 1;
+      if (siErpName) {
+        const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
+        if (salesInvoicePmoId) {
+          await deps.link(receipt.id, salesInvoicePmoId);
+          repaired += 1;
+        }
+      }
     } catch (err) {
       errors.push({ id: receipt.id, error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      try {
+        await deps.stampAllocationCheck?.(receipt.id);
+      } catch (err) {
+        errors.push({ id: receipt.id, error: `stamp allocation check: ${err instanceof Error ? err.message : String(err)}` });
+      }
     }
   }
   return { repaired, errors };
@@ -1305,11 +1361,24 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
     const client = await erpClientForOrg(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: async () => {
-        const { data, error } = await serviceClient.from('incoming_payments')
-          .select('id').eq('org_id', org.orgId).is('sales_invoice_id', null).not('erp_docstatus', 'is', null)
+        // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const base = () => serviceClient.from('incoming_payments')
+          .select('id,allocation_checked_at').eq('org_id', org.orgId).not('erp_docstatus', 'is', null)
+          .or(`allocation_checked_at.is.null,allocation_checked_at.lte.${cutoff}`)
+          .order('allocation_checked_at', { ascending: true, nullsFirst: true })
           .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
-        if (error) throw new AppError(error.message, error.code);
-        const rows = (data as Array<{ id: string }> | null) ?? [];
+        const [unlinked, unmirrored, unresolved] = await Promise.all([
+          base().is('sales_invoice_id', null),
+          base().is('allocation_details', null),
+          base().filter('allocation_details', 'cs', '[{"invoice_id":null}]'),
+        ]);
+        const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
+        if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
+        const rows = [...new Map([unlinked, unmirrored, unresolved]
+          .flatMap((r) => (r.data as Array<{ id: string; allocation_checked_at: string | null }> | null) ?? []).map((r) => [r.id, r])).values()]
+          .sort((a, b) => (a.allocation_checked_at ?? '').localeCompare(b.allocation_checked_at ?? ''))
+          .slice(0, UNLINKED_RECEIPT_SCAN_LIMIT);
         if (rows.length === 0) return [];
         // The ERP name lives on external_refs (the mirror row carries no ERP name column).
         const { data: refs, error: refErr } = await serviceClient.from('external_refs')
@@ -1319,12 +1388,23 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
         return ((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
           .map((r) => ({ id: r.pmo_record_id, erpName: r.external_record_id }));
       },
+      stampAllocationCheck: async (ipId) => {
+        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_checked_at: new Date().toISOString() })
+          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+        if (error) throw new AppError(error.message, error.code);
+      },
       fetchDoc: (erpName) => fetchErpDoc(client, DOCTYPE_REGISTRY['incoming-payment'].doctype, erpName),
       resolveSalesInvoicePmoId: async (siErpName) => {
         const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
           .eq('org_id', org.orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
         if (error) throw new AppError(error.message, error.code);
         return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+      },
+      mirrorAllocations: async (ipId, allocations) => {
+        const details = await buildAllocationDetails(allocations, salesInvoiceLookup(serviceClient, org.orgId));
+        const { error } = await (serviceClient.from('incoming_payments').update({ allocation_details: details })
+          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+        if (error) throw new AppError(error.message, error.code);
       },
       link: async (ipId, salesInvoicePmoId) => {
         const { error } = await (serviceClient.from('incoming_payments').update({ sales_invoice_id: salesInvoicePmoId })
@@ -2498,6 +2578,17 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
+    claimStatementLock: async (orgId, holder) => {
+      const { data, error } = await serviceClient.rpc('claim_erp_sweep_lock', {
+        p_org_id: orgId, p_holder: holder, p_ttl: `${STATEMENT_SWEEP_LOCK_TTL_MS} milliseconds`,
+      });
+      if (error) throw new Error(`statement lock claim failed: ${error.code ?? 'unknown'}`);
+      return data === true;
+    },
+    releaseStatementLock: async (orgId, holder) => {
+      const { error } = await serviceClient.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });
+      if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
+    },
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),

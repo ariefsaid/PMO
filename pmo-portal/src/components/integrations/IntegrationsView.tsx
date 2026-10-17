@@ -22,9 +22,11 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { tierLabel, domainLabel } from './integrationLabels';
-import { CanWrite } from '@/src/auth/usePermission';
+import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { formatInstantDate, formatList } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
+import { repositories } from '@/src/lib/repositories';
+import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
@@ -96,6 +98,8 @@ function useIntegrationsHealth(
 
 export const IntegrationsView: React.FC = () => {
   const { t } = useTranslation();
+  const may = usePermission();
+  const canManageIntegrations = may('manage', 'integration');
   const qc = useQueryClient();
   const {
     orgId,
@@ -149,6 +153,12 @@ export const IntegrationsView: React.FC = () => {
 
   // Fetch each connected tier independently under an organization-scoped key.
   const healthQueries = useIntegrationsHealth(orgId, connectedTiers, getHealth);
+  const erpSetupQuery = useQuery({
+    queryKey: ['integrations', 'setup', orgId],
+    queryFn: () => repositories.integrations.getErpSetup(),
+    enabled: Boolean(orgId) && canManageIntegrations && connectedTiers.includes('erpnext'),
+    retry: false,
+  });
 
   // #680 (AC-ICI-001..004): organization connector identity — resolve `connected_by` (a stored
   // audit actor) against the org-scoped profile source and show a readable same-org name, or a
@@ -327,10 +337,11 @@ export const IntegrationsView: React.FC = () => {
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
-        {t(
-          'integrations.organization.scope',
-          'Organization integrations connect your team\u2019s external services. They are separate from your personal connections in My integrations \u2014 a personal connection does not activate an organization integration. Use the controls beside each service to connect, activate, or disconnect it.',
-        )}
+        {t('uxs07.organizationScope', 'Organization integrations are shared by your organization. Manage personal connections in ')}
+        <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
+          {t('uxs07.personalConnections', 'My integrations')}
+        </a>
+        {t('uxs07.scopeTail', '. Personal connections do not activate organization integrations.')}
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
@@ -385,6 +396,19 @@ export const IntegrationsView: React.FC = () => {
           const isConnectedButNotActivated = !isError && tier === 'erpnext' && isConnected && !binding?.config?.company;
 
           const healthState = healthQueries[tier].state;
+          const erpSetup = tier === 'erpnext' ? erpSetupQuery.data : undefined;
+          const setupIncompleteness = erpSetup ? getErpSetupIncompleteness(erpSetup) : null;
+          const setupSteps = setupIncompleteness ? [
+            { key: 'domains', missing: setupIncompleteness.domains },
+            { key: 'company-defaults', missing: setupIncompleteness.company },
+            { key: 'activity-defaults', missing: setupIncompleteness.activity },
+            { key: 'budget-map', missing: setupIncompleteness.budget },
+            { key: 'employee-links', missing: setupIncompleteness.employees },
+            { key: 'project-links', missing: setupIncompleteness.projects },
+          ] : [];
+          const missingSetupSteps = setupSteps.filter((step) => step.missing);
+          const setupIncomplete = Boolean(erpSetup && missingSetupSteps.length > 0);
+          const firstMissingSetupStep = missingSetupSteps[0]?.key;
 
           return (
             <Card key={tier} className="p-4" data-tier={tier}>
@@ -393,10 +417,27 @@ export const IntegrationsView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <Icon name="plug" />
                 <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
-                <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>
+                {setupIncomplete
+                  ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet — {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
+                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
+                  ? <StatusPill variant="neutral" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
+                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
+                  ? <StatusPill variant={erpSetupQuery.isError ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupQuery.isError ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
+                  : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && erpSetup
+                  ? <span className="text-xs font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
+                  : <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>}
               </div>
 
-              {/* Metadata when connected */}
+              {setupIncomplete && (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
+                  <CanWrite entity="integration" action="manage">
+                    <a className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90" href={`#erp-setup-${firstMissingSetupStep}`}>
+                      {t('uxs07.finishSetup', 'Finish setup')}
+                    </a>
+                  </CanWrite>
+                </div>
+              )}
               {!isError && (isConnected || isDisconnected) && binding && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   {/* AC-ICI-001/002 — always-present connector identity line: readable same-org
@@ -472,10 +513,17 @@ export const IntegrationsView: React.FC = () => {
                       </Button>
                     )}
                     {showDisconnect && (
-                      <Button variant="destructive" size="sm" onClick={() => handleDisconnectClick(tier)}>
-                        <Icon name="plug" className="size-3.55" aria-hidden="true" />
-                        {t('integrations.organization.readiness.disconnectAction', 'Disconnect {{service}}', { service: tierLabel(tier) })}
-                      </Button>
+                      <details className="text-sm">
+                        <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {t('uxs07.connectionOptions', 'Connection options')}
+                        </summary>
+                        <div className="absolute z-10 mt-1 rounded-md border border-border bg-card p-2 shadow-sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleDisconnectClick(tier)}>
+                            <Icon name="plug" className="size-3.55" aria-hidden="true" />
+                            {t('integrations.organization.readiness.disconnectAction', 'Disconnect {{service}}', { service: tierLabel(tier) })}
+                          </Button>
+                        </div>
+                      </details>
                     )}
                   </CanWrite>
                 </div>
@@ -612,13 +660,13 @@ export const IntegrationsView: React.FC = () => {
       {/* Employed domains section (existing read-only panel, AC-IRUX-007) */}
       <div className="mt-6">
         <h4 className="mb-3 text-sm font-semibold text-foreground">
-          {t('integrations.organization.readiness.ownership.title', 'Employed domains (source of truth)')}
+          {t('uxs07.ownershipTitle', 'Information updated from connected services')}
         </h4>
         <div data-testid="integrations-tier-list">
         {ownershipQuery?.isPending ? (
           <div className="rounded-lg border border-border bg-card">
             <p className="px-4 pt-4 text-sm text-muted-foreground" role="status">
-              {t('integrations.organization.readiness.ownership.loading', 'Checking employed domains…')}
+              {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
             </p>
             <ListState variant="loading" rows={2} />
           </div>
@@ -626,8 +674,8 @@ export const IntegrationsView: React.FC = () => {
           <div data-testid="ownership-error">
             <ListState
               variant="error"
-              title={t('integrations.organization.readiness.ownership.unavailableTitle', 'Employed domains unavailable')}
-              sub={t('integrations.organization.readiness.ownership.unavailableSub', 'Your source-of-truth domains could not be read. Try again.')}
+              title={t('uxs07.ownershipUnavailable', 'Automatic updates unavailable')}
+              sub={t('uxs07.ownershipUnavailableHelp', 'PMO could not check which information updates automatically. Try again.')}
               onRetry={ownershipQuery.refetch}
               retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
             />
@@ -637,8 +685,8 @@ export const IntegrationsView: React.FC = () => {
             <div className="rounded-lg border border-border bg-card" data-testid="ownership-empty">
               <ListState
                 variant="empty"
-                title={t('integrations.organization.readiness.ownership.emptyTitle', 'No employed domains set')}
-                sub={t('integrations.organization.readiness.ownership.emptySub', 'Add your source-of-truth domains to connect data provenance.')}
+                title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
+                sub={t('uxs07.ownershipEmptyHelp', 'Choose which information should stay current from each connected service.')}
               />
             </div>
           </div>
@@ -661,7 +709,7 @@ export const IntegrationsView: React.FC = () => {
                     ))}
                   </ul>
                   <p className="mt-2 text-sm text-muted-foreground">
-                      {t('integrations.organization.readiness.ownership.ownsDomains', 'Owns {{count}} domains as source of truth.', { count: domains.length })}
+                      {t('uxs07.ownershipDomains', '{{service}} updates {{count}} information areas here.', { count: domains.length, service: tierLabel(tier) })}
                   </p>
                   {tier === 'clickup' && (
                     <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
@@ -852,7 +900,7 @@ export const IntegrationsView: React.FC = () => {
 interface HealthPanelProps {
   state: TierHealthState;
   onRetry: () => void;
-  t: (key: string, def: string, options?: Record<string, number>) => string;
+  t: (key: string, def: string, options?: Record<string, string | number>) => string;
 }
 
 /** The per-tier health read: loading / unavailable / available (AC-IRUX-003/004). */
@@ -876,23 +924,44 @@ const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, t }) => {
       </div>
     );
   }
-  const outstanding = state.health.error_count;
-  const outstandingLabel =
-    outstanding === 0
-      ? t('integrations.organization.readiness.health.outstandingZero', '0 outbound items pending or need attention')
-      : outstanding === 1
-      ? t('integrations.organization.readiness.health.outstandingOne', '{{count}} outbound item pending or needs attention', { count: outstanding })
-      : t('integrations.organization.readiness.health.outstandingMany', '{{count}} outbound items pending or need attention', { count: outstanding });
+  const counts = state.health.state_counts;
+  const recordsHref = state.health.tier === 'erpnext' ? '/companies' : '/projects';
+  const recoveryHref = state.health.tier === 'erpnext' ? '/approvals' : '/projects';
+  const attention = [
+    { state: 'failed', count: counts.failed, href: recordsHref },
+    { state: 'quarantined', count: counts.quarantined, href: recoveryHref },
+    { state: 'held', count: counts.held, href: state.health.tier === 'erpnext' ? '/timesheets' : '/projects' },
+  ] as const;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-      <span className="flex items-center gap-1 text-muted-foreground">
-        <Icon name="alert" className="size-3.55 shrink-0" aria-hidden="true" />
-        <span className="tabular-nums">{outstandingLabel}</span>
-      </span>
-      <span className="flex items-center gap-1 text-muted-foreground">
-        <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-        <span>{t('integrations.organization.readiness.health.liveRecordCheck', 'To confirm data is usable, check an actual transferred record, not the connection alone.')}</span>
-      </span>
+    <div className="mt-3 space-y-2 text-sm">
+      <p className="flex items-center gap-1 text-muted-foreground" role="status">
+        <Icon name={counts.pending === 0 ? 'check' : 'info'} className="size-3.55 shrink-0" aria-hidden="true" />
+        <span className="tabular-nums">{counts.pending === 0
+          ? t('uxs07.pendingZero', 'No updates waiting to send')
+          : counts.pending === 1
+            ? t('uxs07.pendingOne', '{{count}} update waiting to send', { count: counts.pending })
+            : t('uxs07.pendingMany', '{{count}} updates waiting to send', { count: counts.pending })}</span>
+      </p>
+      {attention.filter((item) => item.count > 0).map((item) => (
+        <p key={item.state} className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-destructive-text" role="status">
+          <span>{item.state === 'failed'
+            ? item.count === 1 ? t('uxs07.failedAttentionOne', '1 failed update needs attention') : t('uxs07.failedAttentionMany', '{{count}} failed updates need attention', { count: item.count })
+            : item.state === 'quarantined'
+            ? item.count === 1 ? t('uxs07.quarantinedAttentionOne', '1 quarantined update needs attention') : t('uxs07.quarantinedAttentionMany', '{{count}} quarantined updates need attention', { count: item.count })
+            : item.count === 1 ? t('uxs07.heldAttentionOne', '1 held update needs attention') : t('uxs07.heldAttentionMany', '{{count}} held updates need attention', { count: item.count })}</span>
+          <a className="font-medium underline underline-offset-4" href={item.href}>{item.state === 'failed'
+            ? t('uxs07.reviewFailed', 'Review failed updates')
+            : item.state === 'quarantined'
+            ? t('uxs07.reviewQuarantined', 'Review quarantined updates')
+            : t('uxs07.reviewHeld', 'Review held updates')}</a>
+        </p>
+      ))}
+      <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
+        <span>{t('uxs07.liveRecordCheck', 'Not yet verified — review a connected record to confirm the data is usable.')}</span>
+        <a className="font-medium text-foreground underline underline-offset-4" href={recordsHref}>
+          {t('uxs07.reviewRecords', 'Review connected records')}
+        </a>
+      </p>
     </div>
   );
 };

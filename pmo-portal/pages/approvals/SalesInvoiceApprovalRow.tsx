@@ -5,7 +5,7 @@ import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { formatCurrencyCents } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { invoiceGross, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
@@ -21,13 +21,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.label ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
   const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
+  const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
     { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
     { label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' },
-    { label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' },
-    { label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' },
+    ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
+    ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
   ];
 
   return (
@@ -36,7 +37,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
-            <dd className="mt-1 truncate text-[13px] font-medium">{f.value}</dd>
+            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-[13px] font-medium">{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -72,14 +73,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
           <dd className="tabular">
-            {money(inv.amount)}
-            {showFx && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
+            {money(net)}
+            {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
           <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
-            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} />
+            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
             <span>{money(inv.tax_amount)}</span>
           </dd>
         </div>

@@ -78,7 +78,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   await expect(footer.getByText(/enter hours to submit/i)).toBeVisible();
 
   // ── Step 3: Enter hours on a project ────────────────────────────────────────
-  await page.getByLabel('Add a project').selectOption({ label: PROJECT_NAME });
+  await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
   await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');

@@ -132,3 +132,31 @@ Deno.test('AC-WHT-003: a receipt with unconfirmable withholding still syncs, is 
     env.restore();
   }
 });
+
+const MULTI = { ...listRow('ACC-PAY-0003', '2026-10-01 11:00:00'), paid_amount: 75, received_amount: 75, deductions: [],
+  references: [
+    { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-A', allocated_amount: 25 },
+    { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-B', allocated_amount: 30 },
+  ] };
+
+Deno.test('RF-030/031: an imported receipt mirrors EVERY invoice allocation; an on-account one mirrors a known-empty list', async () => {
+  const db = fakeDb();
+  const env = stubEnv();
+  const erp = stubErpFetch([AMBIGUOUS, MULTI]);
+  try {
+    await sweepOrgDoctypesLive(db.client, binding);
+    const receipts = db.ops.filter((o) => o.table === 'incoming_payments' && o.op === 'insert')
+      .map((o) => o.payload as Record<string, unknown>);
+    const multi = receipts.find((r) => r.ip_number === 'ACC-PAY-0003');
+    assert(JSON.stringify(multi?.allocation_details) === JSON.stringify([
+      { invoice_id: null, invoice_number: 'ACC-SINV-A', amount: '25.00', currency: null },
+      { invoice_id: null, invoice_number: 'ACC-SINV-B', amount: '30.00', currency: null },
+    ]), `both allocations are mirrored: ${JSON.stringify(multi)}`);
+    const onAccount = receipts.find((r) => r.ip_number === 'ACC-PAY-0001');
+    assert(JSON.stringify(onAccount?.allocation_details) === '[]', `an on-account receipt is a known-empty list: ${JSON.stringify(onAccount)}`);
+    assert(!('allocations' in multi!), 'the canonical key is never written as a column');
+  } finally {
+    erp.restore();
+    env.restore();
+  }
+});

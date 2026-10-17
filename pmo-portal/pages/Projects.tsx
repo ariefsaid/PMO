@@ -44,19 +44,20 @@ import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet
 import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
+import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
+import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
 import { pillVariantForProjectStatus, projectIconColor } from '../components/projects';
 import ProjectCard from '../components/ProjectCard';
-import ProjectStatusControl from '../components/ProjectStatusControl';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { isAtRiskByCommitted } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
 
 /**
@@ -152,6 +153,7 @@ const Projects: React.FC = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [classificationOpen, setClassificationOpen] = useState(false);
+  const [optionalColumnsVisible, setOptionalColumnsVisible] = useState(false);
   // null = closed; true = the create-deal modal is open.
   const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
@@ -163,21 +165,23 @@ const Projects: React.FC = () => {
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
   const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
+  const { data: projectMoney, isPending: moneyPending, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
 
-  // I6: committed-spend-based at-risk (not stale p.spent/p.budget). Derives from the SAME
-  // committed-spend summary used in the Budget used column, and routes through the shared
-  // canonical rule (isAtRiskByCommitted): active-status gate + budget>0 guard + >= 0.9.
-  const isAtRiskCommitted = React.useCallback(
+  // Financial risk uses the canonical mapped Actual over an explicit Active budget.
+  // Missing snapshots/budgets stay unknown and cannot become zero-based risk signals.
+  const isAtRiskActual = React.useCallback(
     (p: ProjectWithRefs) => {
-      const summary = deliverySummary?.[p.id];
-      if (!summary) return false;
-      return isAtRiskByCommitted({
-        status: p.status as string,
-        budget: summary.budget,
-        committedSpend: summary.committedSpend,
-      });
+      const money = projectMoney?.[p.id];
+      const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
+      const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
+      if (!money || actual == null || budget == null) return false;
+      return isMoneyAtRisk({ status: p.status as string, budget,
+        budgetCurrency: money.activeBudgetCurrency, projectCurrency: p.currency,
+        spent: actual, actualCurrency: money.actuals.currency,
+        actualComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }) });
     },
-    [deliverySummary],
+    [projectMoney],
   );
 
   const filtered = useMemo(() => {
@@ -194,9 +198,8 @@ const Projects: React.FC = () => {
             return ONGOING.includes(p.status as string);
           case 'Completed':
             return COMPLETED.includes(p.status as string);
-          // I6: at-risk now uses committed-spend from delivery summary, not stale p.spent.
           case 'at-risk':
-            return isAtRiskCommitted(p);
+            return isAtRiskActual(p);
           default:
             return true;
         }
@@ -227,8 +230,8 @@ const Projects: React.FC = () => {
     // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
     // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
     // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRiskCommitted(a) ? 0 : 1) - (isAtRiskCommitted(b) ? 0 : 1));
-  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskCommitted]);
+    return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
+  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -265,15 +268,22 @@ const Projects: React.FC = () => {
     ],
     [clientCompanies, t],
   );
-  // #758: the end-customer filter uses ALL the org's companies (the end customer need not be a
-  // Client-type company).
-  const endCustomerFilterOptions = useMemo(
-    () => [
+  // #758 / RF-012: options come from actual end-customer associations (any company type); preserve a URL-restored selection if its row is outside this result set.
+  const endCustomerFilterOptions = useMemo(() => {
+    const associated = new Map<string, NonNullable<ProjectWithRefs['end_client']>>();
+    for (const project of all) {
+      if (project.end_client_id && project.end_client) associated.set(project.end_client_id, project.end_client);
+    }
+    // Keep a URL-restored selection visible even if its project is not in this result set.
+    if (filterEndCustomer !== 'All' && !associated.has(filterEndCustomer)) {
+      const selected = allCompanies.find((company) => company.id === filterEndCustomer);
+      if (selected) associated.set(selected.id, selected);
+    }
+    return [
       { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
-      ...allCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
-    ],
-    [allCompanies, t],
-  );
+      ...[...associated].map(([id, company]) => ({ value: id, label: companyDisplayName(company) })),
+    ];
+  }, [all, allCompanies, filterEndCustomer, t]);
   const importDescriptor = useMemo(
     () =>
       makeProjectImportDescriptor(
@@ -400,6 +410,10 @@ const Projects: React.FC = () => {
     />
   ) : null;
 
+  const hasEndCustomerData = filtered.some((project) => Boolean(project.end_client));
+  const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
+  const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
+  const hiddenOptionalColumnCount = Number(!hasEndCustomerData) + Number(!hasDeliveryData) + Number(!hasBudgetData);
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -407,7 +421,7 @@ const Projects: React.FC = () => {
       colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
       exportValue: (p) => p.name,
       cell: (p) => {
-        const atRisk = isAtRiskCommitted(p);
+        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <span
@@ -441,16 +455,16 @@ const Projects: React.FC = () => {
                 <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>
                 <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
               </div>
-              {p.code && (
-                <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
-                  <span className="sr-only">{t('projects.identifiers.client', 'Client Project Code')}: </span>
-                  <span className="break-words md:truncate" title={p.code}>{p.code}</span>
-                </div>
-              )}
-              {p.customer_contract_ref && (
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
-                  {p.customer_contract_ref}
-                </div>
+              {(p.code || p.customer_contract_ref) && (
+                <details className="mt-0.5" onClick={(event) => event.stopPropagation()}>
+                  <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: p.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                    {t('uxs14.projectReferences', 'More project references')}
+                  </summary>
+                  <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">
+                    {p.code && <div>{t('projects.identifiers.client', 'Client Project Code')}: <span className="break-words md:truncate" title={p.code}>{p.code}</span></div>}
+                    {p.customer_contract_ref && <div>{t('uxs14.contractReference', 'Customer contract reference')}: <span className="break-words md:truncate" title={p.customer_contract_ref}>{p.customer_contract_ref}</span></div>}
+                  </div>
+                </details>
               )}
             </div>
           </div>
@@ -481,12 +495,8 @@ const Projects: React.FC = () => {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
-      header: all.some((project) => project.end_client)
-        ? t('projects.columns.endCustomer', 'End customer')
-        : <span aria-label={t('projects.columns.endCustomer', 'End customer')} title={t('projects.columns.endCustomer', 'End customer')}>{t('projects.columns.endCustomerShort', 'End')}</span>,
-      colClassName: all.some((project) => project.end_client)
-        ? 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2'
-        : 'min-[1280px]:w-[52px] min-[1280px]:max-w-[52px] min-[1280px]:px-2',
+      header: t('projects.columns.endCustomer', 'End customer'),
+      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2',
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()} title={p.end_client ? companyDisplayName(p.end_client) : undefined}>
@@ -513,6 +523,9 @@ const Projects: React.FC = () => {
         }),
       // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
+        if (p.project_manager_id == null) {
+          return <span className="text-[12px] text-muted-foreground">{t('projects.unassigned', 'Unassigned')}</span>;
+        }
         const label = projectManagerLabel({
           managerId: p.project_manager_id,
           fullName: p.pm?.full_name,
@@ -595,15 +608,49 @@ const Projects: React.FC = () => {
       header: t('projects.columns.actual', 'Actual'),
       colClassName: 'min-[1280px]:w-[94px] min-[1280px]:max-w-[94px]',
       align: 'num',
-      // AC-MONEY-01: use the live committed-PO basis from deliverySummary, not the dead
-      // stored projects.spent column (always 0 — 0001_init_schema.sql:79 DEFERRED).
+      // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
-        const actualSpend = deliverySummary?.[p.id]?.committedSpend;
-        if (deliveryPending || actualSpend == null) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        const money = projectMoney?.[p.id];
+        if (moneyError || !money) {
+          return <span className="text-[12px] text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        return <span className="text-muted-foreground">{formatCurrency(actualSpend, p.currency)}</span>;
+        const actualPosition = deriveActualPosition({
+          ledgerBasis: money.ledgerBasis,
+          committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
+          commitmentPending: moneyPending,
+          commitmentError: moneyError,
+          projectCurrency: p.currency,
+          actuals: {
+            currency: money.actuals.currency,
+            total: money.actuals.total,
+            as_of: money.actuals.asOf,
+            excludes_restricted_rows: money.actuals.excludesRestrictedRows,
+            categories: money.actuals.categories,
+          },
+        });
+        const actual = actualPosition.amount;
+        const incomplete = money.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+        if (actual == null) {
+          return (
+            <div className="flex flex-col gap-0.5 text-right">
+              <span className="text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>
+              {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+              {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
+            </div>
+          );
+        }
+        return (
+          <div className="flex flex-col gap-0.5 text-right">
+            <span className="text-muted-foreground">{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}</span>
+            <span className="text-[10px] text-muted-foreground">{money.ledgerBasis === 'erp' ? t('uxs02.erpActual', 'ERP actual') : t('uxs02.pmoActual', 'Committed POs')}</span>
+            {money.ledgerBasis === 'erp' && <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
+              ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
+              : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>}
+            {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
+            {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
+          </div>
+        );
       },
     },
     {
@@ -627,7 +674,7 @@ const Projects: React.FC = () => {
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={roundedDelivery} showValue compact aria-label={`Delivery ${roundedDelivery}%`} />
+            <ProgressBar value={roundedDelivery} showValue compact tone={roundedDelivery >= 100 ? 'success' : 'primary'} aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: roundedDelivery })} />
           </div>
         );
       },
@@ -637,48 +684,53 @@ const Projects: React.FC = () => {
       header: t('projects.columns.budgetUsed', 'Budget used'),
       colClassName: 'min-[1280px]:w-[116px] min-[1280px]:max-w-[116px]',
       cell: (p) => {
-        // I7: defer while delivery summary is loading to prevent flash of $0/$0.
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
-        if (deliveryPending) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        const money = projectMoney?.[p.id];
+        const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
+        const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
+        if (moneyError || !money) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
         }
-        const summary = deliverySummary?.[p.id];
-        // If no summary or no budget, show a muted dash instead of misleading "$0 of $0 budget".
-        if (!summary || summary.budget <= 0) {
-          return <span className="text-[12px] text-muted-foreground">—</span>;
+        if (!money.hasActiveBudget || activeBudget == null) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.noActiveBudget', 'No active budget')}</span>;
         }
-        const budgetUsedPct = Math.round((summary.committedSpend / summary.budget) * 100);
+        if (activeBudget === 0) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}</span>;
+        }
+        if (actual == null) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
+        }
+        if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
+          return <span className="text-[11px] text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
+        }
+        const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
+        if (!completeCoverage) {
+          return <span className="text-[11px] text-muted-foreground">{money.actuals.excludesRestrictedRows
+            ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')
+            : t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>;
+        }
+        const percent = Math.round((actual / activeBudget) * 100);
+        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
-            {/* ⚑ Not extracted — embeds two values. This is the one that MOST wants a key
-                (Indonesian will not keep "X of Y budget" word order), and it is exactly the
-                DD-I18N-7 shape: format the money first, interpolate the finished strings. It
-                stays English until `t()` interpolation is safe under the unit suite. */}
-            <div className="max-w-[120px] whitespace-normal text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
+            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+            <div className="max-w-[120px] whitespace-normal text-[10px] text-muted-foreground">
+              {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual, money.actuals.currency || p.currency), budget: formatCompactCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}
             </div>
+            {atRisk && <span className="text-[10px] font-semibold text-warning-foreground">{t('uxs02.atRisk', 'At risk')}</span>}
           </div>
         );
       },
     },
-    {
-      key: 'transition',
-      header: t('projects.columns.action', 'Action'),
-      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px]',
-      cell: (p) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <ProjectStatusControl
-            project={{
-              id: p.id,
-              status: p.status as ProjectStatus,
-              customer_contract_ref: p.customer_contract_ref,
-            }}
-          />
-        </div>
-      ),
-    },
   ];
+  const visibleColumns = columns.filter((column) => {
+    if (optionalColumnsVisible) return true;
+    if (column.key === 'end-customer') return hasEndCustomerData;
+    if (column.key === 'progress') return hasDeliveryData;
+    if (column.key === 'budget-used') return hasBudgetData;
+    return true;
+  });
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
@@ -723,7 +775,7 @@ const Projects: React.FC = () => {
     );
   }
 
-  if (all.length === 0) {
+  if (all.length === 0 && filter !== 'at-risk') {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
@@ -839,7 +891,7 @@ const Projects: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         {!isEngineer && (
           <MobileToolbarDisclosure
-            label={t('projects.mobile.filters', 'Filters')}
+            label={t('uxs14.filters', 'Filters')}
             count={secondaryCount}
             open={filtersOpen}
             closeOnSelectChange
@@ -968,7 +1020,7 @@ const Projects: React.FC = () => {
 
         {moreActionsChildren.length > 0 && (
           <MobileToolbarDisclosure
-            label={t('projects.mobile.more', 'More actions')}
+            label={t('uxs14.moreActions', 'More actions')}
             open={moreOpen}
             onOpenChange={(next) => {
               setMoreOpen(next);
@@ -1092,6 +1144,13 @@ const Projects: React.FC = () => {
         */
         !isEngineer ? (
           <>
+            <MobileToolbarDisclosure
+              label={t('uxs14.filters', 'Filters')}
+              count={secondaryCount}
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+            >
+            <div className="flex min-w-0 flex-wrap gap-2">
             <SelectField
               hideLabel
               label={t('projects.filters.customerLabel', 'Filter by customer')}
@@ -1125,12 +1184,20 @@ const Projects: React.FC = () => {
               options={pmFilterOptions}
               className="w-auto"
             />
+            </div>
+            </MobileToolbarDisclosure>
             {classificationFilters}
           </>
         ) : classificationFilters
       }
       exportAction={
-        <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
+        <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen} onOpenChange={setMoreOpen}>
+          <div className="flex flex-wrap gap-2">
+            <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
+            <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
+            <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
+          </div>
+        </MobileToolbarDisclosure>
       }
       view={
         /* All four views remain reachable; DataTable reflows Table into cards below md. */
@@ -1150,25 +1217,18 @@ const Projects: React.FC = () => {
           ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
         />
       }
-      importAction={
-        <>
-          <ImportButton
-            entity="project"
-            descriptor={importDescriptor}
-            onImported={() => void refetch()}
-            label={t('projects.import', 'Import')}
-          />
-          <ImportButton
-            entity="budgetLine"
-            label={t('projects.importBudgets', 'Import budgets')}
-            descriptor={budgetImportDescriptor}
-            onImported={() => void refetch()}
-          />
-        </>
-      }
     >
       {/* Body */}
-      {view === 'kanban' ? (
+      {filter === 'at-risk' && all.length > 0 && moneyPending ? (
+        <ListState variant="loading" rows={3} />
+      ) : filter === 'at-risk' && all.length > 0 && moneyError ? (
+        <ListState
+          variant="error"
+          title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
+          sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
+          onRetry={() => void refetchMoney()}
+        />
+      ) : view === 'kanban' ? (
         <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
@@ -1182,10 +1242,25 @@ const Projects: React.FC = () => {
           }}
         />
       ) : view === 'table' ? (
-        <div className="[&_th]:px-1.5 [&_td]:px-1.5">
+        <>
+          {filtered.length > 0 && hiddenOptionalColumnCount > 0 && !optionalColumnsVisible && (
+            <div className="mb-2 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(true)}>
+                {t('uxs14.showOptionalColumns', 'Show optional columns')}
+              </Button>
+            </div>
+          )}
+          {filtered.length > 0 && optionalColumnsVisible && hiddenOptionalColumnCount > 0 && (
+            <div className="mb-2 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOptionalColumnsVisible(false)}>
+                {t('uxs14.hideEmptyColumns', 'Hide empty columns')}
+              </Button>
+            </div>
+          )}
+          <div className="[&_th]:px-1.5 [&_td]:px-1.5">
           <DataTable<ProjectWithRefs>
             rows={filtered}
-            columns={columns}
+            columns={visibleColumns}
             rowKey={(p) => p.id}
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
@@ -1201,7 +1276,7 @@ const Projects: React.FC = () => {
               filter === 'at-risk'
                 ? t(
                     'projects.empty.nothingAtRiskSub',
-                    'Every active project is under 90% budget — nothing needs attention right now.',
+                    "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
                   )
                 : filtersActive
                   ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
@@ -1215,7 +1290,8 @@ const Projects: React.FC = () => {
                   : undefined
             }
           />
-        </div>
+          </div>
+        </>
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"
@@ -1231,7 +1307,7 @@ const Projects: React.FC = () => {
             filter === 'at-risk'
               ? t(
                   'projects.empty.nothingAtRiskSub',
-                  'Every active project is under 90% budget — nothing needs attention right now.',
+                  "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
                 )
               : filtersActive
                 ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
@@ -1256,6 +1332,7 @@ const Projects: React.FC = () => {
               project={p}
               onOpen={(proj) => onOpen(proj, 'card')}
               deliverySummary={deliverySummary?.[p.id]}
+              projectMoney={projectMoney?.[p.id]}
               onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
             />
           ))}

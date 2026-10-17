@@ -1,12 +1,13 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { formatCurrency } from '@/src/lib/format';
+import { useTranslation } from 'react-i18next';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import type { TopProject } from '@/src/lib/db/dashboard';
-import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { isActualComplete } from '@/src/lib/projectFinances';
 
 export interface BvACardProps {
   projects: TopProject[];
@@ -15,24 +16,26 @@ export interface BvACardProps {
 }
 
 /**
- * Budget vs Actual — per-project spend against contract value, the on-brand
- * table-alternative for the portfolio bar chart (text + bars, screen-reader
- * friendly by construction). Each row direct-labels its money and exposes a
- * per-bar `{name}: {pct}% of contract` aria label so no datum is hover-gated.
- *
- * No committed bar: `top_projects` exposes `spent`, not `committed`; a portfolio
- * committed aggregate is a deferred backend slice (plan Open Q1), so we render
- * the real Actual/Contract bar only — never a fabricated committed value.
+ * Plain-language contract comparison with a separate Active-budget risk signal.
+ * Unknown Actual is never rendered as zero and never produces a progress bar.
  */
 export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency, i18n.language)
+    ?? t('uxs03.notAvailableYet', 'Not available yet');
   return (
-  <div role="group" aria-label={t('dashboard.bva.group', 'Budget vs actual by project')} className="flex flex-col">
+  <div role="group" aria-label={t('uxs03.spendingContract', 'Spending vs contract')} className="flex flex-col">
     {projects.map((p, i) => {
-      const contract = p.contract_value || 0;
-      const pct = contract > 0 ? Math.round((p.spent / contract) * 100) : 0;
-      const utilization = p.budget > 0 ? p.spent / p.budget : 0;
-      const atRisk = utilization >= AT_RISK_THRESHOLD;
+      const contract = p.contract_value;
+      const actualComplete = isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
+        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
+      const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
+        ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
+      const currenciesMatch = (p.actual_currency ?? p.currency) === (p.budget_currency ?? p.currency)
+        && (p.actual_currency ?? p.currency) === p.currency;
+      const utilization = p.budget !== null && p.budget > 0 && actualComplete && currenciesMatch ? (p.spent ?? 0) / p.budget : null;
+      const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
+        spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
       const dot = chartTheme.categorical[i % chartTheme.categorical.length];
 
       return (
@@ -56,7 +59,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             </Link>
             {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
-              {formatCurrency(p.spent, currency)} / {formatCurrency(contract, currency)}
+              {money(actualComplete ? p.spent : null, p.actual_currency ?? p.currency)} / {money(contract, p.currency)}
             </span>
             {/* D-2 (AC-JR-W3B-04): decorative trailing chevron removed — it was a false
                 affordance implying the row is clickable while only the name Link above is
@@ -65,12 +68,24 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
           </div>
           {/* widthless: no outer min-w so the bar fills the flex row at any viewport width.
               [&>span:first-child]:flex-1 ensures the track expands in the flex container. */}
-          <ProgressBar
+          {pct !== null && <ProgressBar
             value={pct}
             widthless
             className="w-full [&>span:first-child]:flex-1"
-            aria-label={t('dashboard.bva.barLabel', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
-          />
+            aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
+          />}
+          <span className="text-[12px] text-muted-foreground">
+            {t('uxs03.activeBudgetRisk', 'Active-budget risk')}: {p.budget !== null && p.budget > 0 && utilization !== null
+              ? `${Math.round(utilization * 100)}%` : p.budget !== null && p.budget > 0
+                ? t('uxs03.notAvailableYet', 'Not available yet') : t('uxs03.noActiveBudget', 'No active budget')}
+          </span>
+          {p.actual_coverage_total != null && p.actual_coverage_total > (p.actual_coverage_count ?? 0) && (
+            <span className="text-[12px] text-muted-foreground">
+              {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
+                known: p.actual_coverage_count ?? 0, total: p.actual_coverage_total,
+              })}
+            </span>
+          )}
         </div>
       );
     })}

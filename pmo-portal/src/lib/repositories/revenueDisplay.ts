@@ -8,6 +8,15 @@
 const DEFAULT_PAYMENT_TERMS_DAYS = 30;
 
 /**
+ * Whole calendar-day distance from the due date to the organization's current day.
+ * No date-fns: an edge function (agent-chat) imports this file and Deno has no npm map for it.
+ */
+export function overdueAgeDays(dueDate: string | null | undefined, organizationToday: string | null | undefined): number | null {
+  if (!dueDate || !organizationToday) return null;
+  return Math.round((Date.parse(`${organizationToday}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
  * Derive the AR due date for display purposes.
  *
  * Preference order (FR-SAR-141, ADR-0048; #767 AC-DUE-002):

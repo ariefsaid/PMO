@@ -32,6 +32,9 @@ const baseProject = {
   pm: { full_name: 'Alice' },
 } as unknown as ProjectWithRefs;
 
+const { financeState } = vi.hoisted(() => ({
+  financeState: { data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '0.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] } }, isPending: false, isError: false },
+}));
 const procState = { data: [] as ProcurementWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 const budgetState = { data: [] as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() };
 // AC-W2-1-FE-01: budget now comes from useProjectBudget (derived from Active version line-items).
@@ -47,7 +50,8 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => financeState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -71,12 +75,15 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs, committedSpend = 0) =>
-  render(
+const renderTab = (p: ProjectWithRefs, actualSpend = 0) => {
+  financeState.data.actuals.total = `${actualSpend}.00`;
+  financeState.data.actuals.categories[0].amount = `${actualSpend}.00`;
+  return render(
     <MemoryRouter>
-      <OverviewTab project={p} committedSpend={committedSpend} setTab={vi.fn()} />
+      <OverviewTab project={p} committedSpend={actualSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={vi.fn()} />
     </MemoryRouter>,
   );
+};
 
 beforeEach(() => {
   procState.data = [];
@@ -90,7 +97,7 @@ describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => 
     // committed/budget = 850/900 = 94% (>= 0.9 threshold) -> at-risk.
     const p = { ...baseProject, budget: 900_000, spent: 0 } as ProjectWithRefs;
     renderTab(p, 850_000);
-    const bar = screen.getByRole('progressbar', { name: /budget committed/i });
+    const bar = screen.getByRole('progressbar', { name: /actual spending/i });
     expect(bar).toBeInTheDocument();
     // The caption + flag are co-located inside the same card as the bar.
     const card = bar.closest('div')!;
@@ -101,7 +108,7 @@ describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => 
   it('AC-W6-IXD-ATRISK: a healthy project renders the bar only — no budget caption, no pill', () => {
     // committed/budget = 400/900 = 44% -> healthy.
     renderTab(baseProject, 400_000);
-    expect(screen.getByRole('progressbar', { name: /budget committed/i })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /actual spending/i })).toBeInTheDocument();
     expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^At risk$/i)).not.toBeInTheDocument();
   });
@@ -112,6 +119,6 @@ describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => 
     const p = { ...baseProject, budget: 0, spent: 500_000 } as ProjectWithRefs;
     renderTab(p, 500_000);
     expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/(?:^|\s)NaN(?:\s|$)/i);
   });
 });

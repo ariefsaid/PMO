@@ -171,3 +171,49 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
     projectedUtilization,
   };
 }
+
+/** One category as the Forecast panel holds it (numbers off the repository seam). */
+export interface SummaryRow {
+  category: string;
+  pmoBudgetAmount: number | null;
+  /** `true` when a null budget is a KNOWN absence ("the Active version has no line here") = budgeted 0. */
+  budgetKnownAbsent: boolean;
+  actualsToDate: number | null;
+  pmoEtc: number;
+}
+
+export interface ProjectionSummary {
+  /** Each figure is `null` (never 0) while any category it depends on is unknown. */
+  budget: number | null;
+  recorded: number | null;
+  costToFinish: number;
+  finalCost: number | null;
+  /** Budget − forecast final cost; negative = forecast overrun. */
+  remaining: number | null;
+  /** Categories whose budget / recorded spending is unknown — the visible reason for a `null` above. */
+  unknownBudget: string[];
+  unknownRecorded: string[];
+}
+
+const toC = (n: number) => Math.round(n * 100); // numeric(14,2) in, so exact at 2 dp
+const fromC = (c: number) => c / 100;
+
+/** Project-level totals across categories. One basis: the same rows the grid shows (no second formula). */
+export function summarizeProjection(rows: readonly SummaryRow[]): ProjectionSummary {
+  const unknownBudget = rows.filter((r) => r.pmoBudgetAmount === null && !r.budgetKnownAbsent).map((r) => r.category);
+  const unknownRecorded = rows.filter((r) => r.actualsToDate === null).map((r) => r.category);
+  const sum = (f: (r: SummaryRow) => number) => rows.reduce((s, r) => s + toC(f(r)), 0);
+  const etcC = sum((r) => r.pmoEtc);
+  const budgetC = unknownBudget.length ? null : sum((r) => r.pmoBudgetAmount ?? 0);
+  const recordedC = unknownRecorded.length ? null : sum((r) => r.actualsToDate ?? 0);
+  const finalC = recordedC === null ? null : recordedC + etcC;
+  return {
+    budget: budgetC === null ? null : fromC(budgetC),
+    recorded: recordedC === null ? null : fromC(recordedC),
+    costToFinish: fromC(etcC),
+    finalCost: finalC === null ? null : fromC(finalC),
+    remaining: budgetC === null || finalC === null ? null : fromC(budgetC - finalC),
+    unknownBudget,
+    unknownRecorded,
+  };
+}

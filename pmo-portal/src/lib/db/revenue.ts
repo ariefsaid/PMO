@@ -1,9 +1,11 @@
+import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
 /** Row shapes matching the DB schema (snake_case) from migration 0104. */
@@ -13,7 +15,7 @@ export interface SalesInvoiceRow {
   project_id: string | null;
   erp_project: string | null;
   customer_id: string | null;
-  /** #781 (AC-FIN-001): the customer's company NAME, resolved in the same read (never rendered as the opaque `customer_id`). Null when the relation is missing. */
+  /** #781 (AC-FIN-001): the customer's display name, resolved in the same read (never rendered as the opaque `customer_id`). Null when the relation is missing. */
   customer_name: string | null;
   si_number: string | null;
   reference_number: string | null;
@@ -80,6 +82,8 @@ export interface IncomingPaymentRow {
   received_amount?: number | null;
   withheld_amount?: number | null;
   withholding_slip_number?: string | null;
+  /** S-06: the ERP-authored invoice allocations (null/absent = coverage unknown; [] = none reported). */
+  allocation_details?: ReceiptAllocation[] | null;
   id: string;
   org_id: string;
   customer_id: string | null;
@@ -146,16 +150,16 @@ function throwWrite(error: PostgrestErrorLike): never {
  * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
  */
 const SALES_INVOICE_SELECT =
-  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name), sales_invoice_authors(user_id)';
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days,name,short_name), sales_invoice_authors(user_id)';
 
 /** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set + customer name flattened). */
 function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
   const authors = (row.sales_invoice_authors as Array<{ user_id: string }> | null) ?? [];
-  const companies = row.companies as { erp_payment_terms_days: number | null; name: string | null } | null;
+  const companies = row.companies as { erp_payment_terms_days: number | null; name: string | null; short_name?: string | null } | null;
   return {
     ...row,
     erp_payment_terms_days: companies?.erp_payment_terms_days ?? null,
-    customer_name: companies?.name ?? null,
+    customer_name: companies ? companyDisplayName({ name: companies.name ?? '', short_name: companies.short_name }) : null,
     author_user_ids: authors.map((a) => a.user_id),
     erp_due_date: (row.erp_due_date as string | null | undefined) ?? null,
     received_date: (row.received_date as string | null | undefined) ?? null,
@@ -232,18 +236,26 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
 
 /**
  * List all incoming payments in the caller's org (RLS scopes org).
- * Optional `customerId` filters to one customer.
+ * Optional `customerId` filters to one customer. `salesInvoiceId` narrows to receipts attached to that
+ * invoice either by the native FK or by an ERP-reported JSON allocation, before paging.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
  *
  * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
  * list via successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
-  params?: { customerId?: string } & PageParams,
+  params?: { customerId?: string; salesInvoiceId?: string } & PageParams,
 ): Promise<IncomingPaymentRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
     if (params?.customerId) query = query.eq('customer_id', params.customerId);
+    if (params?.salesInvoiceId) {
+      const invoiceId = params.salesInvoiceId;
+      query = query.or(`sales_invoice_id.eq.${invoiceId},allocation_details.cs.[{"invoice_id":"${invoiceId}"}]`)
+        .neq('status', 'Scheduled')
+        .is('erp_cancelled_at', null)
+        .is('cancelled_at', null);
+    }
     return query
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -299,6 +311,15 @@ export async function setSalesInvoiceProject(siId: string, projectId: string): P
     p_project_id: projectId,
   });
   if (error) throwWrite(error);
+}
+
+export async function getOrgReadsErpLedger(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('org_reads_erp_ledger');
+  if (error) throwWrite(error);
+  if (typeof data !== 'boolean') {
+    throw new AppError('Ledger basis reading unavailable', 'invalid-ledger-basis');
+  }
+  return data;
 }
 
 export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {

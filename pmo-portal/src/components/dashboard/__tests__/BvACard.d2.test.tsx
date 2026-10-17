@@ -19,20 +19,26 @@ const projects: TopProject[] = [
     id: 'd1',
     name: 'Meridian Steelworks',
     client_name: 'Meridian',
+    currency: 'USD',
     contract_value: 5_000_000,
     budget: 4_700_000,
     spent: 2_100_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
   {
     // 98% utilization → at-risk
     id: 'd2',
     name: 'SunVolt Install',
     client_name: 'SunVolt',
+    currency: 'USD',
     contract_value: 3_000_000,
     budget: 2_000_000,
     spent: 1_960_000,
     status: 'Ongoing Project',
+    actual_complete: true,
+    actual_currency: 'USD',
   },
 ];
 

@@ -61,7 +61,7 @@ describe('MilestoneStrip at-risk state (AC-DEL-009)', () => {
     render$();
 
     expect(screen.getByText('Overdue')).toBeInTheDocument();
-    const target = screen.getByText('Target 01 May');
+    const target = screen.getByText('Target 01 May, 2024');
     expect(target).toBeInTheDocument();
     expect(target.className).toContain('text-warning-foreground');
   });

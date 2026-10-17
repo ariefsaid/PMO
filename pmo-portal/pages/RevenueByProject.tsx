@@ -131,7 +131,7 @@ const RevenueByProject: React.FC = () => {
     },
     {
       key: 'total_amount',
-      header: t('financeCopy.totalRevenue', "Total Revenue"),
+      header: `${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`,
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -142,7 +142,7 @@ const RevenueByProject: React.FC = () => {
     },
     {
       key: 'open_ar',
-      header: t('financeCopy.openAR', "Open AR"),
+      header: `${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`,
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
@@ -167,10 +167,22 @@ const RevenueByProject: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.revenueByProject', "Revenue by Project")}
-      description={t(
-        'revenueByProject.subtitle',
-        'Project revenue, with a separate Unassigned group for invoices not linked to a project.',
-      )}
+      description={
+        <>
+          <span>
+            {t(
+              'revenueByProject.subtitle',
+              "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
+            )}
+          </span>
+          <span className="mt-1 block">
+            {t(
+              'uxs37.basisDescription',
+              'Billed work excludes tax; open receivables include tax owed. Each amount stays in its invoice currency.',
+            )}
+          </span>
+        </>
+      }
       primaryAction={
         <Button variant="outline" onClick={() => navigate('/projects')}>
           <Icon name="pipe" className="size-4 mr-2" />
@@ -182,7 +194,7 @@ const RevenueByProject: React.FC = () => {
           fabricated $0 that reads as a real figure for an org that may bill millions. */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
-          label={t('financeCopy.totalRevenue', "Total Revenue")}
+          label={`${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`}
           value={money(revenueTotals)}
           icon="dollar"
           tone="blue"
@@ -190,7 +202,7 @@ const RevenueByProject: React.FC = () => {
           error={isError || currencyError}
         />
         <KPITile
-          label={t('financeCopy.openAR', "Open AR")}
+          label={`${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`}
           value={money(openARTotals)}
           icon="dollar"
           tone="amber"

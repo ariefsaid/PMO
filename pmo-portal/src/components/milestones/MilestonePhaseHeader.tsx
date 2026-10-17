@@ -1,4 +1,5 @@
 import React from 'react';
+import { getYear, parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
@@ -37,7 +38,12 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
 }) => {
   // Above the `compact` early return — a hook after it runs conditionally.
   const { t } = useTranslation();
-  const targetLabel = formatTargetDate(targetDate);
+  const targetLabel = targetDate && isOverdue && getYear(parseISO(targetDate)) !== new Date().getFullYear()
+    ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
+        date: formatDayMonth(parseISO(targetDate)),
+        year: getYear(parseISO(targetDate)),
+      })
+    : formatTargetDate(targetDate);
 
   if (variant === 'compact') {
     return (
@@ -70,17 +76,17 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
           {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
               token the "Back to Sales Pipeline" link (PipelineLens) already uses for blue text. */}
-          {isCurrent && <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
+          {isCurrent && <span className="text-xs font-semibold uppercase tracking-[0.04em] text-primary-text">{t('projectDetail.milestones.current', 'Current')}</span>}
           {isOverdue && <StatusPill variant="overdue">{t('projectDetail.milestones.overdue', 'Overdue')}</StatusPill>}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
           {weightShare != null && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: weightShare })}
             </span>
           )}
           {targetLabel && (
-            <span className={`text-[11px] ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
+            <span className={`text-xs ${isOverdue ? 'text-warning-foreground font-semibold' : 'text-muted-foreground'}`}>
               {targetLabel}
             </span>
           )}
@@ -92,7 +98,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
             // AC-RAM-004 (#688): text-primary + opacity-60 measured 3.58:1 in dark (sub-AA). Matches
             // MilestoneStrip's own compact-row Edit button: text-primary-text at full opacity, no
             // dimming — hover keeps the underline as the only additional affordance.
-            className="mt-1 text-[11px] font-semibold text-primary-text hover:underline"
+            className="touch-target mt-1 inline-flex min-h-8 items-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
             onClick={onEditProgress}
           >
             {t('projectDetail.milestones.editProgress', 'Edit progress')}

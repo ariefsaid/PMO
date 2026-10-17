@@ -69,6 +69,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
     archive: { mutateAsync: vi.fn() }, cloneVersion: { mutateAsync: vi.fn() },
@@ -76,10 +77,13 @@ vi.mock('@/src/hooks/useBudget', () => ({
     deleteLineItem: { mutateAsync: vi.fn() },
   }),
 }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => projectTransition,
@@ -206,6 +210,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(rail).getByText('Alice Manager')).toBeInTheDocument();
     expect(within(rail).getByText('Customer PO ref')).toBeInTheDocument();
     expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
+    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
+    expect(rail.querySelector('details')).not.toHaveAttribute('open');
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
@@ -224,6 +230,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     renderAt('/projects/p1');
 
     const rail = screen.getByTestId('project-detail-rail');
+    await userEvent.click(within(rail).getByText('Project details and actions'));
     const changeStatus = within(rail).getByRole('button', { name: /change status/i });
     expect(changeStatus).toBeInTheDocument();
     expect(changeStatus.className).toContain('bg-primary');
@@ -235,7 +242,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
 
-  it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', () => {
+  it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', async () => {
     const cases = [
       ['/projects/p1/budget', /new version/i],
       ['/projects/p1/procurement', /new request/i],
@@ -246,6 +253,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     for (const [path, name] of cases) {
       const { unmount } = renderAt(path);
       const rail = screen.getByTestId('project-detail-rail');
+      await userEvent.click(within(rail).getByText('Project details and actions'));
       expect(within(rail).getByRole('button', { name: /change status/i }).className).toContain('bg-primary');
       const tabCta = screen.getAllByRole('button', { name })[0];
       expect(tabCta.className).toContain('bg-background');
@@ -254,29 +262,25 @@ describe('ProjectDetail shell (decomposition)', () => {
     }
   });
 
-  it('I-3: mobile record render moves Change status into a sticky bottom action bar and removes the rail action copy', () => {
+  it('UX-002: mobile keeps record-wide transitions discoverable without a fixed action covering the selected work', async () => {
     desktopBox.value = false;
-    renderAt('/projects/p1');
+    renderAt('/projects/p1/documents');
 
-    const sticky = screen.getByTestId('mobile-sticky-action');
-    expect(sticky).toHaveAttribute('data-mobile-action-bar');
-    expect(sticky.className).toMatch(/fixed|sticky/);
-    expect(sticky.className).toContain('bottom-0');
-    expect(sticky.textContent).toMatch(/change status/i);
-    expect(sticky.getAttribute('style') ?? '').toContain('safe-area-inset-bottom');
-
+    expect(screen.queryByTestId('mobile-sticky-action')).not.toBeInTheDocument();
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Document register');
     const rail = screen.getByTestId('project-detail-rail');
-    expect(within(rail).queryByRole('button', { name: /change status/i })).toBeNull();
+    await userEvent.click(within(rail).getByText('Project details and actions'));
+    expect(within(rail).getByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
   it('passes committed PO spend through to the header and Overview budget utilization', () => {
     committedSpendState.data = 2_350_000;
     renderAt('/projects/p1');
 
-    expect(screen.getByText('Committed')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,350,000').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/budget committed/i)).toBeInTheDocument();
-    expect(screen.getByLabelText('Budget committed: 50% of budget')).toBeInTheDocument();
+    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
+    expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Actual spending: 50% of budget')).toBeInTheDocument();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {
@@ -338,7 +342,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     // the goal (the Budget section is shown on the deep-link) stays honest; we no
     // longer assert the duplicate heading the change removed.
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
+    // S-04 / DD-MONEY-4: with no Active version the lead says so — never "$0" as a budget.
+    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', () => {

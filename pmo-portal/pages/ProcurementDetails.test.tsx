@@ -567,6 +567,41 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
   });
 
+  it('AC-S20-001: one complete decision area follows request identity, value and budget evidence in keyboard order', async () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    expect(document.querySelector('[data-testid="mobile-sticky-action"]')).toBeNull();
+    const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
+    const requestValue = screen.getByText('PR value').closest('[data-testid="stat-tile"]')!;
+    const decision = screen.getByTestId('decision-card');
+    expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
+    expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
+    expect(requestValue.compareDocumentPosition(budgetEvidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(budgetEvidence.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(decision).getAllByRole('button', { name: /approve/i })).toHaveLength(1);
+    expect(within(decision).getAllByRole('button', { name: /reject/i })).toHaveLength(1);
+    expect(within(decision).getAllByRole('button', { name: /cancel request/i })).toHaveLength(1);
+
+    within(decision).getByRole('button', { name: /add a note/i }).focus();
+    await userEvent.tab();
+    expect(within(decision).getByRole('button', { name: /approve/i })).toHaveFocus();
+    await userEvent.tab();
+    expect(within(decision).getByRole('button', { name: /reject/i })).toHaveFocus();
+    await userEvent.tab();
+    expect(within(decision).getByRole('button', { name: /cancel request/i })).toHaveFocus();
+  });
+
+  it('AC-S20-002: policy and separation-of-duties detail follows financial evidence without losing its explanation', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const evidence = screen.getByRole('heading', { name: /budget impact/i });
+    const policy = screen.getByTestId('sod-ready-hint');
+    expect(evidence.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(policy).toHaveTextContent(/requester cannot self-approve/i);
+  });
+
   it('AC-805: no Approve/Reject for Draft status (not a legal transition from Draft)', () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Draft' };

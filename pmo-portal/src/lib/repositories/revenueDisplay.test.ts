@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveArDueDate } from './revenueDisplay';
+import { deriveArDueDate, overdueAgeDays } from './revenueDisplay';
 
 /**
  * AC-SAR-051 — deriveArDueDate matrix (OWNS AC-SAR-051).
@@ -146,6 +146,19 @@ describe('deriveArDueDate — AC-SAR-051 matrix', () => {
     expect(result).toBe('2026-07-15');
   });
 });
+describe('overdueAgeDays — organization calendar dates', () => {
+  it('counts overdue days without treating the due date itself as late', () => {
+    expect(overdueAgeDays('2026-10-15', '2026-10-16')).toBe(1);
+    expect(overdueAgeDays('2026-10-16', '2026-10-16')).toBe(0);
+    expect(overdueAgeDays('2026-10-17', '2026-10-16')).toBe(-1);
+  });
+
+  it('returns unknown when either date is missing', () => {
+    expect(overdueAgeDays(null, '2026-10-16')).toBeNull();
+    expect(overdueAgeDays('2026-10-15', null)).toBeNull();
+  });
+});
+
 describe('deriveArDueDate — #767 received-date anchor', () => {
   it('AC-DUE-002 due = received date + customer terms, not invoice date + terms', () => {
     expect(deriveArDueDate('2026-07-01', 30, null, '2026-07-11')).toBe('2026-08-10');

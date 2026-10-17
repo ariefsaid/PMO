@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { deriveMargin, formatExactMoney, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingAfterCost, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits } from './projectFinances';
+import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('money completeness and risk consistency', () => {
+  const categories = [
+    { category: 'Labor', mapped: true, amount: '10.00' },
+    { category: 'Materials', mapped: false, amount: null },
+  ];
+
+  it('requires every budgeted ERP category, but PO-basis completeness is successful read', () => {
+    const actuals = { currency: 'IDR', as_of: null, total: '10.00', excludes_restricted_rows: false, categories };
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor', 'Materials'] })).toBe(false);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, actuals, budgetedCategories: ['Labor'] })).toBe(true);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, categories: [] })).toBe(false);
+    expect(isActualComplete({ basis: 'erp', readSucceeded: true, coverageCount: 0, coverageTotal: 0 })).toBe(false);
+    expect(isActualComplete({ basis: 'pmo', readSucceeded: true })).toBe(true);
+    expect(isActualComplete({ basis: 'pmo', readSucceeded: false })).toBe(false);
+  });
+
+  it.each([
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'USD', actualComplete: true }, true],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'IDR', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'IDR', spent: 90, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 90, actualCurrency: 'USD', actualComplete: false }, false],
+    [{ status: 'Ongoing Project', budget: 0, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 0, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Close Out', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Ongoing Project', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 89.99, actualCurrency: 'USD', actualComplete: true }, false],
+    [{ status: 'Won, Pending KoM', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
+    [{ status: 'On Hold', budget: 100, budgetCurrency: 'USD', projectCurrency: 'USD', spent: 95, actualCurrency: 'USD', actualComplete: true }, true],
+  ] as const)('applies one at-risk truth table', (input, expected) => expect(isMoneyAtRisk(input)).toBe(expected));
+});
 
 describe('exact project-finance money', () => {
   it('AC-PFIN-013 subtracts scale-2 amounts without floating-point drift', () => {
@@ -68,18 +98,62 @@ describe('exact project-finance money', () => {
     expect(isProjectFinances(value)).toBe(false);
   });
 
+  it('DD-MONEY-2 derives contract remaining after cost with exact minor-unit arithmetic', () => {
+    const actuals = { currency: 'USD', as_of: null, total: '0.10', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '0.10' }] };
+    const remaining = deriveContractRemainingAfterCost(0.30, actuals, 'USD');
+    expect(remaining).toBe('0.20');
+    expect(formatSignedExactMoney(deriveContractRemainingAfterCost(0.10, { ...actuals, total: '0.30' }, 'USD')!, 'USD', 'en-US'))
+      .toBe('−$0.20');
+    expect(deriveContractRemainingAfterCost(0.30, { ...actuals, total: null }, 'USD')).toBeNull();
+  });
+
+  it('UX-023 treats known zero as complete but rejects missing, partial, or restricted Actuals', () => {
+    const actuals = { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] };
+    expect(hasCompleteActuals(actuals)).toBe(true);
+    expect(hasCompleteActuals({ ...actuals, categories: [] })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, total: null })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, categories: [...actuals.categories, { category: 'Materials', mapped: false, amount: null }] })).toBe(false);
+    expect(hasCompleteActuals({ ...actuals, excludes_restricted_rows: true })).toBe(false);
+  });
+
+  it('DD-MONEY-1 selects Actual from ledger ownership, independent of procurement ownership', () => {
+    const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
+    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '50.00', currency: 'USD', basis: 'erp' });
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '125.00', currency: 'IDR', basis: 'pmo' });
+    expect(deriveActualPosition({ ledgerBasis: 'erp', committedSpend: undefined, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: '50.00', basis: 'erp' });
+    expect(deriveContractRemainingFromPosition(100, { amount: '50.00', currency: 'USD' }, 'IDR')).toBeNull();
+  });
+
+  it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
+    const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: false, commitmentError: true, projectCurrency: 'IDR', actuals }).amount).toBeNull();
+    expect(deriveActualPosition({ ledgerBasis: 'unavailable', committedSpend: 125, commitmentPending: false, commitmentError: false, projectCurrency: 'IDR', actuals }))
+      .toMatchObject({ amount: null, basis: 'unavailable', complete: false });
+  });
+
   it('AC-PFIN-013 derives a same-currency margin from billed work and mapped costs only', () => {
     const invoice = { currency: 'USD', invoice_count: 1, invoiced: '150.00', settled: null, outstanding: null,
       missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
     const actuals = { currency: 'USD', as_of: '2026-10-01T00:00:00Z', total: '50.00',
-      excludes_restricted_rows: false, categories: [] };
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
     expect(deriveMargin(invoice, actuals)).toEqual({ amount: '80.00', reason: null });
+    expect(deriveMargin(invoice, { ...actuals, categories: [] })).toEqual({ amount: null, reason: 'actuals-unavailable' });
+    expect(deriveMargin(invoice, { ...actuals, categories: [{ category: 'Materials', mapped: false, amount: null }] }))
+      .toEqual({ amount: null, reason: 'actuals-unavailable' });
   });
 
   it('AC-PFIN-013 withholds margins for currency mismatch or incomplete work and actuals', () => {
     const invoice = { currency: 'IDR', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
       missing_amount: 0, missing_outstanding: 1, tax_basis: 'inclusive' as const, work_revenue: '130.00', missing_work: 0 };
-    const actuals = { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false, categories: [] };
+    const actuals = { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] };
     expect(deriveMargin(invoice, actuals)).toEqual({ amount: null, reason: 'different-currencies' });
     expect(deriveMargin({ ...invoice, currency: 'USD', work_revenue: null }, actuals))
       .toEqual({ amount: null, reason: 'work-unavailable' });

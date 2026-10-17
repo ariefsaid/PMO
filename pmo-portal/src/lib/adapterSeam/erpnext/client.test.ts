@@ -134,6 +134,21 @@ function fetchDeps(fetchImpl: (url: string, init?: RequestInit) => Promise<Respo
 }
 
 describe('erpnext/client', () => {
+  it('does not log upstream error message text for exhausted server errors', async () => {
+    const secretText = 'synthetic upstream detail must not be logged';
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const deps = fetchDeps(async () => jsonResponse(503, { exc_type: 'SyntheticFailure', message: secretText }));
+      await expect(getDoc(deps, 'Supplier', 'SYNTHETIC-SUPPLIER')).rejects.toMatchObject({ code: 'external-unreachable' });
+      expect(log).toHaveBeenCalled();
+      expect(log.mock.calls.flat().join(' ')).not.toContain(secretText);
+      expect(log.mock.calls.flat().join(' ')).toContain('503');
+      expect(log.mock.calls.flat().join(' ')).toContain('SyntheticFailure');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it('AC-ENA-011 sends Authorization: token <key>:<secret> and URL-encodes doctype spaces', async () => {
     const deps = fetchDeps(async () => jsonResponse(200, { name: 'ACC-PINV-2026-00001' }));
     await createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' });

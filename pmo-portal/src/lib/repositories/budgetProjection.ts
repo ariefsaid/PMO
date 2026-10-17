@@ -18,6 +18,7 @@ import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budget
 import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
 import { budgetAccountIdentity } from '@/src/lib/adapterSeam/erpnext/budgetAccountIdentity';
 import type { Database } from '@/src/lib/supabase/database.types';
+import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 
@@ -122,6 +123,23 @@ export interface CategoryAccountMapRow {
   category: BudgetCategory;
   erpAccount: string;
   isPushTarget: boolean;
+}
+
+export interface BudgetAccountCatalogue {
+  accounts: BudgetPostingAccount[];
+  source: 'mirror' | 'erp-fallback';
+}
+
+/** Reads the company-scoped chart proposal catalogue through the authenticated edge-function seam. */
+export async function listBudgetPostingAccountCatalogue(): Promise<BudgetAccountCatalogue> {
+  const { data, error } = await supabase.functions.invoke<BudgetAccountCatalogue>('external-items', {
+    body: { purpose: 'budget-accounts' },
+  });
+  if (error) throw toAppError(error);
+  if (!data || !Array.isArray(data.accounts) || (data.source !== 'mirror' && data.source !== 'erp-fallback')) {
+    throw new AppError('The ERP account catalogue response was incomplete.', 'external-unreachable');
+  }
+  return data;
 }
 
 const MAP_COLUMNS = 'id, category, erp_account, is_push_target';

@@ -2937,6 +2937,64 @@ accounting truth, so PMO does not re-derive aging. Known limit: if ERP already c
 a later sync of that invoice stores ERP's value over a newer one recorded in PMO; revisit with a
 field-only update route if it bites.
 
+## DD-MONEY-1..4 — one money language on every surface (Director, 2026-10-16)
+
+The 2026-10-16 trace found six meanings of "spent" and five of "margin" across the project header, Overview,
+projects list, Budget tab and dashboards. For an org whose books run in ERPNext, every surface except Project
+finances read 0 cost and a 100% margin, and the margin looked healthy. The newest rule (project-finances spec
+FR-PFIN-014/017) was applied to its own section only. Owner direction: PMO displays what ERPNext calculates;
+unknown is never zero (PRODUCT.md).
+- **DD-MONEY-1 — Actual is one figure.** Where the org reads its ledger from ERPNext, a project's Actual is its
+  mapped ledger cost (the `project_mapped_actuals` basis, the same as Project finances). Otherwise it's
+  `OD-BUDGET-2`'s committed POs. Header, Overview, projects list, dashboards, Budget tab and PM dashboard all
+  read that one figure. The never-written `projects.spent` and `budget_line_items.actual_amount` are no longer
+  read. This ends `OD-BUDGET-2`'s interim "reads 0 before the procurement module" for ERP-run orgs; its
+  committed basis still defines **Committed**.
+  *Clarified 2026-10-16 (Director):* "reads its ledger from ERPNext" means the org has an **active ERPNext
+  binding** (`external_org_bindings`, tier `erpnext`, status `active`), read through one server helper that
+  every surface uses. It is not a domain-ownership row: no `ledger::gl_entries` domain is ever assigned, so
+  keying on one silently sent every org, ERP-run ones included, to the committed-PO basis.
+- **DD-MONEY-2 — margin means profit.** "Margin" is billed-work revenue less Actual (FR-PFIN-017).
+  `OD-MARGIN-1`'s on-hand lens keeps its formula fed by DD-MONEY-1's Actual, but it's labelled as contract
+  remaining after cost so far, never "realized margin", because early in a project it isn't profit.
+- **DD-MONEY-3 — Committed with ERP purchasing.** When ERPNext owns the org's procurement domain, Committed
+  reads "not tracked in PMO yet", never 0, until PMO reads ERP's open purchase orders (follow-up).
+- **DD-MONEY-4 — drafts don't drive risk.** `OD-BUDGET-1` stands. A Draft budget never drives spend %,
+  utilization, at-risk or pipeline margin; those read "no active budget" instead of 0% or 100%.
+Owner may veto any of these; they apply the owner's display-only direction and the signed project-finances spec.
+
+## DD-SETUP-1 — budget categories match cost-of-sales accounts (Director, 2026-10-16)
+
+Each budget category's push account is a cost-of-sales (direct-cost group) account in the client's chart.
+Where the chart has none for a category, an account is added in ERPNext rather than borrowing an overhead
+account. Overhead-group accounts that the client tags to projects on purpose may join a category as count-only
+accounts, so existing project costs still show. One account belongs to one category (FR-BV16-003). At setup,
+PMO proposes this from the chart's own grouping and the user confirms once (#1043). First applied by hand for
+the first client on 2026-10-16.
+
+## DD-UX-1..10 — declutter audit decisions (2026-10-16)
+
+From `docs/ux/2026-10-16-declutter-audit.md` § Owner decisions. 1 and 2 were agreed by the owner; 3–10 are
+Director decisions within PRODUCT.md's principles.
+1. The dashboard spend bar is renamed "Spending vs contract" now. A budget-usage bar follows once budgets are active.
+2. Each project shows one money summary (contract, spent, billed, received), drilling into spending, forecast
+   and billing. Missing data says why, never 0.
+3. Sales keeps its place in navigation, and Approvals becomes reachable from every screen before any destination
+   is removed.
+4. Integration setup is guided inside PMO: proposed matches, reviewed by the user, recoverable by an operator.
+   Clients never need ERPNext access.
+5. No silent identity or account reassignment. The first consequential match is reviewed; unchanged links
+   maintain themselves, and only ambiguity or new exceptions resurface.
+6. "Send an invoice" means the approved-PDF handoff with delivery and received states. Integrated email
+   delivery is a new capability and needs owner sign-off when proposed.
+7. Project billing starts from one entry with a business-labelled method choice. Contract, work-order and
+   quantity billing stay underneath.
+8. Phone gets daily parity: check money, approve, record time and receipts. Bulk configuration stays
+   desktop-first but never dead-ends a phone user.
+9. Plain business labels on screen, with accounting and source detail on demand. Actual, Committed and Margin
+   follow DD-MONEY-1..4.
+10. An expense claim starts from the receipt or first line, with the same approval route and evidence rules.
+
 ## DD-OPS-12 — RIS stays on ERPNext v16; the budget push is rebuilt for v16 (owner, 2026-10-15)
 
 **[DD-OPS-12]** `DD-OPS-11`'s re-proof never exercised the budget push. On 2026-10-15 the production sweep's
@@ -3159,6 +3217,8 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `docs/plans/2
 **DD-VWH-15..22 ratified (Director, 2026-10-07, #876 slice 2)** — as proposed in `docs/specs/vendor-withholding.spec.md` slice-2 decisions and ADR-0084, with two Director calls on its open questions: **OQ-VWH-6** — the PPh type IS stored on every bill that withholds, standalone included, so a later no-ERP tax register can tell PPh 23 from PPh 4(2); **OQ-VWH-8** — the unused "Amount (optional)" field is hidden on ERP-connected bills (it was never sent). If plan Task 0 shows ERPNext applying a default template over an empty one, the build stops and comes back.
 
 **OD-BUDGET-6 (owner, 2026-10-07)** — the person who drafted a budget version cannot activate it; a second person activates (activation also pushes the budget to the ERP). PMO records who drafted each version (created on insert and on clone); a version with no recorded drafter (older or seeded) can be activated by Admin or Finance only.
+
+**OD-BUDGET-6 amendment — sole-operator exception (owner, 2026-10-16)** — While an org has exactly ONE active member, that member may activate a budget version they drafted or edited. The exception switches itself off as soon as a second active member exists; nobody sets or clears it. Activation asks for an explicit extra confirmation, and the version history records the activation as drafter-activated (sole operator). Every other OD-BUDGET-6 / DD-BUDGET-7 rule is unchanged, and Admin break-glass still never defeats SoD when there are two or more members (OD-PROC-8). Why: the first client has one operator today, and the strict rule blocked every budget. A personal per-user exemption was rejected because it would outlive the team's arrival. Note: an invited member counts as active from the moment of invitation (invites stamp the profile active), so the exception ends when the colleague is invited, not when they first sign in. That's the safe direction.
 
 **DD-BUDGET-7 (Director)** — “Drafter” for activation separation of duties means every human who created a version or inserted, updated, or deleted any of its line items. None of those users may activate that version, regardless of role. Current client-writable budget-version header fields contain no money values; client UPDATE is limited to status, so no header-money editor tracking is needed. The version creator is retained in the editor set; clone creation records the cloner on the clone only. With no recorded editor, the existing OD-BUDGET-6 rule remains: only Admin or Finance may activate. Editor evidence is append-only and client-readable only within the version’s org; the activation RPC remains authoritative.
 

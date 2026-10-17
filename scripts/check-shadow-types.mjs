@@ -49,6 +49,10 @@ const ALLOW = [
   //    column overlap with a mirror table is coincidental.
   { file: 'src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts', name: 'ExpenseJournalRow',
     reason: 'An ERPNext Journal Entry account row (the request body), not a row of erp_gl_entry_mirror.' },
+  { file: 'src/lib/adapterSeam/erpnext/ledgerFetch.ts', name: 'GlEntryRow',
+    reason: 'A GL Entry as ERPNext returns it (company always present); the mirror column is nullable only for legacy rows awaiting replay.' },
+  { file: 'src/lib/adapterSeam/erpnext/expenseAccountRules.ts', name: 'ErpAccountFacts',
+    reason: 'Account facts read live from ERPNext for expense-map validation; the overlap with erp_account_mirror (#897) is coincidental.' },
 
   // ── Deliberate narrowings at a WRITE boundary. The DAL requires a value the column permits to be
   //    NULL, which is a product rule, not drift. They still shadow, so they are listed rather than

@@ -441,7 +441,8 @@ test(
     // The corrected goal-oracle (AC-IRUX-004): the watermark row time must NOT be presented as a
     // last successful sync, even though a recent watermark exists in the DB.
     await expect(card.getByText(/Last sync:/i)).not.toBeVisible({ timeout: 10_000 });
-    // A live transferred record must be checked to prove usable data movement.
-    await expect(card.getByText(/check an actual transferred record/i)).toBeVisible({ timeout: 10_000 });
+    // Verification is an explicit task with a direct doorway, not a search instruction.
+    await expect(card.getByText(/not yet verified/i)).toBeVisible({ timeout: 10_000 });
+    await expect(card.getByRole('link', { name: /review connected records/i })).toHaveAttribute('href', '/projects');
   },
 );

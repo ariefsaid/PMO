@@ -297,6 +297,7 @@ import {
   setSalesInvoiceEfaktur,
   setSalesInvoiceProject,
   getProjectFinances,
+  getOrgReadsErpLedger,
 } from '@/src/lib/db/revenue';
 import {
   nativeReadOnly,
@@ -677,6 +678,7 @@ const revenue: RevenueRepository = {
   getRevenueByProject: () => wrap(() => getRevenueByProject()),
   setProject: (siId, projectId) => wrap(() => setSalesInvoiceProject(siId, projectId)),
   getProjectFinances: (projectId) => wrap(() => getProjectFinances(projectId)),
+  getOrgReadsErpLedger: () => wrap(() => getOrgReadsErpLedger()),
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
@@ -1115,18 +1117,21 @@ const integrationsImpl: IntegrationsRepository = {
 
       if (watermarkError) throw watermarkError;
 
-      const { count: errorCount, error: outboxError } = await supabase
+      const { data: outboxRows, error: outboxError } = await supabase
         .from('external_command_outbox')
-        // `id`, NOT `*`: migration 0134 revoked the table-level SELECT and re-issued it per column,
-        // deliberately withholding `idempotency_key`. A `*` count therefore 403s for every member,
-        // which threw here and made the whole health surface null. Count a granted column instead —
-        // this respects the narrowing rather than re-granting it.
-        .select('id', { count: 'exact', head: true })
+        // `state` is explicitly granted by migration 0134. Select only it: the single RLS-scoped
+        // read lets us distinguish normal pending work from states that need attention, without
+        // reading payloads or widening the table grant.
+        .select('state')
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .in('state', ['pending', 'failed', 'quarantined', 'held']);
 
       if (outboxError) throw outboxError;
+      const state_counts = { pending: 0, failed: 0, quarantined: 0, held: 0 };
+      for (const row of outboxRows ?? []) {
+        if (row.state in state_counts) state_counts[row.state as keyof typeof state_counts] += 1;
+      }
 
       return {
         tier,
@@ -1134,7 +1139,7 @@ const integrationsImpl: IntegrationsRepository = {
         connected_by: binding?.connected_by ?? null,
         connected_at: binding?.connected_at ?? null,
         last_sync: (watermark as { updated_at?: string } | null)?.updated_at ?? null,
-        error_count: errorCount ?? 0,
+        state_counts,
       };
     });
   },

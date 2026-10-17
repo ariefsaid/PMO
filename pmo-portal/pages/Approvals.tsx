@@ -14,10 +14,8 @@ import {
 } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
-import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSection';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
@@ -620,6 +618,8 @@ const ApprovalsPage: React.FC = () => {
 
   const canApproveProcurement = may('transition', 'procurement');
   const canApproveTimesheets = may('transition', 'approval');
+  const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
+  const canApproveInvoices = may('transition', 'salesInvoice');
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
@@ -628,10 +628,10 @@ const ApprovalsPage: React.FC = () => {
   const invoices = useInvoicesAwaitingViewer();
   const expenseQuery = useExpenseClaimsAwaitingDecision();
   const expenseRows = useMemo(
-    () => canApproveProcurement
+    () => canApproveExpenses
       ? claimsAwaitingViewer(expenseQuery.data ?? [], selfId, realRole)
       : [],
-    [canApproveProcurement, expenseQuery.data, selfId, realRole],
+    [canApproveExpenses, expenseQuery.data, selfId, realRole],
   );
 
   const procurementRows = useMemo(
@@ -643,13 +643,13 @@ const ApprovalsPage: React.FC = () => {
   const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
   const timesheetBulk = useTimesheetBulkApprove(timesheetRows);
 
-  const canShowExpenses = canApproveProcurement && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
-  const canShowInvoices = invoices.rows.length > 0 || invoices.isPending || invoices.isError;
+  const canShowExpenses = canApproveExpenses && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
+  const canShowInvoices = canApproveInvoices && (invoices.rows.length > 0 || invoices.isPending || invoices.isError);
   const availableKinds: Scope[] = [
     ...(canApproveProcurement ? ['procurement' as const] : []),
     ...(canApproveTimesheets ? ['timesheets' as const] : []),
-    ...(canShowExpenses ? ['expense' as const] : []),
-    ...(canShowInvoices ? ['invoice' as const] : []),
+    ...(canApproveExpenses ? ['expense' as const] : []),
+    ...(canApproveInvoices && invoices.enabled !== false ? ['invoice' as const] : []),
   ];
   const availableScopes: Scope[] = [
     ...(availableKinds.length > 1 ? (['all'] as const) : []),
@@ -694,6 +694,14 @@ const ApprovalsPage: React.FC = () => {
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
   };
+  // Only name queues this viewer can act on; the empty state must not imply inaccessible work is theirs.
+  const caughtUpLabels = availableKinds.map((kind) => scopeLabels[kind].toLowerCase());
+  const caughtUpKinds = caughtUpLabels.length === 0
+    ? t('approvals.caughtUp.noKinds', 'approvals')
+    : caughtUpLabels.length === 1
+      ? caughtUpLabels[0]
+      : `${caughtUpLabels.slice(0, -1).join(', ')} ${t('approvals.caughtUp.and', 'and')} ${caughtUpLabels[caughtUpLabels.length - 1]}`;
+
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
     if ((activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement) {
@@ -717,6 +725,11 @@ const ApprovalsPage: React.FC = () => {
     }
   }, [queueItems, selectedKey]);
 
+  // One grammar at every width: below `lg` the preview stacks under the queue, so bring it into view.
+  const pickItem = (key: string) => {
+    setSelectedKey(key);
+    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 
   if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices) {
@@ -820,7 +833,8 @@ const ApprovalsPage: React.FC = () => {
           <p className="max-w-[44ch] text-[13px] text-muted-foreground">
             {t(
               'approvals.caughtUp.sub',
-              'Nothing is waiting on your approval right now. New purchase requests, timesheets, expense claims and customer invoices will appear here.',
+              'Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.',
+              { kinds: caughtUpKinds },
             )}
           </p>
         </div>
@@ -829,7 +843,7 @@ const ApprovalsPage: React.FC = () => {
           {activeScope === 'expense' && canShowExpenses && <ExpenseClaimApprovalSection />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
         </div>
-      ) : isLargeScreen ? (
+      ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
           <Card
             variant="bare"
@@ -870,7 +884,7 @@ const ApprovalsPage: React.FC = () => {
                   count={pendingProc}
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
-                  onSelect={setSelectedKey}
+                  onSelect={pickItem}
                   isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
                   isError={procError}
                   onRetry={() => refetchProc()}
@@ -891,7 +905,7 @@ const ApprovalsPage: React.FC = () => {
                   count={pendingTs}
                   items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
                   selectedKey={selectedKey}
-                  onSelect={setSelectedKey}
+                  onSelect={pickItem}
                   isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
                   isError={tsError}
                   onRetry={() => refetchTimesheets()}
@@ -913,6 +927,7 @@ const ApprovalsPage: React.FC = () => {
             variant="bare"
             role="region"
             aria-label={t('approvals.previewRegionLabel', 'Approval preview')}
+            id="approvals-preview"
             data-testid="approvals-preview-region"
             className="min-w-0"
           >
@@ -926,22 +941,6 @@ const ApprovalsPage: React.FC = () => {
               previewFallback
             )}
           </Card>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
-            <section aria-label={t('approvals.mobile.procurementLabel', 'Purchase requests awaiting you')}>
-              <ProcurementApprovalSection />
-            </section>
-          )}
-          {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && (
-            <section data-testid="approvals-timesheets-mobile-section" aria-label={t('approvals.mobile.timesheetsLabel', 'Timesheets awaiting you')}>
-              <h2 className="mb-2 text-sm font-semibold">
-                {t('approvals.mobile.timesheetsLabel', 'Timesheets awaiting you')}
-              </h2>
-              <ApprovalsQueue />
-            </section>
-          )}
         </div>
       )}
 

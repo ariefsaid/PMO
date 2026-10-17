@@ -150,6 +150,14 @@ describe('SalesInvoices — currency (#530 / AC-L10N-020)', () => {
 });
 
 describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
+  it('keeps the ERP invoice number and document date visible when their years differ', () => {
+    salesInvoicesState.data = [{ ...SEED_INVOICES[0], si_number: 'ACC-SINV-2025-00001', invoice_date: '2026-07-01' }];
+    renderAs('Finance');
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('ACC-SINV-2025-00001');
+    expect(table).toContain(formatDateOnly('2026-07-01'));
+  });
+
   it('renders the Due Date column with derived values', () => {
     renderAs('Project Manager');
 
@@ -215,6 +223,7 @@ describe('#548 (OD-TAX-1): the Amount column carries the invoice’s tax basis',
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
     expect(labels[0]).toHaveTextContent('incl. PPN');
     expect(labels[1]).toHaveTextContent('excl. PPN');
+    expect(screen.queryByText(/rate not recorded|DPP not recorded/i)).not.toBeInTheDocument();
   });
 
   it('#548: an invoice with no amount yet shows neither a figure nor a basis', () => {

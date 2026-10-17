@@ -8,8 +8,8 @@ import { PMDashboard } from '../PMDashboard';
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({
+vi.mock('@/src/hooks/useDashboard', () => ({
+  usePMDashboardProjects: () => ({
     data: [
       {
         id: 'p1',
@@ -17,10 +17,11 @@ vi.mock('@/src/hooks/useProjects', () => ({
         contract_value: 4_000_000, currency: 'USD',
         budget: 3_000_000,
         spent: 1_000_000,
+        realized_margin_pct: null,
+        contract_remaining: 3_000_000,
         status: 'Ongoing Project',
         project_manager_id: 'pm-1',
-        client: { name: 'Acme' },
-        pm: null,
+        client_name: 'Acme',
       },
     ],
     isPending: false,

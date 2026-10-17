@@ -14,9 +14,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
 
-const { listMock } = vi.hoisted(() => ({ listMock: vi.fn() }));
+const { listMock, catalogueMock } = vi.hoisted(() => ({ listMock: vi.fn(), catalogueMock: vi.fn() }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetCategoryAccountMap: listMock,
+  listBudgetPostingAccountCatalogue: catalogueMock,
   createBudgetCategoryAccountMapRow: vi.fn(),
   updateBudgetCategoryAccountMapRow: vi.fn(),
   deleteBudgetCategoryAccountMapRow: vi.fn(),
@@ -46,6 +47,12 @@ const renderPage = () =>
 beforeEach(() => {
   realRole = 'Admin';
   listMock.mockReset();
+  catalogueMock.mockReset();
+  catalogueMock.mockResolvedValue({ source: 'mirror', accounts: [
+    { account: '5100 - Direct Costs', accountName: 'Labor', accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: '5200 - Materials', accountName: 'Materials', accountNumber: '5200', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: '5400 - Travel Expenses', accountName: 'Travel expenses', accountNumber: '5400', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+  ] });
 });
 
 describe('Budget account map in Bahasa (#693 F-1)', () => {
@@ -54,7 +61,9 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     renderPage();
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
     expect(screen.getByText('Labor')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Petakan Biaya khusus' }));
+    const row = (await screen.findByText('Biaya khusus')).closest('tr')!;
+    await userEvent.click(within(row).getByText('Opsi akun'));
+    await userEvent.click(within(row).getByRole('button', { name: 'Petakan Biaya khusus' }));
     expect(await screen.findByRole('dialog', { name: 'Petakan Biaya khusus' })).toBeInTheDocument();
   });
 
@@ -72,9 +81,11 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
     expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(7);
-    expect(screen.getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Petakan Materials' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hapus 5100 - Direct Costs' })).toBeInTheDocument();
+    const labor = (await screen.findByText('Labor')).closest('tr')!;
+    expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
+    await userEvent.click(within(labor).getByText('Opsi akun'));
+    expect(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();
+    expect(within(labor).getByRole('button', { name: 'Hapus 5100 - Direct Costs' })).toBeInTheDocument();
   });
 
   it('#693: the load-error state is Bahasa', async () => {
@@ -84,23 +95,28 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });
 
-  it('#693: the map form and its conflict message are Bahasa', async () => {
+  it('#693: the map form uses the searchable catalogue and excludes an account already assigned elsewhere', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Petakan Materials' }));
+    const materials = (await screen.findByText('Materials')).closest('tr')!;
+    await userEvent.click(within(materials).getByText('Opsi akun'));
+    await userEvent.click(within(materials).getByRole('button', { name: 'Petakan Materials' }));
     const dialog = await screen.findByRole('dialog', { name: 'Petakan Materials' });
     expect(within(dialog).getByText('Pilih akun ERP tujuan pengiriman kategori ini')).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText('mis. 5100 - Biaya Langsung')).toBeInTheDocument();
-    await userEvent.type(within(dialog).getByLabelText(/Akun ERP/), '5100 - Direct Costs');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pemetaan' }));
-    // The message renders in the field error AND the error summary — both must read Bahasa.
-    expect((await within(dialog).findAllByText('5100 - Direct Costs sudah dipetakan ke Labor.')).length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole('combobox', { name: /Akun ERP/ })).toHaveTextContent('mis. 5100 - Biaya Langsung');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /Akun ERP/ }));
+    const search = await screen.findByRole('searchbox');
+    await userEvent.type(search, '5100 - Direct Costs');
+    expect(screen.queryByRole('option', { name: /5100 - Direct Costs/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Simpan pemetaan' })).toBeDisabled();
   });
 
   it('#693: the unmap confirm is Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Hapus 5100 - Direct Costs' }));
+    const labor = (await screen.findByText('Labor')).closest('tr')!;
+    await userEvent.click(within(labor).getByText('Opsi akun'));
+    await userEvent.click(within(labor).getByRole('button', { name: 'Hapus 5100 - Direct Costs' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Hapus pemetaan Labor?' });
     expect(within(confirm).getByRole('button', { name: 'Hapus pemetaan' })).toBeInTheDocument();
     expect(

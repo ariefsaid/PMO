@@ -8,6 +8,7 @@ import {
   EntityFormModal,
   FormGrid,
   FormSection,
+  GateNotice,
   ListState,
   StatusPill,
   TextField,
@@ -20,15 +21,17 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
 import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
-import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
-import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
 
 /**
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 7 keys an expense posting needs.
  * Saving goes through `external-set-company`, which reads the account from ERPNext and refuses one that does not fit
  * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); its message is shown in the form.
  * Admin-only actions via `can('manage', 'integration')`; the table and the edge action are the authority (ADR-0016).
+ *
+ * S-12 (UX-080, RF-053): the readiness states are distinct — not connected, connected-but-switched-off,
+ * unknown, incomplete and ready each name their own missing step, so a connected org is never sent
+ * around a reconnect loop. Readiness comes from the shared `useExpensePostingReadiness` derivation.
  */
 const QUERY_KEY = ['expense-account-map'] as const;
 
@@ -36,12 +39,8 @@ const ExpenseAccountMap: React.FC = () => {
   const { t } = useTranslation();
   const canManage = usePermission()('manage', 'integration');
   const navigate = useNavigate();
-  const binding = useErpnextBinding();
-  const ownership = useExternalDomainOwnership();
-  const expensesActive = Boolean(EXPENSES_EMPLOYABLE && binding.data?.status === 'active'
-    && ownership.data?.some((row) => row.externalTier === 'erpnext' && row.domain === 'expenses'));
-  const readinessResolved = !binding.isPending && !ownership.isPending;
-  const isReady = expensesActive && !binding.isError && !ownership.isError;
+  const readiness = useExpensePostingReadiness();
+  const isReady = readiness.state === 'ready';
   const { toast } = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<ExpenseAccountKey | null>(null);
@@ -53,6 +52,10 @@ const ExpenseAccountMap: React.FC = () => {
     queryFn: () => repositories.expensePostings.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
+  const unmappedCount = useMemo(
+    () => EXPENSE_ACCOUNT_KEYS.filter((key) => !byKey.get(key)).length,
+    [byKey],
+  );
   const label = (key: ExpenseAccountKey): string => ({
     employee_payable: t('admin.expenseMap.key.employeePayable', 'Employee payable'),
     employee_advance: t('admin.expenseMap.key.employeeAdvance', 'Employee advances'),
@@ -99,11 +102,13 @@ const ExpenseAccountMap: React.FC = () => {
     } catch (err) {
       // The server's FR-EXP-112 refusal names the account and the rule — show it verbatim in the form.
       const code = (err as { code?: unknown } | null)?.code;
+      // S-12: the server-side readiness refusal is state-neutral — a connected org must not be told to
+      // connect again (UX-080); the connection setup itself is named as the remedy.
       const connectionRefusal = code === 'CONFIG_REJECTED' || code === 'ERP_NOT_CONNECTED' || code === 'integration-not-connected';
       setSaveError({
         headline: t('admin.expenseMap.error.saveHeadline', 'Couldn’t save the expense account'),
         detail: connectionRefusal
-          ? t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')
+          ? t('uxs12.expensePosting.saveRefused', 'Expense posting isn\'t ready right now, so the account was not saved. Check the ERPNext connection setup in Integrations.')
           : code === 'config-rejected'
             ? t('admin.expenseMap.error.accountRemedy', 'Check the account name and type in ERPNext, then try again. Your entry is kept.')
             : t('admin.expenseMap.error.unknownRemedy', 'Check your connection and try again. Your entry is kept.'),
@@ -123,7 +128,7 @@ const ExpenseAccountMap: React.FC = () => {
   };
 
   return (
-    <section id="expense-account-map" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
+    <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
         {t(
@@ -131,11 +136,30 @@ const ExpenseAccountMap: React.FC = () => {
           'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
         )}
       </p>
-      {readinessResolved && !isReady && (
-        <div role="status" className="mt-3 rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+      {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
+          The map stays readable in every state; only mapping actions wait for readiness. */}
+      {readiness.state === 'notConnected' && (
+        <GateNotice variant="blocked" className="mt-3">
           <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts. Expense posting is not active.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
-        </div>
+        </GateNotice>
+      )}
+      {readiness.state === 'inactive' && (
+        <GateNotice variant="blocked" className="mt-3">
+          <p>{t('uxs12.expensePosting.adminInactive', 'ERPNext is connected, but expense posting is not switched on yet. An Admin can switch it on in Integrations under ERPNext setup.')}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
+        </GateNotice>
+      )}
+      {readiness.state === 'unavailable' && (
+        <GateNotice variant="blocked" className="mt-3">
+          <p>{t('uxs12.expensePosting.adminUnknown', 'Couldn\'t check whether expense posting is ready. Try checking again.')}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={readiness.retry}>{t('uxs12.expensePosting.retryReadiness', 'Check again')}</Button>
+        </GateNotice>
+      )}
+      {isReady && unmappedCount > 0 && (
+        <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+          {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
+        </p>
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}

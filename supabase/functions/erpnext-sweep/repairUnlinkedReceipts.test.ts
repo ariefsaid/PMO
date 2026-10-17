@@ -90,3 +90,69 @@ Deno.test('BLOCK 6: nothing unlinked ⇒ the pass is a no-op (no ERP round-trips
   const result = await repairUnlinkedReceipts(d);
   assert(result.repaired === 0 && d.fetched.length === 0, 'expected a clean org to cost nothing');
 });
+
+// S-06 (RF-030/031): the same pass heals the invoice-allocation mirror — receipts adopted before this
+// column existed, and allocations whose invoice PMO adopted later.
+Deno.test('RF-030: a receipt\'s full allocation list is re-mirrored from its ERP document, even when it is already linked', async () => {
+  const mirrored: Array<{ ipId: string; allocations: unknown }> = [];
+  const result = await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [{ id: 'pmo-ip-1', erpName: 'ACC-PAY-0001' }],
+    fetchDoc: async () => ({ name: 'ACC-PAY-0001', references: [
+      { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-A', allocated_amount: 25 },
+      { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-B', allocated_amount: 30 },
+    ] }),
+    resolveSalesInvoicePmoId: async () => null,
+    link: async () => { throw new Error('must not link an unmapped invoice'); },
+    mirrorAllocations: async (ipId: string, allocations: unknown) => { mirrored.push({ ipId, allocations }); },
+  });
+  assert(result.errors.length === 0, `unexpected errors ${JSON.stringify(result.errors)}`);
+  assert(mirrored.length === 1 && mirrored[0].ipId === 'pmo-ip-1', `expected one mirror write, got ${JSON.stringify(mirrored)}`);
+  assert(JSON.stringify(mirrored[0].allocations) === JSON.stringify([
+    { reference_name: 'ACC-SINV-A', allocated_amount: '25.00' },
+    { reference_name: 'ACC-SINV-B', allocated_amount: '30.00' },
+  ]), `both allocations are carried: ${JSON.stringify(mirrored[0].allocations)}`);
+});
+
+Deno.test('RF-031: an on-account receipt mirrors a KNOWN-empty list; a doc without a references table is left unknown', async () => {
+  const mirrored: Array<{ ipId: string; allocations: unknown }> = [];
+  await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [{ id: 'pmo-ip-2', erpName: 'ACC-PAY-0002' }, { id: 'pmo-ip-3', erpName: 'ACC-PAY-0003' }],
+    fetchDoc: async (name: string) => (name === 'ACC-PAY-0002' ? { name, references: [] } : { name }),
+    resolveSalesInvoicePmoId: async () => null,
+    link: async () => {},
+    mirrorAllocations: async (ipId: string, allocations: unknown) => { mirrored.push({ ipId, allocations }); },
+  });
+  assert(mirrored.length === 1 && mirrored[0].ipId === 'pmo-ip-2' && JSON.stringify(mirrored[0].allocations) === '[]',
+    `only the documented on-account receipt is written, as []: ${JSON.stringify(mirrored)}`);
+});
+
+Deno.test('S-06: stamps successful and failed attempts so the sweep can defer them', async () => {
+  const stamped: string[] = [];
+  const result = await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [{ id: 'failed', erpName: 'bad' }, { id: 'good', erpName: 'good' }],
+    fetchDoc: async (name) => { if (name === 'bad') throw new Error('upstream error'); return { references: [] }; },
+    resolveSalesInvoicePmoId: async () => null,
+    link: async () => {},
+    stampAllocationCheck: async (id) => { stamped.push(id); },
+  });
+  assert(stamped.join(',') === 'failed,good', `each attempt stamped: ${stamped}`);
+  assert(result.errors.length === 1, 'upstream failure is reported');
+});
+
+Deno.test('S-06: a bounded oldest-first batch reaches later candidates on the next run', async () => {
+  const checked = new Set<string>();
+  const reached: string[][] = [];
+  for (let run = 0; run < 2; run++) {
+    const batch = ['oldest', 'next', 'newest'].filter((id) => !checked.has(id)).slice(0, 2);
+    reached.push(batch);
+    await repairUnlinkedReceipts({
+      listUnlinkedReceipts: async () => batch.map((id) => ({ id, erpName: id })),
+      fetchDoc: async () => ({ references: [] }),
+      resolveSalesInvoicePmoId: async () => null,
+      link: async () => {},
+      stampAllocationCheck: async (id) => { checked.add(id); },
+    });
+  }
+  assert(reached[0].join(',') === 'oldest,next' && reached[1].join(',') === 'newest',
+    `later candidates reached: ${JSON.stringify(reached)}`);
+});

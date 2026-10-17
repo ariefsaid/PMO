@@ -229,6 +229,27 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
   });
+  it('UX-031: names the year for overdue phase targets outside the current year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T12:00:00Z'));
+    milestoneState.data = [{
+      id: 'm-overdue', project_id: 'p1', name: 'Overdue phase', sort_order: 0,
+      target_date: '2025-10-15', weight: 1, input_pct: 40, task_count: 2,
+      calculated_pct: 40, effective_pct: 40,
+    }];
+    const previousYear = render$();
+    expect(screen.getByText('Target 15 Oct, 2025')).toBeInTheDocument();
+    previousYear.unmount();
+    milestoneState.data = [{
+      id: 'm-current-year', project_id: 'p1', name: 'Current-year overdue phase', sort_order: 0,
+      target_date: '2026-10-15', weight: 1, input_pct: 40, task_count: 2,
+      calculated_pct: 40, effective_pct: 40,
+    }];
+    render$();
+    expect(screen.getByText('Target 15 Oct')).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
   it('AC-DEL-008: renders a single segmented track plus the effective headline, weight share, and NO From tasks on desktop', () => {
     milestoneState.data = [
       {

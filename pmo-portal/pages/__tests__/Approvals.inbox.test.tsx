@@ -19,6 +19,7 @@ const navigateMock = vi.fn();
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useNavigate: () => navigateMock };
@@ -173,13 +174,13 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     invoiceState.rows = [{ id: 'si1', created_at: '2026-06-04' }];
     renderAs('Project Manager');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('4');
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
     // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
     expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
-    expect(screen.getByRole('tab', { name: /Customer invoices/i })).toHaveTextContent('1');
+    expect(screen.queryByRole('tab', { name: /Customer invoices/i })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /Expense claims/i }));
     expect(screen.getByRole('link', { name: 'EXP-1' })).toHaveAttribute('href', '/expenses/ex1');

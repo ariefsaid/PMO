@@ -57,5 +57,7 @@ describe('MilestoneStrip touch target (W2-7)', () => {
 
     const moreBtn = screen.getByRole('button', { name: /more actions for foundation/i });
     expect(moreBtn.className).toContain('touch-target');
+    const editProgress = screen.getByRole('button', { name: /edit progress for foundation/i });
+    expect(editProgress.className).toContain('touch-target');
   });
 });

@@ -8,6 +8,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { AppVersion } from '@/src/components/AppVersion';
+import { ApprovalsNavCount } from './ApprovalsNavCount';
 import {
   FEATURE_ENV_DEFAULT,
   type OrgFeatureKey,
@@ -221,6 +222,14 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const myViewsLabel = t('shell.rail.myViews', 'My Views');
   const renderLabel = (item: NavItem) => {
     const label = navLabels[item.to] ?? item.text;
+    if (item.to === '/approvals') {
+      return (
+        <>
+          <span>{label}</span>
+          <ApprovalsNavCount />
+        </>
+      );
+    }
     if (item.to !== '/my-tasks') return <span>{label}</span>;
     const hint = t('shell.nav.myTasksHint', 'Your assigned work across projects');
     return (
@@ -340,45 +349,52 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
       <nav
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
-        className="min-h-0 flex-1 overflow-y-auto p-2.5"
+        className="flex min-h-0 flex-1 flex-col"
       >
-        {GROUP_ORDER.map((group) => {
-          const groupItems = items.filter((i) => i.group === group);
-          if (groupItems.length === 0) return null;
-          return (
-            <React.Fragment key={group}>
-              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {groupLabels[group]}
-              </div>
-              {groupItems.map(renderItem)}
-            </React.Fragment>
-          );
-        })}
-        {showMyViews && (
-          <div role="group" aria-label={myViewsLabel}>
-            <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              {myViewsLabel}
-            </div>
-            {myViewsItems.map((view) => (
-              <NavLink
-                key={view.id}
-                to={`/views/${view.id}`}
-                onClick={onNavigate}
-                className={({ isActive }: { isActive: boolean }) =>
-                  cn(
-                    NAV_LINK_BASE,
-                    isActive
-                      ? 'bg-primary/10 font-semibold text-nav-active-text'
-                      : 'text-foreground hover:bg-accent',
-                  )
-                }
-              >
-                <Icon name="views" />
-                <span className="truncate">{view.name}</span>
-              </NavLink>
-            ))}
+        {items.some((item) => item.to === '/approvals') && (
+          <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
+            {items.filter((item) => item.to === '/approvals').map(renderItem)}
           </div>
         )}
+        <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
+          {GROUP_ORDER.map((group) => {
+            const groupItems = items.filter((i) => i.to !== '/approvals' && i.group === group);
+            if (groupItems.length === 0) return null;
+            return (
+              <React.Fragment key={group}>
+                <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  {groupLabels[group]}
+                </div>
+                {groupItems.map(renderItem)}
+              </React.Fragment>
+            );
+          })}
+          {showMyViews && (
+            <div role="group" aria-label={myViewsLabel}>
+              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                {myViewsLabel}
+              </div>
+              {myViewsItems.map((view) => (
+                <NavLink
+                  key={view.id}
+                  to={`/views/${view.id}`}
+                  onClick={onNavigate}
+                  className={({ isActive }: { isActive: boolean }) =>
+                    cn(
+                      NAV_LINK_BASE,
+                      isActive
+                        ? 'bg-primary/10 font-semibold text-nav-active-text'
+                        : 'text-foreground hover:bg-accent',
+                    )
+                  }
+                >
+                  <Icon name="views" />
+                  <span className="truncate">{view.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.

@@ -78,7 +78,7 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
       );
     }
   };
-  return { selecting, setSelecting, selected, effectiveSelected, approvableIds, allSelected, someSelected, toggleSelected, toggleSelectAll, exitSelection, confirmOpen, setConfirmOpen, running, commit };
+  return { total: sheets.length, selecting, setSelecting, selected, effectiveSelected, approvableIds, allSelected, someSelected, toggleSelected, toggleSelectAll, exitSelection, confirmOpen, setConfirmOpen, running, commit };
 }
 
 export function TimesheetBulkSelect({ controller }: { controller: BulkController }) {
@@ -87,7 +87,7 @@ export function TimesheetBulkSelect({ controller }: { controller: BulkController
   return (
     <Button variant="outline" size="sm" onClick={() => controller.setSelecting(true)}>
       <Icon name="check" />
-      {t('approvals.bulk.select', 'Select')}
+      {t('approvals.bulk.select', 'Select items')}
     </Button>
   );
 }
@@ -96,8 +96,15 @@ export function TimesheetBulkToolbar({ controller }: { controller: BulkControlle
   const { t } = useTranslation();
   if (!controller.selecting) return null;
   const n = controller.effectiveSelected.size;
+  const eligible = controller.approvableIds.size;
+  const scope = eligible === controller.total
+    ? (eligible === 1
+      ? t('uxs18.bulk.scopeOne', 'The 1 timesheet in this queue can be approved.')
+      : t('uxs18.bulk.scopeAll', 'All {{count}} timesheets in this queue can be approved together.', { count: eligible }))
+    : t('uxs18.bulk.scopeSome', '{{eligible}} of {{total}} timesheets in this queue can be approved together.', { eligible, total: controller.total });
   return (
     <div role="group" aria-label={t('approvals.bulk.groupLabel', 'Bulk approve')} className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5">
+      <p className="basis-full text-[13px] text-muted-foreground">{scope}</p>
       <Checkbox
         checked={controller.allSelected ? true : controller.someSelected ? 'mixed' : false}
         onChange={controller.toggleSelectAll}

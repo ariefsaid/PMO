@@ -12,13 +12,14 @@ import React from 'react';
 import { IntegrationsView } from './IntegrationsView';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
-import type { IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
+import type { ErpSetupReadiness, IntegrationBinding, IntegrationHealth } from '@/src/lib/repositories/types';
 import { AppError } from '@/src/lib/appError';
 import { withErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
+import { Constants } from '@/src/lib/supabase/database.types';
 
 const erpSetup = vi.hoisted(() => ({
-  getErpSetup: vi.fn(async () => ({defaults:{company:'Example Company',default_receivable_account:null,default_activity_type:null},domains:[],unmappedProjects:[{id:'project-2',name:'Example Delivery',code:'SYNTH-2'}],budgetMappedCategories:[],unlinkedEmployeeCount:2})),
+  getErpSetup: vi.fn<() => Promise<ErpSetupReadiness>>(async () => ({defaults:{company:'Example Company',default_receivable_account:null,default_activity_type:null},domains:[],unmappedProjects:[{id:'project-2',name:'Example Delivery',code:'SYNTH-2'}],budgetMappedCategories:[],unlinkedEmployeeCount:2})),
   saveErpDefaults: vi.fn(async () => ({ok:true})),
   listErpProjects: vi.fn(async () => []),
   linkErpProject: vi.fn(async () => ({ok:true,erpProject:'PROJ-00042'})),
@@ -84,7 +85,7 @@ const _mockHealth: IntegrationHealth = {
   connected_by: 'u1',
   connected_at: '2026-01-01T00:00:00Z',
   last_sync: '2026-01-02T00:00:00Z',
-  error_count: 0,
+  state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 },
 };
 
 const baseExternalDomainReturn = {
@@ -360,7 +361,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
       disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
       getBinding: vi.fn((tier: string) => (tier === 'clickup' ? { org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null } : undefined)),
-      getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+      getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
     } as any);
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
   });
@@ -399,7 +400,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -424,7 +425,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn((tier: string) => (tier === 'clickup' ? { ...mockBinding, status: 'disconnected', connected_at: null, disconnected_at: '2026-01-03T00:00:00Z' } : undefined)),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -471,7 +472,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -497,7 +498,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -517,6 +518,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       wrapWithRole('Admin', <IntegrationsView />);
 
       const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
+      fireEvent.click(clickupCard.getByText('Connection options'));
       await waitFor(() => expect(clickupCard.getByRole('button', { name: /^disconnect clickup$/i })).toBeInTheDocument());
       fireEvent.click(clickupCard.getByRole('button', { name: /^disconnect clickup$/i }));
 
@@ -553,7 +555,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: mockConnect,
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -605,7 +607,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: mockDisconnect,
         getBinding: vi.fn((tier: string) => (tier === 'clickup' ? { org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'clickup_token_org_1', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null } : undefined)),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -656,7 +658,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: mockConnect,
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -732,7 +734,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -751,7 +753,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
-        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', error_count: 0 }),
+        getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: '2026-01-02T00:00:00Z', state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
       } as any);
 
       wrapWithRole('Admin', <IntegrationsView />);
@@ -801,7 +803,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
     it('AC-IRUX-002: a successful binding is labelled Connected, and absent connector identity is not shown as a blank field', async () => {
       const binding = { ...activeBinding, connected_by: null };
       vi.mocked(useIntegrations).mockReturnValue({
-        ...baseReturn(vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: null, connected_at: binding.connected_at, last_sync: null, error_count: 0 })),
+        ...baseReturn(vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: null, connected_at: binding.connected_at, last_sync: null, state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } })),
         bindings: [binding],
         getBinding: vi.fn((tier: string) => (tier === 'clickup' ? binding : undefined)),
       } as any);
@@ -828,19 +830,25 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connected_by: 'u1',
         connected_at: '2026-01-01T00:00:00Z',
         last_sync: '2026-01-02T12:30:00Z',
-        error_count: 3,
+        state_counts: { pending: 2, failed: 1, quarantined: 1, held: 1 },
       });
       vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText(/outbound items pending or need attention/i)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('2 updates waiting to send')).toBeInTheDocument());
       // No last-sync claim and no rendered timestamp (the watermark row time is not a sync proof).
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Jan 2, 2026/)).not.toBeInTheDocument();
-      // Outstanding outbound work is labelled as outstanding, never as all-errors.
-      expect(screen.getByText(/3 outbound items pending or need attention/i)).toBeInTheDocument();
-      // A live transferred record must be checked to prove usable data movement.
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      // Waiting is quiet and distinct from actionable failures.
+      expect(screen.getByText('2 updates waiting to send')).toBeInTheDocument();
+      expect(screen.getByText('1 failed update needs attention')).toBeInTheDocument();
+      expect(screen.getByText('1 quarantined update needs attention')).toBeInTheDocument();
+      expect(screen.getByText('1 held update needs attention')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Review failed updates' })).toHaveAttribute('href', '/projects');
+      expect(screen.getByRole('link', { name: 'Review quarantined updates' })).toHaveAttribute('href', '/projects');
+      expect(screen.getByRole('link', { name: 'Review held updates' })).toHaveAttribute('href', '/projects');
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /review connected records/i })).toHaveAttribute('href', '/projects');
     });
 
     it('AC-IRUX-004: a null watermark with a single outstanding item renders the singular label and no sync-time claim', async () => {
@@ -850,15 +858,14 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connected_by: 'u1',
         connected_at: '2026-01-01T00:00:00Z',
         last_sync: null,
-        error_count: 1,
+        state_counts: { pending: 1, failed: 0, quarantined: 0, held: 0 },
       });
       vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText(/outbound item pending/i)).toBeInTheDocument());
-      expect(screen.getByText(/1 outbound item pending or needs attention/i)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('1 update waiting to send')).toBeInTheDocument());
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
     });
 
     it('AC-IRUX-003: one tier’s unavailable health leaves a healthy sibling’s recorded progress legible, with a Retry on the failed card', async () => {
@@ -866,7 +873,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       const erpnextBinding = { ...activeBinding, external_tier: 'erpnext' as const, config: { company: 'Acme Corp' } };
       const getHealth = vi.fn().mockImplementation((tier: string) =>
         tier === 'clickup'
-          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, error_count: 2 })
+          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, state_counts: { pending: 1, failed: 1, quarantined: 0, held: 0 } })
           : Promise.reject(new Error('health read failed')),
       );
       vi.mocked(useIntegrations).mockReturnValue({
@@ -889,21 +896,21 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
 
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText(/2 outbound items pending or need attention/i)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('1 failed update needs attention')).toBeInTheDocument());
       // The failed tier labels its own data-progress read unavailable and offers Retry, without
       // blanking the healthy sibling’s progress.
       const erpnextCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
       expect(within(erpnextCard.getByText(/Outbound work status unavailable/i).closest('div')!).getByRole('button', { name: /Retry outbound status/i })).toBeInTheDocument();
       const clickupCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
-      const clickupHealthWrap = clickupCard.getByText(/2 outbound items/i).closest('div')!;
-      expect(clickupHealthWrap).toHaveTextContent(/check an actual transferred record/i);
+      const clickupHealthWrap = clickupCard.getByText('1 update waiting to send').closest('div')!;
+      expect(clickupHealthWrap).toHaveTextContent(/not yet verified/i);
     });
 
     it('AC-IRUX-003: a slow ERPNext read does not delay ClickUp outbound status', async () => {
       const erpnextBinding = { ...activeBinding, external_tier: 'erpnext' as const, config: { company: 'Example Company' } };
       const getHealth = vi.fn((tier: string) =>
         tier === 'clickup'
-          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: activeBinding.connected_at, last_sync: null, error_count: 2 })
+          ? Promise.resolve({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: activeBinding.connected_at, last_sync: null, state_counts: { pending: 2, failed: 0, quarantined: 0, held: 0 } })
           : new Promise<IntegrationHealth>(() => {}),
       );
       vi.mocked(useIntegrations).mockReturnValue({
@@ -916,7 +923,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       const cards = screen.getByTestId('integrations-connect-cards');
       const clickupCard = within(cards.querySelector('[data-tier="clickup"]')!);
       const erpnextCard = within(cards.querySelector('[data-tier="erpnext"]')!);
-      await waitFor(() => expect(clickupCard.getByText(/2 outbound items pending/i)).toBeInTheDocument());
+      await waitFor(() => expect(clickupCard.getByText('2 updates waiting to send')).toBeInTheDocument());
       expect(erpnextCard.getByText(/Checking outbound work status/i)).toBeInTheDocument();
     });
 
@@ -927,13 +934,13 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
         connected_by: 'u1',
         connected_at: '2026-01-01T00:00:00Z',
         last_sync: null,
-        error_count: 0,
+        state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 },
       });
       vi.mocked(useIntegrations).mockReturnValue(baseReturn(mockGetHealth) as any);
       wrapWithRole('Admin', <IntegrationsView />);
 
-      await waitFor(() => expect(screen.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
-      expect(screen.getByText(/check an actual transferred record/i)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('No updates waiting to send')).toBeInTheDocument());
+      expect(screen.getByText(/not yet verified/i)).toBeInTheDocument();
       expect(screen.queryByText(/Last sync/i)).not.toBeInTheDocument();
     });
 
@@ -1078,6 +1085,7 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(
       screen.getByRole('button', { name: /approve in microsoft 365/i }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/only if microsoft asks/i);
     // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
     // block (a mutation here guards against someone forcing it into the TIERS array).
     const m365Card = screen.getByTestId('m365-org-approval');
@@ -1106,17 +1114,16 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The org surface labels its scope explicitly…
     expect(scope).toHaveTextContent(/organization/i);
-    // …and states that a personal connection does not activate an organization integration
-    // (AC-ADMIA-006: never imply personal ⇒ org readiness).
-    expect(scope).toHaveTextContent(/does not activate an organization integration/i);
+    // A personal connection never activates organization integrations.
+    expect(scope).toHaveTextContent(/personal connections do not activate organization integrations/i);
   });
 
   it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The personal surface is referenced by its user-facing name "My integrations"…
-    expect(scope).toHaveTextContent(/My integrations/i);
-    // …and its raw route string must not leak into user-facing copy.
+    expect(screen.getByRole('link', { name: /my integrations/i })).toHaveAttribute('href', '/integrations');
+    // The personal surface is a real navigation destination, not a route string in prose.
     expect(scope.textContent).not.toContain('/integrations');
   });
 });
@@ -1303,7 +1310,7 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
     expect(screen.getByTestId('ownership-error')).toBeInTheDocument();
-    expect(screen.getByText(/Employed domains unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Automatic updates unavailable/i)).toBeInTheDocument();
     const retry = screen.getByRole('button', { name: /^Retry$/i });
     fireEvent.click(retry);
     expect(refetch).toHaveBeenCalled();
@@ -1316,7 +1323,7 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true } as any);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(screen.getByText(/No employed domains set/i)).toBeInTheDocument();
+    expect(screen.getByText(/No information is set to update automatically/i)).toBeInTheDocument();
     const tierList = screen.getByTestId('integrations-tier-list');
     expect(within(tierList).queryByRole('button')).toBeNull();
   });
@@ -1338,7 +1345,7 @@ describe('AC-IRUX-008 disconnect failure recovery', () => {
       connect: { mutateAsync: vi.fn(), isPending: false },
       disconnect,
       getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockBinding : undefined)),
-      getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, error_count: 0 }),
+      getHealth: vi.fn().mockResolvedValue({ tier: 'clickup', status: 'active', connected_by: 'u1', connected_at: '2026-01-01T00:00:00Z', last_sync: null, state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 } }),
     } as any);
     wrapWithRole('Admin', <IntegrationsView />);
 
@@ -1572,7 +1579,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
       connected_by: mockBinding.connected_by,
       connected_at: mockBinding.connected_at,
       last_sync: null,
-      error_count: 0,
+      state_counts: { pending: 0, failed: 0, quarantined: 0, held: 0 },
     }),
     ...player,
   } as any);
@@ -1631,7 +1638,7 @@ describe('AC-ICI readable organization connector identity (#680)', () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const card = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="clickup"]')!);
     // …the separately derived health read stays truthful (await the async read)…
-    await waitFor(() => expect(card.getByText(/0 outbound items pending or need attention/i)).toBeInTheDocument());
+    await waitFor(() => expect(card.getByText(/No updates waiting/i)).toBeInTheDocument());
     // The identity display has a safe fallback…
     expect(card.getByText('Former or unavailable user')).toBeInTheDocument();
     // …while the independent binding state stays Connected…
@@ -1673,37 +1680,79 @@ describe('ERP setup checklist', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
   });
+  it('UX-009, UX-085, RF-048 and RF-049 present setup by business outcome and retain only open work', async () => {
+    const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:null,default_expense_account:null,default_cash_account:null,default_bank_account:null,cost_center:null,default_activity_type:null,default_receivable_account:null},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[],unlinkedEmployeeCount:0,
+    } satisfies ErpSetupReadiness);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByRole('heading', {name:'Business setup review'})).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name:'Keep business information up to date'})).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name:/Review proposed link for/})).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {name:'Review company settings'})).toBeInTheDocument();
+    expect(screen.queryByText(/active members need a confirmed ERP employee link/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'Choose information to keep updated'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'Employ ERP domains'})).not.toBeInTheDocument();
+    expect(screen.queryByText('Domains employed')).not.toBeInTheDocument();
+  });
+
+  it('UX-S08 hides employee and project rows and reports completion when all setup is complete', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
+    });
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText(/Setup is complete\. Confirmed connections are retained/)).toBeInTheDocument();
+    expect(document.getElementById('erp-setup-employee-links')).toHaveAttribute('hidden');
+    expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
+  });
+
+  it('UX-S08 shows only the unresolved employee or project row', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:2,
+    });
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText(/People who record time still needing an ERP employee link: 2/)).toBeInTheDocument();
+    expect(document.getElementById('erp-setup-employee-links')).not.toHaveAttribute('hidden');
+    expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
+  });
+
   it('AC-SETUP-002 exposes every outstanding setup step with a real fix action', async () => {
     const erpBinding = {...mockBinding, external_tier:'erpnext' as const, config:{company:'Example Company'}};
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({bindings:[erpBinding],getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    expect(await screen.findByRole('heading',{name:'ERPNext setup'})).toBeInTheDocument();
-    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'Set activity and receivable defaults'})).toBeInTheDocument();
-    expect(screen.getByRole('link',{name:'Map budget accounts'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
+    expect(await screen.findByRole('heading',{name:'Business setup review'})).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:'Choose information to keep updated'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Review work and billing settings'})).toBeInTheDocument();
+    expect(screen.getByRole('link',{name:'Review budget account setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     expect(screen.getByRole('link',{name:'Review employee links'})).toHaveAttribute('href','/approvals');
-    expect(screen.getByRole('link',{name:'Link Example Delivery'})).toHaveAttribute('href','/projects/project-2');
+    expect(screen.getByRole('link',{name:'Review proposed link for Example Delivery'})).toHaveAttribute('href','/projects/project-2');
   });
   it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
     erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));
     wrapWithRole('Admin', <IntegrationsView />);
-    fireEvent.click(await screen.findByRole('button', {name:'Set activity and receivable defaults'}));
-    fireEvent.change(screen.getByRole('textbox', {name:'Activity type'}), {target:{value:'Execution'}});
-    fireEvent.change(screen.getByRole('textbox', {name:'Receivable account'}), {target:{value:'Debtors - EX'}});
+    fireEvent.click(await screen.findByRole('button', {name:'Review work and billing settings'}));
+    fireEvent.change(screen.getByRole('textbox', {name:'Work category'}), {target:{value:'Execution'}});
+    fireEvent.change(screen.getByRole('textbox', {name:'Customer billing account'}), {target:{value:'Debtors - EX'}});
     fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
     expect(await screen.findByText('Could not save ERP defaults. Check the values and try again.')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', {name:'Activity type'})).toHaveValue('Execution');
+    expect(screen.getByRole('textbox', {name:'Work category'})).toHaveValue('Execution');
     expect(screen.queryByText('private upstream detail')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Save defaults'}));
-    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'ERPNext defaults'})).not.toBeInTheDocument());
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Work and billing settings'})).not.toBeInTheDocument());
     expect(erpSetup.saveErpDefaults).toHaveBeenLastCalledWith({activityType:'Execution',receivableAccount:'Debtors - EX'});
   });
   it('read-only viewers have no ERP setup mutation controls', async () => {
     wrapWithRole('Engineer', <IntegrationsView />);
-    expect(screen.queryByRole('button',{name:'Employ ERP domains'})).not.toBeInTheDocument();
-    expect(screen.queryByRole('button',{name:'Set activity and receivable defaults'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Choose information to keep updated'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Review work and billing settings'})).not.toBeInTheDocument();
   });
 });
 describe('ERP domain setup actions', () => {
@@ -1717,7 +1766,7 @@ describe('ERP domain setup actions', () => {
     erpSetup.getErpSetup.mockResolvedValueOnce(readiness as never).mockResolvedValueOnce({...readiness,defaults:{...readiness.defaults,default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main'}} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
     expect(await screen.findByText('1 of 6 configured')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Refresh Company defaults'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review company settings'}));
     fireEvent.click(screen.getByRole('combobox',{name:'Company'}));
     fireEvent.click(await screen.findByRole('option',{name:'Example Company'}));
     fireEvent.click(screen.getByRole('button',{name:'Activate'}));
@@ -1732,18 +1781,18 @@ describe('ERP domain setup actions', () => {
     erpSetup.employErpDomain.mockRejectedValueOnce(new Error('private domain detail'));
     erpSetup.onboardErpParties.mockRejectedValueOnce(new Error('private onboarding detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    fireEvent.change(screen.getByRole('combobox',{name:'Domain'}),{target:{value:'timesheets'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    fireEvent.change(screen.getByRole('combobox',{name:'Business information'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     expect(await screen.findByText('Could not employ this domain. Check ERP read permissions and try again.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox',{name:'Domain'})).toHaveValue('timesheets');
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
-    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Employ ERP domain'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    expect(screen.getByRole('combobox',{name:'Business information'})).toHaveValue('timesheets');
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Information to keep updated'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     expect(await screen.findByText('Party onboarding did not complete. Try again.')).toBeInTheDocument();
     expect(screen.queryByText(/private .* detail/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     expect(await screen.findByText('ERP parties are onboarded. Review the Companies list.')).toBeInTheDocument();
     expect(erpSetup.employErpDomain).toHaveBeenCalledTimes(2);
     expect(erpSetup.onboardErpParties).toHaveBeenCalledTimes(2);
@@ -1756,9 +1805,41 @@ describe('ERP domain setup actions', () => {
     erpSetup.getErpSetup.mockRejectedValueOnce(new Error('private checklist detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
     const unavailable=await screen.findByText('ERP setup unavailable');
+    expect(within(unavailable.closest('section')!).getByRole('link',{name:'Open accounting setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
-    expect(await screen.findByRole('button',{name:'Employ ERP domains'})).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:'Choose information to keep updated'})).toBeInTheDocument();
     expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(2);
+  });
+  it('UX-067 leads with incomplete ERP setup and links to its first missing step', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:null,default_expense_account:null,default_cash_account:null,default_bank_account:null,cost_center:null,default_activity_type:null,default_receivable_account:null},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[],unlinkedEmployeeCount:0,
+    } satisfies ErpSetupReadiness);
+    wrapWithRole('Admin',<IntegrationsView/>);
+    const card=within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
+    const readiness=await card.findByText(/Not ready yet/i);
+    expect(readiness).toBeInTheDocument();
+    expect(card.getByText('Connected',{exact:true})).toHaveClass('text-muted-foreground');
+    const finish=card.getByRole('link',{name:/Finish setup/i});
+    expect(finish.getAttribute('href')).toBe('#erp-setup-company-defaults');
+  });
+
+  it('AC-UX-072 preserves the last known readiness and offers an operator handoff after a refresh failure', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults: { company: 'Example Company', default_receivable_account: null, default_activity_type: null },
+      domains: ['companies'], unmappedProjects: [], budgetMappedCategories: [], unlinkedEmployeeCount: 0,
+    } satisfies ErpSetupReadiness).mockRejectedValueOnce(new Error('temporary failure'));
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText('Companies')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh checklist' }));
+    expect(await screen.findByText('Showing the last saved setup check')).toBeInTheDocument();
+    expect(screen.getByText('Companies')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open accounting setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(screen.getByRole('button', { name: 'Check setup again' })).toBeInTheDocument();
   });
   it('AC-EXP-128 the expenses domain is offered exactly when its release guard (#901) is open', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
@@ -1766,8 +1847,8 @@ describe('ERP domain setup actions', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    const select=screen.getByRole('combobox', {name:'Domain'});
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    const select=screen.getByRole('combobox', {name:'Business information'});
     const offered=within(select).queryByRole('option',{name:'Expenses'});
     if (!EXPENSES_EMPLOYABLE) {
       expect(offered).toBeNull();
@@ -1775,7 +1856,7 @@ describe('ERP domain setup actions', () => {
     }
     expect(offered).not.toBeNull();
     fireEvent.change(select,{target:{value:'expenses'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('expenses'));
   });
   it('Admin confirms a domain assignment and can run the existing party onboarding action', async () => {
@@ -1784,13 +1865,13 @@ describe('ERP domain setup actions', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     wrapWithRole('Admin',<IntegrationsView/>);
-    fireEvent.click(await screen.findByRole('button',{name:'Employ ERP domains'}));
-    fireEvent.change(screen.getByRole('combobox', {name:'Domain'}),{target:{value:'timesheets'}});
-    fireEvent.click(screen.getByRole('button',{name:'Employ domain'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    fireEvent.change(screen.getByRole('combobox', {name:'Business information'}),{target:{value:'timesheets'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('timesheets'));
-    await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Employ ERP domain'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Onboard ERP parties'}));
-    fireEvent.click(screen.getByRole('button',{name:'Start onboarding'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Information to keep updated'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
+    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
     await waitFor(()=>expect(erpSetup.onboardErpParties).toHaveBeenCalled());
   });
 });

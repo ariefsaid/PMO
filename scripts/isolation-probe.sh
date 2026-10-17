@@ -111,6 +111,11 @@ rpc(){
       jq -e 'true' "$BODY" >/dev/null 2>&1 || { probe_error "rpc $fn invalid JSON"; return; }
       shape=$(jq -r '.shape // ""' <<< "$spec")
       if [ -n "$shape" ] && [ "$code" != 200 ]; then probe_error "rpc $fn unexpected shape HTTP $code"; return; fi
+      if [ "$rpc_class" = read ]; then
+        jq -e 'type=="boolean"' "$BODY" >/dev/null || { probe_error "rpc $fn expected boolean"; return; }
+        say "  PASS  rpc $fn (own-org boolean read)" >&2
+        return
+      fi
       if [ "$shape" = empty-array ]; then
         jq -e 'type=="array"' "$BODY" >/dev/null || { probe_error "rpc $fn expected empty array"; return; }
         jq -e 'length==0' "$BODY" >/dev/null && { say "  EXPECTED-DENIAL  rpc $fn" >&2; return; }
@@ -129,6 +134,7 @@ rpc(){
 }
 A_PROFILE=$(jq -r '.[]|select(.table=="profiles")|.id' "$A_ROWS_JSON")
 A_PROC=$(jq -r '.[]|select(.table=="procurements")|.id' "$A_ROWS_JSON")
+c=$(rpc org_reads_erp_ledger "{}")
 c=$(rpc org_credit_balance "{\"p_org_id\":\"$A_ORG\"}")
 c=$(rpc operator_usage_summary "{\"p_org_id\":\"$A_ORG\"}")
 c=$(rpc operator_agent_run_stats "{\"p_org_id\":\"$A_ORG\"}")
@@ -140,6 +146,9 @@ c=$(rpc admin_set_user_status "{\"p_profile_id\":\"$A_PROFILE\",\"p_status\":\"a
 c=$(rpc operator_toggle_feature "{\"p_org_id\":\"$A_ORG\",\"p_key\":\"probe\",\"p_enabled\":false}")
 c=$(rpc operator_grant_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0,\"p_note\":\"probe\"}")
 c=$(rpc reserve_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0.01,\"p_run_id\":\"b0000000-0000-4000-8000-0000000000aa\"}")
+c=$(rpc claim_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"15 minutes\"}")
+c=$(rpc release_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+c=$(rpc replace_erp_account_chart "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_rows\":[]}")
 c=$(rpc create_vault_secret_for_org "{\"p_org_id\":\"$A_ORG\",\"p_external_tier\":\"clickup\",\"p_secret_value\":\"probe\",\"p_secret_name\":\"probe_b_forgery\",\"p_actor_id\":\"$A_PROFILE\"}")
 c=$(rpc m365_disconnect_cascade "{\"p_org_id\":\"$A_ORG\",\"p_user_id\":\"$A_PROFILE\",\"p_reason\":\"probe\"}")
 c=$(rpc audit_m365_event "{\"p_action\":\"m365.probe\",\"p_org_id\":\"$A_ORG\",\"p_actor_id\":\"$A_PROFILE\",\"p_entity_id\":\"$A_PROFILE\",\"p_detail\":{\"probe\":\"#490 forgery test\"}}")
@@ -152,6 +161,9 @@ else skip "create_procurement_invoice (procurements)"; fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc get_projects_money_collection "{\"p_project_ids\":[\"$A_PROJECT\"]}")
+else skip "get_projects_money_collection (projects)"; fi
 if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc assign_sales_invoice_project "{\"p_si_id\":\"$A_SI\",\"p_project_id\":\"$A_PROJECT\"}")
 else

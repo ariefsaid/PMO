@@ -22,6 +22,9 @@ vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
 }));
 const dashboard = {
   active_projects: 2, total_contract_value: 8_000_000, on_hand_margin: 0.949375, on_hand_value: 8_000_000,
+  on_hand_contract_remaining: 7_595_000, on_hand_realized_margin: 1_200_000, on_hand_actual_known: 405_000,
+  on_hand_actual_project_count: 1, on_hand_actual_project_total: 1,
+  on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1,
   pipeline_weighted_value: 800_000, pipeline_projected_margin: 0.2, pipeline_total_value: 2_000_000, projects_at_risk: 1,
   projects_by_status: [],
   procurements_by_status: [
@@ -29,7 +32,7 @@ const dashboard = {
     { status: 'Vendor Quoted', count: 1 }, { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 },
     { status: 'Vendor Invoiced', count: 1 }, { status: 'Paid', count: 1 },
   ],
-  top_projects: [{ id: 'p1', name: 'Project North', client_name: 'Client North', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project' }],
+  top_projects: [{ id: 'p1', name: 'Project North', client_name: 'Client North', contract_value: 5_000_000, currency: 'USD', budget: 4_700_000, spent: 2_100_000, actual_coverage_count: 1, actual_coverage_total: 1, status: 'Ongoing Project' }],
 };
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({
@@ -70,7 +73,8 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('heading', { name: 'Dashboard Eksekutif' })).toBeInTheDocument();
     expect(screen.getByText('Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('$8,000,000');
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8.000.000,00');
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Nilai kontrak dalam portofolio saat ini');
     expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getByText('Menunggu persetujuan Anda')).toBeInTheDocument();
     expect(screen.getByText('Tingkat kemenangan')).toBeInTheDocument();
@@ -80,7 +84,7 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('progressbar', { name: 'Tingkat kemenangan 66.7%' })).toBeInTheDocument();
     expect(screen.getByText('Menang')).toBeInTheDocument();
     expect(screen.getByText('Kalah')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Anggaran vs realisasi menurut proyek' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Pengeluaran dibanding kontrak' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Project North' })).toHaveAttribute('href', '/projects/p1');
     expect(screen.getByRole('progressbar', { name: 'Project North: 42% dari kontrak' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Margin proyeksi pipeline' })).toBeInTheDocument();

@@ -1,5 +1,13 @@
 import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
+import { vi } from 'vitest';
+
+// Projects page suites predating the collection-money query intentionally render
+// without a QueryClient. Their concerns are independent of this new read seam;
+// dedicated collection-hook and Projects behavior tests exercise the real hook.
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({
+  useProjectsMoneyCollection: () => ({ data: undefined, isPending: true, isError: false }),
+}));
 
 // Some local Node/Vitest combinations expose jsdom but do not install a usable
 // localStorage global. Several app primitives persist per-device UI prefs, so

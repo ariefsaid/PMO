@@ -1037,6 +1037,7 @@ export type Database = {
       budget_versions: {
         Row: {
           activated_at: string | null
+          activation_basis: string | null
           created_at: string
           created_by: string | null
           currency: string
@@ -1052,6 +1053,7 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          activation_basis?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -1067,6 +1069,7 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          activation_basis?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -1491,6 +1494,80 @@ export type Database = {
           },
         ]
       }
+      erp_account_mirror: {
+        Row: {
+          account_currency: string
+          account_name: string
+          account_number: string | null
+          account_type: string | null
+          as_of: string
+          company: string
+          disabled: boolean
+          erp_modified: string | null
+          erp_name: string
+          id: string
+          include_in_gross: boolean
+          is_group: boolean
+          lft: number
+          org_id: string
+          parent_account: string | null
+          refresh_id: string
+          report_type: string
+          rgt: number
+          root_type: string
+        }
+        Insert: {
+          account_currency: string
+          account_name: string
+          account_number?: string | null
+          account_type?: string | null
+          as_of?: string
+          company: string
+          disabled?: boolean
+          erp_modified?: string | null
+          erp_name: string
+          id?: string
+          include_in_gross?: boolean
+          is_group: boolean
+          lft: number
+          org_id?: string
+          parent_account?: string | null
+          refresh_id: string
+          report_type: string
+          rgt: number
+          root_type: string
+        }
+        Update: {
+          account_currency?: string
+          account_name?: string
+          account_number?: string | null
+          account_type?: string | null
+          as_of?: string
+          company?: string
+          disabled?: boolean
+          erp_modified?: string | null
+          erp_name?: string
+          id?: string
+          include_in_gross?: boolean
+          is_group?: boolean
+          lft?: number
+          org_id?: string
+          parent_account?: string | null
+          refresh_id?: string
+          report_type?: string
+          rgt?: number
+          root_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_account_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_actuals_snapshot: {
         Row: {
           account: string | null
@@ -1780,15 +1857,18 @@ export type Database = {
         Row: {
           account: string
           as_of: string
+          company: string | null
           cost_center: string | null
           credit: number | null
           debit: number | null
           erp_docstatus: number | null
           erp_modified: string
           erp_name: string
+          finance_book: string | null
           fiscal_year: string | null
           id: string
           is_cancelled: boolean
+          is_opening: string | null
           org_id: string
           party: string | null
           party_type: string | null
@@ -1800,15 +1880,18 @@ export type Database = {
         Insert: {
           account: string
           as_of?: string
+          company?: string | null
           cost_center?: string | null
           credit?: number | null
           debit?: number | null
           erp_docstatus?: number | null
           erp_modified: string
           erp_name: string
+          finance_book?: string | null
           fiscal_year?: string | null
           id?: string
           is_cancelled?: boolean
+          is_opening?: string | null
           org_id?: string
           party?: string | null
           party_type?: string | null
@@ -1820,15 +1903,18 @@ export type Database = {
         Update: {
           account?: string
           as_of?: string
+          company?: string | null
           cost_center?: string | null
           credit?: number | null
           debit?: number | null
           erp_docstatus?: number | null
           erp_modified?: string
           erp_name?: string
+          finance_book?: string | null
           fiscal_year?: string | null
           id?: string
           is_cancelled?: boolean
+          is_opening?: string | null
           org_id?: string
           party?: string | null
           party_type?: string | null
@@ -1904,6 +1990,32 @@ export type Database = {
             foreignKeyName: "erp_payment_ledger_mirror_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sweep_lock: {
+        Row: {
+          holder: string
+          locked_until: string
+          org_id: string
+        }
+        Insert: {
+          holder: string
+          locked_until: string
+          org_id: string
+        }
+        Update: {
+          holder?: string
+          locked_until?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sweep_lock_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -2500,6 +2612,10 @@ export type Database = {
           org_id: string
           secret_ref: string
           site_url: string
+          statement_calendar: Json | null
+          statement_full_ledger_replay_needed: boolean
+          statement_last_attempt_at: string | null
+          statement_update_delayed: boolean
           status: string
           updated_at: string
           version_major: number | null
@@ -2517,6 +2633,10 @@ export type Database = {
           org_id?: string
           secret_ref: string
           site_url: string
+          statement_calendar?: Json | null
+          statement_full_ledger_replay_needed?: boolean
+          statement_last_attempt_at?: string | null
+          statement_update_delayed?: boolean
           status?: string
           updated_at?: string
           version_major?: number | null
@@ -2534,6 +2654,10 @@ export type Database = {
           org_id?: string
           secret_ref?: string
           site_url?: string
+          statement_calendar?: Json | null
+          statement_full_ledger_replay_needed?: boolean
+          statement_last_attempt_at?: string | null
+          statement_update_delayed?: boolean
           status?: string
           updated_at?: string
           version_major?: number | null
@@ -2888,6 +3012,8 @@ export type Database = {
       }
       incoming_payments: {
         Row: {
+          allocation_checked_at: string | null
+          allocation_details: Json | null
           amount: number | null
           cancelled_at: string | null
           created_at: string
@@ -2911,6 +3037,8 @@ export type Database = {
           withholding_slip_number: string | null
         }
         Insert: {
+          allocation_checked_at?: string | null
+          allocation_details?: Json | null
           amount?: number | null
           cancelled_at?: string | null
           created_at?: string
@@ -2934,6 +3062,8 @@ export type Database = {
           withholding_slip_number?: string | null
         }
         Update: {
+          allocation_checked_at?: string | null
+          allocation_details?: Json | null
           amount?: number | null
           cancelled_at?: string | null
           created_at?: string
@@ -7092,6 +7222,7 @@ export type Database = {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
       }
+      budget_activation_mode: { Args: { version_id: string }; Returns: string }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
@@ -7172,6 +7303,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      claim_erp_sweep_lock: {
+        Args: { p_holder: string; p_org_id: string; p_ttl: string }
+        Returns: boolean
       }
       claim_outbox_for_commit: {
         Args: { p_id: string; p_lease?: string }
@@ -7690,6 +7825,7 @@ export type Database = {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
       }
+      get_pm_dashboard_projects: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_procurement_approval_routes: {
         Args: { p_ids: string[] }
@@ -7716,6 +7852,17 @@ export type Database = {
         }[]
       }
       get_project_finances: { Args: { p_project_id: string }; Returns: Json }
+      get_projects_money_collection: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          actuals: Json
+          active_budget_amount: string | null
+          active_budget_currency: string | null
+          has_active_budget: boolean
+          ledger_basis: string
+          project_id: string
+        }[]
+      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -8368,6 +8515,7 @@ export type Database = {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean
       }
+      org_reads_erp_ledger: { Args: never; Returns: boolean }
       org_usage_summary: {
         Args: never
         Returns: {
@@ -8579,6 +8727,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_erp_sweep_lock: {
+        Args: { p_holder: string; p_org_id: string }
+        Returns: boolean
+      }
       release_outbox_hold: {
         Args: {
           p_expected_domain?: string
@@ -8590,6 +8742,10 @@ export type Database = {
       release_sales_invoice_submit_clearance: {
         Args: { p_clearance_id: string; p_si_id: string }
         Returns: undefined
+      }
+      replace_erp_account_chart: {
+        Args: { p_company: string; p_org_id: string; p_rows: Json }
+        Returns: Json
       }
       replace_erp_snapshot: {
         Args: { p_org_id: string; p_rows: Json; p_table: string }
