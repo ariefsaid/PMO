@@ -125,6 +125,11 @@ of an RLS gap forces "can anyone reach it?", which is the `role_table_grants` jo
 stopped two dead layers being ranked above the one live one.
 
 ## Quality gates & checkpoints (binding)
+
+**Current owner ceiling (2026-10-17): release to `dev` only until the owner explicitly changes it.**
+Do not merge, push or promote to `main` or production. This overrides the generic `main` ceiling
+below and in older plans. Production additionally retains its separate per-instance approval rule.
+
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
@@ -270,7 +275,7 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
   recharts. Node **22.22+** (react-router 8 `engines`). Backend: **Supabase** (Postgres + Auth + RLS + Storage).
 - `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · **`npm run e2e`** (e2e — ⚑ NOT bare `npx playwright test`, which runs ONLY the `chromium` project and
   SILENTLY SKIPS the `serial` lane; `npm run e2e` runs both, as CI does).
-- Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+- **No attribution lines in commits or PRs**, including `Co-Authored-By` (owner, 2026-10-17). Before every push, including branch deletion, run `git log --format=%B origin/dev..HEAD | grep -qi co-authored`; a match means **STOP** and correct the unpushed message before proceeding.
 
 ## Supabase environments (binding — full rules + registry: `docs/environments.md`)
 **Local Docker = dev+test; the Supabase Cloud project = prod.** Test on local (`supabase db reset`); push
