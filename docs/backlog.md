@@ -6,7 +6,13 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
+**Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
+DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
+files). After-push probes (Director-run): `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
+255 checks / 0 leaks / 0 errors (200 skips: the write checks need a disposable tenant A). The version PR (#1098) merged
+with `--admin` by owner decision: its only failure was UIP-005 exceeding its 120 s budget (split in #1099).
+
+**Previous release (2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
 hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
 definers = the 4 RLS helpers · `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
 248 checks / 0 leaks (194 skips need a disposable tenant A).
@@ -39,12 +45,6 @@ labels (#1022 + #1024, 0289, UXS-031).
 **RIS:** seeded on prod 2026-10-14 (owner "go") — starting data loaded through `pmo load` (projects, contract
 values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app
 operator work (outcomes, budget account map, budget activation by a second person, ERPNext project links).
-
-**Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
-DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
-files). After-push probes (Director-run): `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
-255 checks / 0 leaks / 0 errors (200 skips: the write checks need a disposable tenant A). The version PR (#1098) merged
-with `--admin` by owner decision: its only failure was UIP-005 exceeding its 120 s budget (split in #1099).
 
 **What v0.22.0 carries (over v0.21.0):**
 - UX waves 1–2 (slices S-01…S-38 merged, #1061–#1092).
