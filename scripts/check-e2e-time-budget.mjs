@@ -112,8 +112,11 @@ export function audit(inputs) {
       }
       const suiteFile = typeof suite.file === 'string' ? suite.file : inheritedFile;
       const titles = [...ancestorTitles, suite.title];
-      if (!Array.isArray(suite.suites)) issue(source, 'missing-suites');
-      if (!Array.isArray(suite.specs)) issue(source, 'missing-specs');
+      const hasSuites = Object.hasOwn(suite, 'suites');
+      const hasSpecs = Object.hasOwn(suite, 'specs');
+      if (hasSuites && !Array.isArray(suite.suites)) issue(source, 'invalid-suite-children');
+      if (hasSpecs && !Array.isArray(suite.specs)) issue(source, 'invalid-suite-specs');
+      if (!hasSuites && !hasSpecs) issue(source, 'missing-suite-collections');
 
       if (Array.isArray(suite.specs)) {
         for (const spec of suite.specs) visitSpec(spec, titles, suiteFile);
@@ -365,7 +368,6 @@ function fixture(duration, timeout = 1000, resultStatus = 'passed', annotations 
       suites: [{
         title: 'nested suite',
         file: 'e2e/case.spec.ts',
-        suites: [],
         specs: [{
           title: 'journey',
           file: 'e2e/case.spec.ts',
@@ -474,8 +476,9 @@ function runSelfTest() {
   delete badRoot.suites;
   check(!audit(oneInput(badRoot)).ok, 'missing suites fails');
   const badSuite = fixture(20);
-  delete badSuite.suites[0].specs;
-  check(!audit(oneInput(badSuite)).ok, 'missing suite specs fails');
+  delete badSuite.suites[0].suites[0].specs;
+  const badSuiteAudit = audit(oneInput(badSuite));
+  check(!badSuiteAudit.ok && badSuiteAudit.issues.some(entry => entry.code === 'missing-suite-collections'), 'suite with no child or spec collections fails');
   const badSpec = fixture(20);
   delete badSpec.suites[0].suites[0].specs[0].tests;
   check(!audit(oneInput(badSpec)).ok, 'missing tests fails');
