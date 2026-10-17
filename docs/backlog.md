@@ -16,8 +16,9 @@ remaining aggregation, publication/read, UI and rehearsal batches. The later fol
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
 and 12 served-function smoke cases. The timing audit reported zero warnings or failures. Assertions
 and existing timeouts are preserved; UIP-005 stayed below 44 seconds in that CI run. Merge ancestry,
-exact branch tips and clean-worktree cleanup were verified. The first local prerequisite (#1101) is now
-in build. Earlier timing observations remain tracked in #1106; related follow-ups in #1107/#1108.
+exact branch tips and clean-worktree cleanup were verified. The first local prerequisite (#1101)
+merged to dev in PR #1115 at `8102452a`, with full verification and pgTAP green; verified cleanup is
+complete. The second local prerequisite (#1102) is in build. These changes are for dev only. Earlier timing observations remain tracked in #1106; related follow-ups in #1107/#1108.
 
 **Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
 DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
@@ -66,13 +67,14 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Release-review fixes #1088, #1090 and #1091. The last is the one-Actual rule: ERP ledger for orgs with an active
   ERPNext binding (`org_reads_erp_ledger()`, 0307), committed POs otherwise. Completeness and at-risk are one
   predicate (`isActualComplete` / `isMoneyAtRisk` in `src/lib/projectFinances.ts`), and currencies never mix.
-- Migrations 0294–0299, 0301, 0307, 0309. **Next free migration: 0310.**
+- Migrations 0294–0299, 0301, 0307, 0309. **Next free migration on dev: 0311.**
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
-1. **#1071 test hygiene**: top of the queue (owner 2026-10-17). It includes keeping long e2e journeys well inside
+1. **#1071 test hygiene — complete on dev** (PR #1104; owner priority 2026-10-17). It includes keeping long e2e journeys well inside
    their time budget and running the integration lane on wave-closing PRs. UIP-005's theme split is merged (#1099).
-2. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
-   must close before financial statements are shown to users.
+2. **Security hardening held locally**: first item merged to dev (#1101 / PR #1115); second item in
+   build (#1102). Detail stays in `docs/private/` (public repo). The second must close before financial
+   statements are shown to users. Production deployment remains separately gated.
 3. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with
    `scripts/renumber-migration.sh`, then rebase and verify the final revision before merge.
 4. **Complete signed Phase-1 financial statements (#897)** on dev: #1109 independent aggregation
