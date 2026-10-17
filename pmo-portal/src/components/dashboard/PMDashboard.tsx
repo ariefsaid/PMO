@@ -67,7 +67,6 @@ export const PMDashboard: React.FC = () => {
 
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets />
-        <Card className="p-4"><div className="text-[12px] font-semibold text-muted-foreground">{t('dashboard.pm.atRisk', 'At risk')}</div><div data-testid="pm-attention-count" className="tabular mt-1 text-[23px] font-bold">{isPending || isError ? t('uxs03.notAvailableYet', 'Not available yet') : atRiskCount}</div></Card>
       </section>
 
       <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
@@ -108,8 +107,8 @@ export const PMDashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card>
-          <CardHead>{t('dashboard.pm.statusTitle', 'Project Status')} <span className="ml-2 text-[12px] font-normal text-muted-foreground">{t('uxs03.marginToDate', 'Margin to date')}</span></CardHead>
+        <Card role="region" aria-labelledby="pm-project-status-heading">
+          <CardHead><span id="pm-project-status-heading">{t('dashboard.pm.statusTitle', 'Project Status')}</span><span className="ml-2 text-[12px] font-normal text-muted-foreground">{t('uxs03.marginToDate', 'Margin to date')}</span></CardHead>
           <div className="px-4 pb-3.5">
             {isPending ? (
               <ListState variant="loading" />

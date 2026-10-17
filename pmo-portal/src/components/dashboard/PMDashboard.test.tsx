@@ -104,10 +104,14 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     // The server read model supplies assigned projects only; the display preserves the row currency.
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000.00');
   });
-  it('counts my at-risk projects (utilization > 90%)', () => {
+  it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();
-    // only Project B is 98% utilized → 1 at-risk
-    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+    const atRiskTiles = screen.getAllByTestId('kpi-at-risk');
+    expect(atRiskTiles).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: 'Attention and approvals' })).queryByText(/^At risk$/)).not.toBeInTheDocument();
+    expect(atRiskTiles[0]).toHaveTextContent('budget usage > 90%');
+    expect(within(atRiskTiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(within(atRiskTiles[0]).getByRole('button', { name: /Help: At risk/i })).toBeInTheDocument();
   });
   it('N15: combined approvals tile = approvable PRs (1) + timesheets (2) = 3, links to /approvals', () => {
     renderPane();
@@ -128,16 +132,15 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
   it('UIP-011: every Project Status name is an accessible, correctly routed project link', () => {
     renderPane();
-    const statusCard = screen.getByText('Project Status').parentElement;
-    expect(statusCard).not.toBeNull();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
 
     for (const project of mine) {
-      const projectLink = within(statusCard as HTMLElement).getByRole('link', { name: project.name });
+      const projectLink = within(statusCard).getByRole('link', { name: project.name });
       expect(projectLink).toHaveAttribute('href', `/projects/${project.id}`);
       expect(projectLink.className).toContain('focus-visible:outline');
     }
 
-    expect(within(statusCard as HTMLElement).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
+    expect(within(statusCard).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
   });
 });
 
