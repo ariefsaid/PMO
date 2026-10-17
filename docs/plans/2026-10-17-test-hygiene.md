@@ -12,14 +12,14 @@ JSON through one pure function and CLI; CI retains only a sanitized summary from
 
 ## Constraints and preparation
 
-- Work only in `/Users/ariefsaid/.codex/worktrees/test-hygiene-1071/PMO`, branch `codex/test-hygiene-1071`.
+- Work only in the selected repository worktree, branch `codex/test-hygiene-1071`.
   No production modules, schema, dependencies, lockfile, skip guard, retry, or timeout changes.
 - Preserve 89 collected original cases, full suite contexts and assertions. Only the readiness
   title receives the explicit AC prefix below; record that one mapping, never normalize all names.
 - Every action below is a 2–5 minute step; repeat edit/run steps for the named file batches.
 - No full local suite, raw CI dispatch, extra browser invocation, or additional agent review round.
   One GLM review total for the PR, one fix round, then Director inspection. No attribution trailers.
-- Private evidence directory: `/Users/ariefsaid/Coding/PMO/docs/private/orchestration/runs/1071/`.
+- Private evidence directory: `docs/private/orchestration/runs/1071/` (local-only and ignored by Git).
   Keep inventories, assertion-retention diffs and gate logs there; never add that directory to Git.
 - [ ] Select Node >=22.22, run `node --version`, then `scripts/setup-hooks.sh` from repo root.
 - [ ] Run `npm ci` inside `pmo-portal/` (dependencies are absent). Never `npm install`; confirm
@@ -28,7 +28,7 @@ JSON through one pure function and CLI; CI retains only a sanitized summary from
   Collect the baseline from `pmo-portal/` under the test lock:
 
 ```bash
-../scripts/with-test-lock.sh npx vitest list src/components/integrations/IntegrationsView.test.tsx --json=/Users/ariefsaid/Coding/PMO/docs/private/orchestration/runs/1071/integrations-before.json
+../scripts/with-test-lock.sh npx vitest list src/components/integrations/IntegrationsView.test.tsx --json=../docs/private/orchestration/runs/1071/integrations-before.json
 ```
 
 Vitest collection JSON entries have `name` (full suite/test identity), `file`, `projectName` and
@@ -120,7 +120,7 @@ Use AST/suite boundaries, not blind line slicing; line numbers are navigation ai
   that registers the original default profile beforeEach and cleanup/clearMocks afterEach.
   Call it once per test file; keep section-specific hooks in their original describe scopes.
   Keep date/locale restoration and `onTestFinished` calls. Helpers must not import the SUT.
-- [ ] From `pmo-portal/`, run `../scripts/with-test-lock.sh npx vitest list src/components/integrations/IntegrationsView. --json=/Users/ariefsaid/Coding/PMO/docs/private/orchestration/runs/1071/integrations-after.json`.
+- [ ] From `pmo-portal/`, run `../scripts/with-test-lock.sh npx vitest list src/components/integrations/IntegrationsView. --json=../docs/private/orchestration/runs/1071/integrations-after.json`.
   Compare the 89 pairs exactly before adding any AC title or additional test. Save the comparison.
 - [ ] Preserve a private assertion-retention diff. Use installed TypeScript's parser/printer
   (`ts.createSourceFile`, `ts.createPrinter({removeComments:true})`) to fingerprint each original

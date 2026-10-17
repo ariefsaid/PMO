@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -9,7 +10,6 @@ const TEST_STATUSES = new Set(['expected', 'unexpected', 'flaky', 'skipped']);
 const ATTEMPT_STATUSES = new Set(['passed', 'failed', 'timedOut', 'interrupted', 'skipped']);
 const ACTION = 'split the journey; preserve its oracles and timeout';
 const SELF_TEST_LABEL = 'AC-TH timing-audit self-test';
-const ABSOLUTE_PATH_IN_IDENTITY = /(?:^|[\s("'`])\/|(?:^|[\s("'`])[A-Za-z]:[\\/]|(?:^|[\s("'`])\\\\/;
 
 function reportBasename(source) {
   if (typeof source !== 'string' || source.length === 0) return 'report';
@@ -25,8 +25,29 @@ function safeIdentity(value) {
   return typeof value === 'string'
     && value.length > 0
     && value.length <= 2000
-    && !/[\u0000-\u001f\u007f]/.test(value)
-    && !ABSOLUTE_PATH_IN_IDENTITY.test(value);
+    && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+function identityPathStart(value) {
+  const windowsPath = /(^|[^A-Za-z0-9])([A-Za-z]:[\\/]|\\\\)/.exec(value);
+  let firstPathStart = windowsPath ? windowsPath.index + windowsPath[1].length : value.length;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] !== '/' || (index > 0 && /[A-Za-z0-9]/.test(value[index - 1]))) continue;
+    const remainder = value.slice(index + 1);
+    if (remainder.includes('/') || /\s/.test(remainder)) {
+      firstPathStart = Math.min(firstPathStart, index);
+      break;
+    }
+  }
+  return firstPathStart === value.length ? null : firstPathStart;
+}
+
+function safeIdentityValue(value) {
+  if (!safeIdentity(value)) return null;
+  const pathStart = identityPathStart(value);
+  if (pathStart === null) return value;
+  const identifier = createHash('sha256').update(value.slice(pathStart)).digest('hex').slice(0, 16);
+  return `${value.slice(0, pathStart)}[safe:${identifier}]`;
 }
 
 function relativeFile(value) {
@@ -104,6 +125,7 @@ export function audit(inputs) {
       continue;
     }
     if (report.errors.length > 0) issue(source, 'report-errors');
+    let validTestEntries = 0;
 
     function visitSuite(suite, ancestorTitles, inheritedFile) {
       if (!isRecord(suite) || !safeIdentity(suite.title)) {
@@ -135,6 +157,10 @@ export function audit(inputs) {
         issue(source, 'missing-tests');
         return;
       }
+      if (spec.tests.length === 0) {
+        issue(source, 'empty-tests');
+        return;
+      }
       for (const test of spec.tests) visitTest(test, spec, suiteTitles, inheritedFile);
     }
 
@@ -144,9 +170,10 @@ export function audit(inputs) {
         return;
       }
       const testStatus = test.status;
-      if (typeof testStatus !== 'string' || !TEST_STATUSES.has(testStatus)) {
-        issue(source, 'invalid-test-status');
-      }
+      const validTestStatus = typeof testStatus === 'string' && TEST_STATUSES.has(testStatus);
+      if (!validTestStatus) issue(source, 'invalid-test-status');
+      if (validTestStatus && Array.isArray(test.results) && test.results.length > 0) validTestEntries += 1;
+      const outcomeFails = testStatus === 'unexpected' || testStatus === 'flaky';
       if (!Array.isArray(test.results)) {
         issue(source, 'missing-results');
         return;
@@ -169,7 +196,10 @@ export function audit(inputs) {
         counts.executed += 1;
         attempts.push(result);
       }
-      if (attempts.length === 0) return;
+      if (attempts.length === 0) {
+        if (outcomeFails) issue(source, testStatus === 'flaky' ? 'test-outcome-flaky' : 'test-outcome-unexpected', { incomplete: false });
+        return;
+      }
 
       const projectName = test.projectName;
       if (!safeIdentity(projectName)) issue(source, 'invalid-project');
@@ -184,7 +214,9 @@ export function audit(inputs) {
       if (!timeoutValid) issue(source, 'invalid-timeout');
       const budget = timeoutValid ? parseBudget(test.annotations, timeoutMs) : { ok: false, code: 'invalid-timeout', budgetMs: null };
       if (!budget.ok && timeoutValid) issue(source, budget.code);
-      const outcomeFails = testStatus === 'unexpected' || testStatus === 'flaky';
+      const safeProjectName = safeIdentityValue(projectName);
+      const safeSuiteTitles = suiteTitles.map(safeIdentityValue);
+      const safeTestTitle = safeIdentityValue(testTitle);
       let hasBadAttempt = false;
 
       for (const result of attempts) {
@@ -223,9 +255,9 @@ export function audit(inputs) {
         measurements.push({
           file,
           line,
-          suite: suiteTitles.join(' > '),
-          test: testTitle,
-          project: projectName,
+          suite: safeSuiteTitles.join(' > '),
+          test: safeTestTitle,
+          project: safeProjectName,
           attempt: retry + 1,
           status: result.status,
           durationMs,
@@ -243,6 +275,7 @@ export function audit(inputs) {
     }
 
     for (const suite of report.suites) visitSuite(suite, [], undefined);
+    if (validTestEntries === 0) issue(source, 'empty-report');
   }
 
   if (counts.executed === 0) issue('input', 'no-executed-results');
@@ -414,6 +447,9 @@ function runSelfTest() {
   }
   check(!audit(oneInput(fixture(100, 100, 'passed', [{ type: 'time-budget-ms', description: '100' }]))).ok, 'budget equal to timeout is invalid');
   check(!audit(oneInput(fixture(90000, 120000, 'passed', budget))).ok, 'annotation never relaxes generic gate');
+  const tightUipBudget = audit(oneInput(fixture(89999, 120000, 'passed', budget)));
+  check(tightUipBudget.ok && tightUipBudget.measurements[0].timeoutMs === 120000
+    && tightUipBudget.measurements[0].budgetMs === 90000, 'UIP strict budget preserves its 120-second timeout');
 
   // Attempts are independent: a slow-looking sum across retries must not trigger a warning.
   const retries = fixture(500);
@@ -464,14 +500,56 @@ function runSelfTest() {
   mixedSkip.suites[0].suites[0].specs[0].tests[0].results.unshift({ status: 'skipped', duration: 0, retry: 0 });
   const mixedSkipAudit = audit(oneInput(mixedSkip));
   check(mixedSkipAudit.ok && mixedSkipAudit.counts.skipped === 1 && mixedSkipAudit.counts.executed === 1, 'skipped attempts have no timing measurement');
+  const skipOnlyLane = audit([
+    { source: 'chromium.json', report: fixture(20) },
+    { source: 'serial.json', report: fixture(0, 1000, 'skipped') },
+  ]);
+  check(skipOnlyLane.ok && skipOnlyLane.complete && skipOnlyLane.counts.executed === 1 && skipOnlyLane.counts.skipped === 1,
+    'valid skip-only lane remains compatible beside an executed lane');
+  for (const outcome of ['unexpected', 'flaky']) {
+    const skippedBadOutcome = fixture(0, 1000, 'skipped');
+    skippedBadOutcome.suites[0].suites[0].specs[0].tests[0].status = outcome;
+    const mixedBadOutcome = audit([
+      { source: 'chromium.json', report: fixture(20) },
+      { source: 'serial.json', report: skippedBadOutcome },
+    ]);
+    check(!mixedBadOutcome.ok && mixedBadOutcome.issues.some(entry => entry.code === `test-outcome-${outcome}`),
+      `${outcome} outcome cannot hide behind skipped attempts`);
+  }
+  const skippedFailedAttempt = fixture(20);
+  skippedFailedAttempt.suites[0].suites[0].specs[0].tests[0].status = 'unexpected';
+  skippedFailedAttempt.suites[0].suites[0].specs[0].tests[0].results = [
+    { status: 'skipped', duration: 0, retry: 0 },
+    { status: 'failed', duration: 20, retry: 1 },
+  ];
+  const mixedSkippedFailure = audit([
+    { source: 'chromium.json', report: fixture(20) },
+    { source: 'serial.json', report: skippedFailedAttempt },
+  ]);
+  check(!mixedSkippedFailure.ok && mixedSkippedFailure.issues.some(entry => entry.code === 'attempt-failed'),
+    'failed attempt cannot hide behind a skipped retry');
   const onlySkip = audit(oneInput(fixture(0, 1000, 'skipped')));
-  check(!onlySkip.ok && !onlySkip.complete && onlySkip.counts.skipped === 1, 'skip-only report cannot pass timing audit');
+  check(!onlySkip.ok && !onlySkip.complete && onlySkip.counts.skipped === 1, 'skip-only portfolio cannot pass timing audit');
 
   // Invalid input and malformed executed-case timing fail closed with safe codes.
   check(!audit([]).ok && !audit([]).complete, 'no inputs fail closed');
   check(!audit([{ source: `${path.sep}private${path.sep}chromium.json`, inputError: 'missing-report' }]).ok, 'missing report fails');
   check(!audit(oneInput('<html>not a json report</html>')).ok, 'HTML report shape fails');
   check(!audit(oneInput({ errors: [], suites: [] })).ok, 'empty report fails for no executed results');
+  const healthyWithEmptyLane = audit([
+    { source: 'chromium.json', report: fixture(20) },
+    { source: 'serial.json', report: { errors: [], suites: [] } },
+  ]);
+  check(!healthyWithEmptyLane.ok && !healthyWithEmptyLane.complete
+    && healthyWithEmptyLane.measurements.length === 1
+    && healthyWithEmptyLane.issues.some(entry => entry.source === 'serial.json' && entry.code === 'empty-report'),
+  'empty report fails individually while preserving healthy lane measurements');
+  const emptyTestsSpec = fixture(20);
+  emptyTestsSpec.suites[0].suites[0].specs.push({ title: 'empty spec', file: 'e2e/case.spec.ts', line: 8, tests: [] });
+  const emptyTestsMixedAudit = audit(oneInput(emptyTestsSpec));
+  check(!emptyTestsMixedAudit.ok && !emptyTestsMixedAudit.complete && emptyTestsMixedAudit.measurements.length === 1
+    && emptyTestsMixedAudit.issues.some(entry => entry.code === 'empty-tests'),
+  'empty spec.tests array is malformed even beside a healthy case');
   const badRoot = fixture(20);
   delete badRoot.suites;
   check(!audit(oneInput(badRoot)).ok, 'missing suites fails');
@@ -524,11 +602,74 @@ function runSelfTest() {
     invalid.suites[0].suites[0].specs[0].file = file;
     check(!audit(oneInput(invalid)).ok && audit(oneInput(invalid)).issues.some(entry => entry.code === 'invalid-file'), `unsafe file identity rejected: ${file}`);
   }
-  for (const title of ['Journey at /private/path', String.raw`Journey at C:\\private\\case`, String.raw`Journey at \\server\share`]) {
-    const invalidIdentity = fixture(20);
-    invalidIdentity.suites[0].suites[0].specs[0].title = title;
-    const result = audit(oneInput(invalidIdentity));
-    check(!result.ok && result.issues.some(entry => entry.code === 'invalid-identity'), 'absolute identity path is rejected');
+  const routeTitles = [
+    'AC-PR-026 /procurement/:id — details tab',
+    'AC-MTG-023 /meetings',
+    'AC-M365SEP-018 /admin/integrations',
+  ];
+  const routeAudits = routeTitles.map(title => {
+    const routeReport = fixture(20);
+    routeReport.suites[0].suites[0].specs[0].title = title;
+    return audit(oneInput(routeReport));
+  });
+  check(routeAudits.every(result => result.ok), 'pinned Playwright route-bearing titles remain valid evidence');
+  const pinnedLeafRouteReport = {
+    errors: [],
+    suites: [{
+      title: 'AC-PR-026-axe.spec.ts',
+      file: 'e2e/AC-PR-026-axe.spec.ts',
+      specs: [{
+        title: 'AC-PR-026 /procurement/:id — overview tab',
+        file: 'e2e/AC-PR-026-axe.spec.ts',
+        line: 34,
+        tests: [{
+          projectName: 'chromium',
+          status: 'expected',
+          timeout: 30000,
+          annotations: [],
+          results: [{ status: 'passed', duration: 120, retry: 0 }],
+        }],
+      }],
+    }],
+  };
+  const pinnedLeafAudit = audit(oneInput(pinnedLeafRouteReport));
+  check(pinnedLeafAudit.ok && pinnedLeafAudit.measurements[0].file === 'e2e/AC-PR-026-axe.spec.ts'
+    && pinnedLeafAudit.measurements[0].test.startsWith('AC-PR-026 '),
+  'pinned Playwright 1.61 leaf-suite shape retains a route-bearing title');
+  check(routeAudits[0].measurements[0].test.startsWith('AC-PR-026 ')
+    && routeAudits[0].measurements[0].file === 'e2e/case.spec.ts'
+    && routeAudits[0].measurements[0].line === 7
+    && routeAudits[0].measurements[0].project === 'chromium', 'safe route projection preserves AC/file/line/project identity');
+  const routeParameterA = fixture(20);
+  const routeParameterB = fixture(20);
+  routeParameterA.suites[0].suites[0].specs[0].title = 'AC-PR-026 /procurement/:id — details tab';
+  routeParameterB.suites[0].suites[0].specs[0].title = 'AC-PR-026 /procurement/:projectId — details tab';
+  const parameterA = audit(oneInput(routeParameterA)).measurements[0].test;
+  const parameterB = audit(oneInput(routeParameterB)).measurements[0].test;
+  check(parameterA !== parameterB, 'sanitized route identifiers preserve parameter distinction');
+
+  const privateIdentityCases = [
+    { field: 'suite', value: 'inline /Users/USER_SENTINEL/PMO/private review.json', sentinel: 'USER_SENTINEL' },
+    { field: 'test', value: 'quoted "/tmp/SPACE_SENTINEL/private evidence/report.json"', sentinel: 'SPACE_SENTINEL' },
+    { field: 'project', value: String.raw`C:\\Users\\WINDOWS_SENTINEL\\PMO\\private report.json`, sentinel: 'WINDOWS_SENTINEL' },
+    { field: 'suite', value: 'UNC ' + String.raw`\\UNC_SENTINEL\share\private report.json`, sentinel: 'UNC_SENTINEL' },
+  ];
+  for (const { field, value, sentinel } of privateIdentityCases) {
+    const privateReport = fixture(20);
+    if (field === 'suite') privateReport.suites[0].suites[0].title = value;
+    else if (field === 'test') privateReport.suites[0].suites[0].specs[0].title = value;
+    else privateReport.suites[0].suites[0].specs[0].tests[0].projectName = value;
+    const safeResult = audit(oneInput(privateReport));
+    const safeProjection = JSON.stringify(safeResult);
+    check(safeResult.ok && !safeProjection.includes(sentinel) && !safeProjection.includes(value),
+      `${field} identity path fragments are sanitized before projection`);
+  }
+  for (const malformedIdentity of ['control\u0001character', 'x'.repeat(2001)]) {
+    const malformedIdentityReport = fixture(20);
+    malformedIdentityReport.suites[0].suites[0].specs[0].title = malformedIdentity;
+    const malformedIdentityAudit = audit(oneInput(malformedIdentityReport));
+    check(!malformedIdentityAudit.ok && malformedIdentityAudit.issues.some(entry => entry.code === 'invalid-identity'),
+      'structurally malformed identity still fails closed');
   }
   const invalidLine = fixture(20);
   invalidLine.suites[0].suites[0].specs[0].line = 0;
@@ -547,6 +688,10 @@ function runSelfTest() {
     const missingPath = path.join(tempDirectory, 'serial report.json');
     const missingThirdPath = path.join(tempDirectory, 'consent report.json');
     const malformedPath = path.join(tempDirectory, 'malformed report.json');
+    const emptyPath = path.join(tempDirectory, 'empty report.json');
+    const healthyPath = path.join(tempDirectory, 'healthy report.json');
+    const skipOnlyPath = path.join(tempDirectory, 'skip-only report.json');
+    const malformedCasePath = path.join(tempDirectory, 'malformed case report.json');
     const summaryPath = path.join(tempDirectory, 'safe timing summary.json');
     const cliSentinel = 'PRIVATE_SUMMARY_SENTINEL';
     const cliReport = fixture(100);
@@ -558,6 +703,12 @@ function runSelfTest() {
     cliReport.suites[0].suites[0].specs[0].tests[0].results[0].attachments = [{ body: cliSentinel }];
     writeFileSync(validPath, JSON.stringify(cliReport));
     writeFileSync(malformedPath, '<html>invalid report</html>');
+    writeFileSync(emptyPath, JSON.stringify({ errors: [], suites: [] }));
+    writeFileSync(healthyPath, JSON.stringify(fixture(100)));
+    writeFileSync(skipOnlyPath, JSON.stringify(fixture(0, 1000, 'skipped')));
+    const malformedCase = fixture(100);
+    malformedCase.suites[0].suites[0].specs[0].tests[0].results[0].duration = 'malformed';
+    writeFileSync(malformedCasePath, JSON.stringify(malformedCase));
     const partial = spawnSync(process.execPath, [script, '--summary', summaryPath, validPath, missingPath, missingThirdPath], { encoding: 'utf8' });
     check(partial.status === 1, 'partial-report CLI exits nonzero');
     check(readFileSync(summaryPath, 'utf8').length > 0, 'partial-report CLI writes a summary before failing');
@@ -572,6 +723,61 @@ function runSelfTest() {
     check(safeSummary.issues.every(entry => Object.keys(entry).sort().join(',') === 'code,source'), 'artifact issues retain only safe basename and code');
     check(safeSummary.issues.some(entry => entry.source === 'serial report.json' && entry.code === 'missing-report')
       && safeSummary.issues.some(entry => entry.source === 'consent report.json' && entry.code === 'missing-report'), 'missing second and third lanes are both recorded');
+
+    const emptyLaneSummaryPath = path.join(tempDirectory, 'empty lane summary.json');
+    const emptyLaneRun = spawnSync(process.execPath, [script, '--summary', emptyLaneSummaryPath, healthyPath, emptyPath], { encoding: 'utf8' });
+    const emptyLaneSummary = JSON.parse(readFileSync(emptyLaneSummaryPath, 'utf8'));
+    check(emptyLaneRun.status === 1 && !emptyLaneSummary.complete && emptyLaneSummary.measurements.length === 1
+      && emptyLaneSummary.issues.some(entry => entry.code === 'empty-report'),
+    'healthy plus empty report CLI retains summary and exits nonzero');
+
+    const skipControlSummaryPath = path.join(tempDirectory, 'skip control summary.json');
+    const skipControlRun = spawnSync(process.execPath, [script, '--summary', skipControlSummaryPath, healthyPath, skipOnlyPath], { encoding: 'utf8' });
+    const skipControlSummary = JSON.parse(readFileSync(skipControlSummaryPath, 'utf8'));
+    check(skipControlRun.status === 0 && skipControlSummary.complete && skipControlSummary.ok
+      && skipControlSummary.counts.executed === 1 && skipControlSummary.counts.skipped === 1,
+    'healthy plus valid skip-only report retains existing CLI timing behavior');
+
+    const allSkippedSummaryPath = path.join(tempDirectory, 'all skipped summary.json');
+    const allSkippedRun = spawnSync(process.execPath, [script, '--summary', allSkippedSummaryPath, skipOnlyPath], { encoding: 'utf8' });
+    const allSkippedSummary = JSON.parse(readFileSync(allSkippedSummaryPath, 'utf8'));
+    check(allSkippedRun.status === 1 && !allSkippedSummary.complete && !allSkippedSummary.ok
+      && allSkippedSummary.counts.executed === 0 && allSkippedSummary.counts.skipped === 1,
+    'all-skipped CLI input cannot pass without any executed result');
+
+    const malformedCaseSummaryPath = path.join(tempDirectory, 'malformed case summary.json');
+    const malformedCaseRun = spawnSync(process.execPath, [script, '--summary', malformedCaseSummaryPath, healthyPath, malformedCasePath], { encoding: 'utf8' });
+    const malformedCaseSummary = JSON.parse(readFileSync(malformedCaseSummaryPath, 'utf8'));
+    check(malformedCaseRun.status === 1 && !malformedCaseSummary.complete
+      && malformedCaseSummary.issues.some(entry => entry.code === 'invalid-duration'),
+    'malformed per-case timing fails CLI with a safe actionable code');
+
+    const cliPrivacyCases = [
+      { field: 'suite', value: 'inline /Users/CLI_USER_SENTINEL/PMO/private review.json', sentinel: 'CLI_USER_SENTINEL' },
+      { field: 'test', value: 'quoted "/tmp/CLI_SPACE_SENTINEL/private evidence/report.json"', sentinel: 'CLI_SPACE_SENTINEL' },
+      { field: 'project', value: String.raw`C:\\Users\\CLI_WINDOWS_SENTINEL\\PMO\\private report.json`, sentinel: 'CLI_WINDOWS_SENTINEL' },
+      { field: 'suite', value: 'UNC ' + String.raw`\\CLI_UNC_SENTINEL\share\private report.json`, sentinel: 'CLI_UNC_SENTINEL' },
+    ];
+    const privacyReportPaths = [];
+    for (const { field, value } of cliPrivacyCases) {
+      const privacyReport = fixture(750);
+      if (field === 'suite') privacyReport.suites[0].suites[0].title = value;
+      else if (field === 'test') privacyReport.suites[0].suites[0].specs[0].title = value;
+      else privacyReport.suites[0].suites[0].specs[0].tests[0].projectName = value;
+      const privacyReportPath = path.join(tempDirectory, `privacy ${privacyReportPaths.length}.json`);
+      writeFileSync(privacyReportPath, JSON.stringify(privacyReport));
+      privacyReportPaths.push(privacyReportPath);
+    }
+    const privacySummaryPath = path.join(tempDirectory, 'privacy-safe summary.json');
+    const privacyCli = spawnSync(process.execPath, [script, '--summary', privacySummaryPath, ...privacyReportPaths], { encoding: 'utf8' });
+    const privacySummaryText = readFileSync(privacySummaryPath, 'utf8');
+    const privacyOutputs = `${privacySummaryText}\n${privacyCli.stdout}\n${privacyCli.stderr}`;
+    check(privacyCli.status === 0 && JSON.parse(privacySummaryText).measurements.length === cliPrivacyCases.length,
+      'path-like identities remain auditable by the real CLI');
+    for (const { value, sentinel } of cliPrivacyCases) {
+      check(!privacyOutputs.includes(value) && !privacyOutputs.includes(sentinel),
+        'CLI stdout/stderr and safe artifact exclude raw path fragments');
+    }
 
     writeFileSync(malformedPath, '<html>invalid report</html>');
     const malformedSummaryPath = path.join(tempDirectory, 'malformed summary.json');
