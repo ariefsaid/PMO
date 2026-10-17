@@ -41,6 +41,41 @@ test.describe('UX-006: effective phone action targets', () => {
   });
 });
 
+async function checkTabWork(page: Page, panel: Locator, sections: Locator, theme: 'light' | 'dark') {
+  await page.evaluate(value => { localStorage.setItem('theme', value); document.documentElement.classList.toggle('dark', value === 'dark'); }, theme);
+  for (const tab of ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks']) {
+    await page.goto(`${projectPath}/${tab}`);
+    const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
+      : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
+      : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Contract drawdown', exact: true })
+      : tab === 'billing' ? panel.getByRole('heading', { name: 'Billing summary', exact: true })
+      : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
+      : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
+      : panel.getByText('ENG — Detail Design Package', { exact: true });
+    await expect(work).toBeVisible();
+    const selectedTab = sections.getByRole('tab', { selected: true });
+    await expect(selectedTab).toBeVisible();
+    await expect.poll(async () => selectedTab.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const label = range.getBoundingClientRect();
+      const strip = el.closest('[role="tablist"]')!.getBoundingClientRect();
+      return label.left >= strip.left && label.right <= strip.right;
+    })).toBe(true);
+    if (tab === 'budget') {
+      const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
+      const remaining = remainingLabel.locator('..').locator('dd');
+      await expect(remainingLabel).toBeVisible();
+      await expect(remaining).toBeVisible();
+    }
+    await page.locator('main').evaluate(el => { el.scrollTop = 0; });
+    await aboveFold(page, sections);
+    await aboveFold(page, work);
+  }
+  const a11y = await new AxeBuilder({ page }).include('main').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations).toEqual([]);
+}
+
 for (const role of ['pm', 'finance'] as const) {
   test(`UIP-006: ${role} contract and committed KPI value tops align at 1440px`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -66,7 +101,8 @@ for (const role of ['pm', 'finance'] as const) {
   });
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-    test(`UIP-005: ${role} sees tab work immediately at ${viewport.width}, with Overview phase actions intact`, async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`UIP-005: ${role} sees tab work immediately at ${viewport.width} (${theme})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await login(page, `${role}@acme.test`);
       await page.goto(`${projectPath}/tasks`);
@@ -89,43 +125,11 @@ for (const role of ['pm', 'finance'] as const) {
         await expect(financialSummary.locator('..')).not.toHaveAttribute('open');
       }
 
-      // Every section has its own immediate work surface in both themes. These
+      // Every section has its own immediate work surface in this theme. These
       // are real, section-specific oracles, not the presence of an empty panel.
-      for (const theme of ['light', 'dark']) {
-        await page.evaluate(value => { localStorage.setItem('theme', value); document.documentElement.classList.toggle('dark', value === 'dark'); }, theme);
-        for (const tab of ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks']) {
-          await page.goto(`${projectPath}/${tab}`);
-          const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
-            : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
-            : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Contract drawdown', exact: true })
-            : tab === 'billing' ? panel.getByRole('heading', { name: 'Billing summary', exact: true })
-            : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
-            : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
-            : panel.getByText('ENG — Detail Design Package', { exact: true });
-          await expect(work).toBeVisible();
-          const selectedTab = sections.getByRole('tab', { selected: true });
-          await expect(selectedTab).toBeVisible();
-          await expect.poll(async () => selectedTab.evaluate(el => {
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            const label = range.getBoundingClientRect();
-            const strip = el.closest('[role="tablist"]')!.getBoundingClientRect();
-            return label.left >= strip.left && label.right <= strip.right;
-          })).toBe(true);
-          if (tab === 'budget') {
-            const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
-            const remaining = remainingLabel.locator('..').locator('dd');
-            await expect(remainingLabel).toBeVisible();
-            await expect(remaining).toBeVisible();
-          }
-          await page.locator('main').evaluate(el => { el.scrollTop = 0; });
-          await aboveFold(page, sections);
-          await aboveFold(page, work);
-        }
-        const a11y = await new AxeBuilder({ page }).include('main').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-        expect(a11y.violations).toEqual([]);
-      }
+      await checkTabWork(page, panel, sections, theme);
 
+      if (theme === 'light') {
       await sections.getByRole('tab', { name: 'Overview', exact: true }).click();
       await expect(panel.getByRole('heading', { name: 'Delivery phases', exact: true })).toBeVisible();
       await page.locator('main').evaluate(el => { el.scrollTop = 0; });
@@ -164,6 +168,8 @@ for (const role of ['pm', 'finance'] as const) {
         expect(mainBox).not.toBeNull();
         expect(panelBox!.width).toBeGreaterThan(mainBox!.width * 0.9);
       }
-    });
+      }
+      });
+    }
   }
 }
