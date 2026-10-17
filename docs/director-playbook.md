@@ -174,6 +174,14 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - For a PR targeting `main`, CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke) runs automatically and is the promotion gate. `scripts/verify-main-pr.sh` reproduces it
   locally — use it only to diagnose a CI failure CI could not report.
+- **Wave/milestone-closing PR evidence (before merge):** when the signed brief or release evidence
+  identifies a PR as closing a wave, record the green integration run URL and the exact tested revision
+  in the release evidence; require that run to cover the final change before merging. For PRs to `dev`,
+  dispatch only through `scripts/ci-e2e.sh <branch>` and honor its one-run, concurrency, daily-cap,
+  bugfix-proof, and owner-override rules. PRs to `main` use their automatic integration run — never add
+  a manual duplicate. Identify wave closure from the signed brief/release evidence, not a branch-name
+  pattern; reuse existing sufficient proof. A blocked dispatch leaves the release gate pending and is
+  not permission to bypass fair-use.
 - **Never force-push. Never `git add -A`.** Stage the issue's files explicitly.
 - `release-engineer` opens the PR and **stops**. The **Director** approves & merges within the signed
   spec (`gh pr merge <n> --squash`), then performs the ordered cleanup below. Remote branch deletion
