@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — owns uniquely named requests/project/items and cleans them up; previews only, never submits a decision.
 import { randomUUID } from 'node:crypto';
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
@@ -9,18 +9,23 @@ import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupaba
 const env = loadEnv('development', process.cwd(), 'VITE_');
 const url = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, env.VITE_SUPABASE_URL);
 const org = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
-let admin: SupabaseClient;
+let admin: SupabaseClient | undefined;
 let projectId = '';
 let ids: string[] = [];
 let titles: string[] = [];
-let projectName = '';
 
 test.beforeEach(async () => {
+  // A failed prior setup/cleanup must never let the next test inherit fixture identities.
+  admin = undefined;
+  projectId = '';
+  ids = [];
+  titles = [];
+
   const key = requireServiceRoleKey();
   if (!key) throw new Error('UIP-008 requires the local e2e wrapper');
   admin = createClient(url, key, { auth: { persistSession: false } });
   const tag = `UIP-008 ${randomUUID().slice(0, 6)}`;
-  projectName = `${tag} distribution board commissioning`;
+  const projectName = `${tag} distribution board commissioning`;
   titles = [`${tag} Switchgear — North hall commissioning`, `${tag} Switchgear — South hall commissioning`];
   const project = await admin.from('projects').insert({ org_id: org, name: projectName, status: 'Ongoing Project' }).select('id').single();
   if (project.error) throw project.error;
@@ -55,32 +60,41 @@ test.afterEach(async () => {
   projectId = '';
 });
 
-test('UIP-008 recognizes the intended same-prefix request and previews its amount/evidence with keyboard, desktop and phone', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-    await page.goto('/approvals?scope=procurement');
-    // S-18 moved phone and desktop approvals to one selection → evidence preview
-    // pattern (fa448039). Select the same request from the queue at both widths.
-    const control = page.getByRole('region', { name: 'Approvals queue' })
-      .getByRole('button', { name: new RegExp(titles[1]) });
-    await expect(control).toBeVisible();
-    await control.focus();
-    await page.keyboard.press('Enter');
-    const preview = page.getByRole('region', { name: 'Approval preview' });
-    await expect(preview.getByText('South hall switchgear evidence', { exact: true })).toBeVisible();
-    await expect(preview.getByText('$48,000', { exact: true }).first()).toBeVisible();
-    await expect(preview.getByText('North hall switchgear evidence', { exact: true })).toHaveCount(0);
-    await expect(preview.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
-    await expect(preview.getByRole('button', { name: 'Reject', exact: true })).toBeVisible();
-    await expect(page).toHaveURL(/\/approvals\?scope=procurement$/);
-    await waitForFonts(page);
-    await expect(control.getByText(titles[1], { exact: true })).toBeVisible();
-    await expect(control).toContainText('Requested');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  }
+async function assertApprovalPreview(page: Page, width: 1440 | 390): Promise<void> {
+  await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+  await page.goto('/approvals?scope=procurement');
+  // S-18 moved phone and desktop approvals to one selection → evidence preview
+  // pattern (fa448039). Select the same request from the queue at this viewport.
+  const control = page.getByRole('region', { name: 'Approvals queue' })
+    .getByRole('button', { name: new RegExp(titles[1]) });
+  await expect(control).toBeVisible();
+  await control.focus();
+  await page.keyboard.press('Enter');
+  const preview = page.getByRole('region', { name: 'Approval preview' });
+  await expect(preview.getByText('South hall switchgear evidence', { exact: true })).toBeVisible();
+  await expect(preview.getByText('$48,000', { exact: true }).first()).toBeVisible();
+  await expect(preview.getByText('North hall switchgear evidence', { exact: true })).toHaveCount(0);
+  await expect(preview.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Reject', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/approvals\?scope=procurement$/);
+  await waitForFonts(page);
+  await expect(control.getByText(titles[1], { exact: true })).toBeVisible();
+  await expect(control).toContainText('Requested');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+}
 
-  // UIP-007: comparative values and their quiet header share a common right edge.
+test('UIP-008 previews the South request by keyboard at desktop 1440x900', async ({ page }) => {
+  await signIn(page, 'finance@acme.test');
+  await assertApprovalPreview(page, 1440);
+});
+
+test('UIP-008 previews the South request by keyboard at phone 390x844', async ({ page }) => {
+  await signIn(page, 'finance@acme.test');
+  await assertApprovalPreview(page, 390);
+});
+
+test('UIP-007 keeps comparative procurement values and the header right-aligned at desktop', async ({ page }) => {
+  await signIn(page, 'finance@acme.test');
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/procurement');
   await page.getByRole('searchbox', { name: 'Filter requests' }).fill(titles[0].split(' Switchgear')[0]);
@@ -91,8 +105,10 @@ test('UIP-008 recognizes the intended same-prefix request and previews its amoun
   const headerEdge = await page.getByTestId('procurement-list-columns').getByText('Value', { exact: true }).evaluate(node => node.getBoundingClientRect().right);
   expect(Math.abs(headerEdge - edges[0])).toBeLessThanOrEqual(1);
   await expect(page.locator('[data-procurement-value]').first()).toHaveCSS('font-variant-numeric', 'tabular-nums');
+});
 
-  // UIP-009: the same request's canonical phone header stacks status below its full title.
+test('UIP-009 stacks the full South request title and status in the phone header', async ({ page }) => {
+  await signIn(page, 'finance@acme.test');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/procurement/${ids[1]}`);
   const header = page.getByTestId('record-header');
