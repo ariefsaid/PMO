@@ -12,12 +12,12 @@ balance sheet and project profit, including prior-period comparisons and execute
 After test hygiene and the two local prerequisites, finish statement source B1b (#1074), then the
 remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
-**Test hygiene (#1071 / PR #1104):** implementation and review complete; the first integration run
-passed all 329 executed browser cases and its skip audit, but the new timing guard blocked three long
-journeys. Those journeys are now split with every expanded assertion and existing timeout retained.
-The repair passed 14 targeted journeys plus 10 authentication setup cases locally, with no skips or
-timing warnings/failures. Fresh CI and a final-revision integration result are required before merge.
-Remaining timing headroom is tracked in #1106; related fixture and diagnostic follow-ups in #1107/#1108.
+**Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
+Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
+and 12 served-function smoke cases. The timing audit reported zero warnings or failures. Assertions
+and existing timeouts are preserved; UIP-005 stayed below 44 seconds in that CI run. Merge ancestry,
+exact branch tips and clean-worktree cleanup were verified. The first local prerequisite (#1101) is now
+in build. Earlier timing observations remain tracked in #1106; related follow-ups in #1107/#1108.
 
 **Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
 DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
@@ -73,17 +73,19 @@ operator work (outcomes, budget account map, budget activation by a second perso
    their time budget and running the integration lane on wave-closing PRs. UIP-005's theme split is merged (#1099).
 2. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
    must close before financial statements are shown to users.
-3. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
-   then merge. Its publication hardening is #1068. Then **#1073** small correctness fixes.
-4. **Release-review follow-ups**:
-   - #1081 one shared project-money tile builder;
-   - #1089 Finance budget review, top-projects card and approvals badge on the one-Actual rule;
-   - #1083 management pack: earlier foreign-currency invoices.
-5. **Close shipped issues once v0.22.0 is live.** #1050 shipped in #1052; #1033 shipped in v0.21.0. Check #1044,
+3. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with
+   `scripts/renumber-migration.sh`, then rebase and verify the final revision before merge.
+4. **Complete signed Phase-1 financial statements (#897)** on dev: #1109 independent aggregation
+   and ERP reference captures → #1110 publication and scoped reads → #1111 company/project views →
+   #1112 executed reconciliation and acceptance. Planning is prepared; builds and actual reference
+   captures remain pending. A local synthetic proof does not replace the required live rehearsal.
+5. **Later correctness and release-review follow-ups**, after statements unless needed as a prerequisite:
+   #1073 small correctness fixes; #1081 shared project-money tiles; #1089 Finance alignment;
+   #1083 management-pack invoice presence.
+6. **Close shipped issues once verified.** #1050 shipped in #1052; #1033 shipped in v0.21.0. Check #1044,
    #1045 and #1048 against what shipped first.
-6. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including the 7 high-priority findings still open:
-   UX-029, 042, 044, 052, 078, 079 and 082.
-7. **Triage**: #1068, #1069, #1070, #1072.
+7. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including UX-029, 042, 044, 052, 078, 079 and 082.
+8. **Triage**: #1068, #1069, #1070, #1072.
 
 **Owner actions after v0.22.0:**
 - Activate the Kajian budget (sole-operator path).
