@@ -23,7 +23,7 @@
  * Touch-target sweep (C6): Button size="sm" and size="icon" carry `.touch-target`.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 import { Button } from '../Button';
@@ -339,5 +339,82 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
   it('Button iconOnly (size="icon") carries the touch-target class (C6)', () => {
     render(<Button iconOnly aria-label="Close" />);
     expect(screen.getByRole('button', { name: 'Close' }).className).toContain('touch-target');
+  });
+});
+
+describe('DataTable accessible structure name', () => {
+  it('names the active mobile list and follows a breakpoint change without duplicate content or stale names', () => {
+    let matches = true;
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    const mediaQueryList = {
+      get matches() { return matches; },
+      media: '(min-width: 768px)',
+      onchange: null,
+      addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener);
+      }),
+      removeEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener);
+      }),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    } as unknown as MediaQueryList;
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mediaQueryList));
+
+    const { rerender } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        accessibleName="Perbandingan laba rugi"
+      />,
+    );
+    expect(screen.getByRole('table', { name: 'Perbandingan laba rugi' })).toBeInTheDocument();
+
+    act(() => {
+      matches = false;
+      listeners.forEach((listener) => listener({ matches, media: mediaQueryList.media } as MediaQueryListEvent));
+    });
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const mobileList = screen.getByRole('list', { name: 'Perbandingan laba rugi' });
+    expect(mobileList).toHaveAttribute('data-testid', 'dt-card-branch');
+    expect(mobileList.querySelectorAll(':scope > li')).toHaveLength(rows.length);
+    expect(screen.getAllByText('Alpha Corp')).toHaveLength(1);
+    expect(screen.getAllByText('Beta Ltd')).toHaveLength(1);
+
+    act(() => {
+      matches = true;
+      listeners.forEach((listener) => listener({ matches, media: mediaQueryList.media } as MediaQueryListEvent));
+    });
+    expect(screen.getByRole('table', { name: 'Perbandingan laba rugi' })).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Alpha Corp')).toHaveLength(1);
+    expect(screen.getAllByText('Beta Ltd')).toHaveLength(1);
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        accessibleName="Updated comparison"
+      />,
+    );
+    expect(screen.queryByRole('table', { name: 'Perbandingan laba rugi' })).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Updated comparison' })).toBeInTheDocument();
+
+    rerender(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} />);
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-label');
+    expect(screen.queryByRole('table', { name: 'Updated comparison' })).not.toBeInTheDocument();
+  });
+
+  it('keeps an explicitly undefined name off the original mobile list', () => {
+    mockViewport(false);
+    render(
+      <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} accessibleName={undefined} />,
+    );
+    expect(screen.getByRole('list')).not.toHaveAttribute('aria-label');
+    expect(screen.getAllByRole('listitem')).toHaveLength(rows.length);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

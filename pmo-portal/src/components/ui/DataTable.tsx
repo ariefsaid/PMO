@@ -85,6 +85,8 @@ export interface DataTableProps<Row> {
    * control (e.g. a name button) to avoid nesting interactive elements.
    */
   rowLabel?: (row: Row) => string;
+  /** Optional accessible name for the active table or mobile list structure. */
+  accessibleName?: string;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -243,6 +245,7 @@ export function DataTable<Row>({
   rowMenu,
   className,
   cardBelow,
+  accessibleName,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -298,7 +301,7 @@ export function DataTable<Row>({
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
         className="relative overflow-x-auto"
       >
-        <table ref={tableRef} className="w-full border-collapse text-[13.5px]">
+        <table ref={tableRef} aria-label={accessibleName} className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
               {columns.map((col) => {
@@ -465,6 +468,7 @@ export function DataTable<Row>({
         data-testid="dt-card-branch"
         data-dt-cards=""
         role="list"
+        aria-label={accessibleName}
         className="divide-y divide-border/70"
       >
         {state ? (

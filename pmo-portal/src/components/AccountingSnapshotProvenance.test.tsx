@@ -74,3 +74,98 @@ describe('AC-PLC-005: the snapshot date follows the profile timezone', () => {
     expect(screen.getByText(/Jun 15, 2026/)).toBeInTheDocument();
   });
 });
+
+describe('AccountingSnapshotProvenance optional updatedLabel', () => {
+  afterEach(() => resetActiveLocale());
+
+  it('uses supplied localized prefixes while preserving the captured timestamp and supplied provenance', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const { rerender } = render(
+      <AccountingSnapshotProvenance
+        asOf="2026-07-12T10:00:00Z"
+        sourceReport="Profit and loss"
+        reportVersion="source-version"
+        updatedLabel="Updated"
+      />,
+    );
+    const strip = screen.getByTestId('snapshot-provenance');
+    const timestamp = strip.querySelector('.font-medium')?.textContent;
+    expect(strip.firstElementChild?.textContent).toMatch(/^Updated /);
+    expect(timestamp).toMatch(/2026/);
+    expect(strip).toHaveTextContent('Profit and loss');
+    expect(strip).toHaveTextContent('source-version');
+    expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
+    expect(strip.children).toHaveLength(5);
+
+    rerender(
+      <AccountingSnapshotProvenance
+        asOf="2026-07-12T10:00:00Z"
+        sourceReport="Profit and loss"
+        reportVersion="source-version"
+        updatedLabel="Diperbarui"
+      />,
+    );
+    const updatedStrip = screen.getByTestId('snapshot-provenance');
+    expect(updatedStrip.firstElementChild?.textContent).toMatch(/^Diperbarui /);
+    expect(updatedStrip.querySelector('.font-medium')).toHaveTextContent(timestamp ?? '');
+    expect(updatedStrip).toHaveTextContent('Profit and loss');
+    expect(updatedStrip).toHaveTextContent('source-version');
+    expect(updatedStrip.children).toHaveLength(5);
+  });
+
+  it('retains the original As of text and DOM when updatedLabel is omitted or undefined', () => {
+    const { rerender } = render(
+      <AccountingSnapshotProvenance
+        asOf="2026-07-12T10:00:00Z"
+        sourceReport="Accounts Payable"
+        reportVersion="source-version"
+        className="custom-strip"
+      />,
+    );
+    const strip = screen.getByTestId('snapshot-provenance');
+    const originalMarkup = strip.innerHTML;
+    expect(strip.firstElementChild?.textContent).toMatch(/^As of /);
+    expect(strip).toHaveClass('custom-strip');
+    expect(strip.children).toHaveLength(5);
+    expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
+    expect(strip).toHaveTextContent('Accounts Payable');
+    expect(strip).toHaveTextContent('source-version');
+
+    rerender(
+      <AccountingSnapshotProvenance
+        asOf="2026-07-12T10:00:00Z"
+        sourceReport="Accounts Payable"
+        reportVersion="source-version"
+        className="custom-strip"
+        updatedLabel={undefined}
+      />,
+    );
+    expect(screen.getByTestId('snapshot-provenance').innerHTML).toBe(originalMarkup);
+  });
+
+  it('ignores updatedLabel and other provenance fields when asOf is null or omitted', () => {
+    const { rerender } = render(
+      <AccountingSnapshotProvenance
+        asOf={null}
+        sourceReport="Must not appear"
+        reportVersion="must-not-appear"
+        updatedLabel="Updated"
+      />,
+    );
+    expect(screen.getByTestId('snapshot-provenance-empty')).toHaveTextContent('No snapshot available yet');
+    expect(screen.getByTestId('snapshot-provenance-empty').children).toHaveLength(0);
+    expect(screen.queryByTestId('snapshot-provenance')).not.toBeInTheDocument();
+
+    rerender(
+      <AccountingSnapshotProvenance
+        sourceReport="Must not appear"
+        reportVersion="must-not-appear"
+        updatedLabel="Diperbarui"
+      />,
+    );
+    expect(screen.getByTestId('snapshot-provenance-empty')).toHaveTextContent('No snapshot available yet');
+    expect(screen.getByTestId('snapshot-provenance-empty').children).toHaveLength(0);
+    expect(screen.queryByText('Must not appear')).not.toBeInTheDocument();
+    expect(screen.queryByText('must-not-appear')).not.toBeInTheDocument();
+  });
+});
