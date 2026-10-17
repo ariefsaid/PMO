@@ -34,8 +34,10 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await expect(sidebar.getByRole('link', { name: 'Procurement' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Timesheets' })).toBeVisible();
 
-  const statusCard = page.getByText('Project Status', { exact: true }).locator('..');
-  const flaggedProject = statusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
+  // S-03 dashboard rework (#1066) places the status heading and project list in
+  // separate card regions; scope to the status list, not the heading's DOM parent.
+  const statusList = page.getByRole('list');
+  const flaggedProject = statusList.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true });
   await expect(flaggedProject).toBeVisible();
   await flaggedProject.focus();
   await expect(flaggedProject).toBeFocused();
@@ -47,8 +49,7 @@ test('AC-AUTH-003 UIP-011: PM password login lands on dashboard and opens a flag
   await page.goBack();
   await expect(page).toHaveURL('/');
   await expect(page.getByText('Diego Salvatierra')).toBeVisible();
-  const returnedStatusCard = page.getByText('Project Status', { exact: true }).locator('..');
   await expect(
-    returnedStatusCard.getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
+    page.getByRole('list').getByRole('link', { name: 'Cascade Foods 6.0 MW Ground-Mount PV', exact: true }),
   ).toBeVisible();
 });
