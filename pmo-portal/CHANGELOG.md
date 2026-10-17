@@ -10,6 +10,46 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.22.0](https://github.com/ariefsaid/PMO/compare/v0.21.0...v0.22.0) (2026-10-17)
+
+
+### Features
+
+* **admin:** clarify accounting and project setup (S-31) ([#1063](https://github.com/ariefsaid/PMO/issues/1063)) ([17bdf2a](https://github.com/ariefsaid/PMO/commit/17bdf2ac2aedba5e03fad52710de9f5704d3a4bf))
+* **admin:** propose budget posting accounts once (S-10) ([#1076](https://github.com/ariefsaid/PMO/issues/1076)) ([cf8ec08](https://github.com/ariefsaid/PMO/commit/cf8ec08009e10c0650184bb136284f77aae88468))
+* **admin:** show the resolved spend-approval route (S-32) ([#1065](https://github.com/ariefsaid/PMO/issues/1065)) ([1e4770c](https://github.com/ariefsaid/PMO/commit/1e4770c0fcc50995a3260e4689e90cacada377b4))
+* **budget:** clarify project forecast (S-04) ([#1080](https://github.com/ariefsaid/PMO/issues/1080)) ([1444573](https://github.com/ariefsaid/PMO/commit/144457350a7ccc18ac1798824246e789873debc1))
+* **budget:** sole-operator exception to the second-activator rule ([#1050](https://github.com/ariefsaid/PMO/issues/1050)) ([#1052](https://github.com/ariefsaid/PMO/issues/1052)) ([c98b0f9](https://github.com/ariefsaid/PMO/commit/c98b0f9076b9d248cf5ea7e474d8acd5e9d47d7c))
+* **dashboard:** role dashboards tell the truth before summarizing (S-03) ([#1066](https://github.com/ariefsaid/PMO/issues/1066)) ([ca0ea09](https://github.com/ariefsaid/PMO/commit/ca0ea09103036422646d2e31d73384ec029a9706))
+* **finance:** make invoices easier to chase (S-05) ([#1054](https://github.com/ariefsaid/PMO/issues/1054)) ([6145fee](https://github.com/ariefsaid/PMO/commit/6145feee8cf85554fa0bd38ea294aa37f79cd0af))
+* **fx:** clarify exchange-rate coverage (S-38) ([#1067](https://github.com/ariefsaid/PMO/issues/1067)) ([ff1f274](https://github.com/ariefsaid/PMO/commit/ff1f274f1109bb4ce59d492a955ee1e3c2d0ae16))
+* **integrations:** review setup once, then only exceptions (S-08) ([#1078](https://github.com/ariefsaid/PMO/issues/1078)) ([8efba02](https://github.com/ariefsaid/PMO/commit/8efba02501a25025175f83e1a01eeda4020a7559))
+* **invoices:** invoice detail supports collection and honest delivery (S-17) ([#1086](https://github.com/ariefsaid/PMO/issues/1086)) ([29fc483](https://github.com/ariefsaid/PMO/commit/29fc483e4b8fc16a3793919999af75ed9f3edc79))
+* **project-detail:** one trustworthy money position (S-01) ([#1082](https://github.com/ariefsaid/PMO/issues/1082)) ([2ca6bfe](https://github.com/ariefsaid/PMO/commit/2ca6bfef8dbe258d891c3fb0cd9a772e8d9321b6))
+* **projects:** trustworthy money on the projects list (S-02) ([#1085](https://github.com/ariefsaid/PMO/issues/1085)) ([8cae183](https://github.com/ariefsaid/PMO/commit/8cae183caa63996bdcff0ea0c2ba12e2a67aee6e))
+* **receipts:** show every invoice a receipt settled (S-06) ([#1077](https://github.com/ariefsaid/PMO/issues/1077)) ([f991cc0](https://github.com/ariefsaid/PMO/commit/f991cc0630fc2cd17305be10d4720c04d25e598f))
+* **statements:** B1 source foundations — single-flight sweep, account chart, ledger fields ([#897](https://github.com/ariefsaid/PMO/issues/897)) ([#1051](https://github.com/ariefsaid/PMO/issues/1051)) ([41b8f75](https://github.com/ariefsaid/PMO/commit/41b8f75058c0cbdba4da59c045a80d7f23299418))
+
+
+### Bug Fixes
+
+* **approvals:** one review queue, honest scope (S-18) ([#1064](https://github.com/ariefsaid/PMO/issues/1064)) ([fa44803](https://github.com/ariefsaid/PMO/commit/fa448039772f1998052f58ea9423609455087d7e))
+* **dashboard:** one PM at-risk tile; dashboard journeys on the one-Actual seed (v0.22.0) ([#1096](https://github.com/ariefsaid/PMO/issues/1096)) ([f8bbff5](https://github.com/ariefsaid/PMO/commit/f8bbff5076ec288771749459b90aa7a086b326af))
+* **e2e:** align approval journey and project contrast (v0.22.0 e2e) ([#1095](https://github.com/ariefsaid/PMO/issues/1095)) ([2396dca](https://github.com/ariefsaid/PMO/commit/2396dcabb1f71b46814a883c2d3caf1a90db22a9))
+* **expenses:** clarify posting readiness (S-12) ([#1062](https://github.com/ariefsaid/PMO/issues/1062)) ([7bce28f](https://github.com/ariefsaid/PMO/commit/7bce28fd3637c0d9cbf71feed1b557b2e6c34553))
+* **finance:** plain wording for project costs that ERP can't place yet ([#1045](https://github.com/ariefsaid/PMO/issues/1045)) ([#1047](https://github.com/ariefsaid/PMO/issues/1047)) ([cdf704e](https://github.com/ariefsaid/PMO/commit/cdf704e90a10fa3fad05c6f554216c328ad2e274))
+* **integrations:** readiness first, honest status (S-07) ([#1075](https://github.com/ariefsaid/PMO/issues/1075)) ([a15042b](https://github.com/ariefsaid/PMO/commit/a15042bd4d74d3994f512bec3f5029e36a303131))
+* **invoices:** show net before tax correctly for tax-inclusive invoices ([#1048](https://github.com/ariefsaid/PMO/issues/1048)) ([#1049](https://github.com/ariefsaid/PMO/issues/1049)) ([47988b8](https://github.com/ariefsaid/PMO/commit/47988b87449aa64e4780828b2cf4556f96898aab))
+* **money:** one Actual, one currency rule and one at-risk rule on every surface (v0.22.0) ([#1091](https://github.com/ariefsaid/PMO/issues/1091)) ([b8c57e5](https://github.com/ariefsaid/PMO/commit/b8c57e578f2c8e7911746f975ee10354af4b07f5))
+* **procurement:** put decision after evidence (S-20) ([#1079](https://github.com/ariefsaid/PMO/issues/1079)) ([d0d05fc](https://github.com/ariefsaid/PMO/commit/d0d05fc655334876f94759e5355b517a7aba7b0f))
+* **project-detail:** compact identity; selected work owns the page (S-13) ([#1087](https://github.com/ariefsaid/PMO/issues/1087)) ([ae6ab20](https://github.com/ariefsaid/PMO/commit/ae6ab20872c5704eff0a5b87b24d30ebabd20701))
+* **projects:** projects are recognisable before controls and filler (S-14) ([#1092](https://github.com/ariefsaid/PMO/issues/1092)) ([a77738e](https://github.com/ariefsaid/PMO/commit/a77738edffc4bb14d4438307e87d5376654ec53c))
+* **reports:** management pack states period, currency and edit scope (S-34) ([#1084](https://github.com/ariefsaid/PMO/issues/1084)) ([0b326e5](https://github.com/ariefsaid/PMO/commit/0b326e5ddb7b4ef29a2260d89b9f93ab3be0f3df))
+* **revenue:** label tax bases on project totals (S-37) ([#1061](https://github.com/ariefsaid/PMO/issues/1061)) ([1a0f3b3](https://github.com/ariefsaid/PMO/commit/1a0f3b377f40e24fdf01f5256abfd735161f44e8))
+* **shell:** keep Approvals reachable from every screen (S-25) ([#1053](https://github.com/ariefsaid/PMO/issues/1053)) ([b8cbfba](https://github.com/ariefsaid/PMO/commit/b8cbfba0edc8a0db796e5d45a523e01490ba5aee))
+* **tables:** row action menus stay above toasts; timesheet journeys follow S-28 (v0.22.0) ([#1097](https://github.com/ariefsaid/PMO/issues/1097)) ([af46610](https://github.com/ariefsaid/PMO/commit/af46610f68ea8a3af8d59a5828f17288b89f23e3))
+* **timesheets:** clarify entry and review states (S-28) ([#1055](https://github.com/ariefsaid/PMO/issues/1055)) ([39f0a28](https://github.com/ariefsaid/PMO/commit/39f0a285b99b695256ac9e8c7f149e8ebbade676))
+
 ## [0.21.0](https://github.com/ariefsaid/PMO/compare/v0.20.0...v0.21.0) (2026-10-16)
 
 
