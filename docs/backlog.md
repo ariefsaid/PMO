@@ -80,9 +80,9 @@ operator work (outcomes, budget account map, budget activation by a second perso
    timing failures, three warnings tracked in #1106. Exact-tip/merge ancestry and clean-worktree cleanup verified.
 4. **Complete signed Phase-1 financial statements (#897)** on dev: #1109 independent aggregation
    and ERP reference captures → #1110 publication and scoped reads → #1111 company/project views →
-   #1112 executed reconciliation and acceptance. Exact arithmetic, period catalogue and account-hierarchy checkpoints
-   pass 88 local unit tests; the source index is being built. Native reference preparation is underway; report comparisons, publication,
-   views and acceptance remain outstanding. A local synthetic proof does not replace the required live rehearsal.
+   #1112 executed reconciliation and acceptance. Exact arithmetic, period catalogue, account hierarchy and source-index checkpoints
+   pass 105 local unit tests. Native reference preparation and capture-tool verification continue; report calculations and comparisons,
+   publication, views and acceptance remain outstanding. A local synthetic proof does not replace the required live rehearsal.
 5. **Later correctness and release-review follow-ups**, after statements unless needed as a prerequisite:
    #1073 small correctness fixes; #1081 shared project-money tiles; #1089 Finance alignment;
    #1083 management-pack invoice presence.
