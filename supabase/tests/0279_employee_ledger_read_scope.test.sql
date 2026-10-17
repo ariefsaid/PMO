@@ -1,4 +1,4 @@
--- 0279: Employee-party PLE balances are visible only to spend-approval authority; other parties retain member reads.
+-- 0279: compatibility proof for the Employee-party PLE restrictive scope; mirror role visibility is separately owned.
 begin;
 create extension if not exists pgtap;
 select plan(7);
@@ -21,7 +21,7 @@ insert into erp_payment_ledger_mirror (org_id, erp_name, account, party_type, pa
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02810000-0000-0000-0000-0000000004a1","role":"authenticated"}';
 select is((select count(*)::int from erp_payment_ledger_mirror where party_type = 'Employee'), 0, 'Engineer cannot read Employee PLE balances');
-select is((select count(*)::int from erp_payment_ledger_mirror where party_type in ('Customer','Supplier')), 2, 'Engineer retains customer and supplier PLE reads');
+select is((select count(*)::int from erp_payment_ledger_mirror where party_type in ('Customer','Supplier')), 0, 'Engineer reads no raw Customer or Supplier PLE rows under the reporting role contract');
 
 set local request.jwt.claims = '{"sub":"02810000-0000-0000-0000-0000000004a2","role":"authenticated"}';
 select is((select count(*)::int from erp_payment_ledger_mirror where party_type = 'Employee'), 1, 'Finance can read Employee PLE balances');

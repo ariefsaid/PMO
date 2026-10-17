@@ -1,6 +1,6 @@
--- 0270_expense_ledger_read_scope.test.sql — #775 phase B: an expense posting's outbox command and an Employee
--- party's GL entries are read only by approval rank (Finance, Admin, Executive, Project Manager) — the claim's own
--- read scope (NFR-EXP-010). Other domains and party types keep their org-member read. AC-EXP-104.
+-- 0270_expense_ledger_read_scope.test.sql — #775 phase B compatibility: expense outbox and Employee-party
+-- GL restrictions remain independently scoped to approval rank (NFR-EXP-010); ledger role visibility is owned
+-- by the current mirror-read matrix. AC-EXP-104.
 -- Migration under test: 0270 §5b.
 begin;
 create extension if not exists pgtap;
@@ -33,8 +33,8 @@ select is((select count(id)::int from external_command_outbox where domain = 'pr
   'AC-EXP-104: an Engineer still reads another domain''s command');
 select is((select count(*)::int from erp_gl_entry_mirror where party_type = 'Employee'), 0,
   'AC-EXP-104: an Engineer reads no Employee-party GL entry');
-select is((select count(*)::int from erp_gl_entry_mirror), 2,
-  'AC-EXP-104: an Engineer still reads Supplier and party-less GL entries');
+select is((select count(*)::int from erp_gl_entry_mirror), 0,
+  'AC-EXP-104: an Engineer reads no raw GL entries under the reporting role contract');
 
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000004a4","role":"authenticated"}';
 select is((select count(id)::int from external_command_outbox where domain = 'expenses'), 1,
@@ -44,8 +44,8 @@ select is((select count(*)::int from erp_gl_entry_mirror), 3, 'AC-EXP-104: Finan
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000004a3","role":"authenticated"}';
 select is((select count(id)::int from external_command_outbox where domain = 'expenses'), 1,
   'AC-EXP-104: approval rank (a Project Manager) reads the expense posting command');
-select is((select count(*)::int from erp_gl_entry_mirror where party_type = 'Employee'), 1,
-  'AC-EXP-104: approval rank reads the Employee-party GL entry');
+select is((select count(*)::int from erp_gl_entry_mirror where party_type = 'Employee'), 0,
+  'AC-EXP-104: Project Manager reads no raw Employee-party GL entry under the reporting role contract');
 reset role;
 
 -- Demoting the Project Manager takes the read away: the role is read from the profile at query time.
