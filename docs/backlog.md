@@ -6,6 +6,19 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
+**Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
+Work toward the signed Phase-1 financial statements milestone (#897): trial balance, profit and loss,
+balance sheet and project profit, including prior-period comparisons and executed reconciliation.
+After test hygiene and the two local prerequisites, finish statement source B1b (#1074), then the
+remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
+
+**Test hygiene (#1071 / PR #1104):** implementation and review complete; the first integration run
+passed all 329 executed browser cases and its skip audit, but the new timing guard blocked three long
+journeys. Those journeys are now split with every expanded assertion and existing timeout retained.
+The repair passed 14 targeted journeys plus 10 authentication setup cases locally, with no skips or
+timing warnings/failures. Fresh CI and a final-revision integration result are required before merge.
+Remaining timing headroom is tracked in #1106; related fixture and diagnostic follow-ups in #1107/#1108.
+
 **Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
 DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
 files). After-push probes (Director-run): `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
@@ -31,9 +44,8 @@ assign the rest, one finance view (#1008/#1028, 0290) · JISDOR exchange-rate ta
 0291) · the Material Request sweep stops requesting a field v16 lacks (#1034) · e2e repairs (#1031, #1036) · CI
 integration timeout 30 → 45 min (#1032).
 
-**ERPNext v16 (DD-OPS-12):** RIS stays on v16. Every push body passes on v16 except Budget, which v16 stores one per
-account — rebuild in progress (#1033, spec `docs/specs/budget-push-v16.spec.md`, ADR-0086 on its branch). **No
-budget activation on a v16 org until it ships.**
+**ERPNext v16 (DD-OPS-12):** budget push support shipped in v0.21.0 (#1033/#1040), using one Budget per
+account. The owner budget-activation action remains listed below; the former implementation blocker is resolved.
 
 **What v0.19.0 carries (over v0.18.0):** import rows say why they failed (#996) · one read-only path for production
 queries (#1003) · an ERPNext Customer/Supplier rename reaches PMO (#1005) · sweep failures recorded and alerted
