@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import React from 'react';
 import { ProjectIntegrationsCard } from '../ProjectIntegrationsCard';
@@ -90,7 +91,7 @@ const wrapWithRole = (role: string, ui: React.ReactElement) => {
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole={role as any}>
-        {ui}
+        <MemoryRouter>{ui}</MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>
   );
@@ -146,6 +147,20 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByRole('button', { name: /^Unlink/i })).not.toBeInTheDocument();
     });
 
+    it('keeps link review unavailable while the list choices are loading', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        isListsPending: true,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      const linkButton = await screen.findByRole('button', { name: /^Link to ClickUp$/i });
+      expect(linkButton).toBeDisabled();
+    });
+
     it('renders Linked status with details when project is already linked to ClickUp', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
@@ -157,10 +172,12 @@ describe('ProjectIntegrationsCard', () => {
 
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       // The ClickUp tier card header shows 'Linked' status pill
-      const clickupCard = within(screen.getByTestId('project-integrations-cards').querySelector('[data-tier="clickup"]')!);
+      const clickupCardElement = screen.getByTestId('project-integrations-cards').querySelector<HTMLElement>('[data-tier="clickup"]')!;
+      const clickupCard = within(clickupCardElement);
       expect(clickupCard.getByText('Linked to ClickUp')).toBeInTheDocument();
       expect(screen.getByText(/Sprint Backlog/)).toBeInTheDocument();
-      expect(screen.getByText(/Push \(seed new tasks\)/)).toBeInTheDocument();
+      expect(clickupCardElement).toHaveTextContent(/Initial source:\s*Start with PMO tasks/i);
+      expect(screen.getByText(/Project linked\. Initial task transfer is not confirmed\./i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^Unlink from ClickUp$/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
     });
@@ -173,19 +190,153 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-      expect(screen.getByRole('heading', { name: 'Link to ClickUp' })).toBeInTheDocument();
-      await waitFor(() => expect(screen.getByLabelText(/ClickUp List/i)).toBeInTheDocument());
+      expect(screen.getByRole('heading', { name: 'Review ClickUp link' })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'ClickUp List' })).toBeInTheDocument());
     });
 
-    it('shows direction radio options for ClickUp link modal', async () => {
+    it('offers an explicit initial task source for ClickUp links', async () => {
       const user = userEvent.setup();
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
       await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-      expect(screen.getByText(/Push \(seed new tasks\)/)).toBeInTheDocument();
-      expect(screen.getByText(/Pull \(adopt existing\)/)).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /Start with PMO tasks/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /Start with existing list tasks/i })).toBeInTheDocument();
+      expect(screen.queryByText('Sync Direction')).not.toBeInTheDocument();
+    });
+
+    it('AC-S21-003 reviews the project, stable list, and initial source before writing the link', async () => {
+      const user = userEvent.setup();
+      const mockLinkProject = vi.fn().mockResolvedValue({ ok: true });
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+        linkProject: {
+          ...baseMockReturn.linkProject,
+          mutateAsync: mockLinkProject,
+        },
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
+      const dialog = await screen.findByRole('dialog', { name: 'Review ClickUp link' });
+      await user.click(within(dialog).getByRole('combobox', { name: 'ClickUp List' }));
+      const listbox = await screen.findByRole('listbox');
+      await user.click(within(listbox).getByRole('option', { name: /Sprint Backlog/i }));
+      await user.click(within(dialog).getByRole('radio', { name: /Start with PMO tasks/i }));
+
+      expect(mockLinkProject).not.toHaveBeenCalled();
+      await user.click(within(dialog).getByRole('button', { name: /Review link/i }));
+
+      const reviewed = screen.getByRole('dialog', { name: 'Review ClickUp link' });
+      expect(reviewed).toHaveTextContent('Delivery Alpha');
+      expect(reviewed).toHaveTextContent('Sprint Backlog');
+      expect(reviewed).toHaveTextContent(/Start with PMO tasks/i);
+      expect(reviewed).toHaveTextContent(/initial task transfer only/i);
+      expect(mockLinkProject).not.toHaveBeenCalled();
+
+      await user.click(within(reviewed).getByRole('button', { name: /Confirm ClickUp link/i }));
+      await waitFor(() => expect(mockLinkProject).toHaveBeenCalledWith({
+        tier: 'clickup',
+        projectId: 'proj-1',
+        listId: 'list-1',
+        direction: 'push-seed',
+      }));
+    });
+
+    it('AC-S21-003 keeps the selected list and initial source visible after link failure', async () => {
+      const user = userEvent.setup();
+      const mockLinkProject = vi.fn().mockRejectedValue(new Error('temporary connection failure'));
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+        linkProject: {
+          ...baseMockReturn.linkProject,
+          mutateAsync: mockLinkProject,
+        },
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
+      const dialog = await screen.findByRole('dialog', { name: 'Review ClickUp link' });
+      await user.click(within(dialog).getByRole('combobox', { name: 'ClickUp List' }));
+      const listbox = await screen.findByRole('listbox');
+      await user.click(within(listbox).getByRole('option', { name: /Bug Triage/i }));
+      await user.click(within(dialog).getByRole('radio', { name: /Start with existing list tasks/i }));
+      await user.click(within(dialog).getByRole('button', { name: /Review link/i }));
+      await user.click(within(dialog).getByRole('button', { name: /Confirm ClickUp link/i }));
+
+      const failedReview = await screen.findByRole('dialog', { name: 'Review ClickUp link' });
+      expect(failedReview).toHaveTextContent('Delivery Alpha');
+      expect(failedReview).toHaveTextContent('Bug Triage');
+      expect(failedReview).toHaveTextContent(/Start with existing list tasks/i);
+      expect(failedReview).toHaveTextContent(/temporary connection failure/i);
+      expect(mockLinkProject).toHaveBeenCalledTimes(1);
+      expect(mockLinkProject).toHaveBeenCalledWith({
+        tier: 'clickup',
+        projectId: 'proj-1',
+        listId: 'list-2',
+        direction: 'pull-adopt',
+      });
+    });
+
+    it('AC-S21-003 preserves a saved list ID and labels initial transfer pending when its list is unavailable', async () => {
+      const unavailableBinding: ProjectBinding = {
+        ...mockProjectClickUpBinding,
+        external_container_id: 'list-archived-17',
+        config: { direction: 'pull-adopt' },
+      };
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        projectBindings: [unavailableBinding],
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      expect(await screen.findByText(/List unavailable.*list-archived-17/i)).toBeInTheDocument();
+      expect(screen.getByTestId('project-integrations-cards')).toHaveTextContent(/Initial source:\s*Start with existing list tasks/i);
+      expect(screen.getByText(/Project linked\. Initial task transfer is not confirmed\./i)).toBeInTheDocument();
+      expect(screen.queryByText(/^Direction:/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Synced/i)).not.toBeInTheDocument();
+    });
+
+    it('AC-S21-003 retains the accepted list link when the ClickUp list read fails', async () => {
+      const refetchLists = vi.fn();
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        projectBindings: [mockProjectClickUpBinding],
+        clickupLists: [],
+        isListsError: true,
+        refetchLists,
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
+
+      const card = screen.getByTestId('project-integrations-cards');
+      expect(card).toHaveTextContent('Linked to ClickUp');
+      expect(card).toHaveTextContent(/saved list ID: list-1/i);
+      expect(card).toHaveTextContent(/Initial task transfer is not confirmed/i);
+      await userEvent.setup().click(within(card).getByRole('button', { name: 'Retry list details' }));
+      expect(refetchLists).toHaveBeenCalledTimes(1);
+    });
+
+    it('AC-S21-003 leaves an unrecorded initial source unknown instead of assuming PMO tasks', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        projectBindings: [{ ...mockProjectClickUpBinding, config: {} }],
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      const card = screen.getByTestId('project-integrations-cards');
+      expect(card).toHaveTextContent(/Initial source:\s*Initial source not recorded/i);
+      expect(card).toHaveTextContent(/Initial task transfer is not confirmed/i);
+      expect(card).not.toHaveTextContent('Start with PMO tasks');
     });
 
     it('calls linkProject mutation on modal submit with ClickUp input', async () => {
@@ -207,7 +358,8 @@ describe('ProjectIntegrationsCard', () => {
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       // Select a list from the combobox
-      const comboboxTrigger = screen.getByLabelText(/ClickUp List/i);
+      const dialog = screen.getByRole('dialog', { name: 'Review ClickUp link' });
+      const comboboxTrigger = within(dialog).getByRole('combobox', { name: 'ClickUp List' });
       await user.click(comboboxTrigger);
 
       // Wait for listbox to appear
@@ -217,19 +369,20 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(firstOption);
 
       // Submit
-      const dialog = screen.getByRole('dialog', { name: 'Link to ClickUp' });
+      await user.click(within(dialog).getByRole('radio', { name: /Start with PMO tasks/i }));
+      await user.click(within(dialog).getByRole('button', { name: 'Review link' }));
+      expect(mockLinkProject).not.toHaveBeenCalled();
       const submitButton = dialog.querySelector('button[type="submit"]') as HTMLButtonElement;
+      expect(submitButton).toHaveAccessibleName('Confirm ClickUp link');
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockLinkProject).toHaveBeenCalledWith(
-          expect.objectContaining({
-            tier: 'clickup',
-            projectId: 'proj-1',
-            listId: expect.any(String),
-            direction: expect.any(String),
-          })
-        );
+        expect(mockLinkProject).toHaveBeenCalledWith({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        });
       });
     });
 
@@ -302,21 +455,24 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-      const comboboxTrigger = screen.getByLabelText(/ClickUp List/i);
+      const dialog = screen.getByRole('dialog', { name: 'Review ClickUp link' });
+      const comboboxTrigger = within(dialog).getByRole('combobox', { name: 'ClickUp List' });
       await user.click(comboboxTrigger);
       await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
       const listbox = screen.getByRole('listbox');
       const firstOption = within(listbox).getByRole('option', { name: /Sprint Backlog/i });
       await user.click(firstOption);
 
-      const dialog = screen.getByRole('dialog', { name: 'Link to ClickUp' });
+      await user.click(within(dialog).getByRole('radio', { name: /Start with existing list tasks/i }));
+      await user.click(within(dialog).getByRole('button', { name: 'Review link' }));
       const submitButton = dialog.querySelector('button[type="submit"]') as HTMLButtonElement;
       await user.click(submitButton);
 
       await waitFor(() => expect(mockLinkProject).toHaveBeenCalled());
       await waitFor(() => {
-        const dialogContent = screen.getByRole('dialog', { name: 'Link to ClickUp' });
+        const dialogContent = screen.getByRole('dialog', { name: 'Review ClickUp link' });
         expect(dialogContent).toHaveTextContent(/Mixed state: project has tasks and list is not empty/);
+        expect(dialogContent).toHaveTextContent(/Start with existing list tasks/i);
       });
     });
 
@@ -422,7 +578,8 @@ describe('ProjectIntegrationsCard', () => {
       await user.click(screen.getByRole('button', { name: /^Link to ClickUp$/i }));
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-      const comboboxTrigger = screen.getByLabelText(/ClickUp List/i);
+      const dialog = screen.getByRole('dialog', { name: 'Review ClickUp link' });
+      const comboboxTrigger = within(dialog).getByRole('combobox', { name: 'ClickUp List' });
       await user.click(comboboxTrigger);
 
       await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());

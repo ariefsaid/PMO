@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 
 import type { IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -76,6 +76,39 @@ describe('Admin ClickUp binding map (AC-IEM-013, AC-IEM-016)', () => {
     expect(screen.getByRole('row', { name: /P2.*PMO-native/i })).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Untracked ClickUp Lists' })).getByText(/L2/)).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Untracked ClickUp Lists' })).getByText(/PMO does not track/)).toBeInTheDocument();
+  });
+
+  it('AC-S21-003 leaves an exact list proposal unwritten until the Admin reviews and confirms it', async () => {
+    const linkProject = vi.fn().mockResolvedValue({ ok: true });
+    const refetchBindings = vi.fn();
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'Harbor Upgrade')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [],
+      clickupLists: [{ id: 'list-42', name: 'Harbor Upgrade', space_name: 'Delivery', folder_name: null }],
+      linkProject: { mutateAsync: linkProject, isPending: false },
+      refetchBindings,
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review list match' }));
+    const review = await screen.findByRole('dialog', { name: 'Review ClickUp link' });
+    expect(review).toHaveTextContent('Harbor Upgrade');
+    expect(review).toHaveTextContent(/suggested exact name match/i);
+    expect(linkProject).not.toHaveBeenCalled();
+
+    fireEvent.click(within(review).getByRole('radio', { name: /Start with existing list tasks/i }));
+    fireEvent.click(within(review).getByRole('button', { name: 'Review link' }));
+    expect(review).toHaveTextContent('Harbor Upgrade');
+    expect(review).toHaveTextContent(/Start with existing list tasks/i);
+    expect(linkProject).not.toHaveBeenCalled();
+
+    fireEvent.click(within(review).getByRole('button', { name: 'Confirm ClickUp link' }));
+    await waitFor(() => expect(linkProject).toHaveBeenCalledWith({
+      tier: 'clickup',
+      projectId: 'p1',
+      listId: 'list-42',
+      direction: 'pull-adopt',
+    }));
   });
 
   it('renders a neutral empty map when ClickUp is active with zero bindings', () => {

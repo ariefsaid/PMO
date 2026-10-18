@@ -96,6 +96,7 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
 
 export interface TasksTabProps {
   projectId: string;
+  projectName?: string;
 }
 
 /**
@@ -107,7 +108,7 @@ export interface TasksTabProps {
  * static), enforced by the column-pinned RLS (migration 0016) — the FE is the
  * clarity projection, RLS is the authority.
  */
-const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
+const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -419,9 +420,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
         )}
       </div>
 
-      {/* Project Integrations Link/Unlink control */}
-      <ProjectIntegrationsCard projectId={projectId} />
-
       {state !== 'loading' && state !== 'empty' && (
         <Toolbar standalone>
           <ViewToggle<ViewMode>
@@ -528,6 +526,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           }
         />
       )}
+
+      {/* Setup stays available after the task register so it does not block daily task work. */}
+      <ProjectIntegrationsCard projectId={projectId} projectName={projectName} compact />
 
       <TaskCommentsDrawer task={commentsTarget} onClose={() => setCommentsTarget(null)} />
 
