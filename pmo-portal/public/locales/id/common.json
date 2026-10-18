@@ -4876,5 +4876,6 @@
     "projectTaxUnavailable": "Informasi pajak proyek tidak tersedia, sehingga pajak dan total akhir belum dapat dipratinjau.",
     "reviewProjectTax": "Tinjau pengaturan pajak proyek",
     "erpTotalsAfterDraft": "Pajak dan total akhir tersedia setelah draf ERP dibuat."
-  }
+  },
+  "uxs39": {"showTaxDetails": "Tampilkan rincian pajak", "hideTaxDetails": "Sembunyikan rincian pajak"}
 }

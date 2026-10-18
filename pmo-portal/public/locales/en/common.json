@@ -4876,5 +4876,6 @@
     "projectTaxUnavailable": "Project tax details are unavailable, so tax and final total cannot be previewed yet.",
     "reviewProjectTax": "Review project tax settings",
     "erpTotalsAfterDraft": "Tax and final total are available after the ERP draft is created."
-  }
+  },
+  "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"}
 }

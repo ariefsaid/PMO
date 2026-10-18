@@ -573,7 +573,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
           {project.tax_treatment && (
             <div className="mb-1 text-[11px] text-muted-foreground">
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} detailsMode="disclosure" testId="contract-tile-tax-basis" />
             </div>
           )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>

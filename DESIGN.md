@@ -937,3 +937,7 @@ Filter-clearing text uses the existing `primary-text` AA token in both themes. T
 form keeps all five classification fields in its scrollable body with the save footer visible.
 Read-only setup lists pair each term with its definition; explanatory helper text sits outside the
 definition list so assistive technology receives valid list semantics.
+
+### Tax detail disclosure (S-39, 2026-10-18)
+
+Keep a record’s saved inclusive/exclusive tax basis beside its amount. Selected record surfaces disclose the saved rate and base through a labelled keyboard/touch control; unknown facts stay unknown. Escape closes the disclosure and restores focus to its trigger. The shared control keeps its ordinary inline default and explicit basis-only aggregate mode. Disclosure does not activate a surrounding card or approve an invoice, and genuine billing prerequisites keep their existing remedy. Use the shared 44px coarse-pointer target with the 32px visual control.

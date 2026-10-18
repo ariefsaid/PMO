@@ -120,7 +120,14 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
       <span className="min-w-0 truncate">{nativeInvoiceSummary(inv) ?? '—'}</span>
       <span className="inline-flex items-baseline gap-1.5">
         <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}</span>
-        <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} />
+        <TaxBasisLabel
+          treatment={inv.tax_treatment}
+          taxRate={inv.tax_rate}
+          taxBaseNumerator={inv.tax_base_numerator}
+          taxBaseDenominator={inv.tax_base_denominator}
+          taxBaseUnknown={inv.erp_docstatus != null}
+          detailsMode="disclosure"
+        />
       </span>
     </span>
   );
