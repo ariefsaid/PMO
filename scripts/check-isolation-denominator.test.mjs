@@ -196,6 +196,20 @@ test('M365 typed relations and server-only lifecycle RPCs are in the isolation d
   ]) assert.ok(denominator.definer_functions.includes(fn), `missing ${fn}`);
 });
 
+test('native statement helpers and composite-table probe key match the catalog contract', () => {
+  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const helpers = [
+    '_erp_statement_native_has_amount_rows(jsonb)',
+    '_erp_statement_period_matches(jsonb,jsonb,text,date,date)',
+    '_erp_statement_report_context_validate(uuid,jsonb)',
+    '_erp_statement_report_filters(jsonb,jsonb)',
+    '_erp_statement_report_plan(jsonb)',
+    '_erp_statement_report_validate(jsonb,jsonb,jsonb,text,timestamp with time zone)',
+  ];
+  assert.deepEqual(helpers.filter((name) => denominator.definer_functions.includes(name)), helpers);
+  assert.equal(denominator.tables.find((entry) => entry.table === 'erp_financial_statement_report_pending')?.pk, 'org_id');
+});
+
 test('source citations and exact RPC probe coverage are verified without a database', () => {
   const shipped = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'denominator-source-'));
