@@ -4741,6 +4741,21 @@
       "groupSummary": "{{count}} peristiwa sistem"
     }
   },
+  "uxs15": {
+    "startInvoice": "Mulai membuat faktur",
+    "methodTitle": "Mulai membuat faktur",
+    "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
+    "contractInvoice": "Faktur kontrak",
+    "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
+    "customerWorkOrder": "Work Order pelanggan",
+    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "quantityProgressClaim": "Klaim kuantitas atau progres",
+    "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
+    "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",
+    "contextInvalid": "Proyek ini atau kliennya tidak lagi tersedia. Mulai faktur baru dan pilih dari opsi yang tersedia.",
+    "retryContext": "Coba lagi",
+    "currencyUnavailable": "Mata uang proyek tidak tersedia."
+  },
   "uxs24": {
     "stageLabel": "Tahap pipeline",
     "allStages": "Semua tahap",

@@ -122,6 +122,25 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
       { value: 'p2', label: 'Beta', sub: undefined, clientId: null, subjectToVat: false, taxRate: null, archived: true },
     ]);
   });
+
+  it('AC-S15-002 carries project currency and the stored tax-base fraction without recomputing either', async () => {
+    repo.project.list.mockResolvedValue([
+      {
+        id: 'p-source', name: 'Source-currency project', code: null, client_id: 'c1',
+        subject_to_vat: true, tax_rate: 12, currency: 'EUR',
+        tax_base_numerator: 11, tax_base_denominator: 12, archived_at: null,
+      },
+    ]);
+    const { result } = renderHook(() => useInvoiceProjectOptions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data).toEqual([
+      {
+        value: 'p-source', label: 'Source-currency project', sub: undefined,
+        clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false,
+        currency: 'EUR', taxBaseNumerator: 11, taxBaseDenominator: 12,
+      },
+    ]);
+  });
 });
 
 describe('useClientCompanyOptions — translated "Client" sub (#784 M-6)', () => {

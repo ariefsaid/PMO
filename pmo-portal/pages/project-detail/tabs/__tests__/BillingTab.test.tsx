@@ -6,6 +6,7 @@ import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -27,6 +28,8 @@ vi.mock('@/src/auth/usePermission', async () => {
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
   useBoqItems: () => ({ data: h.boq, isPending: false, isError: false, refetch: vi.fn() }),
@@ -69,7 +72,7 @@ beforeEach(() => {
 });
 
 function renderTab(clientId: string | null = 'c1') {
-  render(<ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider>);
+  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -89,7 +92,7 @@ async function renderTabLocalized(lng: 'en' | 'id') {
   });
   render(
     <I18nextProvider i18n={i18n}>
-      <ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider>
+      <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>
     </I18nextProvider>,
   );
   return { user: userEvent.setup(), i18n };
