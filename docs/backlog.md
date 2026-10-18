@@ -20,8 +20,11 @@ in #1106; there were no timing failures. Native report collection, atomic public
 (#1110) merged to dev in PR #1126 (`148aa79e`): all four unit shards, pgTAP and verify passed at the
 final revision. Closing integration passed 337 browser and 12 served-function checks on identical
 runtime trees; four timing warnings are tracked in #1106, with no timing failures and all 67 skips
-justified. Exact-tip cleanup was verified. Statement views (#1111) and reconstructed-company
-acceptance (#1112/#1114) remain open; source publication does not complete statement display.
+justified. Exact-tip cleanup was verified. Statement views (#1111) merged to dev in PR #1146
+(`19a0f7f2`): all four unit shards, pgTAP and verify passed; closing integration passed 381 browser
+and 12 served-function checks, with 67 justified skips and zero timing failures. Three warning-only
+journeys remain tracked in #1106. Exact-tip cleanup was independently verified. Reconstructed-company
+acceptance (#1112/#1114) remains open; merged views do not by themselves complete that live journey.
 The shared project money position (#1081) merged to dev in PR #1128 (`3c675462`): all four unit
 shards, verify and pgTAP passed; the closing integration passed 337 browser and 12 served-function
 checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
@@ -34,7 +37,8 @@ rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
 Phone pipeline recognition (#1139 / S-24) merged to dev in PR #1140 (`e2381ccd`): all four
 unit shards, verify and pgTAP passed. Existing assertions/timeouts and canonical activation are retained;
 rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
-The route-metadata acceptance tail remains with the statement-host integration, so #1139 stays open.
+The route-metadata tail was verified with the statement-host integration: the page and route already
+share the same Sales Pipeline title key, so the approved no-edit exception applied. #1139 is closed.
 Project-to-invoice entry (#1136 / S-15) merged to dev in PR #1142 (`f2279421`): all four unit
 shards, verify and pgTAP passed. The real local journey retained its saved project, customer, work-order
 and currency checks; rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
