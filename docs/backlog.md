@@ -13,8 +13,11 @@ and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-02
 PMO-side calculation (#1109) is parked after v0.23.0 with its branches, worktrees and capture tooling retained.
 The period picker is on dev in PR #1119 (`f95dbfd8`), with verify, pgTAP and integration green.
 The reusable statement metadata readers merged in PR #1122 (`cbc05518`): all four unit shards,
-verify and pgTAP passed (11,108 unit tests; 6,318 database checks). Native collection, storage/read
-adaptation and views remain in implementation; these helper merges do not complete statement display.
+verify and pgTAP passed (11,108 unit tests; 6,318 database checks). The native report reader merged
+in PR #1124 (`59581270`), with verify, pgTAP and integration green (11,129 unit tests, 6,318 database
+checks, 337 browser checks and 12 served-function checks). Two existing timing warnings remain tracked
+in #1106; there were no timing failures. Sweep collection, storage/read adaptation and views remain
+in implementation; these helper merges do not complete statement display.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
