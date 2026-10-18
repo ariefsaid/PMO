@@ -17,6 +17,7 @@ import { ImportButton } from '@/src/components/import';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -36,7 +37,7 @@ import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
-import { lifecycleSteps, pillVariantForStatus, stageLabelForStatus } from '../components/procurement';
+import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
 
 /** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
  *  + the B-2 "Needs approval" segment for Finance/PM).
@@ -106,6 +107,7 @@ function matchesWorkingSetStatus(
 
 const ProcurementPage: React.FC = () => {
   const { t } = useTranslation();
+  const statusLabel = useProcurementStatusLabel();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
@@ -173,6 +175,7 @@ const ProcurementPage: React.FC = () => {
   };
   const [showNew, setShowNew] = useState(false);
   const [showCycleImport, setShowCycleImport] = useState(false);
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   // B-2: "Needs approval" prepended for approver roles.
   // AC-IXD-DASH-W5-C2B: "Vendor Invoiced" is in ALL_FILTERS for approver roles — they process
@@ -281,21 +284,21 @@ const ProcurementPage: React.FC = () => {
         <LifecycleStepper
           variant="inline"
           steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`${t('procurement.lifecycleLabel', 'Lifecycle')}: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
+          aria-label={`${t('procurement.lifecycleLabel', 'Lifecycle')}: ${statusLabel(r.status as ProcurementStatus)}`}
         />
       ),
       // Export the human-readable stage label (the stepper component can't be serialized)
-      exportValue: (r) => stageLabelForStatus(r.status as ProcurementStatus),
+      exportValue: (r) => statusLabel(r.status as ProcurementStatus),
     },
     {
       key: 'status',
       header: t('procurement.column.status', 'Status'),
       cell: (r) => (
         <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {stageLabelForStatus(r.status as ProcurementStatus)}
+          {statusLabel(r.status as ProcurementStatus)}
         </StatusPill>
       ),
-      exportValue: (r) => stageLabelForStatus(r.status as ProcurementStatus),
+      exportValue: (r) => statusLabel(r.status as ProcurementStatus),
     },
   ];
 
@@ -344,14 +347,8 @@ const ProcurementPage: React.FC = () => {
       }
       description={
         ownScoped
-          ? t(
-              'procurement.description.ownScoped',
-              'The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one.',
-            )
-          : t(
-              'procurement.description.orgWide',
-              'Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.',
-            )
+          ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
+          : t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')
       }
       primaryAction={
         canCreate && (
@@ -402,26 +399,45 @@ const ProcurementPage: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" />
-        )
-      }
-      importAction={
-        state !== 'loading' && userId && (
-          <>
-            {/* ADR-0027: single-header procurement descriptor import (ImportButton has its own canCreate gate). */}
-            <ImportButton
-              entity="procurement"
-              descriptor={importDescriptor}
-              onImported={() => void refetch()}
-            />
-            {/* ADR-0035: full procurement-cycle (PR→Payment) bulk import (same canCreate gate). */}
-            {canCreate && (
-              <Button variant="outline" onClick={() => setShowCycleImport(true)}>
-                <Icon name="upload" />
-                {t('procurement.importCycleData', 'Import cycle data')}
-              </Button>
+          <div data-testid="procurement-more" className="relative shrink-0">
+            <Button
+              aria-expanded={showMoreTools}
+              aria-controls="procurement-more-tools"
+              onClick={() => setShowMoreTools((open) => !open)}
+              className="inline-flex h-8 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t('uxs19.more', 'More')}
+              <Icon name="chev" aria-hidden className="ml-1 size-3 rotate-90" />
+            </Button>
+            {showMoreTools && (
+              <div
+                id="procurement-more-tools"
+                role="group"
+                aria-label={t('uxs19.more', 'More')}
+                className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col gap-1 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-md"
+              >
+                <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="w-full justify-start" />
+                {userId && (
+                  <>
+                    {/* ADR-0027: import remains gated by ImportButton's create permission check. */}
+                    <ImportButton
+                      entity="procurement"
+                      descriptor={importDescriptor}
+                      onImported={() => void refetch()}
+                      className="w-full justify-start"
+                    />
+                    {/* ADR-0035: cycle import retains the page's existing create gate. */}
+                    {canCreate && (
+                      <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start">
+                        <Icon name="upload" />
+                        {t('procurement.importCycleData', 'Import cycle data')}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             )}
-          </>
+          </div>
         )
       }
       view={
@@ -466,8 +482,8 @@ const ProcurementPage: React.FC = () => {
               : t('procurement.empty.orgWide.title', 'No purchase requests yet')
           }
           sub={t(
-            'procurement.empty.sub',
-            'Requests you raise will appear here through their full lifecycle.',
+            'uxs19.emptyScopeNote',
+            'PMO requests only; ERP-native purchases are not listed here.',
           )}
           stateId="procurement-empty"
           role={realRole ?? undefined}

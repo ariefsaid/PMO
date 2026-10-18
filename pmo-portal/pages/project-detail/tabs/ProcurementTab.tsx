@@ -3,7 +3,6 @@ import {
   DataTable,
   ListState,
   StatusPill,
-  LifecycleStepper,
   Button,
   Icon,
   useToast,
@@ -16,12 +15,11 @@ import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
+import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import {
-  lifecycleSteps,
   pillVariantForStatus,
-  stageLabelForStatus,
   openPR,
 } from '../../../components/procurement';
 import { NewProcurementModal } from '../../procurement/NewProcurementModal';
@@ -41,6 +39,8 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
+  const statusLabel = useProcurementStatusLabel();
+  const nextStepLabel = useProcurementNextStepLabel();
   const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
   const create = useCreateProcurement();
   const { toast } = useToast();
@@ -76,24 +76,22 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       cell: (r) => formatCurrency(r.total_value, r.currency),
     },
     {
-      key: 'lifecycle',
-      header: t('projectDetail.procurement.column.lifecycle', 'Lifecycle'),
-      cell: (r) => (
-        <LifecycleStepper
-          variant="inline"
-          steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`${t('projectDetail.procurement.lifecycleLabel', 'Lifecycle')}: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
-        />
-      ),
-    },
-    {
       key: 'status',
       header: t('projectDetail.procurement.column.status', 'Status'),
-      cell: (r) => (
-        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {stageLabelForStatus(r.status as ProcurementStatus)}
-        </StatusPill>
-      ),
+      cell: (r) => {
+        const status = r.status as ProcurementStatus;
+        const nextStep = nextStepLabel(status);
+        return (
+          <div className="min-w-0 space-y-1.5">
+            <StatusPill variant={pillVariantForStatus(status)}>{statusLabel(status)}</StatusPill>
+            {nextStep && (
+              <p data-testid="procurement-next-step" className="break-words text-xs text-muted-foreground">
+                {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
+              </p>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -154,8 +152,8 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           'No purchase requests for this project yet',
         )}
         emptySub={t(
-          'projectDetail.procurement.empty.sub',
-          'Requests raised against this project will appear here through their lifecycle.',
+          'uxs19.projectEmptyScope',
+          'This list covers PMO requests. ERP-native purchases stay in the ERP.',
         )}
         emptyAction={
           canCreate

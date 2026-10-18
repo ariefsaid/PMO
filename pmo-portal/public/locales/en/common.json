@@ -1220,7 +1220,7 @@
     },
     "bva": { "atRisk": "At risk" },
     "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
-    "procurementStatus": { "draft": "Draft", "requested": "Requested", "approved": "Approved", "vendorQuoted": "Vendor Quoted", "ordered": "Ordered", "received": "Received", "vendorInvoiced": "Vendor Invoiced", "paid": "Paid", "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
+    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
       "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",
@@ -1887,18 +1887,13 @@
       "status": "Status",
       "value": "Value"
     },
-    "description": {
-      "orgWide": "Purchase requests through PR → VQ → PO → GR → VI → Paid, with separation-of-duties gates. Open a request to drill into its full lifecycle page.",
-      "ownScoped": "The purchase requests you raised, through PR → VQ → PO → GR → VI → Paid. Open a request to track its lifecycle, or raise a new one."
-    },
     "empty": {
       "orgWide": {
         "title": "No purchase requests yet"
       },
       "ownScoped": {
         "title": "You haven't raised any requests yet"
-      },
-      "sub": "Requests you raise will appear here through their full lifecycle."
+      }
     },
     "error": {
       "sub": "Something went wrong fetching your requests.",
@@ -2687,20 +2682,17 @@
     },
     "procurement": {
       "column": {
-        "lifecycle": "Lifecycle",
         "request": "Request",
         "status": "Status",
         "value": "Value"
       },
       "empty": {
-        "sub": "Requests raised against this project will appear here through their lifecycle.",
         "title": "No purchase requests for this project yet"
       },
       "error": {
         "sub": "Something went wrong fetching this project's purchase requests.",
         "title": "Couldn't load procurement"
       },
-      "lifecycleLabel": "Lifecycle",
       "newRequest": "New request",
       "openRow": "Open",
       "subtitle": "Requests raised against this project, tracked through their lifecycle.",
@@ -4894,5 +4886,37 @@
     "reviewProjectTax": "Review project tax settings",
     "erpTotalsAfterDraft": "Tax and final total are available after the ERP draft is created."
   },
-  "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"}
+  "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"},
+  "uxs19": {
+    "status": {
+      "draft": "Draft",
+      "requested": "Purchase Request",
+      "approved": "Approved",
+      "vendorQuoted": "Vendor Quote",
+      "quoteSelected": "Quote Selected",
+      "ordered": "Purchase Order",
+      "received": "Goods Receipt",
+      "vendorInvoiced": "Vendor Invoice",
+      "paid": "Paid",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "nextStep": {
+      "draft": "Submit request",
+      "requested": "Await approval",
+      "approved": "Request vendor quotes",
+      "vendorQuoted": "Select quote",
+      "quoteSelected": "Prepare purchase order",
+      "ordered": "Record receipt",
+      "received": "Record vendor invoice",
+      "vendorInvoiced": "Record payment"
+    },
+    "nextStepPrefix": "Next:",
+    "more": "More",
+    "pageDescriptionOrgWide": "Raise requests and track approvals, orders and payments. Open a request for its full history.",
+    "pageDescriptionOwnScoped": "Track the requests you raised from approval through payment.",
+    "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
+    "projectEmptyScope": "This list covers PMO requests. ERP-native purchases stay in the ERP.",
+    "dashboardEmpty": "No PMO requests to show"
+  }
 }

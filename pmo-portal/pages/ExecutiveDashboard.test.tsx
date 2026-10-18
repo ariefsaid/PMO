@@ -158,6 +158,47 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
   });
+
+  it('AC-S19-004: dashboard links use the shared full status labels and preserve raw status filters', () => {
+    dashState.data = {
+      ...populated,
+      procurements_by_status: [
+        ...populated.procurements_by_status,
+        { status: 'Received', count: 1 },
+        { status: 'Vendor Invoiced', count: 1 },
+      ],
+    };
+    renderPage();
+    const chart = screen.getByTestId('dashboard-proc-status');
+    expect(within(chart).getByRole('link', { name: /Purchase Request/ })).toHaveAttribute(
+      'href',
+      '/procurement?status=Requested',
+    );
+    expect(within(chart).getByRole('link', { name: /Vendor Quote/ })).toHaveAttribute(
+      'href',
+      '/procurement?status=Vendor%20Quoted',
+    );
+    expect(within(chart).getByRole('link', { name: /Purchase Order/ })).toHaveAttribute(
+      'href',
+      '/procurement?status=Ordered',
+    );
+    expect(within(chart).getByRole('link', { name: /Goods Receipt/ })).toHaveAttribute(
+      'href',
+      '/procurement?status=Received',
+    );
+    expect(within(chart).getByRole('link', { name: /Vendor Invoice/ })).toHaveAttribute(
+      'href',
+      '/procurement?status=Vendor%20Invoiced',
+    );
+  });
+
+  it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
+    dashState.data = { ...populated, procurements_by_status: [] };
+    renderPage();
+    const chart = screen.getByTestId('dashboard-proc-status');
+    expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
+    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
+  });
   it('spending-vs-contract list shows project names and contract denominator', () => {
     renderPage();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
@@ -252,7 +293,7 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
     const draftLink = screen.getByRole('link', { name: /Draft/i });
     expect(draftLink).toHaveAttribute('href', '/procurement?status=Draft');
 
-    const requestedLink = screen.getByRole('link', { name: /Requested/i });
+    const requestedLink = screen.getByRole('link', { name: /Purchase Request/i });
     expect(requestedLink).toHaveAttribute('href', '/procurement?status=Requested');
 
     const paidLink = screen.getByRole('link', { name: /Paid/i });
@@ -261,8 +302,8 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
 
   it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
     renderPage();
-    // "Vendor Quoted" has a space — must be encoded
-    const vendorLink = screen.getByRole('link', { name: /Vendor Quoted/i });
+    // "Vendor Quote" has a space — the raw status value is still encoded unchanged.
+    const vendorLink = screen.getByRole('link', { name: /Vendor Quote/i });
     expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
   });
 });

@@ -945,3 +945,7 @@ Keep a record’s saved inclusive/exclusive tax basis beside its amount. Selecte
 ### Reference search identities (2026-10-18, S-40)
 
 Command-palette results retain canonical reference tokens on one line while allowing the surrounding label to wrap. Keep cached navigation available during reference loading or retry; each result opens its canonical detail screen. A bounded result list asks the user to refine a broad query. The reference search component and persisted Finance journey retain these checks.
+
+### Daily purchasing rows (S-19, 2026-10-18)
+
+Daily request lists show the shared current-state name and a descriptive next step; the full lifecycle stays on the request detail screen. Preserve the approval gate and quote-selected stage. Import/export tools live behind the labelled More disclosure while search, status and request creation remain immediate. Executive purchasing charts describe the PMO request register and distinguish it from ERP-native purchasing.
