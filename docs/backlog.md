@@ -96,7 +96,8 @@ operator work (outcomes, budget account map, budget activation by a second perso
    the timing audit had zero warnings/failures and all 67 skips were justified. Metadata, publication,
    reads and UI states are being reused; their local checkpoints are not complete release acceptance.
    **Plan corrections (owner 2026-10-18):** refresh only the current and previous period every sweep, and an
-   older period only when the ledger mirror shows a change dated inside it (a full pass is 2,688 report calls);
+   older period only when a ledger change affects it, including later historical Trial Balance/Balance Sheet
+   opening or accumulated balances after a backdated entry (a full pass is 2,688 report calls);
    #1068's pre-publication items are decided for the display path inside v0.23.0, not left to triage.
    **v0.23.0 scope also includes (owner 2026-10-18):** the money-tile follow-ups #1081, #1089, #1083 and UX waves
    3–4 (S-09, S-11, S-15, S-16, S-19, S-21, S-23, S-24, S-27, S-29, S-30, S-35, S-36, S-39, S-40). Statements stay
@@ -120,6 +121,13 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Answer: should the accountant list be in Indonesian?
 - Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
 
+**Parallel delivery (owner, 2026-10-18):** statements remain the critical path. Three additional UX
+lanes cover billing/collections, purchasing/tax/integration setup, and history/phone/capture/employee.
+S-27 remains Director-dispatched; S-35 follows the statement views. Slice PRs use the normal four
+unit shards, pgTAP and verify. Browser integration runs on lane-closing PRs or completed statement/money
+pieces; up to two may run together through the logged wrapper. Keep at most two heavy local runs.
+Translation edits rebase immediately before their PR (#1070).
+
 **Owner decisions for v0.23.0 (2026-10-18):**
 - Native report access confirmed. Remove System Settings dependency; do not require System Manager.
   Currency/report metadata supplies display precision; native amounts remain untouched (#1068).
@@ -140,9 +148,9 @@ isolation probe's write checks.
 
 **How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator (from
 2026-10-17, for a few days, Sol, via the local-only handoff in `docs/private/orchestration/HANDOFF.md`). Builds,
-fixes and reviews go to pi (`pi-dispatch build|review|review-money|plan`, routing at the top of
-`docs/pi-delegation.md`) or the factory (`adws/adw_simple_sdlc.py`) — ONE reviewer per PR; Claude orchestrates,
-merges and deploys. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
+fixes use native Codex Luna xhigh lanes in isolated worktrees (owner override, 2026-10-18); specs/plans
+and whole-wave reviews use another Sol. Per-part spec/quality/security reviews stay on pi GLM — one
+review, one fix round, then Director verification. The Director lands reviewed work to dev only. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
 **serial** lane: a red chromium lane stops the run before the serial lane, so serial breakage surfaces one release
 run later (2026-10-13: run the full serial lane locally once chromium is green). Re-running a failed CI run needs
 the owner's OK and goes through `scripts/ci-e2e.sh --owner-ok`; that dispatch is not attached to the PR's checks, so
