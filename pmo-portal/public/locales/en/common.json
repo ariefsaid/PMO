@@ -672,6 +672,22 @@
       "title": "You’re all caught up"
     },
     "employeeLinks": {
+      "uxs30": {
+        "chooseProfile": "Choose an active PMO profile to attribute hours to.",
+        "confirmDescription": "ERP employee {{employee}}{{employeeNumber}} will have their ERP timesheet hours attributed to the PMO user {{profile}}{{profileEmail}} from now on. An ERP-side email change can never silently re-point a confirmed link.",
+        "confirmLabel": "Confirm link",
+        "confirmTitle": "Attribute {{employee}}'s hours to {{profile}}?",
+        "confirmTitleUnknown": "Confirm employee link for {{employee}}?",
+        "destination": "Hours would be attributed to {{profile}}",
+        "noActiveProfiles": "No active PMO profiles are available.",
+        "profileLabel": "PMO user to attribute hours to",
+        "profileNoun": "PMO profile",
+        "profilePlaceholder": "Select a PMO profile",
+        "saveFailure": "Couldn't confirm this employee link. The selected profile is still available; try again.",
+        "searchProfiles": "Search active profiles",
+        "staleProfile": "The selected PMO profile is no longer active. Choose an active profile before confirming.",
+        "unknownEmployee": "this employee"
+      },
       "title": "Employee links awaiting confirmation"
     },
     "entryOne": "entry",
