@@ -55,6 +55,12 @@ phone/desktop checks in both languages and themes; exact-tip cleanup was indepen
 Tax disclosure (#1158 / S-39) merged in PR #1162 (`19307e3d`): all four unit shards,
 verify and pgTAP passed; the review, rendered checks and final 3,739-test changed-import run passed.
 Exact-tip cleanup was independently verified.
+Receipt entry (#1131 / S-27) merged in PR #1141 (`292f69f2`): all four unit shards, pgTAP
+and verify passed; closing integration passed 381 browser and 12 served-function checks, with
+67 justified skips and zero timing warnings/failures. Reference search (#1159 / S-40) merged in
+PR #1163 (`29979214`) with all four unit shards, pgTAP and verify green, plus its persisted local
+Finance journey, mutation/rollback checks and rendered checks. Both exact-tip cleanups were
+independently verified; full browser integration for S-40 stays with the history lane-closing PR.
 Their browser integration remains with the billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
 exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
