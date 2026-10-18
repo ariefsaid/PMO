@@ -4741,5 +4741,20 @@
       "viewDetails": "View details",
       "groupSummary": "{{count}} system events"
     }
+  },
+  "uxs15": {
+    "startInvoice": "Start invoice",
+    "methodTitle": "Start invoice",
+    "methodIntro": "Choose what you are invoicing. The project and its customer carry forward.",
+    "contractInvoice": "Contract invoice",
+    "contractInvoiceHelp": "Create a draft invoice for this project’s customer.",
+    "customerWorkOrder": "Customer work order",
+    "customerWorkOrderHelp": "Choose a work order, then invoice its remaining value.",
+    "quantityProgressClaim": "Quantity or progress claim",
+    "quantityProgressClaimHelp": "Start a claim from measured work or a down payment.",
+    "contextOptionsUnavailable": "Project and customer options could not be loaded. Retry to confirm the invoice context.",
+    "contextInvalid": "This project or its customer is no longer available. Start a new invoice and choose from the current options.",
+    "retryContext": "Retry context",
+    "currencyUnavailable": "Project currency unavailable."
   }
 }

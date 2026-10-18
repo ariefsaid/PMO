@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import {
   Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, useToast, type Column,
 } from '@/src/components/ui';
@@ -19,6 +20,9 @@ import BoqItemFormModal from '../BoqItemFormModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
+import ProjectBillingStart from '../ProjectBillingStart';
+import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -54,10 +58,13 @@ const Figure: React.FC<{ testId: string; label: string; value: string; note?: st
 
 const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const erp = useErpItemOptions('sales');
+  const revenueMode = useRevenueMode();
+  const revenueRouteReady = useRevenueRouteReady(revenueMode);
   const billing = useProjectBilling(projectId);
   const boq = useBoqItems(projectId);
   const claims = useProjectClaims(projectId);
@@ -84,6 +91,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null;
+  const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
@@ -252,7 +260,19 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       <Card variant="bare">
-        <CardHead><h2 className="text-base font-semibold">{t('projectDetail.billing.summary.title', 'Billing summary')}</h2></CardHead>
+        <CardHead className="justify-between">
+          <h2 className="text-base font-semibold">{t('projectDetail.billing.summary.title', 'Billing summary')}</h2>
+          {canStartInvoice && (
+            <ProjectBillingStart
+              projectId={projectId}
+              clientId={clientId}
+              onWorkOrder={() => {
+                navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
+              }}
+              onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
+            />
+          )}
+        </CardHead>
         <CardPad>
           {billing.isPending ? (
             <ListState variant="loading" rows={2} />

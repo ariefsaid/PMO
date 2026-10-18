@@ -555,9 +555,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </Link>
             </div>
           )}
-          <Card variant="bare" data-testid="wo-billing-summary">
-          <CardHead><h2 className="text-base font-semibold">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</h2></CardHead>
-          <CardPad>
+          {rows.length > 0 && (
+            <Card variant="bare" data-testid="wo-billing-summary">
+              <CardHead><h2 className="text-base font-semibold">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</h2></CardHead>
+              <CardPad>
             {billing.isPending ? (
               <ListState variant="loading" rows={1} testId="wo-billing-loading" />
             ) : billing.isError || !billing.data ? (
@@ -597,8 +598,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 </p>
               </>
             )}
-          </CardPad>
-          </Card>
+              </CardPad>
+            </Card>
+          )}
         </>
       )}
 
