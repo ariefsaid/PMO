@@ -11,8 +11,12 @@ Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard 
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
 PMO-side calculation (#1109) is parked after v0.23.0 with its branches, worktrees and capture tooling retained.
+The period picker is on dev in PR #1119 (`f95dbfd8`), with verify, pgTAP and integration green.
+The reusable statement metadata readers merged in PR #1122 (`cbc05518`): all four unit shards,
+verify and pgTAP passed (11,108 unit tests; 6,318 database checks). Native collection, storage/read
+adaptation and views remain in implementation; these helper merges do not complete statement display.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
-the remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
+native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
 **Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
