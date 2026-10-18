@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # ci-e2e.sh — the ONLY way to dispatch the full e2e lane (ci.yml `integration`) for a branch.
 #
-# Owner CI fair-use rule (2026-09-29, agreed with the MOS Director; updated 2026-10-18): one
+# Owner CI fair-use rule (2026-09-29, agreed with the MOS Director): one
 # dispatched e2e run per PR/branch; a second only as --bugfix-proof (the first run found a real app
 # bug and app code changed — announce it); anything beyond that, or more than DAY_CAP dispatches in
-# this repo today, needs --owner-ok "<the owner's quoted words>". Up to two dispatched browser runs
-# may be queued or running across PMO and MOS; at two, refuse even with --owner-ok. Every dispatch
+# this repo today, needs --owner-ok "<the owner's quoted words>".
+# Temporary cap: owner 2026-10-18, v0.23.0 only; revert to one after the release. Up to two dispatched
+# browser runs may be queued or running across PMO and MOS; at two, refuse even with --owner-ok. Every dispatch
 # is appended to the shared log $HOME/.ci-e2e.log. .claude/hooks/ci-e2e-gate.sh blocks raw `gh workflow run`.
 #
 # usage: scripts/ci-e2e.sh <branch> [--bugfix-proof "<why>" | --owner-ok "<quote>"] [--dry-run]
