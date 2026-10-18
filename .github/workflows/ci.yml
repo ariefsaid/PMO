@@ -190,6 +190,10 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
+      - name: Lock wrapper process tests
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests -v
+
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
@@ -323,6 +327,10 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: '2.7.11'
 
       - name: Install Node dependencies
         working-directory: pmo-portal
