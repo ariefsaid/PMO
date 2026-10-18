@@ -10,7 +10,7 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 
 const h = vi.hoisted(() => ({
-  list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  list: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   mode: 'erp' as 'erp' | 'native' | undefined,
   routeReady: true,
@@ -64,13 +64,40 @@ const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focu
 };
 
 beforeEach(() => {
-  h.list.data = [wo()];
+  h.list = { data: [wo()], isPending: false, isError: false, refetch: vi.fn() };
   h.billing = { data: [bill()], isPending: false, isError: false, refetch: vi.fn() };
   h.mode = 'erp';
   h.routeReady = true;
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
+  it('AC-S15-003 a truly empty work-order register leads with its first-use action, without zero billing totals', () => {
+    h.list.data = [];
+    renderTab('Admin');
+
+    expect(screen.getByText('No work orders on this project yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
+  });
+
+  it('AC-S15-003 loading work orders keep the loading state, never the empty first-use state', () => {
+    h.list = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No work orders on this project yet')).not.toBeInTheDocument();
+  });
+
+  it('AC-S15-003 failed work-order reads keep a retry state, never the empty first-use state', () => {
+    h.list = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderTab();
+
+    expect(screen.getByText('Couldn’t load the work orders')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByText('No work orders on this project yet')).not.toBeInTheDocument();
+  });
+
   it("AC-BWO-004 Finance sees the work order's billing status with invoiced, paid and still to invoice, excl. PPN", () => {
     renderTab();
     const cell = screen.getByTestId('wo-billing-wo-1');

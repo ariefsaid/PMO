@@ -27,6 +27,10 @@ checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cle
 Business-first record history (#1137 / S-23) merged to dev in PR #1138 (`bc70432c`): all four
 unit shards, verify and pgTAP passed. Existing history assertions and timeouts are retained;
 rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
+Phone pipeline recognition (#1139 / S-24) merged to dev in PR #1140 (`e2381ccd`): all four
+unit shards, verify and pgTAP passed. Existing assertions/timeouts and canonical activation are retained;
+rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
+The route-metadata acceptance tail remains with the statement-host integration, so #1139 stays open.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
