@@ -182,17 +182,22 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
   assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
   assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
-  // Cheap failures first: typecheck and lint before the (slow) unit + coverage suite.
-  assert.ok(at('run: npm run typecheck') < at('run: npm run test:coverage'), 'typecheck must precede unit tests');
-  assert.ok(
-    at('run: npm run lint:ci') !== -1 && at('run: npm run lint:ci') < at('run: npm run test:coverage'),
-    'lint must precede unit tests',
-  );
+  // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
+  // shard fails, and merge every shard's report + coverage before the changed-lines gate.
+  const merge = at('run: npx vitest run --merge-reports --coverage');
+  assert.match(verifyJob, /\n    needs: unit\n/, 'verify must need the sharded unit job');
+  assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
+  assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(unitJob, /shard: \[1, 2, 3, 4\]/, 'unit job must run every shard');
+  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/4 .*--reporter=blob/, 'each shard must record coverage');
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
-  assert.match(verifyJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
+  assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
   const integration = workflow.slice(workflow.indexOf('\n  integration:'));
   assert.match(
     integration,
