@@ -24,6 +24,9 @@ checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cle
 Invoice presence in management packs (#1083) merged to dev in PR #1130 (`eafbfc6f`): all four
 unit shards, verify and pgTAP passed; closing integration passed 337 browser and 12 served-function
 checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Business-first record history (#1137 / S-23) merged to dev in PR #1138 (`bc70432c`): all four
+unit shards, verify and pgTAP passed. Existing history assertions and timeouts are retained;
+rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
