@@ -3303,3 +3303,26 @@ pending genuine isolated RIS-equivalent execution; synthetic/sample proof is lab
 Implementation/release targets dev only. Owner production approval remains separate. No CI workflow
 change is part of this decision. Director applies the amended spec and existing plan filename, then
 runs the bounded code slices without another owner-spec checkpoint for this authorized amendment.
+
+
+## OD-FS-024 — refresh native statements incrementally, retain the complete catalogue (owner 2026-10-18)
+
+After the initial complete acquisition, refresh the current and previous reporting period routinely;
+refresh older native reports when the mirrored ledger records a relevant dated change. The owner
+also approved refreshing later historical Trial Balance and Balance Sheet reports affected by a
+backdated entry, so their opening or accumulated balances cannot remain stale. ERPNext remains the
+only source of statement monetary values; the mirror is an invalidation signal, not an accounting
+calculation input. This extends OD-FS-023 without resuming the parked PMO-side aggregation work.
+
+Each publication still exposes one complete company/project/current-prior catalogue atomically.
+Compatible unchanged historical pairs retain their exact raw responses, digests, filters and original
+acquisition times; generation/publication metadata must not imply those reports were newly fetched.
+Preserve genuine native context, runtime bounds, lease fences, role/tenant boundaries and failure
+rollback. Record/acknowledge dirty revisions durably so failed batches and concurrent later changes
+cannot lose required refresh work.
+
+**DD-FS-REFRESH-1 (Director):** “current and previous” means the two sides of one supplied comparison
+pair per month/quarter/fiscal year, consistent with existing selection controls. Select the latest
+supplied pair whose current start has begun in the organisation-local date; do not invent fiscal
+periods or choose a future start. Pin that date when admitting the batch. Invalidation follows the
+actual native report's dependency horizon, including both old and new dates/scopes for moved entries.

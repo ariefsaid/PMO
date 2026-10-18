@@ -10,6 +10,32 @@ on existing org sweep/lease → one complete snapshot publisher → invoker read
 ERPNext owns every financial calculation; PMO normalizes structure/lexical numeric representation.
 **Tech:** existing TypeScript/Deno/React/Supabase/pgTAP/Vitest/Playwright; no new numeric/ERP framework.
 
+## Owner refresh amendment — OD-FS-024 (2026-10-18)
+
+Before the source/publisher slice lands, add migration0321 and its owning proofs for durable
+semantic dirty-date revisions, durable published native context, current-comparison selection,
+dependency-aware historical invalidation and atomic retained-plus-fresh publication. Ledger changes
+select native requests; they never calculate statement amounts. Keep the exact complete catalogue,
+original retained raw bytes/digests/filters/acquiredAt, fresh timestamp bounds, lease/context/role
+fences and revision-safe acknowledgment. A changed or absent reusable context requires genuine
+native acquisition; do not infer a cache witness from current settings.
+
+Technical selection rule: one current/prior comparison pair per month/quarter/FY, using the latest
+supplied pair whose current start has begun in the organisation's reporting date; never select a
+future start or invent a missing fiscal year. Pin the effective date at batch admission. Match the
+existing organisation-timezone resolution and fallback. Historical Profit and Loss invalidation
+uses affected dates/scopes; Trial Balance and Balance Sheet also follow native cumulative/opening
+dependencies, as approved by the owner. Date/Company/project changes invalidate old and new contexts.
+
+Tests must prove unchanged-history request omission without catalogue loss, cancellation/deletion/
+date moves, unchanged feed-redelivery noise, both cumulative dependencies, missing/incompatible
+cache, raw/time byte retention, expired/stale holders, context drift, atomic rollback and concurrent
+newer dirty revisions. Extend the existing actual-handler/unit/pgTAP/two-session owners; mutation
+checks must break cache binding and dirty acknowledgment. Include new objects in the exact isolation
+catalogue. Preserve completed local fixtures: no reset/reseed/wipe; one guarded DB hold captures
+actual definitions/rights, applies only the candidate, proves rollback and reapplies it. Fresh PR CI
+proves normal migration application. One scoped review/fix round then Director verifies retained tests.
+
 ## Fixed decisions and preserved work
 
 - Standard query_report.run outputs, ERPNext 16.33 / Frappe 16.31 captured profile, no custom template/native
@@ -20,9 +46,11 @@ ERPNext owns every financial calculation; PMO normalizes structure/lexical numer
   and financial tokens. No cross-side translated-label identity guesses or invented absent zeros.
   raw_reports stores exactly two original UTF8 strings on detail rows, NULL on project totals.
 - Use current org TTL-row holder, not old advisory/session-driver instructions. SourceGeneration is
-  native acquisition batch UUID; statement success no longer requires GL replay/chart generation.
+  complete native read-set publication UUID; retained reports keep their original acquisition times.
+  Statement success does not require GL replay/chart generation.
   Existing mirror/replay/Actuals/aging safety and independent tests remain their own contract.
-- Native collection is ONE pass over all supported captured pairs/scopes, resumable across ticks.
+- Bootstrap is ONE pass over all supported supplied pairs/scopes, resumable across ticks; routine
+  refresh acquires only the OD-FS-024 eligible pairs and retains compatible historical native pairs.
   N native responses=`2*(3+M)*K`; snapshot rows=`(3+2M)*K` (project PL supplies detail+totals).
   K=48/M=25 means2,688 native calls, so do not pretend this is one tick. No second pass/5,376 calls.
   Segment size follows actual deadline and measured native request cost; never raise timeouts or

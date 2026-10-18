@@ -54,16 +54,25 @@ and raw-ledger privacy contracts remain unchanged.
 - **Raw audit:** keep each original financial response with its exact filters, software/context,
   acquisition time and digest in restricted detail storage. Totals rows have no raw reports,
   account rows/settings/filter bodies or company detail. Never publish native bodies/coordinates.
-- **Resumable refresh:** one bounded segment per org on the existing sweep/lease. Collect the finite
-  catalogue across ticks, then publish the ENTIRE required current/prior company/project scope set
-  atomically. Partial work stays machine-only; readers keep the previous complete generation/time.
-  No narrower demand-driven capture, arbitrary history cutoff or increased runtime timeout.
-- **Honest time/coherence:** sourceGeneration identifies one completed native acquisition batch,
-  not a GL/chart generation or an ERP-wide transaction. Each response has acquiredAt; the generation
-  records startedAt/completedAt. Ordinary financial changes across legitimate report calls belong
-  to that capture window. Before publication recheck binding/Company/version/calendar/project map;
-  a changed context invalidates pending work. No second financial pass, GL-completeness/ACB parity
-  gate or invented ERP revision token is required. Missing/failed responses cannot be published.
+- **Incremental refresh / complete publication (OD-FS-024):** Bootstrap the complete supplied
+  catalogue. Later sweeps refresh the current/prior comparison for month, quarter and fiscal year,
+  plus historical native reports invalidated by observed mirrored-ledger changes. Backdated
+  changes also invalidate later historical Trial Balance and Balance Sheet reports that depend
+  on those entries. Retain compatible unchanged historical outputs, original raw strings, hashes,
+  filters and per-side acquiredAt. Each successful publication still atomically exposes the ENTIRE
+  required scope/period catalogue; partial work preserves the preceding complete generation.
+  Missing or incompatible native context requires acquisition rather than guessed reuse. Mirror
+  values are invalidation signals only, never financial inputs. No arbitrary history cutoff,
+  narrower user-demand catalogue or runtime-timeout increase.
+- **Honest time/coherence:** sourceGeneration identifies one complete published native read set,
+  which can include reports retained from earlier acquisitions; it is not a GL/chart generation
+  or an ERP-wide transaction. Each response retains acquiredAt. The common acquisition envelope
+  covers both retained and fresh reports and does not relabel old reports newly acquired. Ordinary
+  financial changes across native calls belong to that real window. Recheck binding, Company,
+  native profile, calendar, project map and effective report settings before publication; changed
+  context invalidates pending work. Only dirty revisions admitted by the completed batch may be
+  acknowledged; later changes survive for the next refresh. Missing/failed reports cannot publish.
+  No second financial pass, GL-completeness/ACB parity gate or invented ERP revision is required.
 
 ### Roles and server authority
 
@@ -79,7 +88,8 @@ account/ledger role restrictions remain; they are not this release's statement a
 - **FR-001:** When an authorized user selects a captured supported period/scope, PMO shall display
   its saved native current/prior report outputs with correct dates, Company and IDR context.
 - **FR-002:** When an org's sweep segment runs, it shall collect/resume bounded normal native report
-  reads and publish only a complete validated catalogue under the current lease/binding fence.
+  reads for eligible fresh reports and publish a complete validated retained-plus-fresh catalogue
+  under the current lease/binding fence.
 - **FR-003:** The system shall obtain every statement financial value from its actual native report
   response and shall preserve that value through storage/read/display without independent accounting.
 - **FR-004:** While native output includes or omits provisional/unclosed profit or posted equity,
@@ -93,6 +103,13 @@ account/ledger role restrictions remain; they are not this release's statement a
 - **FR-008:** If collection/context/publication fails or remains partial, PMO shall keep the old
   complete result with its original time and honest delayed state; without one it shall show
   “Statements are not available yet”. Native complete-empty is “No activity in this period”.
+- **FR-009:** When a complete compatible native catalogue exists, the sweep shall refresh the
+  routine current/prior comparisons, dependency-invalidated historical reports and missing or
+  incompatible keys, retaining other exact native pairs without rereading unchanged history.
+- **FR-010:** When a generation includes retained reports, publication shall preserve original
+  per-report raw/provenance/acquiredAt and show an honest acquisition envelope.
+- **NFR-004:** A dirty revision observed during a batch shall survive failed publication and shall
+  not be lost when a newer revision of that date arrives before acknowledgment.
 - **NFR-001:** Every stored/read/displayed financial cell and project-total value shall equal its
   captured native response value; a changed/removed required cell shall fail the owning proof.
 - **NFR-002:** The collector shall respect actual runtime/request/body limits, resume rather than
@@ -108,7 +125,7 @@ account/ledger role restrictions remain; they are not this release's statement a
 | AC-002 — RIS Finance rehearsal | Given an authorized isolated RIS-equivalent rehearsal, completed native capture window and recorded filters/versions, when ordinary Finance opens each report/project/current-prior pair, then saved native output, authorized read and UI values/labels agree; no ERP posting/closing is performed by the runner. | Curated E2E `AC-002-financial-statements-rehearsal.spec.ts` |
 | AC-003 — Privacy | Given signed roles/inactive/anonymous/foreign org, when direct snapshot/raw-detail/read RPC paths run, then only authorized finance roles receive detail/raw and no ordinary caller writes. | pgTAP display privacy |
 | AC-004 — Project totals | Given visible/hidden/foreign/nonexistent projects and forged scope inputs, when staff reads totals, then only that authorized project's native Income/Expense/Net plus safe structural context returns; raw/detail/Company payload never returns, including on absence paths. | pgTAP project totals |
-| AC-005 — Native acquisition lifecycle | Given multiple segments, sparse native outputs, failure/context drift and ordinary ERP financial changes across calls, when acquisition resumes, then valid responses are retained once per request key, drift/missing/error prevents completion, old published data survives, and actual per-response/batch times remain truthful without a GL/second-pass gate. | Vitest/real sweep-handler test |
+| AC-005 — Native acquisition lifecycle | Given multiple segments, sparse native outputs, failure/context drift and ordinary ERP financial changes across calls, when acquisition resumes, then valid responses are retained once per request key, drift/missing/error prevents completion, old published data and dirty work survive, compatible historical pairs retain original bytes/times, routine and dependency-selected requests are exact, and later dirty revisions survive acknowledgment; no GL/second-pass gate. | Vitest/real sweep-handler test |
 | AC-006 — Atomic complete publication | Given old rows and concurrent/stale/expired workers, when final publication succeeds/fails, then readers see only old or complete new scope/current-prior catalogue, with fenced state/time/raw linkage; never pending/prefix/cross-org data. | pgTAP + existing two-session race |
 | AC-007 — Selection | Given bound Company/calendar/mapped project, when period/scope changes, then saved exact current/prior ranges and report type are selected with no stale/broader scope fallback. | Existing scope unit/RTL |
 | AC-008 — Honest UI | Given loading/error/unavailable/native-empty/delayed/populated/native-sparse states in both locales, when rendered, then approved accessible UI preserves values, rows and original time with no invented zero/row/jargon. | Existing section/renderer unit/RTL |
