@@ -153,6 +153,43 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
     expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
   });
+  it.each([
+    { treatment: 'exclusive' as const, amount: 1_000_000, basis: 'excl. PPN' },
+    { treatment: 'inclusive' as const, amount: 1_110_000, basis: 'incl. PPN' },
+  ])('AC-S39-004: keeps $treatment invoice tax details on demand without bypassing review or changing #1049 totals', async ({ treatment, amount, basis }) => {
+    const user = userEvent.setup();
+    h.data = [draft({
+      amount,
+      tax_treatment: treatment,
+      tax_base_numerator: 11,
+      tax_base_denominator: 12,
+    })];
+    renderSection();
+
+    const row = region();
+    expect(within(row).getByTestId('tax-basis')).toHaveTextContent(basis);
+    const taxDisclosure = within(row).getByRole('button', { name: 'Show tax details' });
+    expect(taxDisclosure).toHaveAttribute('aria-expanded', 'false');
+    await user.click(taxDisclosure);
+    expect(taxDisclosure).toHaveAttribute('aria-expanded', 'true');
+    const taxDetails = document.getElementById(taxDisclosure.getAttribute('aria-controls')!)!;
+    expect(taxDetails).toHaveTextContent('12%');
+    expect(taxDetails).toHaveTextContent('DPP 11/12');
+    expect(within(row).getByRole('button', { name: 'Show invoice details for Acme Energy' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(row).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+
+    await expand(user);
+    const invoiceDisclosure = within(row).getByRole('button', { name: 'Show invoice details for Acme Energy' });
+    expect(invoiceDisclosure).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById(invoiceDisclosure.getAttribute('aria-controls')!)!;
+    const p = within(panel);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    await user.click(p.getByRole('button', { name: 'Approve' }));
+    await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
+    expect(h.submit).toHaveBeenCalledWith({ siId: 'si-n1', intent: { id: 'i-1', idempotencyKey: 'k-1' } });
+  });
   it('AC-NAR-002 (I-1) the approver sees the whole invoice before Approve — never approves blind', async () => {
     h.data = [draft({ native_lines: [
       { item_code: 'SVC', description: 'Site survey', qty: 2, rate: 400_000, amount: 800_000 },

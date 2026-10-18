@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render as rtlRender, screen } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -261,5 +261,41 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
       <ProjectCard project={{ ...base, tax_treatment: null } as unknown as typeof base} onOpen={vi.fn()} />,
     );
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('AC-S39-003: discloses the card row tax facts without activating the project card', async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const project = {
+      ...base,
+      tax_rate: 12,
+      tax_base_numerator: 11,
+      tax_base_denominator: 12,
+    } as unknown as ProjectWithRefs;
+    render(<ProjectCard project={project} onOpen={onOpen} />);
+
+    const card = screen.getByTestId('project-card');
+    const trigger = within(card).getByRole('button', { name: 'Show tax details' });
+    expect(trigger.parentElement?.closest('button')).toBeNull();
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(within(card).getByText('$5,000,000')).toBeInTheDocument();
+
+    await user.tab();
+    expect(within(card).getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toHaveFocus();
+    await user.tab();
+    expect(within(card).getByRole('link')).toHaveFocus();
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    await user.keyboard(' ');
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const panel = document.getElementById(trigger.getAttribute('aria-controls')!)!;
+    expect(panel).toBeVisible();
+    expect(panel).toHaveTextContent('12%');
+    expect(panel).toHaveTextContent('DPP 11/12');
+    await user.tab();
+    expect(within(card).getByRole('button', { name: 'Change status' })).toHaveFocus();
+    expect(card).toHaveTextContent('Innovate Corp HQ Fit-Out');
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

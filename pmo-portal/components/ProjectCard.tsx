@@ -97,7 +97,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
           {/* OD-TAX-1 §2 — the card's headline money figure states its basis, from this project's
               own stored treatment. */}
-          <dd><TaxBasisLabel treatment={project.tax_treatment} showDetails={false} /></dd>
+          <dd>
+            <TaxBasisLabel
+              treatment={project.tax_treatment}
+              taxRate={project.tax_rate}
+              taxBaseNumerator={project.tax_base_numerator}
+              taxBaseDenominator={project.tax_base_denominator}
+              detailsMode="disclosure"
+            />
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
