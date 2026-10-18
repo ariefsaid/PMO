@@ -152,6 +152,24 @@ async function installSyntheticPipeline(page: Page, locale: 'en' | 'id') {
   });
 }
 
+async function openSalesPipeline(
+  page: Page,
+  locale: 'en' | 'id',
+  theme: 'light' | 'dark',
+  viewport: { width: number; height: number },
+) {
+  await installSyntheticPipeline(page, locale);
+  await signIn(page, 'admin@acme.test');
+  await page.emulateMedia({ colorScheme: theme });
+  await page.evaluate((nextTheme) => {
+    localStorage.setItem('theme', nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+  }, theme);
+  await page.setViewportSize(viewport);
+  await page.goto('/sales?view=kanban');
+  await expect(page.locator('html')).toHaveAttribute('lang', locale);
+}
+
 async function assertPhoneGeometry(page: Page) {
   const measure = await page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth;
@@ -193,18 +211,8 @@ async function assertPhoneGeometry(page: Page) {
 
 for (const locale of ['en', 'id'] as const) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`AC-S24-004: phone selector/list and desktop board hold in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
-      await installSyntheticPipeline(page, locale);
-      await signIn(page, 'admin@acme.test');
-      await page.emulateMedia({ colorScheme: theme });
-      await page.evaluate((nextTheme) => {
-        localStorage.setItem('theme', nextTheme);
-        document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-      }, theme);
-
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto('/sales?view=kanban');
-      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    test(`AC-S24-004: phone identity, geometry, disclosure, and canonical activation in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
+      await openSalesPipeline(page, locale, theme, { width: 390, height: 844 });
       const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' });
       await expect(selector).toBeVisible();
       await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
@@ -232,7 +240,15 @@ for (const locale of ['en', 'id'] as const) {
       await page.goBack();
       await expect(page).toHaveURL(/\/sales\?view=kanban$/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
+    });
 
+    test(`AC-S24-004: phone stage, search, and Lost recovery in ${locale}/${theme}`, async ({ page }) => {
+      await openSalesPipeline(page, locale, theme, { width: 390, height: 844 });
+      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' });
+      await expect(selector).toBeVisible();
+      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
+      const phoneList = page.getByTestId('sales-phone-stage-list');
+      await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
       await selector.selectOption('Negotiation');
       await expect(page).toHaveURL(/[?&]status=Negotiation/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(1);
@@ -251,9 +267,10 @@ for (const locale of ['en', 'id'] as const) {
       await expect(page.getByText('Synthetic Lost Coverage Contract')).toBeVisible();
       await expect(page.getByText('Synthetic Declined Service Bid')).toBeVisible();
       await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(0);
+    });
 
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto('/sales?view=kanban');
+    test(`AC-S24-004: desktop funnel and board in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
+      await openSalesPipeline(page, locale, theme, { width: 1440, height: 900 });
       await expect(page.getByRole('region', { name: /Pipeline summary|Ringkasan pipeline/i })).toBeVisible();
       await expect(page.getByTestId('stage-Leads')).toBeVisible();
       await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
