@@ -1220,7 +1220,7 @@
     },
     "bva": { "atRisk": "Berisiko" },
     "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
-    "procurementStatus": { "draft": "Draf", "requested": "Diminta", "approved": "Disetujui", "vendorQuoted": "Penawaran vendor", "ordered": "Dipesan", "received": "Diterima", "vendorInvoiced": "Invoice vendor", "paid": "Dibayar", "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
+    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {
       "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya", "myProjectsHelp": "Proyek yang ditetapkan kepada Anda sebagai manajer proyek.",
@@ -1887,18 +1887,13 @@
       "status": "Status",
       "value": "Nilai"
     },
-    "description": {
-      "orgWide": "Permintaan pembelian melalui PR → VQ → PO → GR → VI → Lunas, dengan gerbang pemisahan tugas. Buka permintaan untuk menelusuri halaman siklus lengkapnya.",
-      "ownScoped": "Permintaan pembelian yang Anda ajukan, melalui PR → VQ → PO → GR → VI → Lunas. Buka permintaan untuk melacak siklusnya, atau ajukan yang baru."
-    },
     "empty": {
       "orgWide": {
         "title": "Belum ada permintaan pembelian"
       },
       "ownScoped": {
         "title": "Anda belum mengajukan permintaan"
-      },
-      "sub": "Permintaan yang Anda ajukan akan muncul di sini sepanjang siklus lengkapnya."
+      }
     },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil permintaan Anda.",
@@ -2687,20 +2682,17 @@
     },
     "procurement": {
       "column": {
-        "lifecycle": "Siklus",
         "request": "Permintaan",
         "status": "Status",
         "value": "Nilai"
       },
       "empty": {
-        "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini sepanjang siklusnya.",
         "title": "Belum ada permintaan pembelian untuk proyek ini"
       },
       "error": {
         "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
         "title": "Gagal memuat pengadaan"
       },
-      "lifecycleLabel": "Siklus",
       "newRequest": "Permintaan baru",
       "openRow": "Buka",
       "subtitle": "Permintaan yang diajukan untuk proyek ini, dilacak sepanjang siklusnya.",
@@ -4894,5 +4886,37 @@
     "reviewProjectTax": "Tinjau pengaturan pajak proyek",
     "erpTotalsAfterDraft": "Pajak dan total akhir tersedia setelah draf ERP dibuat."
   },
-  "uxs39": {"showTaxDetails": "Tampilkan rincian pajak", "hideTaxDetails": "Sembunyikan rincian pajak"}
+  "uxs39": {"showTaxDetails": "Tampilkan rincian pajak", "hideTaxDetails": "Sembunyikan rincian pajak"},
+  "uxs19": {
+    "status": {
+      "draft": "Draf",
+      "requested": "Permintaan Pembelian",
+      "approved": "Disetujui",
+      "vendorQuoted": "Penawaran Vendor",
+      "quoteSelected": "Penawaran Dipilih",
+      "ordered": "Purchase Order",
+      "received": "Penerimaan Barang",
+      "vendorInvoiced": "Invoice Vendor",
+      "paid": "Dibayar",
+      "rejected": "Ditolak",
+      "cancelled": "Dibatalkan"
+    },
+    "nextStep": {
+      "draft": "Ajukan permintaan",
+      "requested": "Menunggu persetujuan",
+      "approved": "Minta penawaran vendor",
+      "vendorQuoted": "Pilih penawaran",
+      "quoteSelected": "Siapkan purchase order",
+      "ordered": "Catat penerimaan",
+      "received": "Catat invoice vendor",
+      "vendorInvoiced": "Catat pembayaran"
+    },
+    "nextStepPrefix": "Langkah berikutnya:",
+    "more": "Lainnya",
+    "pageDescriptionOrgWide": "Ajukan dan lacak permintaan pembelian, persetujuan, pesanan, dan pembayaran. Buka permintaan untuk melihat riwayat lengkapnya.",
+    "pageDescriptionOwnScoped": "Lacak permintaan yang Anda ajukan dari persetujuan hingga pembayaran.",
+    "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
+    "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian langsung tercatat di ERP.",
+    "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
+  }
 }

@@ -28,9 +28,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLink';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const ExecutiveDashboard: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const procurementStatusLabel = useProcurementStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
   // is the very last statement so no hook is conditional.
@@ -67,17 +69,6 @@ const ExecutiveDashboard: React.FC = () => {
       })),
     [data?.procurements_by_status],
   );
-
-  const procurementStatusLabels: Record<string, string> = {
-    Draft: t('dashboard.procurementStatus.draft', 'Draft'),
-    Requested: t('dashboard.procurementStatus.requested', 'Requested'),
-    Approved: t('dashboard.procurementStatus.approved', 'Approved'),
-    'Vendor Quoted': t('dashboard.procurementStatus.vendorQuoted', 'Vendor Quoted'),
-    Ordered: t('dashboard.procurementStatus.ordered', 'Ordered'),
-    Received: t('dashboard.procurementStatus.received', 'Received'),
-    'Vendor Invoiced': t('dashboard.procurementStatus.vendorInvoiced', 'Vendor Invoiced'),
-    Paid: t('dashboard.procurementStatus.paid', 'Paid'),
-  };
 
   const renderExecutiveView = () => {
     if (isPending) {
@@ -180,7 +171,7 @@ const ExecutiveDashboard: React.FC = () => {
                 <ListState
                   variant="empty"
                   icon="cart"
-                  title={t('dashboard.chart.procStatus.empty', 'No procurement activity yet')}
+                  title={t('uxs19.dashboardEmpty', 'No PMO requests to show')}
                 />
               ) : (
                 <StatusBarChart
@@ -189,7 +180,7 @@ const ExecutiveDashboard: React.FC = () => {
                   label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
                   noun={t('dashboard.chart.procStatus.noun', 'requests')}
                   hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`}
-                  labelFor={(status) => procurementStatusLabels[status] ?? status}
+                  labelFor={procurementStatusLabel}
                 />
               )}
             </div>

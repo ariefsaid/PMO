@@ -131,7 +131,9 @@ async function exportFrom(node: React.ReactElement) {
   const user = userEvent.setup();
   const exportButton = screen.queryByRole('button', { name: /export/i });
   if (!exportButton) {
-    await user.click(screen.getByRole('button', { name: /^More actions/i }));
+    const more = screen.queryByRole('button', { name: /^More$/i })
+      ?? screen.getByRole('button', { name: /^More actions$/i });
+    await user.click(more);
   }
   await user.click(screen.getByRole('button', { name: /export/i }));
   await waitFor(() => expect(hoisted.captured).toHaveLength(1));

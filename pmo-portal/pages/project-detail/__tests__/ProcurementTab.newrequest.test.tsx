@@ -106,6 +106,35 @@ describe('AC-JR-T13: ProcurementTab shows a gated "New request" button', () => {
   });
 });
 
+describe('AC-S19-003: project procurement vocabulary', () => {
+  it('shows the approval gate and next step without the redundant inline lifecycle pips', () => {
+    procState.data = [
+      {
+        id: 'procurement-approved',
+        code: 'PR-2026-005',
+        title: 'Network equipment',
+        status: 'Approved',
+        total_value: 92000,
+        currency: 'USD',
+        project_id: 'proj-abc',
+        requested_by_id: 'u-1',
+        vendor_id: null,
+        created_at: '2026-10-02T00:00:00.000Z',
+        project: { name: 'Test Project', code: 'PRJ-ABC' },
+        vendor: null,
+        requested_by: { full_name: 'Project Manager' },
+      },
+    ];
+
+    renderTab('Project Manager');
+
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByText('Next: Request vendor quotes')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New request/i })).toBeInTheDocument();
+  });
+});
+
 // ── AC-JR-T13: modal opens with project pre-selected ─────────────────────────
 
 describe('AC-JR-T13: clicking New request opens NewProcurementModal with project pre-selected', () => {

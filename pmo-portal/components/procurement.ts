@@ -178,6 +178,27 @@ export function stageLabelForStatus(status: ProcurementStatus): string {
   return STATUS_LABEL[s] ?? s;
 }
 
+/**
+ * A plain-language description of the next useful step for an in-flight request.
+ * This is explanatory copy only; legal transitions and available actions remain
+ * owned by `LEGAL_TRANSITIONS` and the server-side gates.
+ */
+const NEXT_PROCUREMENT_STEP: Partial<Record<ProcurementStatus, string>> = {
+  Draft: 'Submit request',
+  Requested: 'Await approval',
+  Approved: 'Request vendor quotes',
+  'Vendor Quoted': 'Select quote',
+  'Quote Selected': 'Prepare purchase order',
+  Ordered: 'Record receipt',
+  Received: 'Record vendor invoice',
+  'Vendor Invoiced': 'Record payment',
+};
+
+/** The next-step description for a known non-terminal status, or `null` otherwise. */
+export function nextProcurementStep(status: ProcurementStatus): string | null {
+  return NEXT_PROCUREMENT_STEP[status] ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // AC-IXD-PROC-004 — the selected quotation that backs the "Selected quote" tile
 // + the QuotationsSection row "Selected" pill (PROC-004 re-review).

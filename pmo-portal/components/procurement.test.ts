@@ -78,6 +78,37 @@ describe('procurement helper — lifecycle model (Issue 3)', () => {
   });
 });
 
+describe('AC-S19-001: purchasing status vocabulary and next step', () => {
+  it('uses one full business label and next-step description for every stored status', async () => {
+    const procurement = await import('./procurement');
+    expect(procurement.nextProcurementStep).toBeTypeOf('function');
+
+    const cases: Array<[ProcurementStatus, string, string | null]> = [
+      ['Draft', 'Draft', 'Submit request'],
+      ['Requested', 'Purchase Request', 'Await approval'],
+      ['Approved', 'Approved', 'Request vendor quotes'],
+      ['Vendor Quoted', 'Vendor Quote', 'Select quote'],
+      ['Quote Selected', 'Quote Selected', 'Prepare purchase order'],
+      ['Ordered', 'Purchase Order', 'Record receipt'],
+      ['Received', 'Goods Receipt', 'Record vendor invoice'],
+      ['Vendor Invoiced', 'Vendor Invoice', 'Record payment'],
+      ['Paid', 'Paid', null],
+      ['Rejected', 'Rejected', null],
+      ['Cancelled', 'Cancelled', null],
+    ];
+
+    for (const [status, label, nextStep] of cases) {
+      expect(procurement.stageLabelForStatus(status)).toBe(label);
+      expect(procurement.nextProcurementStep(status)).toBe(nextStep);
+    }
+
+    expect(procurement.stageLabelForStatus('Imported status' as ProcurementStatus)).toBe('Imported status');
+    expect(procurement.nextProcurementStep('Imported status' as ProcurementStatus)).toBeNull();
+    expect(procurement.stageIndexForStatus('Approved')).toBe(1);
+    expect(procurement.stageIndexForStatus('Quote Selected')).toBe(1);
+  });
+});
+
 describe('procurement helper — lifecycleSteps (node + inline stepper)', () => {
   it('marks stages before current done, current current, later upcoming', () => {
     // PROC-003: Quote Selected is the VQ node (idx 1 of the 6-node track), so the
