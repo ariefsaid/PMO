@@ -95,6 +95,12 @@ operator work (outcomes, budget account map, budget activation by a second perso
    `f95dbfd8`: 10,977 unit tests, 6,318 database assertions, 337 browser cases and 12 served checks passed;
    the timing audit had zero warnings/failures and all 67 skips were justified. Metadata, publication,
    reads and UI states are being reused; their local checkpoints are not complete release acceptance.
+   **Plan corrections (owner 2026-10-18):** refresh only the current and previous period every sweep, and an
+   older period only when the ledger mirror shows a change dated inside it (a full pass is 2,688 report calls);
+   #1068's pre-publication items are decided for the display path inside v0.23.0, not left to triage.
+   **Release steps for v0.23.0 (each still owner-gated):** whole-release security review → PR `dev`→`main` with
+   integration → production deploy back to front (DB → edge functions → frontend; it also carries #1101/#1102)
+   → after-push probes, including isolation-probe entries for the new statement tables.
 5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
    pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
    timing reported zero warnings or failures. Exact-tip cleanup was verified.
@@ -104,12 +110,19 @@ operator work (outcomes, budget account map, budget activation by a second perso
    #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
    #1044 remains open for the broader cross-record-page acceptance.
 7. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including UX-029, 042, 044, 052, 078, 079 and 082.
-8. **Triage**: #1068, #1069, #1070, #1072.
+8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
 **Owner actions after v0.22.0:**
 - Activate the Kajian budget (sole-operator path).
 - Answer: should the accountant list be in Indonesian?
 - Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
+
+**Owner actions for v0.23.0:**
+- Confirm PMO's ERPNext connection user on RIS can run Trial Balance, Profit and Loss and Balance Sheet
+  (read-only check before release; otherwise statements show "not available").
+- Nominate the isolated rehearsal environment (#1114). Recommended: a separate site in the existing local
+  ERPNext v16 Docker stack, loaded from the RIS input files already on hand.
+- Decide who runs the whole-release security review (Opus, or Sol standing in).
 
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
