@@ -69,6 +69,11 @@ Receipt-first expense capture (#1161 / S-29) merged to dev in PR #1168 (`39dc295
 fast CI passed and closing integration passed 384 browser and 12 served-function checks. The
 font-wait correction and current dev were included; its worktree was cleaned. The tax disclosure
 contrast/header fix merged in PR #1169 (`ee28bae6`) after its 383-browser-check run passed.
+The lock ownership-record fix (#1148) merged to dev in PR #1171 (`ec877187`): all four unit
+shards, verify and pgTAP passed, as did four focused process tests. Exact-tip cleanup was
+independently verified. Registering those process tests in CI remains tracked in #1170.
+The resumed dev browser run passed 384 browser and 12 served-function checks, with 67 justified
+skips and zero timing warnings or failures. Since that run, one code slice has merged.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
