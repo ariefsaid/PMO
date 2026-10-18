@@ -198,23 +198,30 @@ export async function getSalesPipeline(): Promise<SalesPipeline> {
 }
 
 /**
- * One project row from get_finance_budget_review() (FR-FIN-DEBT-010). spent is the OD-BUDGET-2
- * COMMITTED basis (Σ PO total_value in Ordered..Paid), computed in SQL; variance = spent - budget.
- * Field names mirror TopProject so the FinanceDashboard budget columns reuse it directly.
+ * One eligible project row from get_finance_budget_review(). The SQL projection uses the same
+ * Active-budget and Actual source rules as the rest of the dashboard. Amounts retain their source
+ * currencies; variance is null unless Actual, budget, and project currencies are comparable.
  */
 export interface BudgetReviewRow {
   id: string;
   name: string;
   client_name: string | null;
+  status: string;
+  currency: string;
   budget: number;
-  spent: number;
-  variance: number;
+  budget_currency: string;
+  spent: number | null;
+  variance: number | null;
+  actual_currency: string | null;
+  actual_complete: boolean;
+  actual_coverage_count: number;
+  actual_coverage_total: number;
+  actual_as_of: string | null;
 }
 
 /**
- * Portfolio-wide budget review for the caller's org (OD-E): ALL budget>0 projects ranked by
- * variance desc, committed-basis spent. Calls the get_finance_budget_review RPC (security invoker,
- * OD-ARCH-1 aggregation) — org_id is NEVER sent; base-table RLS scopes every read. On RPC error throws.
+ * Portfolio-wide active-budget review for the caller's org. Calls the existing get_finance_budget_review
+ * RPC (security invoker) — org_id is NEVER sent; base-table RLS scopes every read. On RPC error throws.
  */
 export async function getFinanceBudgetReview(): Promise<BudgetReviewRow[]> {
   const { data, error } = await supabase.rpc('get_finance_budget_review');

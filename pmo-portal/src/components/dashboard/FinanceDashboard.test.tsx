@@ -31,13 +31,21 @@ const procurements = [
 
 // N17 budget review now comes from the get_finance_budget_review RPC (committed basis, ranked).
 // Provide 6 ranked-by-variance rows so the FE top-5 slice is observable (Rank6 must NOT render).
+const budgetReviewRow = (input: {
+  id: string; name: string; client_name: string; budget: number; spent: number; variance: number;
+}) => ({
+  status: 'Ongoing Project', currency: 'USD', budget_currency: 'USD', actual_currency: 'USD',
+  actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1,
+  actual_as_of: '2026-10-17T12:00:00Z',
+  ...input,
+});
 const budgetReview = [
-  { id: 'b1', name: 'Rank1', client_name: 'C1', budget: 1_000_000, spent: 1_500_000, variance: 500_000 },
-  { id: 'b2', name: 'Rank2', client_name: 'C2', budget: 1_000_000, spent: 1_400_000, variance: 400_000 },
-  { id: 'b3', name: 'Rank3', client_name: 'C3', budget: 1_000_000, spent: 1_300_000, variance: 300_000 },
-  { id: 'b4', name: 'Rank4', client_name: 'C4', budget: 1_000_000, spent: 1_200_000, variance: 200_000 },
-  { id: 'b5', name: 'Rank5', client_name: 'C5', budget: 1_000_000, spent: 1_100_000, variance: 100_000 },
-  { id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 },
+  budgetReviewRow({ id: 'b1', name: 'Rank1', client_name: 'C1', budget: 1_000_000, spent: 1_500_000, variance: 500_000 }),
+  budgetReviewRow({ id: 'b2', name: 'Rank2', client_name: 'C2', budget: 1_000_000, spent: 1_400_000, variance: 400_000 }),
+  budgetReviewRow({ id: 'b3', name: 'Rank3', client_name: 'C3', budget: 1_000_000, spent: 1_300_000, variance: 300_000 }),
+  budgetReviewRow({ id: 'b4', name: 'Rank4', client_name: 'C4', budget: 1_000_000, spent: 1_200_000, variance: 200_000 }),
+  budgetReviewRow({ id: 'b5', name: 'Rank5', client_name: 'C5', budget: 1_000_000, spent: 1_100_000, variance: 100_000 }),
+  budgetReviewRow({ id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 }),
 ];
 
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.

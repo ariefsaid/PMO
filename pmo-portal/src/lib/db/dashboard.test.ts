@@ -4,7 +4,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { rpc: vi.fn() },
 }));
 
-import { getExecutiveDashboard, getPMDashboardProjects, getWinRate, getSalesPipeline } from './dashboard';
+import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects, getWinRate, getSalesPipeline } from './dashboard';
 import { supabase } from '@/src/lib/supabase/client';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
@@ -71,6 +71,27 @@ describe('getExecutiveDashboard', () => {
     // error branch
     rpc.mockResolvedValue({ data: null, error: { message: 'dal-error' } });
     await expect(getExecutiveDashboard()).rejects.toThrow('dal-error');
+  });
+});
+
+describe('getFinanceBudgetReview', () => {
+  it('AC-FAA-004: passes nullable Actual and independent currency metadata through the no-arg RPC', async () => {
+    const rows = [{
+      id: 'p1', name: 'Budget project', client_name: null, status: 'Ongoing Project', currency: 'USD',
+      budget: 100, budget_currency: 'USD', spent: null, variance: null, actual_currency: 'IDR',
+      actual_complete: false, actual_coverage_count: 1, actual_coverage_total: 2,
+      actual_as_of: '2026-10-17T12:00:00Z',
+    }];
+    rpc.mockResolvedValue({ data: rows, error: null });
+
+    await expect(getFinanceBudgetReview()).resolves.toEqual(rows);
+    expect(rpc).toHaveBeenCalledWith('get_finance_budget_review');
+    expect(rpc.mock.calls[0]).toHaveLength(1);
+  });
+
+  it('throws when the Finance budget-review RPC fails', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'finance-review-error' } });
+    await expect(getFinanceBudgetReview()).rejects.toThrow('finance-review-error');
   });
 });
 

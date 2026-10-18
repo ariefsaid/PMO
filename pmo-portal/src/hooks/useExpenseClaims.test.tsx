@@ -13,7 +13,7 @@ const { expenseClaim } = vi.hoisted(() => ({
 vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
-import { useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
+import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -45,6 +45,7 @@ describe('AC-EXP-053 useExpenseClaims', () => {
     expect(expenseClaim.routes).toHaveBeenCalledTimes(1);
     expect(expenseClaim.routes).toHaveBeenCalledWith(['c1']);
     expect(result.current.data?.[0].route?.route).toBe('flat');
+    expect(client.getQueryData(expenseClaimsAwaitingKey('org-1'))).toBe(result.current.data);
   });
 
   it('AC-EXP-053 a failed routes read leaves rows unrouted (the server still enforces)', async () => {

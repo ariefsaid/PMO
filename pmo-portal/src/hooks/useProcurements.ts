@@ -9,6 +9,9 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { repositories } from '@/src/lib/repositories';
+import { procurementsKey } from './approvalsQueryKeys';
+
+export { procurementsKey } from './approvalsQueryKeys';
 
 /**
  * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
@@ -21,7 +24,7 @@ export function useProcurements(opts?: { withRefs?: boolean; enabled?: boolean }
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: withRefs ? ['procurements', orgId, 'with-refs'] : ['procurements', orgId],
+    queryKey: procurementsKey(orgId, withRefs),
     queryFn: () => listProcurements(undefined, withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });

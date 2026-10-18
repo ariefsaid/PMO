@@ -130,6 +130,16 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
   test('AC-CV-015 ask in panel → artifact renders → Save → appears in My Views', async ({
     page,
   }) => {
+    let releaseAgentChatResponse!: () => void;
+    const agentChatResponseGate = new Promise<void>((resolve) => {
+      releaseAgentChatResponse = resolve;
+    });
+    let notifyAgentChatResponseHandled!: () => void;
+    const agentChatResponseHandled = new Promise<void>((resolve) => {
+      notifyAgentChatResponseHandled = resolve;
+    });
+    let agentChatRequestObserved = false;
+    let agentChatResponseError: unknown;
     // ── Intercept agent-chat (SSE stream) ─────────────────────────────────────
     await page.route('**/functions/v1/agent-chat', async (route) => {
       const req = route.request();
@@ -145,13 +155,21 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
       }
       // POST: createRun or followUp — return the run object first, then SSE on the same call
       // PmoNativeRuntime uses a single POST that returns SSE (text/event-stream)
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await route.fulfill({
-        status: 200,
-        contentType: 'text/event-stream',
-        headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-        body: SSE_FRAMES,
-      });
+      agentChatRequestObserved = true;
+      try {
+        // Hold the completed response until the test observes the running state.
+        await agentChatResponseGate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+          body: SSE_FRAMES,
+        });
+      } catch (error) {
+        agentChatResponseError = error;
+      } finally {
+        notifyAgentChatResponseHandled();
+      }
     });
 
     // ── Intercept projects data for the ArtifactSlot's executeCompiledQuery ──
@@ -216,12 +234,30 @@ test.describe('AC-CV-015: compose-view artifact journey', () => {
     const composer = panel.getByRole('textbox', { name: /ask a question/i });
     await expect(composer).toBeVisible();
     await composer.fill('show me active projects by status');
-    await composer.press('Enter');
 
-    // ── 5. Composer disabled while streaming (Stop button appears) ────────────
-    await expect(
-      panel.getByRole('button', { name: /stop generating/i }),
-    ).toBeVisible({ timeout: 10_000 });
+    const agentChatRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().includes('/functions/v1/agent-chat'),
+      { timeout: 10_000 },
+    );
+    void agentChatRequest.catch(() => undefined);
+
+    try {
+      await composer.press('Enter');
+      await agentChatRequest;
+
+      // ── 5. Composer disabled while streaming (Stop button appears) ────────────
+      await expect(
+        panel.getByRole('button', { name: /stop generating/i }),
+      ).toBeVisible({ timeout: 10_000 });
+      await expect(composer).toBeDisabled();
+    } finally {
+      // Always release the route so a failed assertion cannot leave an in-flight handler.
+      releaseAgentChatResponse();
+      if (agentChatRequestObserved) await agentChatResponseHandled;
+    }
+    if (agentChatResponseError) throw agentChatResponseError;
 
     // ── 6. Assistant text bubble appears ─────────────────────────────────────
     await expect(

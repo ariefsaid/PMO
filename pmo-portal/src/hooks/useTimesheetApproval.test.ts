@@ -50,6 +50,7 @@ vi.mock('@/src/lib/db/timesheetPush', () => ({
 }));
 
 import {
+  awaitingApprovalKey,
   useTimesheetsAwaitingApproval,
   useTimesheetMutations,
   usePushesNeedingAttention,
@@ -93,7 +94,7 @@ describe('useTimesheetsAwaitingApproval', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(listTimesheetsAwaitingApproval).toHaveBeenCalledWith('u1', 'Project Manager');
-    expect(qc.getQueryData(['timesheets-awaiting', 'org-1', 'u1', 'Project Manager'])).toBeDefined();
+    expect(qc.getQueryData(awaitingApprovalKey('org-1', 'u1', 'Project Manager'))).toBe(result.current.data);
     expect(result.current.data).toMatchObject([
       { id: 'ts-1', owner: { full_name: 'Dave Engineer' } },
     ]);

@@ -13,6 +13,9 @@ import {
   type ReopenableApprovedTimesheet,
 } from '@/src/lib/db/timesheetTransition';
 import { repositories } from '@/src/lib/repositories';
+import { awaitingApprovalKey } from './approvalsQueryKeys';
+
+export { awaitingApprovalKey } from './approvalsQueryKeys';
 import {
   listPushesNeedingAttention,
   confirmEmployeeLink,
@@ -46,13 +49,6 @@ async function pushAfterApprove(timesheetId: string): Promise<void> {
 /** Cache key for the signed-in user's own timesheet list (same key as useTimesheets). */
 const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined) =>
   ['timesheets', orgId, userId] as const;
-
-/** Cache key for timesheets awaiting the signed-in user's approval. */
-const awaitingApprovalKey = (
-  orgId: string | undefined,
-  userId: string | undefined,
-  role: ReturnType<typeof useAuth>['role'],
-) => ['timesheets-awaiting', orgId, userId, role] as const;
 
 /** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
 const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>

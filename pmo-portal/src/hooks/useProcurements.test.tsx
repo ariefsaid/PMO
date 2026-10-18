@@ -17,7 +17,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-import { useProcurements, useProjectProcurements, useProjectCommittedSpend } from './useProcurements';
+import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend } from './useProcurements';
 import { listProcurements, listProcurementsByProject, getProjectCommittedSpend } from '@/src/lib/db/procurements';
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
@@ -26,10 +26,15 @@ const wrap = ({ children }: { children: React.ReactNode }) => (
 
 describe('useProcurements', () => {
   it("keys by ['procurements', orgId] and returns rows (AC-501, FR-QRY-PROC-001)", async () => {
-    const { result } = renderHook(() => useProcurements(), { wrapper: wrap });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].title).toBe('Workstations & AV');
     expect(listProcurements).toHaveBeenCalled();
+    expect(client.getQueryData(procurementsKey('org-1'))).toBe(result.current.data);
   });
 });
 
