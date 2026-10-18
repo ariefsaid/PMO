@@ -86,7 +86,7 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
             aria-expanded={detailsExpanded}
             aria-controls={detailsId}
             onClick={() => setDetailsExpanded((expanded) => !expanded)}
-            className="touch-target inline-flex min-h-8 items-center rounded-sm px-1 text-primary underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+            className="touch-target -my-2 inline-flex min-h-8 items-center rounded-sm px-1 text-primary-text underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
           >
             {detailsExpanded
               ? t('uxs39.hideTaxDetails', 'Hide tax details')
