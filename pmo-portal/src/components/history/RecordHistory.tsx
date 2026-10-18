@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -8,10 +8,11 @@ import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repos
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
-import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel, auditActionLabel } from './historyLabels';
+import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
 } from './historyFields';
+import { groupHistoryEvents, historyEventSummary } from './historyPresentation';
 import { useHistoryRefs, type RefMaps } from './useHistoryRefs';
 import { useHistoryEnumLabel } from './useHistoryEnumLabel';
 
@@ -117,6 +118,8 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   ev, refs, showRecord, enumLabel,
 }) => {
   const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const actor =
     ev.actorId === null
       ? t('history.system', 'System')
@@ -127,20 +130,66 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const absolute = formatInstant(ev.createdAt);
   return (
     <li data-testid="history-event" className="border-b border-border py-3 last:border-b-0 min-w-0">
-      <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        <span className="font-semibold text-foreground break-words">{actor}</span>
+      <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
+        {historyEventSummary(t, ev)}
+      </p>
+      <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
+        <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
           {formatRelativeTime(ev.createdAt)} · {absolute}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
-      <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-        {/* #880: a merged audit line reads as a translated "did X" label (humanised when the code is
-            unknown) — never the internal action code. */}
-        {ev.source === 'audit' && <li className="break-words">{auditActionLabel(t, ev.action)}</li>}
-        {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
-        {entries.map(([column, change]) => (
-          <li key={column} className="break-words">{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
+      <button
+        type="button"
+        aria-expanded={detailsOpen}
+        aria-controls={detailsId}
+        onClick={() => setDetailsOpen((open) => !open)}
+        className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        {t('uxs23.history.viewDetails', 'View details')}
+      </button>
+      <ul id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
+          {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
+          {entries.map(([column, change]) => (
+            <li key={column}>{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
+          ))}
+      </ul>
+    </li>
+  );
+};
+
+const HistoryEventGroup: React.FC<{
+  events: HistoryEvent[];
+  refs: RefMaps;
+  enumLabel: EnumLabel;
+  entityType: string;
+  includeChildren: boolean;
+}> = ({ events, refs, enumLabel, entityType, includeChildren }) => {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const eventsId = useId();
+
+  return (
+    <li data-testid="history-group" className="border-b border-border py-3 last:border-b-0 min-w-0">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={eventsId}
+        onClick={() => setExpanded((open) => !open)}
+        className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
+      </button>
+      <ul id={eventsId} hidden={!expanded} className="mt-1 pl-3">
+        {events.map((ev) => (
+          <EventRow
+            key={`${ev.source}-${ev.id}`}
+            ev={ev}
+            refs={refs}
+            enumLabel={enumLabel}
+            showRecord={includeChildren && ev.entityType !== entityType}
+          />
         ))}
       </ul>
     </li>
@@ -173,6 +222,10 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
   const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes, enabled });
   const filters = useMemo(() => filterLabels(t), [t]);
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
+  const groups = useMemo(
+    () => q.data?.pages.flatMap((page) => groupHistoryEvents(page.events)) ?? [],
+    [q.data],
+  );
   const companyIdsKey = companyIdsOf(events).join(',');
   const companyIds = useMemo(() => (companyIdsKey ? companyIdsKey.split(',') : []), [companyIdsKey]);
   const recordIdsByType = useMemo(() => {
@@ -243,13 +296,22 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
       ) : (
         <>
           <ul>
-            {events.map((ev) => (
-              <EventRow
-                key={`${ev.source}-${ev.id}`}
-                ev={ev}
+            {groups.map((group) => group.events.length > 1 ? (
+              <HistoryEventGroup
+                key={group.key}
+                events={group.events}
                 refs={refs}
                 enumLabel={enumLabel}
-                showRecord={includeChildren && ev.entityType !== entityType}
+                entityType={entityType}
+                includeChildren={includeChildren}
+              />
+            ) : (
+              <EventRow
+                key={group.key}
+                ev={group.events[0]}
+                refs={refs}
+                enumLabel={enumLabel}
+                showRecord={includeChildren && group.events[0].entityType !== entityType}
               />
             ))}
           </ul>
