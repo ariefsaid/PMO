@@ -130,6 +130,15 @@ stopped two dead layers being ranked above the one live one.
 Do not merge, push or promote to `main` or production. This overrides the generic `main` ceiling
 below and in older plans. Production additionally retains its separate per-instance approval rule.
 
+
+**v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
+four unit shards, pgTAP and verify. Dispatch browser integration only on the PR closing a work lane
+or a completed statement/money piece, rather than every slice. Up to **two** browser dispatches may
+run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
+Build the three approved UX lanes in parallel with statements and money fixes; statements take
+priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
+Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
+
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run

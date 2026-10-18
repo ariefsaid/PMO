@@ -3343,3 +3343,18 @@ based on measured per-call cost with host-capacity headroom; keep existing runti
 
 Both Sol and Claude Opus whole-release security reviews run before any dev-to-main PR. Notify
 Claude when the release candidate is ready on dev. Dev remains the current authorized ceiling.
+
+
+## OD-V023-THROUGHPUT — parallel lanes and closing browser checks (owner 2026-10-18)
+
+Run billing/collections (S-15, S-16, S-36, S-39), purchasing/tax/integration setup (S-09, S-11,
+S-19, S-21), and history/phone/capture/employee/search (S-23, S-24, S-29, S-30, S-40) as three
+parallel native Codex Luna xhigh lanes. Keep their worktrees isolated, preserve file ownership and
+rebase translation edits before each PR. S-27 remains Director-dispatched; S-35 follows the statement
+views. Start #1089 when a build lane frees. Statements retain priority over shared resources.
+
+Each slice PR requires fast CI (four unit shards, pgTAP and verify). Browser integration runs on the
+lane-closing PR or a completed statement/money piece, with any resulting fix kept in that PR. Allow
+up to two concurrent browser dispatches through the logged shared wrapper and two heavy local runs.
+The owner requests continuous overnight progress toward the full dev queue by the following morning;
+this target does not waive tests, reviews, privacy or the dev-only release ceiling.
