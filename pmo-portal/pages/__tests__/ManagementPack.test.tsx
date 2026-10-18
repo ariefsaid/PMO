@@ -34,6 +34,8 @@ const project = (id: string, name: string, pm: string) => ({
   id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 1_000,
   start_date: null, end_date: null, project_manager_id: pm, client_name: null,
 });
+const earlierInvoice = (project_id: string | null, currency: string, net: number, invoice_count: number) =>
+  ({ project_id, currency, net, invoice_count });
 const facts: ManagementPackFacts = {
   from: '2026-03-01', to: '2026-04-01', timezone: 'Asia/Jakarta', org_currency: 'IDR', undated_invoice_count: 0,
   projects: [project('p1', 'Alpha', 'u-pm'), project('p2', 'Beta', 'u-other')],
@@ -140,6 +142,20 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     const unavailable = screen.getAllByText('Unavailable');
     expect(unavailable.length).toBeGreaterThanOrEqual(2);
     expect(unavailable[0]).toHaveAttribute('title',
+      'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  });
+
+  it('AC-MIP-006: earlier zero-net foreign invoices show unavailable contract backlog and subtotal', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)],
+    });
+    renderPage();
+    const rows = screen.getAllByRole('row');
+    const projectRow = rows.find((candidate) => within(candidate).queryByText('Alpha'));
+    const unavailable = screen.getAllByText('Unavailable');
+    expect(unavailable.length).toBeGreaterThanOrEqual(2);
+    expect(projectRow && within(projectRow).getByText('Unavailable')).toHaveAttribute('title',
       'A foreign-currency invoice needs reconciliation before this balance can be known.');
   });
 });

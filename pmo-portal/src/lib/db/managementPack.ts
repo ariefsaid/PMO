@@ -45,6 +45,7 @@ export interface PackFactsInvoicedBefore {
   project_id: string | null;
   currency: string;
   net: number;
+  invoice_count: number;
 }
 
 export interface PackFactsProgress {
@@ -80,6 +81,12 @@ const ARRAY_KEYS = ['projects', 'invoiced', 'invoiced_before', 'progress'] as co
 /** Narrow the RPC's jsonb to the facts shape. A malformed body is an error, never an empty pack. */
 export function parseManagementPackFacts(data: unknown): ManagementPackFacts {
   const d = data as Record<string, unknown> | null;
+  const beforeFacts = d != null && typeof d === 'object' ? d.invoiced_before : undefined;
+  const beforeCountsValid = Array.isArray(beforeFacts) && beforeFacts.every((fact: unknown) => {
+    if (fact === null || typeof fact !== 'object' || Array.isArray(fact)) return false;
+    const invoiceCount = (fact as Record<string, unknown>).invoice_count;
+    return typeof invoiceCount === 'number' && Number.isFinite(invoiceCount) && Number.isInteger(invoiceCount) && invoiceCount >= 0;
+  });
   const ok =
     d != null &&
     typeof d === 'object' &&
@@ -88,7 +95,8 @@ export function parseManagementPackFacts(data: unknown): ManagementPackFacts {
     typeof d.timezone === 'string' &&
     typeof d.org_currency === 'string' &&
     typeof d.undated_invoice_count === 'number' &&
-    ARRAY_KEYS.every((k) => Array.isArray(d[k]));
+    ARRAY_KEYS.every((k) => Array.isArray(d[k])) &&
+    beforeCountsValid;
   if (!ok) throw new AppError('The management pack response was malformed', 'pack-malformed');
   return d as unknown as ManagementPackFacts;
 }
