@@ -3985,8 +3985,6 @@
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
     "linkToSalesInvoice": "Link to sales invoice…",
-    "paidAmount": "Paid Amount",
-    "receivedAmount": "Received Amount",
     "youDonTHaveAccessToRevenueByProject": "You don't have access to Revenue by Project",
     "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "The revenue per project view is available to Finance, Project Managers, and Executives.",
     "unassigned": "Unassigned",
@@ -4066,7 +4064,6 @@
     "withholdingSlip": "Withholding slip",
     "withheldAmountLabel": "Withheld tax amount",
     "withholdingSlipNumberLabel": "Withholding-slip number",
-    "paidAmountHelper": "The full amount applied to the invoice, including tax withheld by the client.",
     "receivedAmountHelper": "The cash actually received.",
     "withheldAmountHelper": "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.",
     "withholdingSlipHelper": "Required when the client withheld tax.",
@@ -4741,5 +4738,14 @@
       "viewDetails": "View details",
       "groupSummary": "{{count}} system events"
     }
+  },
+  "uxs27": {
+    "amountSettled": "Amount settled",
+    "cashReceived": "Cash received",
+    "amountSettledHelper": "Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.",
+    "taxWithheldDisclosure": "Tax withheld",
+    "withheldSummary": "Tax withheld: {{amount}}",
+    "withholdingSlipSummary": "Withholding slip: {{slip}}",
+    "withholdingSlipMissing": "Withholding slip not entered (required for a deduction)."
   }
 }

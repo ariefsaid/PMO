@@ -48,9 +48,10 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
   }) as SalesInvoiceRow;
 
 const hoisted = vi.hoisted(() => ({
-  createPaymentMutate: vi.fn(async () => ({ id: 'ip-new' })),
+  createPaymentMutate: vi.fn(async (_input: Record<string, unknown>) => ({ id: 'ip-new' })),
   paymentsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoicesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  ownershipState: { data: [] as unknown[], isError: false },
   navigateMock: vi.fn(),
   clientOptions: [
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
@@ -85,7 +86,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 // These journeys are the ERP-path receipt (optional invoice, on-account, withholding against an ERP invoice); the PMO
 // receipt path is IncomingPayments.native.test.tsx.
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }], isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => hoisted.ownershipState }));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };
@@ -113,7 +114,7 @@ const renderPage = () =>
   );
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+  await user.click(screen.getAllByRole('button', { name: /Receive Payment|Terima Pembayaran/i })[0]);
 }
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | RegExp, label: string) {
@@ -126,12 +127,259 @@ beforeEach(async () => {
   hoisted.navigateMock.mockClear();
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
+  hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
+  it('AC-S27-001: labels settlement and cash plainly, and keeps native no-withholding prefill in the existing payload', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({
+      id: 'si-native',
+      si_number: 'SI-NATIVE',
+      pmo_native: true,
+      erp_outstanding_amount: 111_000,
+    })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    const settled = screen.getByLabelText(/^Amount settled/);
+    const cash = screen.getByLabelText(/^Cash received/);
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    const panelId = disclosure.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    expect(document.getElementById(panelId!)).toHaveAttribute('hidden');
+
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-NATIVE');
+    expect(screen.getByText('Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.')).toBeInTheDocument();
+    expect(settled).toHaveValue('111,000');
+    expect(cash).toHaveValue('111,000');
+
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    const submitted = hoisted.createPaymentMutate.mock.calls.at(-1)?.[0];
+    expect(submitted).toMatchObject({
+      customerId: 'cust-1', salesInvoiceId: 'si-native', paidAmount: 111_000, receivedAmount: 111_000,
+    });
+    expect(Object.keys(submitted ?? {}).sort()).toEqual([
+      'customerId', 'date', 'intent', 'paidAmount', 'receivedAmount', 'salesInvoiceId',
+    ]);
+  });
+
+  it('AC-S27-002: collapsing withholding retains the deduction, evidence, summary, and exact receipt values', async () => {
+    hoisted.invoicesState.data = [invoice({ id: 'si-s27', si_number: 'SI-S27' })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-S27');
+
+    for (const [label, value] of [['Amount settled', '1110'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    await user.click(disclosure);
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    const slip = screen.getByLabelText('Withholding-slip number');
+    await user.clear(withheld);
+    await user.type(withheld, '110');
+    await user.type(slip, 'SYN-WHT-27');
+
+    await user.click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(withheld).not.toBeVisible();
+    expect(slip).not.toBeVisible();
+    expect(screen.getByText('Tax withheld: $110')).toBeInTheDocument();
+    expect(screen.getByText('Withholding slip: SYN-WHT-27')).toBeInTheDocument();
+
+    await user.click(disclosure);
+    expect(withheld).toHaveValue('110');
+    expect(slip).toHaveValue('SYN-WHT-27');
+    await user.click(disclosure);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    const submitted = hoisted.createPaymentMutate.mock.calls.at(-1)?.[0];
+    expect(submitted).toMatchObject({
+      customerId: 'cust-1', salesInvoiceId: 'si-s27', paidAmount: 1110,
+      receivedAmount: 1000, withheldAmount: 110, withholdingSlipNumber: 'SYN-WHT-27',
+    });
+    expect(Object.keys(submitted ?? {}).sort()).toEqual([
+      'customerId', 'date', 'intent', 'paidAmount', 'receivedAmount', 'salesInvoiceId',
+      'withheldAmount', 'withholdingSlipNumber',
+    ]);
+  });
+
+  it('AC-S27-003: a native reconciliation error reveals the collapsed withholding evidence', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-native-mismatch', si_number: 'SI-NATIVE-MISMATCH', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-NATIVE-MISMATCH');
+
+    for (const [label, value] of [['Amount settled', '1110'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    await user.click(disclosure);
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '109');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SYN-WHT-27');
+    await user.click(disclosure);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(withheld).toBeVisible();
+    expect((await screen.findAllByText(/cash received plus withheld tax must equal/i)).length).toBeGreaterThan(0);
+  });
+
+  it('AC-S27-003: missing withholding evidence reveals and focuses the slip field before save', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-native-slip', si_number: 'SI-NATIVE-SLIP', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-NATIVE-SLIP');
+    for (const [label, value] of [['Amount settled', '1110'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    await user.click(disclosure);
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '110');
+    const slip = screen.getByLabelText('Withholding-slip number');
+    await user.click(disclosure);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(slip).toBeVisible();
+    expect((await screen.findAllByText(/enter a withholding-slip number/i)).length).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(slip);
+  });
+
+  it.each([
+    ['-1', /withheld tax must be non-negative/i],
+    ['1.234', /withheld tax must be non-negative/i],
+  ])('AC-S27-003: refuses invalid withheld amount %s without sending a receipt', async (value, error) => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const [label, amount] of [['Amount settled', '1000'], ['Cash received', '1000']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, amount);
+    }
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    await user.click(disclosure);
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, value);
+    await user.click(disclosure);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(withheld).toBeVisible();
+    expect((await screen.findAllByText(error)).length).toBeGreaterThan(0);
+  });
+
+  it('AC-S27-003: accepts an existing partial settlement with recorded withholding', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-partial', si_number: 'SI-PARTIAL', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-PARTIAL');
+    for (const [label, value] of [['Amount settled', '555'], ['Cash received', '500']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    await user.type(screen.getByLabelText(/Withheld tax amount/), '55');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SYN-WHT-27');
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
+      salesInvoiceId: 'si-partial', paidAmount: 555, receivedAmount: 500,
+      withheldAmount: 55, withholdingSlipNumber: 'SYN-WHT-27',
+    }));
+  });
+
+  it('AC-S27-005: keeps the same receipt intent and entered values after a rejected save, then retries', async () => {
+    hoisted.createPaymentMutate.mockRejectedValueOnce(new Error('Synthetic retryable failure'));
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    for (const [label, value] of [['Amount settled', '750'], ['Cash received', '750']] as const) {
+      const field = screen.getByLabelText(new RegExp(label));
+      await user.clear(field);
+      await user.type(field, value);
+    }
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    await screen.findByTestId('entity-modal-save-error');
+
+    const settled = screen.getByLabelText(/^Amount settled/);
+    const cash = screen.getByLabelText(/^Cash received/);
+    expect(settled).toHaveValue('750');
+    expect(cash).toHaveValue('750');
+    const firstIntent = hoisted.createPaymentMutate.mock.calls[0]?.[0].intent;
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledTimes(2);
+    expect(hoisted.createPaymentMutate.mock.calls[1]?.[0].intent).toEqual(firstIntent);
+  });
+
+  it('AC-S27-005: cancel confirms dirty discard and reopening starts with no old withholding', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    const disclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    await user.click(disclosure);
+    await user.type(screen.getByLabelText(/Withheld tax amount/), '20');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SYN-WHT-27');
+    await user.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    await screen.findByText('Discard your changes?');
+    await user.click(screen.getByRole('button', { name: /^Discard$/ }));
+
+    expect(screen.queryByRole('dialog', { name: /Receive Payment/i })).not.toBeInTheDocument();
+    await openForm(user);
+    const reopenedDisclosure = screen.getByRole('button', { name: 'Tax withheld' });
+    expect(reopenedDisclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByLabelText(/^Amount settled/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Withheld tax amount/)).not.toBeVisible();
+  });
+
+  it('AC-S27-005: shows the settlement and withholding disclosure in Bahasa Indonesia', async () => {
+    setActiveLocale(ID_LOCALE);
+    await financeTestI18n.changeLanguage('id');
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+
+    expect(screen.getByLabelText(/^Jumlah yang dilunasi/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Kas diterima/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pajak dipotong' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('AC-WHT-001: records cash received and the client withholding slip against the full allocation', async () => {
     hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-WHT' })];
     const user = userEvent.setup();
@@ -139,11 +387,15 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-WHT');
-    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '20']]) {
+    for (const [label, value] of [['Amount settled', '1000'], ['Cash received', '980']] as const) {
       const input = screen.getByLabelText(new RegExp(label));
       await user.clear(input);
       await user.type(input, value);
     }
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '20');
     await user.type(screen.getByLabelText('Withholding-slip number'), 'WHT-001');
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
@@ -157,11 +409,15 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
-    for (const [label, value] of [['Paid Amount', '1000'], ['Received Amount', '980'], ['Withheld tax amount', '19']]) {
+    for (const [label, value] of [['Amount settled', '1000'], ['Cash received', '980']] as const) {
       const input = screen.getByLabelText(new RegExp(label));
       await user.clear(input);
       await user.type(input, value);
     }
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    const withheld = screen.getByLabelText(/Withheld tax amount/);
+    await user.clear(withheld);
+    await user.type(withheld, '19');
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
     expect(screen.getAllByText(/cash received plus withheld tax must equal/i).length).toBeGreaterThan(0);
@@ -244,10 +500,10 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
 
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-ACME');
-    const paid = screen.getByLabelText(/Paid Amount/);
+    const paid = screen.getByLabelText(/Amount settled/);
     await user.clear(paid);
     await user.type(paid, '750');
-    const received = screen.getByLabelText(/Received Amount/);
+    const received = screen.getByLabelText(/Cash received/);
     await user.clear(received);
     await user.type(received, '750');
 
@@ -273,7 +529,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     renderPage();
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
-    for (const label of [/Paid Amount/, /Received Amount/]) {
+    for (const label of [/Amount settled/, /Cash received/]) {
       const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');
@@ -295,7 +551,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-ACME');
-    for (const label of [/Paid Amount/, /Received Amount/]) {
+    for (const label of [/Amount settled/, /Cash received/]) {
       const field = screen.getByLabelText(new RegExp(label));
       await user.clear(field);
       await user.type(field, '1.234');

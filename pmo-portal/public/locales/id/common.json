@@ -3985,8 +3985,6 @@
     "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
     "linkToSalesInvoice": "Tautkan ke faktur penjualan…",
-    "paidAmount": "Jumlah Dibayar",
-    "receivedAmount": "Jumlah Diterima",
     "youDonTHaveAccessToRevenueByProject": "Anda tidak memiliki akses ke Pendapatan per Proyek",
     "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "Tampilan pendapatan per proyek tersedia untuk Finance, Manajer Proyek, dan Eksekutif.",
     "unassigned": "Belum ditetapkan",
@@ -4066,7 +4064,6 @@
     "withholdingSlip": "Bukti potong",
     "withheldAmountLabel": "Jumlah pajak dipotong",
     "withholdingSlipNumberLabel": "Nomor bukti potong",
-    "paidAmountHelper": "Jumlah penuh yang dialokasikan ke faktur, termasuk pajak yang dipotong klien.",
     "receivedAmountHelper": "Kas yang benar-benar diterima.",
     "withheldAmountHelper": "Masukkan jumlah yang dipotong klien; PMO tidak menghitung pajak penghasilan. Isi 0 bila tidak ada pemotongan.",
     "withholdingSlipHelper": "Wajib diisi bila klien memotong pajak.",
@@ -4741,5 +4738,14 @@
       "viewDetails": "Lihat detail perubahan",
       "groupSummary": "{{count}} peristiwa sistem"
     }
+  },
+  "uxs27": {
+    "amountSettled": "Jumlah yang dilunasi",
+    "cashReceived": "Kas diterima",
+    "amountSettledHelper": "Jumlah yang dilunasi adalah saldo faktur yang ditutup oleh penerimaan ini. Jumlah ini mencakup kas yang diterima dan pajak yang dipotong oleh klien.",
+    "taxWithheldDisclosure": "Pajak dipotong",
+    "withheldSummary": "Pajak dipotong: {{amount}}",
+    "withholdingSlipSummary": "Bukti potong: {{slip}}",
+    "withholdingSlipMissing": "Nomor bukti potong belum diisi (wajib untuk pemotongan pajak)."
   }
 }

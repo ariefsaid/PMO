@@ -77,10 +77,10 @@ async function recordAPayment(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
   await user.click(screen.getByRole('combobox', { name: 'Customer' }));
   await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
-  const paid = screen.getByLabelText(/Paid Amount/);
+  const paid = screen.getByLabelText(/Amount settled/);
   await user.clear(paid);
   await user.type(paid, '25000');
-  const received = screen.getByLabelText(/Received Amount/);
+  const received = screen.getByLabelText(/Cash received/);
   await user.clear(received);
   await user.type(received, '25000');
   await user.click(screen.getByRole('button', { name: 'Record payment' }));
