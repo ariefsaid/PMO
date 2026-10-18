@@ -48,6 +48,7 @@ type SyntheticYear = { name: string; doc: Record<string, unknown> };
 type StrictFixture = {
   languageCode: string;
   company: Record<string, unknown>;
+  companyRows?: unknown[];
   accounts: Record<string, unknown>;
   system: Record<string, unknown>;
   defaults: Record<string, unknown>;
@@ -87,7 +88,7 @@ function strictHarness(overrides: Partial<StrictFixture> = {}) {
     if (fixture.rawResponsePath === url.pathname) return response(fixture.rawResponseBody);
     if (url.pathname === '/api/resource/System%20Settings/System%20Settings') return response({ data: fixture.system });
     if (url.pathname === `/api/resource/Language/${encodeURIComponent(fixture.languageCode)}`) return response({ data: fixture.language });
-    if (url.pathname === '/api/resource/Company/Synthetic%20Co') return response({ data: fixture.company });
+    if (url.pathname === '/api/resource/Company') return response({ data: fixture.companyRows ?? [fixture.company] });
     if (url.pathname === '/api/resource/Accounts%20Settings/Accounts%20Settings') return response({ data: fixture.accounts });
     if (url.pathname === '/api/resource/Currency/IDR') return response({ data: fixture.currency });
     if (url.pathname === '/api/resource/Finance%20Book') return response({ data: fixture.financeBooks });
@@ -146,6 +147,34 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
     expect(result.metadata).not.toHaveProperty('zeroCutoff');
     expect(result.context).not.toHaveProperty('fetchImpl');
     expect(result.context).not.toHaveProperty('nativeDocuments');
+  });
+
+  it('reads exactly one Company row through a bounded exact-name projection and preserves selected null', async () => {
+    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null } });
+    const result = await readStrict(h);
+    const companyCall = h.calls.find(({ url }) => url.pathname === '/api/resource/Company');
+    expect(companyCall).toBeDefined();
+    expect(companyCall?.request.method).toBe('GET');
+    expect(JSON.parse(companyCall?.url.searchParams.get('filters') ?? 'null')).toEqual([['name', '=', 'Synthetic Co']]);
+    expect(JSON.parse(companyCall?.url.searchParams.get('fields') ?? 'null')).toEqual(['name', 'default_currency', 'default_finance_book']);
+    expect(companyCall?.url.searchParams.get('limit_page_length')).toBe('2');
+    expect(result.metadata.defaultFinanceBook).toBeNull();
+  });
+
+  it('normalizes a present blank Company default book the same as selected null', async () => {
+    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: '' } });
+    expect((await readStrict(h)).metadata.defaultFinanceBook).toBeNull();
+  });
+
+  it.each([
+    ['zero Company rows', []],
+    ['multiple Company rows', [
+      { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null },
+      { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null },
+    ]],
+    ['wrong Company identity', [{ name: 'Other Co', default_currency: 'IDR', default_finance_book: null }]],
+  ])('rejects %s from the Company collection', async (_label, companyRows) => {
+    await expect(readStrict(strictHarness({ companyRows }))).rejects.toThrow();
   });
 
   it('binds every post-bootstrap GET to the exact enabled request language without a self-User read', async () => {
@@ -238,7 +267,7 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
       maxRetries: 0,
       fetchImpl: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = input instanceof Request ? input : new Request(input, init);
-        if (new URL(request.url).pathname === '/api/resource/Company/Synthetic%20Co') {
+        if (new URL(request.url).pathname === '/api/resource/Company') {
           return new Promise<Response>((_resolve, reject) => {
             const fail = () => reject(new Error(rawSecretMessage));
             if (request.signal.aborted) fail();
@@ -316,7 +345,7 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
   });
 
   it('rejects malformed successful envelopes rather than treating them as absent metadata', async () => {
-    const company = strictHarness({ rawResponsePath: '/api/resource/Company/Synthetic%20Co', rawResponseBody: { data: null } });
+    const company = strictHarness({ rawResponsePath: '/api/resource/Company', rawResponseBody: { data: null } });
     await expect(readStrict(company)).rejects.toThrow(/Company/i);
     const years = strictHarness({ rawResponsePath: '/api/resource/Fiscal%20Year', rawResponseBody: { data: {} } });
     await expect(readStrict(years)).rejects.toThrow(/Fiscal Year/i);
@@ -424,6 +453,7 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
   it('requires exact Company identity, IDR and a present nullable default book', async () => {
     await expect(readStrict(strictHarness({ company: { name: 'Other Co', default_currency: 'IDR', default_finance_book: null } }))).rejects.toThrow();
     await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'USD', default_finance_book: null } }))).rejects.toThrow(/IDR/i);
+    await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR' } }))).rejects.toThrow(/Company.default_finance_book/i);
     await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: 4 } }))).rejects.toThrow();
   });
 

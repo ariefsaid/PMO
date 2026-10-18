@@ -110,8 +110,8 @@ function fixture(options: {
       if (path === '/api/resource/Language/en' || path === '/api/resource/Language/fr') {
         return response({ data: { name: path.endsWith('/fr') ? 'fr' : 'en', enabled: 1, number_format: '' } });
       }
-      if (path === '/api/resource/Company/Synthetic%20Co') {
-        return response({ data: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null } });
+      if (path === '/api/resource/Company') {
+        return response({ data: [{ name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null }] });
       }
       if (path === '/api/resource/Accounts%20Settings/Accounts%20Settings') {
         return response({ data: { name: 'Accounts Settings', ignore_is_opening_check_for_reporting: 0, ignore_account_closing_balance: 0 } });

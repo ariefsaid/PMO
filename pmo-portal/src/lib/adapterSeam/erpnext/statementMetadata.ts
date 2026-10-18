@@ -211,6 +211,15 @@ function strictListEnvelope(body: unknown, label: string): unknown[] {
   if (!isStrictRecord(body) || !hasOwn(body, 'data') || !Array.isArray(body.data)) strictFailure(`Malformed ${label} metadata envelope`);
   return body.data;
 }
+async function strictGetCompanyCollection(client: ErpClientDeps, name: string): Promise<StrictRecord> {
+  const fields = ['name', 'default_currency', 'default_finance_book'];
+  const filters = [['name', '=', name]];
+  const path = `/api/resource/Company?filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=2`;
+  const rows = strictListEnvelope(await erpnextRequest(client, { method: 'GET', path }), 'Company');
+  if (rows.length !== 1 || !isStrictRecord(rows[0])) strictFailure('Expected exactly one Company metadata row');
+  if (rows[0].name !== name) strictFailure('Company identity mismatch');
+  return projectStrictFields(rows[0], fields, 'Company');
+}
 function projectStrictFields(record: StrictRecord, fields: readonly string[], label: string): StrictRecord {
   const projected: StrictRecord = {};
   for (const field of fields) projected[field] = requiredRaw(record, field, `${label}.${field}`);
@@ -357,7 +366,7 @@ export async function fetchStatementPublicationMetadata(
     fetchImpl: statementRequestFetch(client.fetchImpl, client.baseUrl, requestLanguage),
   };
 
-  const companyRaw = await strictGetResource(scopedClient, 'Company', requestedCompany, ['name', 'default_currency', 'default_finance_book']);
+  const companyRaw = await strictGetCompanyCollection(scopedClient, requestedCompany);
   if (companyRaw.name !== requestedCompany) strictFailure('Company identity mismatch');
   const companyCurrency = strictText(companyRaw.default_currency, 'Company currency');
   if (companyCurrency !== 'IDR') strictFailure('Statement publication requires IDR Company currency', 'config-rejected');
