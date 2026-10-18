@@ -4741,5 +4741,13 @@
       "viewDetails": "Lihat detail perubahan",
       "groupSummary": "{{count}} peristiwa sistem"
     }
+  },
+  "uxs24": {
+    "stageLabel": "Tahap pipeline",
+    "allStages": "Semua tahap",
+    "phoneList": "Proyek pada tahap pipeline yang dipilih",
+    "financialDetails": "Rincian keuangan dan proyek",
+    "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
+    "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
   }
 }
