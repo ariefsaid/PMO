@@ -6,14 +6,14 @@ export type StatementReportName = 'Trial Balance' | 'Profit and Loss Statement' 
 export type StatementPeriodKind = 'month' | 'quarter' | 'year';
 export type StatementReportSide = 'current' | 'prior';
 
-/** A period pair already resolved against the binding's validated fiscal calendar. */
+/** A period pair resolved against the binding's validated fiscal calendar. */
 export interface StatementReportPeriod {
   fromDate: string;
   toDate: string;
   fromFiscalYear: string;
   toFiscalYear: string;
   kind: StatementPeriodKind;
-  /** The selected locale's expected native period label. It is checked, never used as an identity. */
+  /** Optional compatibility hint; native translated labels are authoritative display text, not identity. */
   columnLabel?: string;
 }
 
@@ -101,7 +101,6 @@ const MAX_ROWS = 50_000;
 const MAX_ROW_FIELDS = 512;
 const MAX_TEXT_LENGTH = 16_384;
 const TB_MONEY_FIELDS = ['opening_debit', 'opening_credit', 'debit', 'credit', 'closing_debit', 'closing_credit'] as const;
-const ACCOUNT_STRUCTURE_FIELDS = ['acc_name', 'acc_number', 'parent_account', 'indent'] as const;
 const BOOLEAN_FIELDS = new Set(['has_value', 'include_in_gross', 'is_group', 'is_group_account', 'warn_if_negative']);
 
 interface PreparedRequest {
@@ -172,12 +171,13 @@ function validatePeriod(period: StatementReportPeriod, calendar: Map<string, { s
   if (!fromYear || !toYear || fromDate > toDate || fromDate < fromYear.start || fromDate > fromYear.end || toDate < toYear.start || toDate > toYear.end) {
     fail('Statement report range does not match its validated fiscal calendar', 'config-rejected');
   }
-  if (reportName === 'Trial Balance') {
-    if (fromFiscalYear !== toFiscalYear) fail('Trial Balance range must use one fiscal year', 'config-rejected');
-    return { fromDate, toDate, fromFiscalYear, toFiscalYear, kind: period.kind };
+  if (reportName === 'Trial Balance' && fromFiscalYear !== toFiscalYear) {
+    fail('Trial Balance range must use one fiscal year', 'config-rejected');
   }
-  const columnLabel = boundedText(period.columnLabel, 'Invalid selected statement period label', 512);
-  return { fromDate, toDate, fromFiscalYear, toFiscalYear, kind: period.kind, columnLabel };
+  return {
+    fromDate, toDate, fromFiscalYear, toFiscalYear, kind: period.kind,
+    ...(period.columnLabel === undefined ? {} : { columnLabel: period.columnLabel }),
+  };
 }
 function monthFieldname(date: string): string {
   const month = Number(date.slice(5, 7));
@@ -326,16 +326,19 @@ function moneyToken(value: unknown, message: string): string | null {
   return value;
 }
 function isAccountDataRow(row: Record<string, unknown>): boolean {
-  return ACCOUNT_STRUCTURE_FIELDS.some((field) => hasOwn(row, field));
+  const hasAccountDetails = hasOwn(row, 'acc_name') || hasOwn(row, 'acc_number') || hasOwn(row, 'is_group') || hasOwn(row, 'is_group_account');
+  return typeof row.account === 'string' && hasAccountDetails;
 }
 function normalizeRows(
   value: unknown,
   prepared: PreparedRequest,
-  columns: readonly { fieldname: string; type: 'text' | 'currency' }[],
+  columns: readonly { fieldname: string; type: 'text' | 'currency'; hidden?: boolean }[],
 ): Array<Readonly<Record<string, NativeReportScalar>>> {
   if (!Array.isArray(value) || value.length > MAX_ROWS) fail('Statement report has invalid native rows');
   const amountFields = new Set(prepared.expectedMoneyFields);
-  const currencyFields = new Set(columns.filter((column) => column.type === 'currency').map((column) => column.fieldname));
+  const currencyFields = new Set(columns.filter((column) => column.type === 'currency' && column.hidden !== true).map((column) => column.fieldname));
+  const visibleFields = new Set(columns.filter((column) => column.hidden !== true).map((column) => column.fieldname));
+  const consumedLabels = new Set(['account', 'account_name', 'acc_name', 'acc_number', 'parent_account']);
   const accountKeys = new Set<string>();
   return value.map((raw) => {
     if (!isRecord(raw) || Object.keys(raw).length > MAX_ROW_FIELDS) fail('Statement report has invalid native rows');
@@ -345,6 +348,8 @@ function normalizeRows(
       if (key === 'indent') normalized[key] = metadataInteger(cell, 0, 100, 'Statement report has invalid account indentation');
       else if (BOOLEAN_FIELDS.has(key)) normalized[key] = metadataBoolean(cell, 'Statement report has invalid account flags');
       else if (amountFields.has(key) || currencyFields.has(key) || key === 'opening_balance') normalized[key] = moneyToken(cell, 'Statement report has invalid native Currency value');
+      else if (visibleFields.has(key) || consumedLabels.has(key)) normalized[key] = nativeScalar(cell, 'Statement report has invalid native row values');
+      else if (cell !== null && typeof cell === 'object') continue;
       else normalized[key] = nativeScalar(cell, 'Statement report has invalid native row values');
     }
     if (isAccountDataRow(raw)) {
@@ -379,6 +384,16 @@ function normalizeSummary(value: unknown): readonly Readonly<Record<string, Nati
     }
     return normalized;
   });
+}
+function samePeriodRange(left: StatementReportPeriod, right: StatementReportPeriod): boolean {
+  return left.fromDate === right.fromDate && left.toDate === right.toDate &&
+    left.fromFiscalYear === right.fromFiscalYear && left.toFiscalYear === right.toFiscalYear && left.kind === right.kind;
+}
+function samePeriodPair(
+  left: { current: StatementReportPeriod; prior: StatementReportPeriod },
+  right: { current: StatementReportPeriod; prior: StatementReportPeriod },
+): boolean {
+  return samePeriodRange(left.current, right.current) && samePeriodRange(left.prior, right.prior);
 }
 function normalizeForComparison(value: unknown): unknown {
   if (typeof value === 'number') return String(value);
@@ -423,11 +438,11 @@ export async function parseStatementReport(
   validateExpectedColumns(columns, prepared);
   if (prepared.reportName !== 'Trial Balance') {
     const expectedField = monthFieldname(prepared.period.toDate);
-    const selectedColumn = columns.find((column) => column.fieldname === expectedField);
-    if (!selectedColumn || selectedColumn.label !== prepared.period.columnLabel) fail('Statement period column does not match its validated range');
+    if (!columns.some((column) => column.fieldname === expectedField)) fail('Statement period column does not match its validated range');
   }
   const rows = normalizeRows(message.result, prepared, columns);
   const summary = normalizeSummary(message.report_summary);
+  if (prepared.project && prepared.reportName === 'Profit and Loss Statement') projectTotalsFromSummary(summary);
   return {
     reportName: prepared.reportName,
     company: selection.company,
@@ -470,51 +485,34 @@ export async function fetchStatementReport(
   return { report, rawText: response.rawText };
 }
 
-function accountIdentity(row: Readonly<Record<string, NativeReportScalar>>): {
-  account: string; accName: string; accNumber: string | null; parentAccount: string | null; indent: number;
-} | null {
-  if (!ACCOUNT_STRUCTURE_FIELDS.some((field) => hasOwn(row, field))) return null;
-  return {
-    account: row.account as string,
-    accName: row.acc_name as string,
-    accNumber: row.acc_number as string | null,
-    parentAccount: row.parent_account as string | null,
-    indent: row.indent as number,
-  };
-}
-function sameAccountStructure(left: ReturnType<typeof accountIdentity>, right: ReturnType<typeof accountIdentity>): boolean {
-  return left !== null && right !== null && left.account === right.account && left.accName === right.accName &&
-    left.accNumber === right.accNumber && left.parentAccount === right.parentAccount && left.indent === right.indent;
+function accountIdentity(row: Readonly<Record<string, NativeReportScalar>>): string | null {
+  return isAccountDataRow(row) ? row.account as string : null;
 }
 
-/** Joins only stable report-scoped account rows; each complete native side remains authoritative. */
+/** Derives an optional union by opaque account identity; each native side remains authoritative. */
 export function joinStatementReportPair(current: NativeReportColumn, prior: NativeReportColumn): StatementReportPair {
   if (!current || !prior || current.side !== 'current' || prior.side !== 'prior' || current.reportName !== prior.reportName ||
       current.company !== prior.company || current.language !== prior.language ||
       current.profile.erpVersion !== prior.profile.erpVersion || current.profile.frappeVersion !== prior.profile.frappeVersion ||
       JSON.stringify(current.project) !== JSON.stringify(prior.project) ||
-      JSON.stringify(current.periodPair) !== JSON.stringify(prior.periodPair) ||
-      JSON.stringify(current.periodPair.current) !== JSON.stringify(current.period) ||
-      JSON.stringify(prior.periodPair.prior) !== JSON.stringify(prior.period) ||
+      !samePeriodPair(current.periodPair, prior.periodPair) ||
+      !samePeriodRange(current.periodPair.current, current.period) ||
+      !samePeriodRange(prior.periodPair.prior, prior.period) ||
       current.period.kind !== prior.period.kind || prior.period.toDate >= current.period.fromDate) {
     fail('Statement current/prior report context does not match');
   }
-  const currentRows = new Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>>; identity: NonNullable<ReturnType<typeof accountIdentity>> }>();
-  const priorRows = new Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>>; identity: NonNullable<ReturnType<typeof accountIdentity>> }>();
-  const indexRows = (report: NativeReportColumn, index: Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>>; identity: NonNullable<ReturnType<typeof accountIdentity>> }>) => {
+  const currentRows = new Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>> }>();
+  const priorRows = new Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>> }>();
+  const indexRows = (report: NativeReportColumn, index: Map<string, { ordinal: number; row: Readonly<Record<string, NativeReportScalar>> }>) => {
     report.rows.forEach((row, ordinal) => {
-      const identity = accountIdentity(row);
-      if (!identity) return;
-      if (index.has(identity.account)) fail('Statement pair contains duplicate account identity');
-      index.set(identity.account, { ordinal, row, identity });
+      const account = accountIdentity(row);
+      if (account === null) return;
+      if (index.has(account)) fail('Statement pair contains duplicate account identity');
+      index.set(account, { ordinal, row });
     });
   };
   indexRows(current, currentRows);
   indexRows(prior, priorRows);
-  for (const [account, left] of currentRows) {
-    const right = priorRows.get(account);
-    if (right && !sameAccountStructure(left.identity, right.identity)) fail('Statement pair contains changed account structure');
-  }
   const accounts: PairedStatementAccount[] = [];
   for (const [account, left] of currentRows) {
     const right = priorRows.get(account);
@@ -535,13 +533,17 @@ export function joinStatementReportPair(current: NativeReportColumn, prior: Nati
 }
 
 /** Copies the native project P&L summary's first three Currency tokens by position; never calculates. */
-export function projectStatementTotals(report: NativeReportColumn): NativeProjectStatementTotals | null {
-  if (report.reportName !== 'Profit and Loss Statement' || !report.project) fail('Project totals require a project P&L report');
-  if (report.summary === null) return null;
-  const values = report.summary.slice(0, 3).map((item) => {
+function projectTotalsFromSummary(summary: NativeReportColumn['summary']): NativeProjectStatementTotals {
+  if (summary === null || summary.length < 3) fail('Project P&L native totals are unavailable');
+  const values = summary.slice(0, 3).map((item) => {
     if (item.datatype !== 'Currency' || item.currency !== 'IDR') fail('Project P&L native totals are unavailable');
     return moneyToken(item.value, 'Project P&L native totals are unavailable');
   });
   if (values.length !== 3 || values.some((value) => value === null)) fail('Project P&L native totals are unavailable');
   return { income: values[0]!, expense: values[1]!, net: values[2]!, currency: 'IDR' };
+}
+
+export function projectStatementTotals(report: NativeReportColumn): NativeProjectStatementTotals {
+  if (report.reportName !== 'Profit and Loss Statement' || !report.project) fail('Project totals require a project P&L report');
+  return projectTotalsFromSummary(report.summary);
 }
