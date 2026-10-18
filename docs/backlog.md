@@ -38,7 +38,14 @@ The route-metadata acceptance tail remains with the statement-host integration, 
 Project-to-invoice entry (#1136 / S-15) merged to dev in PR #1142 (`f2279421`): all four unit
 shards, verify and pgTAP passed. The real local journey retained its saved project, customer, work-order
 and currency checks; rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
-was verified. Continue statement views and rehearsal acceptance, money and parallel UX slices.
+was verified.
+Accounting setup selection (#1143 / S-11) merged to dev in PR #1150 (`8808d927`): all four unit
+shards, verify and pgTAP passed; existing save operations and permissions are retained. Invoice draft
+review (#1144 / S-16) merged in PR #1151 (`c0baddb0`) with the same fast CI gates green; source-currency
+amounts, unavailable tax facts and retry payloads are covered. Both slices completed review and rendered
+phone/desktop checks in both languages and themes; exact-tip cleanup was independently verified.
+Their browser integration remains with the billing/purchasing lane-closing PRs. Continue statement
+views and rehearsal acceptance, money and parallel UX slices.
 
 **Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
