@@ -353,6 +353,26 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     expect(screen.queryByText(/procurement\.approval_route/)).toBeNull();
   });
 
+  it('keeps an audit action, actor, and exact time without an empty details disclosure', async () => {
+    const createdAt = '2026-10-06T09:41:00.000Z';
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, {
+        source: 'audit', seq: null, op: null, action: 'procurement.approval_route', actorId: 'u2', changes: {}, createdAt,
+      })],
+      nextCursor: null,
+    });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(within(row).getByTestId('history-summary')).toHaveTextContent('Approval route recorded');
+    expect(within(row).getByText('Sam Lead')).toBeInTheDocument();
+    const time = row.querySelector('time');
+    expect(time).toBeVisible();
+    expect(time).toHaveAttribute('datetime', createdAt);
+    expect(time).toHaveTextContent(formatDateTime(new Date(createdAt)));
+    expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
+  });
+
   it('shows the absolute time to the minute, in the row and its tooltip', async () => {
     const at = '2026-10-06T09:41:00Z';
     repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt: at })], nextCursor: null });
@@ -407,7 +427,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
 });
 
 describe('RecordHistory — child records and references on the project History (AC-CHG-015, FR-CHG-012)', () => {
-  it('names the child record each event belongs to; a procurement links to its page; an unknown one reads Unavailable', async () => {
+  it('AC-S23-004 names the child record each event belongs to; a procurement links to its page; an unknown one reads Unavailable', async () => {
     repo.recordHistory.list.mockResolvedValue({
       events: [
         ev(6, { entityType: 'task', entityId: 't1', changes: { name: { old: 'Pump', new: 'Install pump' } } }),

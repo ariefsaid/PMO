@@ -125,6 +125,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       ? t('history.system', 'System')
       : refs.profiles.get(ev.actorId) || t('history.unknownUser', 'Unknown user');
   const entries = Object.entries(ev.changes);
+  const hasDetails = ev.op === 'insert' || entries.length > 0;
   const labels = useMemo(() => fieldLabels(t), [t]);
   const kinds = useMemo(() => kindLabels(t), [t]);
   const absolute = formatInstant(ev.createdAt);
@@ -140,21 +141,25 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
-      <button
-        type="button"
-        aria-expanded={detailsOpen}
-        aria-controls={detailsId}
-        onClick={() => setDetailsOpen((open) => !open)}
-        className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        {t('uxs23.history.viewDetails', 'View details')}
-      </button>
-      <ul id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
-          {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
-          {entries.map(([column, change]) => (
-            <li key={column}>{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
-          ))}
-      </ul>
+      {hasDetails && (
+        <>
+          <button
+            type="button"
+            aria-expanded={detailsOpen}
+            aria-controls={detailsId}
+            onClick={() => setDetailsOpen((open) => !open)}
+            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {t('uxs23.history.viewDetails', 'View details')}
+          </button>
+          <ul id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
+            {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
+            {entries.map(([column, change]) => (
+              <li key={column}>{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </li>
   );
 };

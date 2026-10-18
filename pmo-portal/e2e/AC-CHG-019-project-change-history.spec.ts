@@ -64,10 +64,15 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await expect(events.first()).toBeVisible({ timeout: 15_000 });
 
   // Newest first: save 2 on top — who, when, the date move as formatted dates.
+  await events.first().getByRole('button', { name: 'View details' }).click();
+  await expect(events.first().getByText(/31\D*2026 → \D*15\D*2027/)).toBeVisible();
   await expect(events.first()).toContainText('Diego Salvatierra');
   await expect(events.first()).toContainText(/minute|second|now/i);
   await expect(events.first()).toContainText(/End date: \D*31\D*2026 → \D*15\D*2027/);
   // Save 1 below it: the client by name, and the first date move.
+  await events.nth(1).getByRole('button', { name: 'View details' }).click();
+  await expect(events.nth(1).getByText(new RegExp(`${CLIENT_A}[^→]* → ${CLIENT_B}`))).toBeVisible();
+  await expect(events.nth(1).getByText(/30\D*2026 → \D*31\D*2026/)).toBeVisible();
   await expect(events.nth(1)).toContainText(new RegExp(`Client: ${CLIENT_A}[^→]* → ${CLIENT_B}`));
   await expect(events.nth(1)).toContainText(/End date: \D*30\D*2026 → \D*31\D*2026/);
   await expect(events.nth(1)).toContainText('Diego Salvatierra');
