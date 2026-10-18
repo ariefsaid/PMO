@@ -3273,7 +3273,6 @@
         "title": "No projects match your search"
       }
     },
-    "title": "Pipeline",
     "toast": {
       "projectCreated": "Project created"
     },
@@ -4756,5 +4755,13 @@
     "contextInvalid": "This project or its customer is no longer available. Start a new invoice and choose from the current options.",
     "retryContext": "Retry context",
     "currencyUnavailable": "Project currency unavailable."
+  },
+  "uxs24": {
+    "stageLabel": "Pipeline stage",
+    "allStages": "All stages",
+    "phoneList": "Projects in selected pipeline stage",
+    "financialDetails": "Financial and project details",
+    "stageEmptyTitle": "No projects in this stage",
+    "stageEmptyBody": "Choose another stage or clear filters to see more projects."
   }
 }

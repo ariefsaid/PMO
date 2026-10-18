@@ -9,6 +9,9 @@ import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { formatCurrency } from '@/src/lib/format';
 
+const viewport = vi.hoisted(() => ({ isDesktop: true }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
+
 // Oracle stages from spec §3.8 — Won/Lost are NOT in the funnel band.
 const seedStages = [
   { status: 'Leads', count: 0, total_value: 0, win_probability: 0.1, weighted_value: 0 },
@@ -91,6 +94,7 @@ const renderPage = (initialPath = '/sales') =>
   );
 
 beforeEach(() => {
+  viewport.isDesktop = true;
   sessionStorage.clear();
   pipelineState.data = { stages: seedStages, projects: seedProjects };
   pipelineState.isPending = false;
@@ -113,7 +117,7 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
 
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
     renderPage();
-    expect(screen.getByRole('heading', { name: 'Pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
     // C3: the old disabled "New deal" stub is gone; the live "New project" CTA replaced it.
     expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
     // PM can create → the live "New project" button is present.
@@ -148,6 +152,44 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     renderPage();
     // 200000 + 600000 = 800000
     expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
+  });
+});
+
+describe('SalesPipeline phone stage list (AC-S24-001)', () => {
+  it('keeps the URL working set, selected stage, compact rows, and Lost scope aligned', async () => {
+    const user = userEvent.setup();
+    lostState.data = [
+      { id: 'lost-phone-1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700000, currency: 'USD', win_probability: 0 },
+      { id: 'declined-phone-1', name: 'Declined Deal Echo', client_name: 'Echo', status: 'Declined', contract_value: 300000, currency: 'USD', win_probability: 0 },
+    ];
+    viewport.isDesktop = false;
+    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+
+    const phoneList = screen.getByTestId('sales-phone-stage-list');
+    const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
+    expect(selection).toHaveValue('Tender Submitted');
+    expect(within(phoneList).getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(within(phoneList).queryByText('Regional Services')).toBeNull();
+    expect(screen.getAllByRole('combobox', { name: 'Pipeline stage' })).toHaveLength(1);
+
+    await user.selectOptions(selection, 'PQ Submitted');
+    await waitFor(() => {
+      const location = screen.getByTestId('location-probe');
+      expect(new URLSearchParams(location.getAttribute('data-search') ?? '').get('status')).toBe('PQ Submitted');
+      expect(within(screen.getByTestId('sales-phone-stage-list')).getByText('Regional Services')).toBeInTheDocument();
+    });
+    expect(within(screen.getByTestId('sales-phone-stage-list')).queryByText('Northwind ERP Rollout')).toBeNull();
+
+    await user.click(screen.getByRole('tab', { name: /Lost/ }));
+    await waitFor(() => {
+      const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
+      expect(params.get('scope')).toBe('Lost');
+      expect(params.get('status')).toBeNull();
+      expect(params.get('view')).toBe('table');
+      expect(screen.getByText('Lost Deal Delta')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Declined Deal Echo')).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).toBeNull();
   });
 });
 

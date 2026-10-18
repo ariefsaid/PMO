@@ -3273,7 +3273,6 @@
         "title": "Tidak ada proyek yang cocok dengan pencarian"
       }
     },
-    "title": "Pipeline",
     "toast": {
       "projectCreated": "Proyek dibuat"
     },
@@ -4756,5 +4755,13 @@
     "contextInvalid": "Proyek ini atau kliennya tidak lagi tersedia. Mulai faktur baru dan pilih dari opsi yang tersedia.",
     "retryContext": "Coba lagi",
     "currencyUnavailable": "Mata uang proyek tidak tersedia."
+  },
+  "uxs24": {
+    "stageLabel": "Tahap pipeline",
+    "allStages": "Semua tahap",
+    "phoneList": "Proyek pada tahap pipeline yang dipilih",
+    "financialDetails": "Rincian keuangan dan proyek",
+    "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
+    "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
   }
 }
