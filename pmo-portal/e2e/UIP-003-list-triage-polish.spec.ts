@@ -81,7 +81,7 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => localStorage.setItem('theme', value), theme);
       await page.goto('/sales?view=kanban');
-      const first = page.getByLabel('Sales pipeline board').getByRole('button').first();
+      const first = page.getByTestId('sales-phone-stage-list').getByTestId('project-card').first();
       await expect(first).toBeVisible();
       await waitForFonts(page);
       const box = await first.boundingBox();
