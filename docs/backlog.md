@@ -21,6 +21,9 @@ in implementation; these helper merges do not complete statement display.
 The shared project money position (#1081) merged to dev in PR #1128 (`3c675462`): all four unit
 shards, verify and pgTAP passed; the closing integration passed 337 browser and 12 served-function
 checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Invoice presence in management packs (#1083) merged to dev in PR #1130 (`eafbfc6f`): all four
+unit shards, verify and pgTAP passed; closing integration passed 337 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
