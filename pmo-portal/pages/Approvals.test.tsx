@@ -66,7 +66,10 @@ const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean }
   isPending: false,
   isError: false,
 };
-const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
+type CandidateProfile = { id: string; full_name: string; email: string; status: string };
+const profileOptionsState: CandidateProfile[] = [];
+const profileListAvailability = { unavailable: false };
+const confirmMutation: MutationState = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
 
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
@@ -84,7 +87,11 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     submit: { mutate: vi.fn(), isPending: false },
   }),
   usePushesNeedingAttention: () => ({ ...attentionState, retry: retryMutation }),
-  useEmployeeLinkConfirm: () => ({ links: linksState, confirm: confirmMutation }),
+  useEmployeeLinkConfirm: () => ({
+    links: linksState,
+    profiles: profileListAvailability.unavailable ? undefined : profileOptionsState,
+    confirm: confirmMutation,
+  }),
 }));
 
 // N6: /approvals is now the unified inbox — it also reads the procurement queue.
@@ -196,7 +203,10 @@ beforeEach(() => {
   linksState.data = [];
   linksState.isPending = false;
   linksState.isError = false;
+  profileOptionsState.splice(0, profileOptionsState.length);
+  profileListAvailability.unavailable = false;
   confirmMutation.mutate = vi.fn();
+  confirmMutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
   confirmMutation.isPending = false;
   authState.userId = 'u-mgr';
   authState.orgId = 'org-1';
@@ -589,6 +599,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
   it('AC-TSP-092(ux): an Admin sees a proposed Employee link + match reason + a Confirm affordance', async () => {
     authState.role = 'Admin';
     linksState.data = [proposedLink];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
     renderPage();
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
@@ -598,15 +609,76 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     await userEvent.click(confirmBtn);
     const dialog = screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /confirm link/i }));
-    expect(confirmMutation.mutate).toHaveBeenCalledWith(
+    expect(confirmMutation.mutateAsync!).toHaveBeenCalledWith(
       { erpEmployeeId: 'emp-1', profileId: 'profile-1' },
-      expect.anything(),
     );
+  });
+
+  it('AC-S30-001: an unavailable candidate list keeps the approvals page usable and withholds identity confirmation', () => {
+    authState.role = 'Admin';
+    linksState.data = [{
+      ...proposedLink,
+      employee_name: 'Synthetic ERP Worker',
+      employee_number: 'WORKER-019',
+      work_email: 'worker-019@example.test',
+      profile_id: null,
+      profile_name: null,
+      profile_email: null,
+    }];
+    profileListAvailability.unavailable = true;
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
+    expect(screen.getByText(/No active PMO profiles are available/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-S30-003: an Admin explicitly selects the alternate identity and a failed confirmation keeps it for retry', async () => {
+    authState.role = 'Admin';
+    linksState.data = [{
+      ...proposedLink,
+      id: 'emp-unlinked',
+      employee_name: 'Synthetic ERP Worker',
+      employee_number: 'WORKER-017',
+      work_email: 'worker-017@example.test',
+      link_proposed_reason: 'No confident PMO match was found',
+      profile_id: null,
+      profile_name: null,
+      profile_email: null,
+    }];
+    profileOptionsState.push(
+      { id: 'profile-a', full_name: 'Casey Reviewer', email: 'candidate-a@example.test', status: 'active' },
+      { id: 'profile-b', full_name: 'Casey Reviewer', email: 'candidate-b@example.test', status: 'active' },
+    );
+    confirmMutation.mutateAsync = vi.fn()
+      .mockRejectedValueOnce(new Error('synthetic conflict'))
+      .mockResolvedValueOnce(undefined);
+    renderPage();
+
+    const chooser = screen.getByRole('combobox', { name: 'PMO user to attribute hours to' });
+    await userEvent.click(chooser);
+    await userEvent.click(await screen.findByRole('option', { name: 'Casey Reviewer · candidate-b@example.test' }));
+    expect(screen.getByText(/Hours would be attributed to/)).toHaveTextContent('Casey Reviewer');
+    expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Synthetic ERP Worker');
+    expect(dialog).toHaveTextContent('candidate-b@example.test');
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm link/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/couldn't confirm this employee link/i);
+    expect(chooser).toHaveTextContent('candidate-b@example.test');
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm link/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(confirmMutation.mutateAsync).toHaveBeenNthCalledWith(1, { erpEmployeeId: 'emp-unlinked', profileId: 'profile-b' });
+    expect(confirmMutation.mutateAsync).toHaveBeenNthCalledWith(2, { erpEmployeeId: 'emp-unlinked', profileId: 'profile-b' });
   });
 
   it('AC-TSP-092(ux): a non-Admin sees the proposed link but NO Confirm affordance', () => {
     authState.role = 'Project Manager';
     linksState.data = [proposedLink];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
     renderPage();
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();

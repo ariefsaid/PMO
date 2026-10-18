@@ -638,6 +638,22 @@
       "title": "Semua sudah beres"
     },
     "employeeLinks": {
+      "uxs30": {
+        "chooseProfile": "Pilih profil PMO aktif untuk menerima atribusi jam kerja.",
+        "confirmDescription": "Jam kerja timesheet ERP karyawan {{employee}}{{employeeNumber}} akan diatribusikan kepada pengguna PMO {{profile}}{{profileEmail}} mulai sekarang. Perubahan email di ERP tidak dapat mengalihkan tautan yang sudah dikonfirmasi secara diam-diam.",
+        "confirmLabel": "Konfirmasi tautan",
+        "confirmTitle": "Atribusikan jam kerja {{employee}} kepada {{profile}}?",
+        "confirmTitleUnknown": "Konfirmasi tautan karyawan untuk {{employee}}?",
+        "destination": "Jam kerja akan diatribusikan kepada {{profile}}",
+        "noActiveProfiles": "Tidak ada profil PMO aktif yang tersedia.",
+        "profileLabel": "Pengguna PMO tujuan atribusi jam kerja",
+        "profileNoun": "profil PMO",
+        "profilePlaceholder": "Pilih profil PMO",
+        "saveFailure": "Tautan karyawan ini gagal dikonfirmasi. Profil yang dipilih masih tersedia; coba lagi.",
+        "searchProfiles": "Cari profil aktif",
+        "staleProfile": "Profil PMO yang dipilih sudah tidak aktif. Pilih profil aktif sebelum mengonfirmasi.",
+        "unknownEmployee": "karyawan ini"
+      },
       "title": "Tautan karyawan menunggu konfirmasi"
     },
     "entryOne": "entri",

@@ -313,8 +313,32 @@ function PushAttentionSection() {
 function EmployeeLinkConfirmSection() {
   const { t } = useTranslation();
   const may = usePermission();
-  const { links, confirm } = useEmployeeLinkConfirm();
+  const { links, profiles, confirm } = useEmployeeLinkConfirm();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const profileOptions = useMemo(() => {
+    const candidates = Array.isArray(profiles) ? profiles : [];
+    const nameCounts = new Map<string, number>();
+    for (const profile of candidates) {
+      const name = profile.full_name.trim();
+      if (name) {
+        const key = name.toLocaleLowerCase();
+        nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+      }
+    }
+
+    return candidates.map((profile) => {
+      const name = profile.full_name.trim();
+      const email = profile.email.trim();
+      const duplicateName = name && (nameCounts.get(name.toLocaleLowerCase()) ?? 0) > 1;
+      return {
+        value: profile.id,
+        label: name
+          ? duplicateName && email ? `${name} · ${email}` : name
+          : email,
+        email: email || undefined,
+      };
+    });
+  }, [profiles]);
 
   if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
 
@@ -328,14 +352,16 @@ function EmployeeLinkConfirmSection() {
       </h2>
       <EmployeeLinkConfirm
         links={links.data}
+        profileOptions={profileOptions}
         canConfirm={may('confirm_employee_link', 'employeeLink')}
         confirmingId={confirmingId}
-        onConfirm={(link) => {
+        onConfirm={async (link) => {
           setConfirmingId(link.id);
-          confirm.mutate(
-            { erpEmployeeId: link.id, profileId: link.profile_id ?? '' },
-            { onSettled: () => setConfirmingId(null) },
-          );
+          try {
+            await confirm.mutateAsync({ erpEmployeeId: link.id, profileId: link.profile_id! });
+          } finally {
+            setConfirmingId(null);
+          }
         }}
       />
     </section>
