@@ -27,6 +27,10 @@ interface SalesKanbanBoardProps {
    * mobile stage tabs make — so a stage selection has a visible effect in Board view.
    */
   selectedStageIndex?: number | null;
+  /** Compact, vertical projection for the phone pipeline stage list. */
+  presentation?: 'board' | 'list';
+  /** Active URL stage; compact rows omit a repeated status label when grouped by stage. */
+  selectedStatus?: PipelineProject['status'] | null;
 }
 
 /**
@@ -86,6 +90,100 @@ const DealCard: React.FC<{
   );
 };
 
+/**
+ * Compact deal row for the phone pipeline. The existing project shell keeps the
+ * record activation target canonical; the list adds only the pipeline lens and
+ * a native disclosure for secondary financial/reference details.
+ */
+const CompactDealCard: React.FC<{
+  project: PipelineProject;
+  onActivate: () => void;
+  hideStatus: boolean;
+}> = ({ project, onActivate, hideStatus }) => {
+  const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
+  const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
+
+  return (
+    <ProjectCardShell
+      variant="grid"
+      initial={initial}
+      name={project.name}
+      client={project.client_name}
+      pmoProjectNumber={null}
+      code={null}
+      status={hideStatus ? null : (
+        <StatusPill variant={pillVariantForStatus(project.status)}>
+          {statusLabel(project.status)}
+        </StatusPill>
+      )}
+      className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
+      body={
+        <div className="min-w-0 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="break-words text-[15px] font-bold tabular">
+              {formatCurrency(project.contract_value, project.currency)}
+            </span>
+            <TaxBasisLabel
+              treatment={project.tax_treatment}
+              taxRate={project.tax_rate}
+              taxBaseNumerator={project.tax_base_numerator}
+              taxBaseDenominator={project.tax_base_denominator}
+            />
+          </div>
+          <details className="group border-t border-border/70 pt-2 text-[12px]">
+            <summary className="min-h-8 cursor-pointer py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              {t('uxs24.financialDetails', 'Financial and project details')}
+            </summary>
+            <div className="grid min-w-0 gap-1 pt-2 text-muted-foreground">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
+                <span>{t('sales.board.weightedShort', { defaultValue: '{{value}} wtd', value: formatCurrency(weightedValue(project), project.currency) })}</span>
+                <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+              </div>
+              {project.pmo_project_number && (
+                <div className="break-words font-mono text-[11px]">
+                  <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {project.pmo_project_number}
+                </div>
+              )}
+              {project.code && (
+                <div className="break-words font-mono text-[11px]">
+                  <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {project.code}
+                </div>
+              )}
+            </div>
+          </details>
+        </div>
+      }
+      onOpen={onActivate}
+    />
+  );
+};
+
+const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' | 'onOpen' | 'selectedStatus'>> = ({
+  projects,
+  onOpen,
+  selectedStatus,
+}) => {
+  const { t } = useTranslation();
+  return (
+    <ul
+      data-testid="sales-phone-stage-list"
+      aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
+      className="grid min-w-0 list-none gap-3 p-0 sm:grid-cols-2"
+    >
+      {projects.map((project) => (
+        <li key={project.id} className="min-w-0">
+          <CompactDealCard
+            project={project}
+            onActivate={() => onOpen(project)}
+            hideStatus={selectedStatus != null}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 /** Two-figure column totals node (gross + weighted), tabular.
  *  ⚑ FR-L10N-020: a COLUMN TOTAL sums across projects, so it has no single record currency of its
  *  own — it is denominated in the org default, threaded from the board rather than read here.
@@ -121,7 +219,7 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string
  *     scroll events do NOT bubble — `onScroll` is passed DIRECTLY to `<Kanban>`,
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
-const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
+const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
   projects,
   onOpen,
   selectedId,
@@ -210,6 +308,19 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({
       </Kanban>
     </div>
   );
+};
+
+const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = (props) => {
+  if (props.presentation === 'list') {
+    return (
+      <SalesPipelineCompactList
+        projects={props.projects}
+        onOpen={props.onOpen}
+        selectedStatus={props.selectedStatus}
+      />
+    );
+  }
+  return <SalesKanbanBoardView {...props} />;
 };
 
 export default SalesKanbanBoard;
