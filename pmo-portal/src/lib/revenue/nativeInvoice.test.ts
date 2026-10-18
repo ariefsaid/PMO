@@ -7,6 +7,7 @@ import {
   nativeInvoiceSummary,
   overpaidBy,
   paidToDate,
+  previewInvoiceDraft,
   receiptNumber,
 } from './nativeInvoice';
 
@@ -70,5 +71,53 @@ describe('nativeInvoice display rules (#784)', () => {
     expect(paidToDate({ ...unpaid, status: 'Cancelled', erp_outstanding_amount: 0 })).toBeNull();
     expect(paidToDate({ ...unpaid, pmo_native: false })).toBeNull();
     expect(paidToDate({ ...unpaid, erp_outstanding_amount: null })).toBeNull();
+  });
+});
+
+describe('invoice draft review (S16)', () => {
+  it('AC-S16-001 previews per-line rounded cents with the stored reduced tax base', () => {
+    expect(previewInvoiceDraft(
+      [{ qty: 2, rate: 100 }, { qty: 1, rate: 50 }],
+      { treatment: 'exclusive', rate: 12, fraction: { numerator: 11, denominator: 12 } },
+    )).toEqual({ subtotal: 250, tax: 27.5, total: 277.5, reason: null });
+
+    expect(previewInvoiceDraft(
+      [{ qty: 0.125, rate: 0.12 }, { qty: 0.5, rate: 0.01 }, { qty: 0.5, rate: 0.01 }],
+      { treatment: 'exclusive', rate: 0, fraction: { numerator: 1, denominator: 1 } },
+    )).toEqual({ subtotal: 0.04, tax: 0, total: 0.04, reason: null });
+
+    expect(previewInvoiceDraft(
+      [{ qty: 1, rate: 1110 }],
+      { treatment: 'inclusive', rate: 12, fraction: { numerator: 11, denominator: 12 } },
+    )).toEqual({ subtotal: 1000, tax: 110, total: 1110, reason: null });
+  });
+
+  it('AC-S16-002 keeps invalid lines and unavailable tax distinct from a known zero tax', () => {
+    expect(previewInvoiceDraft(
+      [{ qty: 1, rate: Number.NaN }],
+      { treatment: 'exclusive', rate: 0, fraction: { numerator: 1, denominator: 1 } },
+    )).toEqual({ subtotal: null, tax: null, total: null, reason: 'invalid-lines' });
+    expect(previewInvoiceDraft(
+      [{ qty: 0.0001, rate: 100 }],
+      { treatment: 'exclusive', rate: 0, fraction: { numerator: 1, denominator: 1 } },
+    )).toEqual({ subtotal: null, tax: null, total: null, reason: 'invalid-lines' });
+    expect(previewInvoiceDraft(
+      [{ qty: Number.POSITIVE_INFINITY, rate: 100 }],
+      { treatment: 'exclusive', rate: 0, fraction: { numerator: 1, denominator: 1 } },
+    )).toEqual({ subtotal: null, tax: null, total: null, reason: 'invalid-lines' });
+
+    expect(previewInvoiceDraft([{ qty: 2, rate: 100 }], null)).toEqual({
+      subtotal: 200, tax: null, total: null, reason: 'tax-unavailable',
+    });
+
+    expect(previewInvoiceDraft(
+      [{ qty: 2, rate: 100 }],
+      { treatment: 'exclusive', rate: 0, fraction: { numerator: 1, denominator: 1 } },
+    )).toEqual({ subtotal: 200, tax: 0, total: 200, reason: null });
+
+    expect(previewInvoiceDraft(
+      [{ qty: 2, rate: 100 }],
+      { treatment: 'exclusive', rate: 12, fraction: { numerator: 0, denominator: 12 } },
+    )).toEqual({ subtotal: 200, tax: null, total: null, reason: 'tax-unavailable' });
   });
 });

@@ -4763,5 +4763,20 @@
     "financialDetails": "Rincian keuangan dan proyek",
     "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
     "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
+  },
+  "uxs16": {
+    "invoiceDraftReview": "Tinjauan draf faktur",
+    "subtotal": "Subtotal",
+    "tax": "Pajak",
+    "total": "Total",
+    "itemCodeOptionalHelp": "Opsional. Isi kode item jika proyek Anda menggunakannya.",
+    "invoiceLineQuantityValid": "Baris {{line}}: Kuantitas harus positif dengan maksimal 3 angka desimal.",
+    "projectTaxBase": "Dasar pengenaan pajak proyek: {{numerator}}/{{denominator}}",
+    "selectProjectForReview": "Pilih proyek untuk meninjau mata uang dan pajaknya.",
+    "currencyUnavailable": "Mata uang tidak tersedia, sehingga total draf tidak dapat ditampilkan.",
+    "completeLinesForReview": "Lengkapi detail baris, kuantitas, dan harga yang valid untuk meninjau total.",
+    "projectTaxUnavailable": "Informasi pajak proyek tidak tersedia, sehingga pajak dan total akhir belum dapat dipratinjau.",
+    "reviewProjectTax": "Tinjau pengaturan pajak proyek",
+    "erpTotalsAfterDraft": "Pajak dan total akhir tersedia setelah draf ERP dibuat."
   }
 }

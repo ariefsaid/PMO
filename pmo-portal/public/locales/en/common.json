@@ -4763,5 +4763,20 @@
     "financialDetails": "Financial and project details",
     "stageEmptyTitle": "No projects in this stage",
     "stageEmptyBody": "Choose another stage or clear filters to see more projects."
+  },
+  "uxs16": {
+    "invoiceDraftReview": "Invoice draft review",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+    "itemCodeOptionalHelp": "Optional. Use an item code when your project tracks one.",
+    "invoiceLineQuantityValid": "Line {{line}}: Quantity must be positive with no more than 3 decimal places.",
+    "projectTaxBase": "Project tax base: {{numerator}}/{{denominator}}",
+    "selectProjectForReview": "Choose a project to review its invoice currency and tax.",
+    "currencyUnavailable": "Currency is unavailable, so draft totals cannot be displayed.",
+    "completeLinesForReview": "Enter valid line details, quantities, and rates to review totals.",
+    "projectTaxUnavailable": "Project tax details are unavailable, so tax and final total cannot be previewed yet.",
+    "reviewProjectTax": "Review project tax settings",
+    "erpTotalsAfterDraft": "Tax and final total are available after the ERP draft is created."
   }
 }
