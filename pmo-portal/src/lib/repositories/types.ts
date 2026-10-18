@@ -143,6 +143,8 @@ import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwne
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput, SlipWriteResult } from '@/src/lib/vendorWithholdingSlip';
 import type { BillContextLabels, BillCursor, BillPage, ReadBillContextsInput, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
+import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/lib/financialStatements';
+import type { FinancialStatementCatalogueOptions, GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 
 /**
  * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
@@ -780,6 +782,12 @@ export interface ReportsRepository {
   recordProgress(input: ProjectProgressInput): Promise<void>;
 }
 
+/** Authorized financial statement read envelopes; all scope enforcement remains server-side. */
+export interface FinancialStatementsRepository {
+  catalogue(options?: FinancialStatementCatalogueOptions): Promise<FinancialStatementCatalogue>;
+  get(input: GetFinancialStatementInput): Promise<FinancialStatementRead>;
+}
+
 /** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
 export interface VendorWithholdingSlipsRepository {
   record(input: RecordSlipInput): Promise<SlipWriteResult>;
@@ -830,6 +838,7 @@ export interface Repositories {
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
+  financialStatements: FinancialStatementsRepository;
   integrations: IntegrationsRepository;
   reports: ReportsRepository;
 }

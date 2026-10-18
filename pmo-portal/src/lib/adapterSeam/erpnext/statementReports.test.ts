@@ -26,19 +26,15 @@ const baseContext: StatementReportContext = {
       { name: 'FY 2024', start: '2024-01-01', end: '2024-12-31' },
       { name: 'FY 2025', start: '2025-01-01', end: '2025-12-31' },
     ],
-    currencyPrecision: 2, floatPrecision: 3, bsOpeningPrecision: 2, roundingMethod: "Banker's Rounding",
+    currencyPrecision: 2, roundingMethod: 'erpnext_report_output',
     fractionUnits: 100, ignoreOpeningCheck: false, ignoreAccountClosingBalance: false,
   },
   publicationContext: {
-    requestLanguage: 'en', currencyPrecisionBranch: 'db_default', floatPrecisionBranch: 'db_default',
-    bsOpeningPrecisionBranch: 'db_default', numberFormatBranch: 'currency',
+    requestLanguage: 'en', currencyPrecisionBranch: 'currency_number_format',
     raw: {
       company: { name: 'Synthetic Company', currency: 'IDR', defaultFinanceBook: null },
       accountsSettings: { ignoreOpeningCheck: 0, ignoreAccountClosingBalance: 0 },
-      systemSettings: { language: 'en', currencyPrecision: 2, floatPrecision: 3, roundingMethod: "Banker's Rounding", useNumberFormatFromCurrency: 1, numberFormat: null },
-      systemDefaults: { currencyPrecision: 2, floatPrecision: 3, roundingMethod: "Banker's Rounding", numberFormat: null },
       currency: { fractionUnits: 100, numberFormat: '#,###.##' },
-      language: { name: 'en', enabled: 1, numberFormat: '#,###.##' },
     },
   },
 };

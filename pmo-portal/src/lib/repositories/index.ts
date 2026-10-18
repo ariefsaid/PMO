@@ -15,6 +15,7 @@ import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
 import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
 import { fxRatesRepository } from './fxRates';
+import { financialStatementsRepository } from './financialStatements';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
@@ -1279,6 +1280,7 @@ export const repositories: Repositories = {
   credits,
   externalDomainOwnership,
   erpSnapshots,
+  financialStatements: financialStatementsRepository,
   integrations: integrationsImpl,
   reports,
 };
@@ -1315,6 +1317,7 @@ export type {
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
   ReportsRepository,
+  FinancialStatementsRepository,
   IntegrationsRepository,
   VendorWithholdingSlipsRepository,
   FxRatesRepository,

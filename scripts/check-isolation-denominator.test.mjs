@@ -196,6 +196,31 @@ test('M365 typed relations and server-only lifecycle RPCs are in the isolation d
   ]) assert.ok(denominator.definer_functions.includes(fn), `missing ${fn}`);
 });
 
+test('native statement helpers and composite-table probe key match the catalog contract', () => {
+  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const helpers = [
+    '_erp_statement_native_has_amount_rows(jsonb)',
+    '_erp_statement_period_matches(jsonb,jsonb,text,date,date)',
+    '_erp_statement_report_context_validate(uuid,jsonb)',
+    '_erp_statement_report_filters(jsonb,jsonb)',
+    '_erp_statement_report_plan(jsonb)',
+    '_erp_statement_report_validate(jsonb,jsonb,jsonb,text,timestamp with time zone)',
+    '_erp_ack_statement_dirty_dates(uuid,text,bigint)',
+    '_erp_statement_report_refresh_plan(uuid,jsonb,date,bigint)',
+  ];
+  assert.deepEqual(helpers.filter((name) => denominator.definer_functions.includes(name)), helpers);
+  assert.equal(denominator.tables.find((entry) => entry.table === 'erp_financial_statement_report_pending')?.pk, 'org_id');
+  const privateTables = new Map(denominator.tables.map((entry) => [entry.table, entry]));
+  assert.deepEqual(privateTables.get('erp_financial_statement_dirty_date'), {
+    table: 'erp_financial_statement_dirty_date', has_org: true, pk: 'org_id', columns: '*',
+    b_read: 'none', by_id: 'applicable',
+  });
+  assert.deepEqual(privateTables.get('erp_financial_statement_published_context'), {
+    table: 'erp_financial_statement_published_context', has_org: true, pk: 'org_id', columns: '*',
+    b_read: 'none', by_id: 'applicable',
+  });
+});
+
 test('source citations and exact RPC probe coverage are verified without a database', () => {
   const shipped = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'denominator-source-'));
@@ -326,6 +351,11 @@ test('full denominator, exact override and explicit no-org N/A pass strict mode'
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /N\/A.*clickup_webhook_inbox/);
   assert.match(r.stdout, /probe_errors: 0.*skipped: 0/);
+  for (const table of ['erp_financial_statement_dirty_date', 'erp_financial_statement_published_context']) {
+    assert.match(r.stdout, new RegExp(`PASS\\s+table ${table} blind read \\(none\\)`));
+    assert.match(r.stdout, new RegExp(`PASS\\s+table ${table} by-id read \\(none\\)`));
+    assert.match(r.stdout, new RegExp(`PASS\\s+anon table ${table} read \\(none\\)`));
+  }
 });
 
 test('validateDenominator rejects a table entry with an empty pk', () => {
