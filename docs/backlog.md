@@ -61,7 +61,12 @@ and verify passed; closing integration passed 381 browser and 12 served-function
 PR #1163 (`29979214`) with all four unit shards, pgTAP and verify green, plus its persisted local
 Finance journey, mutation/rollback checks and rendered checks. Both exact-tip cleanups were
 independently verified; full browser integration for S-40 stays with the history lane-closing PR.
-Their browser integration remains with the billing/purchasing lane-closing PRs. Employee identity
+Purchasing stages and daily actions (#1127 / S-19) merged in PR #1165 (`b8757832`): all four
+unit shards, pgTAP and verify passed. The final changed-import run passed 1,805 tests; the real
+local import journey retained its saved-record and source-value checks. Exact-tip cleanup was
+independently verified; full browser integration remains with the purchasing lane-closing PR.
+Full browser integration for accounting setup and invoice draft review remains with the
+billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
 exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
 and themes. Exact-tip cleanup was independently verified. Continue statement views and rehearsal
