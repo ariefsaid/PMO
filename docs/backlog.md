@@ -31,6 +31,10 @@ checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cle
 Invoice presence in management packs (#1083) merged to dev in PR #1130 (`eafbfc6f`): all four
 unit shards, verify and pgTAP passed; closing integration passed 337 browser and 12 served-function
 checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Finance and Executive actuals alignment (#1089) merged to dev in PR #1147 (`bdc2c27d`): all four
+unit shards, verify and pgTAP passed; closing integration passed 358 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was independently
+verified.
 Business-first record history (#1137 / S-23) merged to dev in PR #1138 (`bc70432c`): all four
 unit shards, verify and pgTAP passed. Existing history assertions and timeouts are retained;
 rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
