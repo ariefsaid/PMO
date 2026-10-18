@@ -36,7 +36,7 @@ insert into native_producer_context values ('{
   "binding":{"id":"03170000-0000-0000-0000-000000000001","activatedAt":"2026-10-18T09:00:00Z","versionMajor":16},
   "company":"Native Producer Co","profile":{"erpVersion":"16.33.0","frappeVersion":"16.31.0"},
   "calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"}],"projectMap":{},"language":"en",
-  "presentation":{"metadata":{"erpVersion":"16.33.0","frappeVersion":"16.31.0","currency":"IDR","defaultFinanceBook":null,"hasFinanceBooks":false,"calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"}],"currencyPrecision":2,"floatPrecision":2,"bsOpeningPrecision":2,"roundingMethod":"Commercial Rounding","fractionUnits":100,"ignoreOpeningCheck":false,"ignoreAccountClosingBalance":false},"context":{"requestLanguage":"en","currencyPrecisionBranch":"db_default","floatPrecisionBranch":"db_default","bsOpeningPrecisionBranch":"db_default","numberFormatBranch":"native_default","raw":{}}},
+  "presentation":{"metadata":{"erpVersion":"16.33.0","frappeVersion":"16.31.0","currency":"IDR","defaultFinanceBook":null,"hasFinanceBooks":false,"calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"}],"currencyPrecision":2,"roundingMethod":"erpnext_report_output","fractionUnits":100,"ignoreOpeningCheck":false,"ignoreAccountClosingBalance":false},"context":{"requestLanguage":"en","currencyPrecisionBranch":"currency_number_format","raw":{"company":{"name":"Native Producer Co","currency":"IDR","defaultFinanceBook":null},"accountsSettings":{"ignoreOpeningCheck":0,"ignoreAccountClosingBalance":0},"currency":{"fractionUnits":100,"numberFormat":"#,###.##"}}}},
   "filterProfile":"erpnext-v16-standard-statements-v1"
 }'::jsonb);
 grant select on native_producer_context to service_role;

@@ -48,9 +48,9 @@ values ('03200000-0000-0000-0000-000000000001','Status Test Co',
    "prior":{"reportName":"Profit and Loss Statement","side":"prior","source":{"rows":[]}}}',
  true,2,'Commercial Rounding','{"current":"native-current-raw","prior":"native-prior-raw"}',
  '2026-10-18T07:00:00Z','2026-10-18T07:00:02Z');
-insert into public.erp_financial_statement_report_batch(org_id,batch_id,started_at,context) values
+insert into public.erp_financial_statement_report_batch(org_id,batch_id,started_at,context,dirty_revision_cutoff) values
  ('03200000-0000-0000-0000-000000000001','03200000-0000-0000-0000-000000000041',
-  '2026-10-18T06:00:00Z','{"capture":"retained"}');
+  '2026-10-18T06:00:00Z','{"capture":"retained"}',0);
 insert into public.erp_financial_statement_report_pending
  (org_id,batch_id,statement,period_kind,current_start,current_end,prior_start,prior_end,side,ordinal,
   normalized_report,raw_response_text,raw_sha256,acquired_at)
