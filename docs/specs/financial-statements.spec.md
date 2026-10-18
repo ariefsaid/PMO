@@ -68,6 +68,8 @@ and raw-ledger privacy contracts remain unchanged.
   Missing or incompatible native context requires acquisition rather than guessed reuse. Mirror
   values are invalidation signals only, never financial inputs. No arbitrary history cutoff,
   narrower user-demand catalogue or runtime-timeout increase.
+  Native acquisition precedes mirror refresh in each tick, so changes first detected by the later
+  stage refresh on the next tick; durable dirty revisions survive until successful publication.
 - **Honest time/coherence:** sourceGeneration identifies one complete published native read set,
   which can include reports retained from earlier acquisitions; it is not a GL/chart generation
   or an ERP-wide transaction. Each response retains acquiredAt. The common acquisition envelope

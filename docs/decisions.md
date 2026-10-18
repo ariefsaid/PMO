@@ -3325,7 +3325,10 @@ cannot lose required refresh work.
 pair per month/quarter/fiscal year, consistent with existing selection controls. Select the latest
 supplied pair whose current start has begun in the organisation-local date; do not invent fiscal
 periods or choose a future start. Pin that date when admitting the batch. Invalidation follows the
-actual native report's dependency horizon, including both old and new dates/scopes for moved entries.
+actual native report's dependency horizon, including both old and new dates/scopes for moved entries. The
+native-report stage runs before the mirror refresh in a sweep tick. A change first observed by that
+later stage is consumed on the next tick; its durable invalidation marker remains until a successful
+complete publication acknowledges it.
 
 
 ## OD-FS-025 — native display capability, rehearsal and release checks (owner 2026-10-18)
