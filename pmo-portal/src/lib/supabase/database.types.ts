@@ -1857,19 +1857,28 @@ export type Database = {
         Row: {
           batch_id: string
           context: Json
+          dirty_revision_cutoff: number
+          effective_date: string | null
           org_id: string
+          planning_timezone: string | null
           started_at: string
         }
         Insert: {
           batch_id: string
           context: Json
+          dirty_revision_cutoff: number
+          effective_date?: string | null
           org_id: string
+          planning_timezone?: string | null
           started_at: string
         }
         Update: {
           batch_id?: string
           context?: Json
+          dirty_revision_cutoff?: number
+          effective_date?: string | null
           org_id?: string
+          planning_timezone?: string | null
           started_at?: string
         }
         Relationships: [
@@ -1897,6 +1906,7 @@ export type Database = {
           project_id: string | null
           raw_response_text: string | null
           raw_sha256: string | null
+          retained_source_snapshot_id: string | null
           side: string
           statement: string
         }
@@ -1914,6 +1924,7 @@ export type Database = {
           project_id?: string | null
           raw_response_text?: string | null
           raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
           side: string
           statement: string
         }
@@ -1931,6 +1942,7 @@ export type Database = {
           project_id?: string | null
           raw_response_text?: string | null
           raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
           side?: string
           statement?: string
         }
@@ -1967,6 +1979,7 @@ export type Database = {
           id: string
           org_id: string
           payload: Json
+          published_at: string | null
           raw_reports: Json | null
           period_kind: string
           prior_end: string
@@ -1996,6 +2009,7 @@ export type Database = {
           id?: string
           org_id?: string
           payload: Json
+          published_at?: string | null
           raw_reports?: Json | null
           period_kind: string
           prior_end: string
@@ -2025,6 +2039,7 @@ export type Database = {
           id?: string
           org_id?: string
           payload?: Json
+          published_at?: string | null
           raw_reports?: Json | null
           period_kind?: string
           prior_end?: string
@@ -2052,6 +2067,67 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_dirty_date: {
+        Row: {
+          company: string
+          org_id: string
+          posting_date: string
+          revision: number
+        }
+        Insert: {
+          company: string
+          org_id: string
+          posting_date: string
+          revision: number
+        }
+        Update: {
+          company?: string
+          org_id?: string
+          posting_date?: string
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_dirty_date_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_published_context: {
+        Row: {
+          company: string
+          context: Json
+          org_id: string
+          snapshot_id: string
+          source_generation: string
+        }
+        Insert: {
+          company: string
+          context: Json
+          org_id: string
+          snapshot_id: string
+          source_generation: string
+        }
+        Update: {
+          company?: string
+          context?: Json
+          org_id?: string
+          snapshot_id?: string
+          source_generation?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_published_context_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

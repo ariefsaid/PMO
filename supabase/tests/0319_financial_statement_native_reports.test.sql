@@ -31,11 +31,12 @@ select ok(to_regclass('public.erp_financial_statement_report_batch') is not null
   'AC-003 batch context uses a private header and does not expand binding columns');
 select is((select array_agg(attname::text order by attnum)::text from pg_attribute
   where attrelid='public.erp_financial_statement_report_batch'::regclass and attnum>0 and not attisdropped),
-  '{org_id,batch_id,started_at,context}','AC-005 private header stores context once per organization');
+  '{org_id,batch_id,started_at,context,dirty_revision_cutoff,effective_date,planning_timezone}',
+  'AC-005 private header pins context, revision cutoff, and date basis once per organization');
 select is((select array_agg(attname::text order by attnum)::text from pg_attribute
   where attrelid='public.erp_financial_statement_report_pending'::regclass and attnum>0 and not attisdropped),
-  '{org_id,batch_id,statement,project_id,period_kind,current_start,current_end,prior_start,prior_end,side,ordinal,normalized_report,raw_response_text,raw_sha256,acquired_at}',
-  'AC-005 pending table stores only typed selection and nullable capture fields');
+  '{org_id,batch_id,statement,project_id,period_kind,current_start,current_end,prior_start,prior_end,side,ordinal,normalized_report,raw_response_text,raw_sha256,acquired_at,retained_source_snapshot_id}',
+  'AC-005 pending table stores typed selections, source bytes, and exact retained-source identity');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class
   where oid='public.erp_financial_statement_report_batch'::regclass)
   and (select relrowsecurity and relforcerowsecurity from pg_class
@@ -60,10 +61,10 @@ select ok((select count(*)=1 from pg_indexes where schemaname='public'
   and exists(select 1 from pg_constraint where conrelid='public.erp_financial_statement_report_pending'::regclass
     and conname='erp_financial_statement_report_pending_batch_fk' and contype='f'),
   'AC-005 next selection uses the missing-ordinal index and cannot outlive its header');
-select ok((select count(*)=3 from information_schema.columns where table_schema='public'
+select ok((select count(*)=4 from information_schema.columns where table_schema='public'
   and table_name='erp_financial_statement_snapshot'
-  and column_name in ('raw_reports','capture_started_at','capture_completed_at')),
-  'AC-006 snapshot stores a private raw pair and scalar capture window');
+  and column_name in ('raw_reports','capture_started_at','capture_completed_at','published_at')),
+  'AC-006 snapshot stores a private raw pair, acquisition bounds, and publication time');
 
 insert into public.organizations(id,name,default_currency,default_timezone) values
  ('03190000-0000-0000-0000-000000000001','Synthetic native statement org','IDR','UTC'),
@@ -117,7 +118,7 @@ insert into native_context values ('{
   "calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"},{"name":"FY25-26","start":"2025-07-01","end":"2026-06-30"}],
   "projectMap":{"03190000-0000-0000-0000-0000000000d1":"Native Project"},
   "language":"en",
-  "presentation":{"metadata":{"erpVersion":"16.33.0","frappeVersion":"16.31.0","currency":"IDR","defaultFinanceBook":null,"hasFinanceBooks":false,"calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"},{"name":"FY25-26","start":"2025-07-01","end":"2026-06-30"}],"currencyPrecision":2,"floatPrecision":2,"bsOpeningPrecision":2,"roundingMethod":"Commercial Rounding","fractionUnits":100,"ignoreOpeningCheck":false,"ignoreAccountClosingBalance":false},"context":{"requestLanguage":"en","currencyPrecisionBranch":"db_default","floatPrecisionBranch":"db_default","bsOpeningPrecisionBranch":"db_default","numberFormatBranch":"native_default","raw":{}}},
+  "presentation":{"metadata":{"erpVersion":"16.33.0","frappeVersion":"16.31.0","currency":"IDR","defaultFinanceBook":null,"hasFinanceBooks":false,"calendar":[{"name":"FY24-25","start":"2024-07-01","end":"2025-06-30"},{"name":"FY25-26","start":"2025-07-01","end":"2026-06-30"}],"currencyPrecision":2,"roundingMethod":"erpnext_report_output","fractionUnits":100,"ignoreOpeningCheck":false,"ignoreAccountClosingBalance":false},"context":{"requestLanguage":"en","currencyPrecisionBranch":"currency_number_format","raw":{"company":{"name":"Native Test Co","currency":"IDR","defaultFinanceBook":null},"accountsSettings":{"ignoreOpeningCheck":0,"ignoreAccountClosingBalance":0},"currency":{"fractionUnits":100,"numberFormat":"#,###.##"}}}},
   "filterProfile":"erpnext-v16-standard-statements-v1"
 }'::jsonb);
 grant select on native_context to service_role;
@@ -360,8 +361,9 @@ select ok((select count(*)=1 and bool_and(snapshot_id='03190000-0000-0000-0000-0
 set local role service_role;
 insert into native_drift
 select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
-  '03190000-0000-0000-0000-000000000101',jsonb_set(jsonb_set(context,'{language}','"id"'::jsonb),
-    '{presentation,context,requestLanguage}','"id"'::jsonb)) from native_context;
+  '03190000-0000-0000-0000-000000000101',jsonb_set(jsonb_set(context,
+    '{presentation,metadata,currencyPrecision}','3'::jsonb),
+    '{presentation,context,raw,currency,numberFormat}','"#,###.###"'::jsonb)) from native_context;
 reset role;
 select isnt((select result->>'batchId' from native_drift),(select result->>'batchId' from native_first),
   'AC-005 changed context starts a new batch identity');
@@ -413,8 +415,7 @@ begin
       'priorEnd',v_pending.prior_end::text,'side',v_pending.side);
     perform public.stage_erp_statement_report('03190000-0000-0000-0000-000000000001',
       '03190000-0000-0000-0000-000000000101',v_batch,
-      pg_temp.make_native_report(jsonb_set(jsonb_set(v_context,'{language}','"id"'::jsonb),
-        '{presentation,context,requestLanguage}','"id"'::jsonb),v_selection));
+      pg_temp.make_native_report(v_context,v_selection));
   end loop;
 end $$;
 reset role;
@@ -450,8 +451,8 @@ from public.external_org_bindings where org_id='03190000-0000-0000-0000-00000000
 set local role service_role;
 select throws_ok($$select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
   '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_drift))$$,
-  '55000','native statement completion is not newer',
-  'AC-006 older native completion cannot replace the advertised generation');
+  '55000','native statement publication is not newer',
+  'AC-006 older publication time cannot replace the advertised generation');
 reset role;
 select ok(
   (select jsonb_agg(to_jsonb(s) order by s.id) from public.erp_financial_statement_snapshot s
@@ -513,7 +514,8 @@ select is((select count(*)::int from public.erp_financial_statement_snapshot
   'AC-006 one complete native batch replaces the 31-pair company/project catalogue without unassigned output');
 select ok((select count(distinct snapshot_id)=1 and count(distinct source_generation)=1
   and bool_and(source_generation=(select result->>'batchId' from native_drift)::uuid)
-  and bool_and(capture_started_at is not null and capture_completed_at is not null and as_of=capture_completed_at)
+  and bool_and(capture_started_at is not null and capture_completed_at is not null
+    and published_at=as_of and capture_completed_at<=published_at)
   and bool_and(capture_started_at< capture_completed_at)
   and bool_and(scope_kind in ('company','project'))
   from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001'),
@@ -575,6 +577,279 @@ reset role;
 select is((select count(*)::int from public.erp_financial_statement_snapshot
   where org_id='03190000-0000-0000-0000-000000000001'),155,
   'AC-006 idempotent publish reconciliation does not mutate a completed generation');
+
+-- A compatible later batch acquires exactly one begun pair per kind and carries the rest forward
+-- with unchanged native payload, UTF8 bytes, hashes and per-side acquisition timestamps.
+create temporary table native_incremental_context(context jsonb not null) on commit drop;
+insert into native_incremental_context
+select jsonb_set(jsonb_set(context,'{presentation,metadata,currencyPrecision}','3'::jsonb),
+  '{presentation,context,raw,currency,numberFormat}','"#,###.###"'::jsonb)
+from native_context;
+create temporary table native_incremental(result jsonb not null) on commit drop;
+grant select on native_incremental_context to service_role;
+grant insert,select on native_incremental to service_role;
+set local role service_role;
+insert into native_incremental
+select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+  '03190000-0000-0000-0000-000000000101',context) from native_incremental_context;
+reset role;
+select is((select count(*)::int from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_incremental)),248,
+  'AC-005 later batch preserves the exact full publication membership');
+select is((select count(*)::int from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_incremental)
+    and normalized_report is null),24,
+  'AC-005 no-change refresh requests only the latest begun month, quarter and fiscal-year pairs');
+select is((select count(*)::int from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_incremental)
+    and normalized_report is not null and retained_source_snapshot_id is not null),224,
+  'AC-005 all unchanged historical pairs retain both exact native sides');
+select ok((select bool_and(retained_source_snapshot_id=(select snapshot_id from native_published))
+  from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_incremental)
+    and retained_source_snapshot_id is not null)
+  and (select effective_date=(started_at at time zone planning_timezone)::date
+      and planning_timezone='UTC'
+    from public.erp_financial_statement_report_batch
+    where org_id='03190000-0000-0000-0000-000000000001'
+      and batch_id=(select (result->>'batchId')::uuid from native_incremental)),
+  'AC-005 retained work is pinned to the exact source generation and org-local admission date');
+create temporary table native_incremental_admission(effective_date date not null,dirty_cutoff bigint not null) on commit drop;
+insert into native_incremental_admission
+select effective_date,dirty_revision_cutoff from public.erp_financial_statement_report_batch
+where org_id='03190000-0000-0000-0000-000000000001'
+  and batch_id=(select (result->>'batchId')::uuid from native_incremental);
+create temporary table native_incremental_retained_before(row_json jsonb not null) on commit drop;
+insert into native_incremental_retained_before
+select jsonb_build_object('statement',s.statement,'scopeKind',s.scope_kind,'projectId',s.project_id,
+  'viewKind',s.view_kind,'periodKind',s.period_kind,'currentStart',s.current_start,'currentEnd',s.current_end,
+  'priorStart',s.prior_start,'priorEnd',s.prior_end,'payload',s.payload,'rawReports',s.raw_reports,
+  'sourceReport',s.source_report,'reportVersion',s.report_version,'filters',s.filters,'settings',s.settings,
+  'hasActivity',s.has_activity,'displayPrecision',s.display_precision,'displayRoundingMethod',s.display_rounding_method)
+from public.erp_financial_statement_snapshot s
+where s.org_id='03190000-0000-0000-0000-000000000001' and s.company='Native Test Co'
+  and not exists(
+    select 1 from public._erp_statement_report_refresh_plan(s.org_id,
+      (select context from native_incremental_context),
+      (select effective_date from native_incremental_admission),0) fresh
+    where fresh.side='current' and fresh.statement=s.statement
+      and fresh.project_id is not distinct from s.project_id
+      and fresh.period_kind=s.period_kind and fresh.current_start=s.current_start and fresh.current_end=s.current_end
+      and fresh.prior_start=s.prior_start and fresh.prior_end=s.prior_end);
+select is((select count(*)::int from native_incremental_retained_before),140,
+  'AC-005 the 28 historical pairs retain detail and project-total output members');
+set local role service_role;
+do $$
+declare
+  v_context jsonb:=(select context from pg_temp.native_incremental_context);
+  v_batch uuid:=(select (result->>'batchId')::uuid from pg_temp.native_incremental);
+  v_pending record;
+  v_selection jsonb;
+begin
+  for v_pending in select * from public.erp_financial_statement_report_pending
+    where org_id='03190000-0000-0000-0000-000000000001' and batch_id=v_batch
+      and normalized_report is null order by ordinal loop
+    v_selection:=jsonb_build_object('statement',v_pending.statement,'projectId',v_pending.project_id,
+      'periodKind',v_pending.period_kind,'currentStart',v_pending.current_start::text,
+      'currentEnd',v_pending.current_end::text,'priorStart',v_pending.prior_start::text,
+      'priorEnd',v_pending.prior_end::text,'side',v_pending.side);
+    perform public.stage_erp_statement_report('03190000-0000-0000-0000-000000000001',
+      '03190000-0000-0000-0000-000000000101',v_batch,
+      pg_temp.make_native_report(v_context,v_selection));
+  end loop;
+end $$;
+create temporary table native_incremental_acquisition as
+select min(acquired_at) acquisition_started_at,max(acquired_at) acquisition_completed_at
+from public.erp_financial_statement_report_pending
+where org_id='03190000-0000-0000-0000-000000000001'
+  and batch_id=(select (result->>'batchId')::uuid from native_incremental);
+create temporary table native_retained_mutation_backup as
+select org_id,batch_id,statement,project_id,period_kind,current_start,side,
+  normalized_report,raw_response_text,raw_sha256
+from public.erp_financial_statement_report_pending
+where org_id='03190000-0000-0000-0000-000000000001'
+  and batch_id=(select (result->>'batchId')::uuid from native_incremental)
+  and retained_source_snapshot_id is not null
+order by ordinal limit 1;
+select is((select count(*)::int from native_retained_mutation_backup),1,
+  'AC-006 retained-source mutation fixture captures one original native side');
+update public.erp_financial_statement_report_pending p
+set raw_response_text=b.raw_response_text||' ',
+    raw_sha256=encode(extensions.digest(convert_to(b.raw_response_text||' ','UTF8'),'sha256'),'hex'),
+    normalized_report=jsonb_set(b.normalized_report,'{provenance,rawSha256}',
+      to_jsonb(encode(extensions.digest(convert_to(b.raw_response_text||' ','UTF8'),'sha256'),'hex')))
+from native_retained_mutation_backup b
+where p.org_id=b.org_id and p.batch_id=b.batch_id and p.statement=b.statement
+  and p.project_id is not distinct from b.project_id and p.period_kind=b.period_kind
+  and p.current_start=b.current_start and p.side=b.side;
+set local role service_role;
+savepoint native_retained_source_mutation;
+select throws_ok($$select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
+  '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental))$$,
+  '55000','retained native source changed',
+  'AC-006 retained source cannot publish rehashed bytes absent from the immutable source generation');
+rollback to savepoint native_retained_source_mutation;
+release savepoint native_retained_source_mutation;
+reset role;
+update public.erp_financial_statement_report_pending p
+set normalized_report=b.normalized_report,raw_response_text=b.raw_response_text,raw_sha256=b.raw_sha256
+from native_retained_mutation_backup b
+where p.org_id=b.org_id and p.batch_id=b.batch_id and p.statement=b.statement
+  and p.project_id is not distinct from b.project_id and p.period_kind=b.period_kind
+  and p.current_start=b.current_start and p.side=b.side;
+insert into native_published select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
+  '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+create temporary table native_incremental_retained_after(row_json jsonb not null) on commit drop;
+insert into native_incremental_retained_after
+select jsonb_build_object('statement',s.statement,'scopeKind',s.scope_kind,'projectId',s.project_id,
+  'viewKind',s.view_kind,'periodKind',s.period_kind,'currentStart',s.current_start,'currentEnd',s.current_end,
+  'priorStart',s.prior_start,'priorEnd',s.prior_end,'payload',s.payload,'rawReports',s.raw_reports,
+  'sourceReport',s.source_report,'reportVersion',s.report_version,'filters',s.filters,'settings',s.settings,
+  'hasActivity',s.has_activity,'displayPrecision',s.display_precision,'displayRoundingMethod',s.display_rounding_method)
+from public.erp_financial_statement_snapshot s
+where s.org_id='03190000-0000-0000-0000-000000000001' and s.company='Native Test Co'
+  and not exists(
+    select 1 from public._erp_statement_report_refresh_plan(s.org_id,
+      (select context from native_incremental_context),
+      (select effective_date from native_incremental_admission),0) fresh
+    where fresh.side='current' and fresh.statement=s.statement
+      and fresh.project_id is not distinct from s.project_id
+      and fresh.period_kind=s.period_kind and fresh.current_start=s.current_start and fresh.current_end=s.current_end
+      and fresh.prior_start=s.prior_start and fresh.prior_end=s.prior_end);
+select is((select count(*)::int from public.erp_financial_statement_snapshot
+  where org_id='03190000-0000-0000-0000-000000000001'),155,
+  'AC-006 incremental publication still exposes the full exact catalogue');
+select ok(not exists(select row_json from native_incremental_retained_before
+    except all select row_json from native_incremental_retained_after)
+  and not exists(select row_json from native_incremental_retained_after
+    except all select row_json from native_incremental_retained_before),
+  'AC-006 retained normalized pairs, original raw bytes and every side acquisition time are unchanged');
+select ok((select count(distinct snapshot_id)=1 and count(distinct source_generation)=1
+  and bool_and(source_generation=(select (result->>'batchId')::uuid from native_incremental))
+  and bool_and(published_at=as_of and capture_completed_at<=published_at)
+  and bool_and(capture_started_at=(select acquisition_started_at from native_incremental_acquisition)
+    and capture_completed_at=(select acquisition_completed_at from native_incremental_acquisition))
+  from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001')
+  and (select published_at>capture_completed_at from public.erp_financial_statement_snapshot
+    where org_id='03190000-0000-0000-0000-000000000001' limit 1)
+  and (select context=(select context from native_incremental_context)
+    and source_generation=(select (result->>'batchId')::uuid from native_incremental)
+    from public.erp_financial_statement_published_context
+    where org_id='03190000-0000-0000-0000-000000000001' and company='Native Test Co'
+      and snapshot_id=(select s.snapshot_id from public.erp_financial_statement_snapshot s
+        where s.org_id='03190000-0000-0000-0000-000000000001'
+          and s.source_generation=(select (result->>'batchId')::uuid from native_incremental) limit 1)),
+  'AC-006 publication time is distinct from the full native acquisition envelope and trusted context follows the replacement');
+
+-- A dated ledger signal adds dependency-affected historic requests, while future and other-company
+-- dates remain outside this company's canonical catalogue. No mirrored values enter output.
+create temporary table native_dirty_batch(result jsonb not null) on commit drop;
+grant insert,select on native_dirty_batch to service_role;
+create temporary table native_dirty_expected_pair(
+  statement text not null, project_id uuid, period_kind text not null, current_start date not null
+) on commit drop;
+insert into native_dirty_expected_pair(statement,project_id,period_kind,current_start) values
+  ('trial_balance',null,'month','2026-06-01'),
+  ('profit_and_loss',null,'month','2026-06-01'),
+  ('balance_sheet',null,'month','2026-06-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','month','2026-06-01'),
+  ('trial_balance',null,'quarter','2026-04-01'),
+  ('profit_and_loss',null,'quarter','2026-04-01'),
+  ('balance_sheet',null,'quarter','2026-04-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','quarter','2026-04-01'),
+  ('trial_balance',null,'fiscal_year','2025-07-01'),
+  ('profit_and_loss',null,'fiscal_year','2025-07-01'),
+  ('balance_sheet',null,'fiscal_year','2025-07-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','fiscal_year','2025-07-01'),
+  ('trial_balance',null,'month','2026-01-01'),
+  ('trial_balance',null,'month','2026-02-01'),
+  ('trial_balance',null,'month','2026-03-01'),
+  ('trial_balance',null,'month','2026-04-01'),
+  ('trial_balance',null,'month','2026-05-01'),
+  ('balance_sheet',null,'month','2026-01-01'),
+  ('balance_sheet',null,'month','2026-02-01'),
+  ('balance_sheet',null,'month','2026-03-01'),
+  ('balance_sheet',null,'month','2026-04-01'),
+  ('balance_sheet',null,'month','2026-05-01'),
+  ('trial_balance',null,'quarter','2026-01-01'),
+  ('balance_sheet',null,'quarter','2026-01-01'),
+  ('profit_and_loss',null,'month','2026-01-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','month','2026-01-01'),
+  ('profit_and_loss',null,'month','2026-02-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','month','2026-02-01'),
+  ('profit_and_loss',null,'quarter','2026-01-01'),
+  ('profit_and_loss','03190000-0000-0000-0000-0000000000d1','quarter','2026-01-01');
+set local role service_role;
+insert into public.erp_gl_entry_mirror(org_id,erp_name,account,company,posting_date,debit,credit,erp_modified,project)
+values ('03190000-0000-0000-0000-000000000001','native-dirty-old','Synthetic Account','Native Test Co','2026-01-10',5,0,'same-source-time','Native Project'),
+       ('03190000-0000-0000-0000-000000000001','native-dirty-future','Synthetic Account','Native Test Co','2027-01-10',7,0,'same-source-time','Native Project'),
+       ('03190000-0000-0000-0000-000000000001','native-dirty-other-company','Synthetic Account','Other Native Co','2026-01-10',9,0,'same-source-time','Native Project');
+insert into native_dirty_batch
+select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+  '03190000-0000-0000-0000-000000000101',context) from native_incremental_context;
+reset role;
+select is((select count(*)::int from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+    and normalized_report is null),60,
+  'AC-005 a backdated entry refreshes the exact cumulative trial/balance and affected company/project P&L intervals');
+select is((select count(*)::int from public.erp_financial_statement_report_pending
+  where org_id='03190000-0000-0000-0000-000000000001'
+    and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+    and normalized_report is not null and retained_source_snapshot_id is not null),188,
+  'AC-005 unaffected historical pairs remain retained in the complete pending set');
+select ok(not exists(
+    select distinct p.statement,p.project_id,p.period_kind,p.current_start
+      from public.erp_financial_statement_report_pending p
+     where p.org_id='03190000-0000-0000-0000-000000000001'
+       and p.batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+       and p.normalized_report is null
+    except
+    select statement,project_id,period_kind,current_start from native_dirty_expected_pair)
+  and not exists(
+    select statement,project_id,period_kind,current_start from native_dirty_expected_pair
+    except
+    select distinct p.statement,p.project_id,p.period_kind,p.current_start
+      from public.erp_financial_statement_report_pending p
+     where p.org_id='03190000-0000-0000-0000-000000000001'
+       and p.batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+       and p.normalized_report is null)
+  and not exists(
+    select 1 from public.erp_financial_statement_report_pending p
+     where p.org_id='03190000-0000-0000-0000-000000000001'
+       and p.batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+     group by p.statement,p.project_id,p.period_kind,p.current_start,p.side
+    having count(*)<>1)
+  and not exists(
+    select 1 from public.erp_financial_statement_report_pending p
+     where p.org_id='03190000-0000-0000-0000-000000000001'
+       and p.batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+       and p.normalized_report is null
+     group by p.statement,p.project_id,p.period_kind,p.current_start
+    having count(distinct p.side)<>2),
+  'AC-005 dirty admission matches the exact cumulative and in-interval pair keys with both sides');
+select ok(exists(select 1 from public.erp_financial_statement_report_pending
+    where org_id='03190000-0000-0000-0000-000000000001'
+      and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+      and statement='profit_and_loss' and project_id='03190000-0000-0000-0000-0000000000d1'
+      and period_kind='month' and current_start='2026-02-01' and side='current'
+      and normalized_report is null)
+  and not exists(select 1 from public.erp_financial_statement_report_pending
+    where org_id='03190000-0000-0000-0000-000000000001'
+      and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+      and statement='profit_and_loss' and project_id='03190000-0000-0000-0000-0000000000d1'
+      and period_kind='month' and current_start='2026-03-01' and side='current'
+      and normalized_report is null)
+  and not exists(select 1 from public.erp_financial_statement_report_pending
+    where org_id='03190000-0000-0000-0000-000000000001'
+      and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
+      and current_end>'2026-06-30' and normalized_report is null),
+  'AC-005 project P&L refresh is interval-scoped and future or other-company dates add no catalogue work');
 
 select * from finish();
 rollback;

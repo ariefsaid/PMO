@@ -102,6 +102,71 @@ interface Runtime {
   active: boolean;
   batch: OpenBatch | null;
   staged: number;
+  telemetry: SegmentTelemetry;
+}
+
+interface TimedRequestGroup {
+  count: number;
+  elapsedMs: number;
+  maxElapsedMs: number;
+}
+
+interface SegmentTelemetry {
+  phase: 'idle' | 'metadata' | 'report';
+  reportKind: StatementKey | null;
+  contextReads: number;
+  contextElapsedMs: number;
+  contextMaxMs: number;
+  metadataHttp: TimedRequestGroup;
+  reports: Record<StatementKey, TimedRequestGroup>;
+  rpc: TimedRequestGroup;
+}
+
+function emptyTimedRequestGroup(): TimedRequestGroup {
+  return { count: 0, elapsedMs: 0, maxElapsedMs: 0 };
+}
+
+function createSegmentTelemetry(): SegmentTelemetry {
+  return {
+    phase: 'idle',
+    reportKind: null,
+    contextReads: 0,
+    contextElapsedMs: 0,
+    contextMaxMs: 0,
+    metadataHttp: emptyTimedRequestGroup(),
+    reports: {
+      trial_balance: emptyTimedRequestGroup(),
+      profit_and_loss: emptyTimedRequestGroup(),
+      balance_sheet: emptyTimedRequestGroup(),
+    },
+    rpc: emptyTimedRequestGroup(),
+  };
+}
+
+function recordElapsed(group: TimedRequestGroup, elapsedMs: number): void {
+  group.count += 1;
+  group.elapsedMs += elapsedMs;
+  group.maxElapsedMs = Math.max(group.maxElapsedMs, elapsedMs);
+}
+
+function conservativeObservedCost(maxObservedMs: number, fallbackMs: number, floorMs: number, ceilingMs: number): number {
+  if (maxObservedMs <= 0) return fallbackMs;
+  return Math.min(ceilingMs, Math.max(floorMs, Math.ceil(maxObservedMs * 1.5) + 50));
+}
+
+function rpcAdmissionReserve(runtime: Runtime): number {
+  return conservativeObservedCost(runtime.telemetry.rpc.maxElapsedMs, REQUEST_RESERVE_MS, 50, 1_000);
+}
+
+function reportAdmissionReserve(runtime: Runtime): number {
+  const maxObserved = Math.max(...Object.values(runtime.telemetry.reports).map((group) => group.maxElapsedMs));
+  return conservativeObservedCost(maxObserved, STATEMENT_READ_REQUEST_TIMEOUT_MS, REQUEST_RESERVE_MS,
+    STATEMENT_READ_REQUEST_TIMEOUT_MS) + 2 * rpcAdmissionReserve(runtime);
+}
+
+function contextRecheckReserve(runtime: Runtime): number {
+  return conservativeObservedCost(runtime.telemetry.contextMaxMs, CONTEXT_RECHECK_ADMISSION_MS,
+    REQUEST_RESERVE_MS, CONTEXT_RECHECK_ADMISSION_MS) + rpcAdmissionReserve(runtime);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -242,7 +307,7 @@ function reportSelection(
   };
 }
 
-async function readNativeContext(input: StatementReportRefreshInput, runtime: Runtime): Promise<NativeContext | null> {
+async function readNativeContextInner(input: StatementReportRefreshInput, runtime: Runtime): Promise<NativeContext | null> {
   if (!runtime.active || runtime.controller.signal.aborted) return null;
   const boundedClient: ErpClientDeps = {
     ...input.client,
@@ -254,11 +319,17 @@ async function readNativeContext(input: StatementReportRefreshInput, runtime: Ru
       const signal = requestSignal
         ? AbortSignal.any([runtime.controller.signal, requestSignal])
         : runtime.controller.signal;
-      const response = await input.client.fetchImpl(request, { ...init, signal });
-      if (!runtime.active || runtime.controller.signal.aborted || requestSignal?.aborted) {
-        throw new DOMException('aborted', 'AbortError');
+      const requestStarted = performance.now();
+      try {
+        const response = await input.client.fetchImpl(request, { ...init, signal });
+        if (!runtime.active || runtime.controller.signal.aborted || requestSignal?.aborted) {
+          throw new DOMException('aborted', 'AbortError');
+        }
+        return response;
+      } finally {
+        const elapsedMs = Math.max(0, performance.now() - requestStarted);
+        if (runtime.telemetry.phase === 'metadata') recordElapsed(runtime.telemetry.metadataHttp, elapsedMs);
       }
-      return response;
     },
   };
   const profile = await fetchStatementVersionProfile(boundedClient);
@@ -287,17 +358,36 @@ async function readNativeContext(input: StatementReportRefreshInput, runtime: Ru
   };
 }
 
+async function readNativeContext(input: StatementReportRefreshInput, runtime: Runtime): Promise<NativeContext | null> {
+  if (!runtime.active || runtime.controller.signal.aborted) return null;
+  const started = performance.now();
+  runtime.telemetry.contextReads += 1;
+  runtime.telemetry.phase = 'metadata';
+  try {
+    return await readNativeContextInner(input, runtime);
+  } finally {
+    const elapsedMs = Math.max(0, performance.now() - started);
+    runtime.telemetry.contextElapsedMs += elapsedMs;
+    runtime.telemetry.contextMaxMs = Math.max(runtime.telemetry.contextMaxMs, elapsedMs);
+    if (runtime.telemetry.phase === 'metadata') runtime.telemetry.phase = 'idle';
+  }
+}
+
 async function rpc(
   input: StatementReportRefreshInput,
   name: string,
   args: Record<string, unknown>,
+  runtime: Runtime,
 ): Promise<{ ok: true; data: unknown } | { ok: false }> {
+  const started = performance.now();
   try {
     const result = await input.service.rpc(name, args);
     if (!result || result.error) return { ok: false };
     return { ok: true, data: result.data };
   } catch {
     return { ok: false };
+  } finally {
+    recordElapsed(runtime.telemetry.rpc, Math.max(0, performance.now() - started));
   }
 }
 
@@ -311,7 +401,7 @@ async function openBatch(
     p_org_id: input.orgId,
     p_holder: input.holder,
     p_context: context.rpc,
-  });
+  }, runtime);
   if (!runtime.active || runtime.controller.signal.aborted || !opened.ok) return null;
   return validateOpenBatch(opened.data);
 }
@@ -328,11 +418,11 @@ async function publish(
 ): Promise<StatementReportRefreshResult> {
   if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
   const args = { p_org_id: input.orgId, p_holder: input.holder, p_batch_id: batch.batchId };
-  let result = await rpc(input, PUBLISH_RPC, args);
+  let result = await rpc(input, PUBLISH_RPC, args, runtime);
   if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
   if (!result.ok || typeof result.data !== 'string' || !UUID_PATTERN.test(result.data)) {
     // The publisher is idempotent for this holder/batch: a lost response is reconciled by retrying it.
-    result = await rpc(input, PUBLISH_RPC, args);
+    result = await rpc(input, PUBLISH_RPC, args, runtime);
   }
   if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
   if (!result.ok || typeof result.data !== 'string' || !UUID_PATTERN.test(result.data)) {
@@ -348,7 +438,7 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
     p_org_id: input.orgId,
     p_holder: input.holder,
     p_binding: input.binding,
-  });
+  }, runtime);
   if (!runtime.active || runtime.controller.signal.aborted) return progressResult(null, staged, ERROR_CODES.deadline);
   if (!admission.ok) return errorResult(ERROR_CODES.rpc, null, staged);
   const initialContext = await readNativeContext(input, runtime);
@@ -363,19 +453,26 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
   while (batch.nextRequest && runtime.active && !runtime.controller.signal.aborted) {
     const request = batch.nextRequest;
     const remaining = runtime.expiresAt - Date.now();
-    if (remaining < STATEMENT_READ_REQUEST_TIMEOUT_MS + REQUEST_RESERVE_MS) return progressResult(batch, staged);
+    if (remaining < reportAdmissionReserve(runtime)) return progressResult(batch, staged);
     const mapped = reportSelection(request, context, input.binding);
     if (!mapped) return errorResult(ERROR_CODES.response, batch, staged);
     let fetched: Awaited<ReturnType<typeof fetchStatementReport>>;
+    const reportStarted = performance.now();
+    runtime.telemetry.phase = 'report';
+    runtime.telemetry.reportKind = request.statement;
     try {
       fetched = await fetchStatementReport(context.client, mapped.selection, context.fetch);
     } catch {
       return errorResult(runtime.active ? ERROR_CODES.request : ERROR_CODES.deadline, batch, staged);
+    } finally {
+      recordElapsed(runtime.telemetry.reports[request.statement], Math.max(0, performance.now() - reportStarted));
+      runtime.telemetry.phase = 'idle';
+      runtime.telemetry.reportKind = null;
     }
     if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
     const payload = { selection: request, report: fetched.report, rawText: fetched.rawText };
     const stageArgs = { p_org_id: input.orgId, p_holder: input.holder, p_batch_id: batch.batchId, p_report: payload };
-    const firstStage = await rpc(input, STAGE_RPC, stageArgs);
+    const firstStage = await rpc(input, STAGE_RPC, stageArgs, runtime);
     if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
     if (!firstStage.ok) {
       const reconciled = await openBatch(input, context, runtime);
@@ -391,7 +488,7 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
       if (!runtime.active || runtime.controller.signal.aborted || runtime.expiresAt - Date.now() <= REQUEST_RESERVE_MS) {
         return progressResult(batch, staged, ERROR_CODES.stage);
       }
-      const retry = await rpc(input, STAGE_RPC, stageArgs);
+      const retry = await rpc(input, STAGE_RPC, stageArgs, runtime);
       if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
       if (!retry.ok) {
         const afterRetry = await openBatch(input, context, runtime);
@@ -427,7 +524,7 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
   if (staged === 0) return await publish(input, batch, runtime, staged);
 
   // A completed batch made new reports in this segment; compare fresh native identity/settings before publish.
-  if (runtime.expiresAt - Date.now() < CONTEXT_RECHECK_ADMISSION_MS) return progressResult(batch, staged);
+  if (runtime.expiresAt - Date.now() < contextRecheckReserve(runtime)) return progressResult(batch, staged);
   const closingContext = await readNativeContext(input, runtime);
   if (!closingContext) return progressResult(batch, staged, ERROR_CODES.deadline);
   if (semanticJson(context.rpc) !== semanticJson(closingContext.rpc)) {
@@ -460,7 +557,9 @@ export async function refreshStatementReportBatch(input: StatementReportRefreshI
     active: true,
     batch: null,
     staged: 0,
+    telemetry: createSegmentTelemetry(),
   };
+  const segmentStarted = performance.now();
   let resolveDeadline!: (result: StatementReportRefreshResult) => void;
   const deadline = new Promise<StatementReportRefreshResult>((resolve) => { resolveDeadline = resolve; });
   const timer = setTimeout(() => {
@@ -469,11 +568,34 @@ export async function refreshStatementReportBatch(input: StatementReportRefreshI
     resolveDeadline(progressResult(runtime.batch, runtime.staged, ERROR_CODES.deadline));
   }, stageDurationMs);
   const operation = runBatch(input, runtime).catch(() => errorResult(ERROR_CODES.context, runtime.batch, runtime.staged));
+  let result: StatementReportRefreshResult;
   try {
-    return await Promise.race([operation, deadline]);
+    result = await Promise.race([operation, deadline]);
   } finally {
     clearTimeout(timer);
     runtime.active = false;
     if (!controller.signal.aborted) controller.abort();
   }
+  const telemetry = runtime.telemetry;
+  console.info(JSON.stringify({
+    event: 'erpnext_statement_refresh_segment',
+    status: result.status,
+    errorCode: result.errorCode ?? null,
+    staged: result.staged,
+    wallElapsedMs: Math.round(performance.now() - segmentStarted),
+    contextReads: telemetry.contextReads,
+    contextWallElapsedMs: Math.round(telemetry.contextElapsedMs),
+    contextMaxWallMs: Math.round(telemetry.contextMaxMs),
+    metadataHttpCalls: telemetry.metadataHttp.count,
+    metadataHttpWallElapsedMs: Math.round(telemetry.metadataHttp.elapsedMs),
+    rpcCalls: telemetry.rpc.count,
+    rpcWallElapsedMs: Math.round(telemetry.rpc.elapsedMs),
+    rpcMaxWallMs: Math.round(telemetry.rpc.maxElapsedMs),
+    reportRequests: Object.fromEntries(Object.entries(telemetry.reports).map(([kind, group]) => [kind, {
+      count: group.count,
+      wallElapsedMs: Math.round(group.elapsedMs),
+      maxWallMs: Math.round(group.maxElapsedMs),
+    }])),
+  }));
+  return result;
 }

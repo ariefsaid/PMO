@@ -1,4 +1,4 @@
-import { callMethod, erpnextRequest } from './client.ts';
+import { erpnextRequest } from './client.ts';
 import type { ErpClientDeps } from './client.ts';
 import { AppError } from '../../appError.ts';
 
@@ -87,7 +87,7 @@ export async function fetchStatementMetadata(client: ErpClientDeps, opts: { comp
   };
 }
 
-export type StatementRoundingMethod = "Banker's Rounding" | "Banker's Rounding (legacy)" | 'Commercial Rounding';
+export type StatementRoundingMethod = "Banker's Rounding" | "Banker's Rounding (legacy)" | 'Commercial Rounding' | 'erpnext_report_output';
 export interface StatementVersionProfile { erpVersion: string; frappeVersion: string }
 export interface StatementPublicationMetadata {
   erpVersion: '16.33.0';
@@ -97,10 +97,8 @@ export interface StatementPublicationMetadata {
   hasFinanceBooks: boolean;
   calendar: readonly StatementFiscalYear[];
   currencyPrecision: number;
-  floatPrecision: number;
-  bsOpeningPrecision: number;
   roundingMethod: StatementRoundingMethod;
-  fractionUnits: number;
+  fractionUnits: number | null;
   ignoreOpeningCheck: boolean;
   ignoreAccountClosingBalance: boolean;
 }
@@ -108,24 +106,11 @@ export interface StatementPublicationMetadata {
 type RawStatementValue = string | number | null;
 export interface StatementPublicationContext {
   requestLanguage: string;
-  currencyPrecisionBranch: 'db_default' | 'number_format';
-  floatPrecisionBranch: 'db_default' | 'fallback_3';
-  bsOpeningPrecisionBranch: 'db_default' | 'fallback_2';
-  numberFormatBranch: 'currency' | 'language' | 'db_default' | 'native_default';
+  currencyPrecisionBranch: 'currency_number_format' | 'currency_fraction_units';
   raw: {
     company: { name: string; currency: string; defaultFinanceBook: RawStatementValue };
     accountsSettings: { ignoreOpeningCheck: RawStatementValue; ignoreAccountClosingBalance: RawStatementValue };
-    systemSettings: {
-      language: string;
-      currencyPrecision: RawStatementValue;
-      floatPrecision: RawStatementValue;
-      roundingMethod: RawStatementValue;
-      useNumberFormatFromCurrency: RawStatementValue;
-      numberFormat: RawStatementValue;
-    };
-    systemDefaults: { currencyPrecision: RawStatementValue; floatPrecision: RawStatementValue; roundingMethod: RawStatementValue; numberFormat: RawStatementValue };
     currency: { fractionUnits: RawStatementValue; numberFormat: RawStatementValue };
-    language: { name: string; enabled: RawStatementValue; numberFormat: RawStatementValue };
   };
 }
 
@@ -141,9 +126,7 @@ const STATEMENT_FORMAT_PRECISION: Readonly<Record<string, number>> = {
   '#,###.##': 2, '#.###,##': 2, '# ###.##': 2, '# ###,##': 2, "#'###.##": 2,
   '#, ###.##': 2, '#,##,###.##': 2, '#,###.###': 3, '#.###': 0, '#,###': 0,
 };
-const STATEMENT_ROUNDING_METHODS = new Set<StatementRoundingMethod>([
-  "Banker's Rounding", "Banker's Rounding (legacy)", 'Commercial Rounding',
-]);
+const STATEMENT_REQUEST_LANGUAGE = 'en';
 
 type StrictRecord = Record<string, unknown>;
 function strictFailure(message: string, code: 'commit-rejected' | 'config-rejected' = 'commit-rejected'): never {
@@ -179,29 +162,28 @@ function strictCheck(value: unknown, label: string): boolean {
   if (value === 0 || value === '0') return false;
   strictFailure(`Invalid ${label} metadata`);
 }
-function strictSelectInteger(value: unknown, label: string, allowed: ReadonlySet<number>): number | null {
-  if (value === null || value === '') return null;
-  let parsed: number;
-  if (typeof value === 'number') parsed = value;
-  else if (typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value)) parsed = Number(value);
-  else strictFailure(`Invalid ${label} metadata`);
-  if (!Number.isSafeInteger(parsed) || !allowed.has(parsed)) strictFailure(`Unsupported ${label} metadata`);
-  return parsed;
-}
 function strictSelectFormat(value: unknown, label: string): string | null {
   if (value === null || value === '') return null;
   if (typeof value !== 'string' || !STATEMENT_NUMBER_FORMATS.has(value)) strictFailure(`Unsupported ${label} metadata`);
   return value;
 }
-function strictRounding(value: unknown): StatementRoundingMethod | null {
+function strictCurrencyFractionUnits(value: unknown): number | null {
   if (value === null || value === '') return null;
-  if (typeof value !== 'string' || !STATEMENT_ROUNDING_METHODS.has(value as StatementRoundingMethod)) strictFailure('Unsupported rounding method');
-  return value as StatementRoundingMethod;
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed < 0) strictFailure('Invalid Currency fraction units metadata');
+  return parsed;
 }
-function compareSelectObservation(single: unknown, defaults: unknown, label: string): void {
-  const normalizedSingle = single === null || single === '' ? null : single;
-  const normalizedDefault = defaults === null || defaults === '' ? null : defaults;
-  if (!Object.is(normalizedSingle, normalizedDefault)) strictFailure(`System Settings ${label} differs from its DB default`);
+function currencyFractionPrecision(fractionUnits: number | null): number {
+  if (fractionUnits === null) strictFailure('Missing Currency presentation precision');
+  if (fractionUnits === 0 || fractionUnits === 1) return 0;
+  let remaining = fractionUnits;
+  let powersOfTwo = 0;
+  let powersOfFive = 0;
+  while (remaining % 2 === 0) { remaining /= 2; powersOfTwo += 1; }
+  while (remaining % 5 === 0) { remaining /= 5; powersOfFive += 1; }
+  const precision = Math.max(powersOfTwo, powersOfFive);
+  if (remaining !== 1 || precision > 9) strictFailure('Could not resolve Currency precision from fraction units');
+  return precision;
 }
 function strictObjectEnvelope(body: unknown, label: string): StrictRecord {
   if (!isStrictRecord(body) || !hasOwn(body, 'data') || !isStrictRecord(body.data)) strictFailure(`Malformed ${label} metadata envelope`);
@@ -352,15 +334,7 @@ export async function fetchStatementPublicationMetadata(
 ): Promise<{ metadata: StatementPublicationMetadata; context: StatementPublicationContext }> {
   validateVersionProfile(opts?.profile);
   const requestedCompany = strictText(opts?.company, 'requested Company');
-  const settingsFields = ['language', 'currency_precision', 'float_precision', 'rounding_method', 'use_number_format_from_currency', 'number_format'];
-  const systemRaw = await strictGetResource(client, 'System Settings', 'System Settings', settingsFields);
-  const requestLanguage = safeLanguageCode(systemRaw.language);
-  const languageRaw = await strictGetResource(client, 'Language', requestLanguage, ['name', 'enabled', 'number_format']);
-  if (languageRaw.name !== requestLanguage) strictFailure('Request Language identity mismatch');
-  const languageEnabledRaw = requiredRaw(languageRaw, 'enabled', 'Language.enabled');
-  if (!strictCheck(languageEnabledRaw, 'Language enabled')) strictFailure('Selected request Language is disabled', 'config-rejected');
-  const languageFormatRaw = requiredRaw(languageRaw, 'number_format', 'Language.number_format');
-  const languageFormat = strictSelectFormat(languageFormatRaw, 'Language number format');
+  const requestLanguage = STATEMENT_REQUEST_LANGUAGE;
   const scopedClient: ErpClientDeps = {
     ...client,
     fetchImpl: statementRequestFetch(client.fetchImpl, client.baseUrl, requestLanguage),
@@ -375,81 +349,37 @@ export async function fetchStatementPublicationMetadata(
   if (bookRaw === null || bookRaw === '') defaultFinanceBook = null;
   else defaultFinanceBook = strictText(bookRaw, 'Company default Finance Book');
 
-  const [accountsRaw, settingsLoadBody, currencyRaw, financeBookBody, calendar] = await Promise.all([
-    strictGetResource(scopedClient, 'Accounts Settings', 'Accounts Settings', ['name', 'ignore_is_opening_check_for_reporting', 'ignore_account_closing_balance']),
-    callMethod(scopedClient, 'frappe.core.doctype.system_settings.system_settings.load'),
-    strictGetResource(scopedClient, 'Currency', 'IDR', ['name', 'fraction_units', 'number_format']),
-    erpnextRequest(scopedClient, { method: 'GET', path: `/api/resource/Finance%20Book?fields=${encodeURIComponent(JSON.stringify(['name']))}&limit_page_length=1` }),
-    readFiscalCalendar(scopedClient, requestedCompany),
+  // This metadata pass shares the sweep's one-core ERP budget with native report requests.
+  // Keep its HTTP calls serial so the report producer never fans out ERP work.
+  const accountsRaw = await strictGetResource(scopedClient, 'Accounts Settings', 'Accounts Settings', [
+    'name', 'ignore_is_opening_check_for_reporting', 'ignore_account_closing_balance',
   ]);
+  const currencyRaw = await strictGetResource(scopedClient, 'Currency', 'IDR', [
+    'name', 'fraction_units', 'number_format',
+  ]);
+  const financeBookBody = await erpnextRequest(scopedClient, {
+    method: 'GET',
+    path: `/api/resource/Finance%20Book?fields=${encodeURIComponent(JSON.stringify(['name']))}&limit_page_length=1`,
+  });
+  const calendar = await readFiscalCalendar(scopedClient, requestedCompany);
   if (accountsRaw.name !== 'Accounts Settings') strictFailure('Accounts Settings identity mismatch');
   const openingRaw = requiredRaw(accountsRaw, 'ignore_is_opening_check_for_reporting', 'Accounts Settings.ignore_is_opening_check_for_reporting');
   const closingRaw = requiredRaw(accountsRaw, 'ignore_account_closing_balance', 'Accounts Settings.ignore_account_closing_balance');
   const ignoreOpeningCheck = strictCheck(openingRaw, 'ignore opening check');
   const ignoreAccountClosingBalance = strictCheck(closingRaw, 'ignore account closing balance');
-
-  if (!isStrictRecord(settingsLoadBody) || !isStrictRecord(settingsLoadBody.message) || !isStrictRecord(settingsLoadBody.message.defaults)) strictFailure('Malformed System Settings DB-default envelope');
-  const defaultsRaw = projectStrictFields(settingsLoadBody.message.defaults, ['currency_precision', 'float_precision', 'rounding_method', 'number_format'], 'System Settings DB default');
-  const singleCurrencyPrecisionRaw = requiredRaw(systemRaw, 'currency_precision', 'System Settings.currency_precision');
-  const singleFloatPrecisionRaw = requiredRaw(systemRaw, 'float_precision', 'System Settings.float_precision');
-  const singleRoundingRaw = requiredRaw(systemRaw, 'rounding_method', 'System Settings.rounding_method');
-  const singleFormatRaw = requiredRaw(systemRaw, 'number_format', 'System Settings.number_format');
-  const useCurrencyFormatRaw = requiredRaw(systemRaw, 'use_number_format_from_currency', 'System Settings.use_number_format_from_currency');
-  const defaultCurrencyPrecisionRaw = defaultsRaw.currency_precision;
-  const defaultFloatPrecisionRaw = defaultsRaw.float_precision;
-  const defaultRoundingRaw = defaultsRaw.rounding_method;
-  const defaultFormatRaw = defaultsRaw.number_format;
-  compareSelectObservation(singleCurrencyPrecisionRaw, defaultCurrencyPrecisionRaw, 'currency_precision');
-  compareSelectObservation(singleFloatPrecisionRaw, defaultFloatPrecisionRaw, 'float_precision');
-  compareSelectObservation(singleRoundingRaw, defaultRoundingRaw, 'rounding_method');
-  compareSelectObservation(singleFormatRaw, defaultFormatRaw, 'number_format');
-
-  const currencyPrecisionRaw = strictSelectInteger(singleCurrencyPrecisionRaw, 'currency precision', new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
-  const floatPrecisionRaw = strictSelectInteger(singleFloatPrecisionRaw, 'float precision', new Set([0, 2, 3, 4, 5, 6, 7, 8, 9]));
-  strictSelectInteger(defaultCurrencyPrecisionRaw, 'DB currency precision', new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
-  strictSelectInteger(defaultFloatPrecisionRaw, 'DB float precision', new Set([0, 2, 3, 4, 5, 6, 7, 8, 9]));
-  const roundingSingle = strictRounding(singleRoundingRaw);
-  strictRounding(defaultRoundingRaw);
-  strictSelectFormat(singleFormatRaw, 'System Settings number format');
-  const dbDefaultNumberFormat = strictSelectFormat(defaultFormatRaw, 'DB-default number format');
-  const useCurrencyFormat = strictCheck(useCurrencyFormatRaw, 'use number format from Currency');
-  const selectedCurrencyFormatRaw = requiredRaw(currencyRaw, 'number_format', 'Currency.number_format');
-  const selectedCurrencyFormat = strictSelectFormat(selectedCurrencyFormatRaw, 'Currency number format');
   if (currencyRaw.name !== 'IDR') strictFailure('Currency identity mismatch');
   const fractionUnitsRaw = requiredRaw(currencyRaw, 'fraction_units', 'Currency.fraction_units');
-  let fractionUnits: number;
-  if (fractionUnitsRaw === null) fractionUnits = 100;
-  else {
-    const parsed = typeof fractionUnitsRaw === 'number' ? fractionUnitsRaw : typeof fractionUnitsRaw === 'string' && /^(0|[1-9][0-9]*)$/.test(fractionUnitsRaw) ? Number(fractionUnitsRaw) : Number.NaN;
-    if (!Number.isSafeInteger(parsed) || parsed < 0) strictFailure('Invalid Currency fraction units metadata');
-    fractionUnits = parsed;
-  }
-
-  const currencyPrecisionBranch = currencyPrecisionRaw !== null && currencyPrecisionRaw > 0 ? 'db_default' : 'number_format';
-  let selectedNumberFormat: string;
-  let numberFormatBranch: StatementPublicationContext['numberFormatBranch'];
-  if (useCurrencyFormat && selectedCurrencyFormat) {
-    selectedNumberFormat = selectedCurrencyFormat;
-    numberFormatBranch = 'currency';
-  } else if (languageFormat) {
-    selectedNumberFormat = languageFormat;
-    numberFormatBranch = 'language';
-  } else if (dbDefaultNumberFormat) {
-    selectedNumberFormat = dbDefaultNumberFormat;
-    numberFormatBranch = 'db_default';
-  } else {
-    selectedNumberFormat = '#,###.##';
-    numberFormatBranch = 'native_default';
-  }
-  const currencyPrecision = currencyPrecisionBranch === 'db_default'
-    ? currencyPrecisionRaw as number
-    : STATEMENT_FORMAT_PRECISION[selectedNumberFormat];
-  if (!Number.isInteger(currencyPrecision)) strictFailure('Could not resolve Currency precision from native number format');
-  const floatPrecisionBranch = floatPrecisionRaw === null || floatPrecisionRaw === 0 ? 'fallback_3' : 'db_default';
-  const bsOpeningPrecisionBranch = floatPrecisionRaw === null || floatPrecisionRaw === 0 ? 'fallback_2' : 'db_default';
-  const floatPrecision = floatPrecisionBranch === 'fallback_3' ? 3 : floatPrecisionRaw as number;
-  const bsOpeningPrecision = bsOpeningPrecisionBranch === 'fallback_2' ? 2 : floatPrecisionRaw as number;
-  const roundingMethod: StatementRoundingMethod = roundingSingle ?? "Banker's Rounding (legacy)";
+  const fractionUnits = strictCurrencyFractionUnits(fractionUnitsRaw);
+  const currencyNumberFormatRaw = requiredRaw(currencyRaw, 'number_format', 'Currency.number_format');
+  const currencyNumberFormat = strictSelectFormat(currencyNumberFormatRaw, 'Currency number format');
+  const currencyPrecisionBranch: StatementPublicationContext['currencyPrecisionBranch'] = currencyNumberFormat
+    ? 'currency_number_format'
+    : 'currency_fraction_units';
+  const currencyPrecision = currencyNumberFormat
+    ? STATEMENT_FORMAT_PRECISION[currencyNumberFormat]
+    : currencyFractionPrecision(fractionUnits);
+  if (!Number.isInteger(currencyPrecision) || currencyPrecision < 0 || currencyPrecision > 9) strictFailure('Could not resolve Currency presentation precision');
+  const roundingMethod: StatementRoundingMethod = 'erpnext_report_output';
 
   const financeBookRows = strictListEnvelope(financeBookBody, 'Finance Book');
   if (financeBookRows.length > 1) strictFailure('Malformed Finance Book existence response');
@@ -463,25 +393,15 @@ export async function fetchStatementPublicationMetadata(
 
   const metadata: StatementPublicationMetadata = {
     erpVersion: STRICT_ERP_VERSION, frappeVersion: STRICT_FRAPPE_VERSION, currency: 'IDR', defaultFinanceBook, hasFinanceBooks,
-    calendar, currencyPrecision, floatPrecision, bsOpeningPrecision, roundingMethod, fractionUnits,
+    calendar, currencyPrecision, roundingMethod, fractionUnits,
     ignoreOpeningCheck, ignoreAccountClosingBalance,
   };
   const context: StatementPublicationContext = {
-    requestLanguage, currencyPrecisionBranch, floatPrecisionBranch, bsOpeningPrecisionBranch, numberFormatBranch,
+    requestLanguage, currencyPrecisionBranch,
     raw: {
       company: { name: requestedCompany, currency: companyCurrency, defaultFinanceBook: rawScalar(bookRaw, 'Company default Finance Book') },
       accountsSettings: { ignoreOpeningCheck: rawScalar(openingRaw, 'ignore opening check'), ignoreAccountClosingBalance: rawScalar(closingRaw, 'ignore account closing balance') },
-      systemSettings: {
-        language: requestLanguage, currencyPrecision: rawScalar(singleCurrencyPrecisionRaw, 'System Settings currency precision'),
-        floatPrecision: rawScalar(singleFloatPrecisionRaw, 'System Settings float precision'), roundingMethod: rawScalar(singleRoundingRaw, 'System Settings rounding method'),
-        useNumberFormatFromCurrency: rawScalar(useCurrencyFormatRaw, 'System Settings currency format flag'), numberFormat: rawScalar(singleFormatRaw, 'System Settings number format'),
-      },
-      systemDefaults: {
-        currencyPrecision: rawScalar(defaultCurrencyPrecisionRaw, 'DB currency precision'), floatPrecision: rawScalar(defaultFloatPrecisionRaw, 'DB float precision'),
-        roundingMethod: rawScalar(defaultRoundingRaw, 'DB rounding method'), numberFormat: rawScalar(defaultFormatRaw, 'DB number format'),
-      },
-      currency: { fractionUnits: rawScalar(fractionUnitsRaw, 'Currency fraction units'), numberFormat: rawScalar(selectedCurrencyFormatRaw, 'Currency number format') },
-      language: { name: requestLanguage, enabled: rawScalar(languageEnabledRaw, 'Language enabled'), numberFormat: rawScalar(languageFormatRaw, 'Language number format') },
+      currency: { fractionUnits: rawScalar(fractionUnitsRaw, 'Currency fraction units'), numberFormat: rawScalar(currencyNumberFormatRaw, 'Currency number format') },
     },
   };
   return { metadata, context };

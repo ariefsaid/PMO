@@ -87,9 +87,9 @@ Deno.test('AC-006: native report segment runs under the claimed holder even when
             fetchImpl: (() => { erpFetches += 1; return Promise.reject(new Error('ERP request was not expected')); }) as typeof fetch,
           },
           service: {
-            async rpc(name: string, args: Record<string, unknown>) {
+            rpc(name: string, args: Record<string, unknown>) {
               attemptCalls.push({ name, args });
-              return { data: null, error: { code: '55000', message: 'synthetic current-holder refusal' } };
+              return Promise.resolve({ data: null, error: { code: '55000', message: 'synthetic current-holder refusal' } });
             },
           },
         }).then((result) => ({ errorCode: result.errorCode }));
@@ -149,6 +149,126 @@ Deno.test('AC-006: native report failure does not skip the ordinary accounting p
     assert(events.join(',') === 'native-failed,raw-complete,legacy-accounting', `ordinary accounting did not continue after native failure: ${events}`);
     assert(result.perOrg[0]?.errors.includes('native-statement:native-batch-unavailable'), 'native failure was not surfaced separately');
     assert(!result.perOrg[0]?.errors.some((error) => error.startsWith('ledger:') || error.startsWith('accounting:')), 'native-only failure poisoned ordinary accounting status');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test('AC-006: the shipped sweep publishes native reports when both System Settings endpoints return 403', async () => {
+  const deniedSettingsPaths = new Set([
+    '/api/resource/System%20Settings/System%20Settings',
+    '/api/method/frappe.core.doctype.system_settings.system_settings.load',
+  ]);
+  const deniedSettingsRequests: string[] = [];
+  const nativeRequests: Request[] = [];
+  const rpcNames: string[] = [];
+  let openCount = 0;
+  let stageCount = 0;
+  let publishCount = 0;
+  const requests = [
+    {
+      statement: 'trial_balance', projectId: null, periodKind: 'fiscal_year',
+      currentStart: '2025-01-01', currentEnd: '2025-12-31', priorStart: '2024-01-01', priorEnd: '2024-12-31', side: 'current',
+    },
+    {
+      statement: 'trial_balance', projectId: null, periodKind: 'fiscal_year',
+      currentStart: '2025-01-01', currentEnd: '2025-12-31', priorStart: '2024-01-01', priorEnd: '2024-12-31', side: 'prior',
+    },
+  ];
+  const erpFetch = ((input: RequestInfo | URL, init?: RequestInit) => Promise.resolve().then(() => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    if (deniedSettingsPaths.has(url.pathname)) {
+      deniedSettingsRequests.push(url.pathname);
+      return new Response(JSON.stringify({ exc_type: 'PermissionError' }), { status: 403 });
+    }
+    if (url.pathname === '/api/method/frappe.utils.change_log.get_versions') {
+      return new Response(JSON.stringify({ message: { erpnext: { version: '16.33.0' }, frappe: { version: '16.31.0' } } }));
+    }
+    if (url.pathname === '/api/resource/Company') {
+      return new Response(JSON.stringify({ data: [{ name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null }] }));
+    }
+    if (url.pathname === '/api/resource/Accounts%20Settings/Accounts%20Settings') {
+      return new Response(JSON.stringify({ data: { name: 'Accounts Settings', ignore_is_opening_check_for_reporting: 0, ignore_account_closing_balance: 0 } }));
+    }
+    if (url.pathname === '/api/resource/Currency/IDR') {
+      return new Response(JSON.stringify({ data: { name: 'IDR', fraction_units: 100, number_format: '#,###.##' } }));
+    }
+    if (url.pathname === '/api/resource/Finance%20Book') return new Response(JSON.stringify({ data: [] }));
+    if (url.pathname === '/api/resource/Fiscal%20Year') {
+      return new Response(JSON.stringify({ data: [{ name: 'FY-2024' }, { name: 'FY-2025' }] }));
+    }
+    if (url.pathname === '/api/resource/Fiscal%20Year/FY-2024') {
+      return new Response(JSON.stringify({ data: { name: 'FY-2024', disabled: 0, year_start_date: '2024-01-01', year_end_date: '2024-12-31', companies: [] } }));
+    }
+    if (url.pathname === '/api/resource/Fiscal%20Year/FY-2025') {
+      return new Response(JSON.stringify({ data: { name: 'FY-2025', disabled: 0, year_start_date: '2025-01-01', year_end_date: '2025-12-31', companies: [] } }));
+    }
+    if (url.pathname === '/api/method/frappe.desk.query_report.run') {
+      nativeRequests.push(request);
+      return new Response(JSON.stringify({
+        message: {
+          columns: [
+            { fieldname: 'account', label: 'Account', fieldtype: 'Link' },
+            ...['opening_debit', 'opening_credit', 'debit', 'credit', 'closing_debit', 'closing_credit']
+              .map((fieldname) => ({ fieldname, label: fieldname, fieldtype: 'Currency' })),
+          ],
+          result: [{ account: 'Synthetic Cash', opening_debit: '0.00', opening_credit: '0.00', debit: '10.00', credit: '0.00', closing_debit: '10.00', closing_credit: '0.00' }],
+        },
+      }));
+    }
+    throw new Error(`unexpected synthetic ERP path ${url.pathname}`);
+  })) as typeof fetch;
+  const service = {
+    rpc(name: string, args: Record<string, unknown>) {
+      rpcNames.push(name);
+      assert(args.p_org_id === org.orgId && args.p_holder === '33333333-3333-4333-8333-333333333333', 'native RPC lost its org/lease fence');
+      if (name === 'mark_erp_statement_report_refresh_attempt') return Promise.resolve({ data: null, error: null });
+      if (name === 'open_erp_statement_report_batch') {
+        const request = requests[openCount] ?? null;
+        openCount += 1;
+        return Promise.resolve({ data: {
+          batchId: '44444444-4444-4444-8444-444444444444',
+          startedAt: '2026-10-18T10:00:00.000Z',
+          nextRequest: request,
+          complete: request === null,
+        }, error: null });
+      }
+      if (name === 'stage_erp_statement_report') { stageCount += 1; return Promise.resolve({ data: null, error: null }); }
+      if (name === 'publish_erp_financial_statements') { publishCount += 1; return Promise.resolve({ data: '55555555-5555-4555-8555-555555555555', error: null }); }
+      return Promise.resolve({ data: null, error: { code: '42883', message: 'unexpected RPC' } });
+    },
+  };
+  const events: string[] = [];
+  try {
+    const result = await runErpSweepCycle({
+      ...quietPasses,
+      listEmployingOrgs: () => Promise.resolve([org]),
+      claimStatementLock: () => Promise.resolve(true),
+      refreshNativeStatements: (boundOrg) => {
+        events.push('native');
+        return refreshStatementReportBatch({
+          orgId: boundOrg.orgId,
+          holder: '33333333-3333-4333-8333-333333333333',
+          binding: {
+            id: boundOrg.bindingId!, activatedAt: boundOrg.activatedAt!, versionMajor: boundOrg.versionMajor!,
+            company: boundOrg.company!, projectMap: {},
+          },
+          client: { apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: boundOrg.siteUrl, maxRetries: 0, timeoutMs: 5_000, fetchImpl: erpFetch },
+          service,
+        });
+      },
+      feedOrgLedgers: () => { events.push('raw'); return Promise.resolve({ gl: 0, ple: 0, glCaughtUp: true, pleCaughtUp: true }); },
+      refreshOrgAccounting: () => { events.push('accounting'); return Promise.resolve({}); },
+      releaseStatementLock: () => Promise.resolve(),
+    });
+    assert(result.perOrg[0]?.errors.every((error) => !error.startsWith('native-statement:')), 'the shipped sweep did not record native publication success');
+    assert(deniedSettingsRequests.length === 0, `collector requested a denied System Settings endpoint: ${deniedSettingsRequests}`);
+    assert(nativeRequests.length === 2, `expected both native report sides to be fetched, got ${nativeRequests.length}`);
+    assert(stageCount === 2, `expected both native sides to be staged, got ${stageCount}`);
+    assert(publishCount === 1, `expected one complete native publication, got ${publishCount}`);
+    assert(rpcNames.includes('publish_erp_financial_statements'), 'shipped sweep never reached the native publisher');
+    assert(events.join(',') === 'native,raw,accounting', `unexpected sweep sequence ${events}`);
   } finally {
     globalThis.fetch = originalFetch;
   }

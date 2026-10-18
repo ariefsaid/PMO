@@ -2,7 +2,7 @@ import type { Database, Json } from './supabase/database.types';
 
 export type FinancialStatementPeriodKind = 'month' | 'quarter' | 'fiscal_year';
 export type FinancialStatementKind = 'trial_balance' | 'profit_and_loss' | 'balance_sheet';
-export type FinancialStatementRoundingMode = "Banker's Rounding" | "Banker's Rounding (legacy)" | 'Commercial Rounding';
+export type FinancialStatementRoundingMode = "Banker's Rounding" | "Banker's Rounding (legacy)" | 'Commercial Rounding' | 'erpnext_report_output';
 export type FinancialStatementNativeScalar = string | number | boolean | null;
 
 export interface FinancialStatementNativeReportPeriod {
@@ -71,6 +71,7 @@ const ROW_KEYS = [
   'prior_end',
   'currency',
   'as_of',
+  'published_at',
   'source_report',
   'report_version',
   'filters',
@@ -91,6 +92,7 @@ const ROUNDING_METHODS = [
   "Banker's Rounding",
   "Banker's Rounding (legacy)",
   'Commercial Rounding',
+  'erpnext_report_output',
 ] as const;
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
 const PERIOD_KINDS = ['month', 'quarter', 'fiscal_year'] as const;
@@ -432,7 +434,11 @@ function parseRow(value: unknown): FinancialStatementRow {
   if (typeof source.as_of !== 'string' || !isRealTimestamp(source.as_of) ||
       typeof source.capture_started_at !== 'string' || !isRealTimestamp(source.capture_started_at) ||
       typeof source.capture_completed_at !== 'string' || !isRealTimestamp(source.capture_completed_at) ||
-      source.as_of !== source.capture_completed_at || Date.parse(source.capture_started_at) > Date.parse(source.capture_completed_at)) return reject();
+      (source.published_at !== null && (typeof source.published_at !== 'string' || !isRealTimestamp(source.published_at))) ||
+      (source.published_at === null
+        ? source.as_of !== source.capture_completed_at
+        : source.as_of !== source.published_at || Date.parse(source.published_at) < Date.parse(source.capture_completed_at)) ||
+      Date.parse(source.capture_started_at) > Date.parse(source.capture_completed_at)) return reject();
   if (source.source_report !== null && typeof source.source_report !== 'string') return reject();
   if (source.report_version !== null && typeof source.report_version !== 'string') return reject();
   if (source.filters !== null) copyJson(source.filters);
@@ -493,6 +499,7 @@ function parseRow(value: unknown): FinancialStatementRow {
     prior_end: source.prior_end as string,
     currency: source.currency,
     as_of: source.as_of,
+    published_at: source.published_at as string | null,
     source_report: source.source_report as string | null,
     report_version: source.report_version as string | null,
     filters: copiedFilters as FinancialStatementRow['filters'],
@@ -638,7 +645,7 @@ function parseGeneration(value: unknown): FinancialStatementGeneration {
   requireKeys(generation, ['snapshotId', 'sourceGeneration', 'asOf', 'captureStartedAt', 'captureCompletedAt', 'currency', 'presentation', 'delayed']);
   if (!isUuid(generation.snapshotId) || !isUuid(generation.sourceGeneration) ||
       !isRealTimestamp(generation.asOf) || !isRealTimestamp(generation.captureStartedAt) ||
-      !isRealTimestamp(generation.captureCompletedAt) || generation.asOf !== generation.captureCompletedAt ||
+      !isRealTimestamp(generation.captureCompletedAt) || Date.parse(generation.asOf) < Date.parse(generation.captureCompletedAt) ||
       Date.parse(generation.captureStartedAt) > Date.parse(generation.captureCompletedAt) ||
       generation.currency !== 'IDR' || typeof generation.delayed !== 'boolean') reject();
   return {

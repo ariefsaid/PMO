@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ErpClientDeps } from './client.ts';
 import type { StatementReportSide } from './statementReports.ts';
 import { refreshStatementReportBatch, type StatementReportRefreshInput } from './statementReportRefresh.ts';
@@ -60,7 +60,7 @@ function fixture(options: {
   admissionError?: boolean;
   admissionDelayMs?: number;
   contextFailure?: boolean;
-  languageByMetadataRead?: string[];
+  currencyFormatByMetadataRead?: string[];
   metadataDelayMs?: number;
   reportFetch?: (request: Request, count: number) => Promise<Response> | Response;
 } = {}) {
@@ -73,12 +73,17 @@ function fixture(options: {
   let stageCount = 0;
   let publishCount = 0;
   let metadataReads = 0;
+  let activeErpRequests = 0;
+  let maximumConcurrentErpRequests = 0;
   let delayed = false;
   let publishedSnapshot: string | null = 'old-complete-generation';
   const client: ErpClientDeps = {
     apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: 'https://erp.example.test',
     maxRetries: 0, timeoutMs: 5_000,
     fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      activeErpRequests += 1;
+      maximumConcurrentErpRequests = Math.max(maximumConcurrentErpRequests, activeErpRequests);
+      try {
       const request = input instanceof Request ? input : new Request(input, init);
       const url = new URL(request.url);
       const path = url.pathname;
@@ -97,15 +102,10 @@ function fixture(options: {
         return response({ message: { erpnext: { version: PROFILE.erpVersion }, frappe: { version: PROFILE.frappeVersion } } });
       }
       if (path === '/api/method/frappe.core.doctype.system_settings.system_settings.load') {
-        return response({ message: { defaults: { currency_precision: '', float_precision: '', rounding_method: '', number_format: '' } } });
+        return response({ exc_type: 'PermissionError' }, 403);
       }
       if (path === '/api/resource/System%20Settings/System%20Settings') {
-        const language = options.languageByMetadataRead?.[metadataReads] ?? 'en';
-        metadataReads += 1;
-        return response({ data: {
-          language, currency_precision: '', float_precision: '', rounding_method: '',
-          use_number_format_from_currency: 0, number_format: '',
-        } });
+        return response({ exc_type: 'PermissionError' }, 403);
       }
       if (path === '/api/resource/Language/en' || path === '/api/resource/Language/fr') {
         return response({ data: { name: path.endsWith('/fr') ? 'fr' : 'en', enabled: 1, number_format: '' } });
@@ -117,7 +117,9 @@ function fixture(options: {
         return response({ data: { name: 'Accounts Settings', ignore_is_opening_check_for_reporting: 0, ignore_account_closing_balance: 0 } });
       }
       if (path === '/api/resource/Currency/IDR') {
-        return response({ data: { name: 'IDR', fraction_units: 100, number_format: '' } });
+        const numberFormat = options.currencyFormatByMetadataRead?.[metadataReads] ?? '';
+        metadataReads += 1;
+        return response({ data: { name: 'IDR', fraction_units: 100, number_format: numberFormat } });
       }
       if (path === '/api/resource/Finance%20Book') return response({ data: [] });
       if (path === '/api/resource/Fiscal%20Year') {
@@ -141,6 +143,9 @@ function fixture(options: {
         return await (options.reportFetch?.(request, nativeRequests.length) ?? response(reportResponse()));
       }
       throw new Error(`unexpected synthetic request ${path}`);
+      } finally {
+        activeErpRequests -= 1;
+      }
     }) as typeof fetch,
   };
   const service = {
@@ -190,12 +195,17 @@ function fixture(options: {
   return {
     input, rpcCalls, nativeRequests, staged, events,
     counts: () => ({ openCount, stageCount, publishCount, metadataReads }),
+    maximumConcurrentErpRequests: () => maximumConcurrentErpRequests,
     delayed: () => delayed,
     publishedSnapshot: () => publishedSnapshot,
   };
 }
 
 describe('refreshStatementReportBatch', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -203,6 +213,7 @@ describe('refreshStatementReportBatch', () => {
 
   it('AC-005: uses the fixed RPC contract, actual observed context and only stages the fetched native column/raw text', async () => {
     const h = fixture();
+    const telemetry = vi.spyOn(console, 'info');
     const result = await refreshStatementReportBatch(h.input);
 
     expect(result).toMatchObject({ status: 'published', batchId: BATCH, staged: 2, complete: true, snapshotId: SNAPSHOT });
@@ -238,7 +249,7 @@ describe('refreshStatementReportBatch', () => {
       language: 'en',
       filterProfile: 'erpnext-v16-standard-statements-v1',
       presentation: {
-        metadata: { currency: 'IDR', currencyPrecision: 2, floatPrecision: 3, roundingMethod: "Banker's Rounding (legacy)" },
+        metadata: { currency: 'IDR', currencyPrecision: 2, roundingMethod: 'erpnext_report_output' },
         context: { requestLanguage: 'en', raw: { company: { name: 'Synthetic Co', currency: 'IDR' } } },
       },
     });
@@ -255,6 +266,7 @@ describe('refreshStatementReportBatch', () => {
       expect(wrapper.rawText).toContain('"columns"');
     }
     expect(h.nativeRequests).toHaveLength(2);
+    expect(h.maximumConcurrentErpRequests()).toBe(1);
     for (const [index, request] of h.nativeRequests.entries()) {
       const url = new URL(request.url);
       expect(url.pathname).toBe('/api/method/frappe.desk.query_report.run');
@@ -274,6 +286,17 @@ describe('refreshStatementReportBatch', () => {
     expect(h.delayed()).toBe(false);
     expect(JSON.stringify(result)).not.toContain('synthetic-key');
     expect(JSON.stringify(result)).not.toContain('synthetic-secret');
+    expect(telemetry).toHaveBeenCalledTimes(1);
+    const log = JSON.parse(String(telemetry.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(log).toMatchObject({
+      event: 'erpnext_statement_refresh_segment', status: 'published', staged: 2,
+      contextReads: 2,
+      reportRequests: { trial_balance: { count: 2 } },
+    });
+    expect(JSON.stringify(log)).not.toContain(ORG);
+    expect(JSON.stringify(log)).not.toContain('Synthetic Co');
+    expect(JSON.stringify(log)).not.toContain('Synthetic Cash');
+    expect(JSON.stringify(log)).not.toContain('synthetic-key');
   });
 
   it('AC-005: confirmed attempt remains visible when the following native context request fails, with the old publication retained', async () => {
@@ -400,11 +423,11 @@ describe('refreshStatementReportBatch', () => {
     expect(h.counts()).toEqual({ openCount: 1, stageCount: 0, publishCount: 1, metadataReads: 1 });
   });
 
-  it('AC-005: reopens a changed context instead of publishing a batch captured under old metadata', async () => {
+  it('AC-005: reopens a changed Currency presentation context instead of publishing under old metadata', async () => {
     const changed = '88888888-8888-4888-8888-888888888888';
     const h = fixture({
       opens: [batch(currentRequest), batch(priorRequest), batch(null), { ...batch(currentRequest), batchId: changed }],
-      languageByMetadataRead: ['en', 'fr'],
+      currencyFormatByMetadataRead: ['', '#,###.###'],
     });
     const result = await refreshStatementReportBatch(h.input);
 
@@ -414,7 +437,9 @@ describe('refreshStatementReportBatch', () => {
     expect(h.rpcCalls.some(({ name }) => name === 'publish_erp_financial_statements')).toBe(false);
     const openContexts = h.rpcCalls.filter(({ name }) => name === 'open_erp_statement_report_batch').map(({ args }) => args.p_context);
     expect((openContexts[0] as Record<string, unknown>).language).toBe('en');
-    expect((openContexts.at(-1) as Record<string, unknown>).language).toBe('fr');
+    expect((openContexts.at(-1) as Record<string, unknown>).language).toBe('en');
+    expect((openContexts[0] as { presentation: { metadata: { currencyPrecision: number } } }).presentation.metadata.currencyPrecision).toBe(2);
+    expect((openContexts.at(-1) as { presentation: { metadata: { currencyPrecision: number } } }).presentation.metadata.currencyPrecision).toBe(3);
   });
 
   it('AC-005: retries unknown publish outcomes idempotently without recollecting reports', async () => {
@@ -440,12 +465,12 @@ describe('refreshStatementReportBatch', () => {
     const h = fixture({
       opens: [batch(currentRequest), batch(priorRequest), batch(priorRequest), batch(null)],
       reportFetch: async (_request, count) => {
-        if (count === 1) await new Promise<void>((resolve) => setTimeout(resolve, 2_000));
+        if (count === 1) await new Promise<void>((resolve) => setTimeout(resolve, 3_500));
         return response(reportResponse(count === 1 ? '10.00' : '20.00'));
       },
     });
     const firstPending = refreshStatementReportBatch(h.input);
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(3_500);
     const first = await firstPending;
 
     expect(first).toMatchObject({ status: 'progress', staged: 1, complete: false, batchId: BATCH });

@@ -14,6 +14,7 @@ const ROUNDING_MODES = [
   "Banker's Rounding",
   "Banker's Rounding (legacy)",
   'Commercial Rounding',
+  'erpnext_report_output',
 ] as const;
 type NativePeriod = {
   fromDate: string; toDate: string; fromFiscalYear: string; toFiscalYear: string;
@@ -108,7 +109,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: UUID, org_id: OTHER_UUID, company: 'Synthetic Company', snapshot_id: PROJECT_UUID,
     source_generation: UUID, statement, scope_kind: scope, project_id: projectId, view_kind: view,
     period_kind: 'month', current_start: '2024-02-01', current_end: '2024-02-29',
-    prior_start: '2024-01-01', prior_end: '2024-01-31', currency: 'IDR', as_of: AS_OF,
+    prior_start: '2024-01-01', prior_end: '2024-01-31', currency: 'IDR', as_of: AS_OF, published_at: AS_OF,
     capture_started_at: CAPTURE_STARTED, capture_completed_at: AS_OF,
     raw_reports: totals ? null : { current: '{"message":{"side":"current"}}', prior: '{"message":{"side":"prior"}}' },
     source_report: totals ? null : REPORT_NAMES[statement], report_version: totals ? null : '16.33.0',
@@ -124,6 +125,9 @@ function row(overrides: Record<string, unknown> = {}) {
   const result = { ...base, ...overrides };
   if (Object.hasOwn(overrides, 'as_of') && !Object.hasOwn(overrides, 'capture_completed_at')) {
     result.capture_completed_at = overrides.as_of as string;
+  }
+  if (Object.hasOwn(overrides, 'as_of') && !Object.hasOwn(overrides, 'published_at')) {
+    result.published_at = overrides.as_of as string;
   }
   return result;
 }
@@ -293,7 +297,8 @@ describe('strict financial statement read envelopes', () => {
     const invalid = [
       { ...CATALOGUE, generation: { ...GENERATION, sourceGeneration: null } },
       { ...CATALOGUE, generation: { ...GENERATION, delayed: 'false' } },
-      { ...CATALOGUE, generation: { ...GENERATION, captureCompletedAt: '2024-03-01T12:34:55.000Z' } },
+      { ...CATALOGUE, generation: { ...GENERATION, captureCompletedAt: '2024-03-01T12:34:57.000Z' } },
+      { ...CATALOGUE, generation: { ...GENERATION, asOf: '2024-03-01T12:34:55.000Z' } },
       { ...CATALOGUE, generation: { ...GENERATION, presentation: { ...GENERATION.presentation, precision: 10 } } },
       { ...CATALOGUE, generation: { ...GENERATION, presentation: { ...GENERATION.presentation, roundingMethod: 'Unknown' } } },
       { ...CATALOGUE, periods: [{ ...PERIOD, priorEnd: '2024-01-30' }] },
@@ -303,7 +308,9 @@ describe('strict financial statement read envelopes', () => {
       { ...CATALOGUE, scopes: [{ scopeKind: 'unassigned', projectId: null, statements: ['profit_and_loss'], viewKinds: ['account_breakdown'] }] },
       { ...CATALOGUE, state: 'unavailable' }, { ...CATALOGUE, periods: [] }, { ...CATALOGUE, leaked: true },
     ];
-    for (const value of invalid) expect(() => parseFinancialStatementCatalogue(value)).toThrow(TypeError);
+    for (const [index, value] of invalid.entries()) {
+      expect(() => parseFinancialStatementCatalogue(value), `invalid catalogue fixture ${index}`).toThrow(TypeError);
+    }
   });
 
   it('AC-004/006 rejects wrong selection, mixed capture windows, bad dates and totals poisoning', () => {
@@ -444,9 +451,13 @@ describe('parseFinancialStatementRow native storage boundary', () => {
     expect(totals.settings).toBeNull();
   });
 
-  it('validates capture-window equality, monotonicity and complete native raw-report pairs', () => {
+  it('validates acquisition-window bounds separately from publication time', () => {
     expectInvalid(row({ capture_started_at: '2024-03-01T12:34:57.000Z' }));
     expectInvalid(row({ capture_completed_at: '2024-03-01T12:34:55.000Z' }));
+    expect(parseFinancialStatementRow(row({ as_of: '2024-03-01T12:34:57.000Z', capture_completed_at: AS_OF })))
+      .toMatchObject({ as_of: '2024-03-01T12:34:57.000Z', published_at: '2024-03-01T12:34:57.000Z' });
+    expect(parseFinancialStatementRow(row({ published_at: null })).published_at).toBeNull();
+    expectInvalid(row({ published_at: '2024-03-01T12:34:55.000Z' }));
     expectInvalid(row({ raw_reports: { current: 'current only' } }));
     expectInvalid(row({ raw_reports: { current: 1, prior: 'prior' } }));
     expectInvalid(row({ capture_started_at: null, capture_completed_at: null }));
@@ -475,7 +486,7 @@ describe('parseFinancialStatementRow native storage boundary', () => {
       { id: 9 }, { org_id: false }, { company: ' ' }, { snapshot_id: {} }, { source_generation: 3 },
       { statement: 1 }, { scope_kind: false }, { project_id: {} }, { view_kind: [] }, { period_kind: 3 },
       { current_start: 20240201 }, { current_end: null }, { prior_start: false }, { prior_end: {} },
-      { currency: 'USD' }, { as_of: 123 }, { capture_started_at: {} }, { capture_completed_at: 123 }, { source_report: {} },
+      { currency: 'USD' }, { as_of: 123 }, { published_at: 123 }, { capture_started_at: {} }, { capture_completed_at: 123 }, { source_report: {} },
       { report_version: 9 }, { filters: undefined }, { settings: Infinity }, { payload: [] },
       { raw_reports: [] }, { has_activity: 'true' }, { display_precision: '2' },
       { display_rounding_method: {} },
@@ -574,7 +585,7 @@ describe('parseFinancialStatementRow native storage boundary', () => {
     }
   });
 
-  it('preserves display precision bounds and exact rounding modes', () => {
+  it('preserves display precision bounds, legacy modes and native-output provenance', () => {
     for (const display_precision of [0, 9]) {
       for (const display_rounding_method of ROUNDING_MODES) {
         const parsed = parseFinancialStatementRow(row({ display_precision, display_rounding_method }));
@@ -586,5 +597,7 @@ describe('parseFinancialStatementRow native storage boundary', () => {
     expectInvalid(row({ display_precision: 10 }));
     expectInvalid(row({ display_rounding_method: 'Bankers Rounding' }));
     expectInvalid(row({ display_rounding_method: 'Unknown' }));
+    const nativePresentation = { ...CATALOGUE, generation: { ...GENERATION, presentation: { precision: 2, roundingMethod: 'erpnext_report_output' } } };
+    expect(parseFinancialStatementCatalogue(nativePresentation).generation?.presentation.roundingMethod).toBe('erpnext_report_output');
   });
 });
