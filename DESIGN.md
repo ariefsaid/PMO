@@ -941,3 +941,7 @@ definition list so assistive technology receives valid list semantics.
 ### Tax detail disclosure (S-39, 2026-10-18)
 
 Keep a record’s saved inclusive/exclusive tax basis beside its amount. Selected record surfaces disclose the saved rate and base through a labelled keyboard/touch control; unknown facts stay unknown. Escape closes the disclosure and restores focus to its trigger. The shared control keeps its ordinary inline default and explicit basis-only aggregate mode. Disclosure does not activate a surrounding card or approve an invoice, and genuine billing prerequisites keep their existing remedy. Use the shared 44px coarse-pointer target with the 32px visual control.
+
+### Reference search identities (2026-10-18, S-40)
+
+Command-palette results retain canonical reference tokens on one line while allowing the surrounding label to wrap. Keep cached navigation available during reference loading or retry; each result opens its canonical detail screen. A bounded result list asks the user to refine a broad query. The reference search component and persisted Finance journey retain these checks.

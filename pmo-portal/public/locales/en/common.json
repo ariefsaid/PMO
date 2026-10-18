@@ -3460,6 +3460,14 @@
       "unread": "Unread"
     },
     "palette": {
+      "uxs40": {
+        "customerOrderReference": "Customer order reference: {{reference}}",
+        "incomingPayment": "Incoming payment",
+        "moreReferenceMatches": "More reference matches; refine your search",
+        "recordContext": "{{type}} · {{context}}",
+        "referenceLabel": "Reference: {{reference}}",
+        "salesInvoice": "Sales invoice"
+      },
       "askAiSub": "Open the assistant with this draft",
       "dialogLabel": "Command palette",
       "inputLabel": "Search projects, records, or run a command",

@@ -110,6 +110,25 @@ describe('useRecordSearch — index of the 3 cached lists', () => {
     expect(rankRecords(result.current.records, 'CLIENT-82').items).toContain(pipeline);
   });
 
+  it('AC-S40-001: indexes the active project customer order reference and ranks its exact alias first', () => {
+    state.projects = {
+      data: [
+        { id: 'p-order-prefix', name: 'Reference follow-up', customer_contract_ref: 'PO-2026-081-A' },
+        { id: 'p-order-exact', name: 'North service contract', code: 'PO-2026-081', customer_contract_ref: 'PO-2026-081' },
+      ],
+      isPending: false,
+      isError: false,
+    };
+    const { result } = renderHook(() => useRecordSearch(navigate), { wrapper: wrapAdmin });
+    const exact = result.current.records.find((record) => record.id === 'projects:p-order-exact');
+
+    expect(exact?.searchCodes).toContain('PO-2026-081');
+    expect(exact?.searchCodes?.filter((alias) => alias === 'PO-2026-081')).toHaveLength(1);
+    expect(exact?.code).toContain('Customer order reference: PO-2026-081');
+    const ranked = rankRecords(result.current.records, 'PO-2026-081');
+    expect(ranked.items[0]?.id).toBe('projects:p-order-exact');
+  });
+
   // Model B (ADR-0020): a pipeline record drills to the ONE canonical route /projects/:id
   // (was /sales/:id) — the deliberate UX change; the goal (open the record's detail page)
   // is preserved.

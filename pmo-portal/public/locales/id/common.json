@@ -3460,6 +3460,14 @@
       "unread": "Belum dibaca"
     },
     "palette": {
+      "uxs40": {
+        "customerOrderReference": "Referensi pesanan pelanggan: {{reference}}",
+        "incomingPayment": "Pembayaran masuk",
+        "moreReferenceMatches": "Referensi lainnya ditemukan; persempit pencarian",
+        "recordContext": "{{type}} · {{context}}",
+        "referenceLabel": "Referensi: {{reference}}",
+        "salesInvoice": "Faktur penjualan"
+      },
       "askAiSub": "Buka asisten dengan draf ini",
       "dialogLabel": "Palet perintah",
       "inputLabel": "Cari proyek, data, atau jalankan perintah",

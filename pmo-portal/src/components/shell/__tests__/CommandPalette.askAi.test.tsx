@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { CommandPalette } from '../CommandPalette';
+
+vi.mock('@/src/hooks/useReferenceRecordSearch', () => ({
+  useReferenceRecordSearch: () => ({ data: undefined, isFetching: false, isError: false, refetch: vi.fn() }),
+}));
 
 describe('CommandPalette Ask AI fallback', () => {
   it('AC-AT2-006 zero-result query renders Ask AI only when flag on', async () => {
     const onAskAi = vi.fn();
     const onClose = vi.fn();
-    render(<CommandPalette open items={[]} onClose={onClose} onAskAi={onAskAi} />);
+    render(
+      <MemoryRouter>
+        <CommandPalette open items={[]} onClose={onClose} onAskAi={onAskAi} />
+      </MemoryRouter>,
+    );
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'over budget cases' } });
     await act(async () => {
@@ -23,7 +32,11 @@ describe('CommandPalette Ask AI fallback', () => {
   });
 
   it('AC-AT2-006 flag-off keeps the normal no-results state', async () => {
-    render(<CommandPalette open items={[]} onClose={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <CommandPalette open items={[]} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'over budget cases' } });
     await act(async () => {
