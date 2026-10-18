@@ -231,7 +231,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
   }
   for (const f of facts.invoiced_before) {
     const project = f.project_id ? projectsById.get(f.project_id) : null;
-    if (project && f.currency !== project.currency && f.net !== 0) foreignInvoiceProjects.add(project.id);
+    if (project && f.currency !== project.currency && f.invoice_count > 0) foreignInvoiceProjects.add(project.id);
     if (f.net !== 0) invoiceCurrencies.add(f.currency);
   }
   for (const p of facts.progress) {
