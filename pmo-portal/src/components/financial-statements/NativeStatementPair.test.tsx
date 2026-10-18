@@ -152,6 +152,19 @@ function mockMobileViewport() {
 }
 
 describe('NativeStatementPair (AC-008)', () => {
+  it('renders a persisted pair containing only the current and prior reports', () => {
+    const persistedPair = {
+      current: report('current', [{ account: 'Persisted current', closing_credit: '10.00' }]),
+      prior: report('prior', [{ account: 'Persisted prior', closing_credit: '9.00' }]),
+    };
+    render(
+      <NativeStatementPair pair={persistedPair} reportTitle="Trial Balance" labels={labels} />,
+    );
+
+    expect(screen.getByRole('region', { name: 'Trial Balance — Current' })).toHaveTextContent('Persisted current');
+    expect(screen.getByRole('region', { name: 'Trial Balance — Previous' })).toHaveTextContent('Persisted prior');
+  });
+
   it('renders native current/prior rows independently, in order, with all visible fields and source separators', async () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { container } = renderPair();

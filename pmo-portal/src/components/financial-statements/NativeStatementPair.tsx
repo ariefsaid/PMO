@@ -11,7 +11,7 @@ import {
 } from '@/src/lib/nativeStatementPresentation';
 
 export interface NativeStatementPairProps {
-  pair: Readonly<StatementReportPair>;
+  pair: Readonly<Pick<StatementReportPair, 'current' | 'prior'>>;
   reportTitle: string;
   labels: {
     current: string;
