@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
@@ -26,6 +27,44 @@ const projects: PipelineProject[] = [
   // than invent one. Without this row the "unknown renders nothing" branch has no witness here.
   { id: 'nb1', name: 'Unpriced Deal', client_name: 'Umbrella', status: 'Quotation Submitted', contract_value: 0, currency: 'USD', tax_treatment: null, win_probability: 0.4 },
 ];
+
+describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
+  it('keeps full identity and source-currency basis visible while secondary metrics open on demand', async () => {
+    const longProject: PipelineProject = {
+      ...projects[4],
+      id: 'compact-long-id',
+      name: 'Integrated maintenance planning for regional facilities and remote teams',
+      client_name: 'PT Garuda Regional Infrastructure Services',
+      pmo_project_number: 'PMO-26-0042',
+      code: 'CLIENT-77',
+    };
+    const onOpen = vi.fn();
+    // The temporary widened type lets this first red prove the new runtime presentation is missing.
+    const ListPresentation = SalesKanbanBoard as React.ComponentType<
+      React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
+    >;
+    render(<ListPresentation projects={[longProject]} onOpen={onOpen} presentation="list" selectedStatus={longProject.status} />);
+
+    expect(screen.queryByTestId('stage-Tender Submitted')).toBeNull();
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText(longProject.name)).toBeVisible();
+    expect(within(card).getByText(longProject.client_name!)).toBeVisible();
+    expect(within(card).queryByText(longProject.status)).toBeNull();
+    expect(within(card).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
+
+    const details = within(card).getByText('Financial and project details');
+    expect(details.tagName).toBe('SUMMARY');
+    expect(within(card).getByText('40%')).not.toBeVisible();
+    await userEvent.click(details);
+    expect(within(card).getByText('40%')).toBeVisible();
+    expect(within(card).getByText('PMO-26-0042')).toBeVisible();
+    expect(within(card).getByText('CLIENT-77')).toBeVisible();
+
+    await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.name) }));
+    expect(onOpen).toHaveBeenCalledWith(longProject);
+  });
+});
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.

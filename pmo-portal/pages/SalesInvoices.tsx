@@ -279,6 +279,7 @@ const SalesInvoices: React.FC = () => {
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const recordContext = useRecordContext('/sales-invoices', invoiceId);
+  const customerOptionsQuery = useClientCompanyOptions();
   const projectOptionsQuery = useInvoiceProjectOptions();
   const projectOptions = projectOptionsQuery.data;
   const projectOptionsPending = projectOptionsQuery.isPending;
@@ -289,6 +290,7 @@ const SalesInvoices: React.FC = () => {
     if (result.error) throw result.error;
     return result.data ?? [];
   }, [refetchProjectOptions]);
+  const refetchCustomerOptions = customerOptionsQuery.refetch;
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
@@ -372,7 +374,72 @@ const SalesInvoices: React.FC = () => {
     );
   };
 
-  const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
+  const [formTarget, setFormTarget] = useState<{
+    invoice: SalesInvoiceRow | null;
+    initialContext?: { projectId: string; customerId: string };
+  } | null>(null);
+  const [contextError, setContextError] = useState<'options' | 'invalid' | null>(null);
+  const createRequested = searchParams.get('create') === '1';
+  const contextualProjectId = searchParams.get('project');
+
+  useEffect(() => {
+    if (!createRequested || invoiceId || formTarget || !canCreate || mode === undefined) return;
+
+    const consumeCreateIntent = () => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete('create');
+        return next;
+      }, { replace: true });
+    };
+
+    // `?create=1` without a project is the existing global create, with no inferred FK values.
+    if (!contextualProjectId) {
+      setContextError(null);
+      setFormTarget({ invoice: null });
+      consumeCreateIntent();
+      return;
+    }
+
+    // Do not turn a still-loading or failed authorized option read into a guessed customer.
+    if (projectOptionsQuery.isPending || customerOptionsQuery.isPending) return;
+    if (projectOptionsQuery.isError || customerOptionsQuery.isError) {
+      setContextError('options');
+      return;
+    }
+
+    const project = projectOptions?.find((option) => option.value === contextualProjectId);
+    const customerId = project?.clientId;
+    const customerIsAuthorized = Boolean(customerId && customerOptionsQuery.data?.some((option) => option.value === customerId));
+    if (!project || project.archived || !customerId || !customerIsAuthorized) {
+      setContextError('invalid');
+      consumeCreateIntent();
+      return;
+    }
+
+    setContextError(null);
+    setFormTarget({ invoice: null, initialContext: { projectId: project.value, customerId } });
+    consumeCreateIntent();
+  }, [
+    canCreate,
+    contextualProjectId,
+    createRequested,
+    customerOptionsQuery.data,
+    customerOptionsQuery.isError,
+    customerOptionsQuery.isPending,
+    formTarget,
+    invoiceId,
+    mode,
+    projectOptions,
+    projectOptionsQuery.isError,
+    projectOptionsQuery.isPending,
+    setSearchParams,
+  ]);
+
+  const openNewInvoice = () => {
+    setContextError(null);
+    setFormTarget({ invoice: null });
+  };
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<SalesInvoiceRow | null>(null);
@@ -876,8 +943,8 @@ const SalesInvoices: React.FC = () => {
           ? t('financeCopy.nativeSalesInvoicesDescription', 'Client invoices raised, approved and settled in PMO.')
           : t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
       primaryAction={
-        canCreate && mode !== undefined && (
-          <Button variant="primary" onClick={() => setFormTarget({ invoice: null })}>
+        canCreate && mode !== undefined && !createRequested && (
+          <Button variant="primary" onClick={openNewInvoice}>
             <Icon name="plus" />
             {t('financeCopy.newInvoice', "New Invoice")}</Button>
         )
@@ -954,6 +1021,24 @@ const SalesInvoices: React.FC = () => {
       }
     >
       {/* Body */}
+      {contextError && (
+        <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm">
+          <p className="text-muted-foreground">
+            {contextError === 'options'
+              ? t('uxs15.contextOptionsUnavailable', 'Project and customer options could not be loaded. Retry to confirm the invoice context.')
+              : t('uxs15.contextInvalid', 'This project or its customer is no longer available. Start a new invoice and choose from the current options.')}
+          </p>
+          {contextError === 'options' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { void refetchProjectOptions(); void refetchCustomerOptions(); }}
+            >
+              {t('uxs15.retryContext', 'Retry context')}
+            </Button>
+          )}
+        </div>
+      )}
       {searchParams.get('attribution') === 'unassigned' && (
         <div className="mb-3 flex items-center gap-2">
           <span className="rounded-full border border-border bg-secondary px-3 py-1 text-sm">
@@ -988,7 +1073,7 @@ const SalesInvoices: React.FC = () => {
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
-          action={canCreate ? { label: t('financeCopy.newInvoice', "New Invoice"), onClick: () => setFormTarget({ invoice: null }) } : undefined}
+          action={canCreate && !createRequested ? { label: t('financeCopy.newInvoice', "New Invoice"), onClick: openNewInvoice } : undefined}
         />
       )}
 
@@ -1008,6 +1093,7 @@ const SalesInvoices: React.FC = () => {
       {formTarget && (
         <SalesInvoiceFormModal
           invoice={formTarget.invoice}
+          initialContext={formTarget.initialContext}
           pendingPush={pendingPush}
           native={native}
           onClose={() => setFormTarget(null)}
@@ -1157,6 +1243,7 @@ const ReceivedDateModal: React.FC<{
 
 interface SalesInvoiceFormModalProps {
   invoice: SalesInvoiceRow | null;
+  initialContext?: { projectId: string; customerId: string };
   onClose: () => void;
   /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
   onCreate: (
@@ -1171,6 +1258,7 @@ interface SalesInvoiceFormModalProps {
 
 const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   invoice,
+  initialContext,
   onClose,
   onCreate,
   onUpdate,
@@ -1179,11 +1267,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!invoice;
-  // The adornment follows the record's own currency when editing one; a create form has no record
-  // yet, so it falls back to the org's operating currency (#731). The hook is called unconditionally.
+  // The hook is called unconditionally. Unscoped creation keeps the org default; native project
+  // entry follows the selected authorized project's source currency, and unknown stays explicit.
   const orgCurrency = useOrgCurrency();
   const erpItems = useErpItemOptions('sales');
-  const moneyPrefix = currencySymbol(invoice?.currency ?? orgCurrency);
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
   // form is open (`{formTarget && …}`), so its mount IS the session: every retry of a failed submit
   // reuses this identity (the ERP doc a lost response already committed gets reconciled, not
@@ -1196,8 +1283,8 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const projectById = useCallback((id: string | null) => projectOptions?.find((p) => p.value === id), [projectOptions]);
   const form = useEntityForm<FormValues>({
     initialValues: {
-      customerId: '',
-      projectId: null,
+      customerId: invoice ? '' : initialContext?.customerId ?? '',
+      projectId: invoice ? null : initialContext?.projectId ?? null,
       lineItems: [EMPTY_LINE],
     },
     validate: (values) => validate(values, t, native, projectById(values.projectId)),
@@ -1208,6 +1295,10 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
 
   const customerField = form.fieldProps('customerId');
   const projectField = form.fieldProps('projectId');
+  const selectedProjectCurrency = projectField.value ? projectById(projectField.value)?.currency?.trim() : undefined;
+  const moneyCurrency = invoice?.currency ?? (native && projectField.value ? selectedProjectCurrency : orgCurrency);
+  const moneyPrefix = moneyCurrency ? currencySymbol(moneyCurrency) : undefined;
+  const projectCurrencyUnavailable = native && Boolean(projectField.value) && !selectedProjectCurrency;
   // I-2: the project's page is where its contract value and VAT rate are recorded.
   const vatRateLink = (projectId: string | null) => projectId ? (
     <Link to={`/projects/${projectId}`} className="font-medium text-primary-text underline underline-offset-2">
@@ -1312,6 +1403,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
+            selectedOption={customerOptions?.find((option) => option.value === customerField.value) ?? null}
             onChange={(value, _option) => {
               // M-1: a project of another customer cannot stay picked once the customer changes.
               const project = projectById(projectField.value);
@@ -1328,6 +1420,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             label={t('financeCopy.project', "Project")}
             required={native}
             value={projectField.value ?? ''}
+            selectedOption={projectOptions?.find((option) => option.value === projectField.value) ?? null}
             onChange={(value, _option) => projectField.onChange(value ?? '')}
             // I-2: shown the moment a VAT project with no rate is picked, with the way to fix it.
             error={vatMissing ? (
@@ -1403,6 +1496,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               min={0}
               step={0.01}
               prefix={moneyPrefix}
+              helper={projectCurrencyUnavailable ? t('uxs15.currencyUnavailable', 'Project currency unavailable.') : undefined}
               className="w-full sm:w-32"
             />
             {lineItems.length > 1 && (

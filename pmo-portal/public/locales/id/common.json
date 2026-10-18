@@ -3270,7 +3270,6 @@
         "title": "Tidak ada proyek yang cocok dengan pencarian"
       }
     },
-    "title": "Pipeline",
     "toast": {
       "projectCreated": "Proyek dibuat"
     },
@@ -4734,5 +4733,38 @@
     "unappliedNote": "{{amount}} dari penerimaan ini belum dialokasikan ke faktur.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
+  },
+  "uxs23": {
+    "history": {
+      "summaryCreated": "{{kind}} dibuat",
+      "summaryStatusChanged": "Status berubah",
+      "summaryUpdated": "{{kind}} diperbarui",
+      "summaryRecorded": "Peristiwa riwayat",
+      "viewDetails": "Lihat detail perubahan",
+      "groupSummary": "{{count}} peristiwa sistem"
+    }
+  },
+  "uxs15": {
+    "startInvoice": "Mulai membuat faktur",
+    "methodTitle": "Mulai membuat faktur",
+    "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
+    "contractInvoice": "Faktur kontrak",
+    "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
+    "customerWorkOrder": "Work Order pelanggan",
+    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "quantityProgressClaim": "Klaim kuantitas atau progres",
+    "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
+    "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",
+    "contextInvalid": "Proyek ini atau kliennya tidak lagi tersedia. Mulai faktur baru dan pilih dari opsi yang tersedia.",
+    "retryContext": "Coba lagi",
+    "currencyUnavailable": "Mata uang proyek tidak tersedia."
+  },
+  "uxs24": {
+    "stageLabel": "Tahap pipeline",
+    "allStages": "Semua tahap",
+    "phoneList": "Proyek pada tahap pipeline yang dipilih",
+    "financialDetails": "Rincian keuangan dan proyek",
+    "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
+    "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
   }
 }

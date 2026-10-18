@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -33,7 +33,9 @@ const hoisted = vi.hoisted(() => ({
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
     { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' },
   ],
-  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false }],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, currency: 'EUR' as string | undefined }],
+  clientOptionsQuery: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  projectOptionsQuery: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   connected: false,
 }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: hoisted.connected, loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] }) }));
@@ -58,8 +60,8 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useClientCompanyOptions: () => ({ data: hoisted.clientOptions }),
-  useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
+  useClientCompanyOptions: () => hoisted.clientOptionsQuery,
+  useInvoiceProjectOptions: () => hoisted.projectOptionsQuery,
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -85,22 +87,32 @@ import { financeTestI18n } from './financeI18nTestInstance';
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
-const renderPage = () =>
-  render(
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+};
+
+const renderPage = (initialEntry = '/sales-invoices') => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const page = () => (
     // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
     // standard provider even though `useRevenue` itself is mocked here.
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <FinanceI18nTestProvider>
         <ImpersonationProvider realRole="Finance">
-          <MemoryRouter>
+          <MemoryRouter initialEntries={[initialEntry]}>
             <ToastProvider>
               <SalesInvoices />
+              <LocationProbe />
             </ToastProvider>
           </MemoryRouter>
         </ImpersonationProvider>
       </FinanceI18nTestProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const result = render(page());
+  return { ...result, rerenderPage: () => result.rerender(page()) };
+};
 
 /** Opens the create form (the header action; the empty state offers the same button). */
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
@@ -119,10 +131,139 @@ beforeEach(async () => {
   hoisted.navigateMock.mockClear();
   hoisted.salesInvoicesState.data = [];
   hoisted.connected = false;
+  hoisted.clientOptionsQuery = { data: hoisted.clientOptions, isPending: false, isError: false, refetch: vi.fn() };
+  hoisted.projectOptionsQuery = { data: hoisted.projectOptions, isPending: false, isError: false, refetch: vi.fn() };
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
 afterEach(() => resetActiveLocale());
+
+describe('AC-S15-002 project context on the invoice form', () => {
+  it('waits for authorized project and customer options, then opens once with the matching context', async () => {
+    hoisted.clientOptionsQuery = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    hoisted.projectOptionsQuery = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const { rerenderPage } = renderPage('/sales-invoices?create=1&project=proj-1');
+
+    expect(screen.queryByRole('dialog', { name: 'New invoice' })).not.toBeInTheDocument();
+
+    hoisted.projectOptionsQuery = { data: hoisted.projectOptions, isPending: false, isError: false, refetch: vi.fn() };
+    rerenderPage();
+    expect(screen.queryByRole('dialog', { name: 'New invoice' })).not.toBeInTheDocument();
+
+    hoisted.clientOptionsQuery = { data: hoisted.clientOptions, isPending: false, isError: false, refetch: vi.fn() };
+    rerenderPage();
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+
+    expect(within(dialog).getByRole('combobox', { name: 'Customer' })).toHaveTextContent('Acme Energy');
+    expect(within(dialog).getByRole('combobox', { name: 'Project' })).toHaveTextContent('Alpha Platform');
+    const location = new URL(screen.getByTestId('location').textContent ?? '/sales-invoices', 'https://pmo.test');
+    expect(location.searchParams.get('create')).toBeNull();
+    expect(location.searchParams.get('project')).toBe('proj-1');
+
+    rerenderPage();
+    expect(screen.getAllByRole('dialog', { name: 'New invoice' })).toHaveLength(1);
+  });
+
+  it('AC-S15-002 shows the selected project currency on the contextual native rate input', async () => {
+    renderPage('/sales-invoices?create=1&project=proj-1');
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+    expect(within(dialog).getByText('€')).toBeInTheDocument();
+  });
+
+  it('AC-S15-002 never substitutes the organization currency when selected project currency is unavailable', async () => {
+    hoisted.projectOptionsQuery = {
+      data: [{ ...hoisted.projectOptions[0], currency: undefined }],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+    renderPage('/sales-invoices?create=1&project=proj-1');
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+    expect(within(dialog).queryByText('$')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Project currency unavailable.')).toBeInTheDocument();
+  });
+
+  it('refuses a project whose customer is not in the authorized client options', async () => {
+    hoisted.clientOptionsQuery = {
+      data: [{ value: 'cust-2', label: 'Borealis Marine', sub: 'Client' }],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+    renderPage('/sales-invoices?create=1&project=proj-1');
+
+    expect(await screen.findByText(/This project or its customer is no longer available/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'New invoice' })).not.toBeInTheDocument();
+    expect(hoisted.createMutate).not.toHaveBeenCalled();
+    const location = new URL(screen.getByTestId('location').textContent ?? '/sales-invoices', 'https://pmo.test');
+    expect(location.searchParams.get('create')).toBeNull();
+    expect(location.searchParams.get('project')).toBe('proj-1');
+  });
+
+  it('offers a retry when authorized options fail, then preserves the project context after they resolve', async () => {
+    const refetchClients = vi.fn();
+    const refetchProjects = vi.fn();
+    hoisted.clientOptionsQuery = { data: undefined, isPending: false, isError: true, refetch: refetchClients };
+    hoisted.projectOptionsQuery = { data: undefined, isPending: false, isError: true, refetch: refetchProjects };
+    const user = userEvent.setup();
+    const { rerenderPage } = renderPage('/sales-invoices?create=1&project=proj-1');
+
+    expect(await screen.findByText(/Project and customer options could not be loaded/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry context' }));
+    expect(refetchClients).toHaveBeenCalledOnce();
+    expect(refetchProjects).toHaveBeenCalledOnce();
+
+    hoisted.clientOptionsQuery = { data: hoisted.clientOptions, isPending: false, isError: false, refetch: refetchClients };
+    hoisted.projectOptionsQuery = { data: hoisted.projectOptions, isPending: false, isError: false, refetch: refetchProjects };
+    rerenderPage();
+    expect(await screen.findByRole('dialog', { name: 'New invoice' })).toBeInTheDocument();
+    expect(screen.queryByText(/Project and customer options could not be loaded/)).not.toBeInTheDocument();
+  });
+
+  it('keeps ordinary project filtering and global New Invoice unscoped', async () => {
+    const user = userEvent.setup();
+    renderPage('/sales-invoices?project=proj-1');
+
+    expect(screen.queryByRole('dialog', { name: 'New invoice' })).not.toBeInTheDocument();
+    expect(new URL(screen.getByTestId('location').textContent ?? '/sales-invoices', 'https://pmo.test').searchParams.get('project')).toBe('proj-1');
+    await openForm(user);
+    const dialog = screen.getByRole('dialog', { name: 'New invoice' });
+    expect(within(dialog).getByRole('combobox', { name: 'Customer' })).toHaveTextContent('Select or search customer…');
+    expect(within(dialog).getByRole('combobox', { name: 'Project' })).not.toHaveTextContent('Alpha Platform');
+  });
+
+  it('clears a contextual project when the user changes to another authorized customer', async () => {
+    const user = userEvent.setup();
+    renderPage('/sales-invoices?create=1&project=proj-1');
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+
+    await pick(user, 'Customer', 'Borealis Marine');
+
+    expect(within(dialog).getByRole('combobox', { name: 'Customer' })).toHaveTextContent('Borealis Marine');
+    expect(within(dialog).getByRole('combobox', { name: 'Project' })).not.toHaveTextContent('Alpha Platform');
+  });
+
+  it('retains the contextual draft and command identity after a failed save and retry', async () => {
+    hoisted.createMutate.mockRejectedValueOnce(new Error('temporary save failure'));
+    const user = userEvent.setup();
+    renderPage('/sales-invoices?create=1&project=proj-1');
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+    await user.type(within(dialog).getByLabelText(/Item code/), 'ITEM-001');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+    expect(await screen.findByTestId('entity-modal-save-error')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog', { name: 'New invoice' })).getByLabelText(/Item code/)).toHaveValue('ITEM-001');
+    expect(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('combobox', { name: 'Customer' })).toHaveTextContent('Acme Energy');
+    expect(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('combobox', { name: 'Project' })).toHaveTextContent('Alpha Platform');
+
+    const firstArgs = (hoisted.createMutate.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    await user.click(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('button', { name: 'Create invoice' }));
+    const secondArgs = (hoisted.createMutate.mock.calls[1] as unknown as [Record<string, unknown>])[0];
+    expect(secondArgs.intent).toEqual(firstArgs.intent);
+    expect(secondArgs).toEqual(expect.objectContaining({ customerId: 'cust-1', projectId: 'proj-1' }));
+    expect(hoisted.createMutate).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 1)', () => {
   it('keeps the status filters inside a keyboard-accessible horizontal region', async () => {

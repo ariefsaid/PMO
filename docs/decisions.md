@@ -3373,3 +3373,16 @@ group. Preserve every event and its order; grouping neither crosses pages nor in
 UX-046 graduates to AC-S23-001–004 in the history renderer/helper tests and the existing AC-CHG-019
 project-edit journey, whose original values must be visible after opening details. Rendered review
 uses rich project and procurement history at phone/desktop sizes, both locales and both themes.
+
+## UXS-024 — one phone pipeline stage list (2026-10-18, #1139)
+
+Below 768px, the board presentation uses one URL-backed stage selector and a vertical project
+list. Full project and customer names, source-currency value and applicable tax basis stay visible;
+weighting and secondary references are available in a native disclosure. A selected-stage group
+may omit repeated stage labels because the existing result filter intersects every row with that
+stage. Preserve Lost/Declined recovery, search, canonical record activation and desktop funnel/board.
+
+AC-S24-001/002 own working-set and card behavior in the page/board tests. AC-S24-004 owns rendered
+phone/desktop geometry and recovery in both locales and themes. The Sales page uses the existing
+`shell.nav.sales` destination label; the statement-host integration retains the route-metadata tail
+without a concurrent route file edit.
