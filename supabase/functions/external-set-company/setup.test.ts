@@ -132,6 +132,7 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
         id: "project-2",
         name: "Unmapped",
         code: "SYNTH-2",
+        status: "Ongoing Project",
       }]);
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
@@ -162,8 +163,345 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
     assertEquals(body.unlinkedEmployeeCount, 1);
   });
 });
+Deno.test("AC-S09-001 readiness proposes only own, unlinked customer-delivery projects", async () => {
+  const deliveryStatuses = [
+    "Won, Pending KoM",
+    "Ongoing Project",
+    "On Hold",
+    "Close Out",
+  ];
+  const stageRows = [
+    ...deliveryStatuses.map((status, index) => ({
+      id: `delivery-${index + 1}`,
+      name: `Delivery ${index + 1}`,
+      code: `SYNTH-D${index + 1}`,
+      status,
+      org_id: "org-1",
+      archived_at: null,
+    })),
+    ...[
+      "Leads",
+      "PQ Submitted",
+      "Quotation Submitted",
+      "Tender Submitted",
+      "Negotiation",
+      "Loss Tender",
+      "Declined",
+      "Internal Project",
+    ].map((status, index) => ({
+      id: `excluded-${index + 1}`,
+      name: `Non-delivery ${index + 1}`,
+      code: `SYNTH-X${index + 1}`,
+      status,
+      org_id: "org-1",
+      archived_at: null,
+    })),
+    {
+      id: "archived-delivery",
+      name: "Archived delivery",
+      code: "SYNTH-ARCHIVED",
+      status: "Ongoing Project",
+      org_id: "org-1",
+      archived_at: "2026-10-01T00:00:00Z",
+    },
+    {
+      id: "foreign-delivery",
+      name: "Foreign delivery",
+      code: "SYNTH-FOREIGN",
+      status: "Ongoing Project",
+      org_id: "org-2",
+      archived_at: null,
+    },
+    {
+      id: "project-1",
+      name: "Already linked",
+      code: "SYNTH-LINKED",
+      status: "Ongoing Project",
+      org_id: "org-1",
+      archived_at: null,
+    },
+  ];
+  const acceptedBinding = {
+    ...binding,
+    config: {
+      ...binding.config,
+      project_map: { "project-1": "ERP-PROJECT-1" },
+    },
+  };
+
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("external_org_bindings", () =>
+      jsonResponse(acceptedBinding)
+    ),
+    supabaseSelect("external_domain_ownership", () =>
+      jsonResponse([{ domain: "companies" }])
+    ),
+    supabaseSelect("projects", (call) => {
+      const selected = (call.url.searchParams.get("select") ?? "")
+        .split(",");
+      const orgFilter = call.url.searchParams.get("org_id");
+      const archiveFilter = call.url.searchParams.get("archived_at");
+      return jsonResponse(stageRows
+        .filter((row) => orgFilter !== "eq.org-1" || row.org_id === "org-1")
+        .filter((row) => archiveFilter !== "is.null" || row.archived_at === null)
+        .map((row) =>
+          Object.fromEntries(selected.map((column) => [column, row[column as keyof typeof row]]))
+        ));
+    }),
+    supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("timesheet_entries", () => jsonResponse([])),
+    supabaseSelect("erp_employees", () => jsonResponse([])),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "readiness" }),
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(
+      body.unmappedProjects.map((project: { id: string }) => project.id).sort(),
+      ["delivery-1", "delivery-2", "delivery-3", "delivery-4"],
+    );
+    assertEquals(
+      calls.filter((call) =>
+        call.url.pathname === "/api/resource/Project" && call.method === "POST"
+      ).length,
+      0,
+    );
+  });
+});
+Deno.test("AC-S09-001 linking rechecks project stage before ERP reads or writes", async () => {
+  const excludedStatuses = [
+    "Leads",
+    "PQ Submitted",
+    "Quotation Submitted",
+    "Tender Submitted",
+    "Negotiation",
+    "Loss Tender",
+    "Declined",
+    "Internal Project",
+  ];
+
+  for (const status of excludedStatuses) {
+    const project = {
+      id: "project-stage",
+      name: "Non-delivery project",
+      code: "SYNTH-EXCLUDED",
+      status,
+    };
+    await withFetchMock([
+      ...base(),
+      supabaseSelect("projects", (call) => {
+        const selected = (call.url.searchParams.get("select") ?? "")
+          .split(",");
+        return jsonResponse(
+          Object.fromEntries(
+            selected.map((column) => [column, project[column as keyof typeof project]]),
+          ),
+        );
+      }),
+      erp("erp.example.test", "/api/resource/Project/ERP-SELECTED", () =>
+        jsonResponse({
+          data: {
+            name: "ERP-SELECTED",
+            project_name: "Non-delivery project",
+            company: "Example Company",
+            is_active: "Yes",
+          },
+        })
+      ),
+      {
+        label: "project-config-patch",
+        method: "PATCH",
+        pathname: "/rest/v1/external_org_bindings",
+        response: () => jsonResponse([{ org_id: "org-1" }]),
+      },
+    ], async ({ calls }) => {
+      const response = await handleSetCompanyRequest(
+        await request({
+          tier: "erpnext",
+          setupAction: "link-project",
+          projectId: project.id,
+          erpProject: "ERP-SELECTED",
+          expectedErpProject: null,
+        }),
+      );
+      assertEquals(response.status, 422, status);
+      assertEquals(
+        calls.filter((call) => call.url.host === "erp.example.test").length,
+        0,
+        status,
+      );
+      assertEquals(
+        calls.filter((call) => call.method === "PATCH").length,
+        0,
+        status,
+      );
+    });
+  }
+});
+Deno.test("AC-S09-004 reviewed link confirms server identity with one atomic RPC", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () =>
+      jsonResponse({
+        id: "project-2",
+        name: "Example Delivery",
+        code: "SYNTH-2",
+        status: "Ongoing Project",
+      })
+    ),
+    erp("erp.example.test", "/api/resource/Project/ERP-SELECTED", () =>
+      jsonResponse({
+        data: {
+          name: "ERP-SELECTED",
+          project_name: "Example Delivery",
+          company: "Example Company",
+          is_active: "Yes",
+        },
+      })
+    ),
+    supabaseRpc("confirm_erp_project_link", () => jsonResponse(true)),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({
+        tier: "erpnext",
+        setupAction: "link-project",
+        projectId: "project-2",
+        erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
+        orgId: "client-org-must-be-ignored",
+      }),
+    );
+    assertEquals(response.status, 200);
+    assertEquals((await response.json()).erpProject, "ERP-SELECTED");
+    assertEquals(rpcCall(calls, "confirm_erp_project_link")[0]?.bodyJson, {
+      p_org_id: "org-1",
+      p_actor_id: "admin-1",
+      p_project_id: "project-2",
+      p_erp_project: "ERP-SELECTED",
+      p_expected_config: binding.config,
+      p_site_url: binding.site_url,
+      p_expected_erp_project: null,
+    });
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
+  });
+});
+Deno.test("AC-S09-004 reviewed link requires an explicit expected prior identity", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () =>
+      jsonResponse({
+        id: "project-2",
+        name: "Example Delivery",
+        code: "SYNTH-2",
+        status: "Ongoing Project",
+      })
+    ),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({
+        tier: "erpnext",
+        setupAction: "link-project",
+        projectId: "project-2",
+        erpProject: "ERP-SELECTED",
+      }),
+    );
+    assertEquals(response.status, 400);
+    assertEquals(calls.filter((call) => call.url.host === "erp.example.test").length, 0);
+    assertEquals(rpcCall(calls, "confirm_erp_project_link").length, 0);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
+  });
+});
+Deno.test("AC-S09-004 reviewed link stops at four config-CAS attempts", async () => {
+  let bindingReads = 0;
+  let confirmations = 0;
+  await withFetchMock([
+    supabaseSelect("external_org_bindings", () => {
+      bindingReads++;
+      return jsonResponse(binding);
+    }),
+    ...base(),
+    supabaseSelect("projects", () =>
+      jsonResponse({
+        id: "project-2",
+        name: "Example Delivery",
+        code: "SYNTH-2",
+        status: "Ongoing Project",
+      })
+    ),
+    erp("erp.example.test", "/api/resource/Project/ERP-SELECTED", () =>
+      jsonResponse({
+        data: {
+          name: "ERP-SELECTED",
+          project_name: "Example Delivery",
+          company: "Example Company",
+          is_active: "Yes",
+        },
+      })
+    ),
+    supabaseRpc("confirm_erp_project_link", () => {
+      confirmations++;
+      return jsonResponse(false);
+    }),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({
+        tier: "erpnext",
+        setupAction: "link-project",
+        projectId: "project-2",
+        erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
+      }),
+    );
+    assertEquals(response.status, 422);
+    assertEquals(confirmations, 4);
+    assertEquals(bindingReads, 4);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
+  });
+});
+Deno.test("AC-S09-004 confirmation RPC errors fail without a fallback config write", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () =>
+      jsonResponse({
+        id: "project-2",
+        name: "Example Delivery",
+        code: "SYNTH-2",
+        status: "Ongoing Project",
+      })
+    ),
+    erp("erp.example.test", "/api/resource/Project/ERP-SELECTED", () =>
+      jsonResponse({
+        data: {
+          name: "ERP-SELECTED",
+          project_name: "Example Delivery",
+          company: "Example Company",
+          is_active: "Yes",
+        },
+      })
+    ),
+    supabaseRpc("confirm_erp_project_link", () =>
+      jsonResponse({ code: "23514", message: "synthetic audit failure" }, { status: 500 })
+    ),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({
+        tier: "erpnext",
+        setupAction: "link-project",
+        projectId: "project-2",
+        erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
+      }),
+    );
+    assertEquals(response.status, 500);
+    assertEquals(rpcCall(calls, "confirm_erp_project_link").length, 1);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
+  });
+});
 Deno.test("AC-SETUP-001 Admin links a real ERP Project with concurrent config preservation", async () => {
-  let patches = 0;
+  let bindingReads = 0;
+  let confirmations = 0;
   const concurrentConfig = {
     ...binding.config,
     project_map: {
@@ -175,11 +513,13 @@ Deno.test("AC-SETUP-001 Admin links a real ERP Project with concurrent config pr
   await withFetchMock([
     supabaseSelect(
       "external_org_bindings",
-      () =>
-        jsonResponse({
+      () => {
+        bindingReads++;
+        return jsonResponse({
           ...binding,
-          config: patches ? concurrentConfig : binding.config,
-        }),
+          config: bindingReads > 1 ? concurrentConfig : binding.config,
+        });
+      },
     ),
     ...base(),
     supabaseSelect("projects", (call) => {
@@ -189,6 +529,7 @@ Deno.test("AC-SETUP-001 Admin links a real ERP Project with concurrent config pr
         id: "project-2",
         name: "Example Delivery",
         code: "SYNTH-2",
+        status: "Ongoing Project",
       });
     }),
     erp(
@@ -204,43 +545,30 @@ Deno.test("AC-SETUP-001 Admin links a real ERP Project with concurrent config pr
           },
         }),
     ),
-    {
-      label: "conditional-config-patch",
-      method: "PATCH",
-      pathname: "/rest/v1/external_org_bindings",
-      response: (call) => {
-        assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
-        assertEquals(call.url.searchParams.get("external_tier"), "eq.erpnext");
-        assertEquals(
-          JSON.parse(call.url.searchParams.get("config")!.slice(3)),
-          patches ? concurrentConfig : binding.config,
-        );
-        patches++;
-        if (patches === 1) return jsonResponse([]);
-        assertEquals(call.bodyJson, {
-          config: {
-            ...concurrentConfig,
-            project_map: {
-              ...concurrentConfig.project_map,
-              "project-2": "ERP-SELECTED",
-            },
-          },
-        });
-        return jsonResponse([{ org_id: "org-1" }]);
-      },
-    },
-  ], async () => {
+    supabaseRpc("confirm_erp_project_link", (call) => {
+      confirmations++;
+      const args = call.bodyJson as Record<string, unknown>;
+      assertEquals(args.p_org_id, "org-1");
+      assertEquals(args.p_project_id, "project-2");
+      assertEquals(args.p_erp_project, "ERP-SELECTED");
+      assertEquals(args.p_expected_erp_project, null);
+      assertEquals(args.p_expected_config, confirmations === 1 ? binding.config : concurrentConfig);
+      return jsonResponse(confirmations > 1);
+    }),
+  ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({
         tier: "erpnext",
         setupAction: "link-project",
         projectId: "project-2",
         erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
       }),
     );
     assertEquals(response.status, 200);
     assertEquals((await response.json()).erpProject, "ERP-SELECTED");
-    assertEquals(patches, 2);
+    assertEquals(confirmations, 2);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
 Deno.test("project link in another org refuses before any ERP or configuration write", async () => {
@@ -254,6 +582,7 @@ Deno.test("project link in another org refuses before any ERP or configuration w
         setupAction: "link-project",
         projectId: "foreign-project",
         erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
       }),
     );
     assertEquals(response.status, 404);
@@ -480,7 +809,11 @@ Deno.test("a Project from another ERP Company refuses before any mapping write",
     ...base(),
     supabaseSelect(
       "projects",
-      () => jsonResponse({ id: "project-2", name: "Example Delivery" }),
+      () => jsonResponse({
+        id: "project-2",
+        name: "Example Delivery",
+        status: "Ongoing Project",
+      }),
     ),
     erp(
       "erp.example.test",
@@ -507,6 +840,7 @@ Deno.test("a Project from another ERP Company refuses before any mapping write",
         setupAction: "link-project",
         projectId: "project-2",
         erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
       }),
     );
     assertEquals(response.status, 422);
@@ -780,19 +1114,26 @@ Deno.test("domain setup refuses unreadable masters and unsupported domains befor
   }
 });
 Deno.test("project map persistence is bound to the ERP site used for the returned identity", async () => {
-  let patches = 0;
+  let bindingReads = 0;
   await withFetchMock([
-    supabaseSelect("external_org_bindings", () =>
-      jsonResponse({
+    supabaseSelect("external_org_bindings", () => {
+      bindingReads++;
+      return jsonResponse({
         ...binding,
-        site_url: patches
+        site_url: bindingReads > 1
           ? "https://another-erp.example.test"
           : binding.site_url,
-      })),
+      });
+    }),
     ...base(),
     supabaseSelect(
       "projects",
-      () => jsonResponse({ id: "project-2", name: "Delivery", code: null }),
+      () => jsonResponse({
+        id: "project-2",
+        name: "Delivery",
+        code: null,
+        status: "Ongoing Project",
+      }),
     ),
     erp(
       "erp.example.test",
@@ -806,19 +1147,7 @@ Deno.test("project map persistence is bound to the ERP site used for the returne
           },
         }),
     ),
-    {
-      label: "site-bound-config-patch",
-      method: "PATCH",
-      pathname: "/rest/v1/external_org_bindings",
-      response: (call) => {
-        assertEquals(
-          call.url.searchParams.get("site_url"),
-          "eq.https://erp.example.test",
-        );
-        patches++;
-        return jsonResponse([]);
-      },
-    },
+    supabaseRpc("confirm_erp_project_link", () => jsonResponse(false)),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({
@@ -826,10 +1155,12 @@ Deno.test("project map persistence is bound to the ERP site used for the returne
         setupAction: "link-project",
         projectId: "project-2",
         erpProject: "ERP-SELECTED",
+        expectedErpProject: null,
       }),
     );
     assertEquals(response.status, 422);
-    assertEquals(calls.filter((call) => call.method === "PATCH").length, 1);
+    assertEquals(rpcCall(calls, "confirm_erp_project_link").length, 1);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
 
