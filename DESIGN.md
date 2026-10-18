@@ -949,3 +949,7 @@ Command-palette results retain canonical reference tokens on one line while allo
 ### Daily purchasing rows (S-19, 2026-10-18)
 
 Daily request lists show the shared current-state name and a descriptive next step; the full lifecycle stays on the request detail screen. Preserve the approval gate and quote-selected stage. Import/export tools live behind the labelled More disclosure while search, status and request creation remain immediate. Executive purchasing charts describe the PMO request register and distinguish it from ERP-native purchasing.
+
+### Recoverable expense capture (S-29, 2026-10-19)
+
+Place the first receipt and expense line before secondary claim details. Leave the expense type unknown until chosen; any started line requires its date, type, description and positive amount. A filename or description may suggest the title until the claimant edits it. Suggest only that claimant’s newest explicit category for the selected project and show its source. After a partial receipt failure, keep the saved draft and original inputs, explain what remains, and offer retry or the saved draft. Long forms scroll above their visible save footer in both themes and languages.

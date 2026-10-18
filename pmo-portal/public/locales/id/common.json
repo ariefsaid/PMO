@@ -4918,5 +4918,22 @@
     "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
     "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian langsung tercatat di ERP.",
     "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
+  },
+  "uxs29": {
+    "expenseCapture": {
+      "firstExpense": "Pengeluaran pertama",
+      "claimSubtitle": "Mulai dengan tanda terima atau rincian pengeluaran pertama. Anda dapat menambahkan lagi setelah menyimpan.",
+      "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
+      "expenseTypePlaceholder": "Pilih jenis",
+      "expenseTypeRequired": "Pilih jenis pengeluaran.",
+      "receipt": "Tanda terima (opsional)",
+      "chooseReceiptFile": "Pilih berkas tanda terima",
+      "chooseReceipt": "Pilih tanda terima",
+      "removeReceipt": "Hapus",
+      "categorySource": "Disarankan dari klaim terbaru Anda untuk proyek yang sama: {{title}}.",
+      "draftSavedReceiptPending": "Draf Anda sudah tersimpan. Tanda terima belum terlampir. Coba lagi untuk menyelesaikan draf ini, atau buka draf dan lampirkan tanda terima nanti.",
+      "retryReceipt": "Coba lagi lampiran tanda terima",
+      "openSavedDraft": "Buka draf tersimpan"
+    }
   }
 }

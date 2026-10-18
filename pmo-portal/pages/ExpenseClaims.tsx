@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
+import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -13,7 +15,7 @@ import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
   type ExpenseClaimWithRefs, type ExpenseKind,
 } from '@/src/lib/db/expenseClaims';
-import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
+import { ExpenseClaimFormModal, type ExpenseCategoryPrecedent } from './expenses/ExpenseClaimFormModal';
 import { AdvanceAgingCard } from './expenses/AdvanceAgingCard';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
@@ -26,6 +28,7 @@ const ExpenseClaims: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
   const [status, setStatus] = useState('');
   const [kind, setKind] = useState('');
@@ -41,11 +44,35 @@ const ExpenseClaims: React.FC = () => {
   const { data, isPending, isError, refetch } = useExpenseClaims(filters);
   const { data: projects } = useProjects();
   const { create } = useExpenseClaimMutations();
+  const expenseCapture = useExpenseCapture();
   const advanceOptions = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
-  const rows = data?.rows ?? [];
+  const rows = data?.rows;
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
+  const categoryPrecedents = useMemo<ExpenseCategoryPrecedent[]>(() => {
+    const newestByProject = new Map<string, ExpenseCategoryPrecedent>();
+    const ordered = [...(rows ?? [])].sort((left, right) =>
+      right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id),
+    );
+    for (const row of ordered) {
+      if (row.kind !== 'claim' || row.claimant_id !== currentUser?.id || !row.project_id || !row.budget_category) continue;
+      if (newestByProject.has(row.project_id)) continue;
+      newestByProject.set(row.project_id, {
+        projectId: row.project_id,
+        budgetCategory: row.budget_category,
+        sourceTitle: row.title,
+      });
+    }
+    return [...newestByProject.values()];
+  }, [rows, currentUser?.id]);
+  const openSavedExpenseDraft = async () => {
+    const claimId = expenseCapture.recovery?.claimId;
+    if (!claimId) return;
+    await expenseCapture.cleanupUnlinkedAttachment();
+    setFormKind(null);
+    navigate(`/expenses/${claimId}`);
+  };
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -123,12 +150,12 @@ const ExpenseClaims: React.FC = () => {
             </p>
           )}
           <DataTable<ExpenseClaimWithRefs>
-            rows={rows}
+            rows={rows ?? []}
             columns={columns}
             rowKey={(r) => r.id}
             onActivate={(r) => navigate(`/expenses/${r.id}`)}
             rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
-            state={rows.length === 0 ? 'empty' : undefined}
+            state={(rows ?? []).length === 0 ? 'empty' : undefined}
             emptyTitle={t('expenses.table.emptyTitle', 'No expenses here yet')}
             emptySub={t('expenses.table.emptySub', 'File a claim after the work, or request an advance before it.')}
           />
@@ -139,12 +166,17 @@ const ExpenseClaims: React.FC = () => {
           kind={formKind}
           projectOptions={projectOptions}
           advanceOptions={advanceOptions}
+          categoryPrecedents={categoryPrecedents}
+          captureRecovery={formKind === 'claim' ? expenseCapture.recovery : null}
+          onOpenSavedDraft={openSavedExpenseDraft}
           onClose={() => setFormKind(null)}
-          onSubmit={async (input) => {
-            const created = await create.mutateAsync(input);
+          onSubmit={async (input, capture) => {
+            const claimId = input.kind === 'claim' && capture
+              ? await expenseCapture.capture({ header: input, firstLine: capture.firstLine, receiptFile: capture.receiptFile })
+              : (await create.mutateAsync(input)).id;
             toast(t('expenses.toast.created', 'Created'), input.title, 'success');
             setFormKind(null);
-            navigate(`/expenses/${created.id}`);
+            navigate(`/expenses/${claimId}`);
           }}
         />
       )}

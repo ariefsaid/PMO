@@ -4918,5 +4918,22 @@
     "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
     "projectEmptyScope": "This list covers PMO requests. ERP-native purchases stay in the ERP.",
     "dashboardEmpty": "No PMO requests to show"
+  },
+  "uxs29": {
+    "expenseCapture": {
+      "firstExpense": "First expense",
+      "claimSubtitle": "Start with a receipt or first expense line. You can add more after saving.",
+      "firstExpenseHelp": "Add a receipt, a complete expense line, or both. No receipt upload starts until you save.",
+      "expenseTypePlaceholder": "Choose a type",
+      "expenseTypeRequired": "Choose an expense type.",
+      "receipt": "Receipt (optional)",
+      "chooseReceiptFile": "Choose a receipt file",
+      "chooseReceipt": "Choose receipt",
+      "removeReceipt": "Remove",
+      "categorySource": "Suggested from your most recent same-project claim: {{title}}.",
+      "draftSavedReceiptPending": "Your draft is saved. The receipt is not attached yet. Retry to finish this draft, or open it and attach a receipt later.",
+      "retryReceipt": "Retry receipt",
+      "openSavedDraft": "Open saved draft"
+    }
   }
 }
