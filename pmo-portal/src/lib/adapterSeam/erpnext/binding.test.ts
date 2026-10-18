@@ -14,7 +14,9 @@ import {
   assertErpReadPermissions, fetchErpVersionMajor, companyDefaultsFromDoc,
   SUPPORTED_VERSION_MAJORS, activationReadPermScope, probeActivationReadPermissions, type ReadPermScope,
   ACTIVATION_CALL_TIMEOUT_MS, ACTIVATION_PROBE_CONCURRENCY, ACTIVATION_PROBE_TOTAL_BUDGET_MS,
+  parseStatementVersionProfile, fetchStatementVersionProfile,
 } from './binding.ts';
+import type { StatementVersionProfile } from './statementMetadata.ts';
 import { DEFAULT_INVOKE_TIMEOUT_MS } from '../../supabase/invokeWithTimeout.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -314,6 +316,212 @@ describe('erpnext/binding — the activation probe time budget (#656)', () => {
       expect(stats.inFlight).toBe(0);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('erpnext/binding — strict statement version profile handshake', () => {
+  const directProfile = { erpnext: { version: '16.33.0' }, frappe: { version: '16.31.0' } };
+  const expectedProfile = { erpVersion: '16.33.0', frappeVersion: '16.31.0' };
+
+  function failureOf(body: unknown): unknown {
+    try {
+      parseStatementVersionProfile(body);
+    } catch (error) {
+      return error;
+    }
+    throw new Error('expected version profile parsing to reject');
+  }
+
+  it('parses exactly the two supported versions from direct or message app maps and ignores unrelated metadata', () => {
+    expect(parseStatementVersionProfile({
+      ...directProfile,
+      erpnext: { version: '16.33.0', title: { ignored: true }, branch: 7 },
+      frappe: { version: '16.31.0', commit: ['ignored'] },
+      unused_app: null,
+      python_version: { ignored: true },
+    })).toEqual(expectedProfile);
+    expect(parseStatementVersionProfile({
+      message: {
+        ...directProfile,
+        custom_app: ['ignored'],
+        installed_apps: 'unused framework value',
+      },
+      framework_version: false,
+    })).toEqual(expectedProfile);
+  });
+
+  it('rejects malformed consumed maps and inherited required properties with static safe errors', () => {
+    const inheritedVersion = Object.create({ version: '16.33.0' }) as object;
+    const inheritedErpnext = Object.create({ erpnext: { version: '16.33.0' }, frappe: { version: '16.31.0' } }) as object;
+    const cases: Array<[string, unknown]> = [
+      ['null body', null], ['array body', []], ['scalar body', 'synthetic-canary-scalar'],
+      ['error-shaped body', { exc_type: 'synthetic-canary-error', message: 'synthetic-canary-detail' }],
+      ['data fallback is not accepted', { data: directProfile }],
+      ['nested message wrapper is not traversed', { message: { message: directProfile } }],
+      ['missing erpnext', { frappe: { version: '16.31.0' } }],
+      ['missing frappe', { erpnext: { version: '16.33.0' } }],
+      ['null app', { erpnext: null, frappe: { version: '16.31.0' } }],
+      ['array app', { erpnext: [], frappe: { version: '16.31.0' } }],
+      ['missing version', { erpnext: {}, frappe: { version: '16.31.0' } }],
+      ['null version', { erpnext: { version: null }, frappe: { version: '16.31.0' } }],
+      ['numeric version', { erpnext: { version: 16.33 }, frappe: { version: '16.31.0' } }],
+      ['blank version', { erpnext: { version: '' }, frappe: { version: '16.31.0' } }],
+      ['whitespace-only version', { erpnext: { version: '   ' }, frappe: { version: '16.31.0' } }],
+      ['inherited version', { erpnext: inheritedVersion, frappe: { version: '16.31.0' } }],
+      ['inherited app keys', inheritedErpnext],
+      ['partial wrapped map', { message: { frappe: { version: '16.31.0' } } }],
+    ];
+    for (const [label, body] of cases) {
+      const error = failureOf(body) as Error & { code?: string; details?: string };
+      expect(error, label).toMatchObject({ name: 'AppError', code: 'commit-rejected', message: 'Malformed statement version profile response' });
+      expect(`${error.message} ${error.details ?? ''} ${String(error)} ${JSON.stringify(error)}`).not.toMatch(/synthetic-canary/);
+    }
+  });
+
+  it('rejects ambiguous direct and message maps even when matching, and never reveals either payload', () => {
+    const cases = [
+      ...['16.31.0', 'synthetic-canary-conflict'].map((wrappedFrappeVersion) => ({
+        erpnext: { version: '16.33.0' },
+        frappe: { version: '16.31.0' },
+        message: { erpnext: { version: '16.33.0' }, frappe: { version: wrappedFrappeVersion } },
+        marker: 'synthetic-canary-envelope',
+      })),
+      { erpnext: { version: '16.33.0' }, message: { frappe: { version: '16.31.0' } }, marker: 'synthetic-canary-matching-partial' },
+    ];
+
+    for (const body of cases) {
+      const error = failureOf(body) as Error & { code?: string; details?: string };
+      expect(error).toMatchObject({ name: 'AppError', code: 'commit-rejected', message: 'Ambiguous statement version profile response' });
+      expect(`${error.message} ${error.details ?? ''} ${String(error)} ${JSON.stringify(error)}`).not.toMatch(/synthetic-canary/);
+    }
+  });
+
+  it('rejects every non-exact but well-shaped version pair as unsupported without exposing values', () => {
+    const pairs = [
+      ['16.32.0', '16.31.0'], ['16.33.0', '16.30.0'], ['17.33.0', '17.31.0'],
+      ['16.33', '16.31.0'], ['16.33.0.1', '16.31.0'], [' 16.33.0', '16.31.0'],
+      ['16.33.0 ', '16.31.0'], ['16.33.0-beta.1', '16.31.0'], ['16.33.0+build', '16.31.0'],
+    ];
+    for (const [erpVersion, frappeVersion] of pairs) {
+      const body = { erpnext: { version: erpVersion }, frappe: { version: frappeVersion }, marker: 'synthetic-canary-version' };
+      const error = failureOf(body) as Error & { code?: string; details?: string };
+      expect(error).toMatchObject({ name: 'AppError', code: 'config-rejected', message: 'Unsupported statement version profile' });
+      expect(`${error.message} ${error.details ?? ''} ${String(error)} ${JSON.stringify(error)}`).not.toMatch(/synthetic-canary/);
+    }
+  });
+
+  it('fetches the ordinary RPC once through the shared client with auth, manual redirect, no body, and a copied bounded client', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { message: directProfile })) as unknown as typeof fetch;
+    const rateLimiter = { acquire: vi.fn(async () => {}) };
+    const deps = {
+      fetchImpl, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: 'https://erp.example.com',
+      maxRetries: 4, timeoutMs: 9_000, sleep: vi.fn(async () => {}), rateLimiter,
+    };
+    const unchanged = { ...deps };
+    const profile: StatementVersionProfile = await fetchStatementVersionProfile(deps);
+    expect(profile).toEqual(expectedProfile);
+    const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(url).toBe('https://erp.example.com/api/method/frappe.utils.change_log.get_versions');
+    expect(init.method).toBe('GET');
+    expect(init.body).toBeUndefined();
+    expect(init.redirect).toBe('manual');
+    expect((init.headers as Record<string, string>).Authorization).toBe('token synthetic-key:synthetic-secret');
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(rateLimiter.acquire).toHaveBeenCalledTimes(1);
+    expect(deps).toEqual(unchanged);
+    const metadataProfile: StatementVersionProfile = profile;
+    expect(metadataProfile).toBe(profile);
+  });
+
+  it('uses the smaller positive caller deadline, preserving rate limiter and client dependencies', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason ?? new Error('aborted')));
+      })) as unknown as typeof fetch;
+      const deps = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com', timeoutMs: 1_250, maxRetries: 8 };
+      const pending = fetchStatementVersionProfile(deps);
+      let settled = false;
+      let outcome: unknown;
+      const observed = pending.then(
+        () => { settled = true; outcome = { resolvedUnexpectedly: true }; },
+        (error: unknown) => { settled = true; outcome = error; },
+      );
+      await vi.advanceTimersByTimeAsync(1_249);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await observed;
+      expect(outcome).toMatchObject({ name: 'ErpError', code: 'external-unreachable', status: 0 });
+      expect(deps.timeoutMs).toBe(1_250);
+      expect(deps.maxRetries).toBe(8);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('aborts a hanging request at the 5-second default deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason ?? new Error('aborted')));
+      })) as unknown as typeof fetch;
+      const pending = fetchStatementVersionProfile({ fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' });
+      let settled = false;
+      let outcome: unknown;
+      const observed = pending.then(
+        () => { settled = true; outcome = { resolvedUnexpectedly: true }; },
+        (error: unknown) => { settled = true; outcome = error; },
+      );
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await observed;
+      expect(outcome).toMatchObject({ code: 'external-unreachable' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry HTTP throttles, server failures, redirects, or network failures and returns safe classified errors', async () => {
+    const cases: Array<{ response?: Response; failure?: Error; expected: Record<string, unknown> }> = [
+      { response: jsonResponse(429, { message: 'synthetic-canary-http' }), expected: { code: 'external-unreachable', status: 429, retryable: true } },
+      { response: jsonResponse(403, { message: 'synthetic-canary-forbidden' }), expected: { code: 'commit-rejected', status: 403, retryable: true } },
+      { response: jsonResponse(503, { exception: 'synthetic-canary-upstream' }), expected: { code: 'external-unreachable', status: 503, retryable: true } },
+      { response: new Response(null, { status: 302, headers: { Location: 'https://other.example/' } }), expected: { code: 'external-unreachable', status: 302, retryable: false } },
+      { failure: new Error('synthetic-canary-network'), expected: { code: 'external-unreachable', status: 0, retryable: true } },
+    ];
+    for (const testCase of cases) {
+      const fetchImpl = vi.fn(async () => {
+        if (testCase.failure) throw testCase.failure;
+        return testCase.response!;
+      }) as unknown as typeof fetch;
+      const deps = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com', maxRetries: 7, sleep: vi.fn(async () => {}) };
+      let caught: (Error & { code?: string; status?: number; retryable?: boolean; details?: string }) | undefined;
+      try { await fetchStatementVersionProfile(deps); } catch (error) { caught = error as typeof caught; }
+      expect(caught).toMatchObject({ name: 'ErpError', message: 'ERPNext version handshake failed', ...testCase.expected });
+      expect(`${caught?.message} ${caught?.details ?? ''} ${String(caught)} ${JSON.stringify(caught)}`).not.toMatch(/synthetic-canary/);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(deps.sleep).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps malformed HTTP-200 payload errors distinct and safe from transport wrapping', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { message: 'synthetic-canary-malformed' })) as unknown as typeof fetch;
+    await expect(fetchStatementVersionProfile({ fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' }))
+      .rejects.toMatchObject({ name: 'AppError', code: 'commit-rejected', message: 'Malformed statement version profile response' });
+  });
+
+  it('rejects nonsensical caller deadlines safely without issuing a request', async () => {
+    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, '500'] as unknown[]) {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, directProfile)) as unknown as typeof fetch;
+      await expect(fetchStatementVersionProfile({
+        fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com', timeoutMs,
+      } as never)).rejects.toMatchObject({ name: 'AppError', code: 'config-rejected', message: 'Invalid statement version handshake deadline' });
+      expect(fetchImpl).not.toHaveBeenCalled();
     }
   });
 });
