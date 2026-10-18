@@ -232,3 +232,219 @@ describe('erpnext/ledgerFetch — fetchPaymentLedgerEntries', () => {
     for (const u of urls) expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
   });
 });
+
+// T1a: these cases use the shipped client with real Response bytes. A successful-but-invalid
+// list body must not become a caught-up prefix that the ledger mirror feed can publish.
+const ledgerSourceCases: Array<{
+  name: string;
+  fetch: (
+    deps: ErpClientDeps,
+    opts: { company: string; pageSize?: number; maxPages?: number },
+  ) => Promise<{ rows: Array<{ name: string; account: string; modified: string }>; caughtUp: boolean }>;
+  row: (name: string) => Record<string, unknown>;
+}> = [
+  {
+    name: 'GL',
+    fetch: fetchGlEntries,
+    row: (name) => ({ name, account: 'Cash', modified: '2026-01-01' }),
+  },
+  {
+    name: 'PLE',
+    fetch: fetchPaymentLedgerEntries,
+    row: (name) => ({ name, account: 'Creditors', modified: '2026-01-01' }),
+  },
+];
+
+const malformedLedgerEnvelopes: Array<[string, string]> = [
+  ['empty body', ''],
+  ['truncated JSON', '{"data":[]'],
+  ['null root', 'null'],
+  ['missing data', '{}'],
+  ['null data', '{"data":null}'],
+  ['object data', '{"data":{}}'],
+  ['scalar root', '17'],
+  ['array root', '[]'],
+  ['native exc_type envelope with empty data', '{"exc_type":"DoesNotExistError","data":[]}'],
+  ['native exception envelope with empty data', '{"exception":"server traceback","data":[]}'],
+  ['native exc envelope with empty data', '{"exc":"server traceback","data":[]}'],
+];
+
+function rawLedgerResponse(raw: string): Response {
+  return new Response(raw, { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
+  for (const source of ledgerSourceCases) {
+    describe(`${source.name} list response`, () => {
+      it.each(malformedLedgerEnvelopes)('rejects %s as external-unreachable', async (_label, raw) => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(raw));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co' })).rejects.toMatchObject({
+          name: 'AppError',
+          code: 'external-unreachable',
+          message: 'ERPNext ledger response was malformed',
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      });
+
+      const malformedRows: Array<[string, unknown]> = [
+        ['null row', null],
+        ['scalar row', 'not-a-record'],
+        ['array row', ['not-a-record']],
+        ['missing name', { account: 'Cash', modified: '2026-01-01' }],
+        ['nonstring name', { name: 7, account: 'Cash', modified: '2026-01-01' }],
+        ['empty name', { name: '', account: 'Cash', modified: '2026-01-01' }],
+        ['missing account', { name: 'ROW-1', modified: '2026-01-01' }],
+        ['nonstring account', { name: 'ROW-1', account: 7, modified: '2026-01-01' }],
+        ['empty account', { name: 'ROW-1', account: '', modified: '2026-01-01' }],
+        ['missing modified', { name: 'ROW-1', account: 'Cash' }],
+        ['nonstring modified', { name: 'ROW-1', account: 'Cash', modified: 7 }],
+        ['empty modified', { name: 'ROW-1', account: 'Cash', modified: '' }],
+      ];
+
+      it.each(malformedRows)('rejects a %s before normalization', async (_label, row) => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(JSON.stringify({ data: [row] })));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co' })).rejects.toMatchObject({
+          name: 'AppError',
+          code: 'external-unreachable',
+          message: 'ERPNext ledger response was malformed',
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      });
+
+      it('rejects a malformed later page instead of returning a valid prefix', async () => {
+        const fetchImpl = vi.fn(async (url: string) => {
+          const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
+          return start === 0
+            ? rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1'), source.row('ROW-2')] }))
+            : rawLedgerResponse('{"data":[');
+        });
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 })).rejects.toMatchObject({
+          name: 'AppError',
+          code: 'external-unreachable',
+          message: 'ERPNext ledger response was malformed',
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+      });
+
+      it('accepts an explicit empty data array as caught up', async () => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse('{"data":[]}'));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co' })).resolves.toMatchObject({ rows: [], caughtUp: true });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      });
+
+      it('accepts a validated short page as caught up', async () => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1')] })));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 })).resolves.toMatchObject({
+          rows: [{ name: 'ROW-1', account: expect.any(String), modified: expect.any(String) }],
+          caughtUp: true,
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      });
+
+      it('reads an explicit empty page after exact-multiple full pages', async () => {
+        const fetchImpl = vi.fn(async (url: string) => {
+          const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
+          if (start === 0) return rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-1'), source.row('ROW-2')] }));
+          if (start === 2) return rawLedgerResponse(JSON.stringify({ data: [source.row('ROW-3'), source.row('ROW-4')] }));
+          return rawLedgerResponse('{"data":[]}');
+        });
+        const result = await source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 });
+        expect(result).toMatchObject({ rows: [
+          { name: 'ROW-1' }, { name: 'ROW-2' }, { name: 'ROW-3' }, { name: 'ROW-4' },
+        ], caughtUp: true });
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+      });
+
+      it('rejects a response page larger than the requested page size', async () => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(JSON.stringify({
+          data: [source.row('ROW-1'), source.row('ROW-2'), source.row('ROW-3')],
+        })));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2 })).rejects.toMatchObject({
+          name: 'AppError',
+          code: 'external-unreachable',
+          message: 'ERPNext ledger response was malformed',
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      });
+
+      it('keeps a full final page at the page budget incomplete without another request', async () => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse(JSON.stringify({
+          data: [source.row('ROW-1'), source.row('ROW-2')],
+        })));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2, maxPages: 2 })).resolves.toMatchObject({
+          rows: [{ name: 'ROW-1' }, { name: 'ROW-2' }, { name: 'ROW-1' }, { name: 'ROW-2' }],
+          caughtUp: false,
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+      });
+
+      it.each([
+        ['pageSize zero', { pageSize: 0 }],
+        ['pageSize negative', { pageSize: -1 }],
+        ['pageSize fractional', { pageSize: 1.5 }],
+        ['pageSize NaN', { pageSize: Number.NaN }],
+        ['pageSize infinity', { pageSize: Number.POSITIVE_INFINITY }],
+        ['pageSize unsafe integer', { pageSize: Number.MAX_SAFE_INTEGER + 1 }],
+        ['maxPages zero', { maxPages: 0 }],
+        ['maxPages negative', { maxPages: -1 }],
+        ['maxPages fractional', { maxPages: 1.5 }],
+        ['maxPages NaN', { maxPages: Number.NaN }],
+        ['maxPages infinity', { maxPages: Number.POSITIVE_INFINITY }],
+        ['maxPages unsafe integer', { maxPages: Number.MAX_SAFE_INTEGER + 1 }],
+      ])('rejects invalid configuration (%s) before making a request', async (_label, override) => {
+        const fetchImpl = vi.fn(async () => rawLedgerResponse('{"data":[]}'));
+        await expect(source.fetch(client(fetchImpl), { company: 'Synthetic Co', ...override })).rejects.toMatchObject({
+          name: 'AppError',
+          code: 'config-rejected',
+        });
+        expect(fetchImpl).not.toHaveBeenCalled();
+      });
+    });
+  }
+
+  it('does not mutate mirror or watermark state or finish a full replay after a real GL page is followed by malformed JSON', async () => {
+    const [{ feedLedgerMirrors }, { FakePostgrest }] = await Promise.all([
+      import('./ledgerMirrorFeed.ts'),
+      import('@/test/postgrestFake.ts'),
+    ]);
+    const initialTables = {
+      erp_gl_entry_mirror: [{ id: 'gl-existing', org_id: 'org-1', erp_name: 'GL-EXISTING', erp_modified: '2026-01-01' }],
+      erp_payment_ledger_mirror: [{ id: 'ple-existing', org_id: 'org-1', erp_name: 'PLE-EXISTING', erp_modified: '2026-01-01' }],
+      external_sync_watermarks: [
+        { id: 'wm-gl', org_id: 'org-1', external_tier: 'erpnext', domain: 'ledger::GL Entry', watermark_cursor: '2026-01-01' },
+        { id: 'wm-ple', org_id: 'org-1', external_tier: 'erpnext', domain: 'ledger::Payment Ledger Entry', watermark_cursor: '2026-01-01' },
+      ],
+    };
+    const fake = new FakePostgrest(initialTables, {
+      upsertKeys: {
+        erp_gl_entry_mirror: ['org_id', 'erp_name'],
+        erp_payment_ledger_mirror: ['org_id', 'erp_name'],
+        external_sync_watermarks: ['org_id', 'external_tier', 'domain'],
+      },
+    });
+    const before = Object.fromEntries(Object.keys(initialTables).map((table) => [table, structuredClone(fake.rowsOf(table))]));
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      urls.push(url);
+      const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
+      if (start === 0) {
+        return rawLedgerResponse(JSON.stringify({ data: [
+          { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '1.00', credit: '0.00', modified: '2026-01-02' },
+          { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '2.00', credit: '0.00', modified: '2026-01-03' },
+        ] }));
+      }
+      return rawLedgerResponse('{"data":[');
+    });
+    const rpc = vi.fn(async () => ({ data: { deleted: 0 }, error: null }));
+    const serviceClient = Object.assign(fake, { rpc });
+
+    await expect(feedLedgerMirrors(serviceClient as never, {
+      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true, pageSize: 2, maxPages: 2,
+    })).rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
+
+    for (const table of Object.keys(initialTables)) expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    expect(rpc).not.toHaveBeenCalledWith('finish_erp_gl_replay', expect.anything());
+    expect(urls).toHaveLength(2);
+    expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+  });
+});
