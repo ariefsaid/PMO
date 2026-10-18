@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { requireServiceRoleKey, signIn } from './helpers';
+import { requireServiceRoleKey, signIn, waitForFonts } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const localized = (en: string, id: string) => new RegExp('(?:' + en + '|' + id + ')', 'i');
@@ -37,6 +37,7 @@ async function setDiscoverPresentation(page: Page, locale: DiscoverLocale, theme
 }
 
 async function captureDiscoverScreen(page: Page, outputDir: string, name: string) {
+  await waitForFonts(page);
   await page.evaluate(async () => {
     const visibleDialogs = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]'))
       .filter((element) => {
