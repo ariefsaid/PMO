@@ -4731,5 +4731,15 @@
     "unappliedNote": "{{amount}} dari penerimaan ini belum dialokasikan ke faktur.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
+  },
+  "uxs23": {
+    "history": {
+      "summaryCreated": "{{kind}} dibuat",
+      "summaryStatusChanged": "Status berubah",
+      "summaryUpdated": "{{kind}} diperbarui",
+      "summaryRecorded": "Peristiwa riwayat",
+      "viewDetails": "Lihat detail perubahan",
+      "groupSummary": "{{count}} peristiwa sistem"
+    }
   }
 }

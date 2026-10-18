@@ -162,6 +162,99 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
       sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
     });
   });
+
+  it('AC-S23-001 leads with the business event and keeps actor and exact time secondary', async () => {
+    const createdAt = '2026-10-06T09:41:00.000Z';
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { op: 'insert', createdAt })],
+      nextCursor: null,
+    });
+    const english = renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    const summary = within(row).getByText('Project created');
+    const actor = within(row).getByText('Dana PM');
+    const time = row.querySelector('time');
+
+    expect(summary.compareDocumentPosition(actor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time).toHaveAttribute('datetime', createdAt);
+    expect(summary.compareDocumentPosition(time!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    english.unmount();
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { op: 'insert', createdAt })],
+      nextCursor: null,
+    });
+    renderIt({}, true);
+    const indonesianRow = await screen.findByTestId('history-event');
+    expect(within(indonesianRow).getByText('Proyek dibuat')).toBeVisible();
+    expect(within(indonesianRow).getByRole('button', { name: 'Lihat detail perubahan' })).toBeVisible();
+  });
+
+  it('AC-S23-002 exposes all captured values through a keyboard-operable details disclosure', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, {
+        changes: {
+          status: { old: 'Leads', new: 'Ongoing Project' },
+          name: { old: 'East Quay survey', new: 'North Dock survey' },
+        },
+      })],
+      nextCursor: null,
+    });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(screen.getByText('Leads → Ongoing Project')).not.toBeVisible();
+    const disclosure = within(row).getByText('View details');
+    disclosure.focus();
+    expect(disclosure).toHaveFocus();
+
+    await userEvent.keyboard('{Enter}');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Leads → Ongoing Project')).toBeVisible();
+    expect(screen.getByText('East Quay survey → North Dock survey')).toBeVisible();
+
+    await userEvent.keyboard('{Enter}');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('Leads → Ongoing Project')).not.toBeVisible();
+    expect(within(row).getByTestId('history-summary')).toBeVisible();
+  });
+
+  it('AC-S23-003 keeps rendered system batches page-local and keyboard-expandable', async () => {
+    const createdAt = '2026-10-06T09:41:00.000Z';
+    const cursor = { seq: 2, at: createdAt };
+    repo.recordHistory.list
+      .mockResolvedValueOnce({
+        events: [
+          ev(4, { actorId: null, op: 'insert', createdAt }),
+          ev(3, { actorId: null, op: 'insert', createdAt }),
+        ],
+        nextCursor: cursor,
+      })
+      .mockResolvedValueOnce({
+        events: [
+          ev(2, { actorId: null, op: 'insert', createdAt }),
+          ev(1, { actorId: null, op: 'insert', createdAt }),
+        ],
+        nextCursor: null,
+      });
+    renderIt();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Load older' }));
+    await waitFor(() => expect(screen.getAllByTestId('history-group')).toHaveLength(2));
+    const groups = screen.getAllByTestId('history-group');
+    const firstGroup = within(groups[0]).getByRole('button', { name: '2 system events' });
+    const secondGroup = within(groups[1]).getByRole('button', { name: '2 system events' });
+    expect(firstGroup).toHaveAttribute('aria-expanded', 'false');
+    expect(secondGroup).toHaveAttribute('aria-expanded', 'false');
+
+    firstGroup.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(firstGroup).toHaveAttribute('aria-expanded', 'true');
+    expect(within(groups[0]).getAllByRole('button', { name: 'View details' })).toHaveLength(2);
+    expect(within(groups[1]).queryByRole('button', { name: 'View details' })).toBeNull();
+  });
+
   const events = [
     ev(6, { actorId: null, changes: { status: { old: 'Leads', new: 'Ongoing Project' } } }),
     ev(5, { actorId: 'ghost', op: 'insert', changes: {} }),
@@ -260,6 +353,26 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     expect(screen.queryByText(/procurement\.approval_route/)).toBeNull();
   });
 
+  it('keeps an audit action, actor, and exact time without an empty details disclosure', async () => {
+    const createdAt = '2026-10-06T09:41:00.000Z';
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, {
+        source: 'audit', seq: null, op: null, action: 'procurement.approval_route', actorId: 'u2', changes: {}, createdAt,
+      })],
+      nextCursor: null,
+    });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(within(row).getByTestId('history-summary')).toHaveTextContent('Approval route recorded');
+    expect(within(row).getByText('Sam Lead')).toBeInTheDocument();
+    const time = row.querySelector('time');
+    expect(time).toBeVisible();
+    expect(time).toHaveAttribute('datetime', createdAt);
+    expect(time).toHaveTextContent(formatDateTime(new Date(createdAt)));
+    expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
+  });
+
   it('shows the absolute time to the minute, in the row and its tooltip', async () => {
     const at = '2026-10-06T09:41:00Z';
     repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt: at })], nextCursor: null });
@@ -314,7 +427,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
 });
 
 describe('RecordHistory — child records and references on the project History (AC-CHG-015, FR-CHG-012)', () => {
-  it('names the child record each event belongs to; a procurement links to its page; an unknown one reads Unavailable', async () => {
+  it('AC-S23-004 names the child record each event belongs to; a procurement links to its page; an unknown one reads Unavailable', async () => {
     repo.recordHistory.list.mockResolvedValue({
       events: [
         ev(6, { entityType: 'task', entityId: 't1', changes: { name: { old: 'Pump', new: 'Install pump' } } }),
