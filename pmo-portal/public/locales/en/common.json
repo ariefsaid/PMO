@@ -98,7 +98,6 @@
     "itemSearch": "Search ERPNext items",
     "loadingAccounts": "Loading chart accounts…",
     "noAssetAccounts": "No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.",
-    "noLiabilityAccounts": "No enabled Liability accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.",
     "notConfigured": "Not configured",
     "onlyAdmin": "Only an Admin can change this.",
     "pph23Label": "PPh 23 payable account",
@@ -612,21 +611,7 @@
         "save": "Add"
       }
     },
-    "vendorTaxAccounts": {
-      "remoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
-      "reloadSaved": "Reload saved values",
-      "heading": "Vendor bill tax accounts",
-      "helper": "Enter the exact ERPNext account name. Leave blank if not used.",
-      "inputVat": "Input VAT account",
-      "intro": "The ERPNext accounts PMO posts a vendor bill's VAT and tax withheld to. Required before a bill with these amounts can be sent to ERPNext.",
-      "loadError": "Couldn't load the tax accounts",
-      "notConfigured": "Not configured",
-      "onlyAdmin": "Only an Admin can change these.",
-      "pph23": "PPh 23 payable account",
-      "pph42": "PPh 4(2) payable account",
-      "save": "Save accounts",
-      "saved": "Tax accounts saved"
-    }
+    "vendorTaxAccounts": {}
   },
   "approvals": {
     "salesInvoices": {

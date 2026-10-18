@@ -98,7 +98,6 @@
     "itemSearch": "Cari item ERPNext",
     "loadingAccounts": "Memuat bagan akun…",
     "noAssetAccounts": "Tidak ada akun Aset aktif. Minta administrator akuntansi menambahkan akun yang sesuai ke bagan akun ERP.",
-    "noLiabilityAccounts": "Tidak ada akun Liabilitas aktif. Minta administrator akuntansi menambahkan akun yang sesuai ke bagan akun ERP.",
     "notConfigured": "Belum dikonfigurasi",
     "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
     "pph23Label": "Akun Utang PPh 23",
@@ -612,21 +611,7 @@
         "save": "Tambah"
       }
     },
-    "vendorTaxAccounts": {
-      "remoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
-      "reloadSaved": "Muat ulang nilai tersimpan",
-      "heading": "Akun pajak tagihan vendor",
-      "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
-      "inputVat": "Akun PPN Masukan",
-      "intro": "Akun ERPNext tempat PMO membukukan PPN dan pajak dipotong pada tagihan vendor. Wajib diisi sebelum tagihan dengan jumlah tersebut dapat dikirim ke ERPNext.",
-      "loadError": "Tidak dapat memuat akun pajak",
-      "notConfigured": "Belum dikonfigurasi",
-      "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
-      "pph23": "Akun Utang PPh 23",
-      "pph42": "Akun Utang PPh 4(2)",
-      "save": "Simpan akun",
-      "saved": "Akun pajak disimpan"
-    }
+    "vendorTaxAccounts": {}
   },
   "approvals": {
     "salesInvoices": {
