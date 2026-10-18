@@ -1,89 +1,129 @@
-# Financial statements in PMO (#897)
+# Financial statements in PMO (#897) — v0.23 native report display
 
-**Status: SIGNED OFF by owner 2026-10-16** (OQ-001 → month/quarter/fiscal year only; Executive sees company statements).
+**Owner amendment (2026-10-18):** v0.23.0 displays saved ERPNext standard reports.
+This supersedes the 2026-10-16 calculation approach for this release. Implementation targets dev only.
 
-**Issue:** [#897](https://github.com/ariefsaid/PMO/issues/897), under #894.
+**Authority:** owner 2026-10-18 direction; OD-SAR-PMO-IS-THE-UI and OD-ERP-3/4; DD-OPS-11;
+ADR-0016 authorization, ADR-0010 test ownership. The producer/aggregation parts of ADR-0088 and
+older implementation plans are superseded for this release by decision OD-FS-023.
 
-**Authority:** `docs/decisions.md` **OD-SAR-PMO-IS-THE-UI**, sharpened by **OD-ERP-3/4**; owner decisions of 2026-10-16. ADR-0048's ledger-sourced display rule, ADR-0016 (authorization), ADR-0010 (test ownership).
+## 1. Job, release scope and parked work
 
-## 1. Job and scope
+When preparing month-end, Finance reads the connected Company's ERPNext standard statements and
+project P&L in PMO, including the preceding period, without opening ERPNext Desk.
 
-**Job story.** When preparing month-end, Finance wants to read the company's books and each project's profit in PMO, with the previous period alongside, so the accountant can explain the figures without opening ERPNext.
+v0.23 displays **actual ERPNext standard report responses**, saved by the existing ERP sweep:
+Trial Balance, Profit and Loss Statement, Balance Sheet, and P&L with an explicit mapped native
+Project filter. One activated Company, IDR, month/quarter/fiscal-year picker, current/prior ranges.
+Existing approved company page/project Overview, roles, plain-language states and both locales stay.
 
-| Phase | Included |
-|---|---|
-| **1 — first month-end** | Trial balance; profit and loss, company-wide and per project; balance sheet. One connected ERPNext Company, chosen period, prior-period comparison, IDR company-currency amounts. |
-| **2 — later; out of scope** | Cash flow; general-ledger drill to the source document; party ledger; auditor export pack (year-end target). Stub only: a later spec must define their contents, permissions and reconciliation oracles; no placeholder screens or export promise in Phase 1. |
+**Parked after v0.23.0, preserved rather than deleted:** independent mirrored-GL report calculation,
+B2 aggregate/T7/130k calculator work, T3 recompute, seven-case calculator oracle/ACB equivalence,
+no-ERP financial statements, and any derived unassigned remainder. Company report remains native
+company-wide; a project report adds only its explicit native Project filter. No company-minus-project
+math, allocation or invented native unassigned report. No unassigned picker/endpoint in v0.23.
+Cash flow, consolidation, account maintenance, GL drilldown, auditor export and posting/closing/
+period-lock workflows retain their separate scope. Existing Actuals/aging/other accounting flows
+and raw-ledger privacy contracts remain unchanged.
 
-Also excluded: consolidation/multiple companies, account maintenance, account-currency statements, PMO exchange-rate conversion/revaluation, closing entries and period-lock workflows (#900). ERPNext posts **every** entry; PMO displays only sums of its ledger lines, their account hierarchy and the report presentation described below. No independent accounting engine, estimated profit, procurement commitment totals or management-pack revenue recognition substitutes.
+## 2. Source, capture and storage contract
 
-## 2. Decisions / data contract
+- **Producer:** normal read-only GET `frappe.desk.query_report.run` with standard native report
+  name and exact filters, with ignore_prepared_report=1 as a method argument (not inside filters),
+  through the existing classified GET ERP transport/strict metadata wrapper.
+  No native helper execution, custom report/controller, GL/account arithmetic or browser ERP call.
+  v16.33.0/Frappe16.31.0 is the captured statement profile; existing supported legacy integrations
+  continue independently when this display capability is unavailable.
+- **Periods/profile:** actual applicable native fiscal calendar; immediately preceding equivalent
+  range, with explicit dates. TB uses its actual FY/from/to and six returned monetary fields, both
+  closing-entry options on, group/net on, unclosed-prior-P&L off. PL is nonaccumulated; BS accumulated;
+  Date Range current/prior calls are independent with Monthly/Quarterly/Yearly. IDR, blank selected
+  book plus native default-book entries, no other dimensions/consolidation/template. An unsupported
+  prior/range or native clamping does not create zero/guessed dates.
+- **Mapped projects:** server binding map resolves PMO project id to native Project name. Company
+  responses are never a project's fallback. Native project PL supplies both its detailed response
+  and its restricted three totals. The latter copy the native report_summary Income/Expense/Net
+  Currency values for each single-period call; no sum/subtraction or missing-profit-row inference.
+  Mapping/summary-role structure is source-bound and validated; relevant missing values fail.
+- **Lossless display:** preserve native financial numeric tokens before JS Number conversion;
+  normalize representation/structure only. Preserve ordered columns/rows, sparse special/footer/
+  provisional/unclosed rows, native empty states and per-side absent rows. No locally repaired
+  hierarchy/profit/zero row, missing-cell default0, row summation or monetary recomputation.
+  Current/prior remain separate native sides; translated labels are not Account identities or a
+  cross-period join key. Formatting is presentation only and does not rewrite stored values.
+- **Raw audit:** keep each original financial response with its exact filters, software/context,
+  acquisition time and digest in restricted detail storage. Totals rows have no raw reports,
+  account rows/settings/filter bodies or company detail. Never publish native bodies/coordinates.
+- **Resumable refresh:** one bounded segment per org on the existing sweep/lease. Collect the finite
+  catalogue across ticks, then publish the ENTIRE required current/prior company/project scope set
+  atomically. Partial work stays machine-only; readers keep the previous complete generation/time.
+  No narrower demand-driven capture, arbitrary history cutoff or increased runtime timeout.
+- **Honest time/coherence:** sourceGeneration identifies one completed native acquisition batch,
+  not a GL/chart generation or an ERP-wide transaction. Each response has acquiredAt; the generation
+  records startedAt/completedAt. Ordinary financial changes across legitimate report calls belong
+  to that capture window. Before publication recheck binding/Company/version/calendar/project map;
+  a changed context invalidates pending work. No second financial pass, GL-completeness/ACB parity
+  gate or invented ERP revision token is required. Missing/failed responses cannot be published.
 
-**Grounding inspected:** `src/auth/policy.ts` (under `pmo-portal/`); migrations 0101, 0270, 0274, 0279; `ledgerMirrorFeed.ts`, `ledgerFetch.ts`, `actualsSnapshot.ts`; both existing accounting snapshot components. These establish the reusable seams, not live-site state.
+### Roles and server authority
 
-- **Company and periods.** Use the org's activated ERPNext Company (`external_org_bindings.config.company`, OD-INT-6), not the CRM Companies directory. Show its readable name. Proposed picker: month, quarter or fiscal year using ERPNext's fiscal calendar; compare the immediately preceding equivalent period, each with explicit dates (including across fiscal years). Balance sheet columns are **as at each period end**; P&L columns are **activity within each period**. Trial balance shows opening debit/credit, period debit/credit and closing debit/credit for both periods. Custom dates: OQ-001.
-- **New table: `erp_account_mirror`.** Machine-written, keyed by `(org_id, company, erp_name)`. Mirror Account `name` (stored as `erp_name`), `company`, `account_name`, `root_type` (Asset/Liability/Equity/Income/Expense), `report_type` (Balance Sheet/Profit and Loss), `parent_account`, `is_group`, `account_number`, `account_currency`; also `lft`, `rgt`, `account_type`, `include_in_gross`, `disabled`, `modified` (as `erp_modified`), plus `org_id`, `as_of` and generation identity. Names/numbers are presentation, never guessed classifications. Disabled accounts with historical activity remain reportable.
-- **Refresh and renames.** Full, paginated account scan on activation, then on the existing five-minute ERP sweep, before publishing statements. Publish only a complete chart. A moved account restates both columns under ERPNext's **current** hierarchy, as its reports do; no duplicate parent totals. A rename/merge or disappearance triggers a complete company-ledger rescan and account-reference reconciliation, not name/number guessing or reliance on changed timestamps on linked entries. Keep the previous complete statement while rebuilding; unmatched accounts block publication, never silently drop amounts.
-- **Ledger basis.** Reuse `erp_gl_entry_mirror`; retain cancelled lines but exclude `is_cancelled=true` (including cancellation-marked originals/reversals, #901). The Phase-1 feed shall also retain ERPNext `is_opening`, `finance_book` and explicit company scope, with a full historical backfill before first publication. Read Company currency/default finance book, Fiscal Year dates and the reporting-relevant Accounts Settings as source metadata, not PMO defaults. Payment Ledger Entry is not a statement amount source. Its existing mirror remains subject to the role contract below.
-- **New table: `erp_financial_statement_snapshot`.** Machine-written result scoped by org, company, statement, optional mapped project, both date ranges and view kind (account breakdown/project totals). Carry `snapshot_id`, `as_of`, source report/version, filters/settings and source generation. Publish both columns atomically from one complete generation. Project-total payloads contain only income, expense and net profit/loss, never account/party/voucher detail. Planner owns physical shape, indexes and reversible migrations.
-- **Currency.** Sum ERPNext `debit`/`credit` in company currency **IDR**, including the company-currency amounts already posted for USD bank accounts. Never sum `debit_in_account_currency`/`credit_in_account_currency`, reconvert USD, or apply PMO's exchange-rate table. Decimal-safe arithmetic; match ERP report rounding, never round individual input lines to whole rupiah.
-- **Project attribution.** Filter the ledger's `project` through the existing org binding's `project_map`; no allocation of overhead or inference from cost centre. Company P&L includes every project and entries without a project. Finance can see an explicit “Not assigned to a project” remainder; project totals plus that remainder must tie to company P&L. Unmapped ERP project names are included in that remainder, never exposed as raw identifiers to project staff.
+Active own-org Admin/Finance/Executive read company and account-detail reports and project totals.
+Project Manager/Engineer read only totals for projects visible under actual projects RLS. Inactive,
+anonymous, no-profile and foreign-org callers have no access. Real role, not impersonation, applies.
+RLS/grants plus invoker read RPCs enforce this on every path, including absence lookup. No client
+org/Company/native-project/filter override; ordinary users never write the read-model. Existing
+account/ledger role restrictions remain; they are not this release's statement amount source.
 
-### Exact role contract (active member, own org only)
+## 3. EARS requirements
 
-| Real role | Company statements, account breakdowns, account master and ledger lines | Project income / expense / net totals |
+- **FR-001:** When an authorized user selects a captured supported period/scope, PMO shall display
+  its saved native current/prior report outputs with correct dates, Company and IDR context.
+- **FR-002:** When an org's sweep segment runs, it shall collect/resume bounded normal native report
+  reads and publish only a complete validated catalogue under the current lease/binding fence.
+- **FR-003:** The system shall obtain every statement financial value from its actual native report
+  response and shall preserve that value through storage/read/display without independent accounting.
+- **FR-004:** While native output includes or omits provisional/unclosed profit or posted equity,
+  PMO shall preserve that presentation without manufacturing/correcting postings or profit rows.
+- **FR-005:** When a mapped project is selected, the system shall use that explicit native Project
+  filter and expose only the authorized native project result; no unassigned remainder is derived.
+- **FR-006:** The system shall enforce the exact server role/tenancy/detail-vs-totals contract above.
+- **FR-007:** When results render, PMO shall reuse approved Card/DataTable/ListState/provenance and
+  period controls, both locales and plain readable report/account labels. No raw ERP ids or “mirror”,
+  “GL”, “watermark”, “docstatus”/internal source jargon in visible or accessible UI copy.
+- **FR-008:** If collection/context/publication fails or remains partial, PMO shall keep the old
+  complete result with its original time and honest delayed state; without one it shall show
+  “Statements are not available yet”. Native complete-empty is “No activity in this period”.
+- **NFR-001:** Every stored/read/displayed financial cell and project-total value shall equal its
+  captured native response value; a changed/removed required cell shall fail the owning proof.
+- **NFR-002:** The collector shall respect actual runtime/request/body limits, resume rather than
+  publish a prefix, and expose the true acquisition window without claiming an ERP atomic snapshot.
+- **NFR-003:** Use repository/DAL, permission-scoped cache keys, accessible shared UI and sanitized
+  errors/evidence; never expose raw detail/financial responses through totals or public artifacts.
+
+## 4. Acceptance and lowest sufficient owners
+
+| ID | Given / When / Then | Canonical owner |
 |---|---|---|
-| **Admin**, **Finance**, **Executive** (owner 2026-10-16) | Yes | Yes |
-| **Project Manager**, **Engineer** | No | Yes, only projects they are authorized to view |
-| Inactive, anonymous, other org | No | No |
+| AC-001 — Native output preservation | Given hash-bound actual standard TB/PL/BS/project PL examples and exact filters, when the shipped fetch/normalizer maps them to saved display payloads, then all native ordered rows/columns/monetary cells/summary totals and intentional absences survive without arithmetic; changed/missing required data fails and irrelevant extras pass. | Vitest `statementReports.test.ts` |
+| AC-002 — RIS Finance rehearsal | Given an authorized isolated RIS-equivalent rehearsal, completed native capture window and recorded filters/versions, when ordinary Finance opens each report/project/current-prior pair, then saved native output, authorized read and UI values/labels agree; no ERP posting/closing is performed by the runner. | Curated E2E `AC-002-financial-statements-rehearsal.spec.ts` |
+| AC-003 — Privacy | Given signed roles/inactive/anonymous/foreign org, when direct snapshot/raw-detail/read RPC paths run, then only authorized finance roles receive detail/raw and no ordinary caller writes. | pgTAP display privacy |
+| AC-004 — Project totals | Given visible/hidden/foreign/nonexistent projects and forged scope inputs, when staff reads totals, then only that authorized project's native Income/Expense/Net plus safe structural context returns; raw/detail/Company payload never returns, including on absence paths. | pgTAP project totals |
+| AC-005 — Native acquisition lifecycle | Given multiple segments, sparse native outputs, failure/context drift and ordinary ERP financial changes across calls, when acquisition resumes, then valid responses are retained once per request key, drift/missing/error prevents completion, old published data survives, and actual per-response/batch times remain truthful without a GL/second-pass gate. | Vitest/real sweep-handler test |
+| AC-006 — Atomic complete publication | Given old rows and concurrent/stale/expired workers, when final publication succeeds/fails, then readers see only old or complete new scope/current-prior catalogue, with fenced state/time/raw linkage; never pending/prefix/cross-org data. | pgTAP + existing two-session race |
+| AC-007 — Selection | Given bound Company/calendar/mapped project, when period/scope changes, then saved exact current/prior ranges and report type are selected with no stale/broader scope fallback. | Existing scope unit/RTL |
+| AC-008 — Honest UI | Given loading/error/unavailable/native-empty/delayed/populated/native-sparse states in both locales, when rendered, then approved accessible UI preserves values, rows and original time with no invented zero/row/jargon. | Existing section/renderer unit/RTL |
+| AC-009 — Real-role cache | Given real roles/Admin view-as and identity/org/role/project changes, when requests/cache run, then affordances and cached responses remain within the signed real-role scope. | Existing permission/cache unit/RTL |
 
-RLS enforces this contract on both ledger mirrors, account master and statements; aggregate RPCs recheck org, active membership and project visibility. Client inputs cannot broaden scope; ordinary users cannot write read-models. `can()`/`usePermission` on the real role is **UX only**; impersonation grants nothing. This is a target contract, not an assertion about deployed policies.
+AC ids stay traceable, but AC001/005 source mechanism and the absence/remainder semantics are
+explicit owner amendments, not silently weakened old calculator tests. Record exact old/new test
+contracts before dependent edits; preserve privacy, atomicity, honest-state and intuitive UI goals.
 
-## 3. ERPNext report parity — including an unclosed year
+## 5. Release status / remaining facts
 
-Match **standard reports, no custom template**, on ERPNext **v16.33.0** (DD-OPS-11). Pinned upstream source inspected:
-
-- [Trial Balance](https://github.com/frappe/erpnext/blob/v16.33.0/erpnext/accounts/report/trial_balance/trial_balance.py): `get_opening_balances`, `get_rootwise_opening_balances`, `calculate_values`, `prepare_opening_closing`. Match opening-entry handling, fiscal-year P&L reset and parent rollups. Profile: closing entries included in opening **and** current period; net opening/closing values; group accounts shown; unclosed prior-year P&L balances off.
-- [Profit and Loss Statement](https://github.com/frappe/erpnext/blob/v16.33.0/erpnext/accounts/report/profit_and_loss_statement/profit_and_loss_statement.py): `execute` calls `get_data(... ignore_closing_entries=True)` for Income and Expense; `get_net_profit_loss` supplies net profit. Exclude Period Closing Voucher entries from P&L even after ERPNext closes the period. Company and project use identical rules; project adds only ERPNext's project filter.
-- [Balance Sheet](https://github.com/frappe/erpnext/blob/v16.33.0/erpnext/accounts/report/balance_sheet/balance_sheet.py): `execute`, `get_provisional_profit_loss`, `check_opening_balance`; shared [financial_statements.py](https://github.com/frappe/erpnext/blob/v16.33.0/erpnext/accounts/report/financial_statements.py): `get_data`, `set_gl_entries_by_account`, `calculate_values`, `prepare_data`. Accumulated assets are debit-positive; liabilities/equity credit-positive. Retained earnings posted by ERPNext remain in Equity. **Before closing, never invent a retained-earnings entry**: reproduce the report's “Provisional Profit / Loss” display row (assets minus liabilities minus posted equity). When its opening check finds unclosed earlier periods, reproduce its separate “Unclosed Fiscal Years Profit / Loss” row and subtract that opening difference from provisional profit exactly as `execute` does. These are presentation sums, not ledger postings or a second recognition calculation. After closing, ERPNext's posted equity replaces the corresponding provisional amount without double counting.
-
-Run each comparison column's oracle with its own dates/fiscal year. P&L is non-accumulated; balance sheet accumulated. Use company currency, default and blank finance-book entries, no other dimension filters, consolidation or template. Hide rows zero in **both** columns, retaining parents; never double-count parents/children. Record complete filter JSON, settings, precision and version.
-
-ERPNext can accelerate opening balances with **Account Closing Balance** following a submitted Period Closing Voucher. PMO's basis remains the complete historical ledger, not a locally generated closing balance. **Equivalence to that ERP path must be proven**, not assumed; see OQ-002. A missing history segment or mismatch cannot be papered over with a balancing entry.
-
-## 4. Requirements (EARS)
-
-- **FR-001** — When an authorized user selects a supported period, the system shall display the Phase-1 statements and preceding-period columns with the scopes and date semantics in §2.
-- **FR-002** — When the ERP sweep completes the account chart and ledger refresh, the system shall publish their coherent statement generation using the account fields, cadence, rename/move and backfill rules in §2.
-- **FR-003** — The system shall derive statement amounts solely from uncancelled mirrored company-currency ledger lines, grouped by ERP accounts and rolled up under ERPNext's hierarchy, filters, opening/closing rules and signs in §3.
-- **FR-004** — While ERPNext has not closed a reporting period, the system shall show its provisional/unclosed profit presentation without posting or manufacturing retained earnings; when ERPNext closes it, the system shall reflect the posted result without duplication.
-- **FR-005** — When a project is selected, the system shall use only its explicit ERP project mapping and shall not allocate company-only entries to it; company P&L shall retain all entries and the explicit unassigned remainder.
-- **FR-006** — The system shall enforce the exact role/tenancy/read-only contract in §2 server-side, and shall expose only authorized project totals to project staff.
-- **FR-007** — When statements render, the system shall reuse `AccountingSnapshotProvenance` and the `AccountingSnapshotsSection` Card/DataTable/ListState patterns with a small readable “Updated …” provenance line, company/period/currency labels and account names/numbers, not raw ERP document ids. On-screen copy shall not use “mirror”, “GL”, “watermark”, “docstatus” or internal source markers; readable statement names replace technical provenance strings. No new provenance widget or cluttered diagnostic panel.
-- **FR-008** — If a refresh is incomplete, fails, or cannot classify every relevant account, then the system shall retain the last complete result with an honest “Update delayed” indication and its original update time; if none exists, it shall show “Statements are not available yet”, not fabricated zeros. A complete result with no activity shall show a distinct “No activity in this period” state, not a connection error.
-- **NFR-001** — Every Phase-1 statement shall reconcile to ERPNext's own standard report for the same company, dates, project, filters and source state **to the rupiah**: zero difference at ERPNext's report precision for every account, subtotal and total, including prior-period columns, not merely a balanced grand total.
-- **NFR-002** — The system shall preserve decimal precision through aggregation and shall process all source pages before publication; a failed or truncated read shall never publish a partial statement.
-- **NFR-003** — The system shall use the typed repository/DAL seam and shared design tokens, accessible tables/controls, English and Indonesian copy, loading/error/retry states, and permission-scoped cache keys; technical errors and reconciliation evidence shall not disclose credentials, personal details or internal coordinates.
-
-## 5. Acceptance / ownership (ADR-0010)
-
-All are **planned**, not yet executed. Each row assigns one canonical owning test/layer; that test's title must include its AC id. Reconciliation fixtures exercise **shipped** aggregation code, not a copied implementation.
-
-| ID / named proof | Given / When / Then | Owning test layer |
-|---|---|---|
-| **AC-001 — Fixture reconciliation, zero-rupiah difference** | **Given** synthetic fixtures and independently captured ERP results covering opening entries, unclosed earlier/current profit, posted/cancelled closing vouchers, cancelled originals/reversals, USD-bank IDR postings, project/unassigned lines, finance books and fiscal-year boundaries, **when** shipped aggregation produces every statement and comparison, **then** all accounts, subtotals, profit rows and totals equal the oracle at report precision; project plus remainder ties, and a changed amount makes the proof fail. | **Unit — Vitest**, parameterized oracle test |
-| **AC-002 — RIS live rehearsal reconciliation** | **Given** the RIS rehearsal site, complete refresh, recorded version/settings/filters and operator-prepared closed/unclosed cases, **when** automation reads ERP reports and matching PMO statements as Finance, **then** every Phase-1 statement, including project P&L and prior columns, ties at every account/subtotal/total with zero-rupiah difference and matching UI totals. Source changes invalidate capture; mismatches fail. The runner never posts/closes. | **Curated E2E — Playwright**, parameterized rehearsal journey |
-| **AC-003 — Statement privacy** | **Given** every §2 role, inactive/anonymous callers and another org, **when** they directly read company/account-detail snapshots, accounts or either ledger mirror, **then** only active same-org Admin/Finance/Executive receive rows; ordinary users cannot write read-models. | **Integration — pgTAP**, role/tenancy matrix |
-| **AC-004 — Project totals only** | **Given** project staff with/without project visibility, **when** totals are requested, including forged scope inputs, **then** only authorized project income/expense/net and dates/currency/provenance return; no account, party, voucher or company-wide payload returns. | **Integration — pgTAP**, aggregate/RLS contract |
-| **AC-005 — Master lifecycle** | **Given** multiple pages, disabled historical accounts and renamed/merged/moved accounts, **when** refreshed, **then** both periods restate once under the current hierarchy; failed pages, unresolved accounts or incomplete rescans preserve the old generation/time. | **Unit — Vitest**, mocked feed contract |
-| **AC-006 — Atomic publication** | **Given** prior snapshots and concurrent publications, **when** publication succeeds or fails, **then** readers see one complete generation with both columns per scope, never partial, duplicate or cross-scope results. | **Integration — pgTAP**, publication contract |
-| **AC-007 — Scope selection** | **Given** the bound Company and ERP fiscal calendar, **when** Finance changes period across a fiscal boundary, **then** requests/labels identify correct current/prior dates, currency and balance-sheet end dates, without old-scope results. | **Unit — Vitest/RTL**, period/scope test |
-| **AC-008 — Honest, plain-language UI** | **Given** loading/error/absent/complete-empty/delayed/populated results in both locales, **when** rendered, **then** shared accessible patterns distinguish states, offer error retry, retain true update time and show no banned jargon/raw ids or fabricated zeros. | **Unit — Vitest/RTL**, render/a11y test |
-| **AC-009 — UX permissions** | **Given** each real role and Admin view-as, **when** policy/navigation/requests run, **then** affordances follow §2 and cached company/account data never populates a totals-only scope. | **Unit — Vitest/RTL**, policy/cache-scope test |
-
-**Gates:** AC-001 in CI **plus** AC-002 on RIS rehearsal before acceptance. Only synthetic fixtures and sanitized pass/difference counts go public; live report bodies/coordinates stay private. No implementation/rehearsal is claimed here. Planner owns test paths and the schema/publication/aggregate-read ADR; build awaits owner sign-off.
-
-## 6. Open questions (recommendations, not silent assumptions)
-
-- **OQ-001 — RESOLVED (owner 2026-10-16): month, quarter or fiscal year only; no custom dates in Phase 1.** Original question: Custom periods? The owner specified a chosen period but not picker granularity. **Recommend** month/quarter/fiscal year for Phase 1. If custom dates are required, use the preceding equal-length range, explicitly labelled, and constrain each trial-balance range to one ERP fiscal year rather than silently accepting ERPNext's date clamping. Confirm at sign-off.
-- **OQ-002 — Live settings / opening-balance equivalence?** Code cannot establish the rehearsal company's current reporting settings, calendar, finance books, precision or complete retained history. **Recommend** operator read-only capture and proof that full-ledger replay equals ERPNext's Account Closing Balance path, including unclosed prior years. Never alter ERP settings to force a match. If proof fails, keep statements unavailable and return the source-read design to planner/owner; no balancing plug or acceptance of a difference.
+Code can land on dev with honest pending acceptance. Synthetic/native samples and an ordinary local
+Finance rehearsal support development; they do NOT prove RIS equivalence. AC002 remains pending
+until the genuine isolated RIS-equivalent source/history is nominated/provisioned and actually run.
+OQ001 remains month/quarter/FY, no custom dates. Former OQ002 mirrored-history/ACB equivalence moves
+with parked recomputation work; native capability/context/permission and end-to-end RIS display
+proof remain actual release facts. A native report may use ACB/closing internally; PMO copies it.
+No seven-case calculator or130k local aggregation gate is imposed on v0.23 native display.

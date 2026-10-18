@@ -7,8 +7,10 @@
 ### ⚑⚑⚑ CURRENT STATE (2026-10-18) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
-Work toward the signed Phase-1 financial statements milestone (#897): trial balance, profit and loss,
-balance sheet and project profit, including prior-period comparisons and executed reconciliation.
+Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
+Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
+and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
+PMO-side calculation (#1109) is parked after v0.23.0 with its branches, worktrees and capture tooling retained.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 the remaining aggregation, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
@@ -78,11 +80,14 @@ operator work (outcomes, budget account map, budget activation by a second perso
    reviewed and local final gates passed. Final-revision CI passed 10,926 unit tests and 6,291 database
    assertions; integration passed 337 browser and 12 served checks. All 67 skips were explained; zero
    timing failures, three warnings tracked in #1106. Exact-tip/merge ancestry and clean-worktree cleanup verified.
-4. **Complete signed Phase-1 financial statements (#897)** on dev: #1109 independent aggregation
-   and ERP reference captures → #1110 publication and scoped reads → #1111 company/project views →
-   #1112 executed reconciliation and acceptance. Exact arithmetic, period catalogue, account hierarchy and source-index checkpoints
-   pass 105 local unit tests. Native reference preparation and capture-tool verification continue; report calculations and comparisons,
-   publication, views and acceptance remain outstanding. A local synthetic proof does not replace the required live rehearsal.
+4. **Complete v0.23.0 financial-statement display (#897)** on dev: native standard-report fetch,
+   bounded resumable sweep capture and atomic publication/read (#1110), company/project views (#1111),
+   and executed display acceptance (#1112). ERPNext supplies every financial value; PMO preserves
+   the saved output. Independent aggregation (#1109), its native calculation matrix and any derived
+   unassigned remainder are parked after v0.23.0. The period picker merged to dev in PR #1119 at
+   `f95dbfd8`: 10,977 unit tests, 6,318 database assertions, 337 browser cases and 12 served checks passed;
+   the timing audit had zero warnings/failures and all 67 skips were justified. Metadata, publication,
+   reads and UI states are being reused; their local checkpoints are not complete release acceptance.
 5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
    pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
    timing reported zero warnings or failures. Exact-tip cleanup was verified.

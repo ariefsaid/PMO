@@ -3264,3 +3264,42 @@ ambiguity. `docs/glossary.md` carries the same note. Owner may override.
 
 Prove compatibility redirects through the exported `AppRoutes` at their actual entry and assert the mounted canonical destination (including fragment focus where applicable). A leaf mounted directly at a path the router redirects elsewhere is not route coverage.
 
+---
+
+## OD-FS-023 — v0.23 displays saved ERPNext standard reports (owner 2026-10-18)
+
+The owner changes v0.23's
+financial-statement source from PMO's independent mirrored-ledger calculations to the actual
+ERPNext standard report API outputs. PMO remains the accountant's UI under OD-SAR-PMO-IS-THE-UI
+and OD-ERP-3/4; ERPNext remains the accounting/report engine.
+
+1. The existing ERP sweep reads standard Trial Balance, Profit and Loss Statement, Balance Sheet
+   and explicitly mapped native-project P&L for each current/prior period. It saves complete native
+   outputs; PMO preserves financial values and native row/profit presentation, without GL arithmetic,
+   rebuilding financial statements, independently calculated net or an unassigned remainder.
+2. Reuse the approved metadata, snapshot/privacy/publisher/read and UI work. Native detail is an
+   explicit per-side pair, not forced into the old computed-row model. Restricted raw_reports holds
+   the two original UTF8 financial responses on detail rows only; totals raw_reports stays NULL.
+   Project totals copy native P&L report_summary Income/Expense/Net values, never sum/subtract rows.
+3. One bounded resumable pass runs on existing sweep ticks and the existing org lease. Keep the
+   last complete publication until all required native report/period/project/current-prior outputs
+   are collected; then atomically replace the complete catalogue. Preserve each acquiredAt and the
+   generation startedAt/completedAt window. Recheck binding/Company/version/calendar/map before
+   final publication. Ordinary financial changes between native calls belong to that capture
+   window; this is not an ERP-wide transactional snapshot. No full second pass, GL source/replay
+   completeness or ACB-vs-local-calculation gate is introduced for native display.
+4. Month/quarter/FY selection, active-member/org/project privacy, both locales, approved accessible
+   UI and honest unavailable/empty/delayed/error states remain. Native absent rows are not guessed
+   zeros. No v0.23 unassigned option or company-minus-projects residual is added.
+5. Independent calculation/B2/T7/T3-recompute, no-ERP accounting, calculator fixture/130k/ACB
+   equivalence and derived remainder work is **parked after v0.23.0 and preserved**, not deleted or
+   claimed complete. Their existing branches/artifacts do not gate this source change.
+
+This explicitly amends financial-statements FR002–005/NFR001–002 and AC001/005 mechanism, and
+supersedes ADR-0088's mirrored-GL producer/aggregation mechanism for v0.23. It does not weaken
+privacy, complete atomic publication or real Finance display acceptance. RIS-specific AC002 stays
+pending genuine isolated RIS-equivalent execution; synthetic/sample proof is labeled as such.
+
+Implementation/release targets dev only. Owner production approval remains separate. No CI workflow
+change is part of this decision. Director applies the amended spec and existing plan filename, then
+runs the bounded code slices without another owner-spec checkpoint for this authorized amendment.
