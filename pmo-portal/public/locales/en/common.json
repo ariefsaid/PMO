@@ -3273,7 +3273,6 @@
         "title": "No projects match your search"
       }
     },
-    "title": "Pipeline",
     "toast": {
       "projectCreated": "Project created"
     },
@@ -4741,5 +4740,13 @@
       "viewDetails": "View details",
       "groupSummary": "{{count}} system events"
     }
+  },
+  "uxs24": {
+    "stageLabel": "Pipeline stage",
+    "allStages": "All stages",
+    "phoneList": "Projects in selected pipeline stage",
+    "financialDetails": "Financial and project details",
+    "stageEmptyTitle": "No projects in this stage",
+    "stageEmptyBody": "Choose another stage or clear filters to see more projects."
   }
 }
