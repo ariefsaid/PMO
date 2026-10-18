@@ -100,6 +100,10 @@ work without a verified running mechanism. Context compaction preserves the task
 record the current artifact, actual lane/CI state, blocker and next action in the private handoff,
 then continue. Apply this check to every Director and successor session.
 
+**Fresh workers (owner, 2026-10-19):** start a new worker for each slice or task with its full
+brief. Never reassign an existing worker to a different job: approval is evaluated against its
+original brief. Follow-ups may clarify or finish that same task. Preserve existing work on takeover.
+
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
 ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
 prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
@@ -138,6 +142,10 @@ run concurrently through the logged shared wrapper; at most **two** heavy local 
 Build the three approved UX lanes in parallel with statements and money fixes; statements take
 priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
 Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
+
+**Post-merge browser gate (owner, 2026-10-19):** after every 2–3 slice merges to `dev`, dispatch
+one browser integration run on `dev` itself through the logged wrapper. A red dev run stops new
+merges until fixed. This supplements the lane-closing runs above; the same concurrency caps apply.
 
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,

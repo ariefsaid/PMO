@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-18) — v0.22.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
@@ -65,6 +65,10 @@ Purchasing stages and daily actions (#1127 / S-19) merged in PR #1165 (`b8757832
 unit shards, pgTAP and verify passed. The final changed-import run passed 1,805 tests; the real
 local import journey retained its saved-record and source-value checks. Exact-tip cleanup was
 independently verified; full browser integration remains with the purchasing lane-closing PR.
+Receipt-first expense capture (#1161 / S-29) merged to dev in PR #1168 (`39dc2953`): final
+fast CI passed and closing integration passed 384 browser and 12 served-function checks. The
+font-wait correction and current dev were included; its worktree was cleaned. The tax disclosure
+contrast/header fix merged in PR #1169 (`ee28bae6`) after its 383-browser-check run passed.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -178,6 +182,8 @@ S-27 remains Director-dispatched; S-35 follows the statement views. Slice PRs us
 unit shards, pgTAP and verify. Browser integration runs on lane-closing PRs or completed statement/money
 pieces; up to two may run together through the logged wrapper. Keep at most two heavy local runs.
 Translation edits rebase immediately before their PR (#1070).
+After every 2–3 slice merges, also run browser integration on `dev` itself; a red dev run stops new
+merges until fixed (owner, 2026-10-19). Use a fresh worker with a full brief for each new task.
 
 **Owner decisions for v0.23.0 (2026-10-18):**
 - Native report access confirmed. Remove System Settings dependency; do not require System Manager.
