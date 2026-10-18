@@ -23,6 +23,7 @@ import {
   ERP_RETRY_AFTER_CAP_MS,
   withProbeBudget,
   withCommitDeadline,
+  isFinancialDecimalTextResponse,
   type ErpClientDeps,
 } from './client.ts';
 import { MONEY_COMMIT_CLAIM_BUDGET_MS } from '../dispatch.ts';
@@ -728,6 +729,134 @@ describe('erpnext/client', () => {
       };
       await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({ name: 'ErpError', code: 'external-unreachable' });
       expect(body?.locked).toBe(false);
+    });
+  });
+
+  describe('lossless financial report response mode', () => {
+    it('preserves every numeric token and the exact capped response text without changing ledger mode', async () => {
+      const rawText = '{"debit":900719925474099312345.678900,"nested":{"signedZero":-0.0,"exponent":1e+24}}';
+      const deps = fetchDeps(async () => new Response(rawText, { status: 200 }));
+      const result = await erpnextRequest(deps, {
+        method: 'GET',
+        path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text',
+      });
+      expect(isFinancialDecimalTextResponse(result)).toBe(true);
+      if (!isFinancialDecimalTextResponse(result)) throw new Error('expected financial response wrapper');
+      expect(result.rawText).toBe(rawText);
+      expect(result.body).toEqual({ debit: '900719925474099312345.678900', nested: { signedZero: '-0.0', exponent: '1e+24' } });
+
+      const ledger = await erpnextRequest(fetchDeps(async () => new Response(rawText, { status: 200 })), {
+        method: 'GET', path: '/api/resource/GL', responseNumbers: 'ledger_decimal_text',
+      });
+      expect(ledger).toEqual({ debit: '900719925474099312345.678900', nested: { signedZero: -0, exponent: 1e24 } });
+    });
+
+    it('fails before fetch when JSON.parse does not preserve numeric source text', async () => {
+      const nativeParse = JSON.parse;
+      const parseWithoutSource = vi.spyOn(JSON, 'parse').mockImplementation(((text: string, reviver?: (key: string, value: unknown) => unknown) =>
+        nativeParse(text, reviver ? (key, value) => reviver(key, value) : undefined)) as typeof JSON.parse);
+      const deps = fetchDeps(async () => jsonResponse(200, {}));
+      try {
+        await expect(erpnextRequest(deps, {
+          method: 'GET',
+          path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+          responseNumbers: 'financial_decimal_text',
+        })).rejects.toMatchObject({ name: 'ErpError', code: 'external-unreachable', retryable: false });
+        expect(deps.fetchImpl).not.toHaveBeenCalled();
+      } finally {
+        parseWithoutSource.mockRestore();
+      }
+    });
+
+    it('requires the fixed GET endpoint and refuses an expanded financial response cap before fetch', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, {}));
+      await expect(erpnextRequest(deps, {
+        method: 'POST', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text',
+      })).rejects.toMatchObject({ code: 'config-rejected' });
+      await expect(erpnextRequest(deps, {
+        method: 'GET', path: '/api/method/other.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text',
+      })).rejects.toMatchObject({ code: 'config-rejected' });
+      await expect(erpnextRequest(deps, {
+        method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text', body: { report_name: 'Trial Balance' },
+      })).rejects.toMatchObject({ code: 'config-rejected' });
+      await expect(erpnextRequest(deps, {
+        method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%22ignore_prepared_report%22%3A1%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text',
+      })).rejects.toMatchObject({ code: 'config-rejected' });
+      await expect(erpnextRequest(deps, {
+        method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text', maxResponseBytes: ERP_RESPONSE_MAX_BYTES + 1,
+      })).rejects.toMatchObject({ code: 'config-rejected' });
+      expect(deps.fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('refuses redirects and a stalled financial response without retries, raw errors or logging', async () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const redirected = { ...fetchDeps(async () => new Response(null, { status: 302, headers: { Location: 'https://other.example/' } })), maxRetries: 3 };
+        await expect(erpnextRequest(redirected, {
+          method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+          responseNumbers: 'financial_decimal_text',
+        })).rejects.toMatchObject({ code: 'external-unreachable', retryable: false, message: 'Statement report request failed' });
+        expect(redirected.fetchImpl).toHaveBeenCalledTimes(1);
+
+        const oversized = { ...fetchDeps(async () => new Response('{}', { status: 200, headers: { 'Content-Length': String(ERP_RESPONSE_MAX_BYTES + 1) } })), maxRetries: 0 };
+        await expect(erpnextRequest(oversized, {
+          method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+          responseNumbers: 'financial_decimal_text',
+        })).rejects.toMatchObject({ code: 'external-unreachable', retryable: false, message: 'Statement report request failed' });
+        expect(oversized.fetchImpl).toHaveBeenCalledTimes(1);
+
+        const stalled = { ...fetchDeps(hangingFetch()), maxRetries: 0, timeoutMs: 20 };
+        await expect(erpnextRequest(stalled, {
+          method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+          responseNumbers: 'financial_decimal_text',
+        })).rejects.toMatchObject({ code: 'external-unreachable', message: 'Statement report request failed' });
+        expect(stalled.fetchImpl).toHaveBeenCalledTimes(1);
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it('retains bounded idempotent GET retries while classifying financial-mode errors safely', async () => {
+      let calls = 0;
+      const deps = fetchDeps(async () => {
+        calls += 1;
+        return calls === 1
+          ? jsonResponse(429, { exc_type: 'RateLimitExceededError', message: 'private retry detail' }, { 'Retry-After': '1' })
+          : new Response('{"value":19.0}', { status: 200 });
+      });
+      const result = await erpnextRequest(deps, {
+        method: 'GET', path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%7D&ignore_prepared_report=1',
+        responseNumbers: 'financial_decimal_text',
+      });
+      expect(isFinancialDecimalTextResponse(result)).toBe(true);
+      if (!isFinancialDecimalTextResponse(result)) throw new Error('expected financial response wrapper');
+      expect(result.body).toEqual({ value: '19.0' });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(2);
+      expect(deps.sleep).toHaveBeenCalledWith(1000);
+    });
+
+    it('classifies report HTTP failures from the ordinary error body but exposes only a static error and no query details in logs', async () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const privateDetail = 'PRIVATE_BODY_SENTINEL token PRIVATE_KEY:PRIVATE_SECRET';
+      const deps = { ...fetchDeps(async () => jsonResponse(500, { exc_type: 'TypeError', message: privateDetail })), maxRetries: 0 };
+      try {
+        await expect(erpnextRequest(deps, {
+          method: 'GET',
+          path: '/api/method/frappe.desk.query_report.run?report_name=Trial%20Balance&filters=%7B%22company%22%3A%22PRIVATE_COMPANY%22%7D&ignore_prepared_report=1',
+          responseNumbers: 'financial_decimal_text',
+        })).rejects.toMatchObject({ code: 'commit-rejected', retryable: false, message: 'Statement report request failed' });
+        expect(log).not.toHaveBeenCalled();
+        expect(log.mock.calls.flat().join(' ')).not.toContain(privateDetail);
+      } finally {
+        log.mockRestore();
+      }
     });
   });
 });

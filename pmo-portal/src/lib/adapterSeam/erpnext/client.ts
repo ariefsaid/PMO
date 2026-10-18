@@ -13,6 +13,7 @@
  * recovery algorithm above this module may safely re-issue it, never this client).
  */
 import { AdapterError } from '../contract.ts';
+import { AppError } from '../../appError.ts';
 
 /** A classified ERPNext HTTP failure — carries the raw status + a `retryable` flag so callers (the
  *  outbox recovery algorithm) can distinguish the R9 500-TypeError bucket from an ordinary rejection. */
@@ -222,7 +223,20 @@ export interface ErpRequestOptions {
    *  agingSnapshot.ts) — raise it to their own named ceilings. */
   maxResponseBytes?: number;
   /** Preserve raw numeric lexemes for GL debit/credit, avoiding JSON Number precision loss. */
-  responseNumbers?: 'ledger_decimal_text';
+  responseNumbers?: 'ledger_decimal_text' | 'financial_decimal_text';
+}
+
+/** Lossless financial response: parsed lexical values plus the exact capped UTF-8 response text. */
+export interface FinancialDecimalTextResponse {
+  body: unknown;
+  rawText: string;
+}
+
+/** True only for the wrapper returned by the opt-in financial response mode. */
+export function isFinancialDecimalTextResponse(value: unknown): value is FinancialDecimalTextResponse {
+  return value !== null && typeof value === 'object' &&
+    typeof (value as { rawText?: unknown }).rawText === 'string' &&
+    Object.prototype.hasOwnProperty.call(value, 'body');
 }
 
 interface ParsedFrappeError {
@@ -336,7 +350,9 @@ async function readBodyText(res: Response, maxBytes: number): Promise<string | n
  *  unchanged); only the byte cap can reject the read itself. */
 async function safeParseBody(res: Response, maxBytes: number, responseNumbers?: ErpRequestOptions['responseNumbers']): Promise<unknown> {
   const text = await readBodyText(res, maxBytes);
-  if (!text) return null;
+  if (!text) {
+    return responseNumbers === 'financial_decimal_text' && res.status < 400 ? { body: null, rawText: '' } : null;
+  }
   try {
     if (responseNumbers === 'ledger_decimal_text') {
       return JSON.parse(text, (key, value, context?: { source?: string }) => {
@@ -347,9 +363,55 @@ async function safeParseBody(res: Response, maxBytes: number, responseNumbers?: 
         return value;
       });
     }
+    if (responseNumbers === 'financial_decimal_text') {
+      const body = JSON.parse(text, (_key, value, context?: { source?: string }) => {
+        if (typeof value === 'number') {
+          if (!context?.source) throw new Error('runtime cannot preserve raw financial numeric tokens');
+          return context.source;
+        }
+        return value;
+      });
+      // Error bodies stay ordinary Frappe envelopes so the existing classifier can inspect them.
+      return res.status < 400 ? { body, rawText: text } : body;
+    }
     return JSON.parse(text);
   } catch {
-    return null;
+    return responseNumbers === 'financial_decimal_text' && res.status < 400 ? { body: null, rawText: text } : null;
+  }
+}
+
+function supportsJsonNumberSource(): boolean {
+  try {
+    const parsed = JSON.parse('{"value":-0.0}', (_key, value, context?: { source?: string }) =>
+      context?.source === '-0.0' ? context.source : value) as { value?: unknown };
+    return parsed.value === '-0.0';
+  } catch {
+    return false;
+  }
+}
+
+function validateFinancialReportPath(opts: ErpRequestOptions): void {
+  if (opts.method !== 'GET' || opts.body !== undefined) throw new AppError('Only GET is allowed for statement reports', 'config-rejected');
+  let url: URL;
+  try { url = new URL(opts.path, 'https://statement.invalid'); } catch { throw new AppError('Invalid statement report request', 'config-rejected'); }
+  if (url.pathname !== '/api/method/frappe.desk.query_report.run' || !opts.path.startsWith(`${url.pathname}?`)) {
+    throw new AppError('Invalid statement report request', 'config-rejected');
+  }
+  const entries = [...url.searchParams.keys()];
+  if (opts.maxResponseBytes !== undefined && (!Number.isSafeInteger(opts.maxResponseBytes) || opts.maxResponseBytes <= 0 || opts.maxResponseBytes > ERP_RESPONSE_MAX_BYTES)) {
+    throw new AppError('Invalid statement report response cap', 'config-rejected');
+  }
+  if (entries.length !== 3 || new Set(entries).size !== 3 ||
+      !entries.includes('report_name') || !entries.includes('filters') || !entries.includes('ignore_prepared_report') ||
+      url.searchParams.get('ignore_prepared_report') !== '1' ||
+      !['Trial Balance', 'Profit and Loss Statement', 'Balance Sheet'].includes(url.searchParams.get('report_name') ?? '')) {
+    throw new AppError('Invalid statement report request', 'config-rejected');
+  }
+  try {
+    const filters: unknown = JSON.parse(url.searchParams.get('filters') ?? '');
+    if (filters === null || typeof filters !== 'object' || Array.isArray(filters) || Object.prototype.hasOwnProperty.call(filters, 'ignore_prepared_report')) throw new Error();
+  } catch {
+    throw new AppError('Invalid statement report request', 'config-rejected');
   }
 }
 
@@ -366,7 +428,23 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     })();
     if (!supported) throw new ErpError(0, 'external-unreachable', 'runtime cannot preserve raw ledger decimal tokens', false);
   }
+  if (opts.responseNumbers === 'financial_decimal_text') {
+    validateFinancialReportPath(opts);
+    if (!supportsJsonNumberSource()) throw new ErpError(0, 'external-unreachable', 'Statement report request failed', false);
+  }
+  const financialMode = opts.responseNumbers === 'financial_decimal_text';
+  const safeFailure = (): ErpError => new ErpError(0, 'external-unreachable', 'Statement report request failed', true);
   const sleep = deps.sleep ?? defaultSleep;
+  const pause = async (ms: number): Promise<void> => {
+    try { await sleep(ms); }
+    catch (err) {
+      if (financialMode) {
+        if (err instanceof AppError) throw err;
+        throw safeFailure();
+      }
+      throw err;
+    }
+  };
   const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
     Authorization: `token ${deps.apiKey}:${deps.apiSecret}`,
@@ -400,7 +478,15 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         true,
       );
     }
-    if (deps.rateLimiter) await deps.rateLimiter.acquire();
+    try {
+      if (deps.rateLimiter) await deps.rateLimiter.acquire();
+    } catch (err) {
+      if (financialMode) {
+        if (err instanceof AppError) throw err;
+        throw safeFailure();
+      }
+      throw err;
+    }
     let res: Response;
     // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
     // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
@@ -427,6 +513,15 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       });
     } catch (err) {
       clearTimeout(deadline);
+      if (financialMode) {
+        if (err instanceof AppError && err.code !== 'external-unreachable') throw err;
+        if (attempt < maxRetries) {
+          attempt += 1;
+          await pause(500 * attempt);
+          continue;
+        }
+        throw safeFailure();
+      }
       if (attempt < maxRetries) {
         attempt += 1;
         await sleep(500 * attempt);
@@ -445,11 +540,11 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
       // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
       if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-        console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
+        if (!financialMode) console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
+          financialMode ? 'Statement report request failed' : `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
           false,
         );
       }
@@ -459,21 +554,21 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         const parsed = parseFrappeErrorBody(body);
         // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
         if (res.status === 500 && isTypeErrorBucket(parsed)) {
-          throw new ErpError(500, 'commit-rejected', parsed.message ?? 'ERPNext server error (TypeError)', false);
+          throw new ErpError(500, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? 'ERPNext server error (TypeError)', false);
         }
         if (attempt < maxRetries) {
           attempt += 1;
-          await sleep(retryDelayMs(res.headers.get('Retry-After'), attempt));
+          await (financialMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
-        throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        if (!financialMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
+        throw new ErpError(res.status, 'external-unreachable', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
 
       const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
-        throw new ErpError(res.status, 'commit-rejected', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        throw new ErpError(res.status, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
       return body;
     } catch (err) {
@@ -481,11 +576,11 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       if (err instanceof BodyTooLargeError) {
         // #918: an over-cap body is a deterministic answer this client refuses to consume — the same
         // policy as a redirect (re-asking cannot shrink it), so it is NOT retried.
-        console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
+        if (!financialMode) console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
+          financialMode ? 'Statement report request failed' : `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
           false,
         );
       }
@@ -493,9 +588,10 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // same failure while waiting for headers — same budget, same `external-unreachable` (#918).
       if (attempt < maxRetries) {
         attempt += 1;
-        await sleep(500 * attempt);
+        await (financialMode ? pause : sleep)(500 * attempt);
         continue;
       }
+      if (financialMode) throw safeFailure();
       console.error(`[erpnext-client] body read failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext response body failed', true);
     } finally {
