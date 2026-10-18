@@ -250,16 +250,18 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
     };
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let caught: unknown;
+    let logged: string;
     try {
       await fetchStatementPublicationMetadata(deadlineClient, { company: 'Synthetic Co', profile: STRICT_PROFILE });
     } catch (error) {
       caught = error;
     } finally {
+      logged = errorLog.mock.calls.flat().join(' ');
       errorLog.mockRestore();
     }
     expect(caught).toMatchObject({ message: 'ERPNext statement request failed to reach the server', code: 'external-unreachable' });
     const exposed = JSON.stringify(caught, Object.getOwnPropertyNames(caught as object));
-    const logged = errorLog.mock.calls.flat().join(' ');
+    expect(logged).toContain('[erpnext-client] fetch failed');
     for (const value of ['SECRET_SENTINEL', 'API_KEY_SENTINEL', 'API_SECRET_SENTINEL', 'https://erp.example.test', 'https://private-url.invalid']) {
       expect(exposed).not.toContain(value);
       expect(logged).not.toContain(value);
