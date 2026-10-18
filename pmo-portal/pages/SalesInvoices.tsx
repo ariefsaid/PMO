@@ -151,7 +151,7 @@ const validate = (
         }
       } else if (!item.item_code.trim()) lineError = t('financeCopy.invoiceLineItemCodeRequired', 'Line {{line}}: Item code is required.', { line: i + 1 });
       if (quantity === null) {
-        lineError = t('uxs16.invoiceLineQuantityValid', 'Line {{line}}: Enter a positive quantity with no more than 3 decimal places.', { line: i + 1 });
+        lineError = t('uxs16.invoiceLineQuantityValid', 'Line {{line}}: Quantity must be positive with no more than 3 decimal places.', { line: i + 1 });
       } else if (quantity <= 0) {
         lineError = t('financeCopy.invoiceLineQuantityPositive', 'Line {{line}}: Quantity must be positive.', { line: i + 1 });
       }
@@ -1327,7 +1327,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const vatMissing = native && needsVatRate(projectById(projectField.value));
   const draftTaxFacts = native && selectedProject
     ? selectedProject.subjectToVat
-      ? selectedProject.taxRate != null && hasKnownTaxBaseFraction
+      ? selectedProject.taxRate != null && Number.isFinite(selectedProject.taxRate) && selectedProject.taxRate > 0 && hasKnownTaxBaseFraction
         ? {
             treatment: 'exclusive' as const,
             rate: selectedProject.taxRate,

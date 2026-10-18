@@ -453,6 +453,37 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(missingTaxReview).not.toHaveTextContent('€0.00');
   });
 
+  it.each([0, -1, Number.POSITIVE_INFINITY, Number.NaN])(
+    'AC-S16-002 keeps a VAT-subject project with invalid tax rate %s unknown in the draft preview',
+    async (taxRate) => {
+      const user = userEvent.setup();
+      const { rerenderPage } = renderPage();
+      await openForm(user);
+      await pick(user, 'Customer', 'Acme Energy');
+      await pick(user, 'Project', 'Alpha Platform');
+      await user.type(screen.getByLabelText('Description'), 'VAT-subject work');
+      await user.clear(screen.getByLabelText(/Rate/));
+      await user.type(screen.getByLabelText(/Rate/), '100');
+
+      hoisted.projectOptionsQuery = {
+        data: [{
+          value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', archived: false,
+          currency: 'EUR', subjectToVat: true, taxRate, taxBaseNumerator: 1, taxBaseDenominator: 1,
+        }],
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      rerenderPage();
+
+      const review = screen.getByRole('region', { name: 'Invoice draft review' });
+      expect(review).toHaveTextContent('€100.00');
+      expect(review).toHaveTextContent('Project tax details are unavailable');
+      expect(review).not.toHaveTextContent('€0.00');
+      expect(within(review).getAllByText('—')).toHaveLength(2);
+    },
+  );
+
   it('AC-S16-004 keeps the preview out of the create command and retains it for a retry', async () => {
     hoisted.projectOptionsQuery = {
       data: [{
