@@ -52,6 +52,9 @@ shards, verify and pgTAP passed; existing save operations and permissions are re
 review (#1144 / S-16) merged in PR #1151 (`c0baddb0`) with the same fast CI gates green; source-currency
 amounts, unavailable tax facts and retry payloads are covered. Both slices completed review and rendered
 phone/desktop checks in both languages and themes; exact-tip cleanup was independently verified.
+Tax disclosure (#1158 / S-39) merged in PR #1162 (`19307e3d`): all four unit shards,
+verify and pgTAP passed; the review, rendered checks and final 3,739-test changed-import run passed.
+Exact-tip cleanup was independently verified.
 Their browser integration remains with the billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
 exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
