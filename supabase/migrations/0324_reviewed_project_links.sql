@@ -73,7 +73,13 @@ begin
    where p.id = p_project_id
      and p.org_id = p_org_id
      and p.archived_at is null
-     and p.status::text = any (public.on_hand_project_statuses())
+     and p.status::text = any (array[
+       'Won, Pending KoM',
+       'Ongoing Project',
+       'On Hold',
+       'Close Out',
+       'Internal Project'
+     ]::text[])
    for update;
   if not found then
     return false;
@@ -121,4 +127,4 @@ grant execute on function public.confirm_erp_project_link(uuid,uuid,uuid,text,js
   to service_role;
 
 comment on function public.confirm_erp_project_link(uuid,uuid,uuid,text,jsonb,text,text) is
-  'Confirms one explicitly reviewed ERPNext Project mapping with org, delivery-stage, site, expected-identity, config-CAS, and same-transaction audit checks.';
+  'Confirms one explicitly reviewed ERPNext Project mapping with org, delivery-or-internal stage, site, expected-identity, config-CAS, and same-transaction audit checks.';

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
-import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
 import type {
   ErpProjectOption,
@@ -24,7 +24,10 @@ import {
 type ReviewProject = { id: string; name: string; code: string | null };
 type SelectedTargets = Record<string, string>;
 
-const CUSTOMER_DELIVERY_STATUSES = new Set<string>(ON_HAND_STATUSES);
+const REVIEWABLE_PROJECT_STATUSES = new Set<string>([
+  ...ON_HAND_STATUSES,
+  ...INTERNAL_STATUSES,
+]);
 
 function projectMap(binding: IntegrationBinding | null | undefined) {
   const value = binding?.config.project_map;
@@ -112,7 +115,7 @@ export function ProjectMatchReview({
     if (projectId) {
       const detailProject = project.data;
       if (!detailProject?.status ||
-        !CUSTOMER_DELIVERY_STATUSES.has(detailProject.status)) return [];
+        !REVIEWABLE_PROJECT_STATUSES.has(detailProject.status)) return [];
       return [{
         id: detailProject.id,
         name: detailProject.name,
@@ -385,8 +388,8 @@ export function ProjectMatchReview({
           {rows.length === 0 && candidates.data && (
             <p role='status' className='py-3 text-sm text-muted-foreground'>
               {projectId
-                ? t('uxs09.projectNotEligible', 'Project match review is available for customer-delivery projects.')
-                : t('uxs09.queueEmpty', 'No customer-delivery project matches need review.')}
+                ? t('uxs09.projectNotEligible', 'Project match review is available for delivery or Internal Project records.')
+                : t('uxs09.queueEmpty', 'No delivery or Internal Project matches need review.')}
             </p>
           )}
 

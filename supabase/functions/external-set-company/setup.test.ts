@@ -15,8 +15,7 @@ import {
 } from "../_shared/testing/edgeTestKit.ts";
 import { EXPENSES_EMPLOYABLE } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseEnablement.ts";
 const env = installEdgeEnv();
-const originalResolveDns = Deno.resolveDns;
-Deno.resolveDns = ((hostname: string, recordType: string) => {
+Deno.resolveDns = ((_hostname: string, recordType: string) => {
   if (recordType === 'A') return Promise.resolve(['8.8.8.8']);
   if (recordType === 'AAAA') return Promise.resolve(['2001:4860:4860::8888']);
   return Promise.reject(new Error('unexpected DNS query'));
@@ -163,17 +162,18 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
     assertEquals(body.unlinkedEmployeeCount, 1);
   });
 });
-Deno.test("AC-S09-001 readiness proposes only own, unlinked customer-delivery projects", async () => {
-  const deliveryStatuses = [
+Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects", async () => {
+  const reviewableStatuses = [
     "Won, Pending KoM",
     "Ongoing Project",
     "On Hold",
     "Close Out",
+    "Internal Project",
   ];
   const stageRows = [
-    ...deliveryStatuses.map((status, index) => ({
-      id: `delivery-${index + 1}`,
-      name: `Delivery ${index + 1}`,
+    ...reviewableStatuses.map((status, index) => ({
+      id: `reviewable-${index + 1}`,
+      name: `Reviewable ${index + 1}`,
       code: `SYNTH-D${index + 1}`,
       status,
       org_id: "org-1",
@@ -187,10 +187,9 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked customer-delivery pr
       "Negotiation",
       "Loss Tender",
       "Declined",
-      "Internal Project",
     ].map((status, index) => ({
       id: `excluded-${index + 1}`,
-      name: `Non-delivery ${index + 1}`,
+      name: `Non-reviewable ${index + 1}`,
       code: `SYNTH-X${index + 1}`,
       status,
       org_id: "org-1",
@@ -260,7 +259,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked customer-delivery pr
     const body = await response.json();
     assertEquals(
       body.unmappedProjects.map((project: { id: string }) => project.id).sort(),
-      ["delivery-1", "delivery-2", "delivery-3", "delivery-4"],
+      ["reviewable-1", "reviewable-2", "reviewable-3", "reviewable-4", "reviewable-5"],
     );
     assertEquals(
       calls.filter((call) =>
@@ -270,7 +269,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked customer-delivery pr
     );
   });
 });
-Deno.test("AC-S09-001 linking rechecks project stage before ERP reads or writes", async () => {
+Deno.test("AC-S09-001 linking rechecks non-reviewable project stages before ERP reads or writes", async () => {
   const excludedStatuses = [
     "Leads",
     "PQ Submitted",
@@ -279,13 +278,12 @@ Deno.test("AC-S09-001 linking rechecks project stage before ERP reads or writes"
     "Negotiation",
     "Loss Tender",
     "Declined",
-    "Internal Project",
   ];
 
   for (const status of excludedStatuses) {
     const project = {
       id: "project-stage",
-      name: "Non-delivery project",
+      name: "Non-reviewable project",
       code: "SYNTH-EXCLUDED",
       status,
     };
@@ -380,6 +378,53 @@ Deno.test("AC-S09-004 reviewed link confirms server identity with one atomic RPC
       p_actor_id: "admin-1",
       p_project_id: "project-2",
       p_erp_project: "ERP-SELECTED",
+      p_expected_config: binding.config,
+      p_site_url: binding.site_url,
+      p_expected_erp_project: null,
+    });
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
+  });
+});
+
+Deno.test("AC-S09-004 Internal Project reaches the reviewed-link RPC through the real handler", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () =>
+      jsonResponse({
+        id: "project-internal",
+        name: "Internal Operations",
+        code: "SYNTH-INTERNAL",
+        status: "Internal Project",
+      })
+    ),
+    erp("erp.example.test", "/api/resource/Project/ERP-INTERNAL", () =>
+      jsonResponse({
+        data: {
+          name: "ERP-INTERNAL",
+          project_name: "Internal Operations",
+          company: "Example Company",
+          is_active: "Yes",
+        },
+      })
+    ),
+    supabaseRpc("confirm_erp_project_link", () => jsonResponse(true)),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({
+        tier: "erpnext",
+        setupAction: "link-project",
+        projectId: "project-internal",
+        erpProject: "ERP-INTERNAL",
+        expectedErpProject: null,
+      }),
+    );
+    assertEquals(response.status, 200);
+    assertEquals((await response.json()).erpProject, "ERP-INTERNAL");
+    assertEquals(rpcCall(calls, "confirm_erp_project_link")[0]?.bodyJson, {
+      p_org_id: "org-1",
+      p_actor_id: "admin-1",
+      p_project_id: "project-internal",
+      p_erp_project: "ERP-INTERNAL",
       p_expected_config: binding.config,
       p_site_url: binding.site_url,
       p_expected_erp_project: null,

@@ -137,7 +137,6 @@
     "employeeLabel": "Team members who record time",
     "employeeMissing": "People who record time still needing an ERP employee link: {{count}}",
     "projectLabel": "Project connections",
-    "projectAction": "Review proposed link for {{name}}",
     "setupComplete": "Setup is complete. Confirmed connections are retained; this review will return when something needs attention.",
     "partiesAction": "Review company connections",
     "defaultsDialog": "Work and billing settings",
@@ -189,8 +188,8 @@
     "unavailable": "ERP project review is unavailable",
     "retryHelp": "Readiness is unknown. Retry the check or ask an administrator to review the ERP connection.",
     "projectRetryHelp": "The PMO project could not be refreshed. Retry before reviewing a link.",
-    "projectNotEligible": "Project match review is available for customer-delivery projects.",
-    "queueEmpty": "No customer-delivery project matches need review.",
+    "projectNotEligible": "Project match review is available for delivery or Internal Project records.",
+    "queueEmpty": "No delivery or Internal Project matches need review.",
     "readOnlyLinked": "Ask an administrator to review changes to this ERP project link.",
     "readOnlyHandoff": "Ask an administrator to review the ERP project match.",
     "openSetup": "Open organization ERP setup",
@@ -3080,21 +3079,9 @@
       "retry": "Retry"
     },
     "erpLink": {
-      "title": "ERPNext Project",
-      "pending": "Project is saved in PMO. ERP linking did not complete; try linking again.",
-      "failed": "Could not save the ERP project link. Check the selection and try again.",
-      "loading": "Loading ERP link…",
-      "unavailable": "ERP link unavailable",
-      "missing": "This project has no ERP link yet.",
-      "link": "Link ERP project",
-      "change": "Change ERP project",
-      "save": "Save project link",
-      "help": "Choose an active ERPNext Project for the connected Company. Its returned identifier will be saved as this project’s link.",
-      "noun": "ERP project",
       "createdPending": "{{name}} saved. ERP linking needs attention; retry from the project page.",
       "movedPending": "Moved to {{status}}. ERP linking needs attention; retry from the project page.",
-      "statusPending": "Project status saved. ERP linking needs attention; retry from the project page.",
-      "retry": "Retry"
+      "statusPending": "Project status saved. ERP linking needs attention; retry from the project page."
     }
   },
   "projectForm": {

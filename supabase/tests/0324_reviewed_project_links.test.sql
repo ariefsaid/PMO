@@ -3,7 +3,7 @@
 begin;
 select to_regprocedure('public.confirm_erp_project_link(uuid,uuid,uuid,text,jsonb,text,text)') is not null as s09_rpc_present \gset
 \if :s09_rpc_present
-select plan(24);
+select plan(25);
 
 insert into public.organizations (id,name) values
   ('03240000-0000-0000-0000-000000000001','S09 match Org A'),
@@ -23,6 +23,7 @@ insert into public.projects (id,org_id,name,status,archived_at) values
   ('03240000-0000-0000-0000-0000000000d2','03240000-0000-0000-0000-000000000001','S09 Pre-win','Leads',null),
   ('03240000-0000-0000-0000-0000000000d3','03240000-0000-0000-0000-000000000001','S09 Archived','Ongoing Project','2026-10-01T00:00:00Z'),
   ('03240000-0000-0000-0000-0000000000d5','03240000-0000-0000-0000-000000000001','S09 Delivery Two','Ongoing Project',null),
+  ('03240000-0000-0000-0000-0000000000d6','03240000-0000-0000-0000-000000000001','S09 Internal','Internal Project',null),
   ('03240000-0000-0000-0000-0000000000d4','03240000-0000-0000-0000-000000000002','S09 Foreign','Ongoing Project',null);
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,config)
 values ('03240000-0000-0000-0000-000000000001','erpnext','https://erp.s09.example.test','synthetic-s09-ref','active',
@@ -187,6 +188,18 @@ reset role;
 select is((select config #>> '{project_map,03240000-0000-0000-0000-0000000000d1}'
              from public.external_org_bindings where org_id='03240000-0000-0000-0000-000000000001' and external_tier='erpnext'),
   'ERP-SELECTED','AC-S09-004 audit failure rolls back mapping update');
+
+alter table public.audit_events drop constraint s09_test_reject_project_link_audit;
+set local role service_role;
+select pg_temp.confirm_erp_project_link(
+  '03240000-0000-0000-0000-000000000001','03240000-0000-0000-0000-0000000000a1',
+  '03240000-0000-0000-0000-0000000000d6','ERP-INTERNAL',
+  (select config from public.external_org_bindings where org_id='03240000-0000-0000-0000-000000000001' and external_tier='erpnext'),
+  'https://erp.s09.example.test',null);
+reset role;
+select is((select config #>> '{project_map,03240000-0000-0000-0000-0000000000d6}'
+             from public.external_org_bindings where org_id='03240000-0000-0000-0000-000000000001' and external_tier='erpnext'),
+  'ERP-INTERNAL','AC-S09-004 active Admin can confirm and persist an Internal Project mapping');
 
 \else
 select plan(1);

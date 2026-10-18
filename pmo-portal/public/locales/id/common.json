@@ -137,7 +137,6 @@
     "employeeLabel": "Anggota tim yang mencatat waktu",
     "employeeMissing": "Orang yang mencatat waktu dan masih memerlukan tautan karyawan ERP: {{count}}",
     "projectLabel": "Koneksi proyek",
-    "projectAction": "Tinjau usulan tautan untuk {{name}}",
     "setupComplete": "Penyiapan selesai. Koneksi terkonfirmasi tetap tersimpan; tinjauan ini akan muncul kembali saat ada hal yang perlu ditangani.",
     "partiesAction": "Tinjau koneksi perusahaan",
     "defaultsDialog": "Pengaturan pekerjaan dan tagihan",
@@ -189,8 +188,8 @@
     "unavailable": "Tinjauan proyek ERP tidak tersedia",
     "retryHelp": "Status kesiapan tidak diketahui. Ulangi pemeriksaan atau minta administrator meninjau koneksi ERP.",
     "projectRetryHelp": "Proyek PMO tidak dapat diperbarui. Ulangi sebelum meninjau tautan.",
-    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek pelanggan dalam tahap delivery.",
-    "queueEmpty": "Tidak ada kecocokan proyek delivery pelanggan yang perlu ditinjau.",
+    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek pengiriman atau Proyek Internal.",
+    "queueEmpty": "Tidak ada kecocokan proyek pengiriman atau Proyek Internal yang perlu ditinjau.",
     "readOnlyLinked": "Minta administrator meninjau perubahan pada tautan proyek ERP ini.",
     "readOnlyHandoff": "Minta administrator meninjau kecocokan proyek ERP.",
     "openSetup": "Buka pengaturan ERP organisasi",
@@ -3080,21 +3079,9 @@
       "retry": "Coba lagi"
     },
     "erpLink": {
-      "title": "Proyek ERPNext",
-      "pending": "Proyek tersimpan di PMO. Penghubungan ERP belum selesai; coba hubungkan lagi.",
-      "failed": "Gagal menyimpan tautan proyek ERP. Periksa pilihan lalu coba lagi.",
-      "loading": "Memuat tautan ERP…",
-      "unavailable": "Tautan ERP tidak tersedia",
-      "missing": "Proyek ini belum memiliki tautan ERP.",
-      "link": "Hubungkan proyek ERP",
-      "change": "Ubah proyek ERP",
-      "save": "Simpan tautan proyek",
-      "help": "Pilih Proyek ERPNext aktif untuk Perusahaan yang terhubung. Identitas yang dikembalikan akan disimpan sebagai tautan proyek ini.",
-      "noun": "proyek ERP",
       "createdPending": "{{name}} tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "movedPending": "Dipindahkan ke {{status}}. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
-      "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
-      "retry": "Coba lagi"
+      "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek."
     }
   },
   "projectForm": {

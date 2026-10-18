@@ -161,3 +161,37 @@ it('AC-S09-003 names current and proposed ERP projects before confirming a remat
     expect(h.linkErpProject).toHaveBeenCalledWith('project-1', 'PMO-ALPHA', 'ERP-OLD')
   );
 });
+
+it('AC-S09-003 lets an Internal Project use the reviewed-link flow', async () => {
+  h.getProject.mockResolvedValue({
+    id: 'project-internal',
+    name: 'Internal Operations',
+    code: 'SYNTH-INTERNAL',
+    status: 'Internal Project',
+  });
+  h.listErpProjects.mockResolvedValue([{
+    name: 'SYNTH-INTERNAL',
+    project_name: 'Internal Operations',
+    company: 'Example Company',
+    is_active: 'Yes',
+  }]);
+  mount('project-internal');
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Review project match' }));
+  fireEvent.click(await screen.findByRole('button', {
+    name: 'Use suggested match for Internal Operations',
+  }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review selected links' }));
+
+  const confirmation = await screen.findByRole('dialog', {
+    name: 'Confirm ERP project matches',
+  });
+  expect(confirmation).toHaveTextContent('Internal Operations');
+  expect(confirmation).toHaveTextContent('SYNTH-INTERNAL');
+  expect(h.linkErpProject).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm links' }));
+  await waitFor(() =>
+    expect(h.linkErpProject).toHaveBeenCalledWith('project-internal', 'SYNTH-INTERNAL', null)
+  );
+});

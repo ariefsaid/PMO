@@ -185,11 +185,12 @@ const DEFAULT_KEYS = [
   "default_receivable_account",
   "default_activity_type",
 ] as const;
-const CUSTOMER_DELIVERY_PROJECT_STATUSES = new Set([
+const REVIEWABLE_PROJECT_STATUSES = new Set([
   "Won, Pending KoM",
   "Ongoing Project",
   "On Hold",
   "Close Out",
+  "Internal Project",
 ]);
 async function readErpSetup(ctx: ErpSetupContext) {
   const read = (table: string, columns: string, active = false) =>
@@ -249,7 +250,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
     ),
     domains: (ownership.data ?? []).map((row) => row.domain).sort(),
     unmappedProjects: projects.filter((row) =>
-      CUSTOMER_DELIVERY_PROJECT_STATUSES.has(String(row.status)) &&
+      REVIEWABLE_PROJECT_STATUSES.has(String(row.status)) &&
       (typeof projectMap[row.id] !== "string" ||
         !String(projectMap[row.id]).trim())
     ).map((row) => ({ id: row.id, name: row.name, code: row.code })),
@@ -325,9 +326,9 @@ async function confirmReviewedProjectLink(
   let expectedConfig = ctx.config;
   for (let attempt = 0; attempt < 4; attempt++) {
     const project = await ownProject(body, ctx);
-    if (!CUSTOMER_DELIVERY_PROJECT_STATUSES.has(project.status)) {
+    if (!REVIEWABLE_PROJECT_STATUSES.has(project.status)) {
       throw new AppError(
-        "Only customer-delivery projects can be linked",
+        "Only delivery or Internal Project records can be linked",
         "config-rejected",
       );
     }
