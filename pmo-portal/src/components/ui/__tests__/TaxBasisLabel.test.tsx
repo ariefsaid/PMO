@@ -63,6 +63,10 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     const exclusiveTrigger = within(exclusive).getByRole('button', { name: 'Show tax details' });
     expect(exclusiveTrigger).toHaveClass('touch-target');
     expect(exclusiveTrigger).toHaveClass('min-h-8');
+    // 32px visual control without growing its text line (UIP-005 fold) and the dark-safe link token (AC-RAM-004 contrast).
+    expect(exclusiveTrigger).toHaveClass('-my-2');
+    expect(exclusiveTrigger).toHaveClass('text-primary-text');
+    expect(exclusiveTrigger).not.toHaveClass('text-primary');
     expect(exclusive).toHaveTextContent('excl. PPN');
     expect(exclusiveTrigger).toHaveAttribute('aria-expanded', 'false');
     const panelId = exclusiveTrigger.getAttribute('aria-controls');
