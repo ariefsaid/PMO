@@ -1,8 +1,11 @@
 // @e2e-isolation: read-only — reads the seeded Sales Pipeline and measures rendered boxes; no writes.
 /**
- * AC-SFA-001 — Sales Pipeline funnel amounts stay contained in their own stage at 390px.
+ * AC-SFA-001 — Sales Pipeline funnel amounts stay contained in their own stage at the
+ * 768px desktop breakpoint. The accepted phone design uses a stage selector and vertical
+ * project cards; its amount/readability/recognition/activation oracles live in AC-S24-004.
  *
- * ORACLE: the Sales Pipeline's five-stage funnel is horizontally scrollable at phone width
+ * ORACLE: the Sales Pipeline's five-stage funnel is horizontally scrollable at the minimum
+ * supported desktop width
  * (each stage's column grows with its own content — an intrinsic `max-content` track floor,
  * not a fixed one — so the exact formatted amount never clips or overlaps its neighbour). We
  * measure the DOM geometry directly — every stage's amount bounding box must lie inside its
@@ -18,7 +21,8 @@
  * `page.evaluate` and re-measures containment — this proves the CSS geometry contract, not the
  * currency formatter (which has its own owning tests elsewhere).
  *
- * This is the browser geometry proof for FR-SFA-001 / AC-SFA-001; the component-level
+ * This is the browser geometry proof for FR-SFA-001 / AC-SFA-001 at the Funnel's minimum
+ * supported viewport; the component-level
  * contracts for the shared Funnel live in the RTL suite (AC-SFA-004). The file also owns three
  * further Discover-graduated geometry ACs at this same layer: AC-SFA-005 (keyboard focus scrolls
  * a partly off-screen stage into the funnel viewport), AC-SFA-006 (progress bars keep an 8px gap
@@ -30,12 +34,13 @@ import { signIn, waitForFonts } from './helpers';
 
 /** Currency symbol + a grouped thousands separator — the noncompact long-number shape. */
 const LONG_AMOUNT_SHAPE = /[\p{Sc}]\s?\d{1,3}(?:[.,]\d{3})+/u;
+const FUNNEL_VIEWPORT_WIDTH = 768;
 
-test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
-  test('AC-SFA-001: every stage amount stays inside its own stage; page does not pan at 390px', async ({
+test.describe('AC-SFA-001 sales funnel amount geometry at the 768px desktop breakpoint', () => {
+  test('AC-SFA-001: every stage amount stays inside its own stage; page does not pan at 768px', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: FUNNEL_VIEWPORT_WIDTH, height: 844 });
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
 
@@ -101,22 +106,46 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
 
     // The funnel scroller must contain its own overflow — the page never pans sideways.
     const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(pageScrollWidth).toBeLessThanOrEqual(392);
+    expect(pageScrollWidth).toBeLessThanOrEqual(FUNNEL_VIEWPORT_WIDTH + 2);
   });
 
-  test('AC-SFA-005: keyboard focus scrolls a partly off-screen stage into the funnel viewport at 390px', async ({
+  test('AC-SFA-005: keyboard focus scrolls a partly off-screen stage into the funnel viewport at 768px', async ({
     page,
   }) => {
-    // Discover finding (2026-09-28): Tab to a stage past the visible edge of the 390px funnel
-    // left it only partly shown. Focusing the LAST stage (the one most likely to sit beyond the
-    // fold at phone width) must bring its whole box inside the scroll viewport's visible bounds.
-    await page.setViewportSize({ width: 390, height: 844 });
+    // Discover finding (2026-09-28): Tab to a stage past the visible edge of the funnel
+    // left it only partly shown. Put the last stage half beyond the scroll viewport, then prove
+    // focusing it brings its whole box inside the viewport at the minimum desktop width.
+    await page.setViewportSize({ width: FUNNEL_VIEWPORT_WIDTH, height: 844 });
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
     await waitForFonts(page);
 
+    // A realistic long IDR amount ensures the last stage can be partially clipped even when
+    // the seed's shorter USD values happen to fit at the 768px breakpoint.
+    await page.evaluate(() => {
+      const idr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
+      document.querySelectorAll('[data-funnel-stage-amount]').forEach((amount) => {
+        amount.textContent = idr;
+      });
+    });
+
     const lastStage = page.locator('[data-funnel-stage]').last();
+    const beforeFocus = await page.evaluate(() => {
+      const scrollArea = document.querySelector<HTMLElement>('[data-testid="funnel-scroll-area"]')!;
+      const lastStageEl = document.querySelectorAll<HTMLElement>('[data-funnel-stage]')[4];
+      scrollArea.scrollLeft = Math.max(
+        0,
+        scrollArea.scrollWidth - scrollArea.clientWidth - lastStageEl.getBoundingClientRect().width / 2,
+      );
+      return {
+        scrollArea: scrollArea.getBoundingClientRect().toJSON() as unknown as DOMRect,
+        stage: lastStageEl.getBoundingClientRect().toJSON() as unknown as DOMRect,
+      };
+    });
+    expect(beforeFocus.stage.x).toBeLessThan(beforeFocus.scrollArea.x + beforeFocus.scrollArea.width - 1);
+    expect(beforeFocus.stage.x + beforeFocus.stage.width).toBeGreaterThan(beforeFocus.scrollArea.x + beforeFocus.scrollArea.width + 1);
+
     // `.focus()` dispatches the same native `focus` event a real Tab keypress produces, without
     // depending on how many other elements precede it in the page's tab order.
     await lastStage.focus();
@@ -141,7 +170,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     ).toBeLessThanOrEqual(boxes.scrollArea.x + boxes.scrollArea.width + 1);
   });
 
-  test('AC-SFA-006: every stage progress bar keeps an 8px gap below its weighted line and all bar tops align', async ({
+  test('AC-SFA-006: every stage progress bar keeps an 8px gap below its weighted line and all bar tops align at 768px', async ({
     page,
   }) => {
     // Discover finding, round 3 (2026-09-28): `mt-auto` alone collapsed the bar's gap to 0px
@@ -150,7 +179,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     // `margin-top: auto` nothing to consume. The fix must keep BOTH properties: a floor gap
     // (>= 8px, the design's existing spacing unit) AND every bar's top edge aligned across the
     // row (so a wrapped stage elsewhere doesn't leave the others' bars sitting higher).
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: FUNNEL_VIEWPORT_WIDTH, height: 844 });
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
@@ -190,7 +219,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     }
   });
 
-  test('AC-SFA-007: a focused stage\'s visible focus ring lies inside the funnel viewport at 390px', async ({
+  test('AC-SFA-007: a focused stage\'s visible focus ring lies inside the funnel viewport at 768px', async ({
     page,
   }) => {
     // Discover finding I-1 (2026-09-28): the global `*:focus-visible` ring (2px outline, 2px
@@ -201,7 +230,7 @@ test.describe('AC-SFA-001 sales funnel amount geometry @mobile', () => {
     // the ring's actual box from computed style (outline-width + outline-offset, whatever sign
     // the fix uses) rather than hard-coding an offset value, so this stays correct if the exact
     // fix implementation ever changes.
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: FUNNEL_VIEWPORT_WIDTH, height: 844 });
     await signIn(page, 'admin@acme.test');
     await page.goto('/sales');
     await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
