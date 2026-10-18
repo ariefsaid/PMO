@@ -3361,3 +3361,15 @@ lane-closing PR or a completed statement/money piece, with any resulting fix kep
 up to two concurrent browser dispatches through the logged shared wrapper and two heavy local runs.
 The owner requests continuous overnight progress toward the full dev queue by the following morning;
 this target does not waive tests, reviews, privacy or the dev-only release ceiling.
+
+## UXS-023 — business-first record history (2026-10-18, #1137)
+
+History leads with a localized business event, followed by the actor, exact time and recognizable
+affected record. Captured changes remain available in a keyboard-operated disclosure; events
+without field or insert details keep their summary without an empty control. Only consecutive
+system inserts with the same kind and exact timestamp on the same loaded page may form a counted
+group. Preserve every event and its order; grouping neither crosses pages nor infers a transaction.
+
+UX-046 graduates to AC-S23-001–004 in the history renderer/helper tests and the existing AC-CHG-019
+project-edit journey, whose original values must be visible after opening details. Rendered review
+uses rich project and procurement history at phone/desktop sizes, both locales and both themes.
