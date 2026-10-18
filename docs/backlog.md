@@ -4,7 +4,7 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.22.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-18) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 Work toward the signed Phase-1 financial statements milestone (#897): trial balance, profit and loss,
@@ -67,7 +67,7 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Release-review fixes #1088, #1090 and #1091. The last is the one-Actual rule: ERP ledger for orgs with an active
   ERPNext binding (`org_reads_erp_ledger()`, 0307), committed POs otherwise. Completeness and at-risk are one
   predicate (`isActualComplete` / `isMoneyAtRisk` in `src/lib/projectFinances.ts`), and currencies never mix.
-- Migrations 0294–0299, 0301, 0307, 0309. **Dev now includes 0310–0314; production remains at 0309.**
+- Migrations 0294–0299, 0301, 0307, 0309. **Dev now includes 0310–0315; production remains at 0309.**
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
 1. **#1071 test hygiene — complete on dev** (PR #1104; owner priority 2026-10-17). It includes keeping long e2e journeys well inside
@@ -83,9 +83,11 @@ operator work (outcomes, budget account map, budget activation by a second perso
    #1112 executed reconciliation and acceptance. Exact arithmetic, period catalogue, account hierarchy and source-index checkpoints
    pass 105 local unit tests. Native reference preparation and capture-tool verification continue; report calculations and comparisons,
    publication, views and acceptance remain outstanding. A local synthetic proof does not replace the required live rehearsal.
-5. **Later correctness and release-review follow-ups**, after statements unless needed as a prerequisite:
-   #1073 small correctness fixes; #1081 shared project-money tiles; #1089 Finance alignment;
-   #1083 management-pack invoice presence.
+5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
+   pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
+   timing reported zero warnings or failures. Exact-tip cleanup was verified.
+   **Later release-review follow-ups**, after statements: #1081 shared project-money tiles,
+   #1089 Finance alignment and #1083 management-pack invoice presence.
 6. **Shipped-issue verification completed (2026-10-18).** Closed #1050 (PR #1052), #1033 (PR #1040),
    #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
    #1044 remains open for the broader cross-record-page acceptance.
