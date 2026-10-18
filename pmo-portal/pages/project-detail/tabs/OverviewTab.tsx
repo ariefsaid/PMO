@@ -11,7 +11,7 @@ import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { deriveActualPosition, deriveContractRemainingFromPosition, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
@@ -57,33 +57,34 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
-  const { data: projectFinances } = useProjectFinances(project.id);
-  const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
-  const actualPosition = deriveActualPosition({ ledgerBasis,
-    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals });
-  const actualSpend = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
-    ? Number(actualPosition.amount) : null;
-  const actualSpendLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : ledgerBasis === 'pmo' && commitmentPending
-      ? t('uxs01.actualLoading', 'Loading Actual…')
-      : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
-        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
-        : t('uxs01.actualUnavailable', 'Unavailable');
-  const actualCoverage = actualPosition.basis === 'pmo'
-    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
-    : actuals?.categories.length
-      ? actuals.categories.every((category) => category.mapped) && !actuals.excludes_restricted_rows
-        ? t('uxs01.completeCoverage', 'Complete category coverage')
-        : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: actuals.categories.filter((category) => category.mapped).length, total: actuals.categories.length })
-      : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
   // B-0.4: budget state remains distinct from a missing or unavailable Actual reading.
   const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError, refetch: budgetUtilRefetch } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const budgetUtilPctValue = actualSpend !== null && activeBudget > 0 ? Math.round((actualSpend / activeBudget) * 100) : null;
+  const { data: projectFinances } = useProjectFinances(project.id);
+  const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
+  const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals,
+    contractValue: project.contract_value, activeBudget });
+  const actualPosition = moneyPosition.actual;
+  const actualSpend = moneyPosition.comparableActual;
+  const actualSpendLabel = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+    : moneyPosition.headlineState === 'loading'
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : moneyPosition.headlineState === 'partial'
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : t('uxs01.actualUnavailable', 'Unavailable');
+  const actualCoverage = moneyPosition.coverage.kind === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : moneyPosition.coverage.kind === 'complete'
+      ? t('uxs01.completeCoverage', 'Complete category coverage')
+      : moneyPosition.coverage.kind === 'partial'
+        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
+        : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
+  const budgetUtilPctValue = moneyPosition.spendPercent;
   // The risk gate consumes complete Actual (DD-MONEY-1) and the Active budget; missing Actuals
   // cannot be promoted to a zero-cost, low-risk result.
   const budgetUtil = isMoneyAtRisk({
@@ -94,13 +95,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   }) ? budgetUtilPctValue : null;
 
   // D15: finance summary tile data (only computed when showFinanceSummary is true).
-  const contractAfterCost = actualPosition.complete
-    ? deriveContractRemainingFromPosition(project.contract_value, actualPosition, project.currency) : null;
-  const contractAfterCostUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
+  const contractAfterCost = moneyPosition.contractAfterCost;
+  const contractAfterCostTone = moneyPosition.contractAfterCostTone;
   const contractAfterCostLabel = contractAfterCost === null
     ? t('uxs01.actualUnavailable', 'Unavailable')
     : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
-  const spendPctTile = actualSpend !== null && activeBudget > 0 ? Math.round((actualSpend / activeBudget) * 100) : null;
+  const spendPctTile = moneyPosition.spendPercent;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
         {
@@ -135,7 +135,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
         {
           label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
           value: contractAfterCostLabel,
-          ...(contractAfterCostUnits === null ? {} : { tone: contractAfterCostUnits < 0n ? 'neg' as const : 'pos' as const }),
+          ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
         },
         {
           label: t('projectDetail.overview.finance.spend', 'Spend'),

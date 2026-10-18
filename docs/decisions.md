@@ -3303,3 +3303,61 @@ pending genuine isolated RIS-equivalent execution; synthetic/sample proof is lab
 Implementation/release targets dev only. Owner production approval remains separate. No CI workflow
 change is part of this decision. Director applies the amended spec and existing plan filename, then
 runs the bounded code slices without another owner-spec checkpoint for this authorized amendment.
+
+
+## OD-FS-024 — refresh native statements incrementally, retain the complete catalogue (owner 2026-10-18)
+
+After the initial complete acquisition, refresh the current and previous reporting period routinely;
+refresh older native reports when the mirrored ledger records a relevant dated change. The owner
+also approved refreshing later historical Trial Balance and Balance Sheet reports affected by a
+backdated entry, so their opening or accumulated balances cannot remain stale. ERPNext remains the
+only source of statement monetary values; the mirror is an invalidation signal, not an accounting
+calculation input. This extends OD-FS-023 without resuming the parked PMO-side aggregation work.
+
+Each publication still exposes one complete company/project/current-prior catalogue atomically.
+Compatible unchanged historical pairs retain their exact raw responses, digests, filters and original
+acquisition times; generation/publication metadata must not imply those reports were newly fetched.
+Preserve genuine native context, runtime bounds, lease fences, role/tenant boundaries and failure
+rollback. Record/acknowledge dirty revisions durably so failed batches and concurrent later changes
+cannot lose required refresh work.
+
+**DD-FS-REFRESH-1 (Director):** “current and previous” means the two sides of one supplied comparison
+pair per month/quarter/fiscal year, consistent with existing selection controls. Select the latest
+supplied pair whose current start has begun in the organisation-local date; do not invent fiscal
+periods or choose a future start. Pin that date when admitting the batch. Invalidation follows the
+actual native report's dependency horizon, including both old and new dates/scopes for moved entries. The
+native-report stage runs before the mirror refresh in a sweep tick. A change first observed by that
+later stage is consumed on the next tick; its durable invalidation marker remains until a successful
+complete publication acknowledges it.
+
+
+## OD-FS-025 — native display capability, rehearsal and release checks (owner 2026-10-18)
+
+Native statement display requires standard report access and readable report/Company/Currency
+context. It must work without System Settings access or System Manager. ERPNext owns accounting
+precision and rounding; PMO takes presentation precision from Currency or report metadata and
+preserves native financial values. A System Settings403 cannot block a valid sweep publication.
+This is the native display disposition of #1068's blank-precision item.
+
+The approved rehearsal is a separate site in the existing local ERPNext v16 stack, reconstructed
+from locally held input files. Preserve other fixtures; no new infrastructure or off-device
+production data transfer. Acquisition uses serial bounded requests and segment sizing/cadence
+based on measured per-call cost with host-capacity headroom; keep existing runtime deadlines.
+
+Both Sol and Claude Opus whole-release security reviews run before any dev-to-main PR. Notify
+Claude when the release candidate is ready on dev. Dev remains the current authorized ceiling.
+
+
+## OD-V023-THROUGHPUT — parallel lanes and closing browser checks (owner 2026-10-18)
+
+Run billing/collections (S-15, S-16, S-36, S-39), purchasing/tax/integration setup (S-09, S-11,
+S-19, S-21), and history/phone/capture/employee/search (S-23, S-24, S-29, S-30, S-40) as three
+parallel native Codex Luna xhigh lanes. Keep their worktrees isolated, preserve file ownership and
+rebase translation edits before each PR. S-27 remains Director-dispatched; S-35 follows the statement
+views. Start #1089 when a build lane frees. Statements retain priority over shared resources.
+
+Each slice PR requires fast CI (four unit shards, pgTAP and verify). Browser integration runs on the
+lane-closing PR or a completed statement/money piece, with any resulting fix kept in that PR. Allow
+up to two concurrent browser dispatches through the logged shared wrapper and two heavy local runs.
+The owner requests continuous overnight progress toward the full dev queue by the following morning;
+this target does not waive tests, reviews, privacy or the dev-only release ceiling.

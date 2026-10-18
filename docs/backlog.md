@@ -18,6 +18,12 @@ in PR #1124 (`59581270`), with verify, pgTAP and integration green (11,129 unit 
 checks, 337 browser checks and 12 served-function checks). Two existing timing warnings remain tracked
 in #1106; there were no timing failures. Sweep collection, storage/read adaptation and views remain
 in implementation; these helper merges do not complete statement display.
+The shared project money position (#1081) merged to dev in PR #1128 (`3c675462`): all four unit
+shards, verify and pgTAP passed; the closing integration passed 337 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Invoice presence in management packs (#1083) merged to dev in PR #1130 (`eafbfc6f`): all four
+unit shards, verify and pgTAP passed; closing integration passed 337 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
 Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
 native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
 
@@ -95,21 +101,47 @@ operator work (outcomes, budget account map, budget activation by a second perso
    `f95dbfd8`: 10,977 unit tests, 6,318 database assertions, 337 browser cases and 12 served checks passed;
    the timing audit had zero warnings/failures and all 67 skips were justified. Metadata, publication,
    reads and UI states are being reused; their local checkpoints are not complete release acceptance.
+   **Plan corrections (owner 2026-10-18):** refresh only the current and previous period every sweep, and an
+   older period only when a ledger change affects it, including later historical Trial Balance/Balance Sheet
+   opening or accumulated balances after a backdated entry (a full pass is 2,688 report calls);
+   #1068's pre-publication items are decided for the display path inside v0.23.0, not left to triage.
+   **v0.23.0 scope also includes (owner 2026-10-18):** the money-tile follow-ups #1081, #1089, #1083 and UX waves
+   3–4 (S-09, S-11, S-15, S-16, S-19, S-21, S-23, S-24, S-27, S-29, S-30, S-35, S-36, S-39, S-40). Statements stay
+   the critical path; these fill spare lanes. S-35 (company position) builds on the statement views; S-27 is a
+   money-path slice (Director-dispatched).
+   **Release steps for v0.23.0 (each still owner-gated):** Sol and Claude Opus whole-release security reviews → PR `dev`→`main` with
+   integration → production deploy back to front (DB → edge functions → frontend; it also carries #1101/#1102)
+   → after-push probes, including isolation-probe entries for the new statement tables.
 5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
    pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
    timing reported zero warnings or failures. Exact-tip cleanup was verified.
-   **Later release-review follow-ups**, after statements: #1081 shared project-money tiles,
-   #1089 Finance alignment and #1083 management-pack invoice presence.
+   **Release-review follow-ups #1081, #1089, #1083 moved into v0.23.0** (see item 4).
 6. **Shipped-issue verification completed (2026-10-18).** Closed #1050 (PR #1052), #1033 (PR #1040),
    #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
    #1044 remains open for the broader cross-record-page acceptance.
-7. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including UX-029, 042, 044, 052, 078, 079 and 082.
-8. **Triage**: #1068, #1069, #1070, #1072.
+7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
+8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
 **Owner actions after v0.22.0:**
 - Activate the Kajian budget (sole-operator path).
 - Answer: should the accountant list be in Indonesian?
 - Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
+
+**Parallel delivery (owner, 2026-10-18):** statements remain the critical path. Three additional UX
+lanes cover billing/collections, purchasing/tax/integration setup, and history/phone/capture/employee.
+S-27 remains Director-dispatched; S-35 follows the statement views. Slice PRs use the normal four
+unit shards, pgTAP and verify. Browser integration runs on lane-closing PRs or completed statement/money
+pieces; up to two may run together through the logged wrapper. Keep at most two heavy local runs.
+Translation edits rebase immediately before their PR (#1070).
+
+**Owner decisions for v0.23.0 (2026-10-18):**
+- Native report access confirmed. Remove System Settings dependency; do not require System Manager.
+  Currency/report metadata supplies display precision; native amounts remain untouched (#1068).
+- Rehearsal (#1114): separate site on the existing local ERPNext v16 stack using locally held input
+  files. No new infrastructure or off-device production data transfer.
+- Both Sol and Claude Opus whole-release security reviews before any dev-to-main PR. Notify Claude
+  when the release candidate is ready on dev; main and production remain unauthorized.
+- Size serial sweep segments/cadence from measured per-call cost with capacity headroom.
 
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
@@ -122,9 +154,9 @@ isolation probe's write checks.
 
 **How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator (from
 2026-10-17, for a few days, Sol, via the local-only handoff in `docs/private/orchestration/HANDOFF.md`). Builds,
-fixes and reviews go to pi (`pi-dispatch build|review|review-money|plan`, routing at the top of
-`docs/pi-delegation.md`) or the factory (`adws/adw_simple_sdlc.py`) — ONE reviewer per PR; Claude orchestrates,
-merges and deploys. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
+fixes use native Codex Luna xhigh lanes in isolated worktrees (owner override, 2026-10-18); specs/plans
+and whole-wave reviews use another Sol. Per-part spec/quality/security reviews stay on pi GLM — one
+review, one fix round, then Director verification. The Director lands reviewed work to dev only. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
 **serial** lane: a red chromium lane stops the run before the serial lane, so serial breakage surfaces one release
 run later (2026-10-13: run the full serial lane locally once chromium is green). Re-running a failed CI run needs
 the owner's OK and goes through `scripts/ci-e2e.sh --owner-ok`; that dispatch is not attached to the PR's checks, so

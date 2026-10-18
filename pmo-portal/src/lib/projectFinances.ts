@@ -62,6 +62,27 @@ export type ActualPosition = {
   complete: boolean;
 };
 
+export type ProjectMoneyPositionInput = {
+  projectCurrency: string;
+  contractValue: number | null;
+  activeBudget: number | undefined;
+  ledgerBasis: ActualPosition['basis'];
+  committedSpend: number | undefined;
+  commitmentPending: boolean;
+  commitmentError: boolean;
+  actuals: ProjectFinances['actuals'] | undefined;
+};
+
+export type ProjectMoneyPosition = {
+  actual: ActualPosition;
+  headlineState: 'available' | 'loading' | 'partial' | 'unavailable';
+  coverage: { kind: 'pmo' | 'complete' | 'partial' | 'unavailable'; mapped: number; total: number };
+  comparableActual: number | null;
+  contractAfterCost: ExactMoney | null;
+  contractAfterCostTone: 'neg' | 'pos' | undefined;
+  spendPercent: number | null;
+};
+
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
   committedSpend: number | undefined;
@@ -84,6 +105,51 @@ export function deriveActualPosition(input: {
     return { amount: null, currency: actuals?.currency ?? null, asOf: actuals?.as_of ?? null, basis: 'erp', complete: false };
   }
   return { amount: actuals.total, currency: actuals.currency, asOf: actuals.as_of, basis: 'erp', complete: true };
+}
+
+export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): ProjectMoneyPosition {
+  const actual = deriveActualPosition(input);
+  const categories = input.actuals?.categories ?? [];
+  const mapped = categories.filter((row) => row.mapped).length;
+  const coverage: ProjectMoneyPosition['coverage'] = {
+    kind: actual.basis === 'pmo'
+      ? 'pmo'
+      : categories.length === 0
+        ? 'unavailable'
+        : mapped === categories.length && !input.actuals?.excludes_restricted_rows
+          ? 'complete'
+          : 'partial',
+    mapped,
+    total: categories.length,
+  };
+  const comparableActual = actual.complete && actual.currency === input.projectCurrency && actual.amount !== null
+    ? Number(actual.amount)
+    : null;
+  const contractAfterCost = actual.complete
+    ? deriveContractRemainingFromPosition(input.contractValue, actual, input.projectCurrency)
+    : null;
+  const remainingUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
+  const contractAfterCostTone = remainingUnits === null ? undefined : remainingUnits < 0n ? 'neg' : 'pos';
+  const headlineState: ProjectMoneyPosition['headlineState'] = actual.complete && actual.amount !== null && actual.currency
+    ? 'available'
+    : input.ledgerBasis === 'pmo' && input.commitmentPending
+      ? 'loading'
+      : categories.some((row) => !row.mapped) || input.actuals?.excludes_restricted_rows
+        ? 'partial'
+        : 'unavailable';
+  const spendPercent = comparableActual !== null && (input.activeBudget ?? 0) > 0
+    ? Math.round((comparableActual / (input.activeBudget ?? 0)) * 100)
+    : null;
+
+  return {
+    actual,
+    headlineState,
+    coverage,
+    comparableActual,
+    contractAfterCost,
+    contractAfterCostTone,
+    spendPercent,
+  };
 }
 
 /** A headline Actual is trustworthy only when every required category is covered. */

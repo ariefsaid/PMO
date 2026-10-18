@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ci-e2e.sh — the ONLY way to dispatch the full e2e lane (ci.yml `integration`) for a branch.
 #
-# Owner CI fair-use rule (2026-09-29, agreed with the MOS Director; the same wrapper exists in
-# gordi-mos): one dispatched e2e run per PR/branch; a second only as --bugfix-proof (the first run
-# found a real app bug and app code changed — announce it); anything beyond that, or more than
-# DAY_CAP dispatches in this repo today, needs --owner-ok "<the owner's quoted words>". Never
-# while a dispatched heavy run is queued or running in PMO or MOS: both share the account's
-# 20-job concurrency limit, and a second run only queues. Every dispatch is appended to the
-# shared log $HOME/.ci-e2e.log. .claude/hooks/ci-e2e-gate.sh blocks raw `gh workflow run`.
+# Owner CI fair-use rule (2026-09-29, agreed with the MOS Director): one
+# dispatched e2e run per PR/branch; a second only as --bugfix-proof (the first run found a real app
+# bug and app code changed — announce it); anything beyond that, or more than DAY_CAP dispatches in
+# this repo today, needs --owner-ok "<the owner's quoted words>".
+# Temporary cap: owner 2026-10-18, v0.23.0 only; revert to one after the release. Up to two dispatched
+# browser runs may be queued or running across PMO and MOS; at two, refuse even with --owner-ok. Every dispatch
+# is appended to the shared log $HOME/.ci-e2e.log. .claude/hooks/ci-e2e-gate.sh blocks raw `gh workflow run`.
 #
 # usage: scripts/ci-e2e.sh <branch> [--bugfix-proof "<why>" | --owner-ok "<quote>"] [--dry-run]
 #        scripts/ci-e2e.sh --self-test
@@ -23,7 +23,7 @@ HEAVY=("ariefsaid/PMO ci.yml" "ariefsaid/gordi-mos integration.yml")
 # decide <busy> <today> <on_branch> <kind> → prints "ok" or the refusal reason.
 decide() {
   local busy=$1 today=$2 on_branch=$3 kind=$4
-  if [ "$busy" -gt 0 ]; then echo "a dispatched heavy run is already queued or running (PMO or MOS) — wait for it"; return; fi
+  if [ "$busy" -gt 1 ]; then echo "two dispatched heavy runs are already queued or running (PMO or MOS) — wait for one to finish"; return; fi
   [ "$kind" = owner-ok ] && { echo ok; return; }
   if [ "$today" -ge "$DAY_CAP" ]; then echo "$today dispatches in $REPO today (cap $DAY_CAP) — needs --owner-ok"; return; fi
   if [ "$on_branch" -ge 2 ] || { [ "$on_branch" -eq 1 ] && [ "$kind" != bugfix-proof ]; }; then
@@ -34,9 +34,12 @@ decide() {
 
 if [ "${1:-}" = --self-test ]; then
   t() { [ "$(decide "$1" "$2" "$3" "$4")" = ok ] && r=ok || r=no; [ "$r" = "$5" ] || { echo "FAIL decide $*"; exit 1; }; }
-  t 0 0 0 normal ok;       t 1 0 0 normal no;      t 1 0 0 owner-ok no
+  t 0 0 0 normal ok;       t 1 0 0 normal ok;      t 1 0 0 owner-ok ok
+  t 2 0 0 normal no;       t 2 0 0 owner-ok no;    t 3 0 0 normal no; t 3 0 0 owner-ok no
   t 0 3 0 normal no;       t 0 3 0 owner-ok ok;    t 0 0 1 normal no
   t 0 0 1 bugfix-proof ok; t 0 0 2 bugfix-proof no; t 0 0 2 owner-ok ok
+  t 1 3 0 normal no;       t 1 3 0 owner-ok ok;    t 1 0 1 normal no
+  t 1 0 1 bugfix-proof ok; t 1 0 2 bugfix-proof no; t 1 0 2 owner-ok ok
   echo "ci-e2e self-test: ok"; exit 0
 fi
 

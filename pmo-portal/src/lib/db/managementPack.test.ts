@@ -30,6 +30,45 @@ describe('db/managementPack', () => {
     expect(() => parseManagementPackFacts(null)).toThrow(/malformed/);
   });
 
+  it('AC-MIP-005: accepts empty earlier facts and preserves finite nonnegative invoice counts', () => {
+    expect(parseManagementPackFacts(body).invoiced_before).toEqual([]);
+    expect(parseManagementPackFacts({
+      ...body,
+      invoiced_before: [
+        { project_id: 'p1', currency: 'USD', net: 0, invoice_count: 0 },
+        { project_id: 'p2', currency: 'EUR', net: 0, invoice_count: 2 },
+      ],
+    }).invoiced_before).toEqual([
+      { project_id: 'p1', currency: 'USD', net: 0, invoice_count: 0 },
+      { project_id: 'p2', currency: 'EUR', net: 0, invoice_count: 2 },
+    ]);
+  });
+
+  it('AC-MIP-005: rejects a missing earlier invoice count as malformed', () => {
+    expect(() => parseManagementPackFacts({
+      ...body,
+      invoiced_before: [{ project_id: 'p1', currency: 'USD', net: 0 }],
+    })).toThrow(expect.objectContaining({ code: 'pack-malformed' }));
+  });
+
+  it.each([
+    ['null', null],
+    ['negative', -1],
+    ['fractional', 0.5],
+    ['string', '2'],
+    ['NaN', Number.NaN],
+    ['positive infinity', Number.POSITIVE_INFINITY],
+    ['negative infinity', Number.NEGATIVE_INFINITY],
+  ])(
+    'AC-MIP-005: rejects %s earlier invoice count as malformed',
+    (_label, invoice_count) => {
+      expect(() => parseManagementPackFacts({
+        ...body,
+        invoiced_before: [{ project_id: 'p1', currency: 'USD', net: 0, invoice_count }],
+      })).toThrow(expect.objectContaining({ code: 'pack-malformed' }));
+    },
+  );
+
   it('AC-MMP-013 support: an RPC error keeps its code', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'window', code: '22023' } });
     await expect(getManagementPackFacts({})).rejects.toMatchObject({ code: '22023' });
