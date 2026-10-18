@@ -37,6 +37,10 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { timesheet: { pushApproved: (...args: unknown[]) => pushApprovedMock(...args) } },
 }));
 
+vi.mock('@/src/lib/repositories/employeeMatchReview', () => ({
+  listEmployeeMatchReview: vi.fn().mockResolvedValue({ links: [], profiles: [] }),
+}));
+
 // P3b (FR-TSP-085, OQ-TSP-10(C)) — the operator-surface reads/mutation.
 vi.mock('@/src/lib/db/timesheetPush', () => ({
   listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
@@ -53,6 +57,8 @@ import {
   useOwnTimesheetPushState,
 } from './useTimesheetApproval';
 import { getPushState } from '@/src/lib/db/timesheetPush';
+import type { ProfileRow } from '@/src/lib/db/profiles';
+import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
 import {
   listTimesheetsAwaitingApproval,
   submitTimesheet,
@@ -61,11 +67,7 @@ import {
   reopenApprovedTimesheet,
   attestTimesheetNoErpDocument,
 } from '@/src/lib/db/timesheetTransition';
-import {
-  listPushesNeedingAttention,
-  listProposedEmployeeLinks,
-  confirmEmployeeLink,
-} from '@/src/lib/db/timesheetPush';
+import { listPushesNeedingAttention, confirmEmployeeLink } from '@/src/lib/db/timesheetPush';
 
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useProcurementDetail.test.ts)
@@ -308,31 +310,40 @@ describe('usePushesNeedingAttention (FR-TSP-085)', () => {
 describe('useEmployeeLinkConfirm (OQ-TSP-10(C))', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('reads the proposed-link queue and confirms via confirmEmployeeLink, invalidating the queue on success', async () => {
-    vi.mocked(listProposedEmployeeLinks).mockResolvedValueOnce([
-      {
-        id: 'emp-1',
-        employee_name: 'Jane Doe',
-        employee_number: 'HR-EMP-00087',
-        work_email: 'jane@co.test',
-        link_proposed_reason: 'unique work_email match',
-        profile_id: 'profile-1',
-        profile_name: 'Jane Q. Doe',
-        profile_email: 'jane.doe@pmo.test',
-      },
-    ]);
+  it('AC-S30-003 reads unlinked identities with active profile choices and confirms the selected id while invalidating both queues', async () => {
+    vi.mocked(listEmployeeMatchReview).mockResolvedValueOnce({
+      links: [{
+        id: 'emp-unlinked',
+        employee_name: 'Synthetic ERP Worker',
+        employee_number: 'WORKER-017',
+        work_email: 'worker-017@example.test',
+        link_proposed_reason: 'No confident PMO match was found',
+        profile_id: null,
+        profile_name: null,
+        profile_email: null,
+      }],
+      profiles: [{
+        id: 'profile-selected',
+        full_name: 'Casey Reviewer',
+        email: 'candidate@example.test',
+        status: 'active',
+      }] as unknown as ProfileRow[],
+    });
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(() => useEmployeeLinkConfirm(), { wrapper: Wrapper });
 
     await waitFor(() => expect(result.current.links.isSuccess).toBe(true));
-    expect(result.current.links.data).toMatchObject([{ id: 'emp-1', employee_name: 'Jane Doe' }]);
+    expect(listEmployeeMatchReview).toHaveBeenCalledOnce();
+    expect(result.current.links.data).toMatchObject([{ id: 'emp-unlinked', employee_name: 'Synthetic ERP Worker', profile_id: null }]);
+    expect(result.current).toHaveProperty('profiles', [expect.objectContaining({ id: 'profile-selected', status: 'active' })]);
 
     await act(async () => {
-      await result.current.confirm.mutateAsync({ erpEmployeeId: 'emp-1', profileId: 'profile-1' });
+      await result.current.confirm.mutateAsync({ erpEmployeeId: 'emp-unlinked', profileId: 'profile-selected' });
     });
-    expect(confirmEmployeeLink).toHaveBeenCalledWith('emp-1', 'profile-1');
-    expect(invalidateSpy).toHaveBeenCalled();
+    expect(confirmEmployeeLink).toHaveBeenCalledWith('emp-unlinked', 'profile-selected');
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['erp-employee-links-proposed', 'org-1'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['timesheet-pushes-attention', 'org-1'] });
   });
 });
 

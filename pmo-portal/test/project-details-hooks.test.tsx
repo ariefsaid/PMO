@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { act } from '@testing-library/react';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import React, { useEffect } from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -39,10 +40,8 @@ vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
-// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. This spec
-// mounts ProjectDetail without a QueryClientProvider, so the hook is stubbed here rather than the
-// whole tree re-hosted. Held in its loading state so it contributes no text of its own — the
-// drawdown's own states are covered in ProjectDrawdown.test.tsx.
+// #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
+// Keep it in its loading state here so it contributes no text of its own to hooks-order assertions.
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null, default: () => null }));
 vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),

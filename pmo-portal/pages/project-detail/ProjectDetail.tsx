@@ -20,6 +20,7 @@ import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectSCurve from './ProjectSCurve';
+import ProjectProfitLossSection from './ProjectProfitLossSection';
 import OverviewTab from './tabs/OverviewTab';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import BudgetTab from './tabs/BudgetTab';
@@ -222,6 +223,7 @@ const ProjectDetail: React.FC = () => {
             // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
             showFinanceSummary={isDeliveryForward && !isPipeline}
           />
+          <ProjectProfitLossSection projectId={project.id} />
           {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
               the Overview tab is active, and is hidden for pre-win records (no real progress
               data). Scoping it here (not at shell level) prevents it bleeding into

@@ -17,6 +17,15 @@ describe('Application route table', () => {
 
   // Profile language settings slice (supports AC-L10N-060): /settings/profile must resolve to a
   // real lazy page element, never the `*` catch-all.
+  it('AC-007 support: /financial-statements is a direct page route, not a revenue FeatureRoute', () => {
+    const matches = matchRoutes(appRouteConfig, '/financial-statements');
+    const route = matches?.[matches.length - 1]?.route;
+
+    expect(route?.path).toBe('/financial-statements');
+    expect(React.isValidElement(route?.element)).toBe(true);
+    expect(route?.element).not.toMatchObject({ props: { feature: 'revenue' } });
+  });
+
   it('AC-L10N-060 support: /settings/profile resolves to the profile settings route', () => {
     const matches = matchRoutes(appRouteConfig, '/settings/profile');
     const route = matches?.[matches.length - 1]?.route;

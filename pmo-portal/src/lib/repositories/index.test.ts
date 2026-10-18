@@ -7,6 +7,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // (d) a thrown DAL error is normalized to an AppError (code preserved).
 // ---------------------------------------------------------------------------
 
+vi.mock('@/src/lib/db/financialStatements', () => ({
+  getFinancialStatement: vi.fn(),
+  getFinancialStatementCatalogue: vi.fn(),
+}));
 vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn(),
   createProject: vi.fn(),
@@ -143,6 +147,7 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
 import * as projectsDal from '@/src/lib/db/projects';
+import * as financialStatementsDal from '@/src/lib/db/financialStatements';
 import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
@@ -181,8 +186,16 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
     );
+  });
+
+  it('financialStatements exposes catalogue and get through the public API seam', async () => {
+    const catalogue = { state: 'unavailable', companyLabel: null, generation: null, periods: [], scopes: [] };
+    vi.mocked(financialStatementsDal.getFinancialStatementCatalogue).mockResolvedValue(catalogue as never);
+    await expect(repositories.financialStatements.catalogue()).resolves.toBe(catalogue);
+    expect(financialStatementsDal.getFinancialStatementCatalogue).toHaveBeenCalledWith({});
+    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get']);
   });
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {

@@ -1,13 +1,23 @@
-import React, { useState } from 'react';
-import { Button, ConfirmDialog } from '@/src/components/ui';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button, Combobox, ConfirmDialog } from '@/src/components/ui';
+import type { ComboboxOption } from '@/src/components/ui';
 import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
+
+export interface EmployeeProfileOption {
+  value: string;
+  label: string;
+  email?: string;
+}
 
 export interface EmployeeLinkConfirmProps {
   links: ProposedEmployeeLink[];
   /** ADR-0016 UX gate result — `can('confirm_employee_link', 'employeeLink', ctx)` (Admin only). The
    *  RPC (`confirm_erp_employee_link`) is the real authority regardless of this flag. */
   canConfirm: boolean;
-  onConfirm: (link: ProposedEmployeeLink) => void;
+  onConfirm: (link: ProposedEmployeeLink) => Promise<void> | void;
+  /** Active, same-org choices supplied by the read-only review queue. */
+  profileOptions?: EmployeeProfileOption[];
   /** the `erp_employees.id` currently being confirmed (mutation in flight) — disables its row. */
   confirmingId?: string | null;
 }
@@ -30,14 +40,34 @@ export interface EmployeeLinkConfirmProps {
 
 /** The ERP side is identifiable if ANY of its three identifying facts is present. */
 const erpIdentity = (l: ProposedEmployeeLink): string | null =>
-  l.employee_name ?? l.employee_number ?? l.work_email ?? null;
+  [l.employee_name, l.employee_number, l.work_email]
+    .map((value) => value?.trim() ?? '')
+    .find((value): value is string => Boolean(value)) ?? null;
 
 /** The PMO side is identifiable only if the destination profile is actually resolvable. */
 const pmoIdentity = (l: ProposedEmployeeLink): string | null =>
-  l.profile_id ? (l.profile_name ?? l.profile_email ?? null) : null;
+  l.profile_id
+    ? [l.profile_name, l.profile_email]
+      .map((value) => value?.trim() ?? '')
+      .find((value): value is string => Boolean(value)) ?? null
+    : null;
 
 const isDecidable = (l: ProposedEmployeeLink): boolean =>
   erpIdentity(l) !== null && pmoIdentity(l) !== null;
+
+const profileName = (option: EmployeeProfileOption): string => {
+  const emailSuffix = option.email ? ` · ${option.email}` : '';
+  return emailSuffix && option.label.endsWith(emailSuffix)
+    ? option.label.slice(0, -emailSuffix.length)
+    : option.label;
+};
+
+interface PendingConfirmation {
+  link: ProposedEmployeeLink;
+  profileId: string | null;
+  selectedProfile: EmployeeProfileOption | null;
+  requiresActiveProfile: boolean;
+}
 
 /**
  * ⚑ NEW-7 / NEW-8 — the supporting facts, MINUS whatever is already the headline.
@@ -50,16 +80,92 @@ const isDecidable = (l: ProposedEmployeeLink): boolean =>
  */
 const erpSupportingFacts = (l: ProposedEmployeeLink): string[] => {
   const headline = erpIdentity(l);
-  return [l.employee_number, l.work_email].filter((f): f is string => Boolean(f) && f !== headline);
+  return [l.employee_number, l.work_email]
+    .map((value) => value?.trim() ?? '')
+    .filter((value): value is string => Boolean(value) && value !== headline);
 };
 
 export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
   links,
   canConfirm,
   onConfirm,
+  profileOptions,
   confirmingId = null,
 }) => {
-  const [pending, setPending] = useState<ProposedEmployeeLink | null>(null);
+  const { t } = useTranslation();
+  const [pending, setPending] = useState<PendingConfirmation | null>(null);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const comboboxOptions = useMemo<ComboboxOption[]>(
+    () => (profileOptions ?? []).map(({ value, label }) => ({
+      value,
+      label,
+    })),
+    [profileOptions],
+  );
+  const activeProfilesById = useMemo(
+    () => new Map((profileOptions ?? []).map((option) => [option.value, option])),
+    [profileOptions],
+  );
+  const loadProfileOptions = useCallback(async () => comboboxOptions, [comboboxOptions]);
+
+  const openConfirmation = (link: ProposedEmployeeLink, profileId: string | null, requiresActiveProfile: boolean) => {
+    setSaveError(false);
+    setPending({
+      link,
+      profileId,
+      selectedProfile: profileId ? activeProfilesById.get(profileId) ?? null : null,
+      requiresActiveProfile,
+    });
+  };
+
+  const confirmPending = async () => {
+    if (!pending || savingRef.current) return;
+
+    let confirmedLink = pending.link;
+    if (pending.profileId) {
+      const selected = activeProfilesById.get(pending.profileId);
+      if (!selected) return;
+      confirmedLink = {
+        ...pending.link,
+        profile_id: selected.value,
+        profile_name: profileName(selected),
+        profile_email: selected.email ?? null,
+      };
+    } else if (!isDecidable(pending.link)) {
+      return;
+    }
+
+    savingRef.current = true;
+    setSavingId(pending.link.id);
+    setSaveError(false);
+    try {
+      await onConfirm(confirmedLink);
+      setPending(null);
+    } catch {
+      setSaveError(true);
+    } finally {
+      savingRef.current = false;
+      setSavingId(null);
+    }
+  };
+
+  const pendingLink = pending?.link ?? null;
+  const pendingActiveProfile = pending?.profileId ? activeProfilesById.get(pending.profileId) : undefined;
+  const pendingSelected = pendingActiveProfile ?? pending?.selectedProfile ?? undefined;
+  const pendingDestination = pending
+    ? pending.profileId
+      ? pendingSelected ? profileName(pendingSelected) : null
+      : pmoIdentity(pending.link)
+    : null;
+  const staleSelection = Boolean(
+    pending?.requiresActiveProfile && (!pendingActiveProfile || profileOptions === undefined),
+  );
+  const pendingCanConfirm = Boolean(
+    pendingLink && erpIdentity(pendingLink) !== null && pendingDestination !== null && !staleSelection,
+  );
 
   if (links.length === 0) return null;
 
@@ -67,7 +173,12 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
     <div className="space-y-2">
       {links.map((link) => {
         const erp = erpIdentity(link);
-        const pmo = pmoIdentity(link);
+        const needsProfileChoice = profileOptions !== undefined;
+        const selectedProfileId = selectedProfileIds[link.id] ?? (needsProfileChoice ? link.profile_id : null);
+        const selectedProfile = selectedProfileId ? activeProfilesById.get(selectedProfileId) : undefined;
+        const pmo = needsProfileChoice
+          ? selectedProfile ? profileName(selectedProfile) : null
+          : pmoIdentity(link);
         const decidable = erp !== null && pmo !== null;
         return (
           <div
@@ -76,7 +187,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
           >
             <div className="min-w-0">
               {/* C-7: the ERP side — name if known, else the stable employee number, else the email. */}
-              <div className="text-sm font-medium">{link.employee_name ?? erp ?? 'Unidentified ERP employee'}</div>
+              <div className="text-sm font-medium">{link.employee_name?.trim() || erp || 'Unidentified ERP employee'}</div>
               <div className="mt-0.5 text-[12px] text-muted-foreground">
                 {erpSupportingFacts(link).join(' · ') || 'No further identifying details on record'}
               </div>
@@ -85,24 +196,49 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
               <div className="mt-1 text-[12px]">
                 {pmo ? (
                   <>
-                    <span className="text-muted-foreground">Hours would be attributed to </span>
-                    <b className="font-semibold">{pmo}</b>
+                    <span className="text-muted-foreground">
+                      {t('approvals.employeeLinks.uxs30.destination', 'Hours would be attributed to {{profile}}', { profile: pmo })}
+                    </span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">No PMO user is matched to this employee.</span>
+                  <span className="text-muted-foreground">
+                    {needsProfileChoice
+                      ? (profileOptions?.length ?? 0) === 0
+                        ? t('approvals.employeeLinks.uxs30.noActiveProfiles', 'No active PMO profiles are available.')
+                        : t('approvals.employeeLinks.uxs30.chooseProfile', 'Choose an active PMO profile to attribute hours to.')
+                      : 'No PMO user is matched to this employee.'}
+                  </span>
                 )}
               </div>
+              {canConfirm && needsProfileChoice && (profileOptions?.length ?? 0) > 0 && erp !== null && (
+                <div className="mt-2 max-w-sm">
+                  <Combobox
+                    label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
+                    value={selectedProfile?.value ?? null}
+                    selectedOption={selectedProfile ? { value: selectedProfile.value, label: selectedProfile.label } : null}
+                    onChange={(value) => setSelectedProfileIds((current) => ({ ...current, [link.id]: value }))}
+                    loadOptions={loadProfileOptions}
+                    placeholder={t('approvals.employeeLinks.uxs30.profilePlaceholder', 'Select a PMO profile')}
+                    noun={t('approvals.employeeLinks.uxs30.profileNoun', 'PMO profile')}
+                    searchPlaceholder={t('approvals.employeeLinks.uxs30.searchProfiles', 'Search active profiles')}
+                  />
+                </div>
+              )}
               {link.link_proposed_reason && (
                 <div className="mt-0.5 text-[12px] text-muted-foreground">{link.link_proposed_reason}</div>
               )}
               {/* An unidentifiable end is not a disabled button with no explanation — it is a stated
                   reason, because the operator's next act depends on WHICH end is missing. */}
-              {!decidable && (
+              {!decidable && (!needsProfileChoice || erp === null) && (
                 <div className="mt-1 text-[12px] text-muted-foreground">
                   This link cannot be confirmed:{' '}
                   {erp === null
                     ? 'the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.'
-                    : 'no PMO user is matched to it yet.'}
+                    : needsProfileChoice
+                      ? (profileOptions?.length ?? 0) === 0
+                        ? t('approvals.employeeLinks.uxs30.noActiveProfiles', 'No active PMO profiles are available.')
+                        : t('approvals.employeeLinks.uxs30.chooseProfile', 'Choose an active PMO profile to attribute hours to.')
+                      : 'no PMO user is matched to it yet.'}
                 </div>
               )}
             </div>
@@ -110,7 +246,11 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPending(link)}
+                onClick={() => openConfirmation(
+                  link,
+                  needsProfileChoice ? selectedProfile?.value ?? null : null,
+                  needsProfileChoice,
+                )}
                 loading={confirmingId === link.id}
                 disabled={confirmingId === link.id}
               >
@@ -121,26 +261,47 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
         );
       })}
 
-      {pending && isDecidable(pending) && (
+      {pending && pendingLink && (
         <ConfirmDialog
           open
           tone="default"
-          title={`Attribute ${erpIdentity(pending)}'s hours to ${pmoIdentity(pending)}?`}
-          description={`ERP employee ${erpIdentity(pending)}${
-            // NEW-7: only when it adds something the headline does not already say.
-            pending.employee_number && pending.employee_number !== erpIdentity(pending)
-              ? ` (${pending.employee_number})`
-              : ''
-          } will have their ERP timesheet hours attributed to the PMO user ${pmoIdentity(pending)}${
-            pending.profile_email ? ` (${pending.profile_email})` : ''
-          } from now on. An ERP-side email change can never silently re-point a confirmed link.`}
-          confirmLabel="Confirm link"
-          loading={confirmingId === pending.id}
+          title={pendingDestination
+            ? t('approvals.employeeLinks.uxs30.confirmTitle', "Attribute {{employee}}'s hours to {{profile}}?", {
+              employee: erpIdentity(pendingLink),
+              profile: pendingDestination,
+            })
+            : t('approvals.employeeLinks.uxs30.confirmTitleUnknown', 'Confirm employee link for {{employee}}?', {
+              employee: erpIdentity(pendingLink) ?? t('approvals.employeeLinks.uxs30.unknownEmployee', 'this employee'),
+            })}
+          description={<>
+            <span>{t(
+              'approvals.employeeLinks.uxs30.confirmDescription',
+              'ERP employee {{employee}}{{employeeNumber}} will have their ERP timesheet hours attributed to the PMO user {{profile}}{{profileEmail}} from now on. An ERP-side email change can never silently re-point a confirmed link.',
+              {
+                employee: erpIdentity(pendingLink),
+                // NEW-7: only add the number when it adds something the headline does not already say.
+                employeeNumber: pendingLink.employee_number?.trim()
+                  && pendingLink.employee_number.trim() !== erpIdentity(pendingLink)
+                  ? ` (${pendingLink.employee_number.trim()})`
+                  : '',
+                profile: pendingDestination ?? '',
+                profileEmail: (pendingSelected?.email ?? pendingLink.profile_email)
+                  ? ` (${pendingSelected?.email ?? pendingLink.profile_email})`
+                  : '',
+              },
+            )}</span>
+            {staleSelection && <div role="alert" className="mt-2 text-sm text-destructive">
+              {t('approvals.employeeLinks.uxs30.staleProfile', 'The selected PMO profile is no longer active. Choose an active profile before confirming.')}
+            </div>}
+            {saveError && <div role="alert" className="mt-2 text-sm text-destructive">
+              {t('approvals.employeeLinks.uxs30.saveFailure', "Couldn't confirm this employee link. The selected profile is still available; try again.")}
+            </div>}
+          </>}
+          confirmLabel={t('approvals.employeeLinks.uxs30.confirmLabel', 'Confirm link')}
+          loading={confirmingId === pendingLink.id || savingId === pendingLink.id}
+          confirmDisabled={!pendingCanConfirm}
           onCancel={() => setPending(null)}
-          onConfirm={() => {
-            onConfirm(pending);
-            setPending(null);
-          }}
+          onConfirm={() => { void confirmPending(); }}
         />
       )}
     </div>

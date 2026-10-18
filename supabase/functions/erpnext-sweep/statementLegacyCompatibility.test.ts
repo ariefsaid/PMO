@@ -250,7 +250,7 @@ class MemoryDatabase {
       const missing = scenario?.missingReferences === 'always-missing' || (scenario?.missingReferences !== 'error-first' && (this.rows.get('erp_gl_entry_mirror') ?? []).some((row) => row.org_id === orgId && row.company === args.p_company && row.is_cancelled !== true && !this.charts.get(orgId)?.some((account) => account.erp_name === row.account)));
       if (missing) {
         const binding = this.bindings.get(orgId);
-        if (binding) { binding.statementReplayNeeded = true; binding.statement_update_delayed = true; }
+        if (binding) binding.statementReplayNeeded = true;
       }
       return { data: missing, error: null };
     }
@@ -393,6 +393,13 @@ function requestsFor(db: MemoryDatabase, org: TestOrg, doctype: string): Recorde
 function noModifiedFilter(request: RecordedRequest): boolean {
   return !Array.isArray(request.filters) || !(request.filters as unknown[][]).some((filter) => filter[0] === 'modified');
 }
+function assertNativeStatementStateUnchanged(db: MemoryDatabase, org: TestOrg, label: string): void {
+  const binding = db.bindings.get(org.orgId);
+  assert(binding?.statement_update_delayed === true, `${label}: legacy source feed changed seeded native delayed state`);
+  equal(binding?.statement_calendar, [{ start: '2025-01-01', end: '2025-12-31' }], `${label}: legacy source feed changed seeded native calendar`);
+  assert(!db.statusUpdates.some((entry) => entry.orgId === org.orgId &&
+    ('statement_update_delayed' in entry.values || 'statement_calendar' in entry.values)), `${label}: legacy source feed wrote native status fields`);
+}
 
 Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/AP/AR refreshes reachable', async () => {
   const first = orgFor('v15-settings-403', 15, true);
@@ -425,11 +432,7 @@ Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/A
       assert(stored.asOf !== '2025-09-01T00:00:00.000Z', 'successful accounting refresh did not advance generation as_of');
       assert(stored.rows.every((row) => row.snapshot_id === stored.generation && row.as_of === stored.asOf), 'snapshot generation/provenance is not internally atomic');
     }
-    const binding = harness.db.bindings.get(first.orgId)!;
-    assert(binding.statement_update_delayed === true, 'statement-only failure must leave delayed status true');
-    assert(Array.isArray(binding.statement_calendar) && (binding.statement_calendar[0] as AnyRow).start === '2025-01-01', 'old statement calendar must remain unchanged');
-    assert(!harness.db.statusUpdates.some((entry) => entry.orgId === first.orgId && entry.values.statement_update_delayed === false), 'statement-only failure must not clear delayed status');
-    assert(!harness.db.statusUpdates.some((entry) => entry.orgId === first.orgId && 'statement_calendar' in entry.values), 'statement-only failure must not write a new calendar');
+    assertNativeStatementStateUnchanged(harness.db, first, 'v15 metadata denial');
     const initialFinish = harness.db.rpcCalls.find((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay');
     assert(initialFinish && initialFinish.args.p_company === first.company && typeof initialFinish.args.p_replay_id === 'string' && initialFinish.args.p_watermark === '2026-10-01 10:00:00.000000', `initial replay completion arguments were not preserved: ${stable(initialFinish)}`);
     assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'the migrated initial replay must finish exactly once');
@@ -469,22 +472,22 @@ Deno.test('AC-005: v16 USD and missing required statement metadata still refresh
       assert(!errors.some((error) => error.startsWith('ledger:')), `valid raw feed was blocked for ${key}: ${stable(errors)}`);
       assert(snapshot(harness.db, org, 'erp_ap_aging_snapshot').rows[0]?.total_outstanding === 45000, `${key}: real AP snapshot was not published`);
       assert(snapshot(harness.db, org, 'erp_ar_aging_snapshot').rows[0]?.total_outstanding === 78000, `${key}: real AR snapshot was not published`);
-      assert(harness.db.bindings.get(org.orgId)?.statement_update_delayed === true, `${key}: statement delay was cleared despite metadata failure`);
+      assertNativeStatementStateUnchanged(harness.db, org, key);
     } finally {
       harness.restore();
     }
   }
 });
 
-Deno.test('AC-005: valid chart, report metadata and complete raw history retain chart-before-ledger readiness', async () => {
+Deno.test('AC-005: valid chart and complete raw history retain diagnostic readiness without native publication', async () => {
   const org = orgFor('valid-statement', 16, true);
   const harness = makeHarness([{ org }]);
   try {
     const cycle = await harness.runCycle();
     const entry = cycle.perOrg[0]!;
-    assert(entry.ledger?.statementReady === true, `complete sources did not become statement-ready: ${stable(entry)}`);
-    assert(harness.db.bindings.get(org.orgId)?.statement_update_delayed === false, 'complete statement source did not clear delayed status');
-    equal(harness.db.bindings.get(org.orgId)?.statement_calendar, [{ start: '2026-01-01', end: '2026-12-31' }], 'complete statement source did not write the safe calendar');
+    assert(entry.ledger?.statementReady === true, `complete raw/chart sources did not remain diagnostically ready: ${stable(entry)}`);
+    assertNativeStatementStateUnchanged(harness.db, org, 'complete raw/chart source feed');
+    assert(!harness.db.rpcCalls.some((call) => call.orgId === org.orgId && ['open_erp_statement_report_batch', 'stage_erp_statement_report', 'publish_erp_financial_statements'].includes(call.name)), 'legacy chart readiness invoked native publication');
     const sourceOrder = harness.db.requests.filter((request) => request.orgId === org.orgId && (decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/Account' || decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/GL Entry'))
       .map((request) => decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/Account' ? 'chart' : 'ledger');
     equal(sourceOrder, ['chart', 'ledger'], 'chart must be read before the raw ledger feed');
@@ -533,7 +536,7 @@ Deno.test('AC-005: invalid chart does not downgrade an initial full replay or ce
     assert(harness.db.rpcCalls.filter((call) => call.orgId === org.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'initial full replay was not safely finished exactly once');
     assert(noModifiedFilter(requestsFor(harness.db, org, 'GL Entry')[0]!), 'chart failure downgraded initial history to an incremental GL query');
     assert(harness.db.bindings.get(org.orgId)?.statementReplayNeeded === false, 'complete raw history did not clear its historical replay flag');
-    assert(harness.db.bindings.get(org.orgId)?.statement_update_delayed === true, 'invalid chart falsely cleared delayed statement status');
+    assertNativeStatementStateUnchanged(harness.db, org, 'invalid chart');
     assert(snapshot(harness.db, org, 'erp_actuals_snapshot').generation !== 'old-actuals-generation', 'raw replay did not advance the actuals generation');
   } finally {
     harness.restore();
@@ -553,13 +556,13 @@ Deno.test('AC-005: unresolved chart references reassert replay without pretendin
     assert(!harness.db.rpcCalls.some((call) => call.orgId === org.orgId && call.name === 'finish_erp_gl_replay'), 'a newly discovered missing reference forced a same-tick replay');
     assert(!noModifiedFilter(requestsFor(harness.db, org, 'GL Entry')[0]!), 'missing-reference detection discarded the original incremental feed mode');
     assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows.length > 0, 'unresolved references prevented legacy Actuals refresh');
-    assert(harness.db.bindings.get(org.orgId)?.statement_update_delayed === true, 'unresolved references cleared delayed status');
+    assertNativeStatementStateUnchanged(harness.db, org, 'unresolved chart references');
   } finally {
     harness.restore();
   }
 });
 
-Deno.test('AC-005: reference/status write failures stay statement-only while real raw accounting proceeds', async () => {
+Deno.test('AC-005: chart-reference errors stay independent and legacy status writes cannot affect raw accounting', async () => {
   for (const key of ['reference-rpc-error', 'delayed-status-error']) {
     const org = orgFor(key, 16, true);
     const scenario: Scenario = { org, missingReferences: key === 'reference-rpc-error' ? 'error-first' : 'computed', failDelayedStatus: key === 'delayed-status-error' };
@@ -567,12 +570,14 @@ Deno.test('AC-005: reference/status write failures stay statement-only while rea
     try {
       const cycle = await harness.runCycle();
       assert(cycle.perOrg[0]?.ledger?.glCaughtUp === true && cycle.perOrg[0]?.ledger.pleCaughtUp === true, `${key} prevented raw history completion`);
-      assert(cycle.perOrg[0]?.ledger.statementReady === false && cycle.perOrg[0]?.errors.some((error) => error.startsWith('statement:')), `${key} incorrectly certified statement readiness`);
+      if (key === 'reference-rpc-error') {
+        assert(cycle.perOrg[0]?.ledger.statementReady === false && cycle.perOrg[0]?.errors.some((error) => error.startsWith('statement:')), `${key} did not retain its independent reference-check failure`);
+      } else {
+        assert(cycle.perOrg[0]?.ledger.statementReady === true, `${key}: an obsolete native status-write fault affected the raw/chart diagnostic`);
+        assert(!cycle.perOrg[0]?.errors.some((error) => error.startsWith('statement:')), `${key}: a removed native status write still affected the legacy feed`);
+      }
       assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, `${key} prevented legacy Actuals refresh`);
-      assert(harness.db.bindings.get(org.orgId)?.statement_update_delayed === true, `${key} cleared delayed status`);
-      assert(!harness.db.statusUpdates.some((entry) => entry.orgId === org.orgId && entry.values.statement_update_delayed === false), `${key} attempted a false-success status write`);
-      const oldCalendar = harness.db.bindings.get(org.orgId)?.statement_calendar;
-      assert(Array.isArray(oldCalendar) && (oldCalendar[0] as AnyRow).start === '2025-01-01', `${key} overwrote the old calendar`);
+      assertNativeStatementStateUnchanged(harness.db, org, key);
     } finally {
       harness.restore();
     }
@@ -594,6 +599,7 @@ Deno.test('AC-005: raw partial GL and incomplete Payment Ledger retain prior acc
       assert(snapshot(harness.db, org, 'erp_actuals_snapshot').generation === 'old-actuals-generation' && snapshot(harness.db, org, 'erp_actuals_snapshot').asOf === '2025-09-01T00:00:00.000Z', `${org.orgId}: partial feed replaced the old Actuals generation/time`);
       assert(snapshot(harness.db, org, 'erp_ap_aging_snapshot').generation === 'old-ap-generation' && snapshot(harness.db, org, 'erp_ap_aging_snapshot').asOf === '2025-09-01T00:00:00.000Z', `${org.orgId}: partial feed replaced the old AP generation/time`);
       assert(snapshot(harness.db, org, 'erp_ar_aging_snapshot').generation === 'old-ar-generation' && snapshot(harness.db, org, 'erp_ar_aging_snapshot').asOf === '2025-09-01T00:00:00.000Z', `${org.orgId}: partial feed replaced the old AR generation/time`);
+      assertNativeStatementStateUnchanged(harness.db, org, 'incomplete raw feed');
     }
     assert(harness.db.snapshotHistory.length === 0, 'incomplete raw feeds wrote one or more accounting snapshots');
   } finally {

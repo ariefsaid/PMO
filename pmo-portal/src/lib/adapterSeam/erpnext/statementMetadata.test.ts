@@ -48,6 +48,7 @@ type SyntheticYear = { name: string; doc: Record<string, unknown> };
 type StrictFixture = {
   languageCode: string;
   company: Record<string, unknown>;
+  companyRows?: unknown[];
   accounts: Record<string, unknown>;
   system: Record<string, unknown>;
   defaults: Record<string, unknown>;
@@ -57,6 +58,7 @@ type StrictFixture = {
   years: SyntheticYear[];
   fiscalPage?: (offset: number) => unknown;
   deniedPath?: string;
+  deniedPaths?: string[];
   rawResponsePath?: string;
   rawResponseBody?: unknown;
 };
@@ -79,15 +81,21 @@ function strictHarness(overrides: Partial<StrictFixture> = {}) {
     ...overrides,
   };
   const calls: Array<{ request: Request; url: URL }> = [];
+  let activeRequests = 0;
+  let maximumConcurrentRequests = 0;
   const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init);
     const url = new URL(request.url);
     calls.push({ request, url });
-    if (fixture.deniedPath === url.pathname) return response({ exc_type: 'PermissionError' }, 403);
+    activeRequests += 1;
+    maximumConcurrentRequests = Math.max(maximumConcurrentRequests, activeRequests);
+    await Promise.resolve();
+    try {
+    if (fixture.deniedPath === url.pathname || fixture.deniedPaths?.includes(url.pathname)) return response({ exc_type: 'PermissionError' }, 403);
     if (fixture.rawResponsePath === url.pathname) return response(fixture.rawResponseBody);
     if (url.pathname === '/api/resource/System%20Settings/System%20Settings') return response({ data: fixture.system });
     if (url.pathname === `/api/resource/Language/${encodeURIComponent(fixture.languageCode)}`) return response({ data: fixture.language });
-    if (url.pathname === '/api/resource/Company/Synthetic%20Co') return response({ data: fixture.company });
+    if (url.pathname === '/api/resource/Company') return response({ data: fixture.companyRows ?? [fixture.company] });
     if (url.pathname === '/api/resource/Accounts%20Settings/Accounts%20Settings') return response({ data: fixture.accounts });
     if (url.pathname === '/api/resource/Currency/IDR') return response({ data: fixture.currency });
     if (url.pathname === '/api/resource/Finance%20Book') return response({ data: fixture.financeBooks });
@@ -103,8 +111,11 @@ function strictHarness(overrides: Partial<StrictFixture> = {}) {
       return response({ message: { defaults: fixture.defaults, timezones: ['ignored'] } });
     }
     throw new Error(`Unexpected synthetic request ${url.pathname}`);
+    } finally {
+      activeRequests -= 1;
+    }
   }) as typeof fetch;
-  return { fixture, calls, client: { ...client(fetchImpl), maxRetries: 0 } };
+  return { fixture, calls, client: { ...client(fetchImpl), maxRetries: 0 }, maxConcurrentRequests: () => maximumConcurrentRequests };
 }
 
 function readStrict(harness: ReturnType<typeof strictHarness>, profile: unknown = STRICT_PROFILE) {
@@ -129,47 +140,68 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
     expect(h.calls).toHaveLength(0);
   });
 
-  it('resolves exact profile, settings, effective branches, global book and applicable calendar', async () => {
+  it('resolves exact profile, readable Currency presentation, global book and applicable calendar', async () => {
     const h = strictHarness();
     const result = await readStrict(h);
     expect(result.metadata).toEqual({
       erpVersion: '16.33.0', frappeVersion: '16.31.0', currency: 'IDR', defaultFinanceBook: 'Accrual', hasFinanceBooks: false,
-      calendar: [{ name: 'FY-2025', start: '2025-04-01', end: '2026-03-31' }], currencyPrecision: 2, floatPrecision: 3,
-      bsOpeningPrecision: 2, roundingMethod: "Banker's Rounding (legacy)", fractionUnits: 100,
+      calendar: [{ name: 'FY-2025', start: '2025-04-01', end: '2026-03-31' }], currencyPrecision: 2,
+      roundingMethod: 'erpnext_report_output', fractionUnits: 100,
       ignoreOpeningCheck: false, ignoreAccountClosingBalance: false,
     });
     expect(result.context.requestLanguage).toBe('en');
-    expect(result.context.currencyPrecisionBranch).toBe('number_format');
-    expect(result.context.numberFormatBranch).toBe('native_default');
-    expect(result.context.raw.systemSettings.currencyPrecision).toBe('');
-    expect(result.context.raw.systemDefaults.currencyPrecision).toBe('');
+    expect(result.context.currencyPrecisionBranch).toBe('currency_fraction_units');
+    expect(result.context.raw.currency.fractionUnits).toBe(100);
+    expect(result.context.raw).not.toHaveProperty('systemSettings');
+    expect(result.context.raw).not.toHaveProperty('systemDefaults');
+    expect(result.context.raw).not.toHaveProperty('language');
     expect(result.metadata).not.toHaveProperty('zeroCutoff');
     expect(result.context).not.toHaveProperty('fetchImpl');
     expect(result.context).not.toHaveProperty('nativeDocuments');
+    expect(h.maxConcurrentRequests()).toBe(1);
   });
 
-  it('binds every post-bootstrap GET to the exact enabled request language without a self-User read', async () => {
+  it('reads exactly one Company row through a bounded exact-name projection and preserves selected null', async () => {
+    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null } });
+    const result = await readStrict(h);
+    const companyCall = h.calls.find(({ url }) => url.pathname === '/api/resource/Company');
+    expect(companyCall).toBeDefined();
+    expect(companyCall?.request.method).toBe('GET');
+    expect(JSON.parse(companyCall?.url.searchParams.get('filters') ?? 'null')).toEqual([['name', '=', 'Synthetic Co']]);
+    expect(JSON.parse(companyCall?.url.searchParams.get('fields') ?? 'null')).toEqual(['name', 'default_currency', 'default_finance_book']);
+    expect(companyCall?.url.searchParams.get('limit_page_length')).toBe('2');
+    expect(result.metadata.defaultFinanceBook).toBeNull();
+  });
+
+  it('normalizes a present blank Company default book the same as selected null', async () => {
+    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: '' } });
+    expect((await readStrict(h)).metadata.defaultFinanceBook).toBeNull();
+  });
+
+  it.each([
+    ['zero Company rows', []],
+    ['multiple Company rows', [
+      { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null },
+      { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null },
+    ]],
+    ['wrong Company identity', [{ name: 'Other Co', default_currency: 'IDR', default_finance_book: null }]],
+  ])('rejects %s from the Company collection', async (_label, companyRows) => {
+    await expect(readStrict(strictHarness({ companyRows }))).rejects.toThrow();
+  });
+
+  it('binds every GET to a deterministic request language without reading user or System Settings', async () => {
     const h = strictHarness();
     await readStrict(h);
-    expect(h.calls[0].url.pathname).toBe('/api/resource/System%20Settings/System%20Settings');
-    expect(h.calls[1].url.pathname).toBe('/api/resource/Language/en');
+    expect(h.calls[0].url.pathname).toBe('/api/resource/Company');
+    expect(h.calls.some(({ url }) => url.pathname.startsWith('/api/resource/Language/'))).toBe(false);
+    expect(h.calls.some(({ url }) => url.pathname.includes('System%20Settings'))).toBe(false);
+    expect(h.calls.some(({ url }) => url.pathname === '/api/method/frappe.core.doctype.system_settings.system_settings.load')).toBe(false);
     expect(h.calls.some(({ url }) => /\/User(?:\/|$)/.test(url.pathname))).toBe(false);
-    for (const { request, url } of h.calls.slice(2)) {
+    for (const { request, url } of h.calls) {
       expect(request.headers.get('accept-language')).toBe('en');
       expect(request.credentials).toBe('omit');
       expect(url.searchParams.has('_lang')).toBe(false);
     }
-  });
-
-  it.each([
-    ['disabled', { name: 'en', enabled: 0, number_format: '' }],
-    ['mismatched identity', { name: 'fr', enabled: 1, number_format: '' }],
-    ['missing format', { name: 'en', enabled: 1 }],
-  ])('rejects %s request language rather than falling back', async (_label, language) => {
-    const h = strictHarness({ language });
-    await expect(readStrict(h)).rejects.toThrow();
-    expect(h.calls.some(({ url }) => url.pathname === '/api/resource/Language/en')).toBe(true);
-    expect(h.calls.some(({ url }) => /\/User(?:\/|$)/.test(url.pathname))).toBe(false);
   });
 
   it('rejects Cookie headers from both Request and init inputs', async () => {
@@ -238,7 +270,7 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
       maxRetries: 0,
       fetchImpl: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = input instanceof Request ? input : new Request(input, init);
-        if (new URL(request.url).pathname === '/api/resource/Company/Synthetic%20Co') {
+        if (new URL(request.url).pathname === '/api/resource/Company') {
           return new Promise<Response>((_resolve, reject) => {
             const fail = () => reject(new Error(rawSecretMessage));
             if (request.signal.aborted) fail();
@@ -305,95 +337,68 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
       ['Company default book', { company: { name: 'Synthetic Co', default_currency: 'IDR' } }],
       ['Currency fraction units', { currency: { name: 'IDR', number_format: '' } }],
       ['Accounts opening setting', { accounts: { name: 'Accounts Settings', ignore_account_closing_balance: 0 } }],
-      ['System language', { system: { currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '' } }],
-      ['DB default field', { defaults: { currency_precision: '', float_precision: '', rounding_method: '' } }],
     ];
     for (const [label, overrides] of missingCases) await expect(readStrict(strictHarness(overrides))).rejects.toThrow(label.split(' ')[0]);
-    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null }, currency: { name: 'IDR', fraction_units: null, number_format: null } });
+    const h = strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: null }, currency: { name: 'IDR', fraction_units: 100, number_format: null } });
     const result = await readStrict(h);
     expect(result.metadata.defaultFinanceBook).toBeNull();
-    expect(result.metadata.fractionUnits).toBe(100);
+    expect(result.metadata.currencyPrecision).toBe(2);
   });
 
   it('rejects malformed successful envelopes rather than treating them as absent metadata', async () => {
-    const company = strictHarness({ rawResponsePath: '/api/resource/Company/Synthetic%20Co', rawResponseBody: { data: null } });
+    const company = strictHarness({ rawResponsePath: '/api/resource/Company', rawResponseBody: { data: null } });
     await expect(readStrict(company)).rejects.toThrow(/Company/i);
     const years = strictHarness({ rawResponsePath: '/api/resource/Fiscal%20Year', rawResponseBody: { data: {} } });
     await expect(readStrict(years)).rejects.toThrow(/Fiscal Year/i);
-    const defaults = strictHarness({ rawResponsePath: '/api/method/frappe.core.doctype.system_settings.system_settings.load', rawResponseBody: { message: {} } });
-    await expect(readStrict(defaults)).rejects.toThrow(/default/i);
   });
 
-  it('retains present null Select observations while normalizing only null/blank equality', async () => {
-    const h = strictHarness({
-      system: { language: 'en', currency_precision: null, float_precision: null, rounding_method: null, use_number_format_from_currency: 0, number_format: null },
-      defaults: { currency_precision: '', float_precision: null, rounding_method: '', number_format: '' },
-      language: { name: 'en', enabled: 1, number_format: null },
-      currency: { name: 'IDR', fraction_units: null, number_format: null },
-    });
+  it('AC-006: does not depend on either System Settings endpoint when both return 403', async () => {
+    const deniedPaths = [
+      '/api/resource/System%20Settings/System%20Settings',
+      '/api/method/frappe.core.doctype.system_settings.system_settings.load',
+    ];
+    const h = strictHarness({ deniedPaths });
     const result = await readStrict(h);
-    expect(result.metadata).toMatchObject({ currencyPrecision: 2, floatPrecision: 3, bsOpeningPrecision: 2, roundingMethod: "Banker's Rounding (legacy)", fractionUnits: 100 });
-    expect(result.context.raw.systemSettings.currencyPrecision).toBeNull();
-    expect(result.context.raw.systemDefaults.currencyPrecision).toBe('');
+    expect(result.metadata.roundingMethod).toBe('erpnext_report_output');
+    expect(h.calls.map(({ url }) => url.pathname).filter((path) => deniedPaths.includes(path))).toEqual([]);
+    expect(h.calls.some(({ url }) => url.pathname.startsWith('/api/resource/Language/'))).toBe(false);
   });
 
-  it('rejects Single/default disagreement and denied System Settings load', async () => {
-    const mismatch = strictHarness({ system: { language: 'en', currency_precision: '3', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '' } });
-    await expect(readStrict(mismatch)).rejects.toThrow(/default/i);
-    const denied = strictHarness({ deniedPath: '/api/method/frappe.core.doctype.system_settings.system_settings.load' });
-    await expect(readStrict(denied)).rejects.toThrow();
-  });
-
-  it('uses configured positive currency precision and exact finite format mapping', async () => {
-    const configured = strictHarness({ system: { language: 'en', currency_precision: '9', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: '9', float_precision: '', rounding_method: '', number_format: '' } });
-    expect((await readStrict(configured)).metadata.currencyPrecision).toBe(9);
+  it('uses Currency number format for presentation precision and exact finite format mapping', async () => {
     const mapped: ReadonlyArray<readonly [string, number]> = [
       ['#,###.##', 2], ['#.###,##', 2], ['# ###.##', 2], ['# ###,##', 2], ["#'###.##", 2], ['#, ###.##', 2], ['#,##,###.##', 2], ['#,###.###', 3], ['#.###', 0], ['#,###', 0],
     ];
     for (const [format, precision] of mapped) {
-      const h = strictHarness({ language: { name: 'en', enabled: 1, number_format: format } });
+      const h = strictHarness({ currency: { name: 'IDR', fraction_units: 100, number_format: format } });
       expect((await readStrict(h)).metadata.currencyPrecision, format).toBe(precision);
     }
-    const mapOnly = strictHarness({ language: { name: 'en', enabled: 1, number_format: '#.########' } });
+    const mapOnly = strictHarness({ currency: { name: 'IDR', fraction_units: 100, number_format: '#.########' } });
     await expect(readStrict(mapOnly)).rejects.toThrow();
   });
 
-  it('preserves blank/zero format fallthrough and the enabled nonblank Currency override branch', async () => {
-    const zero = strictHarness({ system: { language: 'en', currency_precision: 0, float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: 0, float_precision: '', rounding_method: '', number_format: '' }, language: { name: 'en', enabled: 1, number_format: '#.###' } });
-    expect((await readStrict(zero)).metadata.currencyPrecision).toBe(0);
-    const dbFormat = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '#,###.###' }, defaults: { currency_precision: '', float_precision: '', rounding_method: '', number_format: '#,###.###' } });
-    expect((await readStrict(dbFormat)).metadata.currencyPrecision).toBe(3);
-    const enabled = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 1, number_format: '#,###.##' }, defaults: { currency_precision: '', float_precision: '', rounding_method: '', number_format: '#,###.##' }, currency: { name: 'IDR', fraction_units: 100, number_format: '#,###.###' } });
-    const currencyBranch = await readStrict(enabled);
-    expect(currencyBranch.metadata.currencyPrecision).toBe(3);
-    expect(currencyBranch.context.numberFormatBranch).toBe('currency');
-    const enabledBlank = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 1, number_format: '#,###.##' }, defaults: { currency_precision: '', float_precision: '', rounding_method: '', number_format: '#,###.##' }, currency: { name: 'IDR', fraction_units: 100, number_format: '' } });
-    expect((await readStrict(enabledBlank)).metadata.currencyPrecision).toBe(2);
-    const disabled = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '#,###.##' }, defaults: { currency_precision: '', float_precision: '', rounding_method: '', number_format: '#,###.##' }, currency: { name: 'IDR', fraction_units: 100, number_format: '#,###.###' } });
-    expect((await readStrict(disabled)).metadata.currencyPrecision).toBe(2);
+  it('uses Currency fraction units when its number format is blank and rejects nonterminating precision', async () => {
+    expect((await readStrict(strictHarness({ currency: { name: 'IDR', fraction_units: 1000, number_format: '' } }))).metadata.currencyPrecision).toBe(3);
+    expect((await readStrict(strictHarness({ currency: { name: 'IDR', fraction_units: 25, number_format: '' } }))).metadata.currencyPrecision).toBe(2);
+    await expect(readStrict(strictHarness({ currency: { name: 'IDR', fraction_units: 3, number_format: '' } }))).rejects.toThrow(/precision/i);
+    await expect(readStrict(strictHarness({ currency: { name: 'IDR', fraction_units: null, number_format: '' } }))).rejects.toThrow(/precision/i);
   });
 
-  it('keeps general Float fallback 3 separate from Balance Sheet opening fallback 2', async () => {
-    const zero = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: 0, rounding_method: '', use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: '', float_precision: 0, rounding_method: '', number_format: '' } });
-    expect((await readStrict(zero)).metadata).toMatchObject({ floatPrecision: 3, bsOpeningPrecision: 2 });
-    const configured = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '8', rounding_method: '', use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: '', float_precision: '8', rounding_method: '', number_format: '' } });
-    expect((await readStrict(configured)).metadata).toMatchObject({ floatPrecision: 8, bsOpeningPrecision: 8 });
+  it('does not claim accounting Float or rounding behavior in the display DTO', async () => {
+    const metadata = (await readStrict(strictHarness())).metadata;
+    expect(metadata).not.toHaveProperty('floatPrecision');
+    expect(metadata).not.toHaveProperty('bsOpeningPrecision');
+    expect(metadata.roundingMethod).toBe('erpnext_report_output');
   });
 
-  it.each(["Banker's Rounding", "Banker's Rounding (legacy)", 'Commercial Rounding'])('accepts exact rounding mode %s', async (roundingMethod) => {
-    const h = strictHarness({ system: { language: 'en', currency_precision: '', float_precision: '', rounding_method: roundingMethod, use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: '', float_precision: '', rounding_method: roundingMethod, number_format: '' } });
-    expect((await readStrict(h)).metadata.roundingMethod).toBe(roundingMethod);
-  });
-
-  it('rejects unsafe request language codes before selecting a Language document', async () => {
-    const h = strictHarness({ system: { language: 'en,fr;q=0.8', currency_precision: '', float_precision: '', rounding_method: '', use_number_format_from_currency: 0, number_format: '' } });
-    await expect(readStrict(h)).rejects.toThrow();
+  it('uses a fixed worker language without reading user-specific ERP settings', async () => {
+    const h = strictHarness({ languageCode: 'fr', system: { language: 'fr' } });
+    const result = await readStrict(h);
+    expect(result.context.requestLanguage).toBe('en');
+    expect(h.calls.some(({ request }) => request.headers.get('accept-language') === 'fr')).toBe(false);
     expect(h.calls.some(({ url }) => url.pathname.startsWith('/api/resource/Language/'))).toBe(false);
   });
 
-  it('rejects malformed numbers, unknown formats/modes and non-native Check values', async () => {
-    const badSystem = strictHarness({ system: { language: 'en', currency_precision: '2partial', float_precision: '', rounding_method: 'Modern', use_number_format_from_currency: 0, number_format: '' }, defaults: { currency_precision: '2partial', float_precision: '', rounding_method: 'Modern', number_format: '' } });
-    await expect(readStrict(badSystem)).rejects.toThrow();
+  it('rejects unsupported Currency formats and non-native Check values', async () => {
     const badCheck = strictHarness({ accounts: { name: 'Accounts Settings', ignore_is_opening_check_for_reporting: true, ignore_account_closing_balance: 0 } });
     await expect(readStrict(badCheck)).rejects.toThrow();
     const badCurrency = strictHarness({ currency: { name: 'IDR', fraction_units: 100, number_format: '#.########' } });
@@ -404,9 +409,16 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
     }
   });
 
-  it.each([[null, 100], [0, 0], [25, 25]])('preserves Currency fraction_units %s as %s', async (fraction, expected) => {
+  it.each([[0, 0], [25, 25]])('preserves Currency fraction_units %s as %s', async (fraction, expected) => {
     const h = strictHarness({ currency: { name: 'IDR', fraction_units: fraction, number_format: '' } });
     expect((await readStrict(h)).metadata.fractionUnits).toBe(expected);
+  });
+
+  it('preserves a missing Currency fraction value when the number format supplies display precision', async () => {
+    const h = strictHarness({ currency: { name: 'IDR', fraction_units: null, number_format: '#,###.##' } });
+    const result = await readStrict(h);
+    expect(result.metadata.currencyPrecision).toBe(2);
+    expect(result.metadata.fractionUnits).toBeNull();
   });
 
   it('global Finance Book existence is independent, and denied reads never become false', async () => {
@@ -424,6 +436,7 @@ describe('strict statement publication metadata (synthetic fixtures)', () => {
   it('requires exact Company identity, IDR and a present nullable default book', async () => {
     await expect(readStrict(strictHarness({ company: { name: 'Other Co', default_currency: 'IDR', default_finance_book: null } }))).rejects.toThrow();
     await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'USD', default_finance_book: null } }))).rejects.toThrow(/IDR/i);
+    await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR' } }))).rejects.toThrow(/Company.default_finance_book/i);
     await expect(readStrict(strictHarness({ company: { name: 'Synthetic Co', default_currency: 'IDR', default_finance_book: 4 } }))).rejects.toThrow();
   });
 

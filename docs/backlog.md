@@ -16,8 +16,15 @@ The reusable statement metadata readers merged in PR #1122 (`cbc05518`): all fou
 verify and pgTAP passed (11,108 unit tests; 6,318 database checks). The native report reader merged
 in PR #1124 (`59581270`), with verify, pgTAP and integration green (11,129 unit tests, 6,318 database
 checks, 337 browser checks and 12 served-function checks). Two existing timing warnings remain tracked
-in #1106; there were no timing failures. Sweep collection, storage/read adaptation and views remain
-in implementation; these helper merges do not complete statement display.
+in #1106; there were no timing failures. Native report collection, atomic publication and scoped reads
+(#1110) merged to dev in PR #1126 (`148aa79e`): all four unit shards, pgTAP and verify passed at the
+final revision. Closing integration passed 337 browser and 12 served-function checks on identical
+runtime trees; four timing warnings are tracked in #1106, with no timing failures and all 67 skips
+justified. Exact-tip cleanup was verified. Statement views (#1111) merged to dev in PR #1146
+(`19a0f7f2`): all four unit shards, pgTAP and verify passed; closing integration passed 381 browser
+and 12 served-function checks, with 67 justified skips and zero timing failures. Three warning-only
+journeys remain tracked in #1106. Exact-tip cleanup was independently verified. Reconstructed-company
+acceptance (#1112/#1114) remains open; merged views do not by themselves complete that live journey.
 The shared project money position (#1081) merged to dev in PR #1128 (`3c675462`): all four unit
 shards, verify and pgTAP passed; the closing integration passed 337 browser and 12 served-function
 checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
@@ -30,9 +37,22 @@ rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
 Phone pipeline recognition (#1139 / S-24) merged to dev in PR #1140 (`e2381ccd`): all four
 unit shards, verify and pgTAP passed. Existing assertions/timeouts and canonical activation are retained;
 rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
-The route-metadata acceptance tail remains with the statement-host integration, so #1139 stays open.
-Test hygiene, both local prerequisites and statement source B1b (#1074) have merged to dev. Continue
-native report collection, publication/read, UI and rehearsal batches. The later follow-ups below remain queued.
+The route-metadata tail was verified with the statement-host integration: the page and route already
+share the same Sales Pipeline title key, so the approved no-edit exception applied. #1139 is closed.
+Project-to-invoice entry (#1136 / S-15) merged to dev in PR #1142 (`f2279421`): all four unit
+shards, verify and pgTAP passed. The real local journey retained its saved project, customer, work-order
+and currency checks; rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
+was verified.
+Accounting setup selection (#1143 / S-11) merged to dev in PR #1150 (`8808d927`): all four unit
+shards, verify and pgTAP passed; existing save operations and permissions are retained. Invoice draft
+review (#1144 / S-16) merged in PR #1151 (`c0baddb0`) with the same fast CI gates green; source-currency
+amounts, unavailable tax facts and retry payloads are covered. Both slices completed review and rendered
+phone/desktop checks in both languages and themes; exact-tip cleanup was independently verified.
+Their browser integration remains with the billing/purchasing lane-closing PRs. Employee identity
+review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
+exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
+and themes. Exact-tip cleanup was independently verified. Continue statement views and rehearsal
+acceptance, money and parallel UX slices.
 
 **Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
