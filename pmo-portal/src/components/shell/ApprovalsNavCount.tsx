@@ -6,6 +6,13 @@ import { can } from '@/src/auth/policy';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { routeWrite, type OwnershipMap } from '@/src/lib/adapterSeam/router';
+import {
+  awaitingApprovalKey,
+  expenseClaimsAwaitingKey,
+  externalDomainOwnershipKey,
+  nativeDraftInvoicesKey,
+  procurementsKey,
+} from '@/src/hooks/approvalsQueryKeys';
 
 /**
  * Read the inbox count only from data already loaded by its owning screens. The global rail must
@@ -25,7 +32,7 @@ export const ApprovalsNavCount: React.FC = () => {
   const canApproveTimesheets = can('transition', 'approval', { realRole: role });
   const canApproveInvoices = can('transition', 'salesInvoice', { realRole: role });
 
-  const ownershipKey = useMemo(() => ['external-domain-ownership', orgId] as const, [orgId]);
+  const ownershipKey = useMemo(() => externalDomainOwnershipKey(orgId), [orgId]);
   const ownershipState = queryClient?.getQueryState(ownershipKey);
   const ownership = queryClient?.getQueryData<{ domain: string; externalTier: string | null }[]>(ownershipKey);
   const ownershipMap = Object.fromEntries(
@@ -37,9 +44,9 @@ export const ApprovalsNavCount: React.FC = () => {
   const includeInvoices = canApproveInvoices && invoiceMode !== 'external';
 
   const queueKeys = useMemo(() => [
-    ...(canApproveProcurement ? [['procurements', orgId] as const, ['expense-claims-awaiting', orgId] as const] : []),
-    ...(canApproveTimesheets ? [['timesheets-awaiting', orgId, userId, role] as const] : []),
-    ...(includeInvoices ? [['salesInvoices', orgId, 'native-drafts'] as const] : []),
+    ...(canApproveProcurement ? [procurementsKey(orgId), expenseClaimsAwaitingKey(orgId)] : []),
+    ...(canApproveTimesheets ? [awaitingApprovalKey(orgId, userId, role)] : []),
+    ...(includeInvoices ? [nativeDraftInvoicesKey(orgId)] : []),
   ], [canApproveProcurement, canApproveTimesheets, includeInvoices, orgId, role, userId]);
   const getSnapshot = useCallback(() => {
     const currentOwnershipState = queryClient?.getQueryState(ownershipKey);

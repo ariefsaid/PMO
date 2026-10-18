@@ -15,6 +15,9 @@ import { getSalesInvoiceEvidence } from '@/src/lib/repositories/invoiceEvidence'
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import { efakturRefusal } from '@/src/lib/efaktur';
+import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
+
+export { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
 /**
  * Org-scoped sales invoices list over the repository seam (ADR-0017).
@@ -68,7 +71,7 @@ export function useNativeDraftInvoices(enabled: boolean) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<SalesInvoiceRow[]>({
-    queryKey: ['salesInvoices', orgId, 'native-drafts'],
+    queryKey: nativeDraftInvoicesKey(orgId),
     queryFn: () => repositories.revenue.listInvoices({ status: 'Draft', nativeOnly: true }),
     enabled: Boolean(orgId) && enabled,
   });

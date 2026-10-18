@@ -148,6 +148,25 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(domOrderCompare(approvalsBand, charts)).toBe(-1);
   });
 
+  it('AC-FAA-006: pipeline-only status evidence keeps mobile KPIs and shows a delivery-specific chart empty state', () => {
+    mockIsDesktop = false;
+    dashState.data = {
+      ...populated,
+      active_projects: 0,
+      top_projects: [],
+      projects_by_status: [{ status: 'Tender Submitted', count: 2 }],
+      procurements_by_status: [],
+    };
+
+    renderPage();
+
+    expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-kpi-total-contract-value')).toBeInTheDocument();
+    const deliveryChart = screen.getByTestId('dashboard-pipeline');
+    expect(within(deliveryChart).getByText('No delivery projects to compare yet')).toBeInTheDocument();
+    expect(within(deliveryChart).getByText('Won, on-hold, delivery and closed-out projects, plus internal work.')).toBeInTheDocument();
+  });
+
   it('AC-MOBILE-3: contract book section (Revenue on hand + Total contract value) renders before charts', () => {
     mockIsDesktop = false;
     renderPage();

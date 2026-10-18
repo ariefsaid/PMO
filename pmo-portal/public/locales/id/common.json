@@ -1206,9 +1206,6 @@
       "tooltip": "Ekspor board pack hadir bersama Laporan"
     },
     "chart": {
-      "bva": {
-        "empty": "Belum ada proyek aktif"
-      },
       "pipelineMargin": {
         "empty": "Tidak ada pipeline aktif",
         "error": "Gagal memuat pipeline",
@@ -4648,7 +4645,13 @@
     "activeBudgetRisk":"Risiko terhadap anggaran aktif", "noActiveBudget":"Belum ada anggaran aktif", "notAvailableYet":"Belum tersedia",
     "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
-    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini."
+    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
+    "activeBudget":"Anggaran aktif", "actual":"Aktual", "variance":"Selisih", "utilization":"Pemakaian", "atRisk":"Berisiko",
+    "activeBudgetReviewEmpty":"Belum ada anggaran aktif yang siap ditinjau", "activeBudgetReviewEmptySub":"Anggaran aktif bernilai positif ditampilkan di sini.",
+    "actualSourceCurrency":"Mata uang sumber: {{currency}}", "actualAsOf":"Per {{date}}",
+    "deliveryChartEmpty":"Belum ada proyek pelaksanaan untuk dibandingkan", "deliveryChartScope":"Proyek menang, ditahan, dalam pelaksanaan atau selesai, serta proyek internal.",
+    "financeDashboardTitle":"Dasbor Keuangan", "financeDashboardSubtitle":"Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.",
+    "financeBudgetReviewTitle":"Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)", "financeProjectColumn":"Proyek", "financeReadyToPay":"Siap dibayar"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",

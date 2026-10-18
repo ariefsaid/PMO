@@ -296,14 +296,14 @@ describe('ExecutiveDashboard token purity / no mockData', () => {
     expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
   });
 
-  it('reflows the KPI band 1→2→3→6 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
+  it('reflows the KPI band 1→2→3→4 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
     const { container } = renderPage();
     const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
     // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
     expect(band.className).toContain('grid-cols-1');
     expect(band.className).toContain('min-[560px]:grid-cols-2');
     expect(band.className).toContain('min-[920px]:grid-cols-3');
-    expect(band.className).toContain('min-[1180px]:grid-cols-6');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
     // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
     expect(band.className).not.toContain('sm:grid-cols');
   });

@@ -1206,9 +1206,6 @@
       "tooltip": "Board pack export arrives with Reports"
     },
     "chart": {
-      "bva": {
-        "empty": "No active projects yet"
-      },
       "pipelineMargin": {
         "empty": "No open pipeline",
         "error": "Couldn't load the pipeline",
@@ -4648,7 +4645,13 @@
     "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
-    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart."
+    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",
+    "activeBudget":"Active budget", "actual":"Actual", "variance":"Variance", "utilization":"Utilization", "atRisk":"At risk",
+    "activeBudgetReviewEmpty":"No active budgets ready for review", "activeBudgetReviewEmptySub":"Active, positive-value budgets appear here.",
+    "actualSourceCurrency":"Source currency: {{currency}}", "actualAsOf":"As of {{date}}",
+    "deliveryChartEmpty":"No delivery projects to compare yet", "deliveryChartScope":"Won, on-hold, delivery and closed-out projects, plus internal work.",
+    "financeDashboardTitle":"Finance Dashboard", "financeDashboardSubtitle":"Portfolio revenue, spend, margin, and budget utilization.",
+    "financeBudgetReviewTitle":"Budget review — top 5 by variance (portfolio-wide)", "financeProjectColumn":"Project", "financeReadyToPay":"Ready to pay"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",

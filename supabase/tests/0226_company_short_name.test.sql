@@ -12,8 +12,20 @@ insert into companies(id,org_id,name,type) values
  ('02260000-0000-0000-0000-000000000102','02260000-0000-0000-0000-000000000001','Example End Legal Company','Client'),
  ('02260000-0000-0000-0000-000000000201','02260000-0000-0000-0000-000000000002','Other Legal Company','Client');
 select is((select short_name from companies where id='02260000-0000-0000-0000-000000000101'),null::text,'short name is optional for existing and new rows');
-insert into projects(id,org_id,name,status,client_id,end_client_id,budget) values
- ('02260000-0000-0000-0000-000000000301','02260000-0000-0000-0000-000000000001','Example Pipeline','Leads','02260000-0000-0000-0000-000000000101','02260000-0000-0000-0000-000000000102',100);
+insert into projects(id,org_id,name,status,client_id,end_client_id,currency,budget) values
+ ('02260000-0000-0000-0000-000000000301','02260000-0000-0000-0000-000000000001','Example Pipeline','Leads','02260000-0000-0000-0000-000000000101','02260000-0000-0000-0000-000000000102','USD',100);
+insert into projects(id,org_id,name,status,contract_value,tax_treatment,tax_amount,currency,budget,client_id,end_client_id) values
+ ('02260000-0000-0000-0000-000000000302','02260000-0000-0000-0000-000000000001','Example Delivery','Ongoing Project',100,'exclusive',0,'USD',100,'02260000-0000-0000-0000-000000000101','02260000-0000-0000-0000-000000000102');
+insert into budget_versions(id,org_id,project_id,version,name,status,currency) values
+ ('02260000-0000-0000-0000-0000000000c1','02260000-0000-0000-0000-000000000001','02260000-0000-0000-0000-000000000301',1,'Active pipeline budget','Draft','USD'),
+ ('02260000-0000-0000-0000-0000000000c2','02260000-0000-0000-0000-000000000001','02260000-0000-0000-0000-000000000302',1,'Active delivery budget','Draft','USD');
+insert into budget_line_items(org_id,budget_version_id,category,description,budgeted_amount) values
+ ('02260000-0000-0000-0000-000000000001','02260000-0000-0000-0000-0000000000c1','Labor','Active pipeline line',100),
+ ('02260000-0000-0000-0000-000000000001','02260000-0000-0000-0000-0000000000c2','Labor','Active delivery line',100);
+update budget_versions set status='Active' where id in (
+ '02260000-0000-0000-0000-0000000000c1',
+ '02260000-0000-0000-0000-0000000000c2'
+);
 insert into external_domain_ownership(org_id,external_tier,domain) values
  ('02260000-0000-0000-0000-000000000001','erpnext','companies');
 set local role authenticated;

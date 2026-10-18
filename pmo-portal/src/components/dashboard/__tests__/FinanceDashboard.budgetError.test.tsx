@@ -89,13 +89,13 @@ describe('AC-B-0-3: FinanceDashboard Budget review error state', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it('AC-B-0-3: no error → shows "No project spend yet" when data is empty (correct empty state)', () => {
+  it('AC-B-0-3: no error → explains that no Active budget is ready when data is empty', () => {
     budgetReviewState.isError = false;
     budgetReviewState.data = [];
 
     renderPane();
 
-    expect(screen.getByText(/No project spend yet/i)).toBeInTheDocument();
+    expect(screen.getByText('No active budgets ready for review')).toBeInTheDocument();
     expect(screen.queryByText(/Couldn't load budget review/i)).toBeNull();
   });
 });

@@ -5,6 +5,8 @@ import type {
   ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch, ExpenseClaimRoute, ExpenseClaimStatus,
   ExpenseClaimWithRefs, ExpenseKind, ExpenseLineInput,
 } from '@/src/lib/db/expenseClaims';
+import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
+export { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Expense claims (#775) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const EXPENSE_QUERY_ROOTS = [
@@ -84,7 +86,7 @@ export function useExpenseAdvanceAging() {
 export function useExpenseClaimsAwaitingDecision() {
   const orgId = useOrgId();
   return useQuery({
-    queryKey: ['expense-claims-awaiting', orgId],
+    queryKey: expenseClaimsAwaitingKey(orgId),
     queryFn: async (): Promise<ExpenseClaimAwaiting[]> => {
       const { rows } = await repositories.expenseClaim.list({ status: 'Submitted' });
       const routes = await repositories.expenseClaim.routes(rows.map((r) => r.id)).catch(() => [] as ExpenseClaimRoute[]);

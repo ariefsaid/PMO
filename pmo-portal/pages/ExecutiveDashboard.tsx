@@ -85,7 +85,7 @@ const ExecutiveDashboard: React.FC = () => {
         <section
           data-testid="dashboard-loading"
           aria-label={t('dashboard.kpiBand.label', 'Portfolio KPIs')}
-          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-4"
         >
           {Array.from({ length: 6 }).map((_, i) => (
             <KPITile key={i} loading tone="blue" icon="grid" label="" value="" />
@@ -105,7 +105,9 @@ const ExecutiveDashboard: React.FC = () => {
         </div>
       );
     }
-    const isEmpty = data.top_projects.length === 0 && data.procurements_by_status.length === 0;
+    const hasProjectEvidence = (data.projects_by_status ?? []).some((row) => row.count > 0);
+    const hasProcurementEvidence = (data.procurements_by_status ?? []).some((row) => row.count > 0);
+    const isEmpty = !hasProjectEvidence && !hasProcurementEvidence;
     if (isEmpty) {
       return (
         <div data-testid="dashboard-empty">
@@ -149,12 +151,15 @@ const ExecutiveDashboard: React.FC = () => {
           <Card data-testid="dashboard-pipeline">
             <span className="sr-only">{`${data.active_projects} ${t('dashboard.sr.activeProjects', 'active projects')}`}</span>
             <CardHead>{t('uxs03.spendingContract', 'Spending vs contract')}</CardHead>
+            <p className="px-4 text-xs text-muted-foreground">
+              {t('uxs03.deliveryChartScope', 'Won, on-hold, delivery and closed-out projects, plus internal work.')}
+            </p>
             <div className="px-4 pb-3.5">
               {data.top_projects.length === 0 ? (
                 <ListState
                   variant="empty"
                   icon="folder"
-                  title={t('dashboard.chart.bva.empty', 'No active projects yet')}
+                  title={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
                 />
               ) : (
                 <BvACard projects={data.top_projects} currency={orgCurrency} />
@@ -262,7 +267,7 @@ const ExecutiveDashboard: React.FC = () => {
         {/* KPI band follows actionable work. */}
         <section
           aria-label={t('dashboard.kpiBand.label', 'Portfolio KPIs')}
-          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-6"
+          className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-4"
         >
           {/* Revenue on hand: PLAIN tile — no single "on-hand" list view exists (OD-W5-C2-D).
               The tile shows `on_hand_value` — a REVENUE figure (can exceed total contract value),

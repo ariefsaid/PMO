@@ -11,7 +11,7 @@ vi.mock('@/src/lib/db/externalDomainOwnership', () => ({
   listOwnExternalDomainOwnership: state.listOwn,
 }));
 
-import { useExternalDomainOwnership } from './useExternalDomainOwnership';
+import { externalDomainOwnershipKey, useExternalDomainOwnership } from './useExternalDomainOwnership';
 
 afterEach(() => {
   cleanup();
@@ -36,10 +36,10 @@ it('AC-IRUX-009: ownership rows are fetched and cached separately for each activ
   await waitFor(() => expect(result.current.data?.[0]?.orgId).toBe('org-b'));
 
   expect(state.listOwn).toHaveBeenCalledTimes(2);
-  expect(client.getQueryData(['external-domain-ownership', 'org-a'])).toEqual([
+  expect(client.getQueryData(externalDomainOwnershipKey('org-a'))).toEqual([
     { id: 'a', orgId: 'org-a', externalTier: 'clickup', domain: 'tasks' },
   ]);
-  expect(client.getQueryData(['external-domain-ownership', 'org-b'])).toEqual([
+  expect(client.getQueryData(externalDomainOwnershipKey('org-b'))).toEqual([
     { id: 'b', orgId: 'org-b', externalTier: 'erpnext', domain: 'procurement' },
   ]);
 });
