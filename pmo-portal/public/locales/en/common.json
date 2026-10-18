@@ -4569,7 +4569,10 @@
     "budgetRemaining": "Budget remaining {{amount}}",
     "onBudget": "On budget",
     "cashReceived": "Cash received",
-    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet"
+    "cashReceivedScope": "Receipt cash linked to this project's invoices",
+    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet",
+    "cashReceivedInvalid": "Unavailable — receipt-backed cash data could not be verified",
+    "cashReceivedIncomplete": "Incomplete — receipt allocation cannot establish cash"
   },
   "invoiceProject": {
     "assign":"Assign project", "change":"Change project", "project":"Project", "save":"Save project",
@@ -4702,6 +4705,13 @@
     "allocationAmountUnavailable": "Applied amount not available",
     "receiptsCoverageUnknown": "Receipt allocations have not all been reported.",
     "noAppliedReceipts": "No applied receipts are recorded for this invoice."
+  },
+  "uxCorrectness": {
+    "projectNumberPattern": {
+      "timezonePending": "Checking organisation year…",
+      "previewUnavailable": "Preview unavailable",
+      "retryPreview": "Retry preview"
+    }
   },
   "uxs06": {
     "statusReceived": "Received",

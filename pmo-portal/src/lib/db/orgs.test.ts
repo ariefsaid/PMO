@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // is awaited directly (thenable), so the builder resolves the queued result.
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
-  const calls = { from: [] as string[], select: [] as unknown[], limit: [] as unknown[], update: [] as unknown[], eq: [] as unknown[] };
+  const calls = { from: [] as string[], select: [] as unknown[], limit: [] as unknown[], single: [] as unknown[], update: [] as unknown[], eq: [] as unknown[] };
   const builder: Record<string, unknown> = {};
   builder.select = (arg: unknown) => {
     calls.select.push(arg);
@@ -12,6 +12,10 @@ const h = vi.hoisted(() => {
   };
   builder.limit = (arg: unknown) => {
     calls.limit.push(arg);
+    return builder;
+  };
+  builder.single = () => {
+    calls.single.push(true);
     return builder;
   };
   builder.update = (arg: unknown) => {
@@ -32,13 +36,14 @@ const h = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { getOrgDefaultCurrency, getOrgProjectNumberPattern, setOrgProjectNumberPattern } from './orgs';
+import { getOrgDefaultCurrency, getOrgProjectNumberPattern, getOrgProjectNumberTimezone, setOrgProjectNumberPattern } from './orgs';
 
 describe('getOrgDefaultCurrency — org operating currency for rowless figures (FR-L10N-020, OD-CR-5)', () => {
   beforeEach(() => {
     h.calls.from.length = 0;
     h.calls.select.length = 0;
     h.calls.limit.length = 0;
+    h.calls.single.length = 0;
     h.calls.update.length = 0;
     h.calls.eq.length = 0;
     h.result.value = { data: null, error: null };
@@ -68,6 +73,7 @@ describe('AC-CODE-001 organization project-number pattern DAL', () => {
     h.calls.from.length = 0;
     h.calls.select.length = 0;
     h.calls.limit.length = 0;
+    h.calls.single.length = 0;
     h.calls.update.length = 0;
     h.calls.eq.length = 0;
     h.result.value = { data: null, error: null };
@@ -79,6 +85,31 @@ describe('AC-CODE-001 organization project-number pattern DAL', () => {
     expect(h.calls.from).toEqual(['organizations']);
     expect(h.calls.select).toEqual(['project_number_pattern']);
     expect(h.calls.limit).toEqual([1]);
+  });
+
+  it('reads a successful nullable organization timezone through a strict single-row projection', async () => {
+    h.result.value = { data: { default_timezone: 'Asia/Jakarta' }, error: null };
+    await expect(getOrgProjectNumberTimezone()).resolves.toEqual({ timezone: 'Asia/Jakarta' });
+    expect(h.calls.from).toEqual(['organizations']);
+    expect(h.calls.select).toEqual(['default_timezone']);
+    expect(h.calls.single).toEqual([true]);
+    expect(h.calls.limit).toEqual([]);
+  });
+
+  it('distinguishes a successfully read null timezone from no row and query failure', async () => {
+    h.result.value = { data: { default_timezone: null }, error: null };
+    await expect(getOrgProjectNumberTimezone()).resolves.toEqual({ timezone: null });
+
+    h.result.value = { data: null, error: null };
+    await expect(getOrgProjectNumberTimezone()).rejects.toThrow('Organisation numbering timezone unavailable');
+
+    h.result.value = { data: null, error: { message: 'read denied', code: '42501' } };
+    await expect(getOrgProjectNumberTimezone()).rejects.toMatchObject({ message: 'read denied', code: '42501' });
+  });
+
+  it('rejects a malformed timezone projection rather than treating it as UTC', async () => {
+    h.result.value = { data: { default_timezone: 7 }, error: null };
+    await expect(getOrgProjectNumberTimezone()).rejects.toMatchObject({ code: 'invalid-numbering-timezone' });
   });
 
   it('updates only the one readable organization row and maps system default to NULL', async () => {

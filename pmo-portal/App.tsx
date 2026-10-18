@@ -106,9 +106,11 @@ const AdministrationEntryRedirect: React.FC = () => {
   const { role } = useAuth();
   const target = hash === '#budget-account-map'
     ? '/administration/accounting#budget-account-map'
-    : role === 'Finance'
-      ? '/administration/exchange-rates'
-      : '/administration/users';
+    : hash === '#org-project-number-pattern'
+      ? '/administration/projects#org-project-number-pattern'
+      : role === 'Finance'
+        ? '/administration/exchange-rates'
+        : '/administration/users';
   return <Navigate to={target} replace />;
 };
 

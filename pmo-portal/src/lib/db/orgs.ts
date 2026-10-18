@@ -88,6 +88,19 @@ export async function getOrgLocaleDefaults(): Promise<OrgLocaleDefaultsRow> {
  * `organizations` carries a SELECT policy scoped to the caller's own org, so this returns exactly
  * one row under RLS and `org_id` is NEVER sent (ADR-0017). Same shape as `getOrgDefaultCurrency`.
  */
+/** A strict single-row read: no visible organization is not a successfully read null timezone. */
+export async function getOrgProjectNumberTimezone(): Promise<{ timezone: string | null }> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('default_timezone')
+    .single();
+  if (error) throw new AppError(error.message, error.code);
+  if (!data || !(data.default_timezone === null || typeof data.default_timezone === 'string')) {
+    throw new AppError('Organisation numbering timezone unavailable', 'invalid-numbering-timezone');
+  }
+  return { timezone: data.default_timezone };
+}
+
 /** The stored Admin pattern; NULL represents the system default and is not manufactured on read. */
 export async function getOrgProjectNumberPattern(): Promise<string | null> {
   const { data, error } = await supabase

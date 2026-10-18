@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-const h = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), toast: vi.fn(), canManage: true }));
+const h = vi.hoisted(() => ({ get: vi.fn(), timezone: vi.fn(), save: vi.fn(), toast: vi.fn(), canManage: true }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
-  getProjectNumberPattern: h.get, setProjectNumberPattern: h.save,
+  getProjectNumberPattern: h.get,
+  getProjectNumberTimezone: h.timezone,
+  setProjectNumberPattern: h.save,
 } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => h.canManage && action === 'manage' && entity === 'orgProjectNumbering' }));
@@ -28,10 +32,15 @@ function renderPanel() {
 beforeEach(() => {
   vi.clearAllMocks();
   h.get.mockResolvedValue(null);
+  h.timezone.mockResolvedValue({ timezone: 'UTC' });
   h.save.mockResolvedValue(undefined);
   h.canManage = true;
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  resetActiveLocale();
+});
 
 describe('AC-CODE-001 organisation PMO number pattern', () => {
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
@@ -49,6 +58,72 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     fireEvent.click(save);
     await waitFor(() => expect(h.save).toHaveBeenCalledWith('PRE-{CLIENT}-{YY}-{SEQ4}'));
     expect(h.toast).toHaveBeenCalledWith(expect.stringMatching(/updated/i), expect.any(String), 'success');
+  });
+
+  it.each([
+    ['system default', 'PRJ-{YY}-{SEQ4}', 'UTC', 'Asia/Jakarta', '26', 'PRJ-26-0312'],
+    ['custom pattern', 'PRE-{CLIENT}-{YY}-{SEQ4}', 'UTC', 'Asia/Jakarta', '26', 'PRE-NSN-26-0312'],
+    ['system default', 'PRJ-{YY}-{SEQ4}', 'Asia/Jakarta', 'UTC', '27', 'PRJ-27-0312'],
+    ['custom pattern', 'PRE-{CLIENT}-{YY}-{SEQ4}', 'Asia/Jakarta', 'UTC', '27', 'PRE-NSN-27-0312'],
+  ])('AC-UWC-002: %s preview follows org timezone %s, not viewer timezone %s', async (_kind, pattern, timezone, viewerTimezone, year, expected) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-31T18:00:00Z'));
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: viewerTimezone });
+    h.get.mockResolvedValue(pattern === 'PRJ-{YY}-{SEQ4}' ? null : pattern);
+    h.timezone.mockResolvedValue({ timezone });
+    renderPanel();
+
+    expect(await screen.findByTestId('org-project-number-pattern-preview')).toHaveTextContent(expected);
+    expect(screen.getByTestId('org-project-number-pattern-preview')).toHaveTextContent(`-${year}-`);
+  });
+
+  it('AC-UWC-003: keeps pattern editing and save available while org timezone is pending, then restores preview', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-31T18:00:00Z'));
+    let resolveTimezone!: (value: { timezone: string | null }) => void;
+    h.timezone.mockReturnValue(new Promise((resolve) => { resolveTimezone = resolve; }));
+    renderPanel();
+
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    expect(screen.getByText('Checking organisation year…')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-project-number-pattern-preview')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+    expect(screen.getByRole('button', { name: /save pattern/i })).toBeEnabled();
+
+    await act(async () => resolveTimezone({ timezone: 'UTC' }));
+    expect(await screen.findByTestId('org-project-number-pattern-preview')).toHaveTextContent('PRE-NSN-26-0312');
+  });
+
+  it.each([
+    ['query error', 'reject'],
+    ['unusable timezone', 'invalid'],
+    ['missing timezone data', 'missing'],
+  ])('AC-UWC-003: %s stays unavailable until the preview-only retry succeeds', async (_state, outcome) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-31T18:00:00Z'));
+    if (outcome === 'reject') h.timezone.mockRejectedValueOnce(new Error('timezone read failed'));
+    else if (outcome === 'invalid') h.timezone.mockResolvedValueOnce({ timezone: 'Not/A_Real_Zone' });
+    else h.timezone.mockResolvedValueOnce(undefined);
+    h.timezone.mockResolvedValueOnce({ timezone: 'UTC' });
+    renderPanel();
+
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    expect(await screen.findByText('Preview unavailable')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-project-number-pattern-preview')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+    expect(screen.getByRole('button', { name: /save pattern/i })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: /retry preview/i }));
+    expect(await screen.findByTestId('org-project-number-pattern-preview')).toHaveTextContent('PRE-NSN-26-0312');
+    expect(screen.getByRole('button', { name: /save pattern/i })).toBeEnabled();
+  });
+
+  it('AC-UWC-002: a successfully read null org timezone uses the server UTC fallback', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-31T18:00:00Z'));
+    h.timezone.mockResolvedValue({ timezone: null });
+    renderPanel();
+
+    expect(await screen.findByTestId('org-project-number-pattern-preview')).toHaveTextContent('PRJ-26-0312');
   });
 
   it('shows only the effective pattern and Admin-only explanation to a non-Admin', async () => {

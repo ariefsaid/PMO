@@ -846,6 +846,8 @@ export interface Repositories {
 export interface OrgSettingsRepository {
   /** The stored PMO project-number pattern; null is the system default. */
   getProjectNumberPattern(): Promise<string | null>;
+  /** Strict own-org timezone read for the project-number business-year preview. */
+  getProjectNumberTimezone(): Promise<{ timezone: string | null }>;
   /** Admin-only: set the PMO project-number pattern; the system default normalizes to null. */
   setProjectNumberPattern(value: string | null): Promise<void>;
   getWithholdingAccount(): Promise<string | null>;

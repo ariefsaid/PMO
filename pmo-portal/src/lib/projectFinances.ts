@@ -15,8 +15,17 @@ export interface InvoiceFinanceBucket {
   missing_work: number;
 }
 
+export type ReceiptCashReason = 'allocation-unreported' | 'allocation-unresolved' | 'allocation-invalid'
+  | 'currency-mismatch' | 'ambiguous-withholding' | 'source-inconsistent' | 'invoice-lifecycle' | 'posting-unconfirmed';
+
+export type ProjectReceiptCash =
+  | { state: 'known'; buckets: Array<{ currency: string; amount: ExactMoney }>; receipt_count: number }
+  | { state: 'incomplete'; buckets: []; receipt_count: number; reasons: ReceiptCashReason[] }
+  | { state: 'unavailable'; buckets: []; reason: 'not-reported' | 'invalid-reading' };
+
 export interface ProjectFinances {
   project_id: string;
+  cash_received?: ProjectReceiptCash;
   contract_invoiced: ExactMoney | null;
   remaining_to_invoice: ExactMoney | null;
   invoices: InvoiceFinanceBucket[];
@@ -171,6 +180,63 @@ export function moneyText(units: bigint): ExactMoney {
   return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
 }
 
+const receiptCashReasons: readonly ReceiptCashReason[] = [
+  'allocation-unreported', 'allocation-unresolved', 'allocation-invalid', 'currency-mismatch',
+  'ambiguous-withholding', 'source-inconsistent', 'invoice-lifecycle', 'posting-unconfirmed',
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isReceiptCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function unavailableCash(reason: 'not-reported' | 'invalid-reading'): ProjectReceiptCash {
+  return { state: 'unavailable', buckets: [], reason };
+}
+
+/** Parse only the additive cash field; malformed cash never invalidates otherwise sound finance readings. */
+export function parseProjectReceiptCash(value: unknown): ProjectReceiptCash {
+  if (value === undefined) return unavailableCash('not-reported');
+  if (!isRecord(value) || !isReceiptCount(value.receipt_count) || !Array.isArray(value.buckets)) {
+    return unavailableCash('invalid-reading');
+  }
+
+  if (value.state === 'known') {
+    const currencies = new Set<string>();
+    const buckets: Array<{ currency: string; amount: ExactMoney }> = [];
+    for (const item of value.buckets) {
+      if (!isRecord(item) || typeof item.currency !== 'string' || !/^[A-Z]{3}$/.test(item.currency)
+        || currencies.has(item.currency) || typeof item.amount !== 'string' || item.amount.startsWith('-')) {
+        return unavailableCash('invalid-reading');
+      }
+      const units = moneyUnits(item.amount);
+      if (units === null || units < 0n) return unavailableCash('invalid-reading');
+      currencies.add(item.currency);
+      buckets.push({ currency: item.currency, amount: item.amount });
+    }
+    return { state: 'known', buckets, receipt_count: value.receipt_count };
+  }
+
+  if (value.state === 'incomplete') {
+    if (value.buckets.length !== 0 || !Array.isArray(value.reasons) || value.reasons.length === 0) {
+      return unavailableCash('invalid-reading');
+    }
+    const reasons: ReceiptCashReason[] = [];
+    for (const reason of value.reasons) {
+      if (typeof reason !== 'string' || !receiptCashReasons.includes(reason as ReceiptCashReason) || reasons.includes(reason as ReceiptCashReason)) {
+        return unavailableCash('invalid-reading');
+      }
+      reasons.push(reason as ReceiptCashReason);
+    }
+    return { state: 'incomplete', buckets: [], receipt_count: value.receipt_count, reasons };
+  }
+
+  return unavailableCash('invalid-reading');
+}
+
 export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinances['actuals']): Margin {
   if (actuals.currency && bucket.currency !== actuals.currency) return { amount: null, reason: 'different-currencies' };
   if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
@@ -182,7 +248,7 @@ export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinan
   return { amount: moneyText(revenue - cost), reason: null };
 }
 
-export function isProjectFinances(value: unknown): value is ProjectFinances {
+export function isProjectFinances(value: unknown): value is Omit<ProjectFinances, 'cash_received'> {
   const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
   const exact = (v: unknown) => v === null || (typeof v === 'string' && moneyUnits(v) !== null);
   const count = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
