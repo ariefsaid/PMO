@@ -102,7 +102,7 @@ operator work (outcomes, budget account map, budget activation by a second perso
    3–4 (S-09, S-11, S-15, S-16, S-19, S-21, S-23, S-24, S-27, S-29, S-30, S-35, S-36, S-39, S-40). Statements stay
    the critical path; these fill spare lanes. S-35 (company position) builds on the statement views; S-27 is a
    money-path slice (Director-dispatched).
-   **Release steps for v0.23.0 (each still owner-gated):** whole-release security review → PR `dev`→`main` with
+   **Release steps for v0.23.0 (each still owner-gated):** Sol and Claude Opus whole-release security reviews → PR `dev`→`main` with
    integration → production deploy back to front (DB → edge functions → frontend; it also carries #1101/#1102)
    → after-push probes, including isolation-probe entries for the new statement tables.
 5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
@@ -120,12 +120,14 @@ operator work (outcomes, budget account map, budget activation by a second perso
 - Answer: should the accountant list be in Indonesian?
 - Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
 
-**Owner actions for v0.23.0:**
-- Confirm PMO's ERPNext connection user on RIS can run Trial Balance, Profit and Loss and Balance Sheet
-  (read-only check before release; otherwise statements show "not available").
-- Nominate the isolated rehearsal environment (#1114). Recommended: a separate site in the existing local
-  ERPNext v16 Docker stack, loaded from the RIS input files already on hand.
-- Decide who runs the whole-release security review (Opus, or Sol standing in).
+**Owner decisions for v0.23.0 (2026-10-18):**
+- Native report access confirmed. Remove System Settings dependency; do not require System Manager.
+  Currency/report metadata supplies display precision; native amounts remain untouched (#1068).
+- Rehearsal (#1114): separate site on the existing local ERPNext v16 stack using locally held input
+  files. No new infrastructure or off-device production data transfer.
+- Both Sol and Claude Opus whole-release security reviews before any dev-to-main PR. Notify Claude
+  when the release candidate is ready on dev; main and production remain unauthorized.
+- Size serial sweep segments/cadence from measured per-call cost with capacity headroom.
 
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980

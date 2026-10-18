@@ -10,6 +10,26 @@ on existing org sweep/lease → one complete snapshot publisher → invoker read
 ERPNext owns every financial calculation; PMO normalizes structure/lexical numeric representation.
 **Tech:** existing TypeScript/Deno/React/Supabase/pgTAP/Vitest/Playwright; no new numeric/ERP framework.
 
+## Owner display and rehearsal corrections (2026-10-18)
+
+Remove System Settings resource, permission and singleton-load dependencies from native display;
+do not grant or require System Manager. Use readable Currency/report presentation precision,
+preserve report financial tokens, and mark native output provenance without claiming a client
+accounting rounding rule. Extend DTO/parser/persisted-context allowances additively; legacy saved
+snapshots retain their existing modes. Prove the shipped sweep publishes with System Settings403.
+This resolves the display path's blank-precision disposition in #1068.
+
+Rehearsal #1114 uses a separate site on the existing local ERPNext v16 Docker stack, reconstructed
+from the input files already held locally. Inventory loader dependencies and target admission first;
+preserve other sites and captured fixtures. No new infrastructure or off-device production data.
+
+Measure native per-call costs and preserve capacity headroom for the constrained ERP host. Serial
+requests, bounded segments and cadence must use that evidence; local wall-clock measurements alone
+do not establish production CPU utilization. Keep existing deadlines and resumability.
+
+Before any dev-to-main PR, complete BOTH Sol and Claude Opus whole-release security reviews; tell
+Claude when the release candidate is ready on dev. No main or production release is authorized.
+
 ## Owner refresh amendment — OD-FS-024 (2026-10-18)
 
 Before the source/publisher slice lands, add migration0321 and its owning proofs for durable

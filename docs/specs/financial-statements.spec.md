@@ -51,6 +51,10 @@ and raw-ledger privacy contracts remain unchanged.
   hierarchy/profit/zero row, missing-cell default0, row summation or monetary recomputation.
   Current/prior remain separate native sides; translated labels are not Account identities or a
   cross-period join key. Formatting is presentation only and does not rewrite stored values.
+- **Presentation metadata (owner 2026-10-18):** Native display has no System Settings or
+  System Manager dependency. ERPNext owns report calculation precision and rounding. Read
+  presentation precision from readable Currency metadata or the report response; preserve lexical
+  financial values without client rounding. A System Settings 403 must not prevent publication.
 - **Raw audit:** keep each original financial response with its exact filters, software/context,
   acquisition time and digest in restricted detail storage. Totals rows have no raw reports,
   account rows/settings/filter bodies or company detail. Never publish native bodies/coordinates.
@@ -114,6 +118,9 @@ account/ledger role restrictions remain; they are not this release's statement a
   captured native response value; a changed/removed required cell shall fail the owning proof.
 - **NFR-002:** The collector shall respect actual runtime/request/body limits, resume rather than
   publish a prefix, and expose the true acquisition window without claiming an ERP atomic snapshot.
+- **NFR-005:** While the connected ERP has constrained capacity, acquisition shall issue serial
+  bounded report requests with segment size and cadence based on measured per-call cost and
+  headroom; retain runtime deadlines and resume pending work without saturating the ERP.
 - **NFR-003:** Use repository/DAL, permission-scoped cache keys, accessible shared UI and sanitized
   errors/evidence; never expose raw detail/financial responses through totals or public artifacts.
 
@@ -125,7 +132,7 @@ account/ledger role restrictions remain; they are not this release's statement a
 | AC-002 — RIS Finance rehearsal | Given an authorized isolated RIS-equivalent rehearsal, completed native capture window and recorded filters/versions, when ordinary Finance opens each report/project/current-prior pair, then saved native output, authorized read and UI values/labels agree; no ERP posting/closing is performed by the runner. | Curated E2E `AC-002-financial-statements-rehearsal.spec.ts` |
 | AC-003 — Privacy | Given signed roles/inactive/anonymous/foreign org, when direct snapshot/raw-detail/read RPC paths run, then only authorized finance roles receive detail/raw and no ordinary caller writes. | pgTAP display privacy |
 | AC-004 — Project totals | Given visible/hidden/foreign/nonexistent projects and forged scope inputs, when staff reads totals, then only that authorized project's native Income/Expense/Net plus safe structural context returns; raw/detail/Company payload never returns, including on absence paths. | pgTAP project totals |
-| AC-005 — Native acquisition lifecycle | Given multiple segments, sparse native outputs, failure/context drift and ordinary ERP financial changes across calls, when acquisition resumes, then valid responses are retained once per request key, drift/missing/error prevents completion, old published data and dirty work survive, compatible historical pairs retain original bytes/times, routine and dependency-selected requests are exact, and later dirty revisions survive acknowledgment; no GL/second-pass gate. | Vitest/real sweep-handler test |
+| AC-005 — Native acquisition lifecycle | Given multiple segments, sparse native outputs, failure/context drift and ordinary ERP financial changes across calls, when acquisition resumes, then a System Settings 403 does not block valid publication, valid responses are retained once per request key, drift/missing/error prevents completion, old published data and dirty work survive, compatible historical pairs retain original bytes/times, routine and dependency-selected requests are exact, and later dirty revisions survive acknowledgment; no GL/second-pass gate. | Vitest/real sweep-handler test |
 | AC-006 — Atomic complete publication | Given old rows and concurrent/stale/expired workers, when final publication succeeds/fails, then readers see only old or complete new scope/current-prior catalogue, with fenced state/time/raw linkage; never pending/prefix/cross-org data. | pgTAP + existing two-session race |
 | AC-007 — Selection | Given bound Company/calendar/mapped project, when period/scope changes, then saved exact current/prior ranges and report type are selected with no stale/broader scope fallback. | Existing scope unit/RTL |
 | AC-008 — Honest UI | Given loading/error/unavailable/native-empty/delayed/populated/native-sparse states in both locales, when rendered, then approved accessible UI preserves values, rows and original time with no invented zero/row/jargon. | Existing section/renderer unit/RTL |
@@ -139,8 +146,13 @@ contracts before dependent edits; preserve privacy, atomicity, honest-state and 
 
 Code can land on dev with honest pending acceptance. Synthetic/native samples and an ordinary local
 Finance rehearsal support development; they do NOT prove RIS equivalence. AC002 remains pending
-until the genuine isolated RIS-equivalent source/history is nominated/provisioned and actually run.
+until the owner-approved separate site in the existing local ERPNext v16 stack is provisioned
+from the local input files and actually run. No new infrastructure or off-device production data
+transfer is authorized.
 OQ001 remains month/quarter/FY, no custom dates. Former OQ002 mirrored-history/ACB equivalence moves
 with parked recomputation work; native capability/context/permission and end-to-end RIS display
 proof remain actual release facts. A native report may use ACB/closing internally; PMO copies it.
 No seven-case calculator or130k local aggregation gate is imposed on v0.23 native display.
+
+Before any dev-to-main release PR, both Sol and Claude Opus whole-release security reviews must
+complete. Notify Claude when the release candidate is ready on dev. Dev remains the current ceiling.

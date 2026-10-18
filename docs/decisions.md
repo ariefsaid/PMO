@@ -3326,3 +3326,20 @@ pair per month/quarter/fiscal year, consistent with existing selection controls.
 supplied pair whose current start has begun in the organisation-local date; do not invent fiscal
 periods or choose a future start. Pin that date when admitting the batch. Invalidation follows the
 actual native report's dependency horizon, including both old and new dates/scopes for moved entries.
+
+
+## OD-FS-025 — native display capability, rehearsal and release checks (owner 2026-10-18)
+
+Native statement display requires standard report access and readable report/Company/Currency
+context. It must work without System Settings access or System Manager. ERPNext owns accounting
+precision and rounding; PMO takes presentation precision from Currency or report metadata and
+preserves native financial values. A System Settings403 cannot block a valid sweep publication.
+This is the native display disposition of #1068's blank-precision item.
+
+The approved rehearsal is a separate site in the existing local ERPNext v16 stack, reconstructed
+from locally held input files. Preserve other fixtures; no new infrastructure or off-device
+production data transfer. Acquisition uses serial bounded requests and segment sizing/cadence
+based on measured per-call cost with host-capacity headroom; keep existing runtime deadlines.
+
+Both Sol and Claude Opus whole-release security reviews run before any dev-to-main PR. Notify
+Claude when the release candidate is ready on dev. Dev remains the current authorized ceiling.
