@@ -176,6 +176,27 @@ operator work (outcomes, budget account map, budget activation by a second perso
 7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
 8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
+### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
+
+Start in parallel with fresh workers and separate worktrees. Keep this scope separate from
+v0.23.0; S-21, S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
+Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
+
+**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
+#1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
+Required checks `verify` and `integration` must still cover every test, and a failed shard must
+fail its required check. No silent skips or weaker test oracles. The pinned Deno 2.7.11 browser-job
+prerequisite (#1174) and lock-wrapper process tests in verify (#1170) are approved. The Director
+now owns `.github/workflows/ci.yml`; its previous reservation ended after #1121 merged.
+
+**Build/review/CI now; hold app changes on their branches:** #1043, #1044, #1030, #1011, #1018,
+#1012, #1008, #1072, #1069, #1070, #1145, #1153, #1154, #1155, #1156, #1157, #1164, #1166 and
+#1129. Merge these to dev only after the v0.23.0 dev-to-main PR has merged. This timing condition
+does not authorize opening or merging that release PR: dev remains the current ceiling.
+
+**Immediately after v0.23.0 ships:** #1134 restores the one-browser-run cap agreed with MOS.
+Until then, the existing v0.23.0-only two-run allowance and two-heavy-local-run limit remain.
+
 **Owner actions after v0.22.0:**
 - Activate the Kajian budget (sole-operator path).
 - Answer: should the accountant list be in Indonesian?
