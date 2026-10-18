@@ -25,6 +25,12 @@ function verifyLocalTarget() {
   assert.equal(target, `/${dbContainer}`, 'rollback test may target only the named local Supabase database container');
 }
 
+test('0320 down migration drops only the pre-context status RPC', () => {
+  const down = sqlFile('supabase/migrations/rollback/0320_financial_statement_native_status_down.sql').trim();
+  assert.match(down, /^drop function if exists public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\);$/i);
+  assert.doesNotMatch(down, /external_org_bindings|erp_financial_statement_snapshot|erp_financial_statement_report_(batch|pending)/i);
+});
+
 test('financial statement source migrations roll back and reapply inside a self-restoring transaction', () => {
   verifyLocalTarget();
   const upNative = sqlFile('supabase/migrations/0319_financial_statement_native_reports.sql');

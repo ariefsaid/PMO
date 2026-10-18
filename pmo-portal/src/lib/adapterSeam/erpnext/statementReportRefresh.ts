@@ -9,6 +9,7 @@ import {
 } from './statementReports.ts';
 
 const OPEN_RPC = 'open_erp_statement_report_batch';
+const MARK_ATTEMPT_RPC = 'mark_erp_statement_report_refresh_attempt';
 const STAGE_RPC = 'stage_erp_statement_report';
 const PUBLISH_RPC = 'publish_erp_financial_statements';
 const FILTER_PROFILE = 'erpnext-v16-standard-statements-v1';
@@ -342,6 +343,14 @@ async function publish(
 
 async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): Promise<StatementReportRefreshResult> {
   let staged = 0;
+  if (!runtime.active || runtime.controller.signal.aborted) return progressResult(null, staged, ERROR_CODES.deadline);
+  const admission = await rpc(input, MARK_ATTEMPT_RPC, {
+    p_org_id: input.orgId,
+    p_holder: input.holder,
+    p_binding: input.binding,
+  });
+  if (!runtime.active || runtime.controller.signal.aborted) return progressResult(null, staged, ERROR_CODES.deadline);
+  if (!admission.ok) return errorResult(ERROR_CODES.rpc, null, staged);
   const initialContext = await readNativeContext(input, runtime);
   if (!initialContext) return progressResult(null, staged, runtime.active ? ERROR_CODES.context : ERROR_CODES.deadline);
   const opened = await openBatch(input, initialContext, runtime);

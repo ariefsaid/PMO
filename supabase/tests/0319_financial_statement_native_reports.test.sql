@@ -66,7 +66,8 @@ select ok((select count(*)=3 from information_schema.columns where table_schema=
   'AC-006 snapshot stores a private raw pair and scalar capture window');
 
 insert into public.organizations(id,name,default_currency,default_timezone) values
- ('03190000-0000-0000-0000-000000000001','Synthetic native statement org','IDR','UTC');
+ ('03190000-0000-0000-0000-000000000001','Synthetic native statement org','IDR','UTC'),
+ ('03190000-0000-0000-0000-000000000002','Synthetic native statement org B','IDR','UTC');
 insert into auth.users(id,email) values ('03190000-0000-0000-0000-0000000000a1','native-finance@example.test');
 insert into public.profiles(id,org_id,full_name,email,role,status) values
  ('03190000-0000-0000-0000-0000000000a1','03190000-0000-0000-0000-000000000001','Synthetic Finance','native-finance@example.test','Finance','active');
@@ -98,8 +99,16 @@ insert into public.erp_financial_statement_snapshot
 values ('03190000-0000-0000-0000-000000000001','Native Test Co','03190000-0000-0000-0000-000000000201',
  '03190000-0000-0000-0000-000000000202','profit_and_loss','company',null,'account_breakdown','month',
  '2025-08-01','2025-08-31','2025-07-01','2025-07-31','IDR','2026-10-17T09:00:00Z',
+ '{"rows":[]}',false,2,'Commercial Rounding'),
+ ('03190000-0000-0000-0000-000000000002','Native Test Co','03190000-0000-0000-0000-000000000211',
+ '03190000-0000-0000-0000-000000000212','profit_and_loss','company',null,'account_breakdown','month',
+ '2025-08-01','2025-08-31','2025-07-01','2025-07-31','IDR','2026-10-17T09:00:00Z',
  '{"rows":[]}',false,2,'Commercial Rounding');
 reset role;
+create temporary table native_other_org_prior(row_json jsonb not null) on commit drop;
+insert into native_other_org_prior
+select to_jsonb(s) from public.erp_financial_statement_snapshot s
+where s.org_id='03190000-0000-0000-0000-000000000002' and s.company='Native Test Co';
 create temporary table native_context(context jsonb not null) on commit drop;
 insert into native_context values ('{
   "binding":{"id":"03190000-0000-0000-0000-000000000001","activatedAt":"2026-10-18T09:00:00Z","versionMajor":16},
@@ -416,6 +425,53 @@ select throws_ok($$select public.publish_erp_financial_statements('03190000-0000
   '03190000-0000-0000-0000-000000000199',(select (result->>'batchId')::uuid from native_drift))$$,
   '55000',null,'AC-006 wrong holder cannot publish a complete batch');
 
+-- A non-monotonic server completion must preserve the full prior publication and binding status.
+set local role service_role;
+insert into public.erp_financial_statement_snapshot
+ (org_id,company,snapshot_id,source_generation,statement,scope_kind,project_id,view_kind,period_kind,
+  current_start,current_end,prior_start,prior_end,currency,as_of,capture_started_at,capture_completed_at,
+  source_report,report_version,filters,settings,payload,raw_reports,has_activity,display_precision,display_rounding_method)
+values ('03190000-0000-0000-0000-000000000001','Native Test Co','03190000-0000-0000-0000-000000000301',
+ '03190000-0000-0000-0000-000000000302','profit_and_loss','company',null,'account_breakdown','fiscal_year',
+ '2998-07-01','2999-06-30','2997-07-01','2998-06-30','IDR','2999-12-31T23:59:59Z',
+ '2999-12-31T23:59:00Z','2999-12-31T23:59:59Z','Profit and Loss Statement','synthetic-native-test',null,null,
+ '{"current":{"rows":[]},"prior":{"rows":[]}}',
+ '{"current":"synthetic prior capture","prior":"synthetic prior capture"}',false,2,'Commercial Rounding');
+reset role;
+create temporary table native_monotonic_prior(row_json jsonb not null) on commit drop;
+insert into native_monotonic_prior
+select to_jsonb(s) from public.erp_financial_statement_snapshot s
+where s.org_id='03190000-0000-0000-0000-000000000001' and s.company='Native Test Co';
+create temporary table native_monotonic_status_prior(status_json jsonb not null) on commit drop;
+insert into native_monotonic_status_prior
+select jsonb_build_object('delayed',statement_update_delayed,'calendar',statement_calendar,
+  'lastAttemptAt',statement_last_attempt_at,'replayNeeded',statement_full_ledger_replay_needed)
+from public.external_org_bindings where org_id='03190000-0000-0000-0000-000000000001' and external_tier='erpnext';
+set local role service_role;
+select throws_ok($$select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
+  '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_drift))$$,
+  '55000','native statement completion is not newer',
+  'AC-006 older native completion cannot replace the advertised generation');
+reset role;
+select ok(
+  (select jsonb_agg(to_jsonb(s) order by s.id) from public.erp_financial_statement_snapshot s
+    where s.org_id='03190000-0000-0000-0000-000000000001' and s.company='Native Test Co')
+    is not distinct from (select jsonb_agg(row_json order by row_json->>'id') from native_monotonic_prior)
+  and (select jsonb_build_object('delayed',statement_update_delayed,'calendar',statement_calendar,
+      'lastAttemptAt',statement_last_attempt_at,'replayNeeded',statement_full_ledger_replay_needed)
+    from public.external_org_bindings where org_id='03190000-0000-0000-0000-000000000001' and external_tier='erpnext')
+    is not distinct from (select status_json from native_monotonic_status_prior)
+  and (select count(*)=248 and bool_and(normalized_report is not null and raw_response_text is not null
+      and raw_sha256 is not null and acquired_at is not null)
+    from public.erp_financial_statement_report_pending where org_id='03190000-0000-0000-0000-000000000001'
+      and batch_id=(select (result->>'batchId')::uuid from native_drift)),
+  'AC-006 non-newer completion preserves exact prior rows, binding status and every staged response');
+set local role service_role;
+delete from public.erp_financial_statement_snapshot
+where org_id='03190000-0000-0000-0000-000000000001'
+  and snapshot_id='03190000-0000-0000-0000-000000000301';
+reset role;
+
 create function public.native_insert_fault() returns trigger language plpgsql set search_path=public,pg_temp as $$
 begin
   if new.org_id='03190000-0000-0000-0000-000000000001' then raise exception 'native_insert_injected'; end if;
@@ -447,6 +503,11 @@ create temporary table native_published(snapshot_id uuid) on commit drop;
 insert into native_published select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
   '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_drift));
 reset role;
+select ok(
+  (select jsonb_agg(to_jsonb(s) order by s.id) from public.erp_financial_statement_snapshot s
+    where s.org_id='03190000-0000-0000-0000-000000000002' and s.company='Native Test Co')
+    is not distinct from (select jsonb_agg(row_json order by row_json->>'id') from native_other_org_prior),
+  'AC-006 publishing org A preserves the exact pre-existing org B snapshot for the same company');
 select is((select count(*)::int from public.erp_financial_statement_snapshot
   where org_id='03190000-0000-0000-0000-000000000001'),155,
   'AC-006 one complete native batch replaces the 31-pair company/project catalogue without unassigned output');

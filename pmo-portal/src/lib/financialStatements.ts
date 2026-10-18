@@ -243,6 +243,20 @@ function copyJson(value: unknown, ancestors = new WeakSet<object>()): unknown {
   }
 }
 
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((item, index) => sameJsonValue(item, right[index]));
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.hasOwn(right, key) && sameJsonValue(left[key], right[key]));
+}
+
 function hasExactKeysWithOptional(
   value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = [],
 ): boolean {
@@ -379,8 +393,8 @@ function isNativePayload(
   return value.current.company === value.prior.company &&
     sameNativePeriod(value.current.periodPair.current, value.prior.periodPair.current) &&
     sameNativePeriod(value.current.periodPair.prior, value.prior.periodPair.prior) &&
-    JSON.stringify(value.current.project) === JSON.stringify(value.prior.project) &&
-    JSON.stringify(value.current.profile) === JSON.stringify(value.prior.profile) &&
+    sameJsonValue(value.current.project, value.prior.project) &&
+    sameJsonValue(value.current.profile, value.prior.profile) &&
     value.current.language === value.prior.language;
 }
 
@@ -454,7 +468,7 @@ function parseRow(value: unknown): FinancialStatementRow {
         Date.parse(copiedPayload.prior.provenance.acquiredAt) > Date.parse(source.capture_completed_at as string) ||
         source.source_report !== nativeReportName(source.statement) ||
         source.report_version !== copiedPayload.current.profile.erpVersion ||
-        JSON.stringify(source.filters) !== JSON.stringify({
+        !sameJsonValue(source.filters, {
           current: copiedPayload.current.provenance.filters,
           prior: copiedPayload.prior.provenance.filters,
         })) return reject();
@@ -797,7 +811,7 @@ export function parseFinancialStatementRead(value: unknown, expected: FinancialS
         if (provenance.settings !== null) copyJson(provenance.settings);
         if (provenance.sourceReport !== raw.payload.current.reportName ||
             provenance.reportVersion !== raw.payload.current.profile.erpVersion ||
-            JSON.stringify(provenance.filters) !== JSON.stringify({
+            !sameJsonValue(provenance.filters, {
               current: raw.payload.current.provenance.filters,
               prior: raw.payload.prior.provenance.filters,
             })) reject();

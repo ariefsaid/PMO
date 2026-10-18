@@ -8751,6 +8751,10 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_context: Json }
         Returns: Json
       }
+      mark_erp_statement_report_refresh_attempt: {
+        Args: { p_org_id: string; p_holder: string; p_binding: Json }
+        Returns: undefined
+      }
       stage_erp_statement_report: {
         Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
         Returns: undefined

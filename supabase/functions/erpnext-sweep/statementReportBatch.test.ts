@@ -2,6 +2,7 @@
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const originalFetch = globalThis.fetch;
 const { listEmployingOrgsLive, runErpSweepCycle } = await import('./index.ts');
+const { refreshStatementReportBatch } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts');
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -58,6 +59,8 @@ Deno.test('AC-006: native report segment runs under the claimed holder even when
   const events: string[] = [];
   let held = false;
   let holder: string | null = null;
+  let erpFetches = 0;
+  const attemptCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   try {
     const result = await runErpSweepCycle({
       ...quietPasses,
@@ -71,7 +74,25 @@ Deno.test('AC-006: native report segment runs under the claimed holder even when
       refreshNativeStatements: (boundOrg) => {
         events.push('native');
         assert(held && boundOrg.statementLockHolder === holder, 'native segment did not receive the currently claimed lock holder');
-        return Promise.resolve({ errorCode: 'native-report-unavailable' });
+        return refreshStatementReportBatch({
+          orgId: boundOrg.orgId,
+          holder: boundOrg.statementLockHolder!,
+          binding: {
+            id: boundOrg.bindingId!, activatedAt: boundOrg.activatedAt!, versionMajor: boundOrg.versionMajor!,
+            company: boundOrg.company!, projectMap: {},
+          },
+          client: {
+            apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: boundOrg.siteUrl,
+            maxRetries: 0, timeoutMs: 5_000,
+            fetchImpl: (() => { erpFetches += 1; return Promise.reject(new Error('ERP request was not expected')); }) as typeof fetch,
+          },
+          service: {
+            async rpc(name: string, args: Record<string, unknown>) {
+              attemptCalls.push({ name, args });
+              return { data: null, error: { code: '55000', message: 'synthetic current-holder refusal' } };
+            },
+          },
+        }).then((result) => ({ errorCode: result.errorCode }));
       },
       feedOrgLedgers: () => {
         events.push('raw-feed');
@@ -90,9 +111,13 @@ Deno.test('AC-006: native report segment runs under the claimed holder even when
     });
     assert(events.indexOf('native') >= 0 && events.indexOf('native') < events.indexOf('raw-feed'), 'native segment was gated behind raw ledger readiness');
     assert(events.includes('raw-feed'), 'raw feed did not continue after the native segment failure');
+    assert(attemptCalls.length === 1 && attemptCalls[0]?.name === 'mark_erp_statement_report_refresh_attempt', 'collector did not invoke the fenced admission RPC first');
+    assert(attemptCalls[0]?.args.p_holder === holder && attemptCalls[0]?.args.p_org_id === org.orgId, 'collector admission did not carry its claimed org and holder');
+    assert(erpFetches === 0, 'collector performed an ERP context/report request without admitted status');
+    assert(!attemptCalls.some(({ name }) => name === 'open_erp_statement_report_batch' || name === 'stage_erp_statement_report' || name === 'publish_erp_financial_statements'), 'refused collector continued to batch/storage RPCs');
     assert(!events.includes('accounting'), 'legacy accounting must retain its existing raw caught-up gate');
     assert(events.at(-1) === 'release' && !held, 'sweep lock was not released in finally');
-    assert(result.perOrg[0]?.errors.includes('native-statement:native-report-unavailable'), 'safe native failure was not recorded on the org');
+    assert(result.perOrg[0]?.errors.includes('native-statement:native-batch-unavailable'), 'safe native failure was not recorded on the org');
     assert(!JSON.stringify(result).includes('synthetic-ref'), 'cycle result exposed a credential reference');
   } finally {
     globalThis.fetch = originalFetch;

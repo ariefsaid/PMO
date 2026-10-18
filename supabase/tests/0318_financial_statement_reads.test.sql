@@ -150,8 +150,8 @@ select is(public.get_financial_statement_catalogue()->'periods'->1,
 select is(public.get_financial_statement_catalogue()->'periods'->2->>'currentStart','2024-02-01',
   'AC-007 stored month pairs sort by current start');
 select is(public.get_financial_statement_catalogue()->'scopes',
-  '[{"scopeKind":"company","projectId":null,"statements":["trial_balance","profit_and_loss","balance_sheet"],"viewKinds":["account_breakdown"]}]'::jsonb,
-  'AC-006 native company catalogue contains only the company scope and never unassigned or project detail');
+  '[{"scopeKind":"company","projectId":null,"statements":["trial_balance","profit_and_loss","balance_sheet"],"viewKinds":["account_breakdown"]},{"scopeKind":"project","projectId":"03180000-0000-0000-0000-0000000000d1","statements":["profit_and_loss"],"viewKinds":["account_breakdown","project_totals"]}]'::jsonb,
+  'AC-006 native company catalogue contains its company and mapped-project scopes without unassigned rows');
 select is(public.get_financial_statement_catalogue('03180000-0000-0000-0000-0000000000d1')->'scopes',
   '[{"scopeKind":"project","projectId":"03180000-0000-0000-0000-0000000000d1","statements":["profit_and_loss"],"viewKinds":["account_breakdown","project_totals"]}]'::jsonb,
   'AC-004 project catalogue contains only that visible project and its stored views');
@@ -247,6 +247,33 @@ select ok(public.get_financial_statement_catalogue('03180000-0000-0000-0000-0000
   and public.get_financial_statement_catalogue('03180000-0000-0000-0000-0000000000d3')->'companyLabel'='null'::jsonb
   and public.get_financial_statement_catalogue('03180000-0000-0000-0000-0000000000d3')->'scopes'='[]'::jsonb,
   'AC-008 visible project without mapped publication remains unavailable without company fallback');
+
+-- A stale stored row for a project that is no longer mapped must not become a company catalogue choice.
+reset role;
+set local request.jwt.claims='{}';
+set local role service_role;
+insert into public.erp_financial_statement_snapshot
+ (org_id,company,snapshot_id,source_generation,statement,scope_kind,project_id,view_kind,period_kind,
+  current_start,current_end,prior_start,prior_end,currency,as_of,source_report,report_version,filters,
+  settings,payload,has_activity,display_precision,display_rounding_method,raw_reports,capture_started_at,capture_completed_at)
+select org_id,company,snapshot_id,source_generation,statement,'project','03180000-0000-0000-0000-0000000000d3',view_kind,period_kind,
+  current_start,current_end,prior_start,prior_end,currency,as_of,source_report,report_version,filters,
+  settings,payload,has_activity,display_precision,display_rounding_method,raw_reports,capture_started_at,capture_completed_at
+from public.erp_financial_statement_snapshot
+where org_id='03180000-0000-0000-0000-000000000001'
+  and snapshot_id='03180000-0000-0000-0000-000000000101'
+  and project_id='03180000-0000-0000-0000-0000000000d1'
+  and statement='profit_and_loss' and view_kind='account_breakdown'
+limit 1;
+reset role;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"03180000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select ok(public.get_financial_statement_catalogue()->'scopes' @>
+    '[{"scopeKind":"project","projectId":"03180000-0000-0000-0000-0000000000d1","statements":["profit_and_loss"],"viewKinds":["account_breakdown","project_totals"]}]'::jsonb
+  and not (public.get_financial_statement_catalogue()->'scopes' @>
+    '[{"scopeKind":"project","projectId":"03180000-0000-0000-0000-0000000000d3"}]'::jsonb),
+  'AC-006 company catalogue includes mapped project metadata but excludes an unmapped stored project row');
+
 select throws_ok($$select public.get_financial_statement('month','2024-02-01','profit_and_loss','03180000-0000-0000-0000-0000000000d1','project_totals',true)$$,
   '22023','Invalid statement selection','AC-004 contradictory scope fails with neutral invalid-selection error');
 set local request.jwt.claims='{"sub":"03180000-0000-0000-0000-0000000000a5","role":"authenticated"}';

@@ -8,6 +8,29 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migration = (file) => fs.readFileSync(path.join(root, 'supabase/migrations', file), 'utf8');
 const rollback = (file) => fs.readFileSync(path.join(root, 'supabase/migrations/rollback', file), 'utf8');
 
+test('0320 native attempt status is exact, service-only and fenced to the active binding epoch', () => {
+  const up = migration('0320_financial_statement_native_status.sql');
+  const down = rollback('0320_financial_statement_native_status_down.sql');
+  const body = up.match(/create function public\.mark_erp_statement_report_refresh_attempt\([\s\S]*?\n\$\$;/i)?.[0];
+  assert.ok(body, 'attempt RPC body is present');
+  assert.match(body, /security definer[\s\S]*?set search_path = public, pg_temp/i);
+  assert.match(body, /from public\.erp_sweep_lock[\s\S]*?for update[\s\S]*?from public\.external_org_bindings[\s\S]*?for update/i);
+  for (const field of ['id', 'activatedAt', 'versionMajor', 'company', 'projectMap']) assert.match(body, new RegExp(field));
+  assert.match(body, /v_binding\.activated_at is distinct from v_activated_at/i);
+  assert.match(body, /v_binding\.version_major is distinct from 16/i);
+  assert.match(body, /v_binding\.config->>'company' is distinct from p_binding->>'company'/i);
+  assert.match(body, /v_binding\.config->'project_map'.*p_binding->'projectMap'/i);
+  assert.match(body, /set statement_update_delayed=true/i);
+  assert.doesNotMatch(body, /statement_calendar\s*=|statement_last_attempt_at\s*=|statement_full_ledger_replay_needed\s*=|insert into public\.erp_financial_statement_snapshot|delete from public\.erp_financial_statement_report/i);
+  assert.match(up, /revoke execute on function public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\) from public, anon, authenticated, service_role/i);
+  assert.match(up, /grant execute on function public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\) to service_role/i);
+  assert.match(down.trim(), /^drop function if exists public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\);$/i);
+  assert.doesNotMatch(down, /external_org_bindings|erp_financial_statement_snapshot|report_pending/i);
+  const denominator = JSON.parse(fs.readFileSync(path.join(root, 'scripts/isolation-probe-denominator.json'), 'utf8'));
+  assert.ok(denominator.definer_functions.includes('mark_erp_statement_report_refresh_attempt(uuid,uuid,jsonb)'));
+  assert.ok(denominator.rpcs.some((rpc) => rpc.name === 'mark_erp_statement_report_refresh_attempt' && rpc.class === 'write'));
+});
+
 test('0294 statement account source is reversible and carries its chart/lock surfaces', () => {
   const up = migration('0294_statement_account_source.sql');
   const down = rollback('0294_statement_account_source_down.sql');

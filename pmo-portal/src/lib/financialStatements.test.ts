@@ -194,6 +194,93 @@ describe('strict financial statement read envelopes', () => {
     expect(parseFinancialStatementRead(totals, projectSelection)).toEqual(totals);
   });
 
+  it('AC-006 accepts JSONB object key order while retaining exact detail filters', () => {
+    const priorFirst = {
+      ...DETAIL_READ,
+      result: {
+        ...DETAIL_READ.result,
+        provenance: {
+          ...DETAIL_READ.result.provenance,
+          filters: {
+            prior: DETAIL_READ.result.provenance.filters.prior,
+            current: DETAIL_READ.result.provenance.filters.current,
+          },
+        },
+      },
+    };
+    expect(parseFinancialStatementRead(priorFirst, EXPECTED_SELECTION)).toEqual(priorFirst);
+
+    const readWithFilters = (filters: unknown) => ({
+      ...priorFirst,
+      result: {
+        ...priorFirst.result,
+        provenance: { ...priorFirst.result.provenance, filters },
+      },
+    });
+    const expectedFilters = priorFirst.result.provenance.filters;
+    for (const invalidFilters of [
+      {
+        prior: expectedFilters.prior,
+        current: { company: 'Synthetic Company', from_date: '2024-02-01' },
+      },
+      {
+        ...expectedFilters,
+        current: { ...expectedFilters.current, unexpected: true },
+      },
+      {
+        ...expectedFilters,
+        current: { ...expectedFilters.current, from_date: 20240201 },
+      },
+    ]) {
+      expect(() => parseFinancialStatementRead(readWithFilters(invalidFilters), EXPECTED_SELECTION)).toThrow(TypeError);
+    }
+
+    const currentFilters = { ...DETAIL_PAYLOAD.current.provenance.filters, selected_accounts: ['A', 'B'] };
+    const priorFilters = { ...DETAIL_PAYLOAD.prior.provenance.filters, selected_accounts: ['A', 'B'] };
+    const arrayPayload = {
+      current: { ...DETAIL_PAYLOAD.current, provenance: { ...DETAIL_PAYLOAD.current.provenance, filters: currentFilters } },
+      prior: { ...DETAIL_PAYLOAD.prior, provenance: { ...DETAIL_PAYLOAD.prior.provenance, filters: priorFilters } },
+    };
+    const arrayRead = {
+      ...DETAIL_READ,
+      result: {
+        ...DETAIL_READ.result,
+        payload: arrayPayload,
+        provenance: { ...DETAIL_READ.result.provenance, filters: { prior: priorFilters, current: currentFilters } },
+      },
+    };
+    expect(parseFinancialStatementRead(arrayRead, EXPECTED_SELECTION)).toEqual(arrayRead);
+    const reorderedArrayRead = {
+      ...arrayRead,
+      result: {
+        ...arrayRead.result,
+        provenance: {
+          ...arrayRead.result.provenance,
+          filters: {
+            ...arrayRead.result.provenance.filters,
+            current: { ...currentFilters, selected_accounts: ['B', 'A'] },
+          },
+        },
+      },
+    };
+    expect(() => parseFinancialStatementRead(reorderedArrayRead, EXPECTED_SELECTION)).toThrow(TypeError);
+
+    const changedFilter = {
+      ...priorFirst,
+      result: {
+        ...priorFirst.result,
+        provenance: {
+          ...priorFirst.result.provenance,
+          filters: {
+            ...priorFirst.result.provenance.filters,
+            prior: { ...priorFirst.result.provenance.filters.prior, to_date: '2024-01-30' },
+          },
+        },
+      },
+    };
+    expect(() => parseFinancialStatementRead(changedFilter, EXPECTED_SELECTION)).toThrow(TypeError);
+  });
+
   it('AC-006 distinguishes stable unavailable and complete-empty envelopes', () => {
     const unavailable = { state: 'unavailable', companyLabel: null, generation: null, periods: [], scopes: [] };
     const unavailableRead = { state: 'unavailable', companyLabel: null, generation: null, selection: EXPECTED_SELECTION, result: null };
@@ -265,6 +352,38 @@ describe('parseFinancialStatementRow native storage boundary', () => {
     const project = parseFinancialStatementRow(row({ scope_kind: 'project', project_id: PROJECT_UUID }));
     expect((project.payload as FinancialStatementNativePayload).current.project).toEqual({ projectId: PROJECT_UUID, erpProjectName: 'Synthetic Project' });
     expectInvalid(row({ scope_kind: 'unassigned', project_id: null }));
+  });
+
+  it('accepts equal native project and profile objects regardless of JSONB key order', () => {
+    const reorderedPairs = [
+      { prior: { project: { erpProjectName: 'Synthetic Project', projectId: PROJECT_UUID } } },
+      { prior: { profile: { frappeVersion: '16.31.0', erpVersion: '16.33.0' } } },
+    ];
+    for (const pairOverrides of reorderedPairs) {
+      const payload = nativePayload('profit_and_loss', PROJECT_UUID, pairOverrides);
+      expect(parseFinancialStatementRow(row({
+        scope_kind: 'project', project_id: PROJECT_UUID, payload,
+      })).payload).toEqual(payload);
+    }
+  });
+
+  it('accepts prior-first JSONB filters on a stored native row and rejects changed filter values', () => {
+    const input = row();
+    const filters = input.filters as { current: Record<string, unknown>; prior: Record<string, unknown> };
+    const priorFirst = {
+      ...input,
+      filters: { prior: filters.prior, current: filters.current },
+    };
+    expect(parseFinancialStatementRow(priorFirst)).toEqual(priorFirst);
+
+    const changedFilter = {
+      ...priorFirst,
+      filters: {
+        ...priorFirst.filters,
+        prior: { ...priorFirst.filters.prior, to_date: '2024-01-30' },
+      },
+    };
+    expectInvalid(changedFilter);
   });
 
   it('does not mutate frozen native payloads or nested report data', () => {

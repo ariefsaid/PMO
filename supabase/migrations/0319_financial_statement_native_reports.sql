@@ -1006,6 +1006,7 @@ declare
   v_org_id uuid := public.auth_org_id();
   v_role text := public.auth_role()::text;
   v_bad boolean;
+  v_project_map jsonb;
 begin
   if v_org_id is null or not coalesce(public.is_active_member(),false)
      or v_role not in ('Admin','Finance','Executive','Project Manager','Engineer') then
@@ -1018,11 +1019,24 @@ begin
     where p.id=p_project_id and p.org_id=v_org_id) then
     raise exception 'Not permitted' using errcode='42501';
   end if;
+  if p_project_id is null then
+    select binding.config->'project_map' into v_project_map
+    from public.external_org_bindings binding
+    where binding.org_id=v_org_id and binding.external_tier='erpnext' and binding.activated_at is not null
+    limit 1;
+  end if;
   select exists(
     select 1 from public.erp_financial_statement_availability a
     join public.erp_financial_statement_snapshot s on s.snapshot_id=a.snapshot_id and s.org_id=v_org_id
     where a.snapshot_id is not null
-      and ((p_project_id is null and s.scope_kind='company' and s.project_id is null)
+      and ((p_project_id is null and (
+          (s.scope_kind='company' and s.project_id is null)
+          or (s.scope_kind='project' and s.project_id is not null
+            and coalesce(jsonb_typeof(v_project_map)='object'
+              and v_project_map ? s.project_id::text
+              and jsonb_typeof(v_project_map->s.project_id::text)='string'
+              and btrim(v_project_map->>s.project_id::text)<>'',false)
+            and exists(select 1 from public.projects p where p.id=s.project_id and p.org_id=v_org_id))))
         or (p_project_id is not null and s.scope_kind='project' and s.project_id=p_project_id))
       and (s.source_generation is distinct from a.source_generation or s.as_of is distinct from a.last_success_at
         or s.capture_started_at is distinct from a.capture_started_at
@@ -1031,7 +1045,14 @@ begin
     select 1 from public.erp_financial_statement_availability a
     join public.erp_financial_statement_snapshot s on s.snapshot_id=a.snapshot_id and s.org_id=v_org_id
     where a.snapshot_id is not null
-      and ((p_project_id is null and s.scope_kind='company' and s.project_id is null)
+      and ((p_project_id is null and (
+          (s.scope_kind='company' and s.project_id is null)
+          or (s.scope_kind='project' and s.project_id is not null
+            and coalesce(jsonb_typeof(v_project_map)='object'
+              and v_project_map ? s.project_id::text
+              and jsonb_typeof(v_project_map->s.project_id::text)='string'
+              and btrim(v_project_map->>s.project_id::text)<>'',false)
+            and exists(select 1 from public.projects p where p.id=s.project_id and p.org_id=v_org_id))))
         or (p_project_id is not null and s.scope_kind='project' and s.project_id=p_project_id))
     group by s.snapshot_id
     having count(distinct s.display_precision)>1 or count(distinct s.display_rounding_method)>1
@@ -1040,7 +1061,14 @@ begin
     select 1 from public.erp_financial_statement_availability a
     join public.erp_financial_statement_snapshot s on s.snapshot_id=a.snapshot_id and s.org_id=v_org_id
     where a.snapshot_id is not null
-      and ((p_project_id is null and s.scope_kind='company' and s.project_id is null)
+      and ((p_project_id is null and (
+          (s.scope_kind='company' and s.project_id is null)
+          or (s.scope_kind='project' and s.project_id is not null
+            and coalesce(jsonb_typeof(v_project_map)='object'
+              and v_project_map ? s.project_id::text
+              and jsonb_typeof(v_project_map->s.project_id::text)='string'
+              and btrim(v_project_map->>s.project_id::text)<>'',false)
+            and exists(select 1 from public.projects p where p.id=s.project_id and p.org_id=v_org_id))))
         or (p_project_id is not null and s.scope_kind='project' and s.project_id=p_project_id))
     group by s.period_kind,s.current_start
     having count(distinct (s.current_end,s.prior_start,s.prior_end))>1
@@ -1058,7 +1086,14 @@ begin
       from availability a join public.erp_financial_statement_snapshot s
         on s.snapshot_id=a.snapshot_id and s.org_id=v_org_id
       where a.snapshot_id is not null and s.capture_started_at is not null
-        and ((p_project_id is null and s.scope_kind='company' and s.project_id is null)
+        and ((p_project_id is null and (
+            (s.scope_kind='company' and s.project_id is null)
+            or (s.scope_kind='project' and s.project_id is not null
+              and coalesce(jsonb_typeof(v_project_map)='object'
+                and v_project_map ? s.project_id::text
+                and jsonb_typeof(v_project_map->s.project_id::text)='string'
+                and btrim(v_project_map->>s.project_id::text)<>'',false)
+              and exists(select 1 from public.projects p where p.id=s.project_id and p.org_id=v_org_id))))
           or (p_project_id is not null and s.scope_kind='project' and s.project_id=p_project_id))
     ), generation_row as (
       select * from candidates order by capture_completed_at desc,snapshot_id desc,id limit 1

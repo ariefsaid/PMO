@@ -57,11 +57,15 @@ function fixture(options: {
   opens?: Array<ReturnType<typeof batch>>;
   stageErrors?: number[];
   publishErrors?: number[];
+  admissionError?: boolean;
+  admissionDelayMs?: number;
+  contextFailure?: boolean;
   languageByMetadataRead?: string[];
   metadataDelayMs?: number;
   reportFetch?: (request: Request, count: number) => Promise<Response> | Response;
 } = {}) {
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const events: string[] = [];
   const nativeRequests: Request[] = [];
   const staged: Array<Record<string, unknown>> = [];
   const openResults = [...(options.opens ?? [batch(currentRequest), batch(priorRequest), batch(null)])];
@@ -69,6 +73,7 @@ function fixture(options: {
   let stageCount = 0;
   let publishCount = 0;
   let metadataReads = 0;
+  let delayed = false;
   let publishedSnapshot: string | null = 'old-complete-generation';
   const client: ErpClientDeps = {
     apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: 'https://erp.example.test',
@@ -77,6 +82,7 @@ function fixture(options: {
       const request = input instanceof Request ? input : new Request(input, init);
       const url = new URL(request.url);
       const path = url.pathname;
+      events.push(`erp:${path}`);
       if (options.metadataDelayMs && path.startsWith('/api/resource/')) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, options.metadataDelayMs);
@@ -87,6 +93,7 @@ function fixture(options: {
         });
       }
       if (path === '/api/method/frappe.utils.change_log.get_versions') {
+        if (options.contextFailure) return response({ exc_type: 'Unavailable' }, 503);
         return response({ message: { erpnext: { version: PROFILE.erpVersion }, frappe: { version: PROFILE.frappeVersion } } });
       }
       if (path === '/api/method/frappe.core.doctype.system_settings.system_settings.load') {
@@ -139,6 +146,13 @@ function fixture(options: {
   const service = {
     async rpc(name: string, args: Record<string, unknown>) {
       rpcCalls.push({ name, args: structuredClone(args) });
+      if (name === 'mark_erp_statement_report_refresh_attempt') {
+        events.push('attempt');
+        if (options.admissionDelayMs) await new Promise((resolve) => setTimeout(resolve, options.admissionDelayMs));
+        if (options.admissionError) return { data: null, error: { code: '55000', message: 'lease is not current' } };
+        delayed = true;
+        return { data: null, error: null };
+      }
       if (name === 'open_erp_statement_report_batch') {
         const result = openResults[Math.min(openCount, openResults.length - 1)]!;
         openCount += 1;
@@ -154,6 +168,7 @@ function fixture(options: {
         publishCount += 1;
         if (options.publishErrors?.includes(publishCount)) return { data: null, error: { code: 'XX002', message: 'sensitive publish error' } };
         publishedSnapshot = SNAPSHOT;
+        delayed = false;
         return { data: SNAPSHOT, error: null };
       }
       return { data: null, error: { code: '42883', message: 'unexpected RPC' } };
@@ -173,8 +188,9 @@ function fixture(options: {
     service,
   };
   return {
-    input, rpcCalls, nativeRequests, staged,
+    input, rpcCalls, nativeRequests, staged, events,
     counts: () => ({ openCount, stageCount, publishCount, metadataReads }),
+    delayed: () => delayed,
     publishedSnapshot: () => publishedSnapshot,
   };
 }
@@ -191,13 +207,18 @@ describe('refreshStatementReportBatch', () => {
 
     expect(result).toMatchObject({ status: 'published', batchId: BATCH, staged: 2, complete: true, snapshotId: SNAPSHOT });
     expect(h.rpcCalls.map(({ name }) => name)).toEqual([
-      'open_erp_statement_report_batch', 'stage_erp_statement_report', 'open_erp_statement_report_batch',
+      'mark_erp_statement_report_refresh_attempt', 'open_erp_statement_report_batch', 'stage_erp_statement_report', 'open_erp_statement_report_batch',
       'stage_erp_statement_report', 'open_erp_statement_report_batch', 'publish_erp_financial_statements',
     ]);
     for (const call of h.rpcCalls) {
       expect(call.args.p_org_id).toBe(ORG);
       expect(call.args.p_holder).toBe(HOLDER);
     }
+    expect(h.rpcCalls[0]).toEqual({
+      name: 'mark_erp_statement_report_refresh_attempt',
+      args: { p_org_id: ORG, p_holder: HOLDER, p_binding: h.input.binding },
+    });
+    expect(h.events.indexOf('attempt')).toBeLessThan(h.events.findIndex((event) => event.startsWith('erp:')));
     const opens = h.rpcCalls.filter(({ name }) => name === 'open_erp_statement_report_batch');
     expect(opens).toHaveLength(3);
     expect(Object.keys(opens[0]!.args).sort()).toEqual(['p_context', 'p_holder', 'p_org_id']);
@@ -250,8 +271,51 @@ describe('refreshStatementReportBatch', () => {
       });
     }
     expect(h.counts()).toEqual({ openCount: 3, stageCount: 2, publishCount: 1, metadataReads: 2 });
+    expect(h.delayed()).toBe(false);
     expect(JSON.stringify(result)).not.toContain('synthetic-key');
     expect(JSON.stringify(result)).not.toContain('synthetic-secret');
+  });
+
+  it('AC-005: confirmed attempt remains visible when the following native context request fails, with the old publication retained', async () => {
+    const h = fixture({ contextFailure: true });
+    const result = await refreshStatementReportBatch(h.input);
+
+    expect(result).toMatchObject({ status: 'failed', errorCode: 'native-context-unavailable', complete: false });
+    expect(h.rpcCalls.map(({ name }) => name)).toEqual(['mark_erp_statement_report_refresh_attempt']);
+    expect(h.events.indexOf('attempt')).toBeLessThan(h.events.findIndex((event) => event.startsWith('erp:')));
+    expect(h.nativeRequests).toHaveLength(0);
+    expect(h.counts()).toMatchObject({ openCount: 0, stageCount: 0, publishCount: 0 });
+    expect(h.publishedSnapshot()).toBe('old-complete-generation');
+    expect(h.delayed()).toBe(true);
+  });
+
+  it('AC-005: refused admission makes no native, open, stage, or publication call', async () => {
+    const h = fixture({ admissionError: true });
+    const result = await refreshStatementReportBatch(h.input);
+
+    expect(result).toMatchObject({ status: 'failed', errorCode: 'native-batch-unavailable' });
+    expect(h.rpcCalls.map(({ name }) => name)).toEqual(['mark_erp_statement_report_refresh_attempt']);
+    expect(h.events.some((event) => event.startsWith('erp:'))).toBe(false);
+    expect(h.nativeRequests).toHaveLength(0);
+    expect(h.counts()).toMatchObject({ openCount: 0, stageCount: 0, publishCount: 0 });
+    expect(h.publishedSnapshot()).toBe('old-complete-generation');
+    expect(h.delayed()).toBe(false);
+  });
+
+  it('AC-005: an admission response arriving after the fixed segment deadline cannot start ERP work', async () => {
+    vi.useFakeTimers();
+    const h = fixture({ admissionDelayMs: 8_000 });
+    const pending = refreshStatementReportBatch(h.input);
+
+    await vi.advanceTimersByTimeAsync(7_000);
+    const result = await pending;
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(result).toMatchObject({ status: 'progress', errorCode: 'native-stage-deadline' });
+    expect(h.rpcCalls.map(({ name }) => name)).toEqual(['mark_erp_statement_report_refresh_attempt']);
+    expect(h.events.some((event) => event.startsWith('erp:'))).toBe(false);
+    expect(h.nativeRequests).toHaveLength(0);
+    expect(h.counts()).toMatchObject({ openCount: 0, stageCount: 0, publishCount: 0 });
   });
 
   it('AC-005: reconciles an unknown stage response by indexed open and retries identical bytes only while still missing', async () => {
