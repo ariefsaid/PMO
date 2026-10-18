@@ -3386,3 +3386,8 @@ AC-S24-001/002 own working-set and card behavior in the page/board tests. AC-S24
 phone/desktop geometry and recovery in both locales and themes. The Sales page uses the existing
 `shell.nav.sales` destination label; the statement-host integration retains the route-metadata tail
 without a concurrent route file edit.
+
+
+### UXS-030 — deliberate employee identity confirmation (2026-10-18)
+
+An employee proposal remains a suggestion. Admin reviews both identities and explicitly selects an eligible destination before the existing audited confirmation. Selection or profile refresh alone never rewrites attribution. A failed save retains the dialog and selection for retry; missing identity or a stale choice withholds confirmation. Keep these renderer, read-model and host/cache regressions with the approvals route in the QA portfolio.
