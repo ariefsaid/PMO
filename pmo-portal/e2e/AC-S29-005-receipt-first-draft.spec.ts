@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'node:url';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
-import { requireServiceRoleKey, signIn } from './helpers';
+import { requireServiceRoleKey, signIn, waitForFonts } from './helpers';
 
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL);
 const RECEIPT_BUCKET = 'expense-receipts';
@@ -407,6 +407,7 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
     body: await page.screenshot({ fullPage: true }),
     contentType: 'image/png',
   });
+  await waitForFonts(page);
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
     documentWidth: document.documentElement.scrollWidth,
