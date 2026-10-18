@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -41,10 +42,8 @@ const pipelineState = {
   isError: false,
 };
 
-// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
-// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
-// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
-// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+// #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
+// Keep it in its loading state here so it contributes no text of its own to lens assertions.
 vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

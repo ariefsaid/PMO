@@ -17,6 +17,18 @@ import { UserRole } from '../../../../types';
 describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
   // ── AC-W3-N3 ─────────────────────────────────────────────────────────────
 
+  it('AC-009 support: financial statements are navigable only to real company-detail roles', () => {
+    for (const role of [UserRole.Admin, UserRole.Executive, UserRole.Finance]) {
+      expect(modulesForRole(role).find((module) => module.module === 'financial-statements')).toMatchObject({
+        path: '/financial-statements',
+        icon: 'table',
+        labelKey: 'shell.nav.financialStatements',
+      });
+    }
+    expect(modulesForRole(UserRole.ProjectManager).some((module) => module.module === 'financial-statements')).toBe(false);
+    expect(modulesForRole(UserRole.Engineer).some((module) => module.module === 'financial-statements')).toBe(false);
+  });
+
   it('AC-W3-N3: Engineer does NOT see Sales Pipeline in Navigate', () => {
     const items = modulesForRole(UserRole.Engineer);
     expect(items.map((m) => m.module)).not.toContain('sales');

@@ -69,6 +69,8 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 // Stub the tab content components so we only test tab selection, not data.
 vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
+vi.mock('../ProjectSCurve', () => ({ default: () => <div data-testid="project-s-curve">S-curve</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
@@ -109,7 +111,7 @@ vi.mock('../ProjectDetailHeader', () => ({
 
 import ProjectDetail from '../ProjectDetail';
 
-vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div data-testid="project-comments" /> }));
 
 const renderAt = (path: string) =>
   render(
@@ -129,6 +131,26 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: /projects/:id (no tab) defaults to the Overview tab', () => {
     renderAt('/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
+  });
+
+  it('AC-009 support: Overview mounts project totals once after OverviewTab and before S-curve/comments', () => {
+    renderAt('/projects/p1/overview');
+    const overview = screen.getByTestId('tab-overview');
+    const totals = screen.getByTestId('project-profit-loss');
+    const curve = screen.getByTestId('project-s-curve');
+    const comments = screen.getByTestId('project-comments');
+    expect(totals).toHaveTextContent('Project totals p1');
+    expect(overview.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(totals.compareDocumentPosition(curve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(curve.compareDocumentPosition(comments) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-009 support: other tabs and an unavailable project do not mount project totals', () => {
+    const { unmount } = renderAt('/projects/p1/budget');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+    unmount();
+    renderAt('/projects/missing/overview');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
   });
 
   it('AC-W2-IA-004: /projects/:id/budget pre-selects the Budget tab (backward-compat)', () => {

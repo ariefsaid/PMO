@@ -46,6 +46,8 @@ interface NavItem {
    * (projects/dashboard/approvals/administration) are NEVER gated and stay ungated here.
    */
   feature?: OrgFeatureKey;
+  /** This destination uses the real authorization role while other legacy items keep preview-role behavior. */
+  realRoleOnly?: boolean;
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
@@ -92,6 +94,7 @@ const ALL_ITEMS: NavItem[] = [
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, PM, Exec and Admin.
   { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
   { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #765: the Reports module's first report — the monthly management pack. Same read set and the same
   // `revenue` entitlement as the other Finance items (it is built from sales invoices).
@@ -140,8 +143,9 @@ export interface RailProps {
 export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
   const { t } = useTranslation();
   const location = useLocation();
-  const { effectiveRole } = useEffectiveRole();
+  const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
+  const realRoleValue = toUserRole(realRole);
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
   const { data: userViews } = useUserViews();
@@ -161,7 +165,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   if (!role) return null;
 
   const items = ALL_ITEMS.filter(
-    (i) => i.roles.includes(role) && (!i.feature || featureEnabled(i.feature)),
+    (i) => (i.realRoleOnly
+      ? realRoleValue !== null && i.roles.includes(realRoleValue)
+      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)),
   );
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
@@ -199,6 +205,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
+    '/financial-statements': t('shell.nav.financialStatements', 'Financial statements'),
     '/reports': t('shell.nav.managementPack', 'Management pack'),
   };
   const navLabels: Record<string, string> = Object.fromEntries(

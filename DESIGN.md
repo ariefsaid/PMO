@@ -445,6 +445,11 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
 - **Money cells:** `tabular` is **mandatory** on every figure and on the `—` that stands in its place
   (§3) — a column that loses it stops aligning against the table above it.
+- **Responsive statement totals:** on narrow card stacks, place short Current/Previous labels above
+  full-width amount values; keep the full supplied date ranges and currency in the section context,
+  and retain at least 100px for each value cell at a 390px viewport. Desktop headers keep their full
+  date and currency captions. Amounts may wrap when longer than the available width; they must not
+  be clipped or reduced to one digit per line.
 - **In-cell:** project cell (28px mono icon + 2-line name/code, code in `font-mono`); money (`tabular`,
   sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by
   threshold); age chip (turns `warning`/`destructive` when aging/stale).

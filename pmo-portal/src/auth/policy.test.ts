@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'vitest';
 import { can } from './policy';
+import type { Action } from './policy';
 import type { Role } from './AuthContext';
 
 const ALL_ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
+const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
+  'create',
+  'edit',
+  'archive',
+  'delete',
+  'transition',
+  'editContractValue',
+  'setVatFlag',
+  'setValue',
+  'submit_sales_invoice',
+  'record_received_date',
+  'download_pdf',
+  'record_efaktur',
+  'assign_project',
+  'manage_external_bindings',
+  'manage',
+  'push_timesheet',
+  'confirm_employee_link',
+  'upload',
+];
 
 /** Helper: which roles return true for can(action, entity, ctx). */
 const allowedRoles = (
@@ -11,6 +32,32 @@ const allowedRoles = (
   extra: Record<string, unknown> = {},
 ): Role[] =>
   ALL_ROLES.filter((realRole) => can(action, entity, { realRole, ...extra }));
+
+describe('AC-009 supporting: statement role eligibility', () => {
+  it('company financial statements are viewable by Admin·Executive·Finance only', () => {
+    expect(allowedRoles('view', 'financialStatements')).toEqual(['Admin', 'Executive', 'Finance']);
+  });
+
+  it('project profit and loss totals are viewable by every real role', () => {
+    expect(allowedRoles('view', 'projectProfitLoss')).toEqual(ALL_ROLES);
+  });
+
+  it('null roles and missing policy context deny both statement views', () => {
+    for (const entity of ['financialStatements', 'projectProfitLoss'] as const) {
+      expect(can('view', entity, { realRole: null })).toBe(false);
+      expect(can('view', entity)).toBe(false);
+    }
+  });
+
+  it.each(STATEMENT_NON_VIEW_ACTIONS)('%s is denied for both read-only statement entities', (action) => {
+    for (const entity of ['financialStatements', 'projectProfitLoss'] as const) {
+      for (const realRole of [...ALL_ROLES, null]) {
+        expect(can(action, entity, { realRole })).toBe(false);
+      }
+      expect(can(action, entity)).toBe(false);
+    }
+  });
+});
 
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
