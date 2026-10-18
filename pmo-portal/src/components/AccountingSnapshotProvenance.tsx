@@ -21,6 +21,8 @@ export interface AccountingSnapshotProvenanceProps {
   sourceReport?: string | null;
   /** The ERPNext/Frappe version the report ran against (absent for actuals — GL Entry has none). */
   reportVersion?: string | null;
+  /** Optional localized replacement for the populated snapshot's "As of" prefix. */
+  updatedLabel?: string;
   className?: string;
 }
 
@@ -32,7 +34,7 @@ function formatAsOf(iso: string): string {
   return formatInstantDate(iso);
 }
 
-export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, className }) => {
+export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, className }) => {
   if (!asOf) {
     return (
       <div data-testid="snapshot-provenance-empty" className={cn('text-[11px] text-muted-foreground', className)}>
@@ -47,7 +49,7 @@ export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenance
       className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground', className)}
     >
       <span>
-        As of <span className="font-medium">{formatAsOf(asOf)}</span>
+        {updatedLabel ?? 'As of'} <span className="font-medium">{formatAsOf(asOf)}</span>
       </span>
       {sourceReport ? (
         <>
