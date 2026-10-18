@@ -44,8 +44,11 @@ shards, verify and pgTAP passed; existing save operations and permissions are re
 review (#1144 / S-16) merged in PR #1151 (`c0baddb0`) with the same fast CI gates green; source-currency
 amounts, unavailable tax facts and retry payloads are covered. Both slices completed review and rendered
 phone/desktop checks in both languages and themes; exact-tip cleanup was independently verified.
-Their browser integration remains with the billing/purchasing lane-closing PRs. Continue statement
-views and rehearsal acceptance, money and parallel UX slices.
+Their browser integration remains with the billing/purchasing lane-closing PRs. Employee identity
+review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
+exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
+and themes. Exact-tip cleanup was independently verified. Continue statement views and rehearsal
+acceptance, money and parallel UX slices.
 
 **Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
 Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
