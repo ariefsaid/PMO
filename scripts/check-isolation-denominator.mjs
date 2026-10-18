@@ -193,21 +193,38 @@ export function validateDenominator(parsed) {
     if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
       throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
     }
-    if (r.shape != null && !['empty-array', 'false', 'boolean'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
+    if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
     if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
     if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
-    const isDefiner = parsed.definer_functions.some(f => f.replace(/^public\./, '').startsWith(`${r.name}(`));
     const isDeclaredFunction = r.source.some(s => {
       const [file] = s.split(':');
       return fs.readFileSync(path.join(ROOT, file), 'utf8').includes(`function public.${r.name}(`);
     });
-    if (!isDefiner && !isDeclaredFunction) throw new Error(`invalid denominator: RPC ${r.name} has no cited function definition`);
+    if (!isDeclaredFunction) throw new Error(`invalid denominator: RPC ${r.name} source citations do not support its function definition`);
   }
   return parsed;
 }
 
+function validateExactRpcProbeCoverage(rpcs) {
+  const script = fs.readFileSync(path.join(ROOT, 'scripts/isolation-probe.sh'), 'utf8');
+  const probed = new Set([
+    ...[...script.matchAll(/\$\(rpc ([a-z_][a-z0-9_]*)\b/g)].map(m => m[1]),
+    ...[...script.matchAll(/"([a-z_][a-z0-9_]*):A_[A-Z_]+:p_[a-z_]+"/g)].map(m => m[1]),
+  ]);
+  const declared = new Set(rpcs.map(r => r.name));
+  if (probed.size !== declared.size || [...probed].some(name => !declared.has(name))) {
+    throw new Error('invalid denominator: RPC probe coverage must exactly match rpcs');
+  }
+}
+
 export function readDenominator(filePath) {
-  const parsed = validateDenominator(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  // Preserve the exact-coverage diagnostic for otherwise well-formed RPC name lists before
+  // checking source citations. Invalid or duplicate names still go through the structural validator.
+  if (Array.isArray(raw?.rpcs) && raw.rpcs.every((r, i, all) =>
+    r && /^[a-z_][a-z0-9_]*$/.test(r.name) && all.findIndex(other => other?.name === r.name) === i
+  )) validateExactRpcProbeCoverage(raw.rpcs);
+  const parsed = validateDenominator(raw);
   for (const r of parsed.rpcs) {
     const cited = r.source.map(s => {
       const [file, line] = s.split(':');
@@ -219,13 +236,6 @@ export function readDenominator(filePath) {
       if (!cited.includes(`'${e.sqlstate}'`) && !(e.sqlstate === '42501' && /revoke execute.*from public, anon, authenticated/.test(cited))) throw new Error(`invalid denominator: RPC ${r.name} source does not support ${e.sqlstate}`);
     }
   }
-  const script = fs.readFileSync(path.join(ROOT, 'scripts/isolation-probe.sh'), 'utf8');
-  const probed = new Set([
-    ...[...script.matchAll(/\$\(rpc ([a-z_][a-z0-9_]*)\b/g)].map(m => m[1]),
-    ...[...script.matchAll(/"([a-z_][a-z0-9_]*):A_[A-Z_]+:p_[a-z_]+"/g)].map(m => m[1]),
-  ]);
-  const declared = new Set(parsed.rpcs.map(r => r.name));
-  if (probed.size !== declared.size || [...probed].some(name => !declared.has(name))) throw new Error('invalid denominator: RPC probe coverage must exactly match rpcs');
   return parsed;
 }
 

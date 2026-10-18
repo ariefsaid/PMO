@@ -26,12 +26,21 @@ Deno.test('AC-005: the sweep loads persisted replay state for the bound company'
   }
 });
 
-Deno.test('AC-005: shipped live sweep checks chart before full ledger replay and completes status', async () => {
+Deno.test('AC-005: shipped live sweep checks chart before full ledger replay without mutating native status', async () => {
   const events: string[] = [];
   const statusUpdates: Record<string, unknown>[] = [];
   const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+  const originalNativeStatus = {
+    statement_update_delayed: true,
+    statement_calendar: [{ name: 'Retained FY', start: '2025-01-01', end: '2025-12-31' }],
+  };
+  const binding = {
+    id: '55555555-5555-4555-8555-555555555555', org_id: 'org-synthetic', site_url: 'https://example.test',
+    secret_ref: 'synthetic-ref', config: { company: 'Synthetic Co' }, activated_at: '2026-01-01T00:00:00Z',
+    version_major: 16, statement_full_ledger_replay_needed: true, ...structuredClone(originalNativeStatus),
+  };
   const results: Record<string, { data: unknown; error: null }> = {
-    external_org_bindings: { data: [{ org_id: 'org-synthetic', site_url: 'https://example.test', secret_ref: 'synthetic-ref', config: { company: 'Synthetic Co' }, activated_at: '2026-01-01T00:00:00Z', version_major: 16, statement_full_ledger_replay_needed: true }], error: null },
+    external_org_bindings: { data: [binding], error: null },
     external_domain_ownership: { data: [{ org_id: 'org-synthetic', domain: 'finance' }], error: null },
     external_sync_watermarks: { data: [], error: null },
   };
@@ -80,7 +89,10 @@ Deno.test('AC-005: shipped live sweep checks chart before full ledger replay and
     if (result.gl !== 0 || result.glCaughtUp !== true) throw new Error(`full replay did not finish: ${JSON.stringify(result)}`);
     const finish = rpcCalls.find((call) => call.name === 'finish_erp_gl_replay');
     if (!finish || finish.args.p_company !== 'Synthetic Co' || finish.args.p_watermark !== null) throw new Error(`loaded company/full replay was not passed to completion: ${JSON.stringify(rpcCalls)}`);
-    if (!statusUpdates.some((u) => u.statement_update_delayed === false)) throw new Error('successful source sweep did not complete delayed status');
+    if (result.statementReady !== true) throw new Error('complete raw/chart source diagnostic did not remain ready');
+    if (binding.statement_update_delayed !== originalNativeStatus.statement_update_delayed || JSON.stringify(binding.statement_calendar) !== JSON.stringify(originalNativeStatus.statement_calendar)) throw new Error('ordinary source feed changed native statement state');
+    if (statusUpdates.some((update) => 'statement_update_delayed' in update || 'statement_calendar' in update)) throw new Error(`ordinary source feed wrote native status fields: ${JSON.stringify(statusUpdates)}`);
+    if (rpcCalls.some((call) => ['open_erp_statement_report_batch', 'stage_erp_statement_report', 'publish_erp_financial_statements'].includes(call.name))) throw new Error('ordinary feed invoked the native statement publisher');
   } finally {
     globalThis.fetch = previousFetch;
   }
