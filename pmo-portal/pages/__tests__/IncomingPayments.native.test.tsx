@@ -124,7 +124,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
-    for (const label of [/Paid Amount/, /Received Amount/]) {
+    for (const label of [/Amount settled/, /Cash received/]) {
       const field = screen.getByLabelText(label);
       await user.clear(field);
       await user.type(field, '100');
@@ -154,8 +154,8 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(summary).not.toBeNull();
     const cases = [
       [/Choose the invoice this receipt settles\./, screen.getByRole('combobox', { name: /Sales Invoice/ })],
-      [/Paid amount must be positive/i, screen.getByLabelText(/Paid Amount/)],
-      [/Received amount must be positive/i, screen.getByLabelText(/Received Amount/)],
+      [/Paid amount must be positive/i, screen.getByLabelText(/Amount settled/)],
+      [/Received amount must be positive/i, screen.getByLabelText(/Cash received/)],
       [/payment date cannot be in the future/i, date],
     ] as const;
     for (const [message, control] of cases) {
@@ -190,11 +190,11 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await pickInvoice(user);
-    expect(screen.getByLabelText(/Paid Amount/)).toHaveValue('610,000');
-    expect(screen.getByLabelText(/Received Amount/)).toHaveValue('610,000');
+    expect(screen.getByLabelText(/Amount settled/)).toHaveValue('610,000');
+    expect(screen.getByLabelText(/Cash received/)).toHaveValue('610,000');
     expect(screen.getByText(/Starts at the .*610,000\.00 outstanding/)).toBeInTheDocument();
     // The receipt takes the invoice's currency (0275), so the amount reads in it — not the org default.
-    expect(screen.getByLabelText(/Paid Amount/).closest('div')).toHaveTextContent(currencySymbol('IDR'));
+    expect(screen.getByLabelText(/Amount settled/).closest('div')).toHaveTextContent(currencySymbol('IDR'));
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(h.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
       salesInvoiceId: 'si-1', paidAmount: 610_000, receivedAmount: 610_000, date: TODAY(),
@@ -206,7 +206,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await pickInvoice(user);
-    for (const label of [/Paid Amount/, /Received Amount/]) {
+    for (const label of [/Amount settled/, /Cash received/]) {
       const field = screen.getByLabelText(label);
       await user.clear(field);
       await user.type(field, '700000');
@@ -321,8 +321,8 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await pickInvoice(user);
-    await setAmount(user, /Paid Amount/, '500000');
-    expect(screen.getByLabelText(/Received Amount/)).toHaveValue('500,000');
+    await setAmount(user, /Amount settled/, '500000');
+    expect(screen.getByLabelText(/Cash received/)).toHaveValue('500,000');
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(h.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({ paidAmount: 500_000, receivedAmount: 500_000 }));
   });
@@ -332,8 +332,8 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage();
     await pickInvoice(user);
-    await setAmount(user, /Paid Amount/, '500000');
-    await setAmount(user, /Received Amount/, '400000');
+    await setAmount(user, /Amount settled/, '500000');
+    await setAmount(user, /Cash received/, '400000');
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect((await screen.findAllByText('Cash received plus withheld tax must equal the amount allocated to the invoice.')).length).toBeGreaterThan(0);
     expect(h.createPaymentMutate).not.toHaveBeenCalled();
@@ -347,8 +347,8 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(screen.getByRole('combobox', { name: /Sales Invoice \(optional\)/ })).not.toBeRequired();
     await user.click(screen.getByRole('combobox', { name: 'Customer' }));
     await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
-    await setAmount(user, /Paid Amount/, '100');
-    await setAmount(user, /Received Amount/, '100');
+    await setAmount(user, /Amount settled/, '100');
+    await setAmount(user, /Cash received/, '100');
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     expect(h.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'cust-1', salesInvoiceId: null, paidAmount: 100, receivedAmount: 100 }));
   });

@@ -631,6 +631,19 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const withheldAmountField = form.fieldProps('withheldAmount');
   const slipField = form.fieldProps('withholdingSlipNumber');
   const dateField = form.fieldProps('date');
+  const withholdingPanelId = React.useId();
+  const [withholdingExpanded, setWithholdingExpanded] = useState(() =>
+    Boolean((payment?.withheld_amount ?? 0) > 0 || payment?.withholding_slip_number?.trim()),
+  );
+  const withheldForSummary = form.values.withheldAmount.trim()
+    ? parseMoneyInputAtScale(form.values.withheldAmount, 2)
+    : 0;
+  const hasWithholdingSummary = withheldForSummary === null
+    ? form.values.withheldAmount.trim().length > 0
+    : withheldForSummary !== 0;
+  const showWithholdingSummary = !withholdingExpanded && (
+    hasWithholdingSummary || slipField.value.trim().length > 0
+  );
 
   const errorSummary = form.errors.customerId || form.errors.salesInvoiceId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date || form.errors.withheldAmount || form.errors.withholdingSlipNumber
     ? [
@@ -653,6 +666,16 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
 
     e.preventDefault();
+    // Expand before EntityFormModal focuses the first invalid field after submit. The
+    // existing validator remains the authority; this read only keeps that field visible.
+    const withholdingErrors = validate(form.values, t, native, invoiceDateOf(form.values.salesInvoiceId));
+    const nativeBalanceNeedsWithholding = native
+      && Boolean(withholdingErrors.receivedAmount)
+      && withheldForSummary !== null
+      && withheldForSummary > 0;
+    if (withholdingErrors.withheldAmount || withholdingErrors.withholdingSlipNumber || nativeBalanceNeedsWithholding) {
+      setWithholdingExpanded(true);
+    }
     void form.handleSubmit(async (values) => {
       const paidAmount = parsePaymentAmount(values.paidAmount);
       const receivedAmount = parsePaymentAmount(values.receivedAmount);
@@ -735,7 +758,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           />
           <NumberField
             id={paidAmountField.id}
-            label={t('financeCopy.paidAmount', "Paid Amount")}
+            label={t('uxs27.amountSettled', 'Amount settled')}
             value={String(paidAmountField.value)}
             onChange={(v) => {
               // I-5: while nothing is withheld, the cash received IS the amount paid — keep them in step.
@@ -748,16 +771,25 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={paidAmountField.error}
-            helper={chosenInvoice?.erp_outstanding_amount != null
-              ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
-                  amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
-                })
-              : t('financeCopy.paidAmountHelper', "The full amount applied to the invoice, including tax withheld by the client.")}
+            helper={(
+              <>
+                <span className="block">
+                  {t('uxs27.amountSettledHelper', 'Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.')}
+                </span>
+                {chosenInvoice?.erp_outstanding_amount != null && (
+                  <span className="mt-1 block">
+                    {t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
+                      amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+                    })}
+                  </span>
+                )}
+              </>
+            )}
             localeAware
           />
           <NumberField
             id={receivedAmountField.id}
-            label={t('financeCopy.receivedAmount', "Received Amount")}
+            label={t('uxs27.cashReceived', 'Cash received')}
             value={String(receivedAmountField.value)}
             onChange={(v) => receivedAmountField.onChange(v)}
             required
@@ -768,27 +800,57 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
             localeAware
           />
-          <NumberField
-            id={withheldAmountField.id}
-            label={t('financeCopy.withheldAmountLabel', "Withheld tax amount")}
-            value={withheldAmountField.value}
-            onChange={withheldAmountField.onChange}
-            onBlur={withheldAmountField.onBlur}
-            prefix={moneyPrefix}
-            localeAware
-            error={withheldAmountField.error}
-            helper={t('financeCopy.withheldAmountHelper', "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.")}
-          />
-          <TextField
-            id={slipField.id}
-            label={t('financeCopy.withholdingSlipNumberLabel', "Withholding-slip number")}
-            value={slipField.value}
-            onChange={slipField.onChange}
-            onBlur={slipField.onBlur}
-            maxLength={140}
-            error={slipField.error}
-            helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
-          />
+          <div className="sm:col-span-2">
+            <Button
+              variant="outline"
+              className="touch-target"
+              type="button"
+              aria-expanded={withholdingExpanded}
+              aria-controls={withholdingPanelId}
+              onClick={() => setWithholdingExpanded((expanded) => !expanded)}
+            >
+              {t('uxs27.taxWithheldDisclosure', 'Tax withheld')}
+            </Button>
+            {showWithholdingSummary && (
+              <div className="mt-2 min-w-0 space-y-1 text-[13px] text-muted-foreground">
+                <p className="break-words">
+                  {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
+                    amount: `${moneyPrefix}${withheldAmountField.value}`,
+                  })}
+                </p>
+                {slipField.value.trim()
+                  ? <p className="break-words">{t('uxs27.withholdingSlipSummary', 'Withholding slip: {{slip}}', { slip: slipField.value })}</p>
+                  : withheldForSummary !== null && withheldForSummary > 0
+                    ? <p>{t('uxs27.withholdingSlipMissing', 'Withholding slip not entered (required for a deduction).')}</p>
+                    : null}
+              </div>
+            )}
+            <div id={withholdingPanelId} hidden={!withholdingExpanded} className="mt-3">
+              <FormGrid>
+                <NumberField
+                  id={withheldAmountField.id}
+                  label={t('financeCopy.withheldAmountLabel', "Withheld tax amount")}
+                  value={withheldAmountField.value}
+                  onChange={withheldAmountField.onChange}
+                  onBlur={withheldAmountField.onBlur}
+                  prefix={moneyPrefix}
+                  localeAware
+                  error={withheldAmountField.error}
+                  helper={t('financeCopy.withheldAmountHelper', "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.")}
+                />
+                <TextField
+                  id={slipField.id}
+                  label={t('financeCopy.withholdingSlipNumberLabel', "Withholding-slip number")}
+                  value={slipField.value}
+                  onChange={slipField.onChange}
+                  onBlur={slipField.onBlur}
+                  maxLength={140}
+                  error={slipField.error}
+                  helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
+                />
+              </FormGrid>
+            </div>
+          </div>
           <TextField
             id={dateField.id}
             label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
