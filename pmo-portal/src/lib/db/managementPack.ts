@@ -41,12 +41,9 @@ export type PackFactsInvoiced = Pick<Tables<'sales_invoice_work_billed'>, 'proje
   invoice_count: number;
 };
 
-export interface PackFactsInvoicedBefore {
-  project_id: string | null;
-  currency: string;
-  net: number;
-  invoice_count: number;
-}
+/** The RPC groups pre-range facts by project and currency, like invoiced but without month. Reusing the derived
+ * type keeps the shared view's deliberate currency/net narrowing aligned across both aggregates. */
+export type PackFactsInvoicedBefore = Omit<PackFactsInvoiced, 'month'>;
 
 export interface PackFactsProgress {
   project_id: string;
