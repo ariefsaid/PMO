@@ -98,18 +98,21 @@ operator work (outcomes, budget account map, budget activation by a second perso
    **Plan corrections (owner 2026-10-18):** refresh only the current and previous period every sweep, and an
    older period only when the ledger mirror shows a change dated inside it (a full pass is 2,688 report calls);
    #1068's pre-publication items are decided for the display path inside v0.23.0, not left to triage.
+   **v0.23.0 scope also includes (owner 2026-10-18):** the money-tile follow-ups #1081, #1089, #1083 and UX waves
+   3–4 (S-09, S-11, S-15, S-16, S-19, S-21, S-23, S-24, S-27, S-29, S-30, S-35, S-36, S-39, S-40). Statements stay
+   the critical path; these fill spare lanes. S-35 (company position) builds on the statement views; S-27 is a
+   money-path slice (Director-dispatched).
    **Release steps for v0.23.0 (each still owner-gated):** whole-release security review → PR `dev`→`main` with
    integration → production deploy back to front (DB → edge functions → frontend; it also carries #1101/#1102)
    → after-push probes, including isolation-probe entries for the new statement tables.
 5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
    pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
    timing reported zero warnings or failures. Exact-tip cleanup was verified.
-   **Later release-review follow-ups**, after statements: #1081 shared project-money tiles,
-   #1089 Finance alignment and #1083 management-pack invoice presence.
+   **Release-review follow-ups #1081, #1089, #1083 moved into v0.23.0** (see item 4).
 6. **Shipped-issue verification completed (2026-10-18).** Closed #1050 (PR #1052), #1033 (PR #1040),
    #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
    #1044 remains open for the broader cross-record-page acceptance.
-7. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including UX-029, 042, 044, 052, 078, 079 and 082.
+7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
 8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
 **Owner actions after v0.22.0:**
