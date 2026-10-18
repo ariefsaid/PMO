@@ -33,6 +33,21 @@ function periodCaption(
   return `${sideLabel} · ${formatDateOnly(period.fromDate)} – ${formatDateOnly(period.toDate)} · ${currency}`;
 }
 
+function responsivePeriodCaption(
+  sideLabel: string,
+  period: Pick<StatementReportPeriod, 'fromDate' | 'toDate'>,
+  currency: NativeProjectStatementTotals['currency'],
+) {
+  return (
+    <>
+      <span data-period-caption="mobile" className="md:hidden">{sideLabel}</span>
+      <span data-period-caption="desktop" className="hidden md:inline">
+        {periodCaption(sideLabel, period, currency)}
+      </span>
+    </>
+  );
+}
+
 export function ProjectStatementTotals({ current, prior, periods, labels }: ProjectStatementTotalsProps) {
   const rows: ProjectTotalRow[] = [
     { key: 'income', label: labels.income },
@@ -52,8 +67,9 @@ export function ProjectStatementTotals({ current, prior, periods, labels }: Proj
     },
     {
       key: 'current',
-      header: periodCaption(labels.current, periods.current, current.currency),
+      header: responsivePeriodCaption(labels.current, periods.current, current.currency),
       align: 'num',
+      colClassName: 'col-span-2',
       cell: (row) => (
         <span className="block min-w-0 whitespace-normal break-words text-right tabular">
           {formatNativeStatementAmount(amountFor(current, row.key))}
@@ -62,8 +78,9 @@ export function ProjectStatementTotals({ current, prior, periods, labels }: Proj
     },
     {
       key: 'prior',
-      header: periodCaption(labels.prior, periods.prior, prior.currency),
+      header: responsivePeriodCaption(labels.prior, periods.prior, prior.currency),
       align: 'num',
+      colClassName: 'col-span-2',
       cell: (row) => (
         <span className="block min-w-0 whitespace-normal break-words text-right tabular">
           {formatNativeStatementAmount(amountFor(prior, row.key))}

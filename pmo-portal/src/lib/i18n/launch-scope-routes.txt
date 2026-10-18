@@ -63,7 +63,7 @@
 #    without anyone remembering to add a line. `MilestonePhaseHeader` is named separately because
 #    it lives elsewhere and is reached only from here.
 /projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
-/projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx src/components/history/RecordHistory.tsx src/components/history/historyLabels.ts
+/projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/ProjectProfitLossSection.tsx pages/project-detail/tabs/*.tsx src/components/history/RecordHistory.tsx src/components/history/historyLabels.ts
 # ── Project Budget and projection (#789): every label and state on the budget tab.
 /projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/BudgetProjection.tsx
 
@@ -102,6 +102,7 @@
 /sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts src/components/EfakturModal.tsx
 /incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
 /revenue-by-project            pages/RevenueByProject.tsx
+/financial-statements          pages/FinancialStatements.tsx pages/project-detail/ProjectProfitLossSection.tsx src/components/financial-statements/FinancialStatementsSection.tsx src/components/financial-statements/StatementPeriodPicker.tsx src/components/financial-statements/NativeStatementPair.tsx src/components/financial-statements/ProjectStatementTotals.tsx src/components/ui/ListPage.tsx src/components/ui/ListState.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 
 # ── Client/vendor directory, referenced from every project and procurement record. Companies is

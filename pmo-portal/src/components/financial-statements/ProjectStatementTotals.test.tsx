@@ -47,11 +47,16 @@ describe('ProjectStatementTotals (AC-008)', () => {
     const table = screen.getByRole('table', { name: labels.amounts });
 
     expect(within(table).getAllByRole('row')).toHaveLength(4);
-    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+    const headers = within(table).getAllByRole('columnheader');
+    expect(headers.map((header) => header.textContent)).toEqual([
       labels.amounts,
-      'Current · Jan 1, 2025 – Jan 31, 2025 · IDR',
-      'Previous · Jan 1, 2024 – Jan 31, 2024 · IDR',
+      'CurrentCurrent · Jan 1, 2025 – Jan 31, 2025 · IDR',
+      'PreviousPrevious · Jan 1, 2024 – Jan 31, 2024 · IDR',
     ]);
+    expect(headers[1]?.querySelector('[data-period-caption="mobile"]')).toHaveTextContent('Current');
+    expect(headers[1]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Current · Jan 1, 2025 – Jan 31, 2025 · IDR');
+    expect(headers[2]?.querySelector('[data-period-caption="mobile"]')).toHaveTextContent('Previous');
+    expect(headers[2]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Previous · Jan 1, 2024 – Jan 31, 2024 · IDR');
     expect(within(table).getAllByRole('row').slice(1).map((row) => row.querySelector('td')?.textContent))
       .toEqual(['Income', 'Expense', 'Net']);
     for (const value of [
@@ -72,9 +77,10 @@ describe('ProjectStatementTotals (AC-008)', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'en-US', timezone: 'UTC' });
     renderTotals();
     const table = screen.getByRole('table', { name: labels.amounts });
+    const headers = within(table).getAllByRole('columnheader');
 
-    expect(within(table).getByRole('columnheader', { name: 'Current · 1 Jan 2025 – 31 Jan 2025 · IDR' })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: 'Previous · 1 Jan 2024 – 31 Jan 2024 · IDR' })).toBeInTheDocument();
+    expect(headers[1]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Current · 1 Jan 2025 – 31 Jan 2025 · IDR');
+    expect(headers[2]?.querySelector('[data-period-caption="desktop"]')).toHaveTextContent('Previous · 1 Jan 2024 – 31 Jan 2024 · IDR');
     expect(within(table).getByText('2,345,678.90000000001')).toBeInTheDocument();
     expect(within(table).getByText('0.0')).toBeInTheDocument();
     expect(within(table).getByText('-0.0')).toBeInTheDocument();
