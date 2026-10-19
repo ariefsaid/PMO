@@ -1938,6 +1938,8 @@
       "status": "Status"
     },
     "preview": {
+      "region": "Pratinjau untuk {{title}}",
+      "toggle": "Tampilkan pratinjau untuk {{title}}",
       "loadErrorSub": "Terjadi kesalahan saat mengambil pratinjau.",
       "lineItems": "Rincian barang",
       "viewFullRequest": "Lihat permintaan lengkap"

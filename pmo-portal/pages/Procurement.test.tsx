@@ -134,6 +134,53 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByRole('button', { name: 'Import cycle data' })).toBeInTheDocument();
   });
 
+  // #1155 (P05): the More tools open as a floating overlay above the list. A keyboard user who
+  // opens it must be able to dismiss it (Escape) and land back on the trigger, and a pointer user
+  // must be able to dismiss it by clicking elsewhere — otherwise it keeps covering the rows.
+  it('#1155: Escape closes More and returns focus to its trigger', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const more = screen.getByRole('button', { name: 'More' });
+    await user.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+    expect(more).toHaveFocus();
+  });
+
+  it('#1155: an outside click closes More without disturbing the status filter or rows', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: /^Paid$/ }));
+    const more = screen.getByRole('button', { name: 'More' });
+    await user.click(more);
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+
+    // a neutral outside target (a row click would navigate away, which is a different goal)
+    await user.click(within(screen.getByTestId('list-page-header')).getByRole('heading'));
+
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Paid$/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+  });
+
+  it('#1155: reopening More still offers Export, Import and Import cycle data', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const more = screen.getByRole('button', { name: 'More' });
+    await user.click(more);
+    await user.keyboard('{Escape}');
+    await user.click(more);
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import cycle data' })).toBeInTheDocument();
+  });
+
   it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
     renderPageInLocale('id');
     expect(screen.getByText('Penawaran Vendor')).toBeInTheDocument();
