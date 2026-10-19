@@ -195,7 +195,7 @@ describe('ProjectSCurve', () => {
     milestoneState.data = undated;
     render$();
 
-    expect(screen.getByText('No dated milestones yet')).toBeInTheDocument();
+    expect(screen.getByText('No dated phases yet')).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 

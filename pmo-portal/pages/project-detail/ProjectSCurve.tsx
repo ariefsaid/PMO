@@ -88,7 +88,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
         state={state}
         loadingRows={4}
         emptyIcon="cal"
-        emptyTitle={t('projectDetail.scurve.emptyTitle', 'No dated milestones yet')}
+        emptyTitle={t('projectDetail.scurve.emptyTitle', 'No dated phases yet')}
         emptySub={t(
           'projectDetail.scurve.emptySub',
           'Add target dates to your delivery phases to see the planned-vs-actual curve.',

@@ -102,7 +102,7 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
 
   await taskDialog.getByLabel(/task name/i).fill(TASK_NAME);
   // Milestone is pre-populated — assert it and leave it (AC-DEL-011).
-  await expect(taskDialog.getByRole('combobox', { name: /milestone/i })).toContainText(
+  await expect(taskDialog.getByRole('combobox', { name: /phase/i })).toContainText(
     MILESTONE_NAME,
     { timeout: 10_000 },
   );

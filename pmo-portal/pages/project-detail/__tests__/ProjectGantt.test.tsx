@@ -193,7 +193,7 @@ describe('AC-GANTT-014: milestone renders as an on-axis diamond at its target-da
     render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={vi.fn()} />);
 
     // The diamond is labelled and positioned ON the axis (not a right-aligned header badge).
-    const diamond = screen.getByLabelText(/phase 1 milestone — target 2026-01-06/i);
+    const diamond = screen.getByLabelText(/phase 1 phase — target 2026-01-06/i);
     expect(diamond).toBeInTheDocument();
     expect((diamond as HTMLElement).style.background).toBe('hsl(var(--violet))');
     // Its absolute x reflects ~mid-span. With month scale (6px/day), span is extended to

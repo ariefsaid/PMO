@@ -33,7 +33,7 @@ describe('AC-MMP-014 Record progress', () => {
   it('AC-MMP-014: pre-fills the as-at month and offers the milestone delivery % as a suggestion', () => {
     renderModal();
     expect(screen.getByLabelText(/^Month/)).toHaveValue('2026-09');
-    expect(screen.getByText('Milestone delivery: 42%')).toBeInTheDocument();
+    expect(screen.getByText('Phase delivery: 42%')).toBeInTheDocument();
   });
 
   it('AC-MMP-014: refuses an out-of-range percent with the range message and does not save', async () => {
