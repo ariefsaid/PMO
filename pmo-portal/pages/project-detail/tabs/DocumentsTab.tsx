@@ -221,6 +221,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'code',
       header: t('projectDetail.documents.column.code', 'Code'),
+      size: 96, minSize: 96, maxSize: 96,
       colClassName: 'hidden sm:table-cell w-[96px]',
       cell: (d) =>
         d.code ? (
@@ -234,6 +235,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'file_path',
       header: t('projectDetail.documents.column.file', 'File'),
+      size: 112, minSize: 112, maxSize: 112,
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => (
         <FileCell
@@ -254,12 +256,14 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'category',
       header: t('projectDetail.documents.column.category', 'Category'),
+      size: 112, minSize: 112, maxSize: 112,
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => <span className="text-[13px] text-muted-foreground">{d.category}</span>,
     },
     {
       key: 'doc_date',
       header: t('projectDetail.documents.column.date', 'Date'),
+      size: 108, minSize: 108, maxSize: 108,
       colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
@@ -271,6 +275,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'status',
       header: t('projectDetail.documents.column.status', 'Status'),
+      size: 112, minSize: 112, maxSize: 112,
       colClassName: 'w-[112px] min-w-[112px]',
       cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
@@ -278,6 +283,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       key: 'revision_action',
       header: '',
       align: 'center',
+      size: 96, minSize: 96, maxSize: 96,
       colClassName: 'w-[96px]',
       cell: (d) =>
         (d.status === 'Issued' || d.status === 'Approved') && canWriteDocs ? (

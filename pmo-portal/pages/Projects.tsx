@@ -479,6 +479,9 @@ const Projects: React.FC = () => {
     {
       key: 'customer',
       header: t('projects.columns.customer', 'Customer'),
+      size: 132,
+      minSize: 132,
+      maxSize: 132,
       colClassName: 'min-[1280px]:w-[132px] min-[1280px]:max-w-[132px]',
       exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
       // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
@@ -501,6 +504,9 @@ const Projects: React.FC = () => {
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
       header: t('projects.columns.endCustomer', 'End customer'),
+      size: 112,
+      minSize: 112,
+      maxSize: 112,
       colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2',
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
@@ -516,6 +522,9 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
+      size: 44,
+      minSize: 44,
+      maxSize: 44,
       colClassName: 'min-[1280px]:w-[44px] min-[1280px]:max-w-[44px]',
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
@@ -559,6 +568,9 @@ const Projects: React.FC = () => {
       // status labels is its own decision (it needs one map every surface shares) and is not in
       // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
+      size: 76,
+      minSize: 76,
+      maxSize: 76,
       colClassName: 'min-[1280px]:w-[76px] min-[1280px]:max-w-[76px]',
       exportValue: (p) => String(p.status),
       cell: (p) => (
@@ -575,6 +587,9 @@ const Projects: React.FC = () => {
     {
       key: 'contract',
       header: t('projects.columns.contract', 'Contract'),
+      size: 98,
+      minSize: 98,
+      maxSize: 98,
       colClassName: 'min-[1280px]:w-[98px] min-[1280px]:max-w-[98px]',
       align: 'num',
       exportValue: (p) => p.contract_value,
@@ -611,6 +626,9 @@ const Projects: React.FC = () => {
     {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
+      size: 94,
+      minSize: 94,
+      maxSize: 94,
       colClassName: 'min-[1280px]:w-[94px] min-[1280px]:max-w-[94px]',
       align: 'num',
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
@@ -661,6 +679,9 @@ const Projects: React.FC = () => {
     {
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
+      size: 108,
+      minSize: 108,
+      maxSize: 108,
       colClassName: 'min-[1280px]:w-[108px] min-[1280px]:max-w-[108px]',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
@@ -687,6 +708,9 @@ const Projects: React.FC = () => {
     {
       key: 'budget-used',
       header: t('projects.columns.budgetUsed', 'Budget used'),
+      size: 116,
+      minSize: 116,
+      maxSize: 116,
       colClassName: 'min-[1280px]:w-[116px] min-[1280px]:max-w-[116px]',
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;

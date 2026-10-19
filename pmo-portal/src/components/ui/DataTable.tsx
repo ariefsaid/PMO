@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { Icon } from './icons';
 import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
+import { AuthContext } from '@/src/auth/AuthContext';
 
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
@@ -197,21 +198,10 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
-function defaultColumnSize<Row>(column: Column<Row>): number {
-  if (column.size) return column.size;
-  const key = `${column.key} ${typeof column.header === 'string' ? column.header : ''}`.toLowerCase();
-  if (/status|state|phase/.test(key)) return 112;
-  if (/date|updated|created|due/.test(key)) return 144;
-  if (/action|menu/.test(key)) return 48;
-  if (column.align === 'num' || /amount|budget|contract|actual|value|cost|total|percent|progress/.test(key)) return 128;
-  if (/project|name|title|company|customer/.test(key)) return 220;
-  return 168;
-}
-
-function readColumnSizing(tableId: string | undefined): Record<string, number> {
-  if (!tableId || typeof window === 'undefined') return {};
+function readColumnSizing(tableId: string | undefined, userId: string | undefined): Record<string, number> {
+  if (!tableId || !userId || typeof window === 'undefined') return {};
   try {
-    const saved = window.localStorage.getItem(`pmo:datatable:${tableId}:columnSizing`);
+    const saved = window.localStorage.getItem(`pmo:datatable:${userId}:${tableId}:columnSizing`);
     if (!saved) return {};
     const value: unknown = JSON.parse(saved);
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -282,7 +272,8 @@ export function DataTable<Row>({
   tableId,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
-  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId));
+  const userId = useContext(AuthContext)?.currentUser?.id;
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId));
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -297,15 +288,14 @@ export function DataTable<Row>({
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
-    const defaultSize = defaultColumnSize(column);
     return {
       id: column.key,
       accessorFn: (row) => row,
       enableSorting: Boolean(column.sortKey),
       header: () => column.header,
-      size: defaultSize,
-      minSize: column.minSize ?? (column.align === 'num' ? 84 : 96),
-      maxSize: column.maxSize ?? Math.max(defaultSize * 2, defaultSize + 160),
+      ...(column.size !== undefined ? { size: column.size } : {}),
+      ...(column.minSize !== undefined ? { minSize: column.minSize } : {}),
+      ...(column.maxSize !== undefined ? { maxSize: column.maxSize } : {}),
     };
   }), [columns]);
   const table = useReactTable({
@@ -323,9 +313,9 @@ export function DataTable<Row>({
     onColumnSizingChange: (updater) => {
       setColumnSizing((current) => {
         const next = typeof updater === 'function' ? updater(current) : updater;
-        if (tableId && typeof window !== 'undefined') {
+        if (tableId && userId && typeof window !== 'undefined') {
           try {
-            window.localStorage.setItem(`pmo:datatable:${tableId}:columnSizing`, JSON.stringify(next));
+            window.localStorage.setItem(`pmo:datatable:${userId}:${tableId}:columnSizing`, JSON.stringify(next));
           } catch {
             // Storage is an enhancement; live resizing remains available when it is denied.
           }
@@ -336,6 +326,26 @@ export function DataTable<Row>({
   });
   const modelRows = table.getRowModel().rows;
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+  // Resize handles sit outside the header cells (so they are not part of a header's name);
+  // place them on the RENDERED column edges, not TanStack's notional sizes.
+  const [columnEdges, setColumnEdges] = useState<{ edges: Record<string, number>; width: number }>({ edges: {}, width: 0 });
+  const measureColumnEdges = useCallback(() => {
+    const tableEl = tableRef.current;
+    if (!tableEl) return;
+    const edges: Record<string, number> = {};
+    tableEl.querySelectorAll<HTMLTableCellElement>('thead th[data-col-key]').forEach((th) => {
+      if (th.offsetWidth > 0) edges[th.dataset.colKey!] = th.offsetLeft + th.offsetWidth;
+    });
+    setColumnEdges({ edges, width: tableEl.offsetWidth });
+  }, []);
+  // ponytail: re-measure on render, window resize and header hover/focus; a container-only resize
+  // is caught on the next hover/focus (handles are invisible until then and clamped inside the table).
+  useLayoutEffect(() => {
+    if (!isDesktop) return;
+    measureColumnEdges();
+    window.addEventListener('resize', measureColumnEdges);
+    return () => window.removeEventListener('resize', measureColumnEdges);
+  }, [isDesktop, columns, columnSizing, rows.length, measureColumnEdges]);
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
@@ -379,10 +389,12 @@ export function DataTable<Row>({
         <table
           ref={tableRef}
           aria-label={accessibleName}
-          style={{ minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' }}
+          style={{
+            ...(columns.some((column) => column.size !== undefined) ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          }}
           className="w-full border-collapse text-[13.5px]"
         >
-          <thead>
+          <thead onMouseEnter={isDesktop ? measureColumnEdges : undefined}>
             <tr>
               {modelHeaders.map((header) => {
                 const col = columns.find((column) => column.key === header.column.id)!;
@@ -392,10 +404,11 @@ export function DataTable<Row>({
                 return (
                   <th
                     key={header.id}
+                    data-col-key={col.key}
                     aria-sort={ariaSort}
-                    // ponytail: the resize handle is a named child; pin the header name so it is not announced as part of it.
-                    aria-label={typeof col.header === 'string' ? col.header : undefined}
-                    style={{ width: header.getSize(), minWidth: header.column.columnDef.minSize!, maxWidth: header.column.columnDef.maxSize! }}
+                    style={columnSizing[col.key] !== undefined || col.size !== undefined
+                      ? { width: header.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                      : undefined}
                     className={cn(
                       'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
                       alignClass(col.align),
@@ -414,37 +427,7 @@ export function DataTable<Row>({
                     ) : (
                       col.header
                     )}
-                    {isDesktop && (
-                      <div
-                        role="separator"
-                        title={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
-                        aria-orientation="vertical"
-                        aria-valuenow={header.getSize()}
-                        aria-valuemin={header.column.columnDef.minSize}
-                        aria-valuemax={header.column.columnDef.maxSize}
-                        tabIndex={0}
-                        onMouseDown={header.getResizeHandler()}
-                        onTouchStart={header.getResizeHandler()}
-                        onDoubleClick={() => header.column.resetSize()}
-                        onKeyDown={(event) => {
-                          const current = header.getSize();
-                          const min = header.column.columnDef.minSize!;
-                          const max = header.column.columnDef.maxSize!;
-                          let next: number | undefined;
-                          if (event.key === 'ArrowLeft') next = current - 16;
-                          if (event.key === 'ArrowRight') next = current + 16;
-                          if (event.key === 'Home') next = min;
-                          if (event.key === 'End') next = max;
-                          if (next !== undefined) {
-                            event.preventDefault();
-                            table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
-                          }
-                        }}
-                        className="absolute right-0 top-0 z-[4] h-full w-6 cursor-col-resize opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring group-hover:opacity-100"
-                      >
-                        <span aria-hidden className="pointer-events-none absolute inset-y-2 right-0 w-px bg-border" />
-                      </div>
-                    )}
+
                   </th>
                 );
               })}
@@ -513,7 +496,9 @@ export function DataTable<Row>({
                       return (
                         <td
                           key={col.key}
-                          style={{ width: cell.column.getSize(), minWidth: cell.column.columnDef.minSize!, maxWidth: cell.column.columnDef.maxSize! }}
+                          style={columnSizing[col.key] !== undefined || col.size !== undefined
+                            ? { width: cell.column.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                            : undefined}
                           className={cn(
                             'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
                             alignClass(col.align),
@@ -556,6 +541,50 @@ export function DataTable<Row>({
             )}
           </tbody>
         </table>
+        {isDesktop && (
+          <div className="pointer-events-none absolute left-0 top-0 z-[4] h-[38px]" onFocusCapture={measureColumnEdges}>
+            {modelHeaders.map((header) => {
+              const col = columns.find((column) => column.key === header.column.id)!;
+              const measured = Object.keys(columnEdges.edges).length > 0;
+              const edge = measured ? columnEdges.edges[col.key] : header.getStart() + header.getSize();
+              if (edge === undefined) return null; // column hidden at this width
+              const left = measured ? Math.max(0, Math.min(edge - 12, columnEdges.width - 24)) : edge - 12;
+              const min = col.minSize ?? 20;
+              const max = col.maxSize ?? 900;
+              return (
+                <div
+                  key={header.id}
+                  role="separator"
+                  title={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                  aria-orientation="vertical"
+                  aria-valuenow={header.getSize()}
+                  aria-valuemin={min}
+                  aria-valuemax={max}
+                  tabIndex={0}
+                  onMouseDown={header.getResizeHandler()}
+                  onTouchStart={header.getResizeHandler()}
+                  onDoubleClick={() => header.column.resetSize()}
+                  onKeyDown={(event) => {
+                    const current = header.getSize();
+                    let next: number | undefined;
+                    if (event.key === 'ArrowLeft') next = current - 16;
+                    if (event.key === 'ArrowRight') next = current + 16;
+                    if (event.key === 'Home') next = min;
+                    if (event.key === 'End') next = max;
+                    if (next !== undefined) {
+                      event.preventDefault();
+                      table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                    }
+                  }}
+                  style={{ left, width: 24, height: 38 }}
+                  className="pointer-events-auto absolute top-0 cursor-col-resize opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                >
+                  <span aria-hidden className="pointer-events-none absolute inset-y-2 right-0 w-px bg-border" />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       ) : (
       /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────

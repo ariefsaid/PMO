@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { DataTable, type Column } from '../DataTable';
 
 interface Row { id: string; name: string; amount: number }
@@ -8,6 +9,14 @@ const columns: Column<Row>[] = [
   { key: 'name', header: 'Project', cell: (row) => row.name, size: 180, minSize: 120, maxSize: 240 },
   { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100, minSize: 80, maxSize: 140 },
 ];
+
+function renderTable(props: React.ComponentProps<typeof DataTable<Row>>) {
+  return render(
+    <AuthContext.Provider value={{ currentUser: { id: 'synthetic-user' } } as never}>
+      <DataTable {...props} />
+    </AuthContext.Provider>,
+  );
+}
 
 function desktop() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -26,7 +35,7 @@ describe('DataTable column resizing', () => {
   it('preserves existing table content, sorting controls, and row activation when resize support is added', () => {
     desktop();
     const onActivate = vi.fn();
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} onActivate={onActivate} rowLabel={(row) => `Open ${row.name}`} />);
+    renderTable({ rows, columns, rowKey: (row) => row.id, onActivate, rowLabel: (row) => `Open ${row.name}` });
     expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Synthetic project' })).toBeInTheDocument();
@@ -35,15 +44,15 @@ describe('DataTable column resizing', () => {
 
   it('announces a column header by its own name, not with the resize handle label', () => {
     desktop();
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} tableId="resize-name" />);
-    expect(screen.getAllByRole('columnheader').map((th) => th.getAttribute('aria-label'))).toEqual(['Project', 'Amount']);
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-name' });
+    expect(screen.getAllByRole('columnheader').map((th) => th.getAttribute('aria-label'))).toEqual([null, null]);
     expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Resize/i })).not.toBeInTheDocument();
   });
 
   it('resizes by keyboard in 16px increments, clamps at min/max, and resets on double click', () => {
     desktop();
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} tableId="resize-test" />);
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-test' });
     const separator = screen.getByRole('separator', { name: /Project/i });
     expect(separator).toHaveAttribute('aria-valuenow', '180');
     separator.focus();
@@ -61,14 +70,21 @@ describe('DataTable column resizing', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '180');
   });
 
+  it('does not impose heuristic widths on columns without caller sizing', () => {
+    desktop();
+    renderTable({ rows, columns: columns.map(({ size: _size, minSize: _min, maxSize: _max, ...column }) => column), rowKey: (row) => row.id });
+    expect(screen.getAllByRole('columnheader').map((th) => (th as HTMLElement).style.width)).toEqual(['', '']);
+    expect(screen.getAllByRole('cell').map((td) => (td as HTMLElement).style.minWidth)).toEqual(['', '']);
+  });
+
   it('persists resized widths by table id and restores them on a later mount', () => {
     desktop();
-    const view = render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} tableId="persist-test" />);
+    const view = renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'persist-test' });
     const separator = screen.getByRole('separator', { name: /Project/i });
     fireEvent.keyDown(separator, { key: 'ArrowRight' });
-    expect(localStorage.getItem('pmo:datatable:persist-test:columnSizing')).toContain('196');
+    expect(localStorage.getItem('pmo:datatable:synthetic-user:persist-test:columnSizing')).toContain('196');
     view.unmount();
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} tableId="persist-test" />);
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'persist-test' });
     expect(screen.getByRole('separator', { name: /Project/i })).toHaveAttribute('aria-valuenow', '196');
   });
 
@@ -76,7 +92,7 @@ describe('DataTable column resizing', () => {
     desktop();
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage unavailable'); });
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id} tableId="throws-test" />);
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'throws-test' });
     const separator = screen.getByRole('separator', { name: /Project/i });
     fireEvent.keyDown(separator, { key: 'ArrowRight' });
     expect(separator).toHaveAttribute('aria-valuenow', '196');
