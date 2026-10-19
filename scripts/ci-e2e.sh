@@ -7,7 +7,8 @@
 # this repo today, needs --owner-ok "<the owner's quoted words>".
 # Temporary cap: owner 2026-10-18, v0.23.0 only; revert to one after the release. Up to two dispatched
 # browser runs may be queued or running across PMO and MOS; at two, refuse even with --owner-ok. Every dispatch
-# is appended to the shared log $HOME/.ci-e2e.log. .claude/hooks/ci-e2e-gate.sh blocks raw `gh workflow run`.
+# is appended to the shared log $HOME/.ci-e2e.log. The coordinator keeps its reservation ledger
+# beside that log. .claude/hooks/ci-e2e-gate.sh blocks raw `gh workflow run`.
 #
 # usage: scripts/ci-e2e.sh <branch> [--bugfix-proof "<why>" | --owner-ok "<quote>"] [--dry-run]
 #        scripts/ci-e2e.sh --self-test
@@ -16,7 +17,9 @@ set -euo pipefail
 REPO=ariefsaid/PMO
 WF=ci.yml
 DAY_CAP=3
+CAPACITY=2
 LOG="${CI_E2E_LOG:-$HOME/.ci-e2e.log}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Heavy dispatchable workflows sharing the account's runners: "<repo> <workflow>".
 HEAVY=("ariefsaid/PMO ci.yml" "ariefsaid/gordi-mos integration.yml")
 
@@ -62,23 +65,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-n_runs() { gh run list -R "$1" --workflow "$2" --event workflow_dispatch "${@:3}" --limit 200 --json databaseId -q length; }
-busy=0
+coordinator=(node "$SCRIPT_DIR/lib/ci-dispatch-reservations.mjs" coordinate
+  --repo "$REPO" --workflow "$WF" --branch "$branch" --kind "$kind" --quote "$quote"
+  --log "$LOG" --capacity "$CAPACITY" --daily-cap "$DAY_CAP")
 for rw in "${HEAVY[@]}"; do
   read -r r w <<<"$rw"
-  for st in queued in_progress; do busy=$((busy + $(n_runs "$r" "$w" --status "$st" 2>/dev/null || echo 0))); done
+  coordinator+=(--observe "$r:$w")
 done
-today=$(n_runs "$REPO" "$WF" --created ">=$(date -u +%Y-%m-%d)")
-on_branch=$(n_runs "$REPO" "$WF" --branch "$branch")
-pr=$(gh pr list -R "$REPO" --head "$branch" --state all --json number -q '.[0].number // "-"')
-
-verdict=$(decide "$busy" "$today" "$on_branch" "$kind")
-echo "ci-e2e: branch=$branch pr=#$pr today=$today on_branch=$on_branch busy=$busy kind=$kind → $verdict"
-[ "$verdict" = ok ] || exit 3
-[ "$dry" -eq 1 ] && exit 0
-
-printf '%s\t%s\t%s#%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" "$REPO" "$branch" "$pr" "$kind" "$quote" >>"$LOG"
-# A dispatch skips `verify` and pgTAP (the PR's own run covered both); with no PR, nothing ran
-# pgTAP on this branch yet, so ask for it.
-pgtap=false; [ "$pr" = "-" ] && pgtap=true
-gh workflow run "$WF" -R "$REPO" --ref "$branch" -f run_pgtap="$pgtap"
+[ "$dry" -eq 1 ] && coordinator+=(--dry-run)
+exec "${coordinator[@]}"

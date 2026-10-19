@@ -205,7 +205,22 @@ test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration ga
     'pgTAP in integration must be skipped ONLY on a dispatch (never on the PR-to-main gate)',
   );
   const dispatcher = readFileSync(new URL('./ci-e2e.sh', import.meta.url), 'utf8');
-  assert.match(dispatcher, /--ref "\$branch" -f run_pgtap="\$pgtap"/);
+  assert.match(
+    dispatcher,
+    /coordinator=\(node "\$SCRIPT_DIR\/lib\/ci-dispatch-reservations\.mjs" coordinate/,
+    'the locked wrapper must delegate dispatch to the reservation coordinator',
+  );
+  assert.match(dispatcher, /exec "\$\{coordinator\[@\]\}"/, 'the wrapper must execute the coordinator argv');
+
+  // The argument owner moved from this Bash wrapper into the coordinator. Keep the literal
+  // branch and PR-dependent pgTAP contract bound to that owner; the coordinator process test
+  // exercises the actual argv for both PR states and for a shell-significant branch value.
+  const coordinator = readFileSync(new URL('./lib/ci-dispatch-reservations.mjs', import.meta.url), 'utf8');
+  assert.match(
+    coordinator,
+    /function dispatchArgs\(repo, workflow, branch, pr\) \{\s*const runPgtap = pr === null \? 'true' : 'false';\s*return \['workflow', 'run', workflow, '-R', repo, '--ref', branch, '-f', `run_pgtap=\$\{runPgtap\}`\];\s*\}/,
+    'the coordinator must pass branch as one argv value and preserve run_pgtap for absent/present PRs',
+  );
 });
 
 test('the full verify gate enforces edge-function test binding', () => {
