@@ -50,14 +50,16 @@ function moneyRows(ids: readonly string[]) {
               : index === 5 ? '0.00' : '100.00';
     return {
       project_id: id,
-      ledger_basis: index === 2 ? 'erp' : 'pmo',
+      // Project 1 is an ERP-ledger project with fully mapped cost: only that basis yields a margin.
+      ledger_basis: index === 0 || index === 2 ? 'erp' : 'pmo',
       actuals: {
         currency: 'USD',
         total: amount,
         as_of: '2026-10-18T08:00:00Z',
         excludes_restricted_rows: false,
         complete: index !== 2 && index !== 3,
-        categories: index === 2 ? [{ category: 'fixture-unmapped', mapped: false, amount: '30.00' }] : [],
+        categories: index === 0 ? [{ category: 'fixture-mapped', mapped: true, amount: '50.00' }]
+          : index === 2 ? [{ category: 'fixture-unmapped', mapped: false, amount: '30.00' }] : [],
       },
       active_budget_amount: null,
       active_budget_currency: null,
