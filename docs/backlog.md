@@ -14,8 +14,17 @@ cases and 12 served-function checks, with zero timing warnings or failures and 6
 After two further tooling merges, dev run 39194552556 at `c13d2e9d` failed: Chromium
 completed 360 passing cases, one timeout and 13 skips; later integration stages did not run.
 S-21 timed out, and the confirm and project-billing journeys exceeded the timing budget.
-Recovery #1186 is active; unrelated code merges are held until the dev browser gate is green.
-Existing timeouts and goal oracles are retained.
+Recovery #1186 is open in PR #1189 (`135a8b98`): inactive project panels now load on demand.
+All six fast checks passed (39201808400; 1,218 unit files, 6,733 database checks and 100%
+changed-line coverage). The unchanged task-link and billing journeys passed locally in 9.2s
+and 7.6s within their existing 30s limits. Full browser integration 39201829613 passed all 398
+executed cases, with 67 justified skips, but failed the timing gate: S-21 took 27.518s against
+the unchanged 25.5s budget. Confirmation and project billing remain timing warnings; served-function
+checks were not reached. The next revision in #1189 (`ba3ebfb4`) splits the task-link proof at its existing saved-row
+readback. Both ordered cases keep normal sign-in and their 30s limits; they pass locally in
+9.353s and 9.405s, with protected fixtures unchanged. Fast run 39208360962 and closing browser
+run 39208421135 are active. Unrelated code merges remain held until the dev browser gate is
+green. Every goal oracle and timeout is retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -96,10 +105,12 @@ also passed. Exact-tip and changed-file adoption cleanup was verified.
 The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
 All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
 the complete dev timing proof above closes #1106. Verified publication-worktree cleanup is complete.
-S-35's read-only company view is built on these merged dependencies. Focused tests, coverage,
-phone/desktop geometry and rendered discovery passed. The owner accepted the existing project-cost
-and billed-work margin helpers; that integration, the final gate and formal review remain open.
-This is not yet a completed slice.
+S-35's read-only company view is open against dev in PR #1187 (`1ad4302f`). The accepted
+project-cost and billed-work margin helpers are integrated; review, the 4,477-test changed-import
+gate, 95.4% changed-line coverage and all eight final geometry/accessibility cases passed.
+All six fast CI checks passed (39200000107). Closing browser integration is held for the
+task-list recovery (#1186); the premature dispatch (39201229559) was cancelled because it still
+contained the known affected route. This slice is not yet merged.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -209,14 +220,20 @@ v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on share
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
 
 Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
-its dev merge stays held. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
+its dev merge stays held. Durable browser-dispatch reservations (#1133) are reviewed in
+PR #1190 (`a0de3076`), with all six fast checks green; its merge waits for dev recovery.
+Browser inventory and reporter adapters (#1188) are in review; runner fanout remains a separate
+capacity decision. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
 with all six fast checks green and the private adapter adopted. Verified cleanup (#1113) merged
 in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests covering 43 failure
 boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
 closed on the complete dev timing proof above; the editor observation (#1108) remains in diagnosis.
 Any resulting editor product change stays held with the other v0.24.0 app changes.
+The approval-tile and sales-invoice Bahasa item (#1011) is closed as already shipped in
+PR #1021 (`4e3ed641`), included in v0.22.0; its translated visible/help labels and shared noun
+are covered by the shipped-catalogue tests.
 
-**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
+**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners (#1188);
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
 Required checks `verify` and `integration` must still cover every test, and a failed shard must
 fail its required check. No silent skips or weaker test oracles. The pinned Deno 2.7.11 browser-job

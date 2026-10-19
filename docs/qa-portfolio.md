@@ -297,7 +297,7 @@ the `helpCorpus.ts` always-on injection (spec `docs/specs/deputy-help.spec.md`).
 |---|---|---|
 | Project tasks | Task register precedes setup, linked and recovery states | TasksTab AC-S21-001 RTL |
 | Administration integrations | Exact list proposal requires review, explicit source and confirmation | IntegrationsView and ProjectIntegrationsCard AC-S21-003 RTL |
-| Project tasks after reload | Ordinary Admin confirms a real persisted link; exact saved list and initial source survive reload | AC-S21-005-task-list-review.spec.ts |
+| Project tasks after reload | Ordinary Admin confirms a real persisted link; exact saved list and initial source survive reload | Ordered serial pair in AC-S21-005-task-list-review.spec.ts: “Supporting proof” covers review/save/readback; the AC-S21-005 case owns the persisted-after-reload goal. Together they compose this single AC journey. |
 
 Rich rendered review covers both locales and themes at phone and desktop sizes. Repository tests retain ambiguous identity, stale selection and no-write proposal boundaries.
 

@@ -14,7 +14,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -123,8 +123,8 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
 
 import ProjectDetail from '../ProjectDetail';
 
-const renderAs = (realRole: Role, path: string) =>
-  render(
+const renderAs = async (realRole: Role, path: string) => {
+  const view = render(
     <ImpersonationProvider realRole={realRole}>
       <ToastProvider>
         <MemoryRouter initialEntries={[path]}>
@@ -140,6 +140,9 @@ const renderAs = (realRole: Role, path: string) =>
       </ToastProvider>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 const tablist = () => screen.getByRole('tablist', { name: /project sections/i });
 const main = () => screen.getByRole('main');
@@ -147,8 +150,8 @@ const main = () => screen.getByRole('main');
 const activeEl = () => document.activeElement as HTMLElement | null;
 
 describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
-  it('AC #879: given focus on a project tab, ArrowRight moves focus to the next tab and it stays in the tab bar', () => {
-    renderAs('Admin', '/projects/p1');
+  it('AC #879: given focus on a project tab, ArrowRight moves focus to the next tab and it stays in the tab bar', async () => {
+    await renderAs('Admin', '/projects/p1');
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
     overviewTab.focus();
     expect(overviewTab).toHaveFocus();
@@ -156,22 +159,23 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
 
     // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
+    expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
     const budgetTab = screen.getByRole('tab', { name: 'Budget' });
     expect(budgetTab).toHaveFocus();
     expect(budgetTab).toHaveAttribute('aria-selected', 'true');
     expect(tablist()).toContainElement(activeEl());
     expect(main()).not.toHaveFocus();
     // The URL followed the tab switch (tab lives in the route param).
-    expect(screen.getByTestId('tab-budget')).toBeInTheDocument();
   });
 
-  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from Budget)', () => {
-    renderAs('Admin', '/projects/p1/budget');
+  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from Budget)', async () => {
+    await renderAs('Admin', '/projects/p1/budget');
     const budgetTab = screen.getByRole('tab', { name: 'Budget' });
     budgetTab.focus();
 
     fireEvent.keyDown(budgetTab, { key: 'ArrowLeft' });
 
+    expect(await screen.findByTestId('tab-overview')).toBeInTheDocument();
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
     expect(overviewTab).toHaveFocus();
     expect(overviewTab).toHaveAttribute('aria-selected', 'true');
@@ -179,8 +183,8 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     expect(main()).not.toHaveFocus();
   });
 
-  it('AC #879: Home jumps to the first tab and End to the last, focus staying in the tab bar', () => {
-    renderAs('Admin', '/projects/p1/tasks');
+  it('AC #879: Home jumps to the first tab and End to the last, focus staying in the tab bar', async () => {
+    await renderAs('Admin', '/projects/p1/tasks');
     const tasksTab = screen.getByRole('tab', { name: 'Tasks' });
     tasksTab.focus();
 

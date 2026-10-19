@@ -396,6 +396,25 @@ mechanically. Unit tests for its pure classification logic:
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
 `docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
 
+## ERPNext integration API-user setup — statement metadata
+
+Before enabling saved financial statements, the integration API user needs access to ERPNext's
+standard financial reports and **READ** permission on these metadata doctypes:
+
+- **Company:** the connected company's `name`, `default_currency` and `default_finance_book`.
+  The finance-book field must be readable; a returned null or blank value is valid.
+- **Accounts Settings:** `ignore_is_opening_check_for_reporting` and
+  `ignore_account_closing_balance`.
+- **Currency:** the company's currency record, including `fraction_units` and `number_format`.
+
+Verify document reads with that API user. A successful Company identity-list request alone does
+not establish document READ access or access to the required fields. System Settings access and
+the System Manager role are not prerequisites for statement display.
+
+The read-only production readiness probe must confirm these three reads before statements go
+live. If a read is denied, the ERPNext administrator corrects the API user's role permissions and
+reruns the probe. This requirement does not authorize a production permission change by an agent.
+
 ## ERPNext v15 dev bed (P2)
 
 > ⚑ **2026-09-02, `DD-OPS-10`:** RIS's target major is **v16** and a v16.33 **test instance** exists (self-hosted on the

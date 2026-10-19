@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
@@ -160,8 +160,8 @@ const pipelineRow = {
 // A manager (PM real role) viewing a deal sees the pipeline lens's lifecycle controls
 // (A-1 gate = Admin·Exec·PM). The role reaches usePermission via the mocked useEffectiveRole
 // (above) → 'Project Manager', so the journey (lifecycle controls shown) is preserved.
-const renderAt = (path: string | { pathname: string; state?: unknown }) =>
-  render(
+const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  const view = render(
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <Routes>
@@ -170,6 +170,9 @@ const renderAt = (path: string | { pathname: string; state?: unknown }) =>
       </ToastProvider>
     </MemoryRouter>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 beforeEach(() => {
   navigate.mockClear();
@@ -179,9 +182,9 @@ beforeEach(() => {
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
-  it('AC-IXD-PROJ-004: an ON-HAND record renders the delivery tabs + the contract-value SoD editor (no pipeline lens)', () => {
+  it('AC-IXD-PROJ-004: an ON-HAND record renders the delivery tabs + the contract-value SoD editor (no pipeline lens)', async () => {
     projectsState.data = [onHandRow];
-    renderAt('/projects/p1');
+    await renderAt('/projects/p1');
 
     // header is shared across lenses
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
@@ -195,14 +198,14 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
       stages: [],
       projects: [{ id: 'd1', name: 'Acme Tender Bid', client_name: 'Acme', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 }],
     };
-    renderAt('/projects/d1');
+    await renderAt('/projects/d1');
 
     // shared header
     expect(screen.getByRole('heading', { name: 'Acme Tender Bid' })).toBeInTheDocument();
@@ -223,13 +226,13 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
   // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
   // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
   // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', () => {
+  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],
       projects: [{ id: 'd1', name: 'Acme Tender Bid', client_name: 'Acme', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 }],
     };
-    renderAt({
+    await renderAt({
       pathname: '/projects/d1',
       state: { pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted' } },
     });
