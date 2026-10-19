@@ -32,6 +32,8 @@ const populated = {
   on_hand_actual_project_total: 2,
   on_hand_actual_coverage_count: 2,
   on_hand_actual_coverage_total: 2,
+  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 8000000, actual_known: 4000000, contract_remaining: 7595000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 1200000, unknown_projects: 0 }],
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1200000, unknown_projects: 0 }],
   pipeline_weighted_value: 800000,
   pipeline_projected_margin: 0.200 as number | null,
   pipeline_total_value: 2000000,
@@ -122,16 +124,16 @@ describe('ExecutiveDashboard (real data)', () => {
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
     dashState.data = {
       ...populated,
-      on_hand_value: null,
-      on_hand_contract_remaining: null,
-      on_hand_realized_margin: null,
+      on_hand_value: null as unknown as number,
+      on_hand_contract_remaining: null as unknown as number,
+      on_hand_realized_margin: null as unknown as number,
       on_hand_value_by_currency: [
         { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 144, actual_coverage_total: 150, realized_margin_known: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', contract_value: 1_000_000, actual_known: null, contract_remaining: null, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null, unknown_projects: 1 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null as unknown as number, unknown_projects: 1 },
       ],
       on_hand_realized_margin_by_currency: [
         { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', known_amount: null, unknown_projects: 1 },
+        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
       ],
       on_hand_actual_coverage_count: 144,
       on_hand_actual_coverage_total: 150,
@@ -256,6 +258,7 @@ describe('ExecutiveDashboard states', () => {
       on_hand_margin: 0, on_hand_value: 0, on_hand_contract_remaining: 0, on_hand_realized_margin: 0,
       on_hand_actual_known: 0, on_hand_actual_project_count: 0, on_hand_actual_project_total: 0,
       on_hand_actual_coverage_count: 0, on_hand_actual_coverage_total: 0,
+      on_hand_value_by_currency: [], on_hand_realized_margin_by_currency: [],
       pipeline_weighted_value: 0, pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
       projects_by_status: [], procurements_by_status: [], top_projects: [],
     };

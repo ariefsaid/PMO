@@ -7,13 +7,20 @@ import idCommon from '../../../public/locales/id/common.json';
 const populatedOracle = {
   wins_count: 2, losses_count: 1, wins_value: 8_000_000, losses_value: 650_000,
   win_rate_count: 0.666667, win_rate_value: 0.924855,
+  value_by_currency: [
+    { currency: 'USD', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
+  ],
 };
 const zeroOracle = {
   wins_count: 0, losses_count: 0, wins_value: 0, losses_value: 0,
   win_rate_count: 0, win_rate_value: 0,
 };
 
-let oracle: typeof populatedOracle & { value_by_currency?: Array<{ currency: string; wins_value: number; losses_value: number; win_rate_value: number | null }> } = populatedOracle;
+type Oracle = Omit<typeof populatedOracle, 'value_by_currency'> & {
+  value_by_currency?: Array<{ currency: string; wins_value: number; losses_value: number; win_rate_value: number | null }>;
+  declined_count?: number;
+};
+let oracle: Oracle = populatedOracle;
 let lastRange: { key: string } | null = null;
 
 vi.mock('@/src/hooks/useDashboard', async (orig) => {
@@ -30,13 +37,22 @@ vi.mock('@/src/hooks/useDashboard', async (orig) => {
 describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', () => {
   beforeEach(() => { lastRange = null; oracle = populatedOracle; });
 
-  it('AC-1117: defaults to count basis (66.7%) and toggles to value (92.5%)', () => {
+  it('AC-1117: defaults to count basis and uses the RPC currency row for value basis', () => {
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
+    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD 92.5%/);
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+  });
+
+  it('retains aggregate value-rate rendering for legacy RPC payloads without currency rows', () => {
+    const { value_by_currency: _rows, ...legacyPayload } = populatedOracle;
+    oracle = legacyPayload;
+    render(<WinRateCard currency="USD" />);
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
+    expect(screen.queryByTestId('win-rate-value-breakdown')).not.toBeInTheDocument();
   });
 
   it('AC-1106: renders mixed-currency value rates separately and labels unmeasured loss rate', () => {
@@ -103,14 +119,14 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
 
   // AC-DEC-002 (#774): declined-to-bid deals sit outside both denominators but are still reported.
   it('AC-DEC-002: shows the declined count beside the rate without changing the rate', () => {
-    oracle = { ...populatedOracle, declined_count: 3 } as typeof populatedOracle;
+    oracle = { ...populatedOracle, declined_count: 3 };
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('3 declined to bid');
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
   });
 
   it('AC-DEC-002: when ONLY declined deals exist in the window, the declined count shows instead of being hidden', () => {
-    oracle = { ...zeroOracle, declined_count: 2 } as typeof populatedOracle;
+    oracle = { ...zeroOracle, declined_count: 2 };
     render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-declined')).toHaveTextContent('2 declined to bid');
