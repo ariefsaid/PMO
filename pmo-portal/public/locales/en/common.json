@@ -5088,5 +5088,8 @@
     "initialTransferPendingShort": "Initial transfer not confirmed",
     "savedListUnavailable": "List unavailable; saved list ID: {{listId}}",
     "reviewMatch": "Review list match"
+  },
+  "v024Polish": {
+    "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
   }
 }

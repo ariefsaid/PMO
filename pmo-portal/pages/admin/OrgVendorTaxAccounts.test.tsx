@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeAll, beforeEach, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -131,4 +131,144 @@ it('AC-VWH-029 the setting renders in Bahasa Indonesia', async () => {
   renderSetting();
   expect(await screen.findByText('Akun pajak tagihan vendor')).toBeInTheDocument();
   expect(await screen.findByRole('combobox', { name: 'Akun PPN Masukan' })).toBeInTheDocument();
+});
+
+it('AC-V24P-002: a removed vendor-tax draft stays intact and can be replaced or explicitly cleared', async () => {
+  const inputVat = { account: '1160 - Input VAT', accountName: 'Input VAT', accountNumber: '1160', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false };
+  const replacement = { account: '1170 - Input VAT', accountName: 'Input VAT', accountNumber: '1170', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false };
+  const pph23 = { account: '2150 - PPh 23 Payable', accountName: 'PPh 23 Payable', accountNumber: '2150', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false };
+  const pph42 = { account: '2160 - PPh 4(2) Payable', accountName: 'PPh 4(2) Payable', accountNumber: '2160', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false };
+  const expense = { account: '5100 - Expense', accountName: 'Expense', accountNumber: '5100', parentAccount: 'Expenses', rootType: 'Expense', isGroup: false, disabled: false };
+  const initialCatalogue = { accounts: [inputVat, replacement, pph23, pph42, expense], source: 'mirror' };
+  const refreshedCatalogue = { accounts: [replacement, pph23, pph42, expense], source: 'mirror' };
+  const unavailableCopy = 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.';
+  h.listAccounts.mockResolvedValue(initialCatalogue);
+
+  const client = renderSetting();
+  const user = userEvent.setup();
+  const inputField = await screen.findByRole('combobox', { name: 'Input VAT account' });
+  const pph23Field = await screen.findByRole('combobox', { name: 'PPh 23 payable account' });
+  await user.click(inputField);
+  await user.click(await screen.findByRole('option', { name: /1160 - Input VAT/ }));
+  await user.click(pph23Field);
+  await user.click(await screen.findByRole('option', { name: /2150 - PPh 23 Payable/ }));
+
+  client.setQueryData(['uxs11', 'account-catalogue', 'fixture-org'], refreshedCatalogue);
+
+  expect(await screen.findByText(unavailableCopy)).toBeInTheDocument();
+  expect(inputField).toHaveTextContent('1160 - Input VAT');
+  expect(pph23Field).toHaveTextContent('2150 - PPh 23 Payable');
+  expect(inputField).toHaveAttribute('aria-invalid', 'true');
+  expect(pph23Field).not.toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByRole('button', { name: 'Save accounts' })).toBeDisabled();
+  expect(h.set).not.toHaveBeenCalled();
+
+  h.get.mockResolvedValue({ inputVatAccount: '1170 - Input VAT', pph23PayableAccount: '2150 - PPh 23 Payable', pph42PayableAccount: null });
+  await user.click(inputField);
+  await user.click(await screen.findByRole('option', { name: /1170 - Input VAT/ }));
+  await user.click(screen.getByRole('button', { name: 'Save accounts' }));
+  expect(h.set).toHaveBeenCalledTimes(1);
+  expect(h.set).toHaveBeenLastCalledWith({ inputVatAccount: '1170 - Input VAT', pph23PayableAccount: '2150 - PPh 23 Payable', pph42PayableAccount: null });
+
+  cleanup();
+  h.set.mockClear();
+  h.get.mockResolvedValue({ inputVatAccount: '1100 - Legacy Input VAT', pph23PayableAccount: null, pph42PayableAccount: null });
+  const clearClient = renderSetting();
+  const clearUser = userEvent.setup();
+  const clearInputField = await screen.findByRole('combobox', { name: 'Input VAT account' });
+  const clearPph23Field = await screen.findByRole('combobox', { name: 'PPh 23 payable account' });
+  await clearUser.click(clearInputField);
+  await clearUser.click(await screen.findByRole('option', { name: /1160 - Input VAT/ }));
+  await clearUser.click(clearPph23Field);
+  await clearUser.click(await screen.findByRole('option', { name: /2150 - PPh 23 Payable/ }));
+
+  clearClient.setQueryData(['uxs11', 'account-catalogue', 'fixture-org'], refreshedCatalogue);
+
+  expect(await screen.findByText(unavailableCopy)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save accounts' })).toBeDisabled();
+  await clearUser.click(within(clearInputField.parentElement as HTMLElement).getByRole('button', { name: 'Clear account' }));
+  expect(screen.getByRole('button', { name: 'Save accounts' })).toBeEnabled();
+
+  h.get.mockResolvedValue({ inputVatAccount: null, pph23PayableAccount: '2150 - PPh 23 Payable', pph42PayableAccount: null });
+  await clearUser.click(screen.getByRole('button', { name: 'Save accounts' }));
+  expect(h.set).toHaveBeenCalledTimes(1);
+  expect(h.set).toHaveBeenCalledWith({ inputVatAccount: null, pph23PayableAccount: '2150 - PPh 23 Payable', pph42PayableAccount: null });
+});
+
+it.each([
+  {
+    language: 'en',
+    savedCopy: 'Saved value is not in the current chart; it remains saved until replaced.',
+    draftCopy: 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.',
+    loadingCopy: 'Loading chart accounts…',
+    errorCopy: "Couldn't load chart accounts",
+  },
+  {
+    language: 'id',
+    savedCopy: 'Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.',
+    draftCopy: 'Pilihan yang belum disimpan ini tidak lagi tersedia di daftar akun saat ini. Pilih akun lain atau kosongkan bidang ini.',
+    loadingCopy: 'Memuat bagan akun…',
+    errorCopy: 'Tidak dapat memuat bagan akun',
+  },
+])('AC-V24P-003: saved, loading/error and Finance states remain explicit in $language', async ({ language, savedCopy, draftCopy, loadingCopy, errorCopy }) => {
+  await financeTestI18n.changeLanguage(language);
+  h.get.mockResolvedValue({ inputVatAccount: '1100 - Legacy Input VAT', pph23PayableAccount: null, pph42PayableAccount: null });
+
+  renderSetting();
+  const savedField = await screen.findByRole('combobox', { name: language === 'id' ? 'Akun PPN Masukan' : 'Input VAT account' });
+  expect(savedField).toHaveTextContent('1100 - Legacy Input VAT');
+  expect(await screen.findByText(savedCopy)).toBeInTheDocument();
+  expect(screen.queryByText(draftCopy)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: language === 'id' ? 'Simpan akun' : 'Save accounts' })).toBeDisabled();
+  cleanup();
+
+  h.listAccounts.mockReturnValue(new Promise(() => {}));
+  renderSetting();
+  const pendingField = await screen.findByRole('combobox', { name: language === 'id' ? 'Akun PPN Masukan' : 'Input VAT account' });
+  expect(await screen.findByText(loadingCopy)).toBeInTheDocument();
+  expect(pendingField).toHaveTextContent('1100 - Legacy Input VAT');
+  expect(screen.queryByText(draftCopy)).not.toBeInTheDocument();
+  cleanup();
+
+  h.get.mockResolvedValue(NONE);
+  h.listAccounts.mockResolvedValueOnce({
+    accounts: [
+      { account: '1160 - Input VAT', accountName: 'Input VAT', accountNumber: '1160', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false },
+      { account: '1170 - Input VAT', accountName: 'Input VAT', accountNumber: '1170', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false },
+      { account: '2150 - PPh 23 Payable', accountName: 'PPh 23 Payable', accountNumber: '2150', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false },
+      { account: '2160 - PPh 4(2) Payable', accountName: 'PPh 4(2) Payable', accountNumber: '2160', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false },
+    ],
+    source: 'mirror',
+  });
+  const errorClient = renderSetting();
+  const errorUser = userEvent.setup();
+  const errorField = await screen.findByRole('combobox', { name: language === 'id' ? 'Akun PPN Masukan' : 'Input VAT account' });
+  await errorUser.click(errorField);
+  await errorUser.click(await screen.findByRole('option', { name: /1160 - Input VAT/ }));
+  await act(async () => {
+    errorClient.setQueryData(['uxs11', 'account-catalogue', 'fixture-org'], {
+      accounts: [
+        { account: '1170 - Input VAT', accountName: 'Input VAT', accountNumber: '1170', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false },
+        { account: '2150 - PPh 23 Payable', accountName: 'PPh 23 Payable', accountNumber: '2150', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false },
+        { account: '2160 - PPh 4(2) Payable', accountName: 'PPh 4(2) Payable', accountNumber: '2160', parentAccount: 'Tax Liabilities', rootType: 'Liability', isGroup: false, disabled: false },
+      ],
+      source: 'mirror',
+    });
+  });
+  expect(await screen.findByText(draftCopy)).toBeInTheDocument();
+  h.listAccounts.mockRejectedValueOnce(new Error('Temporary chart read failure'));
+  await errorClient.invalidateQueries({ queryKey: ['uxs11', 'account-catalogue', 'fixture-org'] });
+  expect(await screen.findByText(errorCopy)).toBeInTheDocument();
+  expect(errorField).toHaveTextContent('1160 - Input VAT');
+  expect(screen.queryByText(draftCopy)).not.toBeInTheDocument();
+  cleanup();
+
+  h.canManage = false;
+  h.listAccounts.mockClear();
+  h.get.mockResolvedValue({ inputVatAccount: '1100 - Legacy Input VAT', pph23PayableAccount: null, pph42PayableAccount: null });
+  renderSetting();
+  expect(await screen.findByText('1100 - Legacy Input VAT')).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /save accounts|simpan akun/i })).not.toBeInTheDocument();
+  expect(h.listAccounts).not.toHaveBeenCalled();
 });

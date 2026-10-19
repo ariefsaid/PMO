@@ -5088,5 +5088,8 @@
     "initialTransferPendingShort": "Transfer awal belum dikonfirmasi",
     "savedListUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
     "reviewMatch": "Tinjau kecocokan daftar"
+  },
+  "v024Polish": {
+    "accountDraftUnavailable": "Pilihan yang belum disimpan ini tidak lagi tersedia di daftar akun saat ini. Pilih akun lain atau kosongkan bidang ini."
   }
 }
