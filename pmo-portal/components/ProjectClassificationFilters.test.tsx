@@ -51,4 +51,15 @@ describe('ProjectClassificationFilters location box', () => {
     act(() => rerenderWith({ location: 'West' }));
     expect(box).toHaveValue('West Java');
   });
+
+  it('AC-TAG-002 a resetToken bump cancels a pending location even when value.location never moves', () => {
+    const onChange = vi.fn();
+    const ui = (token: number) => <ProjectClassificationFilters rows={rows} value={{}} onChange={onChange} open onOpenChange={() => {}} resetToken={token} />;
+    const view = render(ui(0));
+    fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
+    act(() => view.rerender(ui(1)));
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('');
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

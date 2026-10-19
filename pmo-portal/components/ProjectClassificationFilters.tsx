@@ -6,7 +6,7 @@ import type { AwardType, BiddingEntity, ProjectClassification, ProjectClassifica
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 const LOCATION_DEBOUNCE_MS = 300;
-export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false }: {
+export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, resetToken }: {
   rows: readonly ProjectClassification[];
   value: FilterValues;
   onChange: (patch: FilterValues) => void;
@@ -17,6 +17,8 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   inlineTrigger?: boolean;
   /** Preserve Projects' phone selection-and-return-to-trigger behavior. */
   closeOnMobileSelect?: boolean;
+  /** Bump when the page's Clear-filters action runs: cancels a pending location debounce and empties the box. */
+  resetToken?: number;
 }) {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -71,6 +73,16 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     clearTimeout(timer.current);
     setLocationText(next);
   }, [value]);
+  // Explicit reset signal: clearing while the location is still pending moves no `value`, so
+  // the effect above cannot see it.
+  const lastReset = useRef(resetToken);
+  useEffect(() => {
+    if (resetToken === lastReset.current) return;
+    lastReset.current = resetToken;
+    clearTimeout(timer.current);
+    lastLocation.current = '';
+    setLocationText('');
+  }, [resetToken]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const all = t('projectClassification.all', 'All');
   const optionsFor = (field: 'service_line' | 'sector', selected?: string) =>
