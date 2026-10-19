@@ -1,6 +1,6 @@
 # Library adoption census and migration portfolio — 2026-10-19
 
-**Decision:** [ADR-0089](../adr/0089-headless-ui-foundation.md): use **`@base-ui/react@1.8.0`**, already resolved through BlockNote, behind the existing PMO facades. No application/package/test changes in this deliverable. Do not replace native controls or product logic merely to increase library usage.
+**Decision:** [ADR-0090](../adr/0090-headless-ui-foundation.md): use **`@base-ui/react@1.8.0`**, already resolved through BlockNote, behind the existing PMO facades. No application/package/test changes in this deliverable. Do not replace native controls or product logic merely to increase library usage.
 
 ## 1. Scope, counting and evidence
 
@@ -345,7 +345,7 @@ Twenty-four U families point to Base UI; one (LIB-044) points to already-install
 
 ## 5. Architecture, invariants and rollout gates
 
-The library comparison, rejected alternatives, empirical React 19 probe and measured bundle envelope are in ADR-0089. Summary: Base UI is MIT, already locked at 1.8.0 and supports React 19/Tailwind 4; React Aria is broader for calendars but adds a second graph; current Radix is actively published but requires another search/combobox strategy; Ariakit is credible but gives no sufficient incremental coverage here. Exact metadata was inspected, not inferred from the word shadcn.
+The library comparison, rejected alternatives, empirical React 19 probe and measured bundle envelope are in ADR-0090. Summary: Base UI is MIT, already locked at 1.8.0 and supports React 19/Tailwind 4; React Aria is broader for calendars but adds a second graph; current Radix is actively published but requires another search/combobox strategy; Ariakit is credible but gives no sufficient incremental coverage here. Exact metadata was inspected, not inferred from the word shadcn.
 
 **Keep APIs:** `ConfirmDialogProps`, `EntityFormModalProps`, `DrawerProps`, `ComboboxProps`, `TooltipProps`, `ViewToggleProps`, `TabsProps`, `ReceiptPreviewProps` and `useToast(): ToastApi` remain caller-facing seams. Do not thread Base UI state or `org_id` into page props. Retain repository/query behavior. Vendor `render` composition must forward the real button ref and cannot create nested buttons. Use `@base-ui/react/<component>` public subpaths. No direct Floating UI/cmdk/RHF/date-picker dependency. No schema/RLS/API change; reversible DB migrations are not applicable because this portfolio changes no data.
 
@@ -547,7 +547,7 @@ onOpenChange={(nextOpen, details) => {
 
 ## 7. Risks, remaining decisions and handoff
 
-- **Spec boundary:** Director approval of ADR-0089 and a signed maintenance spec/AC mapping for new behavior are needed before the corresponding build slice. This document does not turn a source risk into a signed requirement. In particular decide tooltip hover persistence, account-menu typeahead, picker role structure and mention multiline/caret support.
+- **Spec boundary:** Director approval of ADR-0090 and a signed maintenance spec/AC mapping for new behavior are needed before the corresponding build slice. This document does not turn a source risk into a signed requirement. In particular decide tooltip hover persistence, account-menu typeahead, picker role structure and mention multiline/caret support.
 - **Vendor fit:** first-slice browser/a11y/themeability probe is a merge gate per ADR-0030. React 19 JSDOM open/close passed, not the entire feature matrix. Toast and mention pilots may legitimately conclude KEEP; do not import a second kit to rescue sunk work.
 - **Source compatibility:** branch is a snapshot; rebase each new PR on dev and re-read touched facade/tests. Avoid the concurrent DataTable lane; row-menu internals are inventoried but not assigned to this portfolio. No hidden source edits in a docs commit.
 - **Bundle/license:** exact direct Base UI pin and Linux lock regeneration; public subpaths, one installed version, no copied vendor internals. BlockNote's installed package license differs from Base UI's MIT license; this decision neither re-licenses nor re-evaluates the existing editor. Measure eager bytes rather than claiming transitive reuse is free.
@@ -555,7 +555,7 @@ onOpenChange={(nextOpen, details) => {
 - **Scaling:** picker lists, transcript, Gantt and full exports have different growth limits. Retain keyset loading and caps; profile realistic fixtures before adding windowing/workers or changing user-visible result completeness. No new DB table/cache layer is warranted by this census.
 - **Release:** dev only, no push in this task. Future slices require three code reviewers and FE Discover/acceptance as applicable. No claim of production readiness is based on this static decision alone.
 
-The handoff is the **90-family inventory, 21-slice portfolio and ADR-0089**, not executable application changes. Director's next executable step: accept/revise the foundation decision, attach the maintenance AC mapping, then dispatch slice 01 in a fresh isolated worktree.
+The handoff is the **90-family inventory, 21-slice portfolio and ADR-0090**, not executable application changes. Director's next executable step: accept/revise the foundation decision, attach the maintenance AC mapping, then dispatch slice 01 in a fresh isolated worktree.
 
 ## 8. Decision-deliverable verification
 
@@ -564,6 +564,6 @@ Executed in this docs-only worktree:
 - `bash scripts/check-adr-collisions.sh`: PASS (no duplicate number; 0089 follows highest existing 0088).
 - Inventory validation: PASS, LIB-001 through LIB-090 contiguous/unique, category totals agree with 65 K / 25 U / 0 A; complete inline registers total 14 details, 16 other expansions, 31 date fields, 9 raw selects and 9 standalone forms.
 - Explicit single-source LOC citations and existing test/catalogue paths checked against the checkout: PASS. New test files in the migration plan are intentionally future artifacts, not existing evidence.
-- Base UI React 19/JSDOM Dialog open/name/close/focus-return probe: PASS. In-memory minified gzip envelope probe: PASS; numbers in ADR-0089. No source/package changes or installed dependencies were made by these probes.
+- Base UI React 19/JSDOM Dialog open/name/close/focus-return probe: PASS. In-memory minified gzip envelope probe: PASS; numbers in ADR-0090. No source/package changes or installed dependencies were made by these probes.
 - Optional application baseline attempt: shared test slots stayed occupied; wrapper acquisition timed out (exit 75) **before typecheck or Vitest started**. Therefore no application baseline pass is claimed. Source/test lint, DB/e2e and a full application build are not docs-only gates. The migration instructions above still require all normal code gates when executed.
 - `git diff --cached --check` after staging only the two requested Markdown files: PASS. Commit carries no attribution trailer; no push is authorized.

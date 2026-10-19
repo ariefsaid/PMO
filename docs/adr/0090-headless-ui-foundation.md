@@ -1,4 +1,4 @@
-# ADR-0089 — Base UI behind the existing PMO component facades
+# ADR-0090 — Base UI behind the existing PMO component facades
 
 - **Status:** Proposed — decision deliverable for Director approval; no application migration in this change
 - **Date:** 2026-10-19
