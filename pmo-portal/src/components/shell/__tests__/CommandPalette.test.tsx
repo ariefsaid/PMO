@@ -315,6 +315,40 @@ describe('CommandPalette', () => {
     expect(cachedProjectRun).not.toHaveBeenCalled();
   });
 
+  it('AC-V24P-016: a server project hit already cached as a pipeline record appears once; distinct hits stay and open their canonical route', async () => {
+    const hit = (id: string, title: string) => ({
+      kind: 'project' as const, id, title, context: null, reference: 'REF-777', aliases: ['REF-777'], exact: true,
+    });
+    setReferenceResult({
+      data: referencePage(
+        hit('p-cached', 'Server copy of cached project'),
+        hit('p-distinct', 'Distinct server project'),
+        hit('p-distinct', 'Distinct server project'), // same server record repeated
+      ),
+    });
+    const cachedRun = vi.fn();
+    const onClose = vi.fn();
+    const cachedPipeline: PaletteItem = {
+      id: 'sales:p-cached', group: 'Records', title: 'Cached pipeline project', sub: 'Project',
+      searchCodes: ['REF-777'], icon: 'projects', run: cachedRun,
+    };
+    render(<CommandPalette open items={[cachedPipeline, ...items]} onClose={onClose} />);
+
+    await userEvent.type(screen.getByRole('combobox'), 'REF-777');
+    await screen.findByText('Distinct server project');
+
+    const rows = screen.getAllByRole('option');
+    const count = (text: string) => rows.filter((row) => row.textContent?.includes(text)).length;
+    expect(count('Cached pipeline project')).toBe(1);
+    expect(count('Server copy of cached project')).toBe(0);
+    expect(count('Distinct server project')).toBe(1);
+
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    expect(state.navigate).toHaveBeenCalledExactlyOnceWith('/projects/p-distinct');
+    expect(cachedRun).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('AC-S40-004: wraps long reference labels at word boundaries so identifiers stay readable', async () => {
     setReferenceResult({
       data: referencePage({
