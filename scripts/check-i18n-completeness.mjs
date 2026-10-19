@@ -63,6 +63,9 @@ const ID_CATALOGUE = path.join(APP, 'public/locales/id/common.json');
 /** Roots scanned for key REFERENCES (the orphan half). Deliberately the whole app, not just
  *  launch scope: a key pointing at text that no longer exists is dead wherever it lives. */
 const REFERENCE_ROOTS = ['pages', 'components', 'src', 'App.tsx'];
+const MAX_IMPORTED_FILES = 64;
+const MAX_SOURCE_BYTES = 1_048_576;
+const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 
 // ── Source scanning ─────────────────────────────────────────────────────────────────────────
 
@@ -190,63 +193,415 @@ export function blankComments(src) {
  */
 export function collectKeyRefs(src) {
   const keys = new Set();
-  const stripped = blankComments(src);
-  // The key literal is blanked out by `blankComments`, so match the key on the ORIGINAL source
-  // at offsets the stripped source proves are live code.
-  const shapes = [
-    /(?<![A-Za-z0-9_$.])t\(\s*(['"])/g,
-    /(?<![A-Za-z0-9_$.])i18nKey\s*=\s*\{?\s*(['"])/g,
-  ];
-  for (const re of shapes) {
-    let m;
-    while ((m = re.exec(stripped))) {
-      const quote = m[1];
-      const start = m.index + m[0].length;
-      const end = src.indexOf(quote, start);
-      if (end < 0) continue;
-      const key = src.slice(start, end);
-      if (key && !key.includes('\n')) keys.add(key);
+  const sourceFile = ts.createSourceFile('source.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const literalText = (node) =>
+    node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : undefined;
+  const isTargetCall = (expression) =>
+    (ts.isIdentifier(expression) && expression.text === 't') ||
+    (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
+      expression.expression.text === 'i18n' && expression.name.text === 't');
+  const isBareTrans = (tagName) => ts.isIdentifier(tagName) && tagName.text === 'Trans';
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && isTargetCall(node.expression)) {
+      const key = literalText(node.arguments[0]);
+      if (key !== undefined && key.length > 0) keys.add(key);
+    } else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && isBareTrans(node.tagName)) {
+      const attribute = node.attributes.properties.find((property) =>
+        ts.isJsxAttribute(property) && property.name.text === 'i18nKey');
+      if (attribute && attribute.initializer) {
+        const key = ts.isStringLiteral(attribute.initializer)
+          ? decodeQuotedJsxString(attribute.initializer, sourceFile)
+          : ts.isJsxExpression(attribute.initializer) ? literalText(attribute.initializer.expression) : undefined;
+        if (key !== undefined && key.length > 0) keys.add(key);
+      }
     }
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
   return keys;
 }
 
 /** Parse with the app's installed TypeScript compiler; no additional dependency is needed. */
 const requireFromApp = createRequire(path.join(APP, 'package.json'));
 const ts = requireFromApp('typescript');
+const decodedJsxLiteralCache = new Map();
+const MAX_STATIC_DEPTH = 32;
 
-/** Literal English defaults on t() calls, decoded by the TypeScript parser. */
-export function collectInlineDefaults(src) {
-  const sourceFile = ts.createSourceFile('source.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+/** Decode only a JSX-quoted string through the public TypeScript JSX emitter. */
+function decodeQuotedJsxString(node, sourceFile) {
+  const raw = node.getText(sourceFile);
+  if (decodedJsxLiteralCache.has(raw)) return decodedJsxLiteralCache.get(raw);
+  if (!raw.includes('&')) {
+    decodedJsxLiteralCache.set(raw, node.text);
+    return node.text;
+  }
+  // The synthetic file contains only this already-parsed literal; emitted code is parsed, never run.
+  const synthetic = `const __pmoLiteral = <Trans defaults=${raw} />;`;
+  const emitted = ts.transpileModule(synthetic, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext },
+  }).outputText;
+  const emittedFile = ts.createSourceFile('decoded-jsx.js', emitted, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  let decoded;
+  const visit = (current) => {
+    if (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression) &&
+        ts.isIdentifier(current.expression.expression) && current.expression.expression.text === 'React' &&
+        current.expression.name.text === 'createElement' && current.arguments[1] &&
+        ts.isObjectLiteralExpression(current.arguments[1])) {
+      const attribute = current.arguments[1].properties.find((property) =>
+        ts.isPropertyAssignment(property) && propertyNameTextForDecode(property.name) === 'defaults');
+      if (attribute && ts.isPropertyAssignment(attribute) && ts.isStringLiteral(attribute.initializer)) {
+        decoded = attribute.initializer.text;
+      }
+    }
+    ts.forEachChild(current, visit);
+  };
+  visit(emittedFile);
+  if (decoded === undefined) throw new Error('unable to decode quoted JSX literal with the TypeScript emitter');
+  decodedJsxLiteralCache.set(raw, decoded);
+  return decoded;
+}
+
+function propertyNameTextForDecode(name) {
+  return name && (ts.isIdentifier(name) || ts.isStringLiteral(name)) ? name.text : undefined;
+}
+
+/** Explicit default positions on supported t() calls and bare <Trans> nodes. */
+function collectDefaultCandidates(src, sourceFile = ts.createSourceFile('source.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)) {
   const found = [];
   const literalText = (node) =>
-    ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : undefined;
+    node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : undefined;
+  const propertyNameText = (name) =>
+    name && (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name))
+      ? name.text : undefined;
   const isTarget = (expression) =>
     (ts.isIdentifier(expression) && expression.text === 't') ||
     (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
       expression.expression.text === 'i18n' && expression.name.text === 't');
-
+  const addOptionsCandidate = (key, index, options) => {
+    if (literalText(options) !== undefined) {
+      found.push({ key, index, expression: options });
+      return;
+    }
+    if (!options) return;
+    if (!ts.isObjectLiteralExpression(options)) {
+      found.push({ key, index, expression: options });
+      return;
+    }
+    const properties = options.properties.filter((property) => propertyNameText(property.name) === 'defaultValue');
+    if (!properties.length) return;
+    const property = properties[0];
+    const expression = ts.isPropertyAssignment(property) ? property.initializer
+      : ts.isShorthandPropertyAssignment(property) ? property.name : undefined;
+    const ambiguous = properties.length !== 1 || options.properties.some(ts.isSpreadAssignment);
+    found.push({ key, index, expression, ambiguous });
+  };
   const visit = (node) => {
     if (ts.isCallExpression(node) && isTarget(node.expression)) {
-      const key = node.arguments[0] && literalText(node.arguments[0]);
-      const options = node.arguments[1];
-      let value = options && literalText(options);
-      if (value === undefined && options && ts.isObjectLiteralExpression(options)) {
-        for (const property of options.properties) {
-          if (ts.isPropertyAssignment(property) &&
-              ((ts.isIdentifier(property.name) && property.name.text === 'defaultValue') ||
-               (ts.isStringLiteral(property.name) && property.name.text === 'defaultValue'))) {
-            value = literalText(property.initializer);
-            if (value !== undefined) break;
-          }
-        }
+      const key = literalText(node.arguments[0]);
+      if (key !== undefined) addOptionsCandidate(key, node.getStart(sourceFile), node.arguments[1]);
+    } else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+      ts.isIdentifier(node.tagName) && node.tagName.text === 'Trans') {
+      const keyAttributes = node.attributes.properties.filter((property) =>
+        ts.isJsxAttribute(property) && property.name.text === 'i18nKey');
+      const defaultAttributes = node.attributes.properties.filter((property) =>
+        ts.isJsxAttribute(property) && property.name.text === 'defaults');
+      const keyInitializer = keyAttributes[0] && keyAttributes[0].initializer;
+      const key = keyInitializer && ts.isStringLiteral(keyInitializer)
+        ? decodeQuotedJsxString(keyInitializer, sourceFile)
+        : keyInitializer && ts.isJsxExpression(keyInitializer) ? literalText(keyInitializer.expression) : undefined;
+      if (key !== undefined && defaultAttributes.length) {
+        const initializer = defaultAttributes[0].initializer;
+        const expression = initializer && ts.isStringLiteral(initializer) ? initializer
+          : initializer && ts.isJsxExpression(initializer) ? initializer.expression : undefined;
+        found.push({
+          key,
+          index: node.getStart(sourceFile),
+          expression,
+          value: initializer && ts.isStringLiteral(initializer)
+            ? decodeQuotedJsxString(initializer, sourceFile) : undefined,
+          ambiguous: defaultAttributes.length !== 1,
+        });
       }
-      if (key !== undefined && value !== undefined) found.push({ key, value, index: node.getStart(sourceFile) });
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return found;
+  return found.filter(({ key }) => key.length > 0);
+}
+
+/** Literal English defaults on supported references, decoded by the TypeScript parser. */
+function inlineDefaultsFromCandidates(candidates, literalConstants = new Map()) {
+  return candidates.flatMap((candidate) => {
+    const { key, value, index, expression, ambiguous } = candidate;
+    const offset = candidateOffset(candidate);
+    const literal = literalConstants.has(offset) ? literalConstants.get(offset)
+      : value !== undefined ? value
+        : expression && (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression))
+          ? expression.text : undefined;
+    return literal !== undefined && !ambiguous ? [{ key, value: literal, index }] : [];
+  });
+}
+
+export function collectInlineDefaults(src, literalConstants = new Map()) {
+  return inlineDefaultsFromCandidates(collectDefaultCandidates(src), literalConstants);
+}
+
+function candidateOffset(candidate) {
+  return candidate.expression ? candidate.expression.getStart() : candidate.index;
+}
+
+function isFunctionLikeNode(node) {
+  return ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node);
+}
+
+function isLexicalScope(node) {
+  return ts.isSourceFile(node) || ts.isBlock(node) || ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
+    ts.isCatchClause(node) || ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node) ||
+    isFunctionLikeNode(node) || node.kind === ts.SyntaxKind.ClassStaticBlockDeclaration;
+}
+
+function findScope(node, predicate = isLexicalScope) {
+  for (let current = node; current; current = current.parent) if (predicate(current)) return current;
+  return undefined;
+}
+
+function addBinding(bindingsByScope, scope, name, binding) {
+  if (!scope || !name) return;
+  let scopeBindings = bindingsByScope.get(scope);
+  if (!scopeBindings) {
+    scopeBindings = new Map();
+    bindingsByScope.set(scope, scopeBindings);
+  }
+  const list = scopeBindings.get(name) ?? [];
+  list.push(binding);
+  scopeBindings.set(name, list);
+}
+
+function bindingIdentifiers(name, identifiers = []) {
+  if (!name) return identifiers;
+  if (ts.isIdentifier(name)) identifiers.push(name);
+  else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    for (const element of name.elements) {
+      if (ts.isBindingElement(element)) bindingIdentifiers(element.name, identifiers);
+    }
+  }
+  return identifiers;
+}
+
+function scopeBindingsFor(sourceFile) {
+  const bindingsByScope = new Map();
+  const addNamed = (name, scope, binding) => {
+    for (const identifier of bindingIdentifiers(name)) addBinding(bindingsByScope, scope, identifier.text, binding);
+  };
+  const nearestVarScope = (node) => findScope(node, (current) => ts.isSourceFile(current) || isFunctionLikeNode(current));
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node)) {
+      const declarationList = node.parent;
+      const flags = declarationList.flags;
+      const kind = flags & ts.NodeFlags.Const ? 'const' : flags & ts.NodeFlags.Let ? 'let' : 'var';
+      const scope = kind === 'var' ? nearestVarScope(node) : findScope(node.parent);
+      const identifierName = ts.isIdentifier(node.name);
+      addNamed(node.name, scope, {
+        kind: identifierName ? kind : 'destructured',
+        declaration: node,
+        initializer: identifierName ? node.initializer : undefined,
+      });
+    } else if (ts.isParameter(node)) {
+      addNamed(node.name, node.parent, { kind: 'parameter', declaration: node });
+    } else if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node)) && node.name) {
+      addNamed(node.name, findScope(node.parent), { kind: 'declaration', declaration: node });
+    } else if ((ts.isFunctionExpression(node) || ts.isClassExpression(node)) && node.name) {
+      addNamed(node.name, node, { kind: 'declaration', declaration: node });
+    } else if (ts.isCatchClause(node) && node.variableDeclaration) {
+      addNamed(node.variableDeclaration.name, node, { kind: 'catch-binding', declaration: node.variableDeclaration });
+    } else if (ts.isImportDeclaration(node) && node.importClause) {
+      const clause = node.importClause;
+      const moduleSpecifier = ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : undefined;
+      const isTypeOnly = clause.isTypeOnly;
+      if (clause.name) addNamed(clause.name, sourceFile, {
+        kind: isTypeOnly ? 'type-import' : 'import-default', declaration: node, moduleSpecifier,
+      });
+      if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+        addNamed(clause.namedBindings.name, sourceFile, {
+          kind: isTypeOnly ? 'type-import' : 'import-namespace', declaration: node, moduleSpecifier,
+        });
+      } else if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        for (const element of clause.namedBindings.elements) {
+          addNamed(element.name, sourceFile, {
+            kind: isTypeOnly || element.isTypeOnly ? 'type-import' : 'import-named',
+            declaration: node,
+            moduleSpecifier,
+            importedName: (element.propertyName ?? element.name).text,
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return bindingsByScope;
+}
+
+function getParsedSourceFile(file, source, parsedModules) {
+  assertSourceSize(file, source);
+  const existing = parsedModules.get(file);
+  if (existing && ts.isSourceFile(existing)) return existing;
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  parsedModules.set(file, sourceFile);
+  return sourceFile;
+}
+
+function isApprovedSourceMapPath(file) {
+  return file === 'App.tsx' || ['pages/', 'components/', 'src/'].some((root) => file.startsWith(root));
+}
+
+function assertSourceSize(file, source) {
+  if (typeof source === 'string' && Buffer.byteLength(source, 'utf8') > MAX_SOURCE_BYTES) {
+    throw new Error(`${file}: source-limit`);
+  }
+}
+
+function resolveImportTarget(importingFile, specifier, sourceFiles) {
+  if (typeof specifier !== 'string' || specifier.includes('\\') || path.posix.isAbsolute(specifier)) {
+    return { reason: 'unsupported-import' };
+  }
+  let base;
+  if (specifier.startsWith('@/')) base = path.posix.normalize(specifier.slice(2));
+  else if (specifier.startsWith('./') || specifier.startsWith('../')) {
+    base = path.posix.normalize(path.posix.join(path.posix.dirname(importingFile), specifier));
+  } else return { reason: 'unsupported-import' };
+  if (!isApprovedSourceMapPath(base) && base !== 'App') return { reason: 'unsupported-import' };
+  const baseExtension = path.posix.extname(base);
+  if (baseExtension && !SOURCE_EXTENSIONS.has(baseExtension)) return { reason: 'unsupported-import' };
+  const candidates = [
+    base,
+    `${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.jsx`,
+    `${base}/index.ts`, `${base}/index.tsx`, `${base}/index.js`, `${base}/index.jsx`,
+  ];
+  const target = candidates.find((candidate) =>
+    isApprovedSourceMapPath(candidate) && SOURCE_EXTENSIONS.has(path.posix.extname(candidate)) &&
+    Object.hasOwn(sourceFiles, candidate) && typeof sourceFiles[candidate] === 'string');
+  return target ? { file: target } : { reason: 'missing-module' };
+}
+
+function directExportedConst(sourceFile, importedName) {
+  const matches = [];
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) ||
+        !(statement.modifiers ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    const isConst = (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === importedName) {
+        matches.push({ isConst, initializer: declaration.initializer });
+      }
+    }
+  }
+  if (!matches.length) return { reason: 'nonliteral-export' };
+  if (matches.length !== 1) return { reason: 'ambiguous-binding' };
+  if (!matches[0].isConst || !matches[0].initializer) return { reason: 'nonliteral-export' };
+  return { initializer: matches[0].initializer };
+}
+
+function resolveDefaultCandidates(candidates, sourceFile, {
+  file = sourceFile.fileName,
+  sourceFiles = {},
+  parsedModules = new Map(),
+} = {}) {
+  const values = new Map();
+  const reasons = new Map();
+  const importedTargets = new Set();
+  const environmentFor = (moduleFile, moduleSourceFile, allowImports) => ({
+    file: moduleFile,
+    sourceFile: moduleSourceFile,
+    bindingsByScope: scopeBindingsFor(moduleSourceFile),
+    allowImports,
+  });
+  const findBinding = (environment, name, location) => {
+    for (let current = location; current; current = current.parent) {
+      const scopeBindings = environment.bindingsByScope.get(current);
+      if (scopeBindings && scopeBindings.has(name)) return scopeBindings.get(name);
+    }
+    return [];
+  };
+
+  const resolveExpression = (node, depth, bindingStack, environment) => {
+    if (depth >= MAX_STATIC_DEPTH) return { reason: 'depth-limit' };
+    if (!node) return { reason: 'runtime-expression' };
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return { value: node.text };
+    if (ts.isParenthesizedExpression(node)) return resolveExpression(node.expression, depth + 1, bindingStack, environment);
+    if (ts.isIdentifier(node)) {
+      const found = findBinding(environment, node.text, node);
+      if (!found.length) return { reason: 'unresolved-binding' };
+      if (found.length !== 1) return { reason: 'ambiguous-binding' };
+      const binding = found[0];
+      if (binding.kind === 'import-named') {
+        if (!environment.allowImports) return { reason: 'nonliteral-export' };
+        const target = resolveImportTarget(environment.file, binding.moduleSpecifier, sourceFiles);
+        if (target.reason) return target;
+        if (!importedTargets.has(target.file)) {
+          if (importedTargets.size >= MAX_IMPORTED_FILES) return { reason: 'import-limit' };
+          importedTargets.add(target.file);
+        }
+        const targetSource = sourceFiles[target.file];
+        if (typeof targetSource !== 'string') return { reason: 'missing-module' };
+        const targetFile = getParsedSourceFile(target.file, targetSource, parsedModules);
+        const exported = directExportedConst(targetFile, binding.importedName);
+        if (exported.reason) return exported;
+        const targetEnvironment = environmentFor(target.file, targetFile, false);
+        const result = resolveExpression(exported.initializer, depth + 1, bindingStack, targetEnvironment);
+        if (typeof result.value === 'string' || result.reason === 'cyclic-binding' || result.reason === 'depth-limit') {
+          return result;
+        }
+        return { reason: 'nonliteral-export' };
+      }
+      if (binding.kind === 'import-default' || binding.kind === 'import-namespace' || binding.kind === 'type-import') {
+        return { reason: 'unsupported-import' };
+      }
+      if (binding.kind !== 'const' || !binding.initializer) return { reason: 'unsupported-binding' };
+      if (bindingStack.has(binding)) return { reason: 'cyclic-binding' };
+      bindingStack.add(binding);
+      const result = resolveExpression(binding.initializer, depth + 1, bindingStack, environment);
+      bindingStack.delete(binding);
+      return result;
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      const left = resolveExpression(node.left, depth + 1, bindingStack, environment);
+      if (left.reason) return left;
+      const right = resolveExpression(node.right, depth + 1, bindingStack, environment);
+      if (right.reason) return right;
+      if (typeof left.value === 'string' && typeof right.value === 'string') {
+        return { value: left.value + right.value };
+      }
+    }
+    return { reason: 'runtime-expression' };
+  };
+
+  for (const candidate of candidates) {
+    const offset = candidateOffset(candidate);
+    if (candidate.ambiguous) {
+      reasons.set(offset, 'runtime-expression');
+      continue;
+    }
+    if (candidate.value !== undefined) {
+      values.set(offset, candidate.value);
+      continue;
+    }
+    const result = resolveExpression(candidate.expression, 0, new Set(), environmentFor(file, sourceFile, true));
+    if (typeof result.value === 'string') values.set(offset, result.value);
+    else reasons.set(offset, result.reason ?? 'runtime-expression');
+  }
+  return { values, reasons };
+}
+
+function resolveLiteralConstants(file, sourceFiles, parsedModules = new Map()) {
+  const source = sourceFiles[file];
+  if (typeof source !== 'string') return { values: new Map(), reasons: new Map() };
+  const sourceFile = getParsedSourceFile(file, source, parsedModules);
+  return resolveDefaultCandidates(collectDefaultCandidates(source, sourceFile), sourceFile, {
+    file, sourceFiles, parsedModules,
+  });
 }
 
 const STOP_WORDS =
@@ -451,16 +806,32 @@ function hasRequiredPluralForm(known, key) {
 export function analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMismatchBaseline = [] }) {
   const catalogueKeys = flattenCatalogue(catalogue);
   const known = new Set(catalogueKeys);
+  const sourceFiles = { ...referenceFiles, ...launchScopeFiles };
+  const parsedModules = new Map();
+  for (const [file, source] of Object.entries(sourceFiles)) assertSourceSize(file, source);
 
   const unextracted = [];
   const missing = [];
   const defaultMismatches = [];
+  const unverifiedDefaults = [];
   for (const [file, src] of Object.entries(launchScopeFiles)) {
     for (const hit of findUnextracted(src)) unextracted.push({ file, ...hit });
     for (const key of collectKeyRefs(src)) {
       if (!known.has(key) && !hasRequiredPluralForm(known, key)) missing.push({ file, key });
     }
-    for (const hit of collectInlineDefaults(src)) {
+    const sourceFile = getParsedSourceFile(file, src, parsedModules);
+    const candidates = collectDefaultCandidates(src, sourceFile);
+    const resolution = resolveLiteralConstants(file, sourceFiles, parsedModules);
+    for (const candidate of candidates) {
+      const reason = resolution.reasons.get(candidateOffset(candidate));
+      if (reason) unverifiedDefaults.push({
+        file,
+        line: lineOf(src, candidate.index),
+        key: candidate.key,
+        reason,
+      });
+    }
+    for (const hit of inlineDefaultsFromCandidates(candidates, resolution.values)) {
       const catalogueText = catalogueValueForDefault(catalogue, hit.key);
       if (catalogueText === undefined) continue; // Existing missing-key rule owns this finding.
       const normalize = (value) => value.replace(/\s+/g, ' ').trim();
@@ -500,6 +871,13 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMi
     newDefaultMismatches,
     staleDefaultBaseline,
     catalogueKeys,
+    unverifiedDefaults,
+    scope: {
+      missing: 'launch-scope-files',
+      defaults: 'launch-scope-files',
+      orphans: 'reference-files',
+      defaultExpressions: 'static-string-expressions-and-direct-constant-imports',
+    },
   };
 }
 
@@ -536,6 +914,7 @@ function catalogueValue(catalogue, dotted) {
 }
 
 export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
+  for (const [file, source] of Object.entries(launchScopeFiles)) assertSourceSize(file, source);
   const enKeys = new Set(flattenCatalogue(catalogue));
   const idMap = flattenCatalogueEntries(idCatalogue);
 
@@ -612,6 +991,52 @@ export function parseRouteList(text) {
 
 const isTestFile = (p) => /\.test\.[cm]?[jt]sx?$/.test(p) || p.includes('__tests__');
 
+function readSourceFile(rel) {
+  const fail = (reason) => { throw new Error(`${rel}: ${reason}`); };
+  if (typeof rel !== 'string' || rel.includes('\\') || path.posix.isAbsolute(rel)) fail('source-containment');
+  const normalized = path.posix.normalize(rel);
+  if (!isApprovedSourceMapPath(normalized) || !SOURCE_EXTENSIONS.has(path.posix.extname(normalized))) {
+    fail('source-containment');
+  }
+
+  const abs = path.resolve(APP, ...normalized.split('/'));
+  const lexicalRel = path.relative(APP, abs).split(path.sep).join('/');
+  if (!isApprovedSourceMapPath(lexicalRel) || !SOURCE_EXTENSIONS.has(path.posix.extname(lexicalRel))) {
+    fail('source-containment');
+  }
+
+  let realPath;
+  let appRealPath;
+  try {
+    realPath = fs.realpathSync(abs);
+    appRealPath = fs.realpathSync(APP);
+  } catch {
+    fail('source-read');
+  }
+  const realRel = path.relative(appRealPath, realPath).split(path.sep).join('/');
+  if (!isApprovedSourceMapPath(realRel) || !SOURCE_EXTENSIONS.has(path.posix.extname(realRel))) {
+    fail('source-containment');
+  }
+
+  let stat;
+  try {
+    stat = fs.statSync(realPath);
+  } catch {
+    fail('source-read');
+  }
+  if (!stat.isFile()) fail('source-read');
+  if (stat.size > MAX_SOURCE_BYTES) fail('source-limit');
+
+  let source;
+  try {
+    source = fs.readFileSync(realPath, 'utf8');
+  } catch {
+    fail('source-read');
+  }
+  assertSourceSize(rel, source);
+  return source;
+}
+
 function expandEntryFile(spec) {
   if (!spec.endsWith('/*.tsx')) return [spec];
   const dir = spec.slice(0, -'/*.tsx'.length);
@@ -627,7 +1052,7 @@ function expandEntryFile(spec) {
 function walkSources(abs, out = []) {
   if (!fs.existsSync(abs)) return out;
   if (fs.statSync(abs).isFile()) {
-    if (/\.tsx?$/.test(abs) && !isTestFile(abs)) out.push(abs);
+    if (SOURCE_EXTENSIONS.has(path.extname(abs)) && !isTestFile(abs)) out.push(abs);
     return out;
   }
   for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
@@ -635,7 +1060,7 @@ function walkSources(abs, out = []) {
     if (e.isDirectory()) {
       if (e.name === 'node_modules' || e.name === 'dist' || e.name === '__tests__') continue;
       walkSources(p, out);
-    } else if (/\.tsx?$/.test(e.name) && !isTestFile(e.name)) {
+    } else if (SOURCE_EXTENSIONS.has(path.extname(e.name)) && !isTestFile(e.name)) {
       out.push(p);
     }
   }
@@ -654,7 +1079,7 @@ function readFromDisk() {
             `launch-scope-routes.txt: route "${entry.route}" names "${rel}", which does not exist`,
           );
         }
-        launchScopeFiles[rel] ??= fs.readFileSync(abs, 'utf8');
+        launchScopeFiles[rel] ??= readSourceFile(rel);
       }
     }
   }
@@ -662,7 +1087,8 @@ function readFromDisk() {
   const referenceFiles = {};
   for (const root of REFERENCE_ROOTS) {
     for (const abs of walkSources(path.join(APP, root))) {
-      referenceFiles[path.relative(APP, abs)] = fs.readFileSync(abs, 'utf8');
+      const rel = path.relative(APP, abs).split(path.sep).join('/');
+      referenceFiles[rel] = readSourceFile(rel);
     }
   }
 
@@ -679,8 +1105,20 @@ function readIdFromDisk() {
 // ── Reporting ───────────────────────────────────────────────────────────────────────────────
 
 function report(result, entries, fileCount) {
-  const { unextracted, missing, orphans, newDefaultMismatches, staleDefaultBaseline, catalogueKeys } = result;
+  const {
+    unextracted, missing, orphans, newDefaultMismatches, staleDefaultBaseline, catalogueKeys,
+    scope, unverifiedDefaults = [],
+  } = result;
   let failed = false;
+
+  console.log(
+    `Scope: missing/defaults=${scope.missing}; orphans=${scope.orphans}; ` +
+      `default-expressions=${scope.defaultExpressions}.`,
+  );
+  console.log(`Unverified defaults: ${unverifiedDefaults.length} (excluded from default equality checks).`);
+  for (const item of unverifiedDefaults) {
+    console.log(`  ${item.key}  pmo-portal/${item.file}:${item.line}  (${item.reason})`);
+  }
 
   if (unextracted.length) {
     failed = true;
@@ -833,6 +1271,406 @@ function selfTest() {
 
   const cases = [];
   const check = (name, ok, detail) => cases.push({ name, ok, detail });
+  const acFile = 'pages/Probe.tsx';
+  const acScope = {
+    missing: 'launch-scope-files', defaults: 'launch-scope-files',
+    orphans: 'reference-files',
+    defaultExpressions: 'static-string-expressions-and-direct-constant-imports',
+  };
+  const ac = (name, actual, expected) => check(
+    `AC-V24P-015 ${name}`, JSON.stringify(actual) === JSON.stringify(expected),
+    JSON.stringify({ actual, expected }),
+  );
+  const runAC = (src, text = 'Hello', extra = {}) => analyse({
+    launchScopeFiles: { [acFile]: src }, referenceFiles: { [acFile]: src },
+    catalogue: { [NS]: { greeting: text } }, ...extra,
+  });
+
+  // AC-V24P-015: AST references are scoped to the actual launch and reference maps.
+  {
+    const key = JSON.stringify(PLANTED_KEY);
+    const sources = [
+      `t(${key}, 'Hello')`,
+      `i18n.t(${key}, 'Hello')`,
+      `<Trans i18nKey=${key} defaults="Hello" />`,
+      `<Trans i18nKey={${key}} defaults={'Hello'} />`,
+    ];
+    for (const src of sources) {
+      const result = runAC(src);
+      ac('removed supported key', result.missing, [{ file: acFile, key: PLANTED_KEY }]);
+      ac('declared checking scope', result.scope, acScope);
+    }
+
+    const ref = `i18n.t(${JSON.stringify(OK_KEY)}, 'Hello')`;
+    const referenceOnly = runAC('', 'Hello', {
+      launchScopeFiles: {}, referenceFiles: { [acFile]: ref },
+    });
+    ac('reference-only is not missing scope', referenceOnly.missing, []);
+    ac('reference-only is not orphan', referenceOnly.orphans, []);
+    ac('comment shapes ignored', [...collectKeyRefs(`// ${sources[1]}\n/* ${sources[2]} */`)], []);
+    ac('code-looking string ignored', [...collectKeyRefs(`const prose = ${JSON.stringify(sources[1])}`)], []);
+    ac('unrelated JSX key ignored', [...collectKeyRefs(`<Other i18nKey=${JSON.stringify(PLANTED_KEY)} />`)], []);
+
+    const pluralSources = [
+      `t(${JSON.stringify(OK_KEY)}, 'Hello')`,
+      `i18n.t(${JSON.stringify(OK_KEY)}, 'Hello')`,
+      `<Trans i18nKey=${JSON.stringify(OK_KEY)} defaults="Hello" />`,
+      `<Trans i18nKey={${JSON.stringify(OK_KEY)}} defaults={'Hello'} />`,
+    ];
+    for (const src of pluralSources) {
+      const plural = runAC(src, 'Hello', { catalogue: { [NS]: { greeting_other: 'Hello' } } });
+      ac('plural other satisfies base', plural.missing, []);
+      const incomplete = runAC(src, 'Hello', { catalogue: { [NS]: { greeting_one: 'Hello' } } });
+      ac('plural one alone leaves base missing', incomplete.missing, [{ file: acFile, key: OK_KEY }]);
+    }
+    ac('id mode shares AST key collection', analyseId({
+      launchScopeFiles: { [acFile]: `i18n.t(${JSON.stringify(OK_KEY)}, 'Hello')` },
+      catalogue: { [NS]: { greeting: 'Hello' } }, idCatalogue: {},
+    }).untranslated, [{ key: OK_KEY, why: 'absent' }]);
+  }
+
+  // AC-V24P-015: Trans compares the entire decoded fallback, including markup.
+  {
+    const text = 'Hello <strong>{{person}}</strong>';
+    const trans = (value) => `<Trans i18nKey={${JSON.stringify(OK_KEY)}} defaults={${JSON.stringify(value)}} />`;
+    ac('markup whitespace equivalent', runAC(trans(' Hello  <strong>{{person}}</strong>\n'), text).defaultMismatches, []);
+    const drift = runAC(trans('Hello <em>{{person}}</em>'), text);
+    ac('markup drift exact tuple', drift.newDefaultMismatches.map(({ key, defaultValue, catalogueValue }) =>
+      [key, defaultValue, catalogueValue]), [[OK_KEY, 'Hello <em>{{person}}</em>', text]]);
+
+    const baseline = [{ key: OK_KEY, defaultValue: 'Hello <em>{{person}}</em>', catalogueValue: text }];
+    const kept = runAC(trans(baseline[0].defaultValue), text, { defaultMismatchBaseline: baseline });
+    ac('exact tuple remains known', [kept.defaultMismatches.length, kept.newDefaultMismatches, kept.staleDefaultBaseline], [1, [], []]);
+    ac('stale tuple preserved', runAC(trans(text), text, { defaultMismatchBaseline: baseline }).staleDefaultBaseline,
+      [[OK_KEY, baseline[0].defaultValue, text]]);
+    ac('changed original whitespace is new baseline signature',
+      runAC(trans(' Hello <em>{{person}}</em>'), text, { defaultMismatchBaseline: baseline }).newDefaultMismatches.length, 1);
+
+    const quotedEntity = `<Trans i18nKey=${JSON.stringify(OK_KEY)} defaults="A&amp;&quot;&#65;&#x42;&unknown;" />`;
+    ac('quoted JSX entities decoded and unknown retained', collectInlineDefaults(quotedEntity).map(({ key, value }) => [key, value]),
+      [[OK_KEY, 'A&"AB&unknown;']]);
+    ac('quoted JSX entity default compares decoded text', runAC(quotedEntity, 'A&"AB&unknown;').defaultMismatches, []);
+    ac('quoted JSX entity keys decode', [...collectKeyRefs('<Trans i18nKey="probe&amp;key" />')], ['probe&key']);
+    const ordinaryString = `t(${JSON.stringify(OK_KEY)}, '&amp;')`;
+    ac('ordinary JavaScript string entities stay literal', collectInlineDefaults(ordinaryString).map(({ key, value }) => [key, value]),
+      [[OK_KEY, '&amp;']]);
+    ac('ordinary JavaScript string compares literally', runAC(ordinaryString, '&').newDefaultMismatches.map(({ defaultValue, catalogueValue }) =>
+      [defaultValue, catalogueValue]), [['&amp;', '&']]);
+    const multiline = `const Component = () => (\n  <Trans\n    i18nKey={${JSON.stringify(OK_KEY)}}\n    defaults="Welcome"\n  />\n);`;
+    ac('multiline Trans reports opening tag line', runAC(multiline, 'Hello').defaultMismatches.map(({ line }) => line), [2]);
+    const childrenOnly = `<Trans i18nKey=${JSON.stringify(OK_KEY)}>Hello</Trans>`;
+    ac('children-only Trans has no explicit default', collectInlineDefaults(childrenOnly), []);
+  }
+
+  // AC-V24P-015: local defaults resolve only through the nearest static lexical const.
+  {
+    const key = JSON.stringify(OK_KEY);
+    const local = `const FIRST = 'Hel'; const TEXT = FIRST + 'lo'; t(${key}, TEXT);`;
+    ac('local const concat compared', runAC(local, 'Different').newDefaultMismatches.map(({ key: foundKey, defaultValue }) =>
+      [foundKey, defaultValue]), [[OK_KEY, 'Hello']]);
+    ac('matching local expression', runAC(local).defaultMismatches, []);
+    const optionAlias = `const TEXT = 'Hello'; t(${key}, { defaultValue: TEXT });`;
+    ac('defaultValue identifier resolves', runAC(optionAlias, 'Different').newDefaultMismatches.map(({ key: foundKey, defaultValue }) =>
+      [foundKey, defaultValue]), [[OK_KEY, 'Hello']]);
+    const transAlias = `<Trans i18nKey={${key}} defaults={TEXT} />; const TEXT = 'Hello';`;
+    ac('Trans identifier resolves', runAC(transAlias, 'Different').newDefaultMismatches.map(({ key: foundKey, defaultValue }) =>
+      [foundKey, defaultValue]), [[OK_KEY, 'Hello']]);
+
+    const shadow = `const TEXT = 'Hello'; function f(TEXT) { return t(${key}, TEXT); }`;
+    ac('parameter shadows literal', runAC(shadow).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'unsupported-binding' }]);
+    const runtime = `t(${key}, makeLabel())`;
+    ac('runtime is unverified', runAC(runtime).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'runtime-expression' }]);
+    ac('runtime has no fabricated mismatch', runAC(runtime, 'Different').defaultMismatches, []);
+    ac('numeric concat not coerced', runAC(`const TEXT = 'Hello' + 1; t(${key},TEXT)`).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'runtime-expression' }]);
+
+    const blockShadow = `const TEXT = 'Hello'; { let TEXT = makeLabel(); t(${key}, TEXT); }`;
+    ac('block let shadows outer const', runAC(blockShadow).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'unsupported-binding' }]);
+    const localLiteral = `const TEXT = 'Hello'; t(${key}, TEXT);`;
+    ac('nearest local const resolves', runAC(localLiteral, 'Different').newDefaultMismatches.map(({ defaultValue }) => [defaultValue]),
+      [['Hello']]);
+    const duplicate = `const TEXT = 'Hello'; const TEXT = 'World'; t(${key}, TEXT);`;
+    ac('duplicate const is ambiguous', runAC(duplicate).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'ambiguous-binding' }]);
+    ac('unresolved identifier reason', runAC(`t(${key}, UNKNOWN)`).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'unresolved-binding' }]);
+    ac('no-substitution template resolves', runAC(`const TEXT = \`Hello\`; t(${key}, TEXT)`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+    ac('parenthesized literal resolves', runAC(`t(${key}, (('Hello')))`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+    ac('spread option is unverified', runAC(`t(${key}, { ...options, defaultValue: 'Hello' })`).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'runtime-expression' }]);
+    ac('duplicate option is unverified', runAC(`t(${key}, { defaultValue: 'Hello', defaultValue: 'World' })`).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'runtime-expression' }]);
+    const missingRuntime = runAC(`t(${JSON.stringify(PLANTED_KEY)}, makeLabel())`);
+    ac('unverified default keeps missing key', missingRuntime.missing, [{ file: acFile, key: PLANTED_KEY }]);
+    ac('no explicit default is not unverified', runAC(`t(${key})`).unverifiedDefaults ?? [], []);
+
+    const cycle = `const A = B; const B = A; t(${key}, A)`;
+    ac('cycle remains unverified', runAC(cycle).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 1, key: OK_KEY, reason: 'cyclic-binding' }]);
+    const deep = Array.from({ length: 40 }, (_, i) =>
+      `const S${i} = ${i === 39 ? "'Hello'" : `S${i + 1}`};`).join('\n');
+    ac('deep alias chain bounded', runAC(`${deep}\nt(${key}, S0)`).unverifiedDefaults ?? [],
+      [{ file: acFile, line: 41, key: OK_KEY, reason: 'depth-limit' }]);
+  }
+
+  // AC-V24P-015: direct named imports resolve from the supplied source map without execution.
+  {
+    const key = JSON.stringify(OK_KEY);
+    const moduleSource = `throw new Error('must remain inert'); export const SOURCE = 'Hel' + 'lo';`;
+    const imported = (specifier) => `import { SOURCE as TEXT } from ${JSON.stringify(specifier)}; t(${key}, TEXT)`;
+    const importedRun = (source, modulePath, sourceText, text) => runAC(source, text, {
+      referenceFiles: { [acFile]: source, [modulePath]: sourceText },
+    });
+    const aliasImport = imported('@/src/lib/probeText');
+    const aliasResult = importedRun(aliasImport, 'src/lib/probeText.ts', moduleSource, 'Different');
+    ac('imported concat compared', aliasResult.newDefaultMismatches.map(({ key: foundKey, defaultValue }) =>
+      [foundKey, defaultValue]), [[OK_KEY, 'Hello']]);
+    ac('imported literal equality', importedRun(aliasImport, 'src/lib/probeText.ts', moduleSource, 'Hello').defaultMismatches, []);
+    ac('imported literal verified', importedRun(aliasImport, 'src/lib/probeText.ts', moduleSource, 'Hello').unverifiedDefaults, []);
+    ac('relative import resolves', importedRun(imported('../src/lib/probeText'), 'src/lib/probeText.ts', moduleSource, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+
+    for (const extension of ['.ts', '.tsx', '.js', '.jsx']) {
+      const modulePath = `src/lib/probeText${extension}`;
+      const source = imported(`@/${modulePath}`);
+      ac(`exact ${extension} import resolves`, importedRun(source, modulePath, `export const SOURCE = 'Hello';`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+        [defaultValue]), [['Hello']]);
+    }
+    const appRootImport = imported('@/App');
+    ac('app-root source import resolves', runAC(appRootImport, 'Different', {
+      referenceFiles: { [acFile]: appRootImport, 'App.tsx': `export const SOURCE = 'Hello';` },
+    }).newDefaultMismatches.map(({ defaultValue }) => [defaultValue]), [['Hello']]);
+    const indexPath = 'src/lib/probeFolder/index.ts';
+    ac('index.ts import resolves', importedRun(imported('@/src/lib/probeFolder'), indexPath,
+      `export const SOURCE = 'Hello';`, 'Different').newDefaultMismatches.map(({ defaultValue }) => [defaultValue]), [['Hello']]);
+    ac('same-file exported alias resolves', importedRun(aliasImport, 'src/lib/probeText.ts',
+      `const PREFIX = 'Hel'; export const SOURCE = PREFIX + 'lo';`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+
+    const identityRefs = {
+      [acFile]: imported('@/src/lib/first'),
+      'src/lib/first.ts': `export const SOURCE = 'First';`,
+      'src/lib/second.ts': `export const SOURCE = 'Second';`,
+    };
+    ac('import resolves only the named target', runAC(identityRefs[acFile], 'Different', {
+      referenceFiles: identityRefs,
+    }).newDefaultMismatches.map(({ defaultValue }) => [defaultValue]), [['First']]);
+    ac('non-exported local is not an import target', importedRun(aliasImport, 'src/lib/probeText.ts',
+      `const SOURCE = 'Hello';`, 'Different').unverifiedDefaults.map(({ reason }) => [reason]), [['nonliteral-export']]);
+    ac('missing source-map target is explicit', runAC(imported('@/src/lib/missing'), 'Hello').unverifiedDefaults.map(({ reason }) =>
+      [reason]), [['missing-module']]);
+    ac('dynamic exported initializer is unverified', importedRun(aliasImport, 'src/lib/probeText.ts',
+      `export const SOURCE = makeLabel();`, 'Different').unverifiedDefaults.map(({ reason }) => [reason]), [['nonliteral-export']]);
+
+    const shadowParameter = importedRun(
+      `import { SOURCE as TEXT } from '@/src/lib/probeText'; function f(TEXT) { return t(${key}, TEXT); }`,
+      'src/lib/probeText.ts', `export const SOURCE = 'Hello';`, 'Different');
+    ac('parameter shadows imported value', shadowParameter.unverifiedDefaults.map(({ reason }) => [reason]), [['unsupported-binding']]);
+    const shadowBlock = importedRun(
+      `import { SOURCE as TEXT } from '@/src/lib/probeText'; { let TEXT = makeLabel(); t(${key}, TEXT); }`,
+      'src/lib/probeText.ts', `export const SOURCE = 'Hello';`, 'Different');
+    ac('block let shadows imported value', shadowBlock.unverifiedDefaults.map(({ reason }) => [reason]), [['unsupported-binding']]);
+
+    const sourceMap = { [acFile]: aliasImport, 'src/lib/probeText.ts': moduleSource };
+    const before = JSON.stringify(sourceMap);
+    runAC(aliasImport, 'Hello', { referenceFiles: sourceMap });
+    ac('import analysis leaves source maps unchanged', JSON.stringify(sourceMap), before);
+  }
+
+  // AC-V24P-015: imported resolution and disk loading remain explicitly bounded.
+  {
+    const key = JSON.stringify(OK_KEY);
+    const makeImports = (count, specifier = (i) => `@/src/lib/guard-${i}`) => {
+      const imports = Array.from({ length: count }, (_, i) =>
+        `import { SOURCE as TEXT${i} } from ${JSON.stringify(specifier(i))};`).join('\n');
+      const calls = Array.from({ length: count }, (_, i) => `t(${key}, TEXT${i});`).join('\n');
+      return `${imports}\n${calls}`;
+    };
+    const runImport = (src, modules = {}) => runAC(src, 'Hello', {
+      referenceFiles: { [acFile]: src, ...modules },
+    });
+    const manyImports = makeImports(65);
+    const manyModules = Object.fromEntries(Array.from({ length: 65 }, (_, i) =>
+      [`src/lib/guard-${i}.ts`, `export const SOURCE = 'Hello';`]));
+    const limited = runImport(manyImports, manyModules);
+    ac('64 distinct imported targets resolve before the 65th is bounded',
+      [limited.unverifiedDefaults.length, limited.unverifiedDefaults.map(({ reason }) => reason), limited.defaultMismatches],
+      [1, ['import-limit'], []]);
+
+    const repeated = makeImports(65, () => '@/src/lib/repeated');
+    ac('repeated aliases to one imported target consume one visit',
+      runImport(repeated, { 'src/lib/repeated.ts': `export const SOURCE = 'Hello';` }).unverifiedDefaults, []);
+
+    const splitSource = (first, count) => makeImports(count, (i) => `@/src/lib/split-${first + i}`);
+    const firstLaunch = splitSource(0, 40);
+    const secondLaunch = splitSource(40, 40);
+    const splitModules = Object.fromEntries(Array.from({ length: 80 }, (_, i) =>
+      [`src/lib/split-${i}.ts`, `export const SOURCE = 'Hello';`]));
+    const splitAnalysis = analyse({
+      launchScopeFiles: { 'pages/First.tsx': firstLaunch, 'pages/Second.tsx': secondLaunch },
+      referenceFiles: { 'pages/First.tsx': firstLaunch, 'pages/Second.tsx': secondLaunch, ...splitModules },
+      catalogue: { [NS]: { greeting: 'Hello' } },
+    });
+    ac('distinct-target cap resets for each launch file', splitAnalysis.unverifiedDefaults, []);
+
+    const parentheses = (depth) => `${'('.repeat(depth)}'Hello'${')'.repeat(depth)}`;
+    ac('30 parenthesized levels resolve', runAC(`t(${key}, ${parentheses(30)})`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+    ac('33 parenthesized levels are bounded', runAC(`t(${key}, ${parentheses(33)})`).unverifiedDefaults.map(({ reason }) => [reason]),
+      [['depth-limit']]);
+    ac('exact depth 31 resolves', runAC(`t(${key}, ${parentheses(31)})`, 'Different').newDefaultMismatches.map(({ defaultValue }) =>
+      [defaultValue]), [['Hello']]);
+    ac('exact depth 32 is rejected', runAC(`t(${key}, ${parentheses(32)})`).unverifiedDefaults.map(({ reason }) => [reason]),
+      [['depth-limit']]);
+    ac('dynamic concat operand is unverified', runAC(`const TEXT = 'Hello' + getSuffix(); t(${key}, TEXT)`).unverifiedDefaults.map(({ reason }) =>
+      [reason]), [['runtime-expression']]);
+
+    const unsupported = [
+      ['type-only import', `import type { SOURCE as TEXT } from '@/src/lib/probeText'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['default import', `import TEXT from '@/src/lib/probeText'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['namespace import', `import * as TEXT from '@/src/lib/probeText'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['package import', `import { SOURCE as TEXT } from 'probe-package'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['unsupported file extension', `import { SOURCE as TEXT } from '@/src/lib/text.json'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['escaping import', `import { SOURCE as TEXT } from '../../../outside'; t(${key}, TEXT)`, 'unsupported-import'],
+      ['barrel export', `import { SOURCE as TEXT } from '@/src/lib/barrel'; t(${key}, TEXT)`, 'nonliteral-export'],
+      ['second import hop', `import { SOURCE as TEXT } from '@/src/lib/hop'; t(${key}, TEXT)`, 'nonliteral-export'],
+    ];
+    for (const [name, src, reason] of unsupported) {
+      const modules = name === 'barrel export'
+        ? { 'src/lib/barrel.ts': `export { SOURCE } from './probeText';` }
+        : name === 'unsupported file extension'
+          ? { 'src/lib/text.json': `export const SOURCE = 'Hello';` }
+        : name === 'second import hop'
+          ? { 'src/lib/hop.ts': `import { SOURCE as INNER } from './probeText'; export const SOURCE = INNER;`,
+              'src/lib/probeText.ts': `export const SOURCE = 'Hello';` }
+          : {};
+      ac(`${name} stays explicitly unverified`, runImport(src, modules).unverifiedDefaults.map(({ reason: actual }) => [actual]), [[reason]]);
+    }
+
+    const cycleSource = `import { OTHER } from './cycleB'; export const SOURCE = OTHER;`;
+    const cycleModules = {
+      'src/lib/cycleA.ts': cycleSource,
+      'src/lib/cycleB.ts': `import { SOURCE } from './cycleA'; export const OTHER = SOURCE;`,
+    };
+    const moduleCycle = runImport(`import { SOURCE as TEXT } from '@/src/lib/cycleA'; t(${key}, TEXT)`, cycleModules);
+    ac('cyclic module declarations stop without chasing imports', moduleCycle.unverifiedDefaults.map(({ reason }) => [reason]),
+      [['nonliteral-export']]);
+
+    const tail = `*/\nt(${key}, 'Hello')`;
+    const exactSource = `/*${'x'.repeat(1_048_576 - Buffer.byteLength(`/*${tail}`))}${tail}`;
+    ac('exactly 1 MiB source-map entry is accepted',
+      [Buffer.byteLength(exactSource), runAC(exactSource, 'Hello', { referenceFiles: { [acFile]: exactSource } }).unverifiedDefaults],
+      [1_048_576, []]);
+
+    let oversizedError;
+    try {
+      runAC(`${exactSource} `, 'Hello', { referenceFiles: { [acFile]: `${exactSource} ` } });
+    } catch (error) {
+      oversizedError = error.message;
+    }
+    ac('one byte over 1 MiB fails before AST analysis', oversizedError, `${acFile}: source-limit`);
+
+    const readSource = (rel) => typeof readSourceFile === 'function'
+      ? readSourceFile(rel)
+      : (() => { throw new Error(`${rel}: source-reader-unavailable`); })();
+    const suffix = `${process.pid}-${Date.now()}`;
+    const ordinaryRel = `pages/.i18n-guard-selftest-${suffix}.ts`;
+    const outsideDir = fs.mkdtempSync(path.join(path.dirname(APP), `.i18n-guard-external-${suffix}-`));
+    const outsideFile = path.join(outsideDir, 'outside.ts');
+    const linkRel = `pages/.i18n-guard-selftest-link-${suffix}.ts`;
+    const largeRel = `pages/.i18n-guard-selftest-large-${suffix}.ts`;
+    const ordinaryAbs = path.join(APP, ordinaryRel);
+    const linkAbs = path.join(APP, linkRel);
+    const largeAbs = path.join(APP, largeRel);
+    const outsideText = `export const OUTSIDE = '${suffix}';`;
+    const originalReadFileSync = fs.readFileSync;
+    const reads = [];
+    let ordinaryText;
+    let ordinaryError;
+    let linkError;
+    let largeError;
+    let escapeError;
+    let outsideRead = false;
+    let oversizedRead = false;
+    try {
+      fs.writeFileSync(ordinaryAbs, `export const SAFE = 'inside';`);
+      fs.writeFileSync(outsideFile, outsideText);
+      fs.symlinkSync(outsideFile, linkAbs);
+      fs.writeFileSync(largeAbs, 'x'.repeat(1_048_577));
+      fs.readFileSync = function monitoredRead(file, ...args) {
+        const resolved = typeof file === 'string' ? path.resolve(file) : '';
+        if (resolved === path.resolve(outsideFile)) outsideRead = true;
+        if (resolved === path.resolve(largeAbs)) oversizedRead = true;
+        reads.push(resolved);
+        return originalReadFileSync.call(this, file, ...args);
+      };
+      try { ordinaryText = readSource(ordinaryRel); } catch (error) { ordinaryError = error.message; }
+      try { readSource(linkRel); } catch (error) { linkError = error.message; }
+      try { readSource(largeRel); } catch (error) { largeError = error.message; }
+      try { readSource('../outside.ts'); } catch (error) { escapeError = error.message; }
+    } finally {
+      fs.readFileSync = originalReadFileSync;
+      fs.rmSync(ordinaryAbs, { force: true });
+      fs.rmSync(linkAbs, { force: true });
+      fs.rmSync(largeAbs, { force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+    ac('approved source is read', [ordinaryText, ordinaryError], [`export const SAFE = 'inside';`, undefined]);
+    ac('outside symlink is rejected before its contents are read', [linkError, outsideRead, linkError?.includes(outsideText)],
+      [`${linkRel}: source-containment`, false, false]);
+    ac('oversized file is rejected before readFileSync', [largeError, oversizedRead],
+      [`${largeRel}: source-limit`, false]);
+    ac('lexically escaping source path is rejected', escapeError, '../outside.ts: source-containment');
+  }
+
+  // AC-V24P-015: the reporter keeps unresolved defaults visible without making them failures.
+  {
+    const captureReport = (result) => {
+      const originalLog = console.log;
+      const originalError = console.error;
+      let output = '';
+      let exitCode;
+      try {
+        console.log = (...args) => { output += `${args.join(' ')}\n`; };
+        console.error = (...args) => { output += `${args.join(' ')}\n`; };
+        exitCode = report(result, [{ route: '/probe', files: [acFile] }], 1);
+      } finally {
+        console.log = originalLog;
+        console.error = originalError;
+      }
+      return { exitCode, output };
+    };
+    const scopeLine = 'Scope: missing/defaults=launch-scope-files; orphans=reference-files; ' +
+      'default-expressions=static-string-expressions-and-direct-constant-imports.';
+    const unverifiedLine = 'Unverified defaults: 1 (excluded from default equality checks).';
+    const unresolved = captureReport(runAC(`t(${JSON.stringify(OK_KEY)}, makeLabel())`));
+    ac('unverified-only report stays informational and names scope/key/location/reason',
+      [unresolved.exitCode, unresolved.output.includes(scopeLine), unresolved.output.includes(unverifiedLine),
+        unresolved.output.includes(`${acFile}:1`), unresolved.output.includes(OK_KEY), unresolved.output.includes('runtime-expression')],
+      [0, true, true, true, true, true]);
+
+    const missingWithUnverified = captureReport(runAC(`t(${JSON.stringify(PLANTED_KEY)}, makeLabel())`));
+    ac('unverified report does not suppress missing-key failure',
+      [missingWithUnverified.exitCode, missingWithUnverified.output.includes(scopeLine),
+        missingWithUnverified.output.includes(unverifiedLine), missingWithUnverified.output.includes(PLANTED_KEY)],
+      [1, true, true, true]);
+
+    const baselineWithUnverified = captureReport(runAC(`t(${JSON.stringify(OK_KEY)}, makeLabel())`, 'Hello', {
+      defaultMismatchBaseline: [{ key: OK_KEY, defaultValue: 'Obsolete', catalogueValue: 'Hello' }],
+    }));
+    ac('unverified report does not suppress stale-baseline failure',
+      [baselineWithUnverified.exitCode, baselineWithUnverified.output.includes(unverifiedLine),
+        baselineWithUnverified.output.includes('stale inline-default baseline')], [1, true, true]);
+
+    const allStatic = captureReport(runAC(`t(${JSON.stringify(OK_KEY)}, 'Hello')`));
+    ac('all-static report prints zero unverified defaults', allStatic.output.includes(
+      'Unverified defaults: 0 (excluded from default equality checks).'), true);
+  }
 
   // 0. Clean fixture passes — the control. Without it, a self-test that only plants defects
   //    would still pass if the analyser reported EVERYTHING as broken.
@@ -962,6 +1800,7 @@ function selfTest() {
       ...clean,
       launchScopeFiles: { 'pages/Probe.tsx': src },
       referenceFiles: { 'pages/Probe.tsx': src },
+      catalogue: { [NS]: { greeting: 'Hello <b>there</b>' } },
     });
     check(
       'a <Trans i18nKey> key counts as referenced',
