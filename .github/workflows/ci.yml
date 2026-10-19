@@ -135,6 +135,7 @@ jobs:
         run: |
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs scripts/dispatch-result.test.mjs
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test scripts/statement-metadata-readiness.test.mjs
           node --test scripts/verified-post-merge-cleanup.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
