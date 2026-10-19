@@ -37,7 +37,7 @@ for (const scenario of headingCases) {
     await page.keyboard.type('### Subheading');
     await page.keyboard.press('Enter');
     // A 160-char unbroken string — the class that bled at 375px in the spike.
-    await page.keyboard.type(`https://example.test/${'x'.repeat(140)}`);
+    await page.keyboard.insertText(`https://example.test/${'x'.repeat(140)}`);
 
     // BlockNote omits data-level for H1 (the default level); H2/H3 carry it.
     const size = (level: number) =>
