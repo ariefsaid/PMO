@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
-const mockTrackAgentComposeViewSaved = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/analytics', () => ({ trackAgentComposeViewSaved: mockTrackAgentComposeViewSaved }));
+type Analytics = typeof import('@/src/lib/analytics');
+const mockTrackAgentComposeViewSaved = vi.hoisted(() => vi.fn<Analytics['trackAgentComposeViewSaved']>());
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackAgentComposeViewSaved: mockTrackAgentComposeViewSaved,
+} satisfies Analytics));
 
 const mockCreate = vi.hoisted(() => vi.fn());
 vi.mock('@/src/hooks/useUserViews', () => ({

@@ -82,7 +82,9 @@ export type Entity =
   | 'pushHold'
   | 'managementPack'
   | 'projectProgress'
-  | 'fxRate';
+  | 'fxRate'
+  | 'financialStatements'
+  | 'projectProfitLoss';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -255,6 +257,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     archive: allow(ARCHIVE_ROLES),
     delete: allow(ADMIN),
   },
+  financialStatements: { view: allow(MONEY_AUTHORITY) },
+  projectProfitLoss: { view: allow(ALL) },
   procurement: {
     // Index visibility (rbac-visibility §A/§E): Admin·Exec·PM·Finance browse the org-wide
     // PR index; Engineer has NO Procurement nav (○*) and reaches only their OWN requests

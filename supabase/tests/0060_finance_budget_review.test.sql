@@ -19,13 +19,32 @@ insert into profiles (id, org_id, full_name, email, role) values
 --  OVER: budget 100k, committed PO 150k (Ordered) ⇒ spent 150k, variance +50k.
 --  UNDER: budget 200k, committed PO 50k (Paid)    ⇒ spent  50k, variance -150k.
 --  ZERO: budget 0 (excluded by the budget>0 filter regardless of spend).
-insert into projects (id, org_id, name, status, budget) values
-  ('00600000-0000-0000-0000-000000000d01','00600000-0000-0000-0000-000000000001','OVER',  'Ongoing Project',100000),
-  ('00600000-0000-0000-0000-000000000d02','00600000-0000-0000-0000-000000000001','UNDER', 'Ongoing Project',200000),
-  ('00600000-0000-0000-0000-000000000d03','00600000-0000-0000-0000-000000000001','ZEROBUD','Ongoing Project',0);
+insert into projects (id, org_id, name, status, currency, budget) values
+  ('00600000-0000-0000-0000-000000000d01','00600000-0000-0000-0000-000000000001','OVER',  'Ongoing Project','USD',100000),
+  ('00600000-0000-0000-0000-000000000d02','00600000-0000-0000-0000-000000000001','UNDER', 'Ongoing Project','USD',200000),
+  ('00600000-0000-0000-0000-000000000d03','00600000-0000-0000-0000-000000000001','ZEROBUD','Ongoing Project','USD',0);
 -- Org-B project (budget>0) — must NOT appear for org-A.
-insert into projects (id, org_id, name, status, budget) values
-  ('00600000-0000-0000-0000-000000000d09','00600000-0000-0000-0000-000000000002','ORGB',  'Ongoing Project',300000);
+insert into projects (id, org_id, name, status, currency, budget) values
+  ('00600000-0000-0000-0000-000000000d09','00600000-0000-0000-0000-000000000002','ORGB',  'Ongoing Project','USD',300000);
+
+-- Finance review now uses the positive Active-line total; keep this legacy fixture's numeric oracle.
+insert into budget_versions (id,org_id,project_id,version,name,status,currency) values
+  ('00600000-0000-0000-0000-0000000000c1','00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-000000000d01',1,'OVER Active','Draft','USD'),
+  ('00600000-0000-0000-0000-0000000000c2','00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-000000000d02',1,'UNDER Active','Draft','USD'),
+  ('00600000-0000-0000-0000-0000000000c3','00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-000000000d03',1,'ZERO Active','Draft','USD'),
+  ('00600000-0000-0000-0000-0000000000c9','00600000-0000-0000-0000-000000000002','00600000-0000-0000-0000-000000000d09',1,'ORGB Active','Draft','USD');
+insert into budget_line_items (org_id,budget_version_id,category,description,budgeted_amount) values
+  ('00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-0000000000c1','Labor','OVER Active line',100000),
+  ('00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-0000000000c2','Labor','UNDER Active line',200000),
+  ('00600000-0000-0000-0000-000000000001','00600000-0000-0000-0000-0000000000c3','Labor','ZERO Active line',0),
+  ('00600000-0000-0000-0000-000000000002','00600000-0000-0000-0000-0000000000c9','Labor','ORGB Active line',300000);
+update budget_versions set status='Active'
+where id in (
+  '00600000-0000-0000-0000-0000000000c1',
+  '00600000-0000-0000-0000-0000000000c2',
+  '00600000-0000-0000-0000-0000000000c3',
+  '00600000-0000-0000-0000-0000000000c9'
+);
 
 -- Committed POs (status in the committed set) drive `spent`.
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values

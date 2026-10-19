@@ -12,6 +12,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 export type ExpenseReceiptRow = Tables<'expense_claim_files'>;
 
 const BUCKET = 'expense-receipts';
+export const EXPENSE_RECEIPTS_BUCKET = BUCKET;
 export const RECEIPT_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'] as const;
 export const RECEIPT_INPUT_ACCEPT = RECEIPT_EXTENSIONS.join(',');
 

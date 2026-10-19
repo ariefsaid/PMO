@@ -325,9 +325,10 @@ const Projects: React.FC = () => {
     [projectManagers, t],
   );
 
+  const [classificationResetToken, setClassificationResetToken] = useState(0);
   const classificationCount = activeClassificationCount(workingSet);
   const classificationFilters = (
-    <ProjectClassificationFilters rows={all} value={workingSet} closeOnMobileSelect
+    <ProjectClassificationFilters rows={all} value={workingSet} closeOnMobileSelect resetToken={classificationResetToken}
       onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
       open={classificationOpen} onOpenChange={(next) => {
         setClassificationOpen(next);
@@ -345,6 +346,7 @@ const Projects: React.FC = () => {
   // controls move together and no second event drops the first call. Keeps the view.
   const clearFilters = () => {
     setSearch('');
+    setClassificationResetToken((n) => n + 1);
     setWorkingSet(() =>
       parseListWorkingSet('projects', '', {
         projectsDefaultFilter: roleDefault,

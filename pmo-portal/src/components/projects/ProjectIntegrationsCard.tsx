@@ -1,35 +1,21 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   Icon,
   StatusPill,
   Button,
-  EntityFormModal,
   ConfirmDialog,
-  FormSection,
-  FormGrid,
-  Combobox,
-  SelectField,
-  FieldError,
   ListState,
 } from '@/src/components/ui';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
-import { useEntityForm } from '@/src/components/ui/useEntityForm';
-import { CanWrite } from '@/src/auth/usePermission';
+import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { LinkInput, LinkDirection, ProjectBinding } from '@/src/lib/repositories/types';
+import type { LinkClickUpProjectInput, ProjectBinding } from '@/src/lib/repositories/types';
 import { tierLabel } from '@/src/components/integrations/integrationLabels';
-
-interface LinkFormValues {
-  listId: string;
-  direction: LinkDirection;
-}
-
-const validate = (v: LinkFormValues): Partial<Record<keyof LinkFormValues, string>> => {
-  const errors: Partial<Record<keyof LinkFormValues, string>> = {};
-  if (!v.listId) errors.listId = 'Select a ClickUp List.';
-  return errors;
-};
+import { TaskListMatchReview } from '@/src/components/integrations/TaskListMatchReview';
+import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 
 /**
  * Project-level integration link/unlink control for ClickUp only.
@@ -40,7 +26,15 @@ const validate = (v: LinkFormValues): Partial<Record<keyof LinkFormValues, strin
  * (ADR-0016: can() is UX-only).
  * DEFER(P4/owner): per-project ERPNext company link — ERPNext is org-level; revisit as an org-settings enhancement
  */
-export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ projectId }) => {
+export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?: string; compact?: boolean }> = ({
+  projectId,
+  projectName = '',
+  compact = false,
+}) => {
+  const { t } = useTranslation();
+  const may = usePermission();
+  const canEditProject = may('edit', 'project');
+  const canManageIntegrations = may('manage', 'integration');
   const {
     clickupLists,
     isListsPending,
@@ -66,6 +60,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
 
   // Determine if ClickUp is connected at org level
   const clickupConnected = clickupBinding?.status === 'active';
+  const cardClass = compact ? 'p-3' : 'p-4';
 
   // UI state
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -73,35 +68,32 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
   const [unlinkTier, setUnlinkTier] = useState<'clickup' | null>(null);
   const [confirmUnlinkBindingId, setConfirmUnlinkBindingId] = useState<string | null>(null);
 
-  // Form for link modal
-  const linkForm = useEntityForm<LinkFormValues>({
-    initialValues: { listId: '', direction: 'push-seed' },
-    validate,
-    idPrefix: 'link-form',
-    requiredFields: ['listId'],
-  });
+  const matchProposal = proposeTaskListMatches(
+    [{ id: projectId, name: projectName }],
+    clickupLists,
+    projectBindings,
+  )[0];
+  const proposedListId = matchProposal?.state === 'proposed' ? matchProposal.listId : null;
+  const linkedListIds = new Set(projectBindings
+    .filter((binding) => binding.external_tier === 'clickup' && binding.disconnected_at === null)
+    .map((binding) => binding.external_container_id));
+  const availableClickUpLists = clickupLists.filter((list) => !linkedListIds.has(list.id));
 
   const handleLinkClick = () => {
     setLinkError(null);
-    linkForm.reset({ listId: '', direction: 'push-seed' });
     setIsLinkModalOpen(true);
   };
 
-  const handleLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    await linkForm.handleSubmit(async (values) => {
-      try {
-        const input: LinkInput = { tier: 'clickup', projectId, listId: values.listId, direction: values.direction };
-        await linkProject.mutateAsync(input);
-        setLinkError(null);
-        refetchBindings();
-      } catch (err) {
-        // Surface inline (mixed-case 409 -> action-required)
-        const { detail } = classifyMutationError(err);
-        setLinkError(detail);
-      }
-    });
+  const handleLinkConfirm = async (input: LinkClickUpProjectInput) => {
+    try {
+      await linkProject.mutateAsync(input);
+      setLinkError(null);
+      setIsLinkModalOpen(false);
+      void refetchBindings();
+    } catch (err) {
+      const { detail } = classifyMutationError(err);
+      setLinkError(detail);
+    }
   };
 
   const handleUnlinkClick = (bindingId: string) => {
@@ -125,10 +117,17 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
   };
 
   const renderLinkStatus = (binding: ProjectBinding) => {
-    const direction = (binding.config?.direction as LinkDirection) ?? 'push-seed';
+    const direction = binding.config?.direction;
     const listId = binding.external_container_id;
     const list = clickupLists.find((l) => l.id === listId);
-    const listName = list?.name ?? listId;
+    const listName = list?.name ?? (isListsPending && !isListsError
+      ? t('uxs21.listDetailsLoading', 'Loading list details; saved list ID: {{listId}}', { listId })
+      : t('uxs21.listUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId }));
+    const initialSource = direction === 'push-seed'
+      ? t('uxs21.sourcePmo', 'Start with PMO tasks')
+      : direction === 'pull-adopt'
+        ? t('uxs21.sourceClickUp', 'Start with existing list tasks')
+        : t('uxs21.unknownInitialSource', 'Initial source not recorded');
 
     return (
       <div className="space-y-2.5">
@@ -143,9 +142,30 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
             {listName}
           </span>
           <span>
-            <span className="font-medium text-foreground">Direction:</span>{' '}
-            {direction === 'push-seed' ? 'Push (seed new tasks)' : 'Pull (adopt existing)'}
+            <span className="font-medium text-foreground">{t('uxs21.initialSourceLabel', 'Initial source')}:</span>{' '}
+            {initialSource}
           </span>
+          <p role="status" className="max-w-[65ch] text-foreground">
+            {t('uxs21.initialTransferPending', 'Project linked. Initial task transfer is not confirmed. Ask your integration administrator to complete the initial transfer.')}
+          </p>
+          {isListsError && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{t('uxs21.listReadUnavailable', 'List details could not be refreshed. The saved list link is retained.')}</span>
+              <Button variant="outline" size="sm" onClick={() => refetchLists()}>
+                <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+                {t('uxs21.retryLists', 'Retry list details')}
+              </Button>
+            </div>
+          )}
+          {isBindingsError && (
+            <div className="flex flex-wrap items-center gap-2" role="status">
+              <span>{t('uxs21.bindingReadUnavailable', 'Project link details could not be refreshed. The saved link is retained.')}</span>
+              <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
+                <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+                {t('uxs21.retryBinding', 'Retry project link')}
+              </Button>
+            </div>
+          )}
         </div>
 
         <CanWrite entity="project" action="edit">
@@ -164,11 +184,31 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
   };
 
   const renderNotLinked = () => {
-    if (!clickupConnected) return null;
+    if (!clickupConnected) {
+      return (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            {t('uxs21.clickupNotConnected', 'ClickUp is not connected for this organization.')}
+          </p>
+          {canManageIntegrations ? (
+            <Link
+              to="/administration/integrations"
+              className="inline-flex min-h-8 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {t('uxs21.setupClickUp', 'Set up ClickUp')}
+            </Link>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              {t('uxs21.askIntegrationAdmin', 'Ask an integration administrator to connect ClickUp.')}
+            </span>
+          )}
+        </div>
+      );
+    }
 
     return (
       <CanWrite entity="project" action="edit">
-        <Button variant="outline" size="sm" onClick={handleLinkClick}>
+        <Button variant="outline" size="sm" onClick={handleLinkClick} disabled={isListsPending || linkProject.isPending}>
           <Icon name="plus" className="size-3.55" aria-hidden="true" />
           Link to {tierLabel('clickup')}
         </Button>
@@ -181,13 +221,13 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
     // not-connected org renders the quiet "Not connected" card below instead: a late/stale
     // lists failure (the query is disabled when the binding is inactive, but react-query keeps
     // its last error state) must never hijack an unlinked project's card.
-    if (isListsError && clickupConnected) {
+    if (isListsError && clickupConnected && !projectClickUpBinding) {
       // AC-449-3: human copy ONLY. Never render `listsError.message` — supabase-js transport
       // text ("Failed to send a request to the Edge Function…") is diagnostics, not product
       // copy. Raw detail goes to the DEV console, same rule as classifyMutationError (AC-ERR-002).
       if (import.meta.env.DEV) console.debug('[clickup-lists-error]', listsError);
       return (
-        <Card key="clickup" className="p-4" data-tier="clickup">
+        <Card key="clickup" className={cardClass} data-tier="clickup">
           <div className="flex items-center gap-2">
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
@@ -207,9 +247,9 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
     }
 
     // Error state for project bindings query
-    if (isBindingsError) {
+    if (isBindingsError && !projectClickUpBinding) {
       return (
-        <Card key="clickup" className="p-4" data-tier="clickup">
+        <Card key="clickup" className={cardClass} data-tier="clickup">
           <div className="flex items-center gap-2">
             <Icon name="plug" />
             <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
@@ -229,7 +269,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
     }
 
     return (
-      <Card key="clickup" className="p-4" data-tier="clickup">
+      <Card key="clickup" className={cardClass} data-tier="clickup">
         <div className="flex items-center gap-2">
           <Icon name="plug" />
           <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
@@ -265,13 +305,15 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
   }
 
   return (
-    <div className="space-y-3.5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[15px] font-semibold text-foreground">External Integrations</h3>
-        <p className="text-[12px] text-muted-foreground">
-          Link this project to ClickUp for bi-directional sync.
-        </p>
-      </div>
+    <div className={compact ? 'mt-5 max-w-3xl' : 'space-y-3.5'} data-testid={compact ? 'project-integrations-compact' : undefined}>
+      {!compact && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-foreground">External Integrations</h3>
+          <p className="text-[12px] text-muted-foreground">
+            Link this project to ClickUp for bi-directional sync.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3.5" data-testid="project-integrations-cards">
         {renderClickUpCard()}
@@ -279,63 +321,18 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
 
       {/* Link Modal */}
       {isLinkModalOpen && (
-        <EntityFormModal
+        <TaskListMatchReview
           open
-          title={`Link to ${tierLabel('clickup')}`}
-          subtitle="Select a ClickUp List and choose how to sync this project."
-          submitLabel={`Link to ${tierLabel('clickup')}`}
-          onSubmit={handleLinkSubmit}
+          projectId={projectId}
+          projectName={projectName}
+          lists={availableClickUpLists}
+          proposedListId={proposedListId}
+          canConfirm={canEditProject}
+          saving={linkProject.isPending}
+          error={linkError}
           onClose={() => setIsLinkModalOpen(false)}
-          loading={linkProject.isPending}
-          dirty={linkForm.isDirty}
-          submitDisabled={!linkForm.isComplete}
-          errorSummary={linkError ? [{ fieldId: linkForm.fieldProps('listId').id, message: linkError }] : undefined}
-        >
-          <FormSection legend="Configuration">
-            <FormGrid>
-              <Combobox
-                {...linkForm.fieldProps('listId')}
-                label="ClickUp List"
-                required
-                value={linkForm.values.listId}
-                selectedOption={clickupLists.find((l) => l.id === linkForm.values.listId)
-                  ? {
-                      value: clickupLists.find((l) => l.id === linkForm.values.listId)!.id,
-                      label: clickupLists.find((l) => l.id === linkForm.values.listId)!.name,
-                      sub: clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name
-                        ? `${clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name} / ${clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name}`
-                        : clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name,
-                    }
-                  : null}
-                loadOptions={async () =>
-                  clickupLists.map((l) => ({
-                    value: l.id,
-                    label: l.name,
-                    sub: l.folder_name ? `${l.space_name} / ${l.folder_name}` : l.space_name,
-                  }))
-                }
-                placeholder="Select a list…"
-                searchPlaceholder="Search lists…"
-                noun="list"
-                disabled={linkProject.isPending}
-              />
-              <SelectField
-                label="Sync Direction"
-                options={[
-                  { value: 'push-seed', label: 'Push (seed new tasks)' },
-                  { value: 'pull-adopt', label: 'Pull (adopt existing)' },
-                ]}
-                value={linkForm.values.direction}
-                onChange={(v) => linkForm.fieldProps('direction').onChange(v as LinkDirection)}
-              />
-            </FormGrid>
-          </FormSection>
-          {linkError && (
-            <FieldError id={`${linkForm.fieldProps('listId').id}-submit`}>
-              {linkError}
-            </FieldError>
-          )}
-        </EntityFormModal>
+          onConfirm={handleLinkConfirm}
+        />
       )}
 
       {/* Unlink ConfirmDialog */}

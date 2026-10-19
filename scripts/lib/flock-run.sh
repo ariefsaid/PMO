@@ -92,7 +92,9 @@ if slots > 1:
             fh.close()
     f.seek(0); f.truncate()
 else:
-    f = open(lock_path, "w")
+    # Opening in write mode truncates before flock succeeds, so a waiter would
+    # erase the current lock-owner stamp while it is still blocked.
+    f = open(lock_path, "a")
     if timeout > 0:
         while True:
             try:
@@ -106,6 +108,8 @@ else:
     else:
         sys.stderr.write("[%s] waiting for %s (%s)...\n" % (label, waiting_desc, lock_path))
         fcntl.flock(f, fcntl.LOCK_EX)  # blocks; kernel releases it when this process exits
+    # Replace the prior stamp only after this process owns the lock.
+    f.seek(0); f.truncate()
 waited = time.time() - t0
 sys.stderr.write("[%s] ACQUIRED (waited %.0fs) - running: %s\n" % (label, waited, joined))
 f.write("pid=%d started=%s\n" % (os.getpid(), time.strftime("%H:%M:%S"))); f.flush()

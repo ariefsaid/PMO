@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
+import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';
+
+const collectionsIntegration = vi.hoisted(() => ({
+  companies: [] as Array<{ id: string; name: string }>,
+  arAging: [] as ErpAgingSnapshotRow[],
+  customerLinks: new Map<string, string>(),
+}));
 
 const dash = {
   active_projects: 2, total_contract_value: 8_000_000, currency: 'USD',
@@ -31,13 +38,21 @@ const procurements = [
 
 // N17 budget review now comes from the get_finance_budget_review RPC (committed basis, ranked).
 // Provide 6 ranked-by-variance rows so the FE top-5 slice is observable (Rank6 must NOT render).
+const budgetReviewRow = (input: {
+  id: string; name: string; client_name: string; budget: number; spent: number; variance: number;
+}) => ({
+  status: 'Ongoing Project', currency: 'USD', budget_currency: 'USD', actual_currency: 'USD',
+  actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1,
+  actual_as_of: '2026-10-17T12:00:00Z',
+  ...input,
+});
 const budgetReview = [
-  { id: 'b1', name: 'Rank1', client_name: 'C1', budget: 1_000_000, spent: 1_500_000, variance: 500_000 },
-  { id: 'b2', name: 'Rank2', client_name: 'C2', budget: 1_000_000, spent: 1_400_000, variance: 400_000 },
-  { id: 'b3', name: 'Rank3', client_name: 'C3', budget: 1_000_000, spent: 1_300_000, variance: 300_000 },
-  { id: 'b4', name: 'Rank4', client_name: 'C4', budget: 1_000_000, spent: 1_200_000, variance: 200_000 },
-  { id: 'b5', name: 'Rank5', client_name: 'C5', budget: 1_000_000, spent: 1_100_000, variance: 100_000 },
-  { id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 },
+  budgetReviewRow({ id: 'b1', name: 'Rank1', client_name: 'C1', budget: 1_000_000, spent: 1_500_000, variance: 500_000 }),
+  budgetReviewRow({ id: 'b2', name: 'Rank2', client_name: 'C2', budget: 1_000_000, spent: 1_400_000, variance: 400_000 }),
+  budgetReviewRow({ id: 'b3', name: 'Rank3', client_name: 'C3', budget: 1_000_000, spent: 1_300_000, variance: 300_000 }),
+  budgetReviewRow({ id: 'b4', name: 'Rank4', client_name: 'C4', budget: 1_000_000, spent: 1_200_000, variance: 200_000 }),
+  budgetReviewRow({ id: 'b5', name: 'Rank5', client_name: 'C5', budget: 1_000_000, spent: 1_100_000, variance: 100_000 }),
+  budgetReviewRow({ id: 'b6', name: 'Rank6', client_name: 'C6', budget: 1_000_000, spent: 1_050_000, variance: 50_000 }),
 ];
 
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
@@ -51,12 +66,18 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: collectionsIntegration.companies, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: collectionsIntegration.customerLinks }),
+}));
 // task FIX-2 (Discover CRITICAL 2): empty by default (the unflipped-org state) — the dedicated
 // AccountingSnapshotsSection.test.tsx owns the populated/loading/error render assertions.
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => ({ data: collectionsIntegration.arAging, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // N15 approvals tile reads the real role + timesheet queue.
 vi.mock('@/src/auth/impersonation', () => ({
@@ -75,6 +96,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
+
+beforeEach(() => {
+  collectionsIntegration.companies = [];
+  collectionsIntegration.arAging = [];
+  collectionsIntegration.customerLinks.clear();
+});
 
 describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
   it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
@@ -177,6 +204,26 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
     expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
     expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
+  });
+
+  it('AC-S36-002: links canonical Customer IDs to their exact company collections page', () => {
+    const agingRow: ErpAgingSnapshotRow = {
+      party: 'Customer:C-0001', partyType: 'Customer', currency: 'USD', totalOutstanding: 250,
+      current: 0, bucket0to30: 250, bucket31to60: 0, bucket61to90: 0, bucketOver90: 0,
+      rangeLabels: { b_0_30: '0–30 days' }, reportDate: '2026-10-18', ageingBasedOn: 'Due Date',
+      asOf: '2026-10-18T00:00:00Z', sourceReport: 'Accounts Receivable', reportVersion: '15', snapshotId: 'snapshot-1',
+    };
+    collectionsIntegration.companies = [{ id: 'co-client-1', name: 'Meridian Display Name' }];
+    collectionsIntegration.arAging = [agingRow];
+    collectionsIntegration.customerLinks.set('Customer:C-0001', 'co-client-1');
+
+    renderPane();
+
+    expect(screen.getByText('Customer collections (AR)', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Customer:C-0001' })).toHaveAttribute(
+      'href', '/companies/co-client-1#collections',
+    );
+    expect(screen.queryByText('Meridian Display Name')).not.toBeInTheDocument();
   });
 });
 

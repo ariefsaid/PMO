@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
@@ -22,6 +23,8 @@ import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/er
  */
 
 export interface AccountingSnapshotsSectionProps {
+  showActuals?: boolean;
+  showApAging?: boolean;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
   actualsError?: boolean;
@@ -36,49 +39,102 @@ export interface AccountingSnapshotsSectionProps {
   arAgingPending?: boolean;
   arAgingError?: boolean;
   onRetryArAging?: () => void;
+  customerLinks?: ReadonlyMap<string, string>;
 }
 
-const agingColumns = (orgCurrency: string): Column<ErpAgingSnapshotRow>[] => [
+const agingValue = (value: number | null, currency: string | null, unavailable: string) => {
+  if (value === null || !currency || !/^[A-Z]{3}$/.test(currency)) {
+    return <span className="text-muted-foreground">{unavailable}</span>;
+  }
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      {formatCurrency(value, currency)}
+      <span className="text-muted-foreground">{currency}</span>
+    </span>
+  );
+};
+
+const agingRowKey = (row: ErpAgingSnapshotRow) => [
+  row.snapshotId,
+  row.partyType ?? '',
+  row.party ?? '',
+  row.currency ?? '',
+  row.reportDate ?? '',
+  row.ageingBasedOn ?? '',
+  row.asOf,
+  row.sourceReport ?? '',
+  row.reportVersion ?? '',
+  JSON.stringify(row.rangeLabels ?? {}),
+].join('\u0000');
+
+const agingColumns = (
+  unavailable: string,
+  reportDateLabel: string,
+  ageingBasisLabel: string,
+  rangeLabelsLabel: string,
+  customerLinks?: ReadonlyMap<string, string>,
+): Column<ErpAgingSnapshotRow>[] => [
   {
     key: 'party',
     header: 'Party',
-    cell: (r) => <span className="font-medium">{r.party ?? '—'}</span>,
+    cell: (r) => {
+      const companyId = r.partyType === 'Customer' && r.party ? customerLinks?.get(r.party) : undefined;
+      const ranges = r.rangeLabels && Object.keys(r.rangeLabels).length > 0
+        ? Object.entries(r.rangeLabels).map(([key, value]) => `${key}: ${value}`).join(', ')
+        : unavailable;
+      return (
+        <div className="whitespace-normal">
+          {companyId && r.party ? (
+            <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/companies/${encodeURIComponent(companyId)}#collections`}>
+              {r.party}
+            </Link>
+          ) : (
+            <span className="font-medium">{r.party ?? unavailable}</span>
+          )}
+          <dl className="mt-1 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+            <div><dt className="sr-only">{reportDateLabel}</dt><dd>{reportDateLabel}: {r.reportDate ?? unavailable}</dd></div>
+            <div><dt className="sr-only">{ageingBasisLabel}</dt><dd>{ageingBasisLabel}: {r.ageingBasedOn ?? unavailable}</dd></div>
+            <div><dt className="sr-only">{rangeLabelsLabel}</dt><dd>{rangeLabelsLabel}: {ranges}</dd></div>
+          </dl>
+        </div>
+      );
+    },
   },
   {
     key: 'current',
     header: 'Current',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.current ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => agingValue(r.current, r.currency, unavailable),
   },
   {
     key: 'b0_30',
     header: '0–30',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket0to30 ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => agingValue(r.bucket0to30, r.currency, unavailable),
   },
   {
     key: 'b31_60',
     header: '31–60',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket31to60 ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => agingValue(r.bucket31to60, r.currency, unavailable),
   },
   {
     key: 'b61_90',
     header: '61–90',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket61to90 ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => agingValue(r.bucket61to90, r.currency, unavailable),
   },
   {
     key: 'b90plus',
     header: '90+',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucketOver90 ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => agingValue(r.bucketOver90, r.currency, unavailable),
   },
   {
     key: 'total',
     header: 'Total outstanding',
     align: 'num',
-    cell: (r) => <span className="font-semibold">{formatCurrency(r.totalOutstanding ?? 0, r.currency ?? orgCurrency)}</span>,
+    cell: (r) => <span className="font-semibold">{agingValue(r.totalOutstanding, r.currency, unavailable)}</span>,
   },
 ];
 
@@ -172,14 +228,21 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   arAgingPending,
   arAgingError,
   onRetryArAging,
+  customerLinks,
+  showActuals = true,
+  showApAging = true,
 }) => {
   const { t } = useTranslation();
-  // FR-L10N-020 (D6): aging rows carry the ERP document's OWN currency (nullable) — use it when
-  // present and fall back to the org's. Actuals rows (ErpActualsSnapshotRow) carry no currency
-  // field at all — those figures are org-denominated.
+  // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
+  // currency explicit; a missing or malformed currency cannot inherit the org's currency.
   const orgCurrency = useOrgCurrency();
+  const unavailable = t('dashboard.uxs36Unavailable', 'Unavailable');
+  const reportDateLabel = t('dashboard.uxs36ReportDate', 'Report date');
+  const ageingBasisLabel = t('dashboard.uxs36AgeingBasis', 'Ageing basis');
+  const rangeLabelsLabel = t('dashboard.uxs36ErpRanges', 'ERP ranges');
   return (
   <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
+    {showActuals && (
     <SnapshotBlock<ErpActualsSnapshotRow>
       title="Actuals (ERP ledger)"
       emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
@@ -196,6 +259,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       // separator so concatenation cannot alias two different tuples into one string.
       rowKey={(r) => [r.snapshotId, r.projectId ?? '', r.costCenter ?? '', r.account ?? '', r.fiscalYear ?? ''].join('\u0000')}
     />
+    )}
+    {showApAging && (
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AP aging"
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
@@ -204,20 +269,21 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={apAgingPending}
       isError={apAgingError}
       onRetry={onRetryApAging}
-      columns={agingColumns(orgCurrency)}
-      rowKey={(r) => r.snapshotId + (r.party ?? '')}
+      columns={agingColumns(unavailable, reportDateLabel, ageingBasisLabel, rangeLabelsLabel)}
+      rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
     />
+    )}
     <SnapshotBlock<ErpAgingSnapshotRow>
-      title="AR aging"
+      title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
       pending={arAgingPending}
       isError={arAgingError}
       onRetry={onRetryArAging}
-      columns={agingColumns(orgCurrency)}
-      rowKey={(r) => r.snapshotId + (r.party ?? '')}
+      columns={agingColumns(unavailable, reportDateLabel, ageingBasisLabel, rangeLabelsLabel, customerLinks)}
+      rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
     />
   </section>

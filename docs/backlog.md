@@ -4,9 +4,152 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-17) — v0.21.0 is LIVE, v0.22.0 on `dev`; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
-**Live (owner yes, 2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
+**Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
+**Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
+39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.
+The next dev run, 39190951947 at `48a3a62b`, passed 398 browser
+cases and 12 served-function checks, with zero timing warnings or failures and 67 justified skips.
+After two further tooling merges, dev run 39194552556 at `c13d2e9d` failed: Chromium
+completed 360 passing cases, one timeout and 13 skips; later integration stages did not run.
+S-21 timed out, and the confirm and project-billing journeys exceeded the timing budget.
+Recovery #1186 merged in PR #1189 (`7dadb1d7`): inactive project panels load on demand,
+and the task-link proof is split at its existing saved-row readback. Both ordered cases retain
+normal sign-in, every goal oracle and the original 30s limits. They pass locally in 9.353s and
+9.405s, with protected fixtures unchanged. All six fast checks passed (39208360962); closing
+browser run 39208421135 passed all 399 executed cases and 12 served-function checks, with
+67 justified skips, six timing warnings and no timing failures. The dev browser gate
+39212501320 at `7dadb1d7` passed all 399 cases and 12 served-function checks, with
+67 justified skips, four timing warnings and no timing failures. After the next two engineering
+merges, dev run 39216806168 at `f083b634` failed AC-TAG-002: the pipeline location filter did not
+persist in the URL. Chromium passed 362 cases; serial passed 29 with one failure; later stages did
+not run. The failure evidence is retained, and unrelated code merges are stopped pending correction.
+Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
+Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
+and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
+PMO-side calculation (#1109) is parked after v0.23.0 with its branches, worktrees and capture tooling retained.
+**Owner acceptance disposition (2026-10-19, 17:00 WIB):** the rehearsal's ordinary Finance reads
+and saved-report provenance validation establish the data path. A private-tooling failure prevented
+the local screen proof. The owner moved that remaining screen check to Claude after production's
+first statement backfill (approximately one hour), without changing data-correctness requirements.
+Rehearsal retries are stopped; this screen check does not block dev merges or the dev-to-main PR.
+Production actions still require separate explicit owner approval.
+
+The period picker is on dev in PR #1119 (`f95dbfd8`), with verify, pgTAP and integration green.
+The reusable statement metadata readers merged in PR #1122 (`cbc05518`): all four unit shards,
+verify and pgTAP passed (11,108 unit tests; 6,318 database checks). The native report reader merged
+in PR #1124 (`59581270`), with verify, pgTAP and integration green (11,129 unit tests, 6,318 database
+checks, 337 browser checks and 12 served-function checks). Two existing timing warnings remain tracked
+in #1106; there were no timing failures. Native report collection, atomic publication and scoped reads
+(#1110) merged to dev in PR #1126 (`148aa79e`): all four unit shards, pgTAP and verify passed at the
+final revision. Closing integration passed 337 browser and 12 served-function checks on identical
+runtime trees; four timing warnings are tracked in #1106, with no timing failures and all 67 skips
+justified. Exact-tip cleanup was verified. Statement views (#1111) merged to dev in PR #1146
+(`19a0f7f2`): all four unit shards, pgTAP and verify passed; closing integration passed 381 browser
+and 12 served-function checks, with 67 justified skips and zero timing failures. Three warning-only
+journeys remain tracked in #1106. Exact-tip cleanup was independently verified. Reconstructed-company
+acceptance (#1112/#1114) remains open; merged views do not by themselves complete that live journey.
+The shared project money position (#1081) merged to dev in PR #1128 (`3c675462`): all four unit
+shards, verify and pgTAP passed; the closing integration passed 337 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Invoice presence in management packs (#1083) merged to dev in PR #1130 (`eafbfc6f`): all four
+unit shards, verify and pgTAP passed; closing integration passed 337 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was verified.
+Finance and Executive actuals alignment (#1089) merged to dev in PR #1147 (`bdc2c27d`): all four
+unit shards, verify and pgTAP passed; closing integration passed 358 browser and 12 served-function
+checks, with 67 justified skips and zero timing warnings/failures. Exact-tip cleanup was independently
+verified.
+Business-first record history (#1137 / S-23) merged to dev in PR #1138 (`bc70432c`): all four
+unit shards, verify and pgTAP passed. Existing history assertions and timeouts are retained;
+rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
+Phone pipeline recognition (#1139 / S-24) merged to dev in PR #1140 (`e2381ccd`): all four
+unit shards, verify and pgTAP passed. Existing assertions/timeouts and canonical activation are retained;
+rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup was verified.
+The route-metadata tail was verified with the statement-host integration: the page and route already
+share the same Sales Pipeline title key, so the approved no-edit exception applied. #1139 is closed.
+Project-to-invoice entry (#1136 / S-15) merged to dev in PR #1142 (`f2279421`): all four unit
+shards, verify and pgTAP passed. The real local journey retained its saved project, customer, work-order
+and currency checks; rendered phone/desktop checks cover both languages and themes. Exact-tip cleanup
+was verified.
+Accounting setup selection (#1143 / S-11) merged to dev in PR #1150 (`8808d927`): all four unit
+shards, verify and pgTAP passed; existing save operations and permissions are retained. Invoice draft
+review (#1144 / S-16) merged in PR #1151 (`c0baddb0`) with the same fast CI gates green; source-currency
+amounts, unavailable tax facts and retry payloads are covered. Both slices completed review and rendered
+phone/desktop checks in both languages and themes; exact-tip cleanup was independently verified.
+Tax disclosure (#1158 / S-39) merged in PR #1162 (`19307e3d`): all four unit shards,
+verify and pgTAP passed; the review, rendered checks and final 3,739-test changed-import run passed.
+Exact-tip cleanup was independently verified.
+Receipt entry (#1131 / S-27) merged in PR #1141 (`292f69f2`): all four unit shards, pgTAP
+and verify passed; closing integration passed 381 browser and 12 served-function checks, with
+67 justified skips and zero timing warnings/failures. Reference search (#1159 / S-40) merged in
+PR #1163 (`29979214`) with all four unit shards, pgTAP and verify green, plus its persisted local
+Finance journey, mutation/rollback checks and rendered checks. Both exact-tip cleanups were
+independently verified; full browser integration for S-40 stays with the history lane-closing PR.
+Purchasing stages and daily actions (#1127 / S-19) merged in PR #1165 (`b8757832`): all four
+unit shards, pgTAP and verify passed. The final changed-import run passed 1,805 tests; the real
+local import journey retained its saved-record and source-value checks. Exact-tip cleanup was
+independently verified; full browser integration remains with the purchasing lane-closing PR.
+Receipt-first expense capture (#1161 / S-29) merged to dev in PR #1168 (`39dc2953`): final
+fast CI passed and closing integration passed 384 browser and 12 served-function checks. The
+font-wait correction and current dev were included; its worktree was cleaned. The tax disclosure
+contrast/header fix merged in PR #1169 (`ee28bae6`) after its 383-browser-check run passed.
+The lock ownership-record fix (#1148) merged to dev in PR #1171 (`ec877187`): all four unit
+shards, verify and pgTAP passed, as did four focused process tests. Exact-tip cleanup was
+independently verified. CI registration and the pinned browser runtime (#1170/#1174) merged in
+PR #1176 (`0c299358`), with all fast checks green and all four process tests executed in verify.
+Task-list review (#1160 / S-21) merged in PR #1177 (`00e067cf`), with all fast checks green,
+the real persisted local journey passed, and the final 955-test changed-import run passed.
+Changed-line coverage specificity (#1125) merged in PR #1178 (`519c22d7`): all fast checks and
+28 focused tests passed; the original broad-hit implementation fails the regression controls.
+All three exact-tip cleanups were verified. The earlier red dev run and its evidence remain
+recorded under #1182; the corrected full dev run passed as recorded above.
+Customer collections (#1172 / S-36) merged in PR #1181 (`31294cff`): all six fast checks passed
+at its final revision (run 39188574333; 6,733 pgTAP checks and 97.2% changed-line coverage).
+Its closing browser run 39188593141 passed 386 cases and 12 served-function checks, with zero
+timing warnings or failures. The final 4,338-test changed-import run and real Finance journey
+also passed. Exact-tip and changed-file adoption cleanup was verified.
+The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
+All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
+the complete dev timing proof above closes #1106. Verified publication-worktree cleanup is complete.
+S-35's read-only company view is open against dev in PR #1187 (`15782db2`), including
+the task-list recovery without changing its thirteen reviewed source files. The accepted project-cost
+and billed-work margin helpers are integrated; review, the 4,477-test changed-import gate,
+95.4% changed-line coverage and eight final geometry/accessibility cases passed. Refreshed fast
+CI passed all six checks (39212911722). The first refreshed browser run failed during database
+restart before any browser case; the evidence is retained in #1196. The new logged closing run
+39215200546 passed all 407 browser cases, but its timing gate failed on the S-21 persisted-link
+case (25.632s against the unchanged 25.5s budget). The owner approved a further timed continuation
+split retaining the same Admin journey, page, assertions and 30s limits. This slice is not yet merged.
+Both whole-release reviews are complete against dev `f083b634`; their bounded corrections are
+tracked in #1203 and will share one corrective PR and delta review. Rehearsal acceptance and
+production capacity evidence remain separate open gates.
+Reviewed ERP project matching (#1135 / S-09) remains in signed v0.23.0 scope. Its built branch
+is preserved; current-base integration, owning local acceptance, rendered checks and publication
+remain open. Claude has been asked to take the finishing lane; no scope deferral is approved.
+Full browser integration for accounting setup and invoice draft review remains with the
+billing/purchasing lane-closing PRs. Employee identity
+review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
+exact candidate IDs and cache refresh are covered, with rendered phone/desktop checks in both languages
+and themes. Exact-tip cleanup was independently verified. Continue statement views and rehearsal
+acceptance, money and parallel UX slices.
+
+**Test hygiene (#1071 / PR #1104) is merged to dev** at `915dadfb`.
+Verify and pgTAP passed; final-revision integration passed 337 browser cases, the justified-skip audit,
+and 12 served-function smoke cases. The timing audit reported zero warnings or failures. Assertions
+and existing timeouts are preserved; UIP-005 stayed below 44 seconds in that CI run. Merge ancestry,
+exact branch tips and clean-worktree cleanup were verified. The first local prerequisite (#1101)
+merged to dev in PR #1115 at `8102452a`, with full verification and pgTAP green; verified cleanup is
+complete. The second local prerequisite (#1102) merged in PR #1116 at `673822c2`, with full verification and pgTAP green; verified cleanup is complete. These changes are for dev only. Earlier timing observations remain tracked in #1106; related follow-ups in #1107/#1108.
+
+**Live (owner yes, 2026-10-17):** release **v0.22.0**. `production` == `main` == `c7311780` (tag `v0.22.0`); hosted
+DB at **0309**; all 25 edge functions stamped `440d4846` (the release merge; the version commit changes only version
+files). After-push probes (Director-run): `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
+255 checks / 0 leaks / 0 errors (200 skips: the write checks need a disposable tenant A). The version PR (#1098) merged
+with `--admin` by owner decision: its only failure was UIP-005 exceeding its 120 s budget. The theme split
+merged to `dev` in #1099 on 2026-10-17; its assertions and 120 s timeout are unchanged (local cases: 19–37 s).
+
+**Previous release (2026-10-16):** release **v0.21.0** — `production` == `main` == `6bc41616` (tag `v0.21.0`);
 hosted DB at **0293**; all edge functions stamped `6bc41616`. After-push probes (now Director-run): anon-executable
 definers = the 4 RLS helpers · `second-org-smoke` 20/0 · `second-org-roles-smoke` 81/0 · `isolation-probe`
 248 checks / 0 leaks (194 skips need a disposable tenant A).
@@ -24,9 +167,8 @@ assign the rest, one finance view (#1008/#1028, 0290) · JISDOR exchange-rate ta
 0291) · the Material Request sweep stops requesting a field v16 lacks (#1034) · e2e repairs (#1031, #1036) · CI
 integration timeout 30 → 45 min (#1032).
 
-**ERPNext v16 (DD-OPS-12):** RIS stays on v16. Every push body passes on v16 except Budget, which v16 stores one per
-account — rebuild in progress (#1033, spec `docs/specs/budget-push-v16.spec.md`, ADR-0086 on its branch). **No
-budget activation on a v16 org until it ships.**
+**ERPNext v16 (DD-OPS-12):** budget push support shipped in v0.21.0 (#1033/#1040), using one Budget per
+account. The owner budget-activation action remains listed below; the former implementation blocker is resolved.
 
 **What v0.19.0 carries (over v0.18.0):** import rows say why they failed (#996) · one read-only path for production
 queries (#1003) · an ERPNext Customer/Supplier rename reaches PMO (#1005) · sweep failures recorded and alerted
@@ -40,35 +182,124 @@ labels (#1022 + #1024, 0289, UXS-031).
 values, stages, draft budgets) after its parties were created in ERPNext and synced in. Remaining is in-app
 operator work (outcomes, budget account map, budget activation by a second person, ERPNext project links).
 
-**v0.22.0 — on `dev`, release PR to `main` next (2026-10-17):**
+**What v0.22.0 carries (over v0.21.0):**
 - UX waves 1–2 (slices S-01…S-38 merged, #1061–#1092).
 - Sole-operator budget activation (#1052).
 - Financial statements B1 data foundation (#897 series).
 - Release-review fixes #1088, #1090 and #1091. The last is the one-Actual rule: ERP ledger for orgs with an active
   ERPNext binding (`org_reads_erp_ledger()`, 0307), committed POs otherwise. Completeness and at-risk are one
   predicate (`isActualComplete` / `isMoneyAtRisk` in `src/lib/projectFinances.ts`), and currencies never mix.
-- Migrations 0294–0299, 0301, 0307, 0309. **Next free migration: 0310.**
+- Migrations 0294–0299, 0301, 0307, 0309. **Dev now includes 0310–0315; production remains at 0309.**
 
 **Queue after v0.22.0 is live (owner 2026-10-16/17), in order:**
-1. **Security hardening held locally**: two items, with detail in `docs/private/` only (public repo). The second
-   must close before financial statements are shown to users.
-2. **#1074 statements B1b**: renumber its migrations (0303–0305) above 0309 with `scripts/renumber-migration.sh`,
-   then merge. Its publication hardening is #1068.
-3. **#1071** test hygiene, then **#1073** small correctness fixes.
-4. **Release-review follow-ups**:
-   - #1081 one shared project-money tile builder;
-   - #1089 Finance budget review, top-projects card and approvals badge on the one-Actual rule;
-   - #1083 management pack: earlier foreign-currency invoices.
-5. **Close shipped issues once v0.22.0 is live.** #1050 shipped in #1052; #1033 shipped in v0.21.0. Check #1044,
-   #1045 and #1048 against what shipped first.
-6. **UX waves 3–4** (`docs/ux/2026-10-16-fix-backlog.md`), including the 7 high-priority findings still open:
-   UX-029, 042, 044, 052, 078, 079 and 082.
-7. **Triage**: #1068, #1069, #1070, #1072.
+1. **#1071 test hygiene — complete on dev** (PR #1104; owner priority 2026-10-17). It includes keeping long e2e journeys well inside
+   their time budget and running the integration lane on wave-closing PRs. UIP-005's theme split is merged (#1099).
+2. **Security hardening held locally — both source changes merged to dev** (#1101 / PR #1115;
+   #1102 / PR #1116). Detail stays in `docs/private/` (public repo). Production deployment remains separately gated.
+3. **#1074 statements B1b — merged to dev** at `301d433a`: migrations 0312–0314, source compatibility
+   reviewed and local final gates passed. Final-revision CI passed 10,926 unit tests and 6,291 database
+   assertions; integration passed 337 browser and 12 served checks. All 67 skips were explained; zero
+   timing failures, three warnings tracked in #1106. Exact-tip/merge ancestry and clean-worktree cleanup verified.
+4. **Complete v0.23.0 financial-statement display (#897)** on dev: native standard-report fetch,
+   bounded resumable sweep capture and atomic publication/read (#1110), company/project views (#1111),
+   and executed display acceptance (#1112). ERPNext supplies every financial value; PMO preserves
+   the saved output. Independent aggregation (#1109), its native calculation matrix and any derived
+   unassigned remainder are parked after v0.23.0. The period picker merged to dev in PR #1119 at
+   `f95dbfd8`: 10,977 unit tests, 6,318 database assertions, 337 browser cases and 12 served checks passed;
+   the timing audit had zero warnings/failures and all 67 skips were justified. Metadata, publication,
+   reads and UI states are being reused; their local checkpoints are not complete release acceptance.
+   **Plan corrections (owner 2026-10-18):** refresh only the current and previous period every sweep, and an
+   older period only when a ledger change affects it, including later historical Trial Balance/Balance Sheet
+   opening or accumulated balances after a backdated entry (a full pass is 2,688 report calls);
+   #1068's pre-publication items are decided for the display path inside v0.23.0, not left to triage.
+   **v0.23.0 scope also includes (owner 2026-10-18):** the money-tile follow-ups #1081, #1089, #1083 and UX waves
+   3–4 (S-09, S-11, S-15, S-16, S-19, S-21, S-23, S-24, S-27, S-29, S-30, S-35, S-36, S-39, S-40). Statements stay
+   the critical path; these fill spare lanes. S-35 (company position) builds on the statement views; S-27 is a
+   money-path slice (Director-dispatched).
+   **Release steps for v0.23.0 (each still owner-gated):** Sol and Claude Opus whole-release security reviews → PR `dev`→`main` with
+   integration → production deploy back to front (DB → edge functions → frontend; it also carries #1101/#1102)
+   → after-push probes, including isolation-probe entries for the new statement tables.
+5. **Correctness follow-ups (#1073) merged to dev** in PR #1118 at `595afaa1`. Final verification and
+   pgTAP passed; full integration passed 337 browser and 12 served checks. All 67 skips were justified;
+   timing reported zero warnings or failures. Exact-tip cleanup was verified.
+   **Release-review follow-ups #1081, #1089, #1083 moved into v0.23.0** (see item 4).
+6. **Shipped-issue verification completed (2026-10-18).** Closed #1050 (PR #1052), #1033 (PR #1040),
+   #1045 (PRs #1082/#1091), and #1048 (PR #1049) after checking shipped behavior, owning tests and merge ancestry.
+   #1044 remains open for the broader cross-record-page acceptance.
+7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
+8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
+
+Final owner cadence decision (2026-10-19 15:45/16:15 WIB; bounded release-review refinement in PR #1212): Keep the five-minute cron trigger. The whole ERPNext sweep runs during UTC minutes 0–4. Between those windows, a statement-eligible binding without a matching first publication may keep five-minute progress for up to six hours after activation, or while its matching native report batch has been open for less than six hours. Match the existing collector eligibility and the current company, binding identity, activation instant, version and project map. A future activation timestamp does not extend either window. Older connections start collection on an ordinary hourly attempt; once that attempt opens a validated batch, its bounded five-minute continuation can finish the initial catalogue (normally about one hour after collection starts). Expired or unconfirmed batch windows follow the hourly cadence. Other ticks make no ERP calls or domain writes. Immediate dispatch and ClickUp cadence remain unchanged; keep the existing seven-second stage and five-second request bounds. No schedule migration or statement-only gate applies. The handler gate belongs in the release fix bundle (OD-ERP-023).
+
+**Final release-gate override (owner, 2026-10-19 17:08 WIB; v0.23.0 only):** merge the
+corrective PR #1209 after its already-running browser gate passes. The remaining #1187, #1208 and
+#1212 require all six fast checks; #1208 also requires its local served acceptance proof and #1212
+its final review correction. Do not dispatch further per-PR or dev browser runs for these slices.
+After the last merge, open the dev-to-main release PR: its automatic integration job is the one
+combined browser gate. Main merge and production remain owner-gated.
+
+### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
+
+Start in parallel with fresh workers and separate worktrees. Keep this scope separate from
+v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
+Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
+
+Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
+its dev merge stays held. Durable browser-dispatch reservations (#1133) merged in
+PR #1190 (`8089acff`), and browser inventory/reporter adapters (#1188) merged in
+PR #1192 (`f083b634`), both with all six fast checks green and verified cleanup.
+The remaining sharding implementation is checkpointed for release-review capacity; runner fanout
+remains a separate capacity decision. The static locale guard (#1069) is reviewed with all fast
+checks green in draft PR #1195; its dev merge stays held. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
+with all six fast checks green and the private adapter adopted. Verified cleanup (#1113) merged
+in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests covering 43 failure
+boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
+closed on the complete dev timing proof above; the editor observation (#1108) remains in diagnosis.
+Any resulting editor product change stays held with the other v0.24.0 app changes.
+The approval-tile and sales-invoice Bahasa item (#1011) is closed as already shipped in
+PR #1021 (`4e3ed641`), included in v0.22.0; its translated visible/help labels and shared noun
+are covered by the shipped-catalogue tests.
+
+**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners (#1188);
+#1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
+Required checks `verify` and `integration` must still cover every test, and a failed shard must
+fail its required check. No silent skips or weaker test oracles. The pinned Deno 2.7.11 browser-job
+prerequisite (#1174) and lock-wrapper process tests in verify (#1170) are approved. The Director
+now owns `.github/workflows/ci.yml`; its previous reservation ended after #1121 merged.
+New test-only follow-ups: #1210 preserves project context settings in shared browser journeys;
+#1211 qualifies optional first-line representations in expense capture without changing its contract.
+
+**Build/review/CI now; hold app changes on their branches:** #1043, #1044, #1030, #1011, #1018,
+#1012, #1008, #1072, #1069, #1070, #1145, #1153, #1154, #1155, #1156, #1157, #1164, #1166 and
+#1129 and #1213 (connection-setup qualification). Merge these to dev only after the v0.23.0
+dev-to-main PR has merged. The 17:08 release-gate direction authorizes opening the release PR
+after the remaining slices land; merging main and production remain separately owner-gated.
+
+**Immediately after v0.23.0 ships:** #1134 restores the one-browser-run cap agreed with MOS.
+Until then, the existing v0.23.0-only two-run allowance and two-heavy-local-run limit remain.
 
 **Owner actions after v0.22.0:**
 - Activate the Kajian budget (sole-operator path).
 - Answer: should the accountant list be in Indonesian?
 - Answer: how should an out-of-scope invoice (#1046) count against remaining-to-invoice?
+
+**Parallel delivery (owner, 2026-10-18):** statements remain the critical path. Three additional UX
+lanes cover billing/collections, purchasing/tax/integration setup, and history/phone/capture/employee.
+S-27 remains Director-dispatched; S-35 follows the statement views. Slice PRs use the normal four
+unit shards, pgTAP and verify. Browser integration runs on lane-closing PRs or completed statement/money
+pieces; up to two may run together through the logged wrapper. Keep at most two heavy local runs.
+Translation edits rebase immediately before their PR (#1070).
+After every 2–3 slice merges, also run browser integration on `dev` itself; a red dev run stops new
+merges until fixed (owner, 2026-10-19). Use a fresh worker with a full brief for each new task.
+
+**Owner decisions for v0.23.0 (2026-10-18):**
+- Native report access confirmed. Remove System Settings dependency; do not require System Manager.
+  Currency/report metadata supplies display precision; native amounts remain untouched (#1068).
+- Rehearsal (#1114): separate site on the existing local ERPNext v16 stack using locally held input
+  files. No new infrastructure or off-device production data transfer.
+- Both Sol and Claude Opus whole-release security reviews before any dev-to-main PR. Notify Claude
+  when the release candidate is ready on dev; main and production remain unauthorized.
+- Size serial sweep segments/cadence from measured per-call cost with capacity headroom.
 
 **Next (build queue):** the UX Discover complete-closure follow-up queue (§4 of the local-only synthesis; filed:
 #986 #991 #994) · #998 (sweep errors are invisible — record them durably and alert on a stalled cursor) · #980
@@ -81,9 +312,9 @@ isolation probe's write checks.
 
 **How work runs right now:** the owner talks to ONE session, the Director, which is also the orchestrator (from
 2026-10-17, for a few days, Sol, via the local-only handoff in `docs/private/orchestration/HANDOFF.md`). Builds,
-fixes and reviews go to pi (`pi-dispatch build|review|review-money|plan`, routing at the top of
-`docs/pi-delegation.md`) or the factory (`adws/adw_simple_sdlc.py`) — ONE reviewer per PR; Claude orchestrates,
-merges and deploys. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
+fixes use native Codex Luna xhigh lanes in isolated worktrees (owner override, 2026-10-18); specs/plans
+and whole-wave reviews use another Sol. Per-part spec/quality/security reviews stay on pi GLM — one
+review, one fix round, then Director verification. The Director lands reviewed work to dev only. **Watch the release PR's `integration` lane after every merge to `dev`**, including the
 **serial** lane: a red chromium lane stops the run before the serial lane, so serial breakage surfaces one release
 run later (2026-10-13: run the full serial lane locally once chromium is green). Re-running a failed CI run needs
 the owner's OK and goes through `scripts/ci-e2e.sh --owner-ok`; that dispatch is not attached to the PR's checks, so

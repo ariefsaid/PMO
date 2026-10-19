@@ -182,17 +182,22 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
   assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
   assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
-  // Cheap failures first: typecheck and lint before the (slow) unit + coverage suite.
-  assert.ok(at('run: npm run typecheck') < at('run: npm run test:coverage'), 'typecheck must precede unit tests');
-  assert.ok(
-    at('run: npm run lint:ci') !== -1 && at('run: npm run lint:ci') < at('run: npm run test:coverage'),
-    'lint must precede unit tests',
-  );
+  // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
+  // shard fails, and merge every shard's report + coverage before the changed-lines gate.
+  const merge = at('run: npx vitest run --merge-reports --coverage');
+  assert.match(verifyJob, /\n    needs: unit\n/, 'verify must need the sharded unit job');
+  assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
+  assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(unitJob, /shard: \[1, 2, 3, 4\]/, 'unit job must run every shard');
+  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/4 .*--reporter=blob/, 'each shard must record coverage');
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
-  assert.match(verifyJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
+  assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
   const integration = workflow.slice(workflow.indexOf('\n  integration:'));
   assert.match(
     integration,
@@ -200,7 +205,22 @@ test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration ga
     'pgTAP in integration must be skipped ONLY on a dispatch (never on the PR-to-main gate)',
   );
   const dispatcher = readFileSync(new URL('./ci-e2e.sh', import.meta.url), 'utf8');
-  assert.match(dispatcher, /--ref "\$branch" -f run_pgtap="\$pgtap"/);
+  assert.match(
+    dispatcher,
+    /coordinator=\(node "\$SCRIPT_DIR\/lib\/ci-dispatch-reservations\.mjs" coordinate/,
+    'the locked wrapper must delegate dispatch to the reservation coordinator',
+  );
+  assert.match(dispatcher, /exec "\$\{coordinator\[@\]\}"/, 'the wrapper must execute the coordinator argv');
+
+  // The argument owner moved from this Bash wrapper into the coordinator. Keep the literal
+  // branch and PR-dependent pgTAP contract bound to that owner; the coordinator process test
+  // exercises the actual argv for both PR states and for a shell-significant branch value.
+  const coordinator = readFileSync(new URL('./lib/ci-dispatch-reservations.mjs', import.meta.url), 'utf8');
+  assert.match(
+    coordinator,
+    /function dispatchArgs\(repo, workflow, branch, pr\) \{\s*const runPgtap = pr === null \? 'true' : 'false';\s*return \['workflow', 'run', workflow, '-R', repo, '--ref', branch, '-f', `run_pgtap=\$\{runPgtap\}`\];\s*\}/,
+    'the coordinator must pass branch as one argv value and preserve run_pgtap for absent/present PRs',
+  );
 });
 
 test('the full verify gate enforces edge-function test binding', () => {
@@ -229,6 +249,59 @@ test('the project instructions name CI as the PR-to-main gate and verify-main-pr
   const instructions = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
   assert.match(instructions, /PRs to `main` gate on CI's `verify` \+ `integration`/);
   assert.match(instructions, /scripts\/verify-main-pr\.sh[\s\S]*reproduces CI's PR-to-`main` run/);
+});
+
+test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the safe summary', () => {
+  const verifyStart = workflow.indexOf('\n  verify:');
+  const pgtapStart = workflow.indexOf('\n  pgtap:');
+  assert.ok(verifyStart !== -1 && pgtapStart > verifyStart, 'verify job bounds are invalid');
+  const verifyJob = workflow.slice(verifyStart, pgtapStart);
+  assert.match(verifyJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
+
+  const ordinaryStart = workflow.indexOf('- name: E2E tests (Playwright / Chromium)');
+  const skipStart = workflow.indexOf('- name: E2E skip audit — every skip is explained');
+  const auditStart = workflow.indexOf('- name: E2E timing budget audit');
+  const uploadStart = workflow.indexOf('- name: Upload E2E timing summary');
+  const servedStart = workflow.indexOf('- name: Serve adapter-dispatch (served-fn lane smoke)');
+  for (const [label, at] of [['ordinary E2E', ordinaryStart], ['skip audit', skipStart], ['timing audit', auditStart], ['timing summary upload', uploadStart], ['served smoke', servedStart]]) {
+    assert.notEqual(at, -1, `${label} step is missing`);
+  }
+  const nextStep = at => workflow.indexOf('\n      - name:', at + 1);
+  const ordinaryEnd = nextStep(ordinaryStart);
+  const skipEnd = nextStep(skipStart);
+  const auditEnd = nextStep(auditStart);
+  const uploadEnd = nextStep(uploadStart);
+  assert.ok(ordinaryEnd > ordinaryStart && skipEnd > skipStart && auditEnd > auditStart && uploadEnd > uploadStart, 'step bounds are invalid');
+  const ordinary = workflow.slice(ordinaryStart, ordinaryEnd);
+  const skip = workflow.slice(skipStart, skipEnd);
+  const auditStep = workflow.slice(auditStart, auditEnd);
+  const uploadStep = workflow.slice(uploadStart, uploadEnd);
+  const servedSmoke = workflow.slice(servedStart);
+
+  assert.match(ordinary, /id: ordinary_e2e/);
+  const commands = [
+    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --reporter=list,json',
+    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json',
+    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json',
+  ];
+  for (const command of commands) assert.equal(ordinary.split(command).length - 1, 1, `ordinary lane command must remain exactly once: ${command}`);
+  assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 3, 'timing work must not add a second Playwright invocation');
+  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  assert.ok(auditStart > skipStart && auditStart < servedStart, 'audit must follow skip validation and precede served-function cleanup');
+
+  const condition = /if: \$\{\{\s*always\(\)\s*&&\s*!cancelled\(\)\s*&&\s*\(steps\.ordinary_e2e\.outcome == 'success' \|\| steps\.ordinary_e2e\.outcome == 'failure'\)\s*\}\}/;
+  assert.match(auditStep, condition, 'audit must run after either success or failure of the ordinary E2E step');
+  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  assert.doesNotMatch(auditStep, /npx playwright test/);
+  assert.match(uploadStep, condition, 'summary upload must run when the audit or ordinary lane failed');
+  assert.match(uploadStep, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
+  assert.match(uploadStep, /name: e2e-time-budget-summary/);
+  assert.match(uploadStep, /path: \/tmp\/pw-time-budget-summary\.json/);
+  assert.match(uploadStep, /retention-days: 7/);
+  assert.match(uploadStep, /if-no-files-found: error/);
+  assert.doesNotMatch(uploadStep, /pw-(chromium|serial|consent)\.json/);
+  assert.ok(uploadEnd < servedStart, 'summary must be retained before served-function cleanup');
+  assert.match(servedSmoke, /playwright test served-fn-smoke --project=chromium/);
 });
 
 test('post-merge cleanup is verify-first and removes worktrees before branches', () => {

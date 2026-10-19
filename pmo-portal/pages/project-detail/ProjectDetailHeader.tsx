@@ -25,7 +25,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import type { CommitmentSource } from '@/src/hooks/useProcurements';
-import { deriveActualPosition, deriveContractRemainingFromPosition, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -135,41 +135,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
 
   const contract = project.contract_value ?? 0;
-  const committed = committedSpend;
-  // Keep the PMO purchase-order amount distinct from Actual; Actual is read from the scoped
-  // project-finances source and is withheld unless category coverage is complete.
-  // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
-  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
-  const activeBudget = derivedBudget ?? 0;
-  const financeQuery = useProjectFinances(project.id);
-  const actuals = financeQuery.data?.actuals;
-  const authorizedActuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : actuals;
-  const actualPosition = deriveActualPosition({ ledgerBasis,
-    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals: authorizedActuals });
-  const actualAmount = actualPosition.complete && actualPosition.currency === project.currency && actualPosition.amount !== null
-    ? Number(actualPosition.amount) : null;
-  const actualLabel = actualPosition.complete && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : ledgerBasis === 'pmo' && commitmentPending
-      ? t('uxs01.actualLoading', 'Loading Actual…')
-      : actuals?.categories.some((category) => !category.mapped) || actuals?.excludes_restricted_rows
-        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
-        : t('uxs01.actualUnavailable', 'Unavailable');
-  const actualCoverage = actualPosition.basis === 'pmo'
-    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
-    : actuals?.categories.length
-      ? actuals.categories.every((category) => category.mapped) && !actuals.excludes_restricted_rows
-        ? t('uxs01.completeCoverage', 'Complete category coverage')
-        : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: actuals.categories.filter((category) => category.mapped).length, total: actuals.categories.length })
-      : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
-  const contractAfterCost = actualPosition.complete
-    ? deriveContractRemainingFromPosition(project.contract_value, actualPosition, project.currency) : null;
-  const contractAfterCostUnits = contractAfterCost === null ? null : moneyUnits(contractAfterCost);
-  const contractAfterCostLabel = contractAfterCost === null
-    ? t('uxs01.actualUnavailable', 'Unavailable')
-    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
-  const spendPct = actualAmount !== null && activeBudget > 0 ? Math.round((actualAmount / activeBudget) * 100) : null;
-
   const status = project.status as string;
   const isOnHand = ON_HAND_STATUSES.includes(status);
   // Model B (ADR-0020): a pre-win (pipeline) / terminal (lost) deal has no contract yet, so the
@@ -183,6 +148,39 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // relocated to the Overview "Financial summary" aside. Finance-forward roles (Admin·Exec·Finance·PM)
   // keep the header unchanged. FE-only reprioritization — never hides RLS-permitted data.
   const isFinanceForward = hasFinanceView(realRole);
+  const committed = committedSpend;
+  // Keep the PMO purchase-order amount distinct from Actual; Actual is read from the scoped
+  // project-finances source and is withheld unless category coverage is complete.
+  // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
+  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
+  const activeBudget = derivedBudget ?? 0;
+  const financeQuery = useProjectFinances(project.id, { enabled: isDelivery && isFinanceForward });
+  const actuals = financeQuery.data?.actuals;
+  const authorizedActuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : actuals;
+  const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
+    actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
+  const actualPosition = moneyPosition.actual;
+  const actualLabel = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+    : moneyPosition.headlineState === 'loading'
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : moneyPosition.headlineState === 'partial'
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : t('uxs01.actualUnavailable', 'Unavailable');
+  const actualCoverage = moneyPosition.coverage.kind === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : moneyPosition.coverage.kind === 'complete'
+      ? t('uxs01.completeCoverage', 'Complete category coverage')
+      : moneyPosition.coverage.kind === 'partial'
+        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
+        : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
+  const contractAfterCost = moneyPosition.contractAfterCost;
+  const contractAfterCostTone = moneyPosition.contractAfterCostTone;
+  const contractAfterCostLabel = contractAfterCost === null
+    ? t('uxs01.actualUnavailable', 'Unavailable')
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
+  const spendPct = moneyPosition.spendPercent;
 
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
@@ -271,7 +269,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     {
       label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
       value: contractAfterCostLabel,
-      ...(contractAfterCostUnits === null ? {} : { tone: contractAfterCostUnits < 0n ? 'neg' as const : 'pos' as const }),
+      ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
     },
     {
       label: t('projectDetail.header.tile.spend', 'Spend'),
@@ -575,7 +573,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
           {project.tax_treatment && (
             <div className="mb-1 text-[11px] text-muted-foreground">
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="contract-tile-tax-basis" />
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} detailsMode="disclosure" testId="contract-tile-tax-basis" />
             </div>
           )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>

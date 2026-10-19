@@ -71,9 +71,39 @@ defaults:
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
+  # The Vitest suite split across 4 parallel runners (one runner took ~28 min). Each shard writes a
+  # blob report with its coverage; `verify` merges them, so the required `verify` check still owns
+  # every unit test and the changed-lines coverage gate.
+  unit:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+      - run: npm ci
+      - name: Unit tests (shard ${{ matrix.shard }}/4, + coverage)
+        run: npx vitest run --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unit-blob-${{ matrix.shard }}
+          path: pmo-portal/.vitest-reports/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
   verify:
     # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
-    if: github.event_name != 'workflow_dispatch'
+    # `!cancelled()`: a failed shard must FAIL verify, not skip it (a skipped required check passes).
+    needs: unit
+    if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,8 +133,12 @@ jobs:
       - name: CI integration-order test
         working-directory: .
         run: |
-          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
+          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs scripts/dispatch-result.test.mjs scripts/ci-e2e-coordination.test.mjs
+          node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test scripts/statement-metadata-readiness.test.mjs
+          node --test scripts/verified-post-merge-cleanup.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
+          node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
@@ -134,8 +168,15 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
-      - name: Unit tests (+ coverage)
-        run: npm run test:coverage
+      - name: Unit shards all passed
+        run: test "${{ needs.unit.result }}" = success
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: unit-blob-*
+          path: pmo-portal/.vitest-reports/
+          merge-multiple: true
+      - name: Unit tests (+ coverage) — merge the 4 shard reports
+        run: npx vitest run --merge-reports --coverage
       - name: Changed-lines coverage gate (≥80%)
         if: github.event_name == 'pull_request'
         working-directory: .
@@ -152,6 +193,10 @@ jobs:
             --min 80
       - name: Build
         run: npm run build
+      - name: Lock wrapper process tests
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests -v
+
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
@@ -286,6 +331,10 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
 
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: '2.7.11'
+
       - name: Install Node dependencies
         working-directory: pmo-portal
         run: npm ci
@@ -371,6 +420,7 @@ jobs:
       # started for every project invocation below since `webServer` is a top-level config, not
       # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
       - name: E2E tests (Playwright / Chromium)
+        id: ordinary_e2e
         working-directory: pmo-portal
         run: |
           # ⚑ PLAYWRIGHT_JSON_OUTPUT_NAME, never a shell redirect. `--reporter=list,json > file` sends BOTH
@@ -393,6 +443,20 @@ jobs:
         # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
         # entry looks stale in another lane's report and the gate fails itself.
         run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+
+      - name: E2E timing budget audit
+        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        working-directory: .
+        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+
+      - name: Upload E2E timing summary
+        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-time-budget-summary
+          path: /tmp/pw-time-budget-summary.json
+          retention-days: 7
+          if-no-files-found: error
 
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI

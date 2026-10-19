@@ -18,7 +18,8 @@
  * Owning layer: Vitest/RTL — pure FE, no DB.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -39,10 +40,8 @@ const { projectsBox } = vi.hoisted(() => ({
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
-// #566: the Overview tab now renders <ProjectDrawdown>, which reads through react-query. These
-// specs predate it and mount without a QueryClientProvider, so the hook is stubbed here rather
-// than the whole tree re-hosted. Held in its loading state so it contributes no text of its own —
-// the drawdown's own states are covered in ProjectDrawdown.test.tsx.
+// #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
+// Keep it in its loading state here so it contributes no text of its own to position assertions.
 vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -194,8 +193,8 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
  * The overview tab is explicit so the tabpanel content (including the relocated
  * financial summary for Engineer) is immediately visible.
  */
-const renderPage = (realRole: Role, path = '/projects/p1/overview') =>
-  render(
+const renderPage = async (realRole: Role, path = '/projects/p1/overview') => {
+  const view = render(
     <ImpersonationProvider realRole={realRole}>
       <ToastProvider>
         <MemoryRouter initialEntries={[path]}>
@@ -207,6 +206,9 @@ const renderPage = (realRole: Role, path = '/projects/p1/overview') =>
       </ToastProvider>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 beforeEach(() => {
   projectsBox.data = [onHandRow];
@@ -221,8 +223,8 @@ beforeEach(() => {
 describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail page', () => {
   // ── (a) Engineer: no finance block above the tablist ─────────────────────
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-01: Engineer — no finance StatTile labels appear in the DOM before the tablist', () => {
-    const { container } = renderPage('Engineer');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-01: Engineer — no finance StatTile labels appear in the DOM before the tablist', async () => {
+    const { container } = await renderPage('Engineer');
 
     const tablist = container.querySelector('[role="tablist"]');
     expect(tablist).not.toBeNull();
@@ -247,8 +249,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     }
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-02: Engineer — "Financial summary" section appears INSIDE the Overview tabpanel', () => {
-    const { container } = renderPage('Engineer');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-02: Engineer — "Financial summary" section appears INSIDE the Overview tabpanel', async () => {
+    const { container } = await renderPage('Engineer');
 
     // The tabpanel (role="tabpanel") wraps the active tab content.
     const tabpanel = container.querySelector('[role="tabpanel"]');
@@ -260,8 +262,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(tabpanel!.contains(summary!)).toBe(true);
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-03: Engineer — finance StatTile labels appear INSIDE the tabpanel, not above it', () => {
-    const { container } = renderPage('Engineer');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-03: Engineer — finance StatTile labels appear INSIDE the tabpanel, not above it', async () => {
+    const { container } = await renderPage('Engineer');
 
     const tabpanel = container.querySelector('[role="tabpanel"]');
     expect(tabpanel).not.toBeNull();
@@ -284,8 +286,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(tabpanel!.contains(sodRow!)).toBe(true);
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-04: Engineer — the tablist comes BEFORE the tabpanel in DOM order', () => {
-    const { container } = renderPage('Engineer');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-04: Engineer — the tablist comes BEFORE the tabpanel in DOM order', async () => {
+    const { container } = await renderPage('Engineer');
 
     const tablist = container.querySelector('[role="tablist"]');
     const tabpanel = container.querySelector('[role="tabpanel"]');
@@ -300,8 +302,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
 
   // ── (b) CW-7: Engineer now defaults to Overview (role-invariant URL) ───────
 
-  it('CW-7 (was AC-IXD-PROJ-W5-C3-D15-POS-05): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', () => {
-    const { container } = renderPage('Engineer', '/projects/p1');
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-D15-POS-05): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', async () => {
+    const { container } = await renderPage('Engineer', '/projects/p1');
 
     // CW-7: the no-tab default is role-invariant Overview for every role.
     const tablist = container.querySelector('[role="tablist"]');
@@ -320,10 +322,10 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(tabpanel!.contains(summary!)).toBe(true);
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-06: Engineer switching to Overview tab reveals the "Financial summary" inside the tabpanel', () => {
+  it('AC-IXD-PROJ-W5-C3-D15-POS-06: Engineer switching to Overview tab reveals the "Financial summary" inside the tabpanel', async () => {
     // Note: navigate is a vi.fn() no-op so the URL doesn't change on tab click.
     // We navigate directly to the overview deep-link to verify the financial-summary appears.
-    const { container: overviewContainer } = renderPage('Engineer', '/projects/p1/overview');
+    const { container: overviewContainer } = await renderPage('Engineer', '/projects/p1/overview');
 
     const tabpanel = overviewContainer.querySelector('[role="tabpanel"]');
     expect(tabpanel).not.toBeNull();
@@ -336,8 +338,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
 
   // ── (c) PM (finance-forward): finance stays above tabs, no double in Overview ──
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-07: PM (finance-forward) — finance StatTiles appear ABOVE the tablist in DOM order', () => {
-    const { container } = renderPage('Project Manager');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-07: PM (finance-forward) — finance StatTiles appear ABOVE the tablist in DOM order', async () => {
+    const { container } = await renderPage('Project Manager');
 
     const tablist = container.querySelector('[role="tablist"]');
     expect(tablist).not.toBeNull();
@@ -352,8 +354,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(anyPrecedesTablist).toBe(true);
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-08: PM (finance-forward) — the Overview tabpanel does NOT contain a second "Financial summary" aside', () => {
-    const { container } = renderPage('Project Manager');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-08: PM (finance-forward) — the Overview tabpanel does NOT contain a second "Financial summary" aside', async () => {
+    const { container } = await renderPage('Project Manager');
 
     const tabpanel = container.querySelector('[role="tabpanel"]');
     expect(tabpanel).not.toBeNull();
@@ -364,8 +366,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(summaryInsidePanel).toBeNull();
   });
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-09: PM (finance-forward) — contract-value SoD row is in the header (above tabpanel)', () => {
-    const { container } = renderPage('Project Manager');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-09: PM (finance-forward) — contract-value SoD row is in the header (above tabpanel)', async () => {
+    const { container } = await renderPage('Project Manager');
 
     const tabpanel = container.querySelector('[role="tabpanel"]');
     const sodRow = container.querySelector('[data-testid="contract-value-sod"]');
@@ -377,8 +379,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
 
   // ── (d) Engineer: the financial-summary aside has correct a11y label ──────
 
-  it('AC-IXD-PROJ-W5-C3-D15-POS-10: Engineer — the "Financial summary" aside has aria-label and is inside the tabpanel', () => {
-    const { container } = renderPage('Engineer', '/projects/p1/overview');
+  it('AC-IXD-PROJ-W5-C3-D15-POS-10: Engineer — the "Financial summary" aside has aria-label and is inside the tabpanel', async () => {
+    const { container } = await renderPage('Engineer', '/projects/p1/overview');
 
     const tabpanel = container.querySelector('[role="tabpanel"]');
     const summary = tabpanel?.querySelector('[data-testid="financial-summary"]');

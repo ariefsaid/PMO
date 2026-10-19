@@ -85,9 +85,9 @@ async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
   await pickComboboxOption(form, page, /^(?:Sales Invoice|Faktur Penjualan)/, /INV-\d{10}/);
-  if (startsAt) await expect(form.getByLabel(localized('Paid Amount', 'Jumlah Dibayar'))).toHaveValue(startsAt);
-  await form.getByLabel(localized('Paid Amount', 'Jumlah Dibayar')).fill(amount);
-  await form.getByLabel(localized('Received Amount', 'Jumlah Diterima')).fill(amount);
+  if (startsAt) await expect(form.getByLabel(localized('Amount settled', 'Jumlah yang dilunasi'))).toHaveValue(startsAt);
+  await form.getByLabel(localized('Amount settled', 'Jumlah yang dilunasi')).fill(amount);
+  await form.getByLabel(localized('Cash received', 'Kas diterima')).fill(amount);
   await form.getByRole('button', { name: localized('Record payment', 'Catat pembayaran') }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
 }

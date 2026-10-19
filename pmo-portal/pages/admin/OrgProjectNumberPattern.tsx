@@ -4,8 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { Button, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
-import { useOrgProjectNumberPatternQuery, ORG_PROJECT_NUMBER_PATTERN_KEY } from '@/src/hooks/useOrgProjectNumberPattern';
-import { previewProjectNumber, validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
+import {
+  useOrgProjectNumberPatternQuery,
+  useOrgProjectNumberTimezoneQuery,
+  ORG_PROJECT_NUMBER_PATTERN_KEY,
+} from '@/src/hooks/useOrgProjectNumberPattern';
+import { previewProjectNumber, projectNumberYear, validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
@@ -18,6 +22,12 @@ const OrgProjectNumberPattern: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data, isError, isSuccess, refetch } = useOrgProjectNumberPatternQuery();
+  const timezoneQuery = useOrgProjectNumberTimezoneQuery();
+  const timezoneRead = timezoneQuery.isSuccess && !timezoneQuery.isPlaceholderData && timezoneQuery.data !== undefined;
+  const previewYear = timezoneRead
+    ? projectNumberYear(new Date(), timezoneQuery.data.timezone ?? 'UTC')
+    : null;
+  const timezoneReadPending = timezoneQuery.isPending && timezoneQuery.fetchStatus === 'fetching';
   const [draft, setDraft] = useState('');
   const current = data ?? SYSTEM_DEFAULT;
   const loadFailed = isError && data === undefined;
@@ -85,15 +95,28 @@ const OrgProjectNumberPattern: React.FC = () => {
               mono
               disabled={mutation.isPending}
             />
-            {validation.valid && (
+            {validation.valid && (previewYear === null ? (
+              <div className="space-y-2 text-[13px] text-muted-foreground" role="status">
+                {timezoneReadPending ? (
+                  <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p>
+                ) : (
+                  <>
+                    <p>{t('uxCorrectness.projectNumberPattern.previewUnavailable', 'Preview unavailable')}</p>
+                    <Button type="button" variant="outline" onClick={() => void timezoneQuery.refetch()}>
+                      {t('uxCorrectness.projectNumberPattern.retryPreview', 'Retry preview')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : (
               <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
                 {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
-                <span className="font-mono">{previewProjectNumber(draft, new Date().getFullYear() % 100)}</span>
+                <span className="font-mono">{previewProjectNumber(draft, previewYear)}</span>
                 <span className="ml-1.5">
                   {t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}
                 </span>
               </p>
-            )}
+            ))}
             <Button
               type="button"
               onClick={() => void save()}

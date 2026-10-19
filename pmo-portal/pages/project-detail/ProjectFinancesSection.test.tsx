@@ -8,7 +8,7 @@ import { axe } from 'jest-axe';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import type { ProjectFinances } from '@/src/lib/projectFinances';
+import { formatExactMoney, type ProjectFinances, type ProjectReceiptCash } from '@/src/lib/projectFinances';
 
 const h = vi.hoisted(() => ({
   query: {
@@ -233,6 +233,63 @@ describe('ProjectFinancesSection reading states', () => {
     rerender(<ProjectFinancesSection project={project} />);
     expect(screen.getByText(/Settled against invoices/)).toBeInTheDocument();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
+  });
+
+  it('AC-UWC-009 renders known, incomplete, and invalid cash honestly in both catalogues without disturbing settlement or Actuals', async () => {
+    if (!localeI18n.isInitialized) {
+      await localeI18n.init({
+        lng: 'en', fallbackLng: 'en', defaultNS: 'common',
+        resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+        interpolation: { escapeValue: false }, react: { useSuspense: false },
+      });
+    }
+    const readings: Array<{ cash: ProjectReceiptCash; kind: 'zero' | 'multi' | 'incomplete' | 'invalid' }> = [
+      { cash: { state: 'known', buckets: [], receipt_count: 0 }, kind: 'zero' },
+      { cash: { state: 'known', buckets: [
+        { currency: 'USD', amount: '30.00' }, { currency: 'IDR', amount: '7.00' },
+      ], receipt_count: 2 }, kind: 'multi' },
+      { cash: { state: 'incomplete', buckets: [], receipt_count: 1, reasons: ['allocation-unreported'] }, kind: 'incomplete' },
+      { cash: { state: 'unavailable', buckets: [], reason: 'invalid-reading' }, kind: 'invalid' },
+    ];
+    for (const language of ['en', 'id'] as const) {
+      await localeI18n.changeLanguage(language);
+      for (const reading of readings) {
+        h.query.data = payload({
+          cash_received: reading.cash,
+          invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00',
+            missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '90.00', missing_work: 0 }],
+          actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
+            categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] },
+        });
+        const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
+        const cashLabel = language === 'en' ? 'Cash received' : 'Kas diterima';
+        const scope = language === 'en' ? "Receipt cash linked to this project's invoices" : 'Kas kuitansi yang tertaut ke faktur proyek ini';
+        const cashField = screen.getByText(cashLabel, { exact: true }).parentElement!;
+        expect(cashField).not.toBeNull();
+        expect(cashField).toHaveTextContent(scope);
+        expect(screen.getByText(language === 'en'
+          ? 'Settled against invoices (cash, withholding and credits), not cash received.'
+          : 'Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.')).toBeInTheDocument();
+        expect(screen.getAllByText(formatExactMoney('120.00', 'USD', language)!)).not.toHaveLength(0);
+
+        if (reading.kind === 'zero') {
+          expect(cashField).toHaveTextContent(formatExactMoney('0.00', 'USD', language)!);
+        } else if (reading.kind === 'multi') {
+          expect(cashField).toHaveTextContent(formatExactMoney('30.00', 'USD', language)!);
+          expect(cashField).toHaveTextContent(formatExactMoney('7.00', 'IDR', language)!.replace(/\u00a0/g, ' '));
+        } else if (reading.kind === 'incomplete') {
+          expect(cashField).toHaveTextContent(language === 'en'
+            ? 'Incomplete — receipt allocation cannot establish cash'
+            : 'Belum lengkap — alokasi kuitansi belum dapat memastikan kas');
+        } else {
+          expect(cashField).toHaveTextContent(language === 'en'
+            ? 'Unavailable — receipt-backed cash data could not be verified'
+            : 'Tidak tersedia — data kas berbasis kuitansi tidak dapat diverifikasi');
+        }
+        expect(await axe(view.container)).toHaveNoViolations();
+        view.unmount();
+      }
+    }
   });
 
   it('AC-PFIN-015 keeps long money strings semantic dt/dd fields that can wrap on narrow content', () => {

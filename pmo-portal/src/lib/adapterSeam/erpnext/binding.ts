@@ -13,6 +13,76 @@
 import { callMethod, erpnextRequest, ErpError, type ErpClientDeps } from './client.ts';
 import { sweepKindsForOrg } from './feedKinds.ts';
 import { LEDGER_MIRROR_DOCTYPES } from './ledgerFetch.ts';
+import { AppError } from '../../appError.ts';
+import type { StatementVersionProfile } from './statementMetadata.ts';
+
+const STRICT_STATEMENT_ERP_VERSION = '16.33.0';
+const STRICT_STATEMENT_FRAPPE_VERSION = '16.31.0';
+const VERSION_PROFILE_METHOD = 'frappe.utils.change_log.get_versions';
+
+function versionProfileFailure(message: string, code: 'commit-rejected' | 'config-rejected'): never {
+  throw new AppError(message, code);
+}
+
+function isVersionMap(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+/** Strictly parses the one supported direct-or-message version-map boundary. */
+export function parseStatementVersionProfile(body: unknown): StatementVersionProfile {
+  const malformed = (): never => versionProfileFailure('Malformed statement version profile response', 'commit-rejected');
+  if (!isVersionMap(body)) return malformed();
+
+  const directHasApps = hasOwn(body, 'erpnext') || hasOwn(body, 'frappe');
+  const message = hasOwn(body, 'message') ? body.message : undefined;
+  const messageHasApps = isVersionMap(message) && (hasOwn(message, 'erpnext') || hasOwn(message, 'frappe'));
+  if (directHasApps && messageHasApps) {
+    return versionProfileFailure('Ambiguous statement version profile response', 'commit-rejected');
+  }
+
+  const candidate = directHasApps ? body : messageHasApps ? message : undefined;
+  if (!candidate || !hasOwn(candidate, 'erpnext') || !hasOwn(candidate, 'frappe')) return malformed();
+  const erpnext = candidate.erpnext;
+  const frappe = candidate.frappe;
+  if (!isVersionMap(erpnext) || !isVersionMap(frappe) || !hasOwn(erpnext, 'version') || !hasOwn(frappe, 'version')) return malformed();
+  const erpVersion = erpnext.version;
+  const frappeVersion = frappe.version;
+  if (
+    typeof erpVersion !== 'string' || erpVersion.trim() === '' ||
+    typeof frappeVersion !== 'string' || frappeVersion.trim() === ''
+  ) return malformed();
+  if (erpVersion !== STRICT_STATEMENT_ERP_VERSION || frappeVersion !== STRICT_STATEMENT_FRAPPE_VERSION) {
+    return versionProfileFailure('Unsupported statement version profile', 'config-rejected');
+  }
+  return { erpVersion, frappeVersion };
+}
+
+/** Fetches and strictly validates the ordinary version RPC without changing the legacy major handshake. */
+export async function fetchStatementVersionProfile(deps: ErpClientDeps): Promise<StatementVersionProfile> {
+  const callerTimeout = deps.timeoutMs;
+  if (callerTimeout !== undefined && (typeof callerTimeout !== 'number' || !Number.isFinite(callerTimeout) || callerTimeout <= 0)) {
+    throw new AppError('Invalid statement version handshake deadline', 'config-rejected');
+  }
+  const client: ErpClientDeps = {
+    ...deps,
+    maxRetries: 0,
+    timeoutMs: callerTimeout === undefined ? ACTIVATION_CALL_TIMEOUT_MS : Math.min(callerTimeout, ACTIVATION_CALL_TIMEOUT_MS),
+  };
+  let body: unknown;
+  try {
+    body = await callMethod(client, VERSION_PROFILE_METHOD);
+  } catch (error) {
+    if (error instanceof ErpError) {
+      throw new ErpError(error.status, error.code, 'ERPNext version handshake failed', error.retryable);
+    }
+    throw new ErpError(0, 'external-unreachable', 'ERPNext version handshake failed', true);
+  }
+  return parseStatementVersionProfile(body);
+}
 
 /** The ERPNext majors PMO activates. `DD-OPS-10`: the local dev bench is v15.94.3, RIS's target is
  *  v16.33 — both must pass. ⚑ MIRRORED IN SQL: `activate_external_binding`'s `v_supported` array

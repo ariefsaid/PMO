@@ -121,6 +121,20 @@ for the ordinary lane (so bench-only specs skip).
 For CI-parity locally (DB lock + `.env.local`), use `scripts/e2e-local.sh` from the repo root instead
 of calling `playwright test` directly.
 
+## Timing budget annotations
+
+The integration lane audits each Playwright attempt's duration against its test timeout: **75% or more warns; 85% or more fails** (inclusive boundaries). A deliberately tighter per-journey target uses Playwright's details annotation:
+
+```ts
+test('journey title', {
+  annotation: { type: 'time-budget-ms', description: '90000' },
+}, async ({ page }) => {
+  // Keep the complete user-goal oracle.
+});
+```
+
+The description must be a positive integer in milliseconds and strictly below the existing test timeout. The audit warns at 75% of that budget and fails at the budget itself; the earlier generic or explicit threshold always wins, so an annotation cannot relax the gate. Durations are per attempt, not summed across retries. Keep the existing timeout and assertions; when a journey approaches its budget, split the journey while retaining its oracles rather than raising the timeout, skipping a case, or weakening an assertion. Missing or invalid lane reports are incomplete evidence, not a complete portfolio pass.
+
 ## Source of truth (don't duplicate, link)
 
 - Design & rationale: `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md`

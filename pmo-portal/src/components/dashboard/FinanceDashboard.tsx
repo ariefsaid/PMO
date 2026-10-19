@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -11,13 +13,15 @@ import { StillToInvoiceCard } from './StillToInvoiceCard';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
 import { DashPageHead, DashGrid } from './layout';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -62,6 +66,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
   onRetry,
 }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const viRows = useMemo(
     () => procurements.filter((p) => p.status === INVOICED_STATUS),
@@ -86,7 +91,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'project',
-      header: 'Project',
+      header: t('uxs03.financeProjectColumn', 'Project'),
       cell: (r) => (
         <span className="text-muted-foreground">{r.project?.name ?? '—'}</span>
       ),
@@ -151,8 +156,15 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
  * Reads the server-computed `variance` (committed basis, OD-BUDGET-2) — single source of truth.
  * Text + sign — NOT color-only (DESIGN.md a11y posture, plan §6).
  */
-function VarianceCell({ project, currency }: { project: BudgetReviewRow; currency: string }) {
+function VarianceCell({ project, currency, unavailableLabel }: {
+  project: BudgetReviewRow;
+  currency: string;
+  unavailableLabel: string;
+}) {
   const v = project.variance;
+  if (v === null || !Number.isFinite(v)) {
+    return <span className="text-muted-foreground">{unavailableLabel}</span>;
+  }
   if (v > 0) {
     // Over budget: destructive text WITH the word "over" so color is reinforcement only.
     // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span class.
@@ -168,6 +180,33 @@ function VarianceCell({ project, currency }: { project: BudgetReviewRow; currenc
       {`${formatCurrency(Math.abs(v), currency)} left`}
     </span>
   );
+}
+
+function hasKnownActual(project: BudgetReviewRow): boolean {
+  return project.actual_complete && project.spent !== null && Number.isFinite(project.spent)
+    && typeof project.actual_currency === 'string' && project.actual_currency.length > 0;
+}
+
+function canCompareActual(project: BudgetReviewRow): boolean {
+  return hasKnownActual(project)
+    && Number.isFinite(project.budget) && project.budget > 0
+    && typeof project.currency === 'string' && project.currency.length > 0
+    && project.budget_currency === project.currency
+    && project.actual_currency === project.currency;
+}
+
+function compareNullable(
+  left: number | null,
+  right: number | null,
+  direction: 1 | -1,
+  leftId: string,
+  rightId: string,
+): number {
+  if (left === null && right === null) return leftId.localeCompare(rightId);
+  if (left === null) return 1;
+  if (right === null) return -1;
+  if (left === right) return leftId.localeCompare(rightId);
+  return (left - right) * direction;
 }
 
 // ── FinanceDashboard ──────────────────────────────────────────────────────
@@ -189,6 +228,9 @@ export const FinanceDashboard: React.FC = () => {
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+  const { data: clientCompanies } = useCompanies('Client');
+  const clientCompanyIds = useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
+  const { customerLinks } = useCompanyCollections(clientCompanyIds);
   // N17: portfolio-wide budget review — ALL budget>0 projects ranked by committed-basis variance,
   // computed server-side by get_finance_budget_review (OD-E). Replaces the FE re-sort of top_projects.
   // B-0.3: capture isError/refetch so the budget-review card can surface an error branch instead
@@ -201,8 +243,8 @@ export const FinanceDashboard: React.FC = () => {
   const { data: apAging, isPending: apAgingPending, isError: apAgingError, refetch: refetchApAging } = useApAgingSnapshot();
   const { data: arAging, isPending: arAgingPending, isError: arAgingError, refetch: refetchArAging } = useArAgingSnapshot();
 
-  // N17 client-side sort state. The RPC returns rows already ranked variance-desc (the default);
-  // this only re-sorts when the user clicks another column header.
+  // The RPC returns known variance first, nulls last, and a stable id tie-break. Client sorts keep
+  // unknown values last in either direction and retain that tie-break for predictable ordering.
   const [budgetSort, setBudgetSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({
     key: 'variance',
     dir: 'desc',
@@ -235,21 +277,30 @@ export const FinanceDashboard: React.FC = () => {
     }));
   }, [procurements]);
 
-  // N17: portfolio-wide variance ranking (OD-E). budget>0 + variance-desc ordering are applied
-  // SERVER-SIDE by get_finance_budget_review (committed basis). Here we only honor the user's
+  // N17: portfolio-wide Active-budget variance ranking. Positive usable Active budget and default
+  // variance ordering are applied SERVER-SIDE by get_finance_budget_review. Here we only honor the user's
   // column-header re-sort, then slice to the top 5 for the card. The RPC default = variance desc,
   // so the initial render shows the worst bleeders without any client sort.
   const topByVariance = useMemo(() => {
     const sorted = [...(budgetReview ?? [])];
-    const mul = budgetSort.dir === 'desc' ? -1 : 1;
+    const direction = budgetSort.dir === 'desc' ? -1 : 1;
     sorted.sort((a, b) => {
-      if (budgetSort.key === 'variance') return (a.variance - b.variance) * mul;
-      if (budgetSort.key === 'budget') return (a.budget - b.budget) * mul;
-      if (budgetSort.key === 'spent') return (a.spent - b.spent) * mul;
-      // utilization
-      const uA = a.budget > 0 ? a.spent / a.budget : 0;
-      const uB = b.budget > 0 ? b.spent / b.budget : 0;
-      return (uA - uB) * mul;
+      if (budgetSort.key === 'variance') {
+        return compareNullable(Number.isFinite(a.variance) ? a.variance : null,
+          Number.isFinite(b.variance) ? b.variance : null, direction, a.id, b.id);
+      }
+      if (budgetSort.key === 'budget') {
+        return compareNullable(Number.isFinite(a.budget) ? a.budget : null,
+          Number.isFinite(b.budget) ? b.budget : null, direction, a.id, b.id);
+      }
+      if (budgetSort.key === 'spent') {
+        return compareNullable(hasKnownActual(a) ? a.spent : null,
+          hasKnownActual(b) ? b.spent : null, direction, a.id, b.id);
+      }
+      const utilization = (project: BudgetReviewRow) => canCompareActual(project) && project.spent !== null
+        ? project.spent / project.budget
+        : null;
+      return compareNullable(utilization(a), utilization(b), direction, a.id, b.id);
     });
     return sorted.slice(0, 5);
   }, [budgetReview, budgetSort]);
@@ -258,59 +309,96 @@ export const FinanceDashboard: React.FC = () => {
   const budgetColumns: Column<BudgetReviewRow>[] = [
     {
       key: 'name',
-      header: 'Project',
-      cell: (p) => (
-        <Link
-          to={`/projects/${p.id}/budget`}
-          aria-label={t('dashboard.budgetReviewLink', 'Review {{project}} budget', { project: p.name })}
-          className="font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-        >
-          {p.name}
-        </Link>
-      ),
+      header: t('uxs03.financeProjectColumn', 'Project'),
+      cell: (p) => {
+        const atRisk = isMoneyAtRisk({
+          status: p.status,
+          budget: p.budget,
+          budgetCurrency: p.budget_currency,
+          projectCurrency: p.currency,
+          spent: p.spent,
+          actualCurrency: p.actual_currency,
+          actualComplete: p.actual_complete,
+        });
+        return (
+          <span className="inline-flex items-center gap-2">
+            <Link
+              to={`/projects/${p.id}/budget`}
+              aria-label={t('dashboard.budgetReviewLink', 'Review {{project}} budget', { project: p.name })}
+              className="font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              {p.name}
+            </Link>
+            {atRisk && <StatusPill variant="warn">{t('uxs03.atRisk', 'At risk')}</StatusPill>}
+          </span>
+        );
+      },
     },
     {
       key: 'budget',
-      header: 'Budget',
+      header: t('uxs03.activeBudget', 'Active budget'),
       align: 'num',
       sortKey: 'budget',
       // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span
-      cell: (p) => <span>{formatCurrency(p.budget, orgCurrency)}</span>,
+      cell: (p) => <span>{formatCurrency(p.budget, p.budget_currency || p.currency || orgCurrency)}</span>,
     },
     {
       key: 'spent',
-      header: 'Spent',
+      header: t('uxs03.actual', 'Actual'),
       align: 'num',
       sortKey: 'spent',
-      cell: (p) => <span>{formatCurrency(p.spent, orgCurrency)}</span>,
+      cell: (p) => {
+        const known = hasKnownActual(p);
+        const details = [
+          !known && p.actual_currency
+            ? t('uxs03.actualSourceCurrency', 'Source currency: {{currency}}', { currency: p.actual_currency })
+            : null,
+          !p.actual_complete && p.actual_coverage_total > 0
+            ? t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
+              known: p.actual_coverage_count, total: p.actual_coverage_total,
+            })
+            : null,
+          p.actual_as_of
+            ? t('uxs03.actualAsOf', 'As of {{date}}', { date: formatInstantDate(p.actual_as_of) })
+            : null,
+        ].filter((detail): detail is string => detail !== null);
+        return (
+          <span className="inline-flex flex-col items-end gap-0.5">
+            <span>{known ? formatCurrency(p.spent!, p.actual_currency!) : t('uxs03.notAvailableYet', 'Not available yet')}</span>
+            {details.length > 0 && <span className="text-[11px] text-muted-foreground">{details.join(' · ')}</span>}
+          </span>
+        );
+      },
     },
     {
       key: 'variance',
-      header: 'Variance',
+      header: t('uxs03.variance', 'Variance'),
       align: 'num',
       sortKey: 'variance',
-      cell: (p) => <VarianceCell project={p} currency={orgCurrency} />,
+      cell: (p) => <VarianceCell
+        project={canCompareActual(p) ? p : { ...p, variance: null }}
+        currency={p.currency || orgCurrency}
+        unavailableLabel={t('uxs03.notAvailableYet', 'Not available yet')}
+      />,
     },
     {
       key: 'util',
-      header: 'Utilization',
+      header: t('uxs03.utilization', 'Utilization'),
       align: 'num',
       sortKey: 'util',
-      cell: (p) => (
-        <ProgressBar
-          value={p.budget > 0 ? Math.round((p.spent / p.budget) * 100) : 0}
-          showValue
-          compact
-          aria-label={`${p.name} budget utilization`}
-        />
-      ),
+      cell: (p) => canCompareActual(p) && p.spent !== null ? (
+        <ProgressBar value={Math.round((p.spent / p.budget) * 100)} showValue compact aria-label={`${p.name} budget utilization`} />
+      ) : <span className="text-muted-foreground">{t('uxs03.notAvailableYet', 'Not available yet')}</span>,
     },
   ];
 
   if (isError || (!data && !isPending)) {
     return (
       <div className="space-y-4">
-        <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
+        <DashPageHead
+          title={t('uxs03.financeDashboardTitle', 'Finance Dashboard')}
+          sub={t('uxs03.financeDashboardSubtitle', 'Portfolio revenue, spend, margin, and budget utilization.')}
+        />
         <ListState variant="error" title="Couldn't load the finance dashboard" onRetry={() => refetch()} />
       </div>
     );
@@ -318,7 +406,10 @@ export const FinanceDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <DashPageHead title="Finance Dashboard" sub="Portfolio revenue, spend, margin, and budget utilization." />
+      <DashPageHead
+        title={t('uxs03.financeDashboardTitle', 'Finance Dashboard')}
+        sub={t('uxs03.financeDashboardSubtitle', 'Portfolio revenue, spend, margin, and budget utilization.')}
+      />
 
       {/* KPI band — 5 tiles: reflows 5→3→2→1 at 1180/920/560 (unchanged from PR-A) */}
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
@@ -364,7 +455,7 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label="Finance ledger" className="flex flex-col gap-4">
         {/* N16 — Ready to pay table */}
         <Card seam>
-          <CardHead className="rounded-t-lg">Ready to pay</CardHead>
+          <CardHead className="rounded-t-lg">{t('uxs03.financeReadyToPay', 'Ready to pay')}</CardHead>
           <ReadyToPayTable
             procurements={procurements ?? []}
             isPending={procPending}
@@ -379,7 +470,7 @@ export const FinanceDashboard: React.FC = () => {
               ranks ALL budget>0 projects in the org by committed-basis variance (server-side); the
               card shows the worst 5. No longer a contract-value pre-slice re-sorted on the client. */}
           <CardHead className="rounded-t-lg">
-            Budget review — top 5 by variance (portfolio-wide)
+            {t('uxs03.financeBudgetReviewTitle', 'Budget review — top 5 by variance (portfolio-wide)')}
           </CardHead>
           {/* B-0.3: RPC error must show an error/retry branch, not the "No project spend yet" empty.
               The DataTable's built-in empty state fires on error (budgetReview=undefined → topByVariance=[])
@@ -403,7 +494,8 @@ export const FinanceDashboard: React.FC = () => {
                 }))
               }
               state={budgetPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
-              emptyTitle="No project spend yet"
+              emptyTitle={t('uxs03.activeBudgetReviewEmpty', 'No active budgets ready for review')}
+              emptySub={t('uxs03.activeBudgetReviewEmptySub', 'Active, positive-value budgets appear here.')}
               className="rounded-t-none border-t-0"
             />
           )}
@@ -425,6 +517,7 @@ export const FinanceDashboard: React.FC = () => {
         arAgingPending={arAgingPending}
         arAgingError={arAgingError}
         onRetryArAging={() => refetchArAging()}
+        customerLinks={customerLinks}
       />
 
       <DashGrid>

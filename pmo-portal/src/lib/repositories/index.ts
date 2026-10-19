@@ -15,6 +15,8 @@ import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
 import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
 import { fxRatesRepository } from './fxRates';
+import { financialStatementsRepository } from './financialStatements';
+import { companyCollectionsRepository } from './companyCollections';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
@@ -274,6 +276,7 @@ import {
   getOrgTaxDefault,
   setOrgTaxDefault,
   getOrgProjectNumberPattern,
+  getOrgProjectNumberTimezone,
   setOrgProjectNumberPattern,
   getOrgWithholdingAccount,
   getOrgDownPaymentItem,
@@ -1013,6 +1016,7 @@ const orgSettings: OrgSettingsRepository = {
   getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
   setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
+  getProjectNumberTimezone: () => wrap(() => getOrgProjectNumberTimezone()),
   setProjectNumberPattern: (value) => wrap(() => setOrgProjectNumberPattern(value)),
   getProjectClassificationOptions: () => wrap(() => getOrgProjectClassificationOptions()),
   setProjectClassificationOptions: (options) => wrap(() => setOrgProjectClassificationOptions(options)),
@@ -1053,7 +1057,7 @@ const integrationsImpl: IntegrationsRepository = {
   saveErpDefaults: (input) => erpSetupRequest<{ ok: true }>('save-defaults', input),
   ensureErpProject: (projectId) => erpSetupRequest<ErpProjectLink>('ensure-project', { projectId }),
   listErpProjects: async (query) => (await erpSetupRequest<{ projects: ErpProjectOption[] }>('list-projects', { query })).projects,
-  linkErpProject: (projectId, erpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject }),
+  linkErpProject: (projectId, erpProject, expectedErpProject) => erpSetupRequest<ErpProjectLink>('link-project', { projectId, erpProject, expectedErpProject }),
   employErpDomain: (domain) => erpSetupRequest<{ ok: true }>('employ-domain', { domain }),
   saveExpenseAccount: (input) => erpSetupRequest<{ ok: true }>('save-expense-account', input),
   clearExpenseAccount: (accountKey) => erpSetupRequest<{ ok: true }>('clear-expense-account', { accountKey }),
@@ -1277,6 +1281,8 @@ export const repositories: Repositories = {
   credits,
   externalDomainOwnership,
   erpSnapshots,
+  companyCollections: companyCollectionsRepository,
+  financialStatements: financialStatementsRepository,
   integrations: integrationsImpl,
   reports,
 };
@@ -1312,7 +1318,9 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  CompanyCollectionsRepository,
   ReportsRepository,
+  FinancialStatementsRepository,
   IntegrationsRepository,
   VendorWithholdingSlipsRepository,
   FxRatesRepository,

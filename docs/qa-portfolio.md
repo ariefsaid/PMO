@@ -209,6 +209,9 @@ once all three artifacts exist:
 | B-13 — calendar phase chips hid which project owned a same-named phase until activation — 2026-10-10 | `ProjectCalendarView.events.test.tsx` AC-UXP-001/003, including the canonical project-open callback | cross-screen consistency + entity scent + a11y + mobile@390 × `/projects?view=calendar` | DD-VOCAB-1: chips show project identity before the phase; activation retains the canonical project destination | ☑ (en/id locale assertions) |
 | A1 Bahasa dashboards and Sales Invoices vocabulary — 2026-10-14 | `PMDashboard.test.tsx` AC-UXA-001; `EngineerDashboard.test.tsx` AC-UXA-002; `ExecutiveDashboard.bahasa.test.tsx` AC-UXA-003 (also binds Approved/Received/Vendor Invoiced legend labels to raw-status destinations); `AwaitingApprovalTile.test.tsx` AC-UXA-004; `SalesInvoices.vocabulary.test.tsx` AC-UXA-017; `breadcrumb.locale.test.tsx` amended AC-FIN-002 | i18n + state-coverage + cross-screen consistency × `/` (PM, Engineer, Executive desktop/mobile); approval tile; `/sales-invoices` rail/page; Finance breadcrumbs `/sales-invoices`, `/incoming-payments`, `/revenue-by-project` | Existing single `common.json` dictionary and shell label keys; raw statuses/data/links stay unchanged; localized approval errors remain unavailable, never zero | ☑ (2026-10-14; en/id × 1440×900 and 390×844 rendered; screenshot matrix in `adws/adw_data/sessions/cfa5705e/context_handoff/screenshots/`; Sales Invoices rich Finance query rendered its existing recoverable error state in this local session) |
 
+| The project-numbering compatibility hash from `/administration` landed on the Admin default instead of Project setup — Discover #1073, 2026-10-18 | `pmo-portal/pages/AdministrationShell.test.tsx` AC-UWC-001 runs exported `AppRoutes`, asserts the canonical Project setup section is mounted and focused, and retains the Accounting legacy hash case | redirect + role selection + focus / cross-screen consistency × `/administration#org-project-number-pattern` → `/administration/projects#org-project-number-pattern` | `docs/decisions.md` Compatibility-redirect test retention: prove the actual router entry and mounted destination | ☑ (2026-10-18) |
+| Long project-total period captions collapsed mobile amount cells to about 8.5px and caused one-digit lines — rendered Discover, 2026-10-18 | `pmo-portal/e2e/financial-statements-presentation.spec.ts` checks all six amount cells are at least 100px and the six retained long-value fixtures do not leave a dangling digit line at 390px; computed wrapping remains enabled for longer values; `ProjectStatementTotals.test.tsx` retains short mobile labels and full desktop captions | amount geometry + mobile@390 + i18n × `/projects/:id/overview` totals (en/id, light/dark) | DESIGN.md Data Table: stack short mobile amount labels above full-width values; keep full date/currency context and allow long values to wrap | ☑ (2026-10-18; all four rendered locale/theme cells passed) |
+
 ## UXS-031 — tax-evidence recognition labels (graduation, 2026-10-14)
 
 | Finding (date) | Test (the lock) | Matrix oracle/cell | DESIGN/decision note | Done |
@@ -221,6 +224,15 @@ once all three artifacts exist:
 | Sales e-Faktur drafts could lose human context or expose an ID-only subtitle — 2026-10-14 | `pmo-portal/pages/__tests__/SalesInvoices.efaktur.test.tsx` AC-UXT-006 | state-coverage/recognition × `/sales-invoices/:invoiceId` | `docs/decisions.md` UXS-031 AC-UXT-006: Retain the human draft fallback; no UUID-only subtitle. | ☑ (2026-10-14) |
 | Projects toolbar, identity, completion, empty columns and status actions competed with finding the right record (UX-018–021, RF-009–013) — 2026-10-16 | `pmo-portal/pages/Projects.test.tsx` (UX-018/019/020/021, RF-009/010/011/012/013), `pmo-portal/components/ProjectCard.test.tsx` (references, completion and PM), `pmo-portal/components/ProjectKanbanBoard.test.tsx` (RF-011), plus `pmo-portal/e2e/AC-TBL-OVERFLOW-001-projects-table-no-page-scroll.spec.ts` and `pmo-portal/e2e/AC-PRJUX-003-mobile-disclosure-switch.spec.ts` (@390) | action-completeness + data-correctness + cross-screen consistency + mobile@390 × `/projects` | DESIGN.md Recognition before compression: immediate project identity and core controls; disclosed secondary references/filters/transfers; restore control for data-empty columns; explicit unassigned PM; delivery stays primary until complete, then success; status remains available in permitted card actions. | ☑ (2026-10-16) |
 | Repeated bill rows could trigger unbounded case/project label lookups — 2026-10-14 | `pmo-portal/src/hooks/useVendorWithholdingSlips.context.test.tsx` AC-UXT-007 | data-correctness × candidate source for `/procurement/:id/documents` | `docs/decisions.md` UXS-031 AC-UXT-007: Resolve context in batches through the repository/cache seam. | ☑ (2026-10-14) |
+| History event recognition and retained detail (UX-046) — 2026-10-18 | `pmo-portal/src/components/history/__tests__/RecordHistory.test.tsx` AC-S23-001/002/004; `historyPresentation.test.ts` AC-S23-003; existing `e2e/AC-CHG-019-project-change-history.spec.ts` visible-value journey | recognition + evidence disclosure + page-local grouping + keyboard + phone/desktop × `/projects/:id/history`, `/procurement/:id/history` | `docs/decisions.md` UXS-023: preserve every event, original value, exact time and canonical link; no empty detail control or cross-page grouping. | ☑ (2026-10-18; PR #1138) |
+| Phone pipeline recognition and one stage control (S-24) — 2026-10-18 | `pmo-portal/pages/SalesPipeline.test.tsx` AC-S24-001; `components/SalesKanbanBoard.test.tsx` AC-S24-002; `e2e/AC-S24-004-phone-pipeline-stage.spec.ts` | URL working set + full identity + currency/tax basis + geometry/recovery + phone/desktop × `/sales` | `docs/decisions.md` UXS-024: one selector/list on phone; retain desktop board and canonical activation; disclose secondary details. | ☑ (rendered en/id × light/dark; PR #1140 merged to dev with all fast CI green; route-metadata tail retained by statement-host lane) |
+
+| Employee proposal review and retained identity confirmation (S-30) — 2026-10-18 | `src/components/timesheets/EmployeeLinkConfirm.test.tsx` AC-S30-001/002; `src/lib/repositories/employeeMatchReview.test.ts` AC-S30-003; `pages/Approvals.test.tsx` and `useTimesheetApproval.test.ts` host/cache proofs | exact identity + explicit confirmation + unavailable/stale identity + error/retry + role affordance + phone/desktop × `/approvals` | `docs/decisions.md` UXS-030: proposals remain suggestions; retain chosen identity and dialog on failed save; unidentifiable or stale choices cannot confirm. | ☑ (14 synthetic rendered checks, en/id × light/dark, 390×844 and 1440×900; existing persisted confirmation authority retained) |
+| Tax basis stays immediate; rate/base details disclose without activating the record (S-39) — 2026-10-18 | `TaxBasisLabel.test.tsx` AC-S39-001; `ProjectDetailHeader.test.tsx` AC-S39-002; `ProjectCard.test.tsx` AC-S39-003; `SalesInvoiceApprovalSection.test.tsx` AC-S39-004 | amount basis + unknown facts + keyboard/touch + canonical action separation + phone/desktop × project cards, project overview, invoice approvals | DESIGN.md Tax details: preserve the ordinary inline default and basis-only aggregate mode; disclose saved facts while keeping true billing prerequisites visible. | ☑ (24 rendered cases, 50 screenshots; en/id × light/dark, 390 and 1440; existing money/approval goals retained) |
+| Canonical reference search (S-40) — 2026-10-18 | `CommandPalette.test.tsx`, `useRecordSearch.test.tsx`, `useReferenceRecordSearch.test.tsx`, DAL/repository tests; pgTAP 0329; AC-S40-005 | exact/prefix/literal matches + bounded results + loading/error/retry + canonical navigation + readable identity × command palette | `DESIGN.md`: reference tokens remain intact while surrounding labels wrap; cached navigation remains available. | ☑ (27 rendered checks; 23 screenshots; persisted Finance reference journey passed) |
+| Daily purchasing state and next step (S-19) — 2026-10-18 | `components/procurement.test.ts` AC-S19-001; `Procurement.test.tsx` AC-S19-002; `ProcurementTab.newrequest.test.tsx` AC-S19-003; `ExecutiveDashboard.test.tsx` AC-S19-004; retained export/import/RBAC tests and AC-IMP-CYCLE-001 | shared state + next step + detail lifecycle + More controls + source-scope copy + canonical activation + all existing roles × purchasing and Executive dashboard | DESIGN.md Daily purchasing rows: preserve approval/quote-selection gates and distinguish PMO requests from ERP-native buying. | ☑ (six graduated rendered findings, en/id × light/dark, 390/1440; real import save/readback and exact cleanup passed) |
+
+| Receipt and first-line expense capture (S-29) — 2026-10-19 | `ExpenseClaimFormModal.capture.test.tsx` AC-S29-001; pgTAP 0327 AC-S29-002; DAL/repository/hook AC-S29-003; `ExpenseClaims.test.tsx` AC-S29-004; AC-S29-005 | first capture + explicit type + editable title/category suggestions + retained draft/input + stable retry + source amount/currency + receipt persistence + exact cleanup × `/expenses`, `/expenses/:claimId` | DESIGN.md Recoverable expense capture: explain the saved draft and remaining receipt work; never imply completion before persistence. | ☑ (40 synthetic form cases, en/id × light/dark, 390/1440; real saved-Draft detail at 1280 with no horizontal overflow; claimant receipt/line journey and cleanup passed) |
 
 Rendered self-check: the local live procurement route and shared e-Faktur modal were inspected at 1440×900 and 390×844 in en/id; candidate identities and sales-draft states were rendered with rich local fixture props through the shipped identity presenter/e-Faktur modal. The default local seed has no eligible withholding-slip candidates or sales invoices, so the candidate/error-retry and linked-slip-detail routes were not live-data-rendered. Screenshots are in the UXS-031 context handoff. The candidate/payment snapshots expose full localized accessible names, and the 390px candidate/payment render had no horizontal page overflow; no product defect was found.
 
@@ -278,3 +290,39 @@ the `helpCorpus.ts` always-on injection (spec `docs/specs/deputy-help.spec.md`).
 | Run date | Runner | Admin | Exec | PM | Finance | Engineer | Notes |
 |---|---|---|---|---|---|---|---|
 | _(run before merge)_ | | | | | | | |
+
+### Task-list setup — UXS-021 (2026-10-19)
+
+| Route | Retained oracle | Owning proof |
+|---|---|---|
+| Project tasks | Task register precedes setup, linked and recovery states | TasksTab AC-S21-001 RTL |
+| Administration integrations | Exact list proposal requires review, explicit source and confirmation | IntegrationsView and ProjectIntegrationsCard AC-S21-003 RTL |
+| Project tasks after reload | Ordinary Admin confirms a real persisted link; exact saved list and initial source survive reload | Ordered serial pair in AC-S21-005-task-list-review.spec.ts: “Supporting proof” covers review/save/readback; the AC-S21-005 case owns the persisted-after-reload goal. Together they compose this single AC journey. |
+
+Rich rendered review covers both locales and themes at phone and desktop sizes. Repository tests retain ambiguous identity, stale selection and no-write proposal boundaries.
+
+
+### Account refresh feedback — #1145 (v0.24.0 branch hold)
+
+| Route | Retained oracle | Owning proof |
+|---|---|---|
+| Administration accounting / receipt withholding | Missing unsaved choice retains identity, announces correction, blocks Save and sends only an explicit valid replacement | OrgWithholdingAccount AC-V24P-001 RTL |
+| Administration accounting / vendor tax accounts | Refresh retains all fields; explicit replacement or clear sends the exact three-field shape | OrgVendorTaxAccounts AC-V24P-002 RTL |
+| Both account settings | Saved-missing wording, pending/error recovery and Finance read-only remain distinct in both locales | OrgVendorTaxAccounts AC-V24P-003 RTL and retained receipt tests |
+
+Synthetic Discover covers phone/desktop, both themes/locales, keyboard recovery, cached binding
+errors and zero writes during refresh. The existing AC-ADMIA-005 journey supports real shell
+reachability and overflow; the new acceptance criteria remain unit-owned.
+
+
+### Customer collections — UXS-036 (2026-10-19)
+
+| Route | Retained oracle | Owning proof |
+|---|---|---|
+| Finance dashboard | Only unique canonical Customer mappings become company links | companyCollections repository and FinanceDashboard RTL |
+| Company collections | Permission, exact mapping, ambiguity, pending/error and unavailable states | useCompanyCollections and CompanyCollections RTL |
+| Customer invoice register | URL customer filter intersects other filters; clear retains the working set; source currency stays explicit | SalesInvoices.customerFilter RTL |
+| Dashboard → company → invoice | Ordinary Finance follows the aging position to the exact customer and its overdue invoice | AC-S36-006-customer-collections.spec.ts |
+
+Rich rendered review retains phone/desktop layouts and dark/light link contrast. Source metadata
+and unknown-versus-zero behavior stay covered by AccountingSnapshotsSection RTL.

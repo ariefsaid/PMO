@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import Procurement from './Procurement';
 
 const seed = [
@@ -71,6 +72,17 @@ const renderPage = (initialPath = '/procurement') =>
     </ToastProvider>,
   );
 
+const renderPageInLocale = (locale: 'en' | 'id') =>
+  render(
+    <BahasaProvider locale={locale}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/procurement']}>
+          <Procurement />
+        </MemoryRouter>
+      </ToastProvider>
+    </BahasaProvider>,
+  );
+
 describe('Procurement index — IA-3 (real data)', () => {
   beforeEach(() => {
     procState.data = seed;
@@ -93,12 +105,39 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
-  it('defaults to the Table view with list rows and a lifecycle stepper (AC-FIX5)', () => {
+  it('AC-S19-002: daily rows show the request state and next step without repeating lifecycle pips', () => {
     renderPage();
-    // The table view now renders ProcurementListRow (expandable rows) instead of a
-    // DataTable — each row shows the title + a disclosure toggle + lifecycle inline pips.
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
+    expect(screen.getByText('Vendor Quote')).toBeInTheDocument();
+    expect(screen.getByText('Next: Select quote')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-S19-002: status, search, and create stay ahead of accessible More transfer tools', async () => {
+    renderPage();
+    const create = screen.getByRole('button', { name: /raise request/i });
+    const filter = screen.getByRole('tab', { name: /^All$/ });
+    const search = screen.getByLabelText(/filter requests/i);
+    const more = screen.getByRole('button', { name: 'More' });
+    const follows = (first: HTMLElement, second: HTMLElement) =>
+      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    expect(follows(create, filter)).toBe(true);
+    expect(follows(filter, search)).toBe(true);
+    expect(follows(search, more)).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+
+    await userEvent.click(more);
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import cycle data' })).toBeInTheDocument();
+  });
+
+  it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
+    renderPageInLocale('id');
+    expect(screen.getByText('Penawaran Vendor')).toBeInTheDocument();
+    expect(screen.getByText('Langkah berikutnya: Pilih penawaran')).toBeInTheDocument();
   });
 
   it('search filters real rows by title/code (AC-504)', async () => {
@@ -166,6 +205,7 @@ describe('Procurement index — states', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
+    expect(screen.getByText('PMO requests only; ERP-native purchases are not listed here.')).toBeInTheDocument();
     // The dead disabled CTA was removed in the cleanup round; the CRUD slice
     // restores a REAL, working create affordance (header CTA + empty-state action).
     expect(screen.getAllByRole('button', { name: /raise request/i }).length).toBeGreaterThanOrEqual(1);

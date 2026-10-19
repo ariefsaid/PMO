@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -33,13 +33,20 @@ export interface TaxBasisLabelProps {
   taxBaseUnknown?: boolean;
   /** Hide rate/base details when a number has been normalized to a basis shared with other rows. */
   showDetails?: boolean;
+  /** Keep the treatment inline while allowing secondary rate/base facts to be opened on demand. */
+  detailsMode?: 'inline' | 'disclosure';
   className?: string;
   /** Overrides the default `tax-basis` testid where a surface renders several figures. */
   testId?: string;
 }
 
-export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate, taxBaseNumerator = 1, taxBaseDenominator = 1, taxBaseUnknown = false, showDetails = true, className, testId }) => {
+export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate, taxBaseNumerator = 1, taxBaseDenominator = 1, taxBaseUnknown = false, showDetails = true, detailsMode = 'inline', className, testId }) => {
   const { t } = useTranslation();
+  const disclosureId = useId();
+  const detailsId = `${disclosureId}-tax-details`;
+  const triggerId = `${disclosureId}-tax-details-trigger`;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   if (!isTaxTreatment(treatment)) return null;
   // ⚑ Two literal keys, never a key built from the value. The i18n completeness gate scans
   // source for literal key strings and reports a computed key's catalogue entries as ORPHANS —
@@ -49,14 +56,48 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
     treatment === 'inclusive'
       ? t('tax.basis.inclusive', 'incl. PPN')
       : t('tax.basis.exclusive', 'excl. PPN');
+  const rateLabel = taxRate != null ? `${taxRate}%` : t('tax.details.unknownRate', 'rate not recorded');
+  const baseLabel = taxBaseUnknown ? t('tax.details.unknownBase', 'DPP not recorded') : `DPP ${taxBaseNumerator}/${taxBaseDenominator}`;
   return (
     <span
       data-testid={testId ?? 'tax-basis'}
       data-tax-basis={treatment}
       className={cn('text-[11px] font-normal text-muted-foreground', className)}
+      onKeyDown={detailsMode === 'disclosure' ? (event) => {
+        if (event.key !== 'Escape' || !detailsExpanded) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDetailsExpanded(false);
+        triggerRef.current?.focus();
+      } : undefined}
     >
-      {label}{showDetails && (taxRate != null ? ` ${taxRate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`)}
-      {showDetails && (taxBaseUnknown ? ` · ${t('tax.details.unknownBase', 'DPP not recorded')}` : ` · DPP ${taxBaseNumerator}/${taxBaseDenominator}`)}
+      {label}
+      {showDetails && detailsMode === 'inline' && <>
+        {taxRate != null ? ` ${rateLabel}` : ` · ${rateLabel}`}
+        {' · '}{baseLabel}
+      </>}
+      {showDetails && detailsMode === 'disclosure' && (
+        <>
+          {' · '}
+          <button
+            ref={triggerRef}
+            id={triggerId}
+            type="button"
+            aria-expanded={detailsExpanded}
+            aria-controls={detailsId}
+            onClick={() => setDetailsExpanded((expanded) => !expanded)}
+            className="touch-target -my-2 inline-flex min-h-8 items-center rounded-sm px-1 text-primary-text underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+          >
+            {detailsExpanded
+              ? t('uxs39.hideTaxDetails', 'Hide tax details')
+              : t('uxs39.showTaxDetails', 'Show tax details')}
+          </button>
+          {' · '}
+          <span id={detailsId} aria-labelledby={triggerId} hidden={!detailsExpanded}>
+            {rateLabel}{' · '}{baseLabel}
+          </span>
+        </>
+      )}
     </span>
   );
 };

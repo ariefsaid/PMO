@@ -72,10 +72,18 @@ const procurements = [
 // N17 now reads get_finance_budget_review (committed basis, budget>0 + variance-desc applied
 // server-side). The RPC returns ONLY budget>0 rows, already ranked — so the mock excludes the
 // zero-budget tender (the server filter) and pre-computes variance, mirroring the real payload.
+const budgetReviewRow = (input: {
+  id: string; name: string; client_name: string; budget: number; spent: number; variance: number;
+}) => ({
+  status: 'Ongoing Project', currency: 'USD', budget_currency: 'USD', actual_currency: 'USD',
+  actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1,
+  actual_as_of: '2026-10-17T12:00:00Z',
+  ...input,
+});
 const budgetReview = [
-  { id: 'p1', name: 'Alpha', client_name: 'Acme', budget: 1_000_000, spent: 1_100_000, variance: 100_000 },
-  { id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', budget: 200_000, spent: 250_000, variance: 50_000 },
-  { id: 'p2', name: 'Beta', client_name: 'Beta Co', budget: 1_000_000, spent: 600_000, variance: -400_000 },
+  budgetReviewRow({ id: 'p1', name: 'Alpha', client_name: 'Acme', budget: 1_000_000, spent: 1_100_000, variance: 100_000 }),
+  budgetReviewRow({ id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', budget: 200_000, spent: 250_000, variance: 50_000 }),
+  budgetReviewRow({ id: 'p2', name: 'Beta', client_name: 'Beta Co', budget: 1_000_000, spent: 600_000, variance: -400_000 }),
 ];
 
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
@@ -95,6 +103,12 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: new Map() }),
 }));
 // task FIX-2 (Discover CRITICAL 2): FinanceDashboard now mounts AccountingSnapshotsSection.
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
@@ -275,11 +289,11 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
     expect(sortableThs.length).toBeGreaterThan(0);
   });
 
-  it('AC-IXD-DASH-W5-C2B-N17-8: table has Project, Budget, Spent, Variance column headers', () => {
+  it('AC-IXD-DASH-W5-C2B-N17-8: table has Project, Active budget, Actual, Variance column headers', () => {
     renderPane();
     // Use getAllByText to allow multiple matches (headings may appear in multiple sections)
     expect(screen.getAllByText(/budget/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/spent/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/actual/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/variance/i).length).toBeGreaterThan(0);
   });
 });

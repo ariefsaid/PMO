@@ -81,6 +81,8 @@ export function useRecordSearch(
     const out: PaletteItem[] = [];
 
     for (const p of projects.data ?? []) {
+      const projectSearchCodes = [p.pmo_project_number, p.code, p.customer_contract_ref]
+        .filter((value): value is string => Boolean(value));
       out.push({
         id: `projects:${p.id}`,
         group: 'Records',
@@ -89,8 +91,14 @@ export function useRecordSearch(
         code: [
           p.pmo_project_number ? `PMO Project Number: ${p.pmo_project_number}` : null,
           p.code ? `Client Project Code: ${p.code}` : null,
+          p.customer_contract_ref
+            ? t('shell.palette.uxs40.customerOrderReference', 'Customer order reference: {{reference}}', {
+              reference: p.customer_contract_ref,
+            })
+            : null,
         ].filter(Boolean).join(' · ') || undefined,
-        searchCodes: [p.pmo_project_number, p.code].filter((value): value is string => Boolean(value)),
+        codeTokens: projectSearchCodes,
+        searchCodes: [...new Set(projectSearchCodes)],
         icon: 'projects',
         run: () => navigate(`/projects/${p.id}`),
       });
@@ -98,6 +106,7 @@ export function useRecordSearch(
 
     if (mayViewPipeline) {
       for (const o of pipeline.data?.projects ?? []) {
+        const pipelineCodes = [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value));
         out.push({
           id: `sales:${o.id}`,
           group: 'Records',
@@ -107,6 +116,7 @@ export function useRecordSearch(
             o.pmo_project_number ? `PMO Project Number: ${o.pmo_project_number}` : null,
             o.code ? `Client Project Code: ${o.code}` : null,
           ].filter(Boolean).join(' · ') || undefined,
+          codeTokens: pipelineCodes,
           searchCodes: [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value)),
           icon: 'pipeline',
           // Model B (ADR-0020): a pipeline record has ONE canonical detail route, /projects/:id.
@@ -119,12 +129,14 @@ export function useRecordSearch(
 
     if (mayViewProcurement) {
       for (const pr of procurements.data ?? []) {
+        const procurementCode = pr.code ?? pr.pr_number ?? undefined;
         out.push({
           id: `procurement:${pr.id}`,
           group: 'Records',
           title: pr.title,
           sub: t('shell.palette.recordProcurement', 'Procurement'),
-          code: pr.code ?? pr.pr_number ?? undefined,
+          code: procurementCode,
+          codeTokens: procurementCode ? [procurementCode] : undefined,
           icon: 'procurement',
           run: () => navigate(`/procurement/${pr.id}`),
         });

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { filterAndCap } from '@/src/hooks/useRecordSearch';
+import { useReferenceRecordSearch } from '@/src/hooks/useReferenceRecordSearch';
+import type { ReferenceHit } from '@/src/lib/db/recordReferenceSearch';
 import { MODULES } from './routeMatch';
 
 export interface PaletteItem {
@@ -12,6 +15,8 @@ export interface PaletteItem {
   sub?: string;
   /** Compact visible summary of the record's identity fields. */
   code?: string;
+  /** Canonical identifiers in `code`, rendered as unbreakable tokens. */
+  codeTokens?: string[];
   /** Individually searchable identifiers used for exact-match ranking. */
   searchCodes?: string[];
   icon: IconName;
@@ -39,6 +44,50 @@ const SKELETON_COUNT = 4;
 /** Debounce (ms) applied to the query before filtering (Linear/Raycast feel). */
 const FILTER_DEBOUNCE_MS = 120;
 
+function isIdentifierCharacter(character: string | undefined): boolean {
+  return character !== undefined && /[\p{L}\p{N}_]/u.test(character);
+}
+
+function renderCodeLabel(code: string, tokens: string[] | undefined): React.ReactNode {
+  const candidates = [...new Set(tokens ?? [])].filter(Boolean).sort((left, right) => right.length - left.length);
+  if (candidates.length === 0) return code;
+
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  while (cursor < code.length) {
+    let nextMatch: { start: number; token: string } | undefined;
+    for (const candidate of candidates) {
+      let searchFrom = cursor;
+      while (searchFrom < code.length) {
+        const start = code.indexOf(candidate, searchFrom);
+        if (start < 0) break;
+        const end = start + candidate.length;
+        if (!isIdentifierCharacter(code[start - 1]) && !isIdentifierCharacter(code[end])) {
+          if (!nextMatch || start < nextMatch.start || (start === nextMatch.start && candidate.length > nextMatch.token.length)) {
+            nextMatch = { start, token: candidate };
+          }
+          break;
+        }
+        searchFrom = start + 1;
+      }
+    }
+
+    if (!nextMatch) {
+      parts.push(code.slice(cursor));
+      break;
+    }
+    if (nextMatch.start > cursor) parts.push(code.slice(cursor, nextMatch.start));
+    parts.push(
+      <span key={`code-token-${nextMatch.start}`} className="whitespace-nowrap">
+        {nextMatch.token}
+      </span>,
+    );
+    cursor = nextMatch.start + nextMatch.token.length;
+  }
+
+  return parts.length === 1 ? parts[0] : parts;
+}
+
 interface RenderGroup {
   name: string;
   items: PaletteItem[];
@@ -65,11 +114,77 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onAskAi,
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const referenceSearch = useReferenceRecordSearch(debounced, { enabled: open });
+  const currentQuery = query.trim().toLowerCase();
+  const debouncedQuery = debounced.trim().toLowerCase();
+  const referenceQuerySettled = debouncedQuery.length >= 2 && currentQuery === debouncedQuery;
+  const referenceHits = referenceQuerySettled ? referenceSearch.data?.items : undefined;
+
+  const referenceItems = useMemo<PaletteItem[]>(() => {
+    if (!referenceHits?.length) return [];
+
+    const existingRecordIds = new Set(items.filter((item) => item.group === 'Records').map((item) => item.id));
+    const addedIds = new Set<string>();
+
+    return referenceHits.flatMap((hit: ReferenceHit) => {
+      const idPrefix = hit.kind === 'project' ? 'projects' : hit.kind === 'invoice' ? 'invoices' : 'receipts';
+      const id = `${idPrefix}:${hit.id}`;
+      if (
+        existingRecordIds.has(id) ||
+        addedIds.has(id) ||
+        (hit.kind === 'project' && existingRecordIds.has(`sales:${hit.id}`))
+      ) return [];
+      addedIds.add(id);
+
+      const aliases = [...new Set([hit.reference, ...hit.aliases].filter(Boolean))];
+      const exactAlias = hit.exact
+        ? aliases.find((alias) => alias.trim().toLowerCase() === debouncedQuery)
+        : undefined;
+      const displayAliases = exactAlias
+        ? [exactAlias, ...aliases.filter((alias) => alias !== exactAlias)]
+        : aliases;
+      const recordType = hit.kind === 'project'
+        ? t('shell.palette.recordProject', 'Project')
+        : hit.kind === 'invoice'
+          ? t('shell.palette.uxs40.salesInvoice', 'Sales invoice')
+          : t('shell.palette.uxs40.incomingPayment', 'Incoming payment');
+      const sub = hit.context
+        ? t('shell.palette.uxs40.recordContext', '{{type}} · {{context}}', {
+          type: recordType,
+          context: hit.context,
+        })
+        : recordType;
+      const path = hit.kind === 'project'
+        ? `/projects/${encodeURIComponent(hit.id)}`
+        : hit.kind === 'invoice'
+          ? `/sales-invoices/${encodeURIComponent(hit.id)}`
+          : `/incoming-payments/${encodeURIComponent(hit.id)}`;
+      const icon: IconName = hit.kind === 'project' ? 'projects' : hit.kind === 'invoice' ? 'invoices' : 'payments';
+
+      return [{
+        id,
+        group: 'Records',
+        title: hit.title,
+        sub,
+        code: t('shell.palette.uxs40.referenceLabel', 'Reference: {{reference}}', {
+          reference: displayAliases.join(' · '),
+        }),
+        codeTokens: displayAliases,
+        searchCodes: aliases,
+        icon,
+        run: () => navigate(path),
+      }];
+    });
+  }, [debouncedQuery, items, navigate, referenceHits, t]);
+  const referenceError = referenceQuerySettled && referenceSearch.isError;
+  const showError = error || referenceError;
+  const showLoading = loading || (referenceQuerySettled && referenceSearch.isFetching);
 
   // Debounce the query before filtering so typing across a large record index
   // stays smooth (ui-ux-pro-max debounce-throttle).
@@ -78,12 +193,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => clearTimeout(t);
   }, [query]);
 
-  const searchableItems = useMemo(() => items.map((item) => {
+  const searchableItems = useMemo(() => [...items, ...referenceItems].map((item) => {
     if (item.group !== 'Navigate') return item;
     const route = MODULES.find((module) => `nav-${module.module}` === item.id);
     if (!route || route.label === item.title) return item;
     return { ...item, searchCodes: [...new Set([...(item.searchCodes ?? []), route.label])] };
-  }), [items]);
+  }), [items, referenceItems]);
 
   // Build the capped, grouped result set in stable group order. "Records" rows
   // only show while the user is searching; "Navigate"/"Actions" always show.
@@ -118,7 +233,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // Flat list of the rendered (capped) options — the roving-selection order.
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const askAiQuery = debounced.trim();
-  const showAskAi = !!onAskAi && !loading && flatItems.length === 0 && askAiQuery.length > 0;
+  const showAskAi = !!onAskAi && !showLoading && flatItems.length === 0 && askAiQuery.length > 0;
   const resultCount = flatItems.length + (showAskAi ? 1 : 0);
 
   // Reset + focus the input on open.
@@ -236,13 +351,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           className="max-h-[380px] overflow-y-auto p-1.5"
         >
           {/* A record list failed — keep module nav working, offer a retry. */}
-          {error && (
+          {showError && (
             <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive-text">
               <span>{t('shell.palette.recordsError', "Couldn't load records.")}</span>
-              {onRetry && (
+              {(onRetry || referenceError) && (
                 <button
                   type="button"
-                  onClick={onRetry}
+                  onClick={() => {
+                    onRetry?.();
+                    if (referenceError) void referenceSearch.refetch();
+                  }}
                   className="rounded-[5px] border border-border bg-background px-2 py-0.5 text-[12px] font-semibold text-foreground hover:bg-accent"
                 >
                   {t('shell.palette.retry', 'Retry')}
@@ -252,7 +370,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
 
           {/* Records still fetching — skeleton rows matching the 44px row geometry. */}
-          {loading && (
+          {showLoading && (
             <div aria-hidden>
               <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                 {t('shell.palette.recordsGroup', 'Records')}
@@ -270,7 +388,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </div>
           )}
 
-          {!hasResults && !loading ? (
+          {!hasResults && !showLoading ? (
             <div className="px-2.5 py-8 text-center text-[13px] text-muted-foreground">
               {t('shell.palette.noResults', 'No results for “{{query}}”', { query })}
             </div>
@@ -310,8 +428,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           )}
                         </span>
                         {item.code && (
-                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                            {item.code}
+                          <span title={item.code} className="min-w-0 max-w-[45%] break-words text-right font-mono text-[11px] text-muted-foreground">
+                            {renderCodeLabel(item.code, item.codeTokens)}
                           </span>
                         )}
                       </div>
@@ -320,6 +438,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   {group.overflow > 0 && (
                     <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
                       {t('shell.palette.moreResults', '+{{count}} more — refine your search', { count: group.overflow })}
+                    </div>
+                  )}
+                  {group.name === 'Records' && referenceQuerySettled && referenceSearch.data?.hasMore && (
+                    <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                      {t('shell.palette.uxs40.moreReferenceMatches', 'More reference matches; refine your search')}
                     </div>
                   )}
                 </div>

@@ -103,8 +103,8 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
 
   it('AC-W2-RBAC-006: a PM sees the org-wide procurement index (NOT the "your requests" scoping)', () => {
     renderAs('Project Manager');
-    // The org-index copy describes separation-of-duties gates across all PRs.
-    expect(screen.getByText(/separation-of-duties/i)).toBeInTheDocument();
+    // The org-wide description stays distinct from the own-scoped requester copy.
+    expect(screen.getByText('Raise requests and track approvals, orders and payments. Open a request for its full history.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Raise request/i })).toBeInTheDocument();
     // No "your requests" own-scoping framing for a manager.
     expect(screen.queryByText(/^Your purchase requests$/i)).not.toBeInTheDocument();

@@ -14,7 +14,7 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  * Registered-but-idle per the 0094 precedent: the cron helper no-ops until an operator creates the
  * Vault secrets, so the job fires as a no-op until then (no employing org ⇒ no-op).
  *
- * Per employing org, ONE cycle runs SEVEN passes in order:
+ * Per employing org, ONE cycle runs the native statement segment alongside SEVEN legacy passes:
  *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
  *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071;
@@ -22,6 +22,7 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  *       walk stops once the tick's `SWEEP_TICK_MAX_DOCS` document budget or `SWEEP_TICK_TIME_BUDGET_MS`
  *       elapsed-time budget is spent; the per-doctype watermark is the persisted cursor the next tick
  *       resumes from, so a full-year backfill is resumable instead of one CPU-limit-dying pass);
+ *   native statement batch refresh — after the doctype walk and independently of legacy raw readiness;
  *   (3) the ledger-mirror feed (feedLedgerMirrors, 8.6b — populates erp_gl_entry_mirror/
  *       erp_payment_ledger_mirror);
  *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror);
@@ -86,6 +87,15 @@ import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
+import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
+import {
+  refreshStatementReportBatch,
+  STATEMENT_READ_REQUEST_TIMEOUT_MS,
+  STATEMENT_READ_STAGE_TIMEOUT_MS,
+  type StatementReportBatchService,
+} from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts';
+export { STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS };
+import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -289,6 +299,7 @@ export function inFlightAnchorFilter(
   baseFilter?: (row: Record<string, unknown>) => boolean,
 ): ((row: Record<string, unknown>) => Promise<boolean>) | undefined {
   const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
+  // deno-lint-ignore require-await -- preserve async rejection semantics for a synchronous baseFilter.
   if (!anchorField) return baseFilter ? async (row) => baseFilter(row) : undefined;
   return async (row: Record<string, unknown>): Promise<boolean> => {
     if (baseFilter && !baseFilter(row)) return false;
@@ -398,8 +409,9 @@ export function buildOutboxProbe(args: {
   const { probeDeps, kind, anchorField, anchorMutable, payload } = args;
   // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
   const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
-  if (!anchorField) return async () => null;
+  if (!anchorField) return () => Promise.resolve(null);
   if (!anchorMutable) return (_domain, idempotencyKey) => probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
+  // deno-lint-ignore require-await -- preserve async rejection semantics for malformed persisted payloads.
   return async (_domain, idempotencyKey) => {
     // The direction comes from the KIND (what PMO commanded), falling back to the persisted payload
     // only for a kind that is not one of the two Payment Entry kinds — never a bare 'Pay' default,
@@ -549,6 +561,8 @@ export async function reconcileOrgOutbox(
 /** A loaded per-org ERPNext binding (the external_org_bindings row, PMO-shaped). */
 interface OrgBinding {
   orgId: string;
+  /** Present on live bindings; optional only for backward-compatible legacy test fixtures. */
+  bindingId?: string | null;
   siteUrl: string;
   secretRef: string;
   company: string;
@@ -568,6 +582,7 @@ interface OrgBinding {
   activatedAt?: string | null;
   /** Holder fence for statement-source writes in this sweep tick. */
   statementLockHolder?: string;
+  statementReplayNeeded?: boolean;
 }
 
 export interface ErpSweepCycleDeps {
@@ -575,12 +590,14 @@ export interface ErpSweepCycleDeps {
   /** Atomic per-org statement-source lock. Live wiring always supplies both callbacks. */
   claimStatementLock?: (orgId: string, holder: string) => Promise<boolean>;
   releaseStatementLock?: (orgId: string, holder: string) => Promise<void>;
+  /** Native statement collection is independent of raw-ledger catch-up and legacy readiness. */
+  refreshNativeStatements?: (org: OrgBinding) => Promise<{ errorCode?: string }>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string }>;
   /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
    *  existing cycle tests stay byte-for-byte; the live wiring always supplies it. */
   repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
-  feedOrgLedgers: (org: OrgBinding) => Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }>;
+  feedOrgLedgers: (org: OrgBinding) => Promise<OrgLedgerFeedResult>;
   refreshOrgAccounting: (org: OrgBinding) => Promise<{ error?: string }>;
   /** P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's SECOND originator: re-drive the mirror's
    *  own work queue (`budget_version_erp_mirror`), re-asserting the SAME still-Active gate the
@@ -605,14 +622,25 @@ export interface ErpSweepCycleDeps {
 export const STATEMENT_SWEEP_WALL_CLOCK_CAP_MS = 150_000;
 export const STATEMENT_SWEEP_LOCK_TTL_MS = 15 * 60_000;
 
+export interface OrgLedgerFeedResult {
+  gl: number;
+  ple: number;
+  /** Raw-source completeness only; statement readiness never changes these flags. */
+  glCaughtUp?: boolean;
+  pleCaughtUp?: boolean;
+  error?: string;
+  statementReady?: boolean;
+  statementError?: string;
+}
+
 export interface ErpSweepCycleResult {
   orgs: number;
-  perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number }; errors: string[] }>;
+  perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
 }
 
 /**
  * Run ONE sweep cycle across every employing org. Per org, in order: (1) outbox recovery, (2) doctype
- * modified-poll sweep, (3) ledger-mirror feed, (4) accounting refresh. An org's failure is recorded
+ * modified-poll sweep, native statement capture, (3) ledger-mirror feed, (4) accounting refresh. An org's failure is recorded
  * WITHOUT aborting the loop (sweep resilience). The reconcile pass runs FIRST so the doctype sweep
  * sees a consistent outbox (ADR-0058 §Consequences).
  *
@@ -671,12 +699,25 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
         errors.push(`repair:${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    // Native report capture is independently resumable; raw ledger readiness never gates it.
+    if (deps.refreshNativeStatements) {
+      try {
+        const result = await deps.refreshNativeStatements(org);
+        if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
+      } catch {
+        errors.push('native-statement:native-refresh-failed');
+      }
+    }
     // (3) ledger-mirror feed.
-    let ledger: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean } | undefined;
+    let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     try {
       const r = await deps.feedOrgLedgers(org);
-      ledger = { gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp };
+      ledger = {
+        gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp,
+        ...(r.statementReady === undefined ? {} : { statementReady: r.statementReady }),
+      };
       if (r.error) errors.push(`ledger:${r.error}`);
+      if (r.statementError) errors.push(`statement:${r.statementError}`);
     } catch (err) {
       errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
     }
@@ -749,7 +790,7 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
  *  not silently swallowed). */
 export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Promise<OrgBinding[]> {
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, site_url, secret_ref, config, activated_at, version_major')
+    .select('id, org_id, site_url, secret_ref, config, activated_at, version_major, statement_full_ledger_replay_needed')
     .eq('external_tier', ERPNEXT_TIER);
   // task FIX-5: a real DB error must not be silently folded into "no employing orgs this cycle" — log
   // it so an outage is observable in the function logs. The sweep cycle still returns [] (fail-safe:
@@ -758,7 +799,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     console.error(`[erpnext-sweep] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     return [];
   }
-  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null }> | null) ?? [];
+  const rows = (data as Array<{ id?: string; org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null; statement_full_ledger_replay_needed?: boolean }> | null) ?? [];
   const activated = rows.filter((r) => r.activated_at);
   if (activated.length === 0) return [];
 
@@ -809,6 +850,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
 
   return activated.map((r) => ({
     orgId: r.org_id,
+    bindingId: r.id ?? null,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
     company: (r.config?.company as string | undefined) ?? '',
@@ -817,7 +859,195 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     versionMajor: r.version_major ?? null,
     activatedAt: r.activated_at,
     ownedDomains: ownedByOrg.get(r.org_id) ?? [],
+    statementReplayNeeded: r.statement_full_ledger_replay_needed === true,
   }));
+}
+
+type StatementCadenceBindingRow = {
+  id?: string | null;
+  org_id?: string | null;
+  config?: Record<string, unknown> | null;
+  activated_at?: string | null;
+  version_major?: number | null;
+};
+
+type NativeStatementBindingContext = {
+  orgId: string;
+  bindingId: string;
+  activatedAt: string;
+  versionMajor: 16;
+  company: string;
+  projectMap: Record<string, unknown>;
+};
+
+const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Binding-side criteria are kept aligned with refreshStatementReportBatch's shipped input guard. */
+function nativeStatementBindingContext(input: {
+  orgId: unknown;
+  bindingId: unknown;
+  activatedAt: unknown;
+  versionMajor: unknown;
+  company: unknown;
+  projectMap: unknown;
+}): NativeStatementBindingContext | null {
+  if (typeof input.orgId !== 'string' || !STATEMENT_BINDING_UUID_PATTERN.test(input.orgId) ||
+    typeof input.bindingId !== 'string' || !STATEMENT_BINDING_UUID_PATTERN.test(input.bindingId) ||
+    typeof input.activatedAt !== 'string' || !input.activatedAt || !Number.isFinite(Date.parse(input.activatedAt)) ||
+    input.versionMajor !== 16 || typeof input.company !== 'string' || input.company.trim() === '' ||
+    !isJsonRecord(input.projectMap)) return null;
+  return {
+    orgId: input.orgId,
+    bindingId: input.bindingId,
+    activatedAt: input.activatedAt,
+    versionMajor: 16,
+    company: input.company,
+    projectMap: input.projectMap,
+  };
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (isJsonRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return stableJson(left) === stableJson(right);
+}
+
+function sameTimestampInstant(left: unknown, right: string): boolean {
+  if (typeof left !== 'string') return false;
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs === rightMs;
+}
+
+const STATEMENT_FIRST_PUBLICATION_BACKFILL_MS = 6 * 60 * 60 * 1000;
+
+type StatementReportBatchReadinessRow = { org_id?: unknown; started_at?: unknown; context?: unknown };
+
+function statementReportBatchMatchesBinding(
+  batchContext: unknown,
+  context: NativeStatementBindingContext,
+): boolean {
+  if (!isJsonRecord(batchContext)) return false;
+  const batchBinding = batchContext.binding;
+  return batchContext.company === context.company && sameJson(batchContext.projectMap, context.projectMap) &&
+    isJsonRecord(batchBinding) && batchBinding.id === context.bindingId &&
+    batchBinding.versionMajor === context.versionMajor &&
+    sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
+}
+
+/**
+ * The ordinary cron has a five-minute window for the whole sweep. Between those windows it may
+ * return early once each active binding accepted by the native collector's binding guard has a
+ * publication for that same company, binding activation, version, and project map. A binding without
+ * its first publication can keep the five-minute cadence for six hours after activation; an older
+ * binding can do so only while an exact-identity native report batch started within the last six
+ * hours remains open. Other bindings stay on the hourly cadence. The publication context is written
+ * only by the native snapshot trigger for a committed generation; attempts and legacy status fields
+ * do not establish publication.
+ */
+async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: SupabaseClient): Promise<boolean> {
+  const { data, error } = await serviceClient.from('external_org_bindings')
+    .select('id, org_id, config, activated_at, version_major')
+    .eq('external_tier', ERPNEXT_TIER)
+    .not('activated_at', 'is', null);
+  if (error || !Array.isArray(data)) {
+    console.error(`[erpnext-sweep] publication readiness binding read failed: code=${error?.code ?? 'unknown'} message=${error?.message ?? 'invalid response'}`);
+    return false;
+  }
+
+  const eligibleBindings = (data as StatementCadenceBindingRow[]).flatMap((binding) => {
+    const projectMap = binding.config?.project_map === undefined ? {} : binding.config.project_map;
+    const context = nativeStatementBindingContext({
+      orgId: binding.org_id,
+      bindingId: binding.id,
+      activatedAt: binding.activated_at,
+      versionMajor: binding.version_major,
+      company: binding.config?.company,
+      projectMap,
+    });
+    return context ? [{ binding, context }] : [];
+  });
+
+  const readinessNowMs = Date.now();
+  const oldEligibleOrgIds = [...new Set(eligibleBindings
+    .filter(({ context }) => readinessNowMs - Date.parse(context.activatedAt) >= STATEMENT_FIRST_PUBLICATION_BACKFILL_MS)
+    .map(({ context }) => context.orgId))];
+  const recentBatches: StatementReportBatchReadinessRow[] = [];
+  const batchWindowStart = new Date(readinessNowMs - STATEMENT_FIRST_PUBLICATION_BACKFILL_MS).toISOString();
+  const batchWindowEnd = new Date(readinessNowMs).toISOString();
+  // The report-batch table has one row per org. Read only orgs with old, otherwise eligible
+  // bindings, and chunk the primary-key filter to keep each REST request bounded.
+  for (let offset = 0; offset < oldEligibleOrgIds.length; offset += 100) {
+    const orgIds = oldEligibleOrgIds.slice(offset, offset + 100);
+    const { data: batches, error: batchError } = await serviceClient.from('erp_financial_statement_report_batch')
+      .select('org_id, started_at, context')
+      .in('org_id', orgIds)
+      .gte('started_at', batchWindowStart)
+      .lte('started_at', batchWindowEnd);
+    if (batchError || !Array.isArray(batches)) {
+      console.error(`[erpnext-sweep] statement batch readiness read failed: code=${batchError?.code ?? 'unknown'} message=${batchError?.message ?? 'invalid response'}`);
+      continue;
+    }
+    recentBatches.push(...batches as StatementReportBatchReadinessRow[]);
+  }
+
+  for (const { binding, context } of eligibleBindings) {
+    const activationAgeMs = readinessNowMs - Date.parse(context.activatedAt);
+    // Give newly activated bindings a bounded fast retry window for their first native publication.
+    // A future activation timestamp is not allowed to extend that exception.
+    if (activationAgeMs < 0) continue;
+    const activationBackfillActive = activationAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS;
+    const recentBatchActive = !activationBackfillActive && recentBatches.some((batch) => {
+      if (batch.org_id !== context.orgId || typeof batch.started_at !== 'string') return false;
+      const batchAgeMs = readinessNowMs - Date.parse(batch.started_at);
+      return batchAgeMs >= 0 && batchAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS &&
+        statementReportBatchMatchesBinding(batch.context, context);
+    });
+    if (!activationBackfillActive && !recentBatchActive) continue;
+
+    const { company, projectMap } = context;
+
+    // `activatedAt` is jsonb text, so compare instants in JavaScript: the same PostgreSQL timestamp
+    // can be serialized as either a `Z` suffix or an explicit UTC offset across runtime versions.
+    const pageSize = 250;
+    for (let from = 0; ; from += pageSize) {
+      const { data: contexts, error: contextError } = await serviceClient.from('erp_financial_statement_published_context')
+        .select('context')
+        .eq('org_id', context.orgId)
+        .eq('company', company)
+        .eq('context->binding->>id', context.bindingId)
+        .eq('context->binding->>versionMajor', String(context.versionMajor))
+        .contains('context', { company, projectMap })
+        .range(from, from + pageSize - 1);
+      if (contextError || !Array.isArray(contexts)) {
+        console.error(`[erpnext-sweep] publication readiness context read failed: code=${contextError?.code ?? 'unknown'} message=${contextError?.message ?? 'invalid response'}`);
+        return false;
+      }
+
+      const foundCurrentPublication = contexts.some((row: { context?: unknown }) => {
+        if (!isJsonRecord(row.context)) return false;
+        const publishedContext = row.context;
+        const contextBinding = publishedContext.binding;
+        return publishedContext.company === company && sameJson(publishedContext.projectMap, projectMap) &&
+          isJsonRecord(contextBinding) && contextBinding.id === binding.id &&
+          contextBinding.versionMajor === context.versionMajor &&
+          sameTimestampInstant(contextBinding.activatedAt, context.activatedAt);
+      });
+      if (foundCurrentPublication) break;
+      if (contexts.length < pageSize) return false;
+    }
+  }
+  return true;
 }
 
 /** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
@@ -1419,17 +1649,161 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
   }
 }
 
-/** The ledger-mirror feed for one org (8.6b). */
-async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; error?: string }> {
+/** The statement-source read budget is intentionally separate from the ordinary ledger client. */
+type StatementReadOutcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
+type StatementSourceReadResults = {
+  accounts?: StatementReadOutcome<Awaited<ReturnType<typeof fetchStatementAccounts>>>;
+  timedOut: boolean;
+};
+
+/** One bounded statement-only stage; the ordinary ledger client and its retry budget are untouched. */
+async function readStatementSourcesBounded(client: ErpClientDeps, company: string): Promise<StatementSourceReadResults> {
+  const controller = new AbortController();
+  const boundedClient: ErpClientDeps = {
+    ...client,
+    timeoutMs: STATEMENT_READ_REQUEST_TIMEOUT_MS,
+    maxRetries: 0,
+    fetchImpl: (input, init) => {
+      const requestInit = init as RequestInit | undefined;
+      const signal = requestInit?.signal ? AbortSignal.any([controller.signal, requestInit.signal]) : controller.signal;
+      return client.fetchImpl(input, { ...requestInit, signal });
+    },
+  };
+  let acceptingResults = true;
+  let accounts: StatementSourceReadResults['accounts'];
+  const accountRead = fetchStatementAccounts(boundedClient, { company }).then(
+    (value) => { if (acceptingResults) accounts = { ok: true, value }; },
+    (error: unknown) => { if (acceptingResults) accounts = { ok: false, error }; },
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const deadline = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error(`Statement source reads exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`));
+      resolve(false);
+    }, STATEMENT_READ_STAGE_TIMEOUT_MS);
+  });
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
-    const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
-      client, orgId: org.orgId, company: org.company,
-    });
-    return { gl: r.glFed, ple: r.pleFed, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp };
-  } catch (err) {
-    return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: err instanceof Error ? err.message : String(err) };
+    await Promise.race([accountRead.then(() => true), deadline]);
+    return { accounts, timedOut };
+  } finally {
+    acceptingResults = false;
+    if (timer !== undefined) clearTimeout(timer);
+    if (!controller.signal.aborted) controller.abort();
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** The ledger-mirror feed for one org (8.6b). */
+export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<OrgLedgerFeedResult> {
+  let client: ErpClientDeps;
+  try {
+    client = await erpClientForOrg(serviceClient, org, cache);
+  } catch (err) {
+    return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: errorMessage(err) };
+  }
+
+  const statementErrors: string[] = [];
+  const attemptAt = new Date().toISOString();
+  try {
+    const { error } = await serviceClient.from('external_org_bindings').update({
+      statement_last_attempt_at: attemptAt,
+    }).eq('org_id', org.orgId).eq('external_tier', ERPNEXT_TIER);
+    if (error) statementErrors.push(`could not record statement source attempt: ${error.message}`);
+  } catch (err) {
+    statementErrors.push(`could not record statement source attempt: ${errorMessage(err)}`);
+  }
+
+  let reads: StatementSourceReadResults = { timedOut: false };
+  try {
+    reads = await readStatementSourcesBounded(client, org.company);
+  } catch (err) {
+    statementErrors.push(`statement source reads unavailable: ${errorMessage(err)}`);
+  }
+  if (reads.timedOut) statementErrors.push(`statement source read stage exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`);
+  let chartReady = false;
+  if (reads.accounts?.ok) {
+    try {
+      await feedAccountMirror(serviceClient as unknown as Parameters<typeof feedAccountMirror>[0], {
+        orgId: org.orgId, company: org.company, refreshId: crypto.randomUUID(), asOf: attemptAt, accounts: reads.accounts.value,
+      });
+      chartReady = true;
+    } catch (err) {
+      statementErrors.push(`chart unavailable: ${errorMessage(err)}`);
+    }
+  } else {
+    statementErrors.push(`chart unavailable: ${reads.accounts ? errorMessage(reads.accounts.error) : 'statement source read deadline expired'}`);
+  }
+  let referencesCheckedBefore = false;
+  let referencesBefore: boolean | undefined;
+  if (chartReady) {
+    try {
+      const { data, error } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+        p_org_id: org.orgId, p_company: org.company,
+      });
+      if (error) statementErrors.push(`chart references unavailable before ledger feed: ${error.message}`);
+      else if (typeof data !== 'boolean') statementErrors.push('chart references unavailable before ledger feed: unknown result');
+      else { referencesCheckedBefore = true; referencesBefore = data; }
+    } catch (err) {
+      statementErrors.push(`chart references unavailable before ledger feed: ${errorMessage(err)}`);
+    }
+  }
+
+  let gl = 0;
+  let ple = 0;
+  let glCaughtUp = false;
+  let pleCaughtUp = false;
+  let rawError: string | undefined;
+  try {
+    const result = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
+      client, orgId: org.orgId, company: org.company,
+      // Preserve the binding's original replay intent. Statement readiness is not a raw-history fence.
+      fullReplay: org.statementReplayNeeded === true,
+    });
+    gl = result.glFed;
+    ple = result.pleFed;
+    glCaughtUp = result.glCaughtUp;
+    pleCaughtUp = result.pleCaughtUp;
+    if (!glCaughtUp || !pleCaughtUp) {
+      rawError = [!glCaughtUp ? 'GL feed is incomplete' : '', !pleCaughtUp ? 'Payment Ledger feed is incomplete' : ''].filter(Boolean).join('; ');
+    }
+  } catch (err) {
+    rawError = errorMessage(err);
+  }
+
+  let referencesResolved = false;
+  if (chartReady && !rawError && glCaughtUp && pleCaughtUp) {
+    try {
+      const { data, error } = await serviceClient.rpc('mark_erp_statement_replay_for_missing_accounts', {
+        p_org_id: org.orgId, p_company: org.company,
+      });
+      if (error) statementErrors.push(`chart references unavailable after ledger feed: ${error.message}`);
+      else if (typeof data !== 'boolean') statementErrors.push('chart references unavailable after ledger feed: unknown result');
+      else referencesResolved = data === false;
+    } catch (err) {
+      statementErrors.push(`chart references unavailable after ledger feed: ${errorMessage(err)}`);
+    }
+  }
+  if (chartReady && referencesCheckedBefore && referencesBefore === true && !referencesResolved && !statementErrors.some((error) => error.includes('chart references unavailable'))) {
+    statementErrors.push('GL accounts remain unresolved in the complete chart');
+  }
+
+  // Legacy readiness is diagnostic only; native pending/publication status belongs to the batch RPCs.
+  const statementReady = Boolean(
+    chartReady && referencesCheckedBefore && referencesResolved &&
+    statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError,
+  );
+
+  return {
+    gl, ple, glCaughtUp, pleCaughtUp,
+    ...(rawError ? { error: rawError } : {}),
+    statementReady,
+    ...(statementErrors.length ? { statementError: statementErrors.join('; ') } : {}),
+  };
 }
 
 /**
@@ -1819,6 +2193,7 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
 /** Read the EXISTING `external_command_outbox` row for this timesheet's deterministic key, if any —
  *  the SAME key the Approvals UI derives (`timesheetPushKey`), so this finds the SAME candidate rather
  *  than minting a second one; the two originators collide safely (ADR-0058). */
+// deno-lint-ignore require-await -- preserve async promise/error behavior while forwarding the query result.
 async function findTimesheetOutboxRow(
   serviceClient: SupabaseClient,
   orgId: string,
@@ -2509,6 +2884,7 @@ async function reconcileOrgExpensePostingsLive(
 }
 
 serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
+  const handlerEntryMs = Date.now();
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
   //    secret from the Vault `erpnext_sweep_secret`; the master key never crosses into the DB. ──
@@ -2575,6 +2951,10 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     return json({ ok: result.failedIds.length === 0, ...result });
   }
 
+  if (new Date(handlerEntryMs).getUTCMinutes() >= 5 && await allActiveBindingsHavePublishedStatementGeneration(serviceClient)) {
+    return json({ ok: true, skipped: true });
+  }
+
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
@@ -2588,6 +2968,41 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     releaseStatementLock: async (orgId, holder) => {
       const { error } = await serviceClient.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });
       if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
+    },
+    refreshNativeStatements: async (org) => {
+      const rawProjectMap = org.config.project_map;
+      const context = nativeStatementBindingContext({
+        orgId: org.orgId,
+        bindingId: org.bindingId,
+        activatedAt: org.activatedAt,
+        versionMajor: org.versionMajor,
+        company: org.company,
+        projectMap: rawProjectMap === undefined ? {} : rawProjectMap,
+      });
+      if (!context || !org.statementLockHolder) {
+        return { errorCode: 'native-context-unavailable' };
+      }
+      try {
+        const client = await erpClientForOrg(serviceClient, org, erpAuth);
+        const remainingTickBudgetMs = Math.max(0, tickBudget.tickTimeBudgetMs - (Date.now() - tickBudget.tickStartMs));
+        const result = await refreshStatementReportBatch({
+          orgId: org.orgId,
+          holder: org.statementLockHolder,
+          binding: {
+            id: context.bindingId,
+            activatedAt: context.activatedAt,
+            versionMajor: context.versionMajor,
+            company: context.company,
+            projectMap: context.projectMap,
+          },
+          client,
+          service: serviceClient as unknown as StatementReportBatchService,
+          remainingTickBudgetMs,
+        });
+        return { errorCode: result.errorCode };
+      } catch {
+        return { errorCode: 'native-refresh-failed' };
+      }
     },
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),

@@ -221,8 +221,9 @@ describe('Page-level Export button integration (AC-EXP-008)', () => {
     expect(btn).not.toBeDisabled();
   });
 
-  it('AC-EXP-008: Procurement page renders a live (enabled) Export button', () => {
+  it('AC-EXP-008: Procurement page exposes a live (enabled) Export button in More', async () => {
     wrap(<ProcurementPage />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /^More$/i }));
     const btn = screen.getByRole('button', { name: /export/i });
     expect(btn).toBeInTheDocument();
     expect(btn).not.toBeDisabled();

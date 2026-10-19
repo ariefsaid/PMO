@@ -3,14 +3,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
+type Analytics = typeof import('@/src/lib/analytics');
+
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
   updateUser: vi.fn(),
 }));
 
 const trackHelpers = vi.hoisted(() => ({
-  trackAuthLoginSucceeded: vi.fn(),
-  trackAuthLoginFailed: vi.fn(),
+  trackAuthLoginSucceeded: vi.fn<Analytics['trackAuthLoginSucceeded']>(),
+  trackAuthLoginFailed: vi.fn<Analytics['trackAuthLoginFailed']>(),
 }));
 
 const navigateSpy = vi.hoisted(() => vi.fn());
@@ -19,10 +21,11 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => navigateSpy };
 });
 
-vi.mock('@/src/lib/analytics', () => ({
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
   trackAuthLoginSucceeded: trackHelpers.trackAuthLoginSucceeded,
   trackAuthLoginFailed: trackHelpers.trackAuthLoginFailed,
-}));
+} satisfies Analytics));
 
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {

@@ -3260,3 +3260,167 @@ ambiguity. `docs/glossary.md` carries the same note. Owner may override.
 - Approval copy uses neutral `dashboard.kpi.awaitingApproval.*` keys; unavailable remains an em dash/unavailable state, not zero, and explicit label overrides remain verbatim.
 - `Faktur Penjualan` is the shared Sales Invoices noun; rail and Finance breadcrumbs resolve through the shell key, aligned with the page's existing finance-copy key.
 
+## Compatibility-redirect test retention (Discover #1073, 2026-10-18)
+
+Prove compatibility redirects through the exported `AppRoutes` at their actual entry and assert the mounted canonical destination (including fragment focus where applicable). A leaf mounted directly at a path the router redirects elsewhere is not route coverage.
+
+---
+
+## OD-FS-023 — v0.23 displays saved ERPNext standard reports (owner 2026-10-18)
+
+The owner changes v0.23's
+financial-statement source from PMO's independent mirrored-ledger calculations to the actual
+ERPNext standard report API outputs. PMO remains the accountant's UI under OD-SAR-PMO-IS-THE-UI
+and OD-ERP-3/4; ERPNext remains the accounting/report engine.
+
+1. The existing ERP sweep reads standard Trial Balance, Profit and Loss Statement, Balance Sheet
+   and explicitly mapped native-project P&L for each current/prior period. It saves complete native
+   outputs; PMO preserves financial values and native row/profit presentation, without GL arithmetic,
+   rebuilding financial statements, independently calculated net or an unassigned remainder.
+2. Reuse the approved metadata, snapshot/privacy/publisher/read and UI work. Native detail is an
+   explicit per-side pair, not forced into the old computed-row model. Restricted raw_reports holds
+   the two original UTF8 financial responses on detail rows only; totals raw_reports stays NULL.
+   Project totals copy native P&L report_summary Income/Expense/Net values, never sum/subtract rows.
+3. One bounded resumable pass runs on existing sweep ticks and the existing org lease. Keep the
+   last complete publication until all required native report/period/project/current-prior outputs
+   are collected; then atomically replace the complete catalogue. Preserve each acquiredAt and the
+   generation startedAt/completedAt window. Recheck binding/Company/version/calendar/map before
+   final publication. Ordinary financial changes between native calls belong to that capture
+   window; this is not an ERP-wide transactional snapshot. No full second pass, GL source/replay
+   completeness or ACB-vs-local-calculation gate is introduced for native display.
+4. Month/quarter/FY selection, active-member/org/project privacy, both locales, approved accessible
+   UI and honest unavailable/empty/delayed/error states remain. Native absent rows are not guessed
+   zeros. No v0.23 unassigned option or company-minus-projects residual is added.
+5. Independent calculation/B2/T7/T3-recompute, no-ERP accounting, calculator fixture/130k/ACB
+   equivalence and derived remainder work is **parked after v0.23.0 and preserved**, not deleted or
+   claimed complete. Their existing branches/artifacts do not gate this source change.
+
+This explicitly amends financial-statements FR002–005/NFR001–002 and AC001/005 mechanism, and
+supersedes ADR-0088's mirrored-GL producer/aggregation mechanism for v0.23. It does not weaken
+privacy, complete atomic publication or real Finance display acceptance. RIS-specific AC002 stays
+pending genuine isolated RIS-equivalent execution; synthetic/sample proof is labeled as such.
+
+Implementation/release targets dev only. Owner production approval remains separate. No CI workflow
+change is part of this decision. Director applies the amended spec and existing plan filename, then
+runs the bounded code slices without another owner-spec checkpoint for this authorized amendment.
+
+
+## OD-FS-024 — refresh native statements incrementally, retain the complete catalogue (owner 2026-10-18)
+
+After the initial complete acquisition, refresh the current and previous reporting period routinely;
+refresh older native reports when the mirrored ledger records a relevant dated change. The owner
+also approved refreshing later historical Trial Balance and Balance Sheet reports affected by a
+backdated entry, so their opening or accumulated balances cannot remain stale. ERPNext remains the
+only source of statement monetary values; the mirror is an invalidation signal, not an accounting
+calculation input. This extends OD-FS-023 without resuming the parked PMO-side aggregation work.
+
+Each publication still exposes one complete company/project/current-prior catalogue atomically.
+Compatible unchanged historical pairs retain their exact raw responses, digests, filters and original
+acquisition times; generation/publication metadata must not imply those reports were newly fetched.
+Preserve genuine native context, runtime bounds, lease fences, role/tenant boundaries and failure
+rollback. Record/acknowledge dirty revisions durably so failed batches and concurrent later changes
+cannot lose required refresh work.
+
+**DD-FS-REFRESH-1 (Director):** “current and previous” means the two sides of one supplied comparison
+pair per month/quarter/fiscal year, consistent with existing selection controls. Select the latest
+supplied pair whose current start has begun in the organisation-local date; do not invent fiscal
+periods or choose a future start. Pin that date when admitting the batch. Invalidation follows the
+actual native report's dependency horizon, including both old and new dates/scopes for moved entries. The
+native-report stage runs before the mirror refresh in a sweep tick. A change first observed by that
+later stage is consumed on the next tick; its durable invalidation marker remains until a successful
+complete publication acknowledges it.
+
+
+## OD-FS-025 — native display capability, rehearsal and release checks (owner 2026-10-18)
+
+Native statement display requires standard report access and readable report/Company/Currency
+context. It must work without System Settings access or System Manager. ERPNext owns accounting
+precision and rounding; PMO takes presentation precision from Currency or report metadata and
+preserves native financial values. A System Settings403 cannot block a valid sweep publication.
+This is the native display disposition of #1068's blank-precision item.
+
+The approved rehearsal is a separate site in the existing local ERPNext v16 stack, reconstructed
+from locally held input files. Preserve other fixtures; no new infrastructure or off-device
+production data transfer. Acquisition uses serial bounded requests and segment sizing/cadence
+based on measured per-call cost with host-capacity headroom; keep existing runtime deadlines.
+
+Both Sol and Claude Opus whole-release security reviews run before any dev-to-main PR. Notify
+Claude when the release candidate is ready on dev. Dev remains the current authorized ceiling.
+
+
+## OD-V023-THROUGHPUT — parallel lanes and closing browser checks (owner 2026-10-18)
+
+Run billing/collections (S-15, S-16, S-36, S-39), purchasing/tax/integration setup (S-09, S-11,
+S-19, S-21), and history/phone/capture/employee/search (S-23, S-24, S-29, S-30, S-40) as three
+parallel native Codex Luna xhigh lanes. Keep their worktrees isolated, preserve file ownership and
+rebase translation edits before each PR. S-27 remains Director-dispatched; S-35 follows the statement
+views. Start #1089 when a build lane frees. Statements retain priority over shared resources.
+
+Each slice PR requires fast CI (four unit shards, pgTAP and verify). Browser integration runs on the
+lane-closing PR or a completed statement/money piece, with any resulting fix kept in that PR. Allow
+up to two concurrent browser dispatches through the logged shared wrapper and two heavy local runs.
+The owner requests continuous overnight progress toward the full dev queue by the following morning;
+this target does not waive tests, reviews, privacy or the dev-only release ceiling.
+
+## UXS-023 — business-first record history (2026-10-18, #1137)
+
+History leads with a localized business event, followed by the actor, exact time and recognizable
+affected record. Captured changes remain available in a keyboard-operated disclosure; events
+without field or insert details keep their summary without an empty control. Only consecutive
+system inserts with the same kind and exact timestamp on the same loaded page may form a counted
+group. Preserve every event and its order; grouping neither crosses pages nor infers a transaction.
+
+UX-046 graduates to AC-S23-001–004 in the history renderer/helper tests and the existing AC-CHG-019
+project-edit journey, whose original values must be visible after opening details. Rendered review
+uses rich project and procurement history at phone/desktop sizes, both locales and both themes.
+
+## UXS-024 — one phone pipeline stage list (2026-10-18, #1139)
+
+Below 768px, the board presentation uses one URL-backed stage selector and a vertical project
+list. Full project and customer names, source-currency value and applicable tax basis stay visible;
+weighting and secondary references are available in a native disclosure. A selected-stage group
+may omit repeated stage labels because the existing result filter intersects every row with that
+stage. Preserve Lost/Declined recovery, search, canonical record activation and desktop funnel/board.
+
+AC-S24-001/002 own working-set and card behavior in the page/board tests. AC-S24-004 owns rendered
+phone/desktop geometry and recovery in both locales and themes. The Sales page uses the existing
+`shell.nav.sales` destination label; the statement-host integration retains the route-metadata tail
+without a concurrent route file edit.
+
+
+### UXS-030 — deliberate employee identity confirmation (2026-10-18)
+
+An employee proposal remains a suggestion. Admin reviews both identities and explicitly selects an eligible destination before the existing audited confirmation. Selection or profile refresh alone never rewrites attribution. A failed save retains the dialog and selection for retry; missing identity or a stale choice withholds confirmation. Keep these renderer, read-model and host/cache regressions with the approvals route in the QA portfolio.
+
+### UXS-021 — deliberate task-list setup (2026-10-19)
+
+Project task work stays ahead of compact integration status. Admin reviews the exact list identity and explicitly chooses the initial task source before confirming a link. A saved link is retained when list details fail or disappear; initial transfer remains unconfirmed until independently proved. Exact-name proposals never write a link by themselves.
+
+
+### UXP-1145 — retained account drafts explain unavailable choices (2026-10-19)
+
+An unsaved account omitted by a successful chart refresh remains selected. Its field explains
+why Save is unavailable and offers correction or explicit clearing. A missing saved value keeps
+its established saved-value wording, visible beside the vendor-tax field even when its picker
+is collapsed. Pending and failed chart reads keep their existing recovery states. Exact setters,
+eligible account rules and Finance read-only behavior remain unchanged.
+
+The v0.24.0 slice remains held from dev until the v0.23.0 release branch transition is authorized
+and completed. AC-V24P-001–003 own draft retention, exact save arguments and state distinctions.
+
+
+### UXS-036 — customer collections through exact identity (2026-10-19)
+
+Finance opens a customer aging position through its canonical Customer mapping to the company’s
+collections section, then uses the customer-filtered invoice register. Ambiguous mappings do not
+assign an aging amount to a company. Keep the source currency, report date, aging basis and range
+labels visible; missing balances or currency remain unavailable rather than becoming zero or
+inheriting another currency. The invoice amount retains its explicit source currency.
+
+A collections deep link moves focus to its heading after the company loads. Preserve this path’s
+ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.
+
+
+### OD-ERP-023 — hourly ERPNext reconciliation (2026-10-19)
+
+The final owner amendment (15:45 WIB, eligibility clarified at 16:15 WIB), with the bounded release-review refinement in PR #1212, is: Keep the five-minute cron trigger. The whole ERPNext sweep runs during UTC minutes 0–4. Between those windows, a statement-eligible binding without a matching first publication may keep five-minute progress for up to six hours after activation, or while its matching native report batch has been open for less than six hours. Match the existing collector eligibility and the current company, binding identity, activation instant, version and project map. A future activation timestamp does not extend either window. Older connections start collection on an ordinary hourly attempt; once that attempt opens a validated batch, its bounded five-minute continuation can finish the initial catalogue (normally about one hour after collection starts). Expired or unconfirmed batch windows follow the hourly cadence. Other ticks make no ERP calls or domain writes. Immediate dispatch and ClickUp cadence remain unchanged; keep the existing seven-second stage and five-second request bounds. No schedule migration or statement-only gate applies. This supersedes the earlier statement-only gate and hourly cron migration proposals.

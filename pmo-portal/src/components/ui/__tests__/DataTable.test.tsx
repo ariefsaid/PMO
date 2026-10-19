@@ -664,3 +664,58 @@ describe('DataTable — A-C-1: mobile card <dd> wrapping (no value clipping at 3
     expect(dl!.className).not.toContain('overflow-hidden');
   });
 });
+
+describe('DataTable accessible structure name', () => {
+  it('names the active desktop table without duplicating the existing rows or headers', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        accessibleName="Trial balance comparison"
+      />,
+    );
+
+    const table = screen.getByRole('table', { name: 'Trial balance comparison' });
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(rows.length);
+    expect(screen.getAllByText('Alpha')).toHaveLength(1);
+    expect(screen.getAllByText('Beta')).toHaveLength(1);
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+  });
+
+  it('keeps omitted and explicitly undefined names absent from the original desktop table', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('min-width: 768px'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    const { rerender } = render(
+      <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} />,
+    );
+    const table = screen.getByRole('table');
+    expect(table).not.toHaveAttribute('aria-label');
+    expect(screen.queryByRole('table', { name: 'Trial balance comparison' })).not.toBeInTheDocument();
+
+    rerender(
+      <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} accessibleName={undefined} />,
+    );
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-label');
+    expect(screen.getAllByText('Alpha')).toHaveLength(1);
+    expect(screen.getAllByText('Beta')).toHaveLength(1);
+  });
+});

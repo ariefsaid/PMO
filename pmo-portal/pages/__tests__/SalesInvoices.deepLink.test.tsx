@@ -131,7 +131,10 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-16', isPending: false, isError: false, retry: vi.fn() }) }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
+  useClientCompanyOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,

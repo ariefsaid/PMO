@@ -445,6 +445,11 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
 - **Money cells:** `tabular` is **mandatory** on every figure and on the `—` that stands in its place
   (§3) — a column that loses it stops aligning against the table above it.
+- **Responsive statement totals:** on narrow card stacks, place short Current/Previous labels above
+  full-width amount values; keep the full supplied date ranges and currency in the section context,
+  and retain at least 100px for each value cell at a 390px viewport. Desktop headers keep their full
+  date and currency captions. Amounts may wrap when longer than the available width; they must not
+  be clipped or reduced to one digit per line.
 - **In-cell:** project cell (28px mono icon + 2-line name/code, code in `font-mono`); money (`tabular`,
   sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by
   threshold); age chip (turns `warning`/`destructive` when aging/stale).
@@ -932,3 +937,19 @@ Filter-clearing text uses the existing `primary-text` AA token in both themes. T
 form keeps all five classification fields in its scrollable body with the save footer visible.
 Read-only setup lists pair each term with its definition; explanatory helper text sits outside the
 definition list so assistive technology receives valid list semantics.
+
+### Tax detail disclosure (S-39, 2026-10-18)
+
+Keep a record’s saved inclusive/exclusive tax basis beside its amount. Selected record surfaces disclose the saved rate and base through a labelled keyboard/touch control; unknown facts stay unknown. Escape closes the disclosure and restores focus to its trigger. The shared control keeps its ordinary inline default and explicit basis-only aggregate mode. Disclosure does not activate a surrounding card or approve an invoice, and genuine billing prerequisites keep their existing remedy. Use the shared 44px coarse-pointer target with the 32px visual control.
+
+### Reference search identities (2026-10-18, S-40)
+
+Command-palette results retain canonical reference tokens on one line while allowing the surrounding label to wrap. Keep cached navigation available during reference loading or retry; each result opens its canonical detail screen. A bounded result list asks the user to refine a broad query. The reference search component and persisted Finance journey retain these checks.
+
+### Daily purchasing rows (S-19, 2026-10-18)
+
+Daily request lists show the shared current-state name and a descriptive next step; the full lifecycle stays on the request detail screen. Preserve the approval gate and quote-selected stage. Import/export tools live behind the labelled More disclosure while search, status and request creation remain immediate. Executive purchasing charts describe the PMO request register and distinguish it from ERP-native purchasing.
+
+### Recoverable expense capture (S-29, 2026-10-19)
+
+Place the first receipt and expense line before secondary claim details. Leave the expense type unknown until chosen; any started line requires its date, type, description and positive amount. A filename or description may suggest the title until the claimant edits it. Suggest only that claimant’s newest explicit category for the selected project and show its source. After a partial receipt failure, keep the saved draft and original inputs, explain what remains, and offer retry or the saved draft. Long forms scroll above their visible save footer in both themes and languages.

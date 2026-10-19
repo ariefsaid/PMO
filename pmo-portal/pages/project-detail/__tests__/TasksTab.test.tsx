@@ -22,6 +22,22 @@ const { listState, profilesState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+const integrationsState = vi.hoisted(() => ({
+  clickupLists: [] as unknown[],
+  isListsPending: false,
+  isListsError: false,
+  listsError: null as unknown,
+  refetchLists: vi.fn(),
+  linkProject: { mutateAsync: vi.fn().mockResolvedValue({ ok: true }), isPending: false },
+  unlinkProject: { mutateAsync: vi.fn().mockResolvedValue({ ok: true }), isPending: false },
+  projectBindings: [] as unknown[],
+  isBindingsPending: false,
+  isBindingsError: false,
+  bindingsError: null as unknown,
+  refetchBindings: vi.fn(),
+  getBinding: vi.fn(),
+}));
+
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => listState,
   useAssignableProfiles: () => profilesState,
@@ -36,6 +52,9 @@ vi.mock('@/src/hooks/useMilestones', () => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
     setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
   }),
+}));
+vi.mock('@/src/hooks/useIntegrations', () => ({
+  useIntegrations: () => integrationsState,
 }));
 
 // usePermission reads the REAL JWT role from the impersonation context.
@@ -123,6 +142,67 @@ beforeEach(() => {
   });
   realRole = 'Project Manager';
   currentUserId = 'pm-1';
+  integrationsState.clickupLists = [];
+  integrationsState.isListsPending = false;
+  integrationsState.isListsError = false;
+  integrationsState.listsError = null;
+  integrationsState.linkProject.mutateAsync.mockClear();
+  integrationsState.unlinkProject.mutateAsync.mockClear();
+  integrationsState.projectBindings = [];
+  integrationsState.isBindingsPending = false;
+  integrationsState.isBindingsError = false;
+  integrationsState.bindingsError = null;
+  integrationsState.getBinding.mockImplementation(() => undefined);
+});
+
+describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
+  it('keeps the task register before the disconnected integration status', () => {
+    renderTab();
+
+    const task = screen.getByText('Survey the site');
+    const integration = screen.getByTestId('project-integrations-compact');
+
+    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(task.compareDocumentPosition(integration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('gives an Admin a direct setup link without opening a blocking setup dialog', () => {
+    renderTab('Admin');
+
+    const setupLink = screen.getByRole('link', { name: /set up ClickUp/i });
+    expect(setupLink).toHaveAttribute('href', '/administration/integrations');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+  });
+
+  it('keeps tasks first when a ClickUp project link already exists', () => {
+    integrationsState.getBinding.mockImplementation((tier: string) => tier === 'clickup' ? { status: 'active' } : undefined);
+    integrationsState.clickupLists = [{ id: 'list-1', name: 'Sprint Backlog', space_name: 'Delivery', folder_name: null }];
+    integrationsState.projectBindings = [{
+      id: 'binding-1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup',
+      external_container_id: 'list-1', config: { direction: 'push-seed' }, linked_by: 'u1',
+      linked_at: '2026-01-02T00:00:00Z', disconnected_at: null,
+    }];
+
+    renderTab();
+
+    const task = screen.getByText('Survey the site');
+    const linkedList = screen.getByText('Sprint Backlog');
+    expect(task.compareDocumentPosition(linkedList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps task work usable ahead of the ClickUp recovery state when list loading fails', () => {
+    integrationsState.getBinding.mockImplementation((tier: string) => tier === 'clickup' ? { status: 'active' } : undefined);
+    integrationsState.isListsError = true;
+    integrationsState.listsError = new Error('private transport diagnostic');
+
+    renderTab();
+
+    const task = screen.getByText('Survey the site');
+    const recovery = screen.getByRole('button', { name: /^Retry$/i });
+    expect(task.compareDocumentPosition(recovery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('private transport diagnostic')).not.toBeInTheDocument();
+  });
 });
 
 describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {

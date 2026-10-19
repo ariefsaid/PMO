@@ -86,6 +86,7 @@ const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDeta
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
 const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
@@ -106,9 +107,11 @@ const AdministrationEntryRedirect: React.FC = () => {
   const { role } = useAuth();
   const target = hash === '#budget-account-map'
     ? '/administration/accounting#budget-account-map'
-    : role === 'Finance'
-      ? '/administration/exchange-rates'
-      : '/administration/users';
+    : hash === '#org-project-number-pattern'
+      ? '/administration/projects#org-project-number-pattern'
+      : role === 'Finance'
+        ? '/administration/exchange-rates'
+        : '/administration/users';
   return <Navigate to={target} replace />;
 };
 
@@ -180,6 +183,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  { path: '/financial-statements', element: <FinancialStatementsPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.

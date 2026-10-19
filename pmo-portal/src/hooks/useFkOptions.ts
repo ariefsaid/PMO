@@ -59,6 +59,11 @@ export function useProjectOptions() {
 export interface InvoiceProjectOption extends ComboboxOption {
   /** The project's client — the invoice form offers only the chosen customer's projects (M-1). */
   clientId: string | null;
+  /** Native invoice entry follows the authorized project's source currency, never the org default. */
+  currency?: string | null;
+  /** Stored tax-base fraction facts for native invoice previews; consumers must not recompute them. */
+  taxBaseNumerator?: number | null;
+  taxBaseDenominator?: number | null;
   /** OD-TAX-4: the project decides a PMO invoice's VAT; a VAT project with no rate is refused (DD-TAX-4a). */
   subjectToVat: boolean;
   taxRate: number | null;
@@ -81,6 +86,9 @@ export function useInvoiceProjectOptions() {
         label: p.name,
         sub: p.code ?? undefined,
         clientId: p.client_id,
+        ...(p.currency !== undefined ? { currency: p.currency } : {}),
+        ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),
+        ...(p.tax_base_denominator !== undefined ? { taxBaseDenominator: p.tax_base_denominator } : {}),
         subjectToVat: p.subject_to_vat,
         taxRate: p.tax_rate,
         customerContractRef: p.customer_contract_ref,

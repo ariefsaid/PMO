@@ -19,19 +19,25 @@ import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
-import ProjectSCurve from './ProjectSCurve';
-import OverviewTab from './tabs/OverviewTab';
-import { CommentsSection } from '@/src/components/comments/CommentsSection';
-import BudgetTab from './tabs/BudgetTab';
-import ProcurementTab from './tabs/ProcurementTab';
-import TasksTab from './tabs/TasksTab';
-import DocumentsTab from './tabs/DocumentsTab';
-import WorkOrdersTab from './tabs/WorkOrdersTab';
-import BillingTab from './tabs/BillingTab';
-import { RecordHistory } from '@/src/components/history/RecordHistory';
 import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
 import { ProjectErpLink } from './ProjectErpLink';
 import ProjectFormModal from '../../components/ProjectFormModal';
+
+const OverviewTab = React.lazy(() => import('./tabs/OverviewTab'));
+const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
+const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
+const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
+const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
+const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
+const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
+const ProjectProfitLossSection = React.lazy(() => import('./ProjectProfitLossSection'));
+const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
+const CommentsSection = React.lazy(() =>
+  import('@/src/components/comments/CommentsSection').then(({ CommentsSection }) => ({ default: CommentsSection })),
+);
+const RecordHistory = React.lazy(() =>
+  import('@/src/components/history/RecordHistory').then(({ RecordHistory }) => ({ default: RecordHistory })),
+);
 
 type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents' | 'history';
 
@@ -204,57 +210,66 @@ const ProjectDetail: React.FC = () => {
       id={tabPanelId('project-detail', tab)}
       aria-labelledby={tabId('project-detail', tab)}
     >
-      {tab === 'overview' && (
-        <>
-          {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-          <div className="mb-6">
-            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
-          </div>
-          <OverviewTab
-            project={project}
-            committedSpend={committedSpend}
-            commitmentSource={commitmentSource}
-            ledgerBasis={ledgerBasis}
-            commitmentPending={committedSpendQuery.isPending}
-            commitmentError={committedSpendQuery.isError}
-            setTab={setTab}
-            // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-            // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
-            showFinanceSummary={isDeliveryForward && !isPipeline}
-          />
-          {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
-              the Overview tab is active, and is hidden for pre-win records (no real progress
-              data). Scoping it here (not at shell level) prevents it bleeding into
-              Budget / Procurement / Tasks / Documents. */}
-          {!isPipeline && (
-            <div className="mt-8">
-              <ProjectSCurve projectId={project.id} />
+      <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
+        {tab === 'overview' && (
+          <>
+            {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
+            <div className="mb-6">
+              <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
             </div>
-          )}
-          <div className="mt-8">
-            <CommentsSection entityType="project" entityId={project.id} />
-          </div>
-        </>
-      )}
-      {tab === 'budget' && <BudgetTab projectId={project.id} />}
-      {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-      {tab === 'tasks' && <TasksTab projectId={project.id} />}
-      {tab === 'work-orders' && (
-        <WorkOrdersTab
-          projectId={project.id}
-          currency={project.currency}
-          clientId={project.client_id ?? null}
-          focusWorkOrderId={new URLSearchParams(location.search).get('wo')}
-        />
-      )}
-      {tab === 'billing' && canSeeBilling && (
-        <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-          projectManagerId={project.project_manager_id ?? null} />
-      )}
-      {tab === 'documents' && <DocumentsTab projectId={project.id} />}
-      {tab === 'history' && (
-        <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
-      )}
+            <OverviewTab
+              project={project}
+              committedSpend={committedSpend}
+              commitmentSource={commitmentSource}
+              ledgerBasis={ledgerBasis}
+              commitmentPending={committedSpendQuery.isPending}
+              commitmentError={committedSpendQuery.isError}
+              setTab={setTab}
+              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
+              // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
+              showFinanceSummary={isDeliveryForward && !isPipeline}
+            />
+            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+              <ProjectProfitLossSection projectId={project.id} />
+            </React.Suspense>
+            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
+                the Overview tab is active, and is hidden for pre-win records (no real progress
+                data). Scoping it here (not at shell level) prevents it bleeding into
+                Budget / Procurement / Tasks / Documents. */}
+            {!isPipeline && (
+              <div className="mt-8">
+                <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-80" />}>
+                  <ProjectSCurve projectId={project.id} />
+                </React.Suspense>
+              </div>
+            )}
+            <div className="mt-8">
+              <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+                <CommentsSection entityType="project" entityId={project.id} />
+              </React.Suspense>
+            </div>
+          </>
+        )}
+        {tab === 'budget' && <BudgetTab projectId={project.id} />}
+        {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
+        {tab === 'tasks' && <TasksTab projectId={project.id} projectName={project.name} />}
+        {tab === 'work-orders' && (
+          <WorkOrdersTab
+            projectId={project.id}
+            currency={project.currency}
+            clientId={project.client_id ?? null}
+            focusWorkOrderId={new URLSearchParams(location.search).get('wo')}
+          />
+        )}
+        {tab === 'billing' && canSeeBilling && (
+          <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+            projectManagerId={project.project_manager_id ?? null} />
+        )}
+        {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+        {tab === 'history' && (
+          <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
+        )}
+      </React.Suspense>
     </div>
   );
 

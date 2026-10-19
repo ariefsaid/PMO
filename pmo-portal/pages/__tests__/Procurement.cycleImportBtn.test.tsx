@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -67,22 +68,25 @@ beforeEach(() => {
 });
 
 describe('Procurement — Import cycle data button (AC-E15-E17)', () => {
-  it('AC-E15-E17: renders "Import cycle data" button (not "Import cycle") for a canCreate Admin role', () => {
+  it('AC-E15-E17: renders "Import cycle data" button (not "Import cycle") in More for a canCreate Admin role', async () => {
     renderAs('Admin');
+    await userEvent.setup().click(screen.getByRole('button', { name: /^More$/i }));
     // E15: new label "Import cycle data"
     expect(screen.getByRole('button', { name: /import cycle data/i })).toBeInTheDocument();
     // Confirm the old label is gone
     expect(screen.queryByRole('button', { name: /^import cycle$/i })).not.toBeInTheDocument();
   });
 
-  it('AC-E15-E17: "Import cycle data" button is enabled for a canCreate Admin', () => {
+  it('AC-E15-E17: "Import cycle data" button is enabled for a canCreate Admin', async () => {
     renderAs('Admin');
+    await userEvent.setup().click(screen.getByRole('button', { name: /^More$/i }));
     const btn = screen.getByRole('button', { name: /import cycle data/i });
     expect(btn).toBeEnabled();
   });
 
-  it('AC-E15-E17: "Import cycle data" button is also visible for Engineer (any member can raise)', () => {
+  it('AC-E15-E17: "Import cycle data" button is also visible for Engineer (any member can raise)', async () => {
     renderAs('Engineer');
+    await userEvent.setup().click(screen.getByRole('button', { name: /^More$/i }));
     // Engineers CAN create procurement (any member may raise a PR — policy.test line 30).
     // The button is shown (canCreate=true for Engineer).
     expect(screen.getByRole('button', { name: /import cycle data/i })).toBeInTheDocument();

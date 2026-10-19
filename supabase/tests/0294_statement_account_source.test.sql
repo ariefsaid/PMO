@@ -1,12 +1,15 @@
 -- AC-003/005 support: account master shape and machine-only status controls.
 begin;
-select plan(16);
+select plan(19);
 
 insert into public.organizations(id, name) values ('a2940000-0000-0000-0000-000000000002', 'Synthetic Chart Org');
 
 select ok(to_regclass('public.erp_account_mirror') is not null, 'account source table exists');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.erp_account_mirror'::regclass), 'account source forces RLS');
 select ok((select count(*) = 19 from information_schema.columns where table_schema='public' and table_name='erp_account_mirror'), 'chart columns include the source contract');
+select ok(exists (select 1 from pg_index i join pg_class t on t.oid=i.indrelid where t.oid='public.erp_account_mirror'::regclass and i.indisunique and pg_get_indexdef(i.indexrelid) like '%(org_id, company, erp_name)%'), 'chart has the org/company/ERP identity unique key');
+select ok(exists (select 1 from pg_trigger where tgrelid='public.erp_account_mirror'::regclass and tgname='erp_account_mirror_stamp_org_id' and not tgisinternal), 'chart org stamp trigger is installed');
+select ok((select is_nullable='NO' from information_schema.columns where table_schema='public' and table_name='erp_account_mirror' and column_name='account_currency'), 'account currency is explicitly non-null');
 select ok(has_table_privilege('authenticated','public.erp_account_mirror','SELECT'), 'authenticated has read grant');
 select ok(not has_table_privilege('authenticated','public.erp_account_mirror','INSERT'), 'ordinary users cannot insert chart rows');
 select ok(has_table_privilege('service_role','public.erp_account_mirror','INSERT'), 'service role can write chart rows');

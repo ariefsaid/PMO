@@ -74,6 +74,54 @@
     "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum digunakan. Minta operator menambahkan akun yang sesuai; akun overhead bukan pengganti.",
     "countOnlyHelp": "Akun ini dihitung dalam realisasi kategori; anggaran tidak pernah dicatat ke akun ini."
   },
+  "uxs11": {
+    "accountNoun": "akun",
+    "accountPlaceholder": "Pilih akun",
+    "accountSearch": "Cari nama atau nomor akun",
+    "bindingRequired": "Koneksi organisasi ERPNext aktif diperlukan untuk memuat pilihan ini. Minta administrator akuntansi meninjau koneksi.",
+    "bindingLoadError": "Penyiapan ERPNext tidak dapat diperiksa. Coba lagi sebelum memutuskan apakah koneksi diperlukan.",
+    "catalogueLoadError": "Tidak dapat memuat bagan akun",
+    "checkingBinding": "Memeriksa penyiapan ERPNext…",
+    "downPaymentHeading": "Uang muka",
+    "downPaymentIntro": "Pilih item ERPNext yang sudah ada untuk menagih uang muka pelanggan dan memperhitungkannya kembali pada klaim tagihan.",
+    "downPaymentItemLabel": "Item uang muka",
+    "downPaymentItemPlaceholder": "Pilih item ERPNext",
+    "downPaymentItemUnavailable": "Item tersimpan tidak ada dalam daftar item saat ini; item tetap tersimpan sampai diganti.",
+    "downPaymentLoadError": "Tidak dapat memuat item uang muka",
+    "downPaymentItemsError": "Tidak dapat memuat item ERPNext. Coba lagi dari daftar item atau minta administrator akuntansi meninjau daftar item.",
+    "downPaymentNoItems": "Tidak ada item penjualan ERPNext yang ditemukan. Minta administrator akuntansi meninjau daftar item aktif; tidak ada item pengganti yang dipilih.",
+    "downPaymentRemoteChanged": "Item tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
+    "downPaymentSaved": "Item uang muka disimpan",
+    "downPaymentUnverified": "Gunakan item yang dikonfigurasi untuk mencatat uang muka pelanggan ke akun liabilitas. Minta administrator akuntansi memeriksa akun item sebelum menyimpan.",
+    "inputVatLabel": "Akun PPN Masukan",
+    "itemNoun": "item",
+    "itemSearch": "Cari item ERPNext",
+    "loadingAccounts": "Memuat bagan akun…",
+    "noAssetAccounts": "Tidak ada akun Aset aktif. Minta administrator akuntansi menambahkan akun yang sesuai ke bagan akun ERP.",
+    "notConfigured": "Belum dikonfigurasi",
+    "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
+    "pph23Label": "Akun Utang PPh 23",
+    "pph42Label": "Akun Utang PPh 4(2)",
+    "receiptWithholdingContext": "Akun Aset untuk pajak penghasilan yang dipotong pelanggan",
+    "reloadSaved": "Muat ulang nilai tersimpan",
+    "retryBinding": "Periksa penyiapan lagi",
+    "saveDownPaymentItem": "Simpan item",
+    "saveVendorTax": "Simpan akun",
+    "saveWithholding": "Simpan akun",
+    "savedChoiceUnavailable": "Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.",
+    "vendorTaxHeading": "Akun pajak tagihan vendor",
+    "vendorTaxIntro": "Pilih akun dari bagan perusahaan untuk PPN Masukan dan pajak yang dipotong dari tagihan vendor. Pilihan PPN Masukan memakai akun Aset; pilihan utang PPh memakai akun Liabilitas.",
+    "vendorTaxLoadError": "Tidak dapat memuat akun pajak",
+    "vendorTaxRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
+    "vendorTaxSaved": "Akun pajak vendor disimpan",
+    "withholdingHeading": "Potongan pajak pada penerimaan",
+    "withholdingIntro": "Pilih akun Aset untuk pajak penghasilan yang dipotong pelanggan. Admin harus mengaturnya sebelum penerimaan dengan potongan pajak dapat dicatat.",
+    "withholdingLabel": "Akun pajak dibayar di muka",
+    "withholdingLoadError": "Tidak dapat memuat akun pajak dibayar di muka",
+    "withholdingPlaceholder": "Pilih akun Aset",
+    "withholdingRemoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
+    "withholdingSaved": "Akun potongan pajak penerimaan disimpan"
+  },
   "uxs08": {
     "reviewTitle": "Tinjau penyiapan bisnis",
     "reviewDescription": "Tinjau cara organisasi Anda menjaga informasi bisnis tetap mutakhir. Koneksi yang sudah selesai akan dipertahankan; hanya hal yang perlu ditangani yang memerlukan keputusan.",
@@ -89,7 +137,6 @@
     "employeeLabel": "Anggota tim yang mencatat waktu",
     "employeeMissing": "Orang yang mencatat waktu dan masih memerlukan tautan karyawan ERP: {{count}}",
     "projectLabel": "Koneksi proyek",
-    "projectAction": "Tinjau usulan tautan untuk {{name}}",
     "setupComplete": "Penyiapan selesai. Koneksi terkonfirmasi tetap tersimpan; tinjauan ini akan muncul kembali saat ada hal yang perlu ditangani.",
     "partiesAction": "Tinjau koneksi perusahaan",
     "defaultsDialog": "Pengaturan pekerjaan dan tagihan",
@@ -104,6 +151,55 @@
     "receivableHelp": "Pilih akun yang digunakan untuk mencatat faktur pelanggan perusahaan ini.",
     "domainHelp": "Layanan yang terhubung akan mengelola jenis informasi bisnis ini. Tinjau data dan akses yang ada sebelum melanjutkan.",
     "domainField": "Informasi bisnis"
+  },
+  "uxs09": {
+    "reviewTitle": "Tinjau kecocokan proyek ERP yang sudah ada",
+    "projectLinkTitle": "Proyek ERPNext",
+    "reviewDescription": "Tinjau proyek ERP yang sudah ada dan konfirmasikan hanya tautan yang Anda pilih. Tinjauan ini tidak membuat proyek ERP.",
+    "reviewAction": "Tinjau kecocokan proyek",
+    "closeReview": "Tutup tinjauan",
+    "searchLabel": "Cari proyek ERP yang sudah ada",
+    "searchPlaceholder": "Cari berdasarkan nama atau ID proyek ERP",
+    "searchAction": "Cari",
+    "incompleteCandidates": "Hasil yang dimuat mungkin belum lengkap. Sistem tidak menganggap proyek tidak ada atau cocok secara unik; cari dan pilih proyek yang sudah ada secara eksplisit.",
+    "candidateLabel": "Proyek ERP untuk {{name}}",
+    "projectNoun": "proyek ERP",
+    "pickerSearch": "Cari proyek ERP yang dimuat",
+    "suggestedMatch": "Kecocokan persis yang disarankan: {{name}} ({{id}})",
+    "possibleMatch": "Kemungkinan kecocokan dalam hasil yang dimuat: {{ids}}. Pilih proyek ERP secara eksplisit.",
+    "ambiguousMatch": "Lebih dari satu kecocokan persis ditemukan. Pilih proyek ERP yang dimaksud di bawah.",
+    "noExactMatch": "Tidak ada kecocokan persis dalam hasil yang dimuat. Cari di ERPNext atau pilih proyek yang sudah ada.",
+    "noCandidates": "Tidak ada proyek ERP yang ditemukan untuk pencarian ini. Cari lagi atau minta administrator meninjau koneksi.",
+    "candidatesUnavailable": "Pilihan proyek ERP yang ada tidak tersedia",
+    "candidatesRetryHelp": "Tidak ada asumsi kecocokan yang dibuat. Ulangi pencarian atau minta administrator memeriksa koneksi.",
+    "projectCode": "Kode proyek klien: {{code}}",
+    "noProjectCode": "Kode proyek klien belum dicatat",
+    "currentTarget": "Proyek ERP saat ini: {{name}}",
+    "noCurrentLink": "Belum ada proyek ERP yang ditautkan",
+    "useSuggestion": "Gunakan kecocokan yang disarankan untuk {{name}}",
+    "useSuggestionShort": "Gunakan kecocokan ini",
+    "pickerPlaceholder": "Pilih proyek ERP",
+    "notLinked": "Belum ditautkan",
+    "reviewSelected": "Tinjau tautan yang dipilih",
+    "confirmTitle": "Konfirmasi kecocokan proyek ERP",
+    "confirmAction": "Konfirmasi tautan",
+    "savedCount_one": "{{count}} tautan tersimpan",
+    "savedCount_other": "{{count}} tautan tersimpan",
+    "attentionCount_one": "{{count}} perlu ditangani",
+    "attentionCount_other": "{{count}} perlu ditangani",
+    "saveFailed": "Tautan proyek ini belum tersimpan. Pilihan Anda tetap ada agar dapat dicoba lagi.",
+    "connectionChanged": "Proyek atau koneksi ERP berubah. Segarkan tinjauan dan pilih lagi.",
+    "upstreamUnavailable": "ERPNext tidak dapat dijangkau. Coba lagi saat koneksi tersedia.",
+    "loading": "Memuat tautan proyek ERP…",
+    "unavailable": "Tinjauan proyek ERP tidak tersedia",
+    "retryHelp": "Status kesiapan tidak diketahui. Ulangi pemeriksaan atau minta administrator meninjau koneksi ERP.",
+    "projectRetryHelp": "Proyek PMO tidak dapat diperbarui. Ulangi sebelum meninjau tautan.",
+    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek pengiriman atau Proyek Internal.",
+    "queueEmpty": "Tidak ada kecocokan proyek pengiriman atau Proyek Internal yang perlu ditinjau.",
+    "readOnlyLinked": "Minta administrator meninjau perubahan pada tautan proyek ERP ini.",
+    "readOnlyHandoff": "Minta administrator meninjau kecocokan proyek ERP.",
+    "openSetup": "Buka pengaturan ERP organisasi",
+    "operatorRecovery": "Buka pengaturan ERP organisasi"
   },
   "uxs02": {
     "unavailable": "Tidak tersedia",
@@ -563,21 +659,7 @@
         "save": "Tambah"
       }
     },
-    "vendorTaxAccounts": {
-      "remoteChanged": "Akun tersimpan berubah. Perubahan Anda tetap ada; muat ulang nilai tersimpan untuk membuangnya.",
-      "reloadSaved": "Muat ulang nilai tersimpan",
-      "heading": "Akun pajak tagihan vendor",
-      "helper": "Masukkan nama akun ERPNext yang persis. Kosongkan jika tidak digunakan.",
-      "inputVat": "Akun PPN Masukan",
-      "intro": "Akun ERPNext tempat PMO membukukan PPN dan pajak dipotong pada tagihan vendor. Wajib diisi sebelum tagihan dengan jumlah tersebut dapat dikirim ke ERPNext.",
-      "loadError": "Tidak dapat memuat akun pajak",
-      "notConfigured": "Belum dikonfigurasi",
-      "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
-      "pph23": "Akun Utang PPh 23",
-      "pph42": "Akun Utang PPh 4(2)",
-      "save": "Simpan akun",
-      "saved": "Akun pajak disimpan"
-    }
+    "vendorTaxAccounts": {}
   },
   "approvals": {
     "salesInvoices": {
@@ -638,6 +720,22 @@
       "title": "Semua sudah beres"
     },
     "employeeLinks": {
+      "uxs30": {
+        "chooseProfile": "Pilih profil PMO aktif untuk menerima atribusi jam kerja.",
+        "confirmDescription": "Jam kerja timesheet ERP karyawan {{employee}}{{employeeNumber}} akan diatribusikan kepada pengguna PMO {{profile}}{{profileEmail}} mulai sekarang. Perubahan email di ERP tidak dapat mengalihkan tautan yang sudah dikonfirmasi secara diam-diam.",
+        "confirmLabel": "Konfirmasi tautan",
+        "confirmTitle": "Atribusikan jam kerja {{employee}} kepada {{profile}}?",
+        "confirmTitleUnknown": "Konfirmasi tautan karyawan untuk {{employee}}?",
+        "destination": "Jam kerja akan diatribusikan kepada {{profile}}",
+        "noActiveProfiles": "Tidak ada profil PMO aktif yang tersedia.",
+        "profileLabel": "Pengguna PMO tujuan atribusi jam kerja",
+        "profileNoun": "profil PMO",
+        "profilePlaceholder": "Pilih profil PMO",
+        "saveFailure": "Tautan karyawan ini gagal dikonfirmasi. Profil yang dipilih masih tersedia; coba lagi.",
+        "searchProfiles": "Cari profil aktif",
+        "staleProfile": "Profil PMO yang dipilih sudah tidak aktif. Pilih profil aktif sebelum mengonfirmasi.",
+        "unknownEmployee": "karyawan ini"
+      },
       "title": "Tautan karyawan menunggu konfirmasi"
     },
     "entryOne": "entri",
@@ -1170,7 +1268,7 @@
     },
     "bva": { "atRisk": "Berisiko" },
     "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
-    "procurementStatus": { "draft": "Draf", "requested": "Diminta", "approved": "Disetujui", "vendorQuoted": "Penawaran vendor", "ordered": "Dipesan", "received": "Diterima", "vendorInvoiced": "Invoice vendor", "paid": "Dibayar", "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
+    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {
       "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya", "myProjectsHelp": "Proyek yang ditetapkan kepada Anda sebagai manajer proyek.",
@@ -1198,6 +1296,21 @@
       "guidance": "Minta administrator menyinkronkan data akuntansi."
     },
     "accountingSnapshots": "Snapshot akuntansi",
+    "uxs36CustomerCollectionsTitle": "Piutang pelanggan (AR)",
+    "uxs36ReportDate": "Tanggal laporan",
+    "uxs36AgeingBasis": "Dasar umur piutang",
+    "uxs36ErpRanges": "Rentang ERP",
+    "uxs36Unavailable": "Tidak tersedia",
+    "uxs36CustomerFilterLabel": "Pelanggan",
+    "uxs36CustomerFilterUnavailable": "Pelanggan yang dipilih tidak tersedia",
+    "uxs36CustomerFilterClear": "Hapus filter pelanggan",
+    "uxs36CollectionsHeading": "Piutang pelanggan",
+    "uxs36CollectionsUnavailableTitle": "Posisi umur piutang pelanggan tidak tersedia",
+    "uxs36CollectionsUnavailableDescription": "Posisi umur piutang ERP yang cocok tidak tersedia. Ini tidak berarti saldo nol.",
+    "uxs36CollectionsAmbiguous": "Pelanggan ERP ini terhubung ke beberapa perusahaan. Jumlah umur piutangnya tidak diberikan ke perusahaan ini.",
+    "uxs36CollectionsReadError": "Data piutang pelanggan tidak dapat dimuat.",
+    "uxs36OpenInvoices": "Buka faktur",
+    "uxs36OverdueInvoicesFirst": "Faktur terlambat lebih dulu",
     "actualsSnapshotEmpty": "Belum ada snapshot aktual",
     "agingSnapshotEmpty": "Belum ada data umur utang/piutang untuk ditampilkan.",
     "boardPack": {
@@ -1206,9 +1319,6 @@
       "tooltip": "Ekspor board pack hadir bersama Laporan"
     },
     "chart": {
-      "bva": {
-        "empty": "Belum ada proyek aktif"
-      },
       "pipelineMargin": {
         "empty": "Tidak ada pipeline aktif",
         "error": "Gagal memuat pipeline",
@@ -1840,18 +1950,13 @@
       "status": "Status",
       "value": "Nilai"
     },
-    "description": {
-      "orgWide": "Permintaan pembelian melalui PR → VQ → PO → GR → VI → Lunas, dengan gerbang pemisahan tugas. Buka permintaan untuk menelusuri halaman siklus lengkapnya.",
-      "ownScoped": "Permintaan pembelian yang Anda ajukan, melalui PR → VQ → PO → GR → VI → Lunas. Buka permintaan untuk melacak siklusnya, atau ajukan yang baru."
-    },
     "empty": {
       "orgWide": {
         "title": "Belum ada permintaan pembelian"
       },
       "ownScoped": {
         "title": "Anda belum mengajukan permintaan"
-      },
-      "sub": "Permintaan yang Anda ajukan akan muncul di sini sepanjang siklus lengkapnya."
+      }
     },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil permintaan Anda.",
@@ -2640,20 +2745,17 @@
     },
     "procurement": {
       "column": {
-        "lifecycle": "Siklus",
         "request": "Permintaan",
         "status": "Status",
         "value": "Nilai"
       },
       "empty": {
-        "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini sepanjang siklusnya.",
         "title": "Belum ada permintaan pembelian untuk proyek ini"
       },
       "error": {
         "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
         "title": "Gagal memuat pengadaan"
       },
-      "lifecycleLabel": "Siklus",
       "newRequest": "Permintaan baru",
       "openRow": "Buka",
       "subtitle": "Permintaan yang diajukan untuk proyek ini, dilacak sepanjang siklusnya.",
@@ -2983,21 +3085,9 @@
       "retry": "Coba lagi"
     },
     "erpLink": {
-      "title": "Proyek ERPNext",
-      "pending": "Proyek tersimpan di PMO. Penghubungan ERP belum selesai; coba hubungkan lagi.",
-      "failed": "Gagal menyimpan tautan proyek ERP. Periksa pilihan lalu coba lagi.",
-      "loading": "Memuat tautan ERP…",
-      "unavailable": "Tautan ERP tidak tersedia",
-      "missing": "Proyek ini belum memiliki tautan ERP.",
-      "link": "Hubungkan proyek ERP",
-      "change": "Ubah proyek ERP",
-      "save": "Simpan tautan proyek",
-      "help": "Pilih Proyek ERPNext aktif untuk Perusahaan yang terhubung. Identitas yang dikembalikan akan disimpan sebagai tautan proyek ini.",
-      "noun": "proyek ERP",
       "createdPending": "{{name}} tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "movedPending": "Dipindahkan ke {{status}}. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
-      "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
-      "retry": "Coba lagi"
+      "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek."
     }
   },
   "projectForm": {
@@ -3199,6 +3289,53 @@
     "currencyErrorTitle": "Mata uang organisasi tidak dapat dimuat",
     "subtitle": "Pendapatan per proyek, tidak termasuk pajak, dalam mata uang masing-masing invoice, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
   },
+  "financialStatements": {
+    "amounts": "Jumlah",
+    "asAt": "Per tanggal",
+    "accessDenied": "Anda tidak memiliki akses ke laporan keuangan",
+    "accessDeniedDescription": "Laporan perusahaan tersedia bagi role Admin, Finance, dan Executive.",
+    "backToDashboard": "Kembali ke dashboard",
+    "balanceSheet": "Neraca",
+    "captureWindow": "Rentang pengambilan",
+    "collected": "Dikumpulkan",
+    "companyScope": "Perusahaan",
+    "current": "Periode berjalan",
+    "currentColumn": "Kini",
+    "delayed": "Pembaruan tertunda",
+    "description": "Lihat laporan perusahaan tersimpan dan laporan proyek yang dipetakan.",
+    "error": "Laporan keuangan tidak dapat dimuat",
+    "errorDescription": "Permintaan gagal. Periksa koneksi lalu coba lagi.",
+    "expense": "Pengeluaran",
+    "fiscalYear": "Tahun fiskal",
+    "income": "Pendapatan",
+    "month": "Bulan",
+    "net": "Bersih",
+    "noActivity": "Tidak ada aktivitas pada periode ini",
+    "noActivityDescription": "Tidak ada aktivitas pada periode yang dipilih.",
+    "noPeriods": "Tidak ada periode tersedia",
+    "notProvided": "Tidak tersedia",
+    "period": "Periode",
+    "periodKind": "Jenis periode",
+    "prior": "Periode sebelumnya",
+    "priorColumn": "Lalu",
+    "profitAndLoss": "Laba rugi",
+    "projectNamesLoading": "Memuat nama proyek yang dipetakan…",
+    "projectNamesUnavailable": "Sebagian nama proyek yang dipetakan tidak tersedia. Laporan perusahaan tetap dapat digunakan.",
+    "projectProfitAndLoss": "Laba rugi proyek",
+    "quarter": "Triwulan",
+    "refreshing": "Memperbarui laporan…",
+    "retry": "Coba lagi",
+    "retryProjectNames": "Coba lagi memuat nama proyek",
+    "scope": "Cakupan",
+    "statement": "Laporan",
+    "trialBalance": "Neraca saldo",
+    "unavailable": "Laporan keuangan belum tersedia",
+    "unavailableDescription": "Laporan tersimpan akan muncul di sini saat tersedia.",
+    "updated": "Diperbarui",
+    "values": "Nilai",
+    "choosePeriod": "Pilih periode",
+    "chooseScope": "Pilih cakupan"
+  },
   "sales": {
     "accessDenied": {
       "sub": "Pipeline Penjualan tersedia untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
@@ -3273,7 +3410,6 @@
         "title": "Tidak ada proyek yang cocok dengan pencarian"
       }
     },
-    "title": "Pipeline",
     "toast": {
       "projectCreated": "Proyek dibuat"
     },
@@ -3350,6 +3486,7 @@
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
+      "financialStatements": "Laporan keuangan",
       "managementPack": "Laporan manajemen"
     },
     "notifications": {
@@ -3366,6 +3503,14 @@
       "unread": "Belum dibaca"
     },
     "palette": {
+      "uxs40": {
+        "customerOrderReference": "Referensi pesanan pelanggan: {{reference}}",
+        "incomingPayment": "Pembayaran masuk",
+        "moreReferenceMatches": "Referensi lainnya ditemukan; persempit pencarian",
+        "recordContext": "{{type}} · {{context}}",
+        "referenceLabel": "Referensi: {{reference}}",
+        "salesInvoice": "Faktur penjualan"
+      },
       "askAiSub": "Buka asisten dengan draf ini",
       "dialogLabel": "Palet perintah",
       "inputLabel": "Cari proyek, data, atau jalankan perintah",
@@ -3591,7 +3736,6 @@
           "projectsLoading": "Memuat proyek…",
           "projectsUnavailable": "Proyek tidak tersedia, sehingga rincian proyek tidak dapat ditentukan.",
           "projectsRetry": "Muat ulang proyek",
-          "listUnavailable": "Daftar tidak tersedia",
           "unknown": "Tidak diketahui"
         },
         "disconnect": {
@@ -3985,8 +4129,6 @@
     "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
     "linkToSalesInvoice": "Tautkan ke faktur penjualan…",
-    "paidAmount": "Jumlah Dibayar",
-    "receivedAmount": "Jumlah Diterima",
     "youDonTHaveAccessToRevenueByProject": "Anda tidak memiliki akses ke Pendapatan per Proyek",
     "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "Tampilan pendapatan per proyek tersedia untuk Finance, Manajer Proyek, dan Eksekutif.",
     "unassigned": "Belum ditetapkan",
@@ -4066,7 +4208,6 @@
     "withholdingSlip": "Bukti potong",
     "withheldAmountLabel": "Jumlah pajak dipotong",
     "withholdingSlipNumberLabel": "Nomor bukti potong",
-    "paidAmountHelper": "Jumlah penuh yang dialokasikan ke faktur, termasuk pajak yang dipotong klien.",
     "receivedAmountHelper": "Kas yang benar-benar diterima.",
     "withheldAmountHelper": "Masukkan jumlah yang dipotong klien; PMO tidak menghitung pajak penghasilan. Isi 0 bila tidak ada pemotongan.",
     "withholdingSlipHelper": "Wajib diisi bila klien memotong pajak.",
@@ -4327,6 +4468,67 @@
     "backlogUnavailable": "Belum tersedia",
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
+  "uxs35": {
+    "heading": "Posisi proyek terkini",
+    "scope": "Posisi tercatat terbaru; terpisah dari pendapatan periode terpilih.",
+    "loading": "Memuat…",
+    "error": "Sumber ini gagal dimuat.",
+    "partial": "Cakupan sebagian",
+    "notRequested": "Buka detail proyek untuk memuat.",
+    "unavailable": "Tidak tersedia",
+    "detailUnavailable": "Detail proyek tidak tersedia.",
+    "retry": "Coba lagi sumber",
+    "noProjects": "Tidak ada proyek yang ditetapkan dengan posisi terkini.",
+    "currentPositionLabel": "posisi terkini",
+    "recordedCostToDate": "Biaya tercatat hingga kini",
+    "basis": {
+      "pmo": "Buku besar PMO",
+      "erp": "Buku besar ERP",
+      "unavailable": "Tidak tersedia"
+    },
+    "updated": "Diperbarui",
+    "restrictedRowsExcluded": "Baris terbatas tidak disertakan dalam pembacaan ini.",
+    "actualsChanged": "Pembacaan Actual ERP berbeda antar sumber, sehingga margin tidak tersedia.",
+    "cashReceived": "Kas diterima",
+    "cashScope": "Kas berdasarkan penerimaan, terpisah dari pelunasan faktur.",
+    "sourceTimeUnavailable": "Waktu pembaruan sumber tidak tersedia",
+    "cashIncomplete": "Jumlah kas tidak lengkap dalam data penerimaan tersimpan.",
+    "billedWork": "Pekerjaan tertagih hingga kini",
+    "billedWorkScope": "Pekerjaan tertagih hingga kini · sebelum pajak",
+    "missingWork_one": "{{count}} baris faktur tidak memiliki jumlah pekerjaan.",
+    "missingWork_other": "{{count}} baris faktur tidak memiliki jumlah pekerjaan.",
+    "billedWorkIncomplete": "Belum lengkap — jumlah pekerjaan faktur belum tersedia",
+    "marginToDate": "Margin pekerjaan tertagih hingga kini",
+    "marginReason": {
+      "different-currencies": "Mata uang pekerjaan tertagih dan Actual berbeda.",
+      "work-unavailable": "Pendapatan pekerjaan tertagih yang lengkap tidak tersedia.",
+      "actuals-unavailable": "Cakupan Actual kanonis tidak lengkap atau tidak tersedia.",
+      "restricted-rows": "Baris terbatas tidak disertakan dalam Actual ini."
+    },
+    "projectOutstanding": "Sisa tagihan faktur proyek",
+    "projectOutstandingScope": "Hanya faktur terbuka untuk proyek ini",
+    "missingOutstanding_one": "{{count}} baris faktur tidak memiliki jumlah sisa tagihan yang diketahui.",
+    "missingOutstanding_other": "{{count}} baris faktur tidak memiliki jumlah sisa tagihan yang diketahui.",
+    "taxBasis": {
+      "inclusive": "termasuk pajak",
+      "exclusive": "sebelum pajak",
+      "mixed": "dasar pajak campuran"
+    },
+    "customerBalance": "Saldo pelanggan — termasuk proyek lain",
+    "customerScope": "Umur piutang ERP tingkat pelanggan dapat mencakup faktur dari proyek lain.",
+    "customerAmbiguous": "Umur piutang pelanggan dipetakan ke beberapa perusahaan, sehingga jumlahnya disembunyikan.",
+    "openCollections": "Buka penagihan pelanggan",
+    "openCustomerInvoices": "Buka faktur pelanggan",
+    "overdueInvoices": "Faktur lewat jatuh tempo lebih dulu",
+    "companyStatements": "Laporan keuangan perusahaan",
+    "openProject": "Buka ikhtisar proyek",
+    "hideDetails": "Sembunyikan detail",
+    "positionDetails": "Rincian posisi",
+    "positionPages": "Halaman posisi terkini",
+    "previous": "Proyek sebelumnya",
+    "pageOf": "Halaman {{page}} dari {{count}}",
+    "next": "Proyek berikutnya"
+  },
   "comments": {
     "title": "Komentar",
     "empty": "Belum ada komentar.",
@@ -4569,7 +4771,10 @@
     "budgetRemaining": "Sisa anggaran {{amount}}",
     "onBudget": "Sesuai anggaran",
     "cashReceived": "Kas diterima",
-    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia"
+    "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini",
+    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia",
+    "cashReceivedInvalid": "Tidak tersedia — data kas berbasis kuitansi tidak dapat diverifikasi",
+    "cashReceivedIncomplete": "Belum lengkap — alokasi kuitansi belum dapat memastikan kas"
   },
   "invoiceProject": {
     "assign":"Tetapkan proyek", "change":"Ubah proyek", "project":"Proyek", "save":"Simpan proyek",
@@ -4645,7 +4850,13 @@
     "activeBudgetRisk":"Risiko terhadap anggaran aktif", "noActiveBudget":"Belum ada anggaran aktif", "notAvailableYet":"Belum tersedia",
     "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
-    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini."
+    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
+    "activeBudget":"Anggaran aktif", "actual":"Aktual", "variance":"Selisih", "utilization":"Pemakaian", "atRisk":"Berisiko",
+    "activeBudgetReviewEmpty":"Belum ada anggaran aktif yang siap ditinjau", "activeBudgetReviewEmptySub":"Anggaran aktif bernilai positif ditampilkan di sini.",
+    "actualSourceCurrency":"Mata uang sumber: {{currency}}", "actualAsOf":"Per {{date}}",
+    "deliveryChartEmpty":"Belum ada proyek pelaksanaan untuk dibandingkan", "deliveryChartScope":"Proyek menang, ditahan, dalam pelaksanaan atau selesai, serta proyek internal.",
+    "financeDashboardTitle":"Dasbor Keuangan", "financeDashboardSubtitle":"Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.",
+    "financeBudgetReviewTitle":"Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)", "financeProjectColumn":"Proyek", "financeReadyToPay":"Siap dibayar"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",
@@ -4703,6 +4914,13 @@
     "receiptsCoverageUnknown": "Belum semua alokasi penerimaan dilaporkan.",
     "noAppliedReceipts": "Tidak ada penerimaan yang dialokasikan untuk faktur ini."
   },
+  "uxCorrectness": {
+    "projectNumberPattern": {
+      "timezonePending": "Memeriksa tahun organisasi…",
+      "previewUnavailable": "Pratinjau tidak tersedia",
+      "retryPreview": "Coba lagi pratinjau"
+    }
+  },
   "uxs06": {
     "statusReceived": "Diterima",
     "statusExpected": "Diharapkan",
@@ -4721,5 +4939,154 @@
     "unappliedNote": "{{amount}} dari penerimaan ini belum dialokasikan ke faktur.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
+  },
+  "uxs23": {
+    "history": {
+      "summaryCreated": "{{kind}} dibuat",
+      "summaryStatusChanged": "Status berubah",
+      "summaryUpdated": "{{kind}} diperbarui",
+      "summaryRecorded": "Peristiwa riwayat",
+      "viewDetails": "Lihat detail perubahan",
+      "groupSummary": "{{count}} peristiwa sistem"
+    }
+  },
+  "uxs27": {
+    "amountSettled": "Jumlah yang dilunasi",
+    "cashReceived": "Kas diterima",
+    "amountSettledHelper": "Jumlah yang dilunasi adalah saldo faktur yang ditutup oleh penerimaan ini. Jumlah ini mencakup kas yang diterima dan pajak yang dipotong oleh klien.",
+    "taxWithheldDisclosure": "Pajak dipotong",
+    "withheldSummary": "Pajak dipotong: {{amount}}",
+    "withholdingSlipSummary": "Bukti potong: {{slip}}",
+    "withholdingSlipMissing": "Nomor bukti potong belum diisi (wajib untuk pemotongan pajak)."
+  },
+  "uxs15": {
+    "startInvoice": "Mulai membuat faktur",
+    "methodTitle": "Mulai membuat faktur",
+    "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
+    "contractInvoice": "Faktur kontrak",
+    "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
+    "customerWorkOrder": "Work Order pelanggan",
+    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "quantityProgressClaim": "Klaim kuantitas atau progres",
+    "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
+    "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",
+    "contextInvalid": "Proyek ini atau kliennya tidak lagi tersedia. Mulai faktur baru dan pilih dari opsi yang tersedia.",
+    "retryContext": "Coba lagi",
+    "currencyUnavailable": "Mata uang proyek tidak tersedia."
+  },
+  "uxs24": {
+    "stageLabel": "Tahap pipeline",
+    "allStages": "Semua tahap",
+    "phoneList": "Proyek pada tahap pipeline yang dipilih",
+    "financialDetails": "Rincian keuangan dan proyek",
+    "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
+    "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
+  },
+  "uxs16": {
+    "invoiceDraftReview": "Tinjauan draf faktur",
+    "subtotal": "Subtotal",
+    "tax": "Pajak",
+    "total": "Total",
+    "itemCodeOptionalHelp": "Opsional. Isi kode item jika proyek Anda menggunakannya.",
+    "invoiceLineQuantityValid": "Baris {{line}}: Kuantitas harus positif dengan maksimal 3 angka desimal.",
+    "projectTaxBase": "Dasar pengenaan pajak proyek: {{numerator}}/{{denominator}}",
+    "selectProjectForReview": "Pilih proyek untuk meninjau mata uang dan pajaknya.",
+    "currencyUnavailable": "Mata uang tidak tersedia, sehingga total draf tidak dapat ditampilkan.",
+    "completeLinesForReview": "Lengkapi detail baris, kuantitas, dan harga yang valid untuk meninjau total.",
+    "projectTaxUnavailable": "Informasi pajak proyek tidak tersedia, sehingga pajak dan total akhir belum dapat dipratinjau.",
+    "reviewProjectTax": "Tinjau pengaturan pajak proyek",
+    "erpTotalsAfterDraft": "Pajak dan total akhir tersedia setelah draf ERP dibuat."
+  },
+  "uxs39": {"showTaxDetails": "Tampilkan rincian pajak", "hideTaxDetails": "Sembunyikan rincian pajak"},
+  "uxs19": {
+    "status": {
+      "draft": "Draf",
+      "requested": "Permintaan Pembelian",
+      "approved": "Disetujui",
+      "vendorQuoted": "Penawaran Vendor",
+      "quoteSelected": "Penawaran Dipilih",
+      "ordered": "Purchase Order",
+      "received": "Penerimaan Barang",
+      "vendorInvoiced": "Invoice Vendor",
+      "paid": "Dibayar",
+      "rejected": "Ditolak",
+      "cancelled": "Dibatalkan"
+    },
+    "nextStep": {
+      "draft": "Ajukan permintaan",
+      "requested": "Menunggu persetujuan",
+      "approved": "Minta penawaran vendor",
+      "vendorQuoted": "Pilih penawaran",
+      "quoteSelected": "Siapkan purchase order",
+      "ordered": "Catat penerimaan",
+      "received": "Catat invoice vendor",
+      "vendorInvoiced": "Catat pembayaran"
+    },
+    "nextStepPrefix": "Langkah berikutnya:",
+    "more": "Lainnya",
+    "pageDescriptionOrgWide": "Ajukan dan lacak permintaan pembelian, persetujuan, pesanan, dan pembayaran. Buka permintaan untuk melihat riwayat lengkapnya.",
+    "pageDescriptionOwnScoped": "Lacak permintaan yang Anda ajukan dari persetujuan hingga pembayaran.",
+    "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
+    "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian langsung tercatat di ERP.",
+    "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
+  },
+  "uxs29": {
+    "expenseCapture": {
+      "firstExpense": "Pengeluaran pertama",
+      "claimSubtitle": "Mulai dengan tanda terima atau rincian pengeluaran pertama. Anda dapat menambahkan lagi setelah menyimpan.",
+      "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
+      "expenseTypePlaceholder": "Pilih jenis",
+      "expenseTypeRequired": "Pilih jenis pengeluaran.",
+      "receipt": "Tanda terima (opsional)",
+      "chooseReceiptFile": "Pilih berkas tanda terima",
+      "chooseReceipt": "Pilih tanda terima",
+      "removeReceipt": "Hapus",
+      "categorySource": "Disarankan dari klaim terbaru Anda untuk proyek yang sama: {{title}}.",
+      "draftSavedReceiptPending": "Draf Anda sudah tersimpan. Tanda terima belum terlampir. Coba lagi untuk menyelesaikan draf ini, atau buka draf dan lampirkan tanda terima nanti.",
+      "retryReceipt": "Coba lagi lampiran tanda terima",
+      "openSavedDraft": "Buka draf tersimpan"
+    }
+  },
+  "uxs21": {
+    "askIntegrationAdmin": "Minta administrator integrasi untuk menghubungkan ClickUp.",
+    "clickupNotConnected": "ClickUp belum terhubung untuk organisasi ini.",
+    "setupClickUp": "Siapkan ClickUp",
+    "listUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
+    "listDetailsLoading": "Memuat detail daftar; ID daftar tersimpan: {{listId}}",
+    "unknownInitialSource": "Sumber awal tidak tercatat",
+    "initialSourceLabel": "Sumber awal",
+    "sourcePmo": "Mulai dengan tugas PMO",
+    "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
+    "initialTransferPending": "Proyek terhubung. Transfer tugas awal belum dikonfirmasi. Minta administrator integrasi Anda untuk menyelesaikan transfer awal.",
+    "listReadUnavailable": "Detail daftar tidak dapat dimuat ulang. Tautan daftar tersimpan tetap dipertahankan.",
+    "retryLists": "Coba muat ulang detail daftar",
+    "bindingReadUnavailable": "Detail tautan proyek tidak dapat dimuat ulang. Tautan tersimpan tetap dipertahankan.",
+    "retryBinding": "Coba muat ulang tautan proyek",
+    "reviewTitle": "Tinjau tautan ClickUp",
+    "reviewSubtitle": "Pastikan daftar yang sudah ada memang milik proyek ini.",
+    "reviewAction": "Tinjau tautan",
+    "confirmAction": "Konfirmasi tautan ClickUp",
+    "linkDetails": "Detail tautan",
+    "listLabel": "Daftar ClickUp",
+    "listPlaceholder": "Pilih daftar yang sudah ada",
+    "listSearch": "Cari daftar yang sudah ada",
+    "listNoun": "daftar",
+    "exactMatchHint": "Nama daftar ini cocok persis dengan nama proyek. Tinjau sebelum menyimpan.",
+    "changedMatchHint": "Anda mengubah daftar yang disarankan. Pastikan daftar yang dipilih memang yang ingin ditautkan.",
+    "noExactMatchHint": "Tidak ada kecocokan nama yang unik. Pilih sendiri daftar yang ingin ditautkan.",
+    "sourceLegend": "Pilih sumber tugas awal",
+    "sourcePmoHelp": "Gunakan tugas proyek ini sebagai kumpulan awal.",
+    "sourceClickUpHelp": "Gunakan tugas yang sudah ada di daftar ClickUp ini sebagai kumpulan awal.",
+    "projectFallback": "Proyek ini",
+    "projectLabel": "Proyek PMO",
+    "initialSourceConsequence": "Pilihan ini hanya menjelaskan transfer tugas awal. Pilihan ini tidak menetapkan arah sinkronisasi satu arah yang berkelanjutan.",
+    "transferPendingNote": "Menyimpan tautan ini tidak mengonfirmasi bahwa transfer tugas awal telah selesai.",
+    "backToEdit": "Ubah pilihan",
+    "reviewColumn": "Tinjau",
+    "suggestedList": "Saran",
+    "ambiguousMatch": "Beberapa daftar memakai nama proyek ini",
+    "initialTransferPendingShort": "Transfer awal belum dikonfirmasi",
+    "savedListUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
+    "reviewMatch": "Tinjau kecocokan daftar"
   }
 }

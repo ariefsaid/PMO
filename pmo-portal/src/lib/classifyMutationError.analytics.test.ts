@@ -6,8 +6,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
-vi.mock('./analytics', () => analytics);
+type Analytics = typeof import('./analytics');
+const analytics = vi.hoisted(() => ({
+  trackSaveFailed: vi.fn<Analytics['trackSaveFailed']>(),
+  trackBulkImportFailed: vi.fn<Analytics['trackBulkImportFailed']>(),
+}));
+vi.mock('./analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  ...analytics,
+} satisfies Analytics));
 
 import { classifyMutationError, trackBatchSaveFailed } from './classifyMutationError';
 import type { ClassifyContext } from './classifyMutationError';

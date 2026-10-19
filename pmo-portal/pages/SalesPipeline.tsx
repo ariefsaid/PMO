@@ -21,6 +21,7 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
@@ -63,6 +64,7 @@ const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const stageLabel = useSalesStageLabel();
   // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
   // deals and so carry no record currency — the org default is the honest denomination for those.
@@ -207,6 +209,13 @@ const SalesPipeline: React.FC = () => {
   };
 
   const onOpen = (p: PipelineProject) => openOpportunity(openRecord, p);
+  const onPhoneScopeChange = (nextScope: DealScope) =>
+    setWorkingSet((ws) => ({
+      ...ws,
+      scope: nextScope,
+      ...(nextScope === 'Lost' ? { status: '' } : {}),
+      ...(view === 'kanban' && nextScope !== 'Open' ? { view: 'table' } : {}),
+    }));
 
   const tableColumns: Column<PipelineProject>[] = [
     {
@@ -435,8 +444,10 @@ const SalesPipeline: React.FC = () => {
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
   // controls move together (no second event drops the first call). Shared by the table's
   // DataTable `emptyAction` and the board's zero-match ListState below.
+  const [classificationResetToken, setClassificationResetToken] = useState(0);
   const clearFilters = () => {
     setSearch('');
+    setClassificationResetToken((n) => n + 1);
     setWorkingSet(() => parseListWorkingSet('sales', '', { sessionView: readPipelineView() }));
   };
 
@@ -467,7 +478,7 @@ const SalesPipeline: React.FC = () => {
 
   return (
     <ListPage
-      title={t('sales.title', 'Pipeline')}
+      title={t('shell.nav.sales', 'Sales Pipeline')}
       description={t(
         'sales.description',
         'Track projects in the sales pipeline and forecast revenue.',
@@ -502,11 +513,11 @@ const SalesPipeline: React.FC = () => {
             />
           )}
           {/* Weighted funnel summary band — the Pipeline's stage-summary, above the toolbar. */}
-          {state === 'loading' ? (
+          {state === 'loading' && isDesktop ? (
             <div className="mb-4">
               <ListState variant="loading" rows={2} />
             </div>
-          ) : state === undefined ? (
+          ) : state === undefined && isDesktop ? (
             <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
               {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
                   min-track scroll viewport so each stage's exact amount stays in its stage. */}
@@ -533,11 +544,32 @@ const SalesPipeline: React.FC = () => {
       }
       mobileToolbar={state !== 'loading' && (
         <div className="w-full min-w-0 space-y-2">
-          {view === 'table' && (
+          {view === 'kanban' && !isDesktop && scope !== 'Lost' && (
+            <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+              <span className="shrink-0">{t('uxs24.stageLabel', 'Pipeline stage')}</span>
+              <select
+                data-testid="sales-phone-stage-selector"
+                aria-label={t('uxs24.stageLabel', 'Pipeline stage')}
+                value={selectedStatus ?? ''}
+                onChange={(event) => {
+                  const status = event.currentTarget.value as OpenFunnelStage | '';
+                  setWorkingSet((ws) => ({ ...ws, scope: 'Open', status }));
+                }}
+                className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                <option value="">{t('uxs24.allStages', 'All stages')}</option>
+                {OPEN_COLUMNS.map((column) => {
+                  const status = column.statuses[0] as OpenFunnelStage;
+                  return <option key={status} value={status}>{stageLabel(column)}</option>;
+                })}
+              </select>
+            </label>
+          )}
+          {(view === 'table' || (view === 'kanban' && !isDesktop)) && (
             <div className="max-w-full overflow-x-auto scroll-fade-x">
               <ViewToggle<DealScope>
                 options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
-                value={scope} onChange={(v) => setWorkingSet((ws) => ({ ...ws, scope: v }))}
+                value={scope} onChange={onPhoneScopeChange}
                 ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
               />
             </div>
@@ -556,7 +588,7 @@ const SalesPipeline: React.FC = () => {
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <ProjectClassificationFilters rows={kanbanProjects} value={workingSet}
-              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger />
+              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
             <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
           </div>
         </div>
@@ -578,6 +610,7 @@ const SalesPipeline: React.FC = () => {
           rows={kanbanProjects}
           value={workingSet}
           onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
+          resetToken={classificationResetToken}
         />
       )}
       search={
@@ -638,7 +671,7 @@ const SalesPipeline: React.FC = () => {
       {/* AC-LRC-012: a search that matches no card on the Board shows the same zero-match copy
           + Clear filters as the Table (state === 'empty' above already covers the genuine
           no-open-AND-no-lost pipeline, which keeps its own create-first-project state). */}
-      {state === undefined && view === 'kanban' && boardZeroMatch && (
+      {state === undefined && view === 'kanban' && isDesktop && boardZeroMatch && (
         <ListState
           variant="empty"
           title={classificationsActive && search.trim() === ''
@@ -651,8 +684,43 @@ const SalesPipeline: React.FC = () => {
         />
       )}
 
-      {state === undefined && view === 'kanban' && !boardZeroMatch && (
+      {state === undefined && view === 'kanban' && isDesktop && !boardZeroMatch && (
         <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
+      )}
+
+      {state === undefined && view === 'kanban' && !isDesktop && (
+        lostError && (scope === 'Lost' || scope === 'Needs attention') ? (
+          <ListState
+            variant="error"
+            title={t('sales.lostError.title', "Couldn't load lost projects")}
+            sub={t('sales.lostError.sub', 'Something went wrong fetching lost projects.')}
+            onRetry={() => refetchLost()}
+          />
+        ) : filtered.length === 0 ? (
+          <ListState
+            variant="empty"
+            title={scope === 'Lost' && !narrowedWithinScope
+              ? t('sales.tableEmpty.lost.title', 'No lost projects')
+              : scope === 'Needs attention' && !narrowedWithinScope
+                ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
+                : t('uxs24.stageEmptyTitle', 'No projects in this stage')}
+            sub={scope === 'Lost' && !narrowedWithinScope
+              ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
+              : scope === 'Needs attention' && !narrowedWithinScope
+                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days — pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
+                : t('uxs24.stageEmptyBody', 'Choose another stage or clear filters to see more projects.')}
+            action={filtersActive
+              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
+              : undefined}
+          />
+        ) : (
+          <SalesKanbanBoard
+            projects={filtered}
+            onOpen={onOpen}
+            presentation="list"
+            selectedStatus={selectedStatus}
+          />
+        )
       )}
 
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (

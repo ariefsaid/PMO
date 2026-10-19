@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React, { StrictMode } from 'react';
 
+type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({
-  trackFormValidationFailed: vi.fn(),
+  trackFormValidationFailed: vi.fn<Analytics['trackFormValidationFailed']>(),
 }));
-vi.mock('@/src/lib/analytics', () => ({
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
   trackFormValidationFailed: analytics.trackFormValidationFailed,
-}));
+} satisfies Analytics));
 
 import { useEntityForm } from '../useEntityForm';
 

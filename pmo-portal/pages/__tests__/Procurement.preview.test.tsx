@@ -105,13 +105,18 @@ beforeEach(() => {
 });
 
 describe('Procurement list — inline preview (fix #5)', () => {
-  it('UIP-007: linked project identities wrap within their column and lifecycle stays below status', () => {
+  it('UIP-007: linked project identities wrap and the next step stays below the status', () => {
     procState.data = [{ ...PROC_ROW, project_id: 'proj-1' }];
-    const { container } = renderPage();
+    renderPage();
     const project = screen.getByRole('link', { name: /Open Tower Build/ });
     expect(project.className).toContain('whitespace-normal');
-    const lifecycle = container.querySelector('[aria-label^="Lifecycle:"]');
-    expect(lifecycle?.parentElement?.className).toContain('block');
+    const status = screen.getByText('Purchase Request');
+    const nextStep = screen.getByTestId('procurement-next-step');
+    const statusCell = nextStep.closest('dd');
+    expect(statusCell).toContainElement(status);
+    expect(nextStep).toHaveTextContent(/^Next:\s*Await approval$/);
+    expect(nextStep.className).toContain('block');
+    expect(status.compareDocumentPosition(nextStep) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
   it('UIP-007: mixed rows use one comparative grid and retain labelled phone fields', () => {
     procState.data = [PROC_ROW, { ...PROC_ROW, id: 'pr-2', title: 'Cable supply for the extended site commissioning works', total_value: 9800, project: null, requested_by: null }];

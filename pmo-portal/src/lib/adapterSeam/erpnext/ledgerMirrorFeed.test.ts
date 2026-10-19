@@ -87,6 +87,30 @@ function pleRow(name: string, over: Partial<ledgerFetch.PaymentLedgerEntryRow> =
 }
 
 describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)', () => {
+  it('AC-005: a complete full replay marks fetched rows and finishes atomically before watermark promotion', async () => {
+    const base = fakeServiceClient();
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted: 2 }, error: null });
+    const sc = Object.assign(base, { rpc });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-FULL', { company: 'Synthetic Co' })], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const result = await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+    expect(result.glCursor).toBe('2026-10-07 10:00:00.000000');
+    expect(h(base).gl.get('GL-FULL')).toMatchObject({ replay_seen_id: expect.any(String) });
+    expect(rpc).toHaveBeenCalledWith('finish_erp_gl_replay', expect.objectContaining({ p_org_id: 'org-1', p_company: 'Synthetic Co', p_watermark: '2026-10-07 10:00:00.000000' }));
+  });
+
+  it('AC-005: an empty caught-up full replay finishes without inventing or advancing a watermark', async () => {
+    const base = fakeServiceClient();
+    const rpc = vi.fn().mockResolvedValue({ data: { deleted: 0 }, error: null });
+    const sc = Object.assign(base, { rpc });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const result = await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+    expect(rpc).toHaveBeenCalledWith('finish_erp_gl_replay', expect.objectContaining({ p_watermark: null }));
+    expect(result.glCursor).toBeNull();
+    expect(h(base).watermarks.has(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(false);
+  });
+
   it('AC-005: an incomplete full replay fails before mirror or watermark mutation', async () => {
     const sc = fakeServiceClient();
     const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-PARTIAL')], caughtUp: false });
@@ -94,6 +118,33 @@ describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)'
     expect(h(sc).gl.size).toBe(0);
     expect(h(sc).watermarks.size).toBe(0);
     expect(fetchSpy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ since: undefined, maxPages: 300 }));
+  });
+
+  it('AC-005: a returned stale-binding refusal cannot claim replay completion or continue to PLE', async () => {
+    const base = fakeServiceClient();
+    let replayNeeded = true;
+    const rpc = vi.fn(async () => {
+      const result = { data: { deleted: 0, stale_binding: true }, error: null };
+      if (result.data.stale_binding !== true) replayNeeded = false;
+      return result;
+    });
+    const sc = Object.assign(base, { rpc });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-STALE', { company: 'Synthetic Co' })], caughtUp: true });
+    const pleFetch = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    let returnedCaughtUp = false;
+    try {
+      await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+      returnedCaughtUp = true;
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/stale.*binding/i);
+    }
+    expect(returnedCaughtUp).toBe(false);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(pleFetch).not.toHaveBeenCalled();
+    expect(h(base).gl.get('GL-STALE')).toMatchObject({ replay_seen_id: expect.any(String) });
+    expect(h(base).watermarks.size).toBe(0);
+    expect(replayNeeded).toBe(true);
   });
 
   it('a fixed fetched GL/PLE set lands as mirror rows (decimal-strings intact) + advances both watermarks', async () => {

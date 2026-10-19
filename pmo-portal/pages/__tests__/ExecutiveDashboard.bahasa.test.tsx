@@ -90,11 +90,11 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('group', { name: 'Margin proyeksi pipeline' })).toBeInTheDocument();
     expect(screen.getByText('Tender diajukan')).toBeInTheDocument();
     expect(screen.getByText('Negosiasi')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /Pengadaan menurut status, 9 permintaan, terbanyak pada Diminta/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Pengadaan menurut status, 9 permintaan, terbanyak pada Permintaan Pembelian/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Disetujui/ })).toHaveAttribute('href', '/procurement?status=Approved');
-    expect(screen.getByRole('link', { name: /Diterima/ })).toHaveAttribute('href', '/procurement?status=Received');
-    expect(screen.getByRole('link', { name: /Invoice vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
-    expect(screen.getByRole('link', { name: /Penawaran vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
+    expect(screen.getByRole('link', { name: /Penerimaan Barang/ })).toHaveAttribute('href', '/procurement?status=Received');
+    expect(screen.getByRole('link', { name: /Invoice Vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
+    expect(screen.getByRole('link', { name: /Penawaran Vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
     expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
 
     cleanup();

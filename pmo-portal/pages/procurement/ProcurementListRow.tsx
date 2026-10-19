@@ -16,12 +16,12 @@ import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/comp
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
-import { pillVariantForStatus, stageLabelForStatus, lifecycleSteps } from '../../components/procurement';
+import { pillVariantForStatus } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { LifecycleStepper } from '@/src/components/ui';
 
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
@@ -170,8 +170,12 @@ const ExpandedPanel: React.FC<{
 
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
   const { t } = useTranslation();
+  const statusLabel = useProcurementStatusLabel();
+  const nextStepLabel = useProcurementNextStepLabel();
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
+  const status = row.status as ProcurementStatus;
+  const nextStep = nextStepLabel(status);
   // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
   // scroll as validated return context before navigating to the canonical detail route.
   const { openRecord } = useListReturn({ list: 'procurement' });
@@ -262,17 +266,15 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
           <div className={`${columnFields[5].span} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
-            <dd className="space-y-2">
-              <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
-                {stageLabelForStatus(row.status as ProcurementStatus)}
+            <dd className="space-y-1.5">
+              <StatusPill variant={pillVariantForStatus(status)}>
+                {statusLabel(status)}
               </StatusPill>
-              <span className="block">
-                <LifecycleStepper
-                  variant="inline"
-                  steps={lifecycleSteps(row.status as ProcurementStatus)}
-                  aria-label={`Lifecycle: ${stageLabelForStatus(row.status as ProcurementStatus)}`}
-                />
-              </span>
+              {nextStep && (
+                <span data-testid="procurement-next-step" className="block break-words text-xs text-muted-foreground">
+                  {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
+                </span>
+              )}
             </dd>
           </div>
         </dl>

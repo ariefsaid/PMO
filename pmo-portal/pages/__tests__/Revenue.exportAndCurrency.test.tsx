@@ -214,7 +214,7 @@ describe('#731 money inputs use the org currency, not a welded $', () => {
   it('#731: an IDR org sees Rp beside both Incoming Payment amount inputs', async () => {
     renderPage(<IncomingPayments />);
     await userEvent.setup().click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
-    for (const label of [/Paid Amount/, /Received Amount/]) {
+    for (const label of [/Amount settled/, /Cash received/]) {
       const text = adornment(screen.getByLabelText(label));
       expect(text).toContain('Rp');
       expect(text).not.toContain('$');

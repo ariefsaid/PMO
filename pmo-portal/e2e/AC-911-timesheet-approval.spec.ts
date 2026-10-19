@@ -1,91 +1,164 @@
-// @e2e-isolation: dedicated-row — owns Grace (ts-approve-eng@) + Heidi (ts-approve-mgr@) dedicated seed actors + Grace's dedicated Draft timesheet; no other spec mutates them.
+// @e2e-isolation: dedicated-row — owns Grace (ts-approve-eng@) + Heidi (ts-approve-mgr@) dedicated seed actors + Grace's dedicated timesheet; no other spec mutates them.
+import { createClient } from '@supabase/supabase-js';
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, requireServiceRoleKey } from './helpers';
+import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
-// AC-911 — Submit → Approve happy path across two users (single curated journey).
-// Owner (Grace/ts-approve-eng@acme.test) submits their Draft week → sheet shows Submitted.
-// Line manager (Heidi/ts-approve-mgr@acme.test) opens /approvals (timesheets scope), approves → row leaves the queue.
+// AC-911 — real Submit → Approve happy path across two users.
+// The sequential tests below share only Grace's dedicated seeded sheet; the submit and approval RPCs
+// remain real UI actions by two separate actors. The serial describe preserves the state dependency.
 //
-// ISOLATION (mirrors the P011 pattern): this spec uses DEDICATED seed actors — Grace (b1, Engineer)
-// reports to Heidi (b2, PM) — and Grace has a DEDICATED current-week Draft timesheet (…b1) that NO
-// other spec mutates. This makes the submit→approve flow ordering-independent in the full parallel
-// suite (the prior flake came from sharing Dave's sheet with AC-TSE-021 / AC-904 fixtures). The e2e
-// performs the real Draft→Submitted RPC (not pre-seeded) then Submitted→Approved.
+// ISOLATION: Grace (b1, Engineer) reports to Heidi (b2, PM), and the seeded sheet is dedicated to
+// AC-911. Preparation resets only that exact row; the browser clock uses its stored week so the
+// reset-time seed date does not go stale between local DB resets.
+// The fixture is refused if it has an ERP mirror or outbox command, because those carry independent
+// money state that this browser journey must not rewrite.
 //
-// NOTE (feat/ui-polish confirm-gate): BOTH the Submit and the Approve actions are now
-// confirm-gated via ConfirmDialog:
-//   • Submit: confirmLabel="Submit timesheet" (dialog role="dialog")
-//   • Approve: confirmLabel="Approve" (dialog title "Approve Grace TSApprove's week?")
-// Strict-mode is avoided by scoping to role="dialog" before asserting the confirm button.
-// The "not.toBeVisible" assertion on "Grace TSApprove" is scoped to the approval row, not
-// the full page, to avoid the dialog-title ambiguity.
+// NOTE (feat/ui-polish confirm-gate): BOTH the Submit and the Approve actions are confirm-gated via
+// ConfirmDialog. Keep each action's dialog confirmation and post-state oracle in its owning test.
 //
 // (FR-TS-001/004/005/008/011, NFR-TS-UI-001, plan Phase E3)
 
-test('AC-911 submit→approve across two users: report submits Draft→Submitted, line manager approves Submitted→Approved', async ({ page }) => {
+const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const AUTHOR_ID = '00000000-0000-0000-0000-0000000000b1';
+const FIXTURE_ID = '70000000-0000-0000-0000-0000000000b1';
 
-  // ── Step 1: Grace (owner) submits their Draft sheet ────────────────────────
-  await login(page, 'ts-approve-eng@acme.test');
-  await page.goto('/timesheets');
+function requireAc911ServiceKey(): string {
+  const serviceKey = requireServiceRoleKey();
+  if (!serviceKey) {
+    throw new Error('AC-911 requires the service-role client supplied by scripts/e2e-local.sh or CI.');
+  }
+  return serviceKey;
+}
 
-  // Wait for loading skeleton to disappear (timesheets data loaded).
-  await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
+const SERVICE_KEY = requireAc911ServiceKey();
+const SUPABASE_URL = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL);
+let fixtureWeekStartDate = '';
 
-  // The seeded Draft sheet is for week 2026-06-01. The Submit button appears once:
-  //   1. timesheets query resolved (isPending=false), AND
-  //   2. currentUser profile resolved (isOwner = true).
-  // Use a 20s timeout to cover the async profile load after data arrives.
-  const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
-  await expect(submitBtn).toBeVisible({ timeout: 20_000 });
-  await expect(submitBtn).toBeEnabled();
+if (!SUPABASE_URL) {
+  throw new Error('AC-911 requires SUPABASE_URL supplied by scripts/e2e-local.sh or CI.');
+}
 
-  // Click the page-level Submit button — stages a ConfirmDialog (no write yet).
-  await submitBtn.click();
+/** Restore only AC-911's seeded row to its starting state; never reset the shared database. */
+async function prepareDedicatedDraftFixture() {
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  const { data: fixture, error: fixtureError } = await admin
+    .from('timesheets')
+    .select('id, status, week_start_date')
+    .eq('id', FIXTURE_ID)
+    .eq('org_id', ORG_ID)
+    .eq('user_id', AUTHOR_ID)
+    .maybeSingle();
 
-  // Confirm inside the dialog (confirmLabel="Submit timesheet"). Scope to role="dialog".
-  const submitDialog = page.getByRole('dialog');
-  await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-  const submitConfirmBtn = submitDialog.getByRole('button', { name: /submit timesheet/i });
-  await expect(submitConfirmBtn).toBeVisible();
-  await submitConfirmBtn.click();
+  if (fixtureError) throw new Error(`AC-911 dedicated fixture lookup failed: ${fixtureError.message}`);
+  if (!fixture) {
+    throw new Error('AC-911 dedicated seeded timesheet is missing; this spec will not create or substitute another row.');
+  }
+  if (!fixture.week_start_date) {
+    throw new Error('AC-911 dedicated seeded timesheet has no week_start_date.');
+  }
+  fixtureWeekStartDate = fixture.week_start_date;
 
-  // Wait for the dialog to close (mutation committed, ConfirmDialog removed).
-  await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
+  const [mirrorResult, outboxResult] = await Promise.all([
+    admin.from('timesheet_erp_mirror').select('timesheet_id').eq('timesheet_id', FIXTURE_ID),
+    admin
+      .from('external_command_outbox')
+      .select('id')
+      .eq('org_id', ORG_ID)
+      .eq('domain', 'timesheets')
+      .eq('pmo_record_id', FIXTURE_ID),
+  ]);
+  if (mirrorResult.error) throw new Error(`AC-911 mirror check failed: ${mirrorResult.error.message}`);
+  if (outboxResult.error) throw new Error(`AC-911 outbox check failed: ${outboxResult.error.message}`);
+  if ((mirrorResult.data?.length ?? 0) > 0 || (outboxResult.data?.length ?? 0) > 0) {
+    throw new Error('AC-911 dedicated fixture has ERP-linked state and cannot be safely prepared by this spec.');
+  }
 
-  // StatusPill shows exactly "Submitted" once the RPC resolves.
-  // exact:true avoids matching "Draft — not submitted" or the toast "Timesheet submitted".
-  await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
+  const { data: prepared, error: prepareError } = await admin
+    .from('timesheets')
+    .update({ status: 'Draft', submitted_at: null, approved_by: null, approved_at: null })
+    .eq('id', FIXTURE_ID)
+    .eq('org_id', ORG_ID)
+    .eq('user_id', AUTHOR_ID)
+    .select('id, status')
+    .maybeSingle();
 
-  // Submit button should no longer be present (status is Submitted, not Draft).
-  await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+  if (prepareError) throw new Error(`AC-911 dedicated fixture preparation failed: ${prepareError.message}`);
+  if (!prepared || prepared.id !== FIXTURE_ID || prepared.status !== 'Draft') {
+    throw new Error('AC-911 dedicated fixture preparation did not restore the exact row to Draft.');
+  }
+}
 
-  // ── Step 2: Heidi (line manager) approves Grace's Submitted sheet ───────────
-  await login(page, 'ts-approve-mgr@acme.test');
-  // CW-6: a PM sees both approval modules as deep-linkable scope tabs; this test approves a
-  // timesheet, so it deep-links straight to the timesheets scope (its canonical home).
-  await page.goto('/approvals?scope=timesheets');
+test.describe('AC-911: a dedicated sheet is submitted by its owner, then approved by the line manager', () => {
+  test.describe.configure({ mode: 'serial' });
+  test.beforeAll(prepareDedicatedDraftFixture);
 
-  // Wait for loading skeleton to disappear.
-  await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 15_000 });
+  test('AC-911 owner submits the dedicated Draft sheet and sees Submitted', async ({ page }) => {
+    // ── Grace (owner) submits her Draft sheet ────────────────────────────────
+    await login(page, 'ts-approve-eng@acme.test');
+    await page.clock.setFixedTime(new Date(`${fixtureWeekStartDate}T12:00:00.000Z`));
+    await page.goto('/timesheets');
 
-  // Grace's Submitted sheet should appear in Heidi's approval queue.
-  // Scope to the approval row section to avoid strict-mode issues with any dialog.
-  const queue = page.locator('section');
-  await expect(queue.getByText('Grace TSApprove').first()).toBeVisible({ timeout: 10_000 });
+    // Wait for loading skeleton to disappear (timesheets data loaded).
+    await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // Click Approve for Grace's row — stages a ConfirmDialog (no write yet).
-  await page.getByRole('button', { name: /^approve$/i }).first().click();
+    // The seeded Draft sheet is for the current week. Submit appears once the timesheets query
+    // and currentUser profile have both resolved.
+    const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
+    await expect(submitBtn).toBeVisible({ timeout: 20_000 });
+    await expect(submitBtn).toBeEnabled();
 
-  // Confirm inside the dialog (confirmLabel="Approve" per ApprovalsQueue.tsx).
-  const approveDialog = page.getByRole('dialog');
-  await expect(approveDialog).toBeVisible({ timeout: 5_000 });
-  const approveConfirmBtn = approveDialog.getByRole('button', { name: /^approve$/i });
-  await expect(approveConfirmBtn).toBeVisible();
-  await approveConfirmBtn.click();
+    // Click the page-level Submit button — stages a ConfirmDialog (no write yet).
+    await submitBtn.click();
 
-  // Wait for the dialog to close.
-  await expect(approveDialog).not.toBeVisible({ timeout: 15_000 });
+    // Confirm inside the dialog (confirmLabel="Submit timesheet"). Scope to role="dialog".
+    const submitDialog = page.getByRole('dialog');
+    await expect(submitDialog).toBeVisible({ timeout: 5_000 });
+    const submitConfirmBtn = submitDialog.getByRole('button', { name: /submit timesheet/i });
+    await expect(submitConfirmBtn).toBeVisible();
+    await submitConfirmBtn.click();
 
-  // After approval, Grace's row should leave the queue (no matching row in the section).
-  await expect(queue.getByText('Grace TSApprove').first()).not.toBeVisible({ timeout: 15_000 });
+    // Wait for the dialog to close (real mutation committed, ConfirmDialog removed).
+    await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
+
+    // StatusPill shows exactly "Submitted" once the real RPC resolves.
+    // exact:true avoids matching "Draft — not submitted" or the toast "Timesheet submitted".
+    await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Submit button should no longer be present (status is Submitted, not Draft).
+    await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+  });
+
+  test('AC-911 line manager approves the submitted sheet and it leaves the approval queue', async ({ page }) => {
+    // ── Heidi (line manager) approves Grace's Submitted sheet ─────────────────
+    await login(page, 'ts-approve-mgr@acme.test');
+    await page.clock.setFixedTime(new Date(`${fixtureWeekStartDate}T12:00:00.000Z`));
+    // CW-6: a PM sees both approval modules as deep-linkable scope tabs; this test approves a
+    // timesheet, so it deep-links straight to the timesheets scope (its canonical home).
+    await page.goto('/approvals?scope=timesheets');
+
+    // Wait for loading skeleton to disappear.
+    await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 15_000 });
+
+    // Grace's Submitted sheet should appear in Heidi's approval queue.
+    // Scope to the approval row section to avoid strict-mode issues with any dialog.
+    const queue = page.locator('section');
+    await expect(queue.getByText('Grace TSApprove').first()).toBeVisible({ timeout: 10_000 });
+
+    // Click Approve for Grace's row — stages a ConfirmDialog (no write yet).
+    await page.getByRole('button', { name: /^approve$/i }).first().click();
+
+    // Confirm inside the dialog (confirmLabel="Approve" per ApprovalsQueue.tsx).
+    const approveDialog = page.getByRole('dialog');
+    await expect(approveDialog).toBeVisible({ timeout: 5_000 });
+    const approveConfirmBtn = approveDialog.getByRole('button', { name: /^approve$/i });
+    await expect(approveConfirmBtn).toBeVisible();
+    await approveConfirmBtn.click();
+
+    // Wait for the real approval mutation to close the dialog.
+    await expect(approveDialog).not.toBeVisible({ timeout: 15_000 });
+
+    // After approval, Grace's row should leave the queue (no matching row in the section).
+    await expect(queue.getByText('Grace TSApprove').first()).not.toBeVisible({ timeout: 15_000 });
+  });
 });

@@ -7,8 +7,12 @@ import { ToastProvider } from '@/src/components/ui';
 
 // empty_state_seen (FIX 1, 2026-07-13 wiring plan follow-up). Mirrors
 // Contacts.test.tsx's mock harness; adds the analytics facade mock.
-const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
-vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
+} satisfies Analytics));
 
 const { contactsState, companiesState, mutations, navigateMock } = vi.hoisted(() => ({
   contactsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },

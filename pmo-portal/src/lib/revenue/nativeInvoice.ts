@@ -3,6 +3,69 @@
  * Display only: migration 0275's RPCs are the authority for every figure these read.
  */
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import { calculateStandaloneTax, type TaxBaseFraction } from '@/src/lib/taxTreatment';
+import { decimalUnits } from '@/src/lib/taxNormalize';
+
+export interface InvoiceDraftLineAmount {
+  qty: number;
+  rate: number;
+}
+
+export interface InvoiceDraftTaxFacts {
+  treatment: 'exclusive' | 'inclusive';
+  rate: number;
+  fraction: TaxBaseFraction;
+}
+
+export interface InvoiceDraftPreview {
+  /** The known net/subtotal value in source currency, or null while the lines are invalid. */
+  subtotal: number | null;
+  /** Null means the tax cannot be established from available facts; zero is known zero tax. */
+  tax: number | null;
+  /** Null means the final value is not yet known. */
+  total: number | null;
+  reason: 'invalid-lines' | 'tax-unavailable' | null;
+}
+
+/**
+ * A read-only native draft preview. It rounds each authored line to cents before summing,
+ * matching the native create RPC; tax uses the existing standalone calculator and stored facts.
+ * This preview is never supplied to the writer and is not ERP tax authority.
+ */
+export function previewInvoiceDraft(
+  lines: readonly InvoiceDraftLineAmount[],
+  tax: InvoiceDraftTaxFacts | null,
+): InvoiceDraftPreview {
+  if (lines.length === 0) return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
+
+  let subtotalCents = 0n;
+  for (const line of lines) {
+    if (
+      !Number.isFinite(line.qty) || line.qty <= 0 || line.qty >= 1e12 ||
+      !Number.isFinite(line.rate) || line.rate < 0 || line.rate >= 1e12
+    ) {
+      return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
+    }
+    const qtyThousandths = decimalUnits(line.qty, 3);
+    const rateCents = decimalUnits(line.rate, 2);
+    if (qtyThousandths === null || rateCents === null) {
+      return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
+    }
+
+    // qty(1/1000) × rate(cents) gives 1/1000 cents; round half-up per line.
+    subtotalCents += (qtyThousandths * rateCents + 500n) / 1000n;
+    if (subtotalCents >= 100_000_000_000_000n) {
+      return { subtotal: null, tax: null, total: null, reason: 'invalid-lines' };
+    }
+  }
+
+  const amount = Number(subtotalCents) / 100;
+  if (!tax) return { subtotal: amount, tax: null, total: null, reason: 'tax-unavailable' };
+
+  const amounts = calculateStandaloneTax(amount, tax.treatment, tax.rate, tax.fraction);
+  if (!amounts) return { subtotal: amount, tax: null, total: null, reason: 'tax-unavailable' };
+  return { subtotal: amounts.netAmount, tax: amounts.taxAmount, total: amounts.grossAmount, reason: null };
+}
 
 /** One line of a PMO invoice as raised (DD-NAR-8). */
 export interface NativeInvoiceLine {

@@ -43,6 +43,13 @@ const populated = {
   ],
 };
 
+const dashboardState = vi.hoisted(() => ({
+  data: null as unknown,
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+
 const winRateOracle = {
   wins_count: 2,
   losses_count: 1,
@@ -59,7 +66,7 @@ vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
 }));
 vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 vi.mock('@/src/hooks/useDashboard', () => ({
-  useDashboard: () => ({ data: populated, isPending: false, isError: false, refetch: vi.fn() }),
+  useDashboard: () => dashboardState,
   useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
@@ -90,6 +97,9 @@ const renderPage = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dashboardState.data = populated;
+  dashboardState.isPending = false;
+  dashboardState.isError = false;
 });
 
 describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/002)', () => {
@@ -127,5 +137,57 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     const panel = screen.getByTestId('dashboard-pipeline-margin');
     expect(within(panel).getByText('Pipeline forecast margin')).toBeInTheDocument();
     expect(screen.queryByText(/Pipeline\s*—\s*Projected Margin/i)).toBeNull();
+  });
+});
+
+describe('AC-FAA-006 executive comparison population', () => {
+  it.each([
+    ['pipeline-only', 'Tender Submitted'],
+    ['lost-only', 'Lost'],
+  ])('keeps portfolio evidence and KPIs for a %s portfolio with no delivery rows', (_kind, status) => {
+    dashboardState.data = {
+      ...populated,
+      active_projects: 0,
+      top_projects: [],
+      projects_by_status: [{ status, count: 2 }],
+      procurements_by_status: [],
+    };
+
+    renderPage();
+
+    expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-pipeline')).toBeInTheDocument();
+    expect(screen.getByText('No delivery projects to compare yet')).toBeInTheDocument();
+    expect(screen.getByText('Won, on-hold, delivery and closed-out projects, plus internal work.')).toBeInTheDocument();
+  });
+
+  it('uses the portfolio empty state only when project status and procurement evidence are both empty', () => {
+    dashboardState.data = {
+      ...populated,
+      top_projects: [],
+      projects_by_status: [],
+      procurements_by_status: [],
+    };
+
+    renderPage();
+
+    expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
+    expect(screen.getByText('No data yet')).toBeInTheDocument();
+  });
+
+  it('preserves loading and error precedence for absent chart data', () => {
+    dashboardState.data = null;
+    dashboardState.isPending = true;
+    const pending = renderPage();
+    expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
+    pending.unmount();
+
+    dashboardState.isPending = false;
+    dashboardState.isError = true;
+    renderPage();
+    expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    expect(screen.queryByText('No delivery projects to compare yet')).not.toBeInTheDocument();
   });
 });

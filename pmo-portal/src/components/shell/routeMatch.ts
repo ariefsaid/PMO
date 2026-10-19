@@ -149,6 +149,14 @@ export const MODULES: ModuleDef[] = [
   },
   // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
+    module: 'financial-statements',
+    icon: 'table',
+    label: 'Financial statements', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.financialStatements',
+    path: '/financial-statements',
+    roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance],
+  },
+  {
     module: 'administration',
     icon: 'admin',
     label: 'Administration', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation

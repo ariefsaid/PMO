@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -69,6 +69,8 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 // Stub the tab content components so we only test tab selection, not data.
 vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
+vi.mock('../ProjectSCurve', () => ({ default: () => <div data-testid="project-s-curve">S-curve</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
@@ -109,10 +111,10 @@ vi.mock('../ProjectDetailHeader', () => ({
 
 import ProjectDetail from '../ProjectDetail';
 
-vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div data-testid="project-comments" /> }));
 
-const renderAt = (path: string) =>
-  render(
+const renderAt = async (path: string) => {
+  const view = render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
@@ -124,39 +126,62 @@ const renderAt = (path: string) =>
       </MemoryRouter>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
-  it('AC-W2-IA-004: /projects/:id (no tab) defaults to the Overview tab', () => {
-    renderAt('/projects/p1');
+  it('AC-W2-IA-004: /projects/:id (no tab) defaults to the Overview tab', async () => {
+    await renderAt('/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/budget pre-selects the Budget tab (backward-compat)', () => {
-    renderAt('/projects/p1/budget');
+  it('AC-009 support: Overview mounts project totals once after OverviewTab and before S-curve/comments', async () => {
+    await renderAt('/projects/p1/overview');
+    const overview = screen.getByTestId('tab-overview');
+    const totals = screen.getByTestId('project-profit-loss');
+    const curve = screen.getByTestId('project-s-curve');
+    const comments = screen.getByTestId('project-comments');
+    expect(totals).toHaveTextContent('Project totals p1');
+    expect(overview.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(totals.compareDocumentPosition(curve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(curve.compareDocumentPosition(comments) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
+    const { unmount } = await renderAt('/projects/p1/budget');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+    unmount();
+    await renderAt('/projects/missing/overview');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+  });
+
+  it('AC-W2-IA-004: /projects/:id/budget pre-selects the Budget tab (backward-compat)', async () => {
+    await renderAt('/projects/p1/budget');
     expect(screen.getByTestId('tab-budget')).toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/procurement pre-selects the Procurement tab', () => {
-    renderAt('/projects/p1/procurement');
+  it('AC-W2-IA-004: /projects/:id/procurement pre-selects the Procurement tab', async () => {
+    await renderAt('/projects/p1/procurement');
     expect(screen.getByTestId('tab-procurement')).toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/tasks pre-selects the Tasks tab', () => {
-    renderAt('/projects/p1/tasks');
+  it('AC-W2-IA-004: /projects/:id/tasks pre-selects the Tasks tab', async () => {
+    await renderAt('/projects/p1/tasks');
     expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/documents pre-selects the Documents tab', () => {
-    renderAt('/projects/p1/documents');
+  it('AC-W2-IA-004: /projects/:id/documents pre-selects the Documents tab', async () => {
+    await renderAt('/projects/p1/documents');
     expect(screen.getByTestId('tab-documents')).toBeInTheDocument();
   });
 
-  it('AC-PB-008: /projects/:id/billing pre-selects the Billing tab', () => {
-    renderAt('/projects/p1/billing');
+  it('AC-PB-008: /projects/:id/billing pre-selects the Billing tab', async () => {
+    await renderAt('/projects/p1/billing');
     expect(screen.getByTestId('tab-billing')).toBeInTheDocument();
   });
 
-  it('AC-PB-008: an Engineer has no Billing tab, even by deep link', () => {
+  it('AC-PB-008: an Engineer has no Billing tab, even by deep link', async () => {
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter initialEntries={['/projects/p1/billing']}>
@@ -171,18 +196,18 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
     expect(screen.queryByTestId('tab-billing')).toBeNull();
   });
 
-  it('AC-W2-IA-004: an unknown tab falls back to Overview (no crash)', () => {
-    renderAt('/projects/p1/unknown-tab');
+  it('AC-W2-IA-004: an unknown tab falls back to Overview (no crash)', async () => {
+    await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
   });
 
-  it('AC-UNB-005: /projects/:id/work-orders?wo=<id> opens the Work orders tab and hands it the work order to bring into view', () => {
-    renderAt('/projects/p1/work-orders?wo=wo-2');
+  it('AC-UNB-005: /projects/:id/work-orders?wo=<id> opens the Work orders tab and hands it the work order to bring into view', async () => {
+    await renderAt('/projects/p1/work-orders?wo=wo-2');
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:wo-2');
   });
 
-  it('AC-UNB-005: without ?wo= the Work orders tab focuses nothing', () => {
-    renderAt('/projects/p1/work-orders');
+  it('AC-UNB-005: without ?wo= the Work orders tab focuses nothing', async () => {
+    await renderAt('/projects/p1/work-orders');
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:none');
   });
 });

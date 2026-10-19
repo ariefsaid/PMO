@@ -663,6 +663,34 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
     renderHeader('Finance', exclusive);
     expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
   });
+
+  it('AC-S39-002: an unknown stored rate stays informational while the real contract prerequisite remains explicit', async () => {
+    const user = userEvent.setup();
+    const rateUnknown = {
+      ...onHand,
+      tax_rate: null,
+      tax_base_numerator: 11,
+      tax_base_denominator: 12,
+    } as unknown as ProjectWithRefs;
+    renderHeader('Finance', rateUnknown);
+
+    const basis = screen.getByTestId('contract-tile-tax-basis');
+    expect(basis).toHaveTextContent('excl. PPN');
+    expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
+    const trigger = within(basis).getByRole('button', { name: 'Show tax details' });
+    const details = document.getElementById(trigger.getAttribute('aria-controls')!)!;
+    expect(details).not.toBeVisible();
+    expect(details).toHaveTextContent('rate not recorded');
+    await user.click(trigger);
+    expect(details).toBeVisible();
+    expect(details).toHaveTextContent('rate not recorded');
+    expect(details).toHaveTextContent('DPP 11/12');
+    expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit contract value' }));
+    expect(screen.getByTestId('contract-tax-required-hint')).toHaveTextContent(/State the tax treatment and the tax amount/);
+    expect(screen.getByText(/Leave blank when the rate is not recorded; enter the tax amount instead/)).toBeInTheDocument();
+  });
 });
 
 describe('#694 ProjectDetailHeader — contract-value adornment is the project currency', () => {

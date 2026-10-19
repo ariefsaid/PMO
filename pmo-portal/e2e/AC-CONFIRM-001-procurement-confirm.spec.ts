@@ -26,7 +26,10 @@ import { login } from './helpers';
 const PROC_ID = '60000000-0000-0000-0000-000000000006';
 const PROC_URL = `/procurement/${PROC_ID}`;
 
-test('AC-CONFIRM-001: a consequential procurement transition (Reject) requires a confirm before status changes — dismiss preserves state', async ({ page }) => {
+// Two ordered cases (one serial journey) so each actor's login + page load has its own time budget;
+// every original assertion is unchanged.
+test.describe.serial('AC-CONFIRM-001 ordered journey', () => {
+test('Supporting proof: pm@ submits the Draft as a routine single-click step (no dialog)', async ({ page }) => {
   // ── Arrange: pm@ submits the Draft (routine forward step → single click, no dialog) ──
   await login(page, 'pm@acme.test');
   await page.goto(PROC_URL);
@@ -38,7 +41,9 @@ test('AC-CONFIRM-001: a consequential procurement transition (Reject) requires a
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', {
     timeout: 15_000,
   });
+});
 
+test('AC-CONFIRM-001: a consequential procurement transition (Reject) requires a confirm before status changes — dismiss preserves state', async ({ page }) => {
   // ── Arrange: finance@ (a non-requester approver) opens the Requested PR ──
   await login(page, 'finance@acme.test');
   await page.goto(PROC_URL);
@@ -69,4 +74,5 @@ test('AC-CONFIRM-001: a consequential procurement transition (Reject) requires a
   // ── Assert 3: dialog is gone and status is still Requested (no-write confirmed) ──
   await expect(dialog).not.toBeVisible({ timeout: 5_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+});
 });

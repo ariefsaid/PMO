@@ -100,8 +100,8 @@ interface MirrorRow {
   cost_center: string | null;
   account: string | null;
   fiscal_year: string | null;
-  debit: number | string | null;
-  credit: number | string | null;
+  debit: string | null;
+  credit: string | null;
 }
 
 interface SumBucket {
@@ -110,8 +110,8 @@ interface SumBucket {
   costCenter: string | null;
   account: string | null;
   fiscalYear: string | null;
-  debit: number;
-  credit: number;
+  debit: bigint;
+  credit: bigint;
 }
 
 /**
@@ -119,7 +119,7 @@ interface SumBucket {
  * states on the row, and it is the ONLY thing that makes a snapshot row attributable to a PMO project
  * — a column that is never SELECTed can never be attributed by.
  */
-const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,debit,credit';
+const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,debit:debit::text,credit:credit::text';
 
 /**
  * The mirror's uuid PRIMARY KEY (0101 §1) — the KEYSET cursor + total, stable order for the paged scan
@@ -130,12 +130,25 @@ const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,de
  */
 const GL_MIRROR_SCAN_ORDER = 'id';
 
-const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+function toNano(v: number | string | null | undefined): bigint {
+  if (v === null || v === undefined || v === '') throw new AppError('Missing required mirrored GL amount', 'commit-rejected');
+  const text = String(v).trim();
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(text);
+  if (!match) throw new AppError('Malformed mirrored GL decimal', 'commit-rejected');
+  const fraction = match[3] ?? '';
+  const exponent = Number(match[4] ?? 0);
+  const digits = `${match[2]}${fraction}`;
+  const shift = 9 + exponent - fraction.length;
+  if (!Number.isInteger(shift) || shift < 0) throw new AppError('Mirrored GL decimal exceeds supported precision', 'commit-rejected');
+  const coefficient = BigInt(digits) * (10n ** BigInt(shift));
+  return match[1] === '-' ? -coefficient : coefficient;
+}
 
-function toNumber(v: number | string | null | undefined): number {
-  if (v === null || v === undefined || v === '') return 0;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
+function fromNanoRounded2(value: bigint): number {
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const cents = (absolute + 5_000_000n) / 10_000_000n;
+  return Number(`${negative ? '-' : ''}${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`);
 }
 
 /** NUL: cannot occur in an ERPNext name/account/cost-centre, so no two distinct groups collide. */
@@ -215,11 +228,11 @@ export async function refreshActuals(
     const key = groupKey(projectId, row.cost_center, row.account, row.fiscal_year);
     let b = buckets.get(key);
     if (!b) {
-      b = { projectId, costCenter: row.cost_center, account: row.account, fiscalYear: row.fiscal_year, debit: 0, credit: 0 };
+      b = { projectId, costCenter: row.cost_center, account: row.account, fiscalYear: row.fiscal_year, debit: 0n, credit: 0n };
       buckets.set(key, b);
     }
-    b.debit += toNumber(row.debit);
-    b.credit += toNumber(row.credit);
+    b.debit += toNano(row.debit);
+    b.credit += toNano(row.credit);
   }
 
   const snapshotId = crypto.randomUUID();
@@ -231,9 +244,9 @@ export async function refreshActuals(
     cost_center: b.costCenter,
     account: b.account,
     fiscal_year: b.fiscalYear,
-    debit: round2(b.debit),
-    credit: round2(b.credit),
-    net: round2(b.debit - b.credit),
+    debit: fromNanoRounded2(b.debit),
+    credit: fromNanoRounded2(b.credit),
+    net: fromNanoRounded2(b.debit - b.credit),
     as_of: asOf,
     source_report: 'GL Entry',
     snapshot_id: snapshotId,

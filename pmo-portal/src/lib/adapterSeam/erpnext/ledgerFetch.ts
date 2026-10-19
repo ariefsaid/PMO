@@ -134,6 +134,41 @@ function listPath(
   return `/api/resource/${encodedDoctype}?${qs}`;
 }
 
+const MALFORMED_LEDGER_RESPONSE_MESSAGE = 'ERPNext ledger response was malformed';
+
+function malformedLedgerResponse(): AppError {
+  return new AppError(MALFORMED_LEDGER_RESPONSE_MESSAGE, 'external-unreachable');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Validates the source identity fields before a row can be accumulated or normalized. */
+function isLedgerRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && ['name', 'account', 'modified'].every(
+    (field) => typeof value[field] === 'string' && value[field] !== '',
+  );
+}
+
+/** Decodes only the list-envelope shape used by Frappe's successful list endpoint. */
+function decodeLedgerPage(body: unknown, pageSize: number): Record<string, unknown>[] {
+  if (!isRecord(body) || ['exc_type', 'exception', 'exc'].some((field) => Object.hasOwn(body, field))) {
+    throw malformedLedgerResponse();
+  }
+  const page = body.data;
+  if (!Array.isArray(page) || page.length > pageSize || !page.every(isLedgerRecord)) {
+    throw malformedLedgerResponse();
+  }
+  return page;
+}
+
+function validatePageOptions(pageSize: number, maxPages: number): void {
+  if (!Number.isSafeInteger(pageSize) || pageSize <= 0 || !Number.isSafeInteger(maxPages) || maxPages <= 0) {
+    throw new AppError('ERPNext ledger pageSize and maxPages must be positive safe integers', 'config-rejected');
+  }
+}
+
 /** Pages a list endpoint until a short page is returned, accumulating all rows. */
 async function fetchAllPages(
   client: ErpClientDeps,
@@ -144,14 +179,15 @@ async function fetchAllPages(
   maxPages: number,
   responseNumbers?: 'ledger_decimal_text',
 ): Promise<{ rows: Record<string, unknown>[]; caughtUp: boolean }> {
+  validatePageOptions(pageSize, maxPages);
   const rows: Record<string, unknown>[] = [];
   let limitStart = 0;
   // A full page is not proof that the source is drained. Stop after the bounded budget and let the
   // inclusive modified watermark re-read the boundary row on the next tick.
   for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
     const body = await erpnextRequest(client, { method: 'GET', path: listPath(doctype, filters, fields, pageSize, limitStart), responseNumbers });
-    const page = (body as { data?: Record<string, unknown>[] } | null)?.data;
-    if (!Array.isArray(page) || page.length === 0) return { rows, caughtUp: true };
+    const page = decodeLedgerPage(body, pageSize);
+    if (page.length === 0) return { rows, caughtUp: true };
     rows.push(...page);
     if (page.length < pageSize) return { rows, caughtUp: true };
     limitStart += pageSize;

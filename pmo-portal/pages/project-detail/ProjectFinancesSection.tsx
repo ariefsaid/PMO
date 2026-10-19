@@ -5,7 +5,7 @@ import { Button, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
-import { deriveActualPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
@@ -44,14 +44,29 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   const data = query.data;
   const actuals = data.actuals;
-  const actualPosition = deriveActualPosition({ ledgerBasis: commitments.ledgerBasis,
+  const moneyPosition = buildProjectMoneyPosition({ ledgerBasis: commitments.ledgerBasis,
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
-    projectCurrency: project.currency, actuals });
-  const mappedCategories = actuals.categories.filter((row) => row.mapped).length;
-  const hasCoverage = actuals.categories.length > 0;
-  const completeCoverage = hasCoverage && mappedCategories === actuals.categories.length && !actuals.excludes_restricted_rows;
+    projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
+  const actualPosition = moneyPosition.actual;
+  const mappedCategories = moneyPosition.coverage.mapped;
+  const hasCoverage = moneyPosition.coverage.total > 0;
+  const completeCoverage = moneyPosition.coverage.kind === 'complete';
   const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
+  const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
+  const cashInvalid = t('uxs01.cashReceivedInvalid', 'Unavailable — receipt-backed cash data could not be verified');
+  const cashReading = data.cash_received ?? { state: 'unavailable' as const, buckets: [], reason: 'not-reported' as const };
+  const cashValue = cashReading.state === 'known'
+    ? cashReading.buckets.length === 0
+      ? money('0.00', project.currency)
+      : (() => {
+        const amounts = cashReading.buckets.map(({ amount, currency }) => formatExactMoney(amount, currency, i18n.language));
+        return amounts.every((amount): amount is string => amount !== null) ? amounts.join(' · ') : cashInvalid;
+      })()
+    : cashReading.state === 'incomplete'
+      ? t('uxs01.cashReceivedIncomplete', 'Incomplete — receipt allocation cannot establish cash')
+      : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
+  const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
   const field = (label: string, value: string, basis?: React.ReactNode) => (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -68,7 +83,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     >
       {title}
       <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {field(t('uxs01.cashReceived', 'Cash received'), t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet'))}
+        {field(t('uxs01.cashReceived', 'Cash received'), cashValue, <span className="text-xs text-muted-foreground">{cashScope}</span>)}
         {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
         {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),

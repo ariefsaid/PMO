@@ -96,7 +96,9 @@ describe('AC-EXT-002 Procurement export carries the record external references',
         </MemoryRouter>
       </ImpersonationProvider>,
     );
-    await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^More$/i }));
+    await user.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => expect(hoisted.captured).toHaveLength(1));
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(hoisted.captured[0]);

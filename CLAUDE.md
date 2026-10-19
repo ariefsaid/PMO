@@ -83,6 +83,27 @@ stays intact in-repo, flip the mode to revert):
    version gate, not per-PR — ADR-0030 §E.)*
 
 ## Director posture (main session)
+
+### Execution continuity (owner directive, 2026-10-17)
+
+A status question steers the active task; answer briefly in commentary, then immediately execute
+its next step in the same turn. Keep working through the authorized queue, including while CI or
+workers run, using independent work where dependencies allow. Check the actual worker/CI state;
+if a worker has stopped, resolve its blocker and resume it rather than describing it as running.
+
+Before sending a final response, verify one of these conditions: the agreed scope is complete
+with required evidence; the owner explicitly asked to stop/pause; or an external blocker prevents
+all remaining useful authorized work. For a blocker, state exactly what is needed from whom and
+record the next executable step. A completed subtask, a status answer, waiting CI, or “in progress”
+is not a completion condition. A final response ends active orchestration: never imply continued
+work without a verified running mechanism. Context compaction preserves the task, not completion;
+record the current artifact, actual lane/CI state, blocker and next action in the private handoff,
+then continue. Apply this check to every Director and successor session.
+
+**Fresh workers (owner, 2026-10-19):** start a new worker for each slice or task with its full
+brief. Never reassign an existing worker to a different job: approval is evaluated against its
+original brief. Follow-ups may clarify or finish that same task. Preserve existing work on takeover.
+
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
 ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
 prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
@@ -108,6 +129,24 @@ of an RLS gap forces "can anyone reach it?", which is the `role_table_grants` jo
 stopped two dead layers being ranked above the one live one.
 
 ## Quality gates & checkpoints (binding)
+
+**Current owner ceiling (2026-10-17): release to `dev` only until the owner explicitly changes it.**
+Do not merge, push or promote to `main` or production. This overrides the generic `main` ceiling
+below and in older plans. Production additionally retains its separate per-instance approval rule.
+
+
+**v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
+four unit shards, pgTAP and verify. Dispatch browser integration only on the PR closing a work lane
+or a completed statement/money piece, rather than every slice. Up to **two** browser dispatches may
+run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
+Build the three approved UX lanes in parallel with statements and money fixes; statements take
+priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
+Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
+
+**Post-merge browser gate (owner, 2026-10-19):** after every 2–3 slice merges to `dev`, dispatch
+one browser integration run on `dev` itself through the logged wrapper. A red dev run stops new
+merges until fixed. This supplements the lane-closing runs above; the same concurrency caps apply.
+
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
@@ -253,7 +292,7 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
   recharts. Node **22.22+** (react-router 8 `engines`). Backend: **Supabase** (Postgres + Auth + RLS + Storage).
 - `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · **`npm run e2e`** (e2e — ⚑ NOT bare `npx playwright test`, which runs ONLY the `chromium` project and
   SILENTLY SKIPS the `serial` lane; `npm run e2e` runs both, as CI does).
-- Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+- **No attribution lines in commits or PRs**, including `Co-Authored-By` (owner, 2026-10-17). Before every push, including branch deletion, run `git log --format=%B origin/dev..HEAD | grep -qi co-authored`; a match means **STOP** and correct the unpushed message before proceeding.
 
 ## Supabase environments (binding — full rules + registry: `docs/environments.md`)
 **Local Docker = dev+test; the Supabase Cloud project = prod.** Test on local (`supabase db reset`); push

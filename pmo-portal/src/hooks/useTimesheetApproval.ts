@@ -13,15 +13,17 @@ import {
   type ReopenableApprovedTimesheet,
 } from '@/src/lib/db/timesheetTransition';
 import { repositories } from '@/src/lib/repositories';
+import { awaitingApprovalKey } from './approvalsQueryKeys';
+
+export { awaitingApprovalKey } from './approvalsQueryKeys';
 import {
   listPushesNeedingAttention,
-  listProposedEmployeeLinks,
   confirmEmployeeLink,
   getPushState,
   type PushNeedingAttention,
-  type ProposedEmployeeLink,
   type TimesheetPushState,
 } from '@/src/lib/db/timesheetPush';
+import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
 
 /**
  * P3b (FR-TSP-006, ADR-0059 §3.2): the ERP push is a CONSEQUENCE of approval, dispatched via the
@@ -47,13 +49,6 @@ async function pushAfterApprove(timesheetId: string): Promise<void> {
 /** Cache key for the signed-in user's own timesheet list (same key as useTimesheets). */
 const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined) =>
   ['timesheets', orgId, userId] as const;
-
-/** Cache key for timesheets awaiting the signed-in user's approval. */
-const awaitingApprovalKey = (
-  orgId: string | undefined,
-  userId: string | undefined,
-  role: ReturnType<typeof useAuth>['role'],
-) => ['timesheets-awaiting', orgId, userId, role] as const;
 
 /** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
 const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>
@@ -225,11 +220,15 @@ export function useEmployeeLinkConfirm() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
 
-  const links = useQuery<ProposedEmployeeLink[]>({
+  const review = useQuery({
     queryKey: proposedLinksKey(orgId),
-    queryFn: () => listProposedEmployeeLinks(),
+    queryFn: listEmployeeMatchReview,
     enabled: Boolean(orgId),
   });
+  // Preserve the existing queue-query shape for its only UI consumer, while supplying the active,
+  // same-org identity choices from the same read model.
+  const links = { ...review, data: review.data?.links };
+  const profiles = review.data?.profiles ?? [];
 
   const confirm = useMutation<void, Error, { erpEmployeeId: string; profileId: string }>({
     mutationFn: ({ erpEmployeeId, profileId }) => confirmEmployeeLink(erpEmployeeId, profileId),
@@ -240,7 +239,7 @@ export function useEmployeeLinkConfirm() {
     },
   });
 
-  return { links, confirm };
+  return { links, profiles, confirm };
 }
 
 
