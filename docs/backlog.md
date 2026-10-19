@@ -7,9 +7,10 @@
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
-**Dev gate:** browser run 39180678334 at `00e067cf` is red on two task-link journeys.
-New code merges are paused for regression #1182; keep prepared slices on their branches.
-No timeout increase or goal-oracle change is authorized.
+**Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
+39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.
+The merge hold is lifted. The required next dev run after two slice merges is 39190951947 at
+`48a3a62b`; it is running. Existing timeouts and goal oracles are retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -80,13 +81,19 @@ Task-list review (#1160 / S-21) merged in PR #1177 (`00e067cf`), with all fast c
 the real persisted local journey passed, and the final 955-test changed-import run passed.
 Changed-line coverage specificity (#1125) merged in PR #1178 (`519c22d7`): all fast checks and
 28 focused tests passed; the original broad-hit implementation fails the regression controls.
-All three exact-tip cleanups were verified. The completed dev browser run at `0c299358` passed
-384 browser and 12 served-function checks, with 67 justified skips, four timing warnings tracked
-in #1106 and no timing failures. That later dev run is the red gate recorded above; its traces and screenshots are retained for #1182.
-Customer collections (#1172 / S-36) is in PR #1181: its final 4,338-test changed-import run and
-real Finance journey passed, and all six fast CI checks are green (run 39183351849; 6,733 pgTAP tests and 97.2% changed-line coverage). Its closing browser run was stopped after
-confirming it contained the same failing task-link source; rerun only after the dependency is corrected.
-S-35 is now building in a native subagent against the existing statement views and reviewed customer-collections interfaces (owner, 2026-10-19). “Last” meant after the statement views, already on dev; its merge still requires green dependencies and the dev browser gate.
+All three exact-tip cleanups were verified. The earlier red dev run and its evidence remain
+recorded under #1182; the corrected full dev run passed as recorded above.
+Customer collections (#1172 / S-36) merged in PR #1181 (`31294cff`): all six fast checks passed
+at its final revision (run 39188574333; 6,733 pgTAP checks and 97.2% changed-line coverage).
+Its closing browser run 39188593141 passed 386 cases and 12 served-function checks, with zero
+timing warnings or failures. The final 4,338-test changed-import run and real Finance journey
+also passed. Exact-tip and changed-file adoption cleanup was verified.
+The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
+All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
+the remaining timing follow-ups stay tracked in #1106. Verified publication-worktree cleanup is complete.
+S-35's read-only company view is built on these merged dependencies. Focused tests, coverage,
+phone/desktop geometry and rendered discovery passed. The margin-source decision, final gate
+and formal review remain open; this is not yet a completed slice.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
