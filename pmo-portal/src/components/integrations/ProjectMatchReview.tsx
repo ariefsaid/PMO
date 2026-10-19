@@ -23,6 +23,7 @@ import {
 
 type ReviewProject = { id: string; name: string; code: string | null };
 type SelectedTargets = Record<string, string>;
+type ChosenOptions = Record<string, ComboboxOption>;
 
 const REVIEWABLE_PROJECT_STATUSES = new Set<string>([
   ...ON_HAND_STATUSES,
@@ -71,10 +72,15 @@ export function ProjectMatchReview({
   const { t } = useTranslation();
   const may = usePermission();
   const canManage = may('manage', 'integration');
+  // Same gate Administration uses to let a role in; a link to a page they cannot open is a dead end.
+  const canOpenAdministration = may('view', 'user');
   const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState('');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [selectedTargets, setSelectedTargets] = useState<SelectedTargets>({});
+  // Every chosen option, kept apart from the (search-replaced) candidate list so a queued
+  // choice keeps its label after a later search.
+  const [chosenOptions, setChosenOptions] = useState<ChosenOptions>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [outcome, setOutcome] = useState<string | null>(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
@@ -107,7 +113,8 @@ export function ProjectMatchReview({
   const candidates = useQuery({
     queryKey: ['integrations', 'project-match-candidates', orgId, candidateSearch],
     queryFn: () => repositories.integrations.listErpProjects(candidateSearch),
-    enabled: Boolean(orgId && canManage && connected),
+    // On a project page the list loads only once the review is opened (the ERP bench is small).
+    enabled: Boolean(orgId && canManage && connected && (!projectId || reviewOpen)),
     retry: false,
   });
 
@@ -163,9 +170,24 @@ export function ProjectMatchReview({
     setOutcome(null);
   };
 
-  const chooseTarget = (rowId: string, value: string) => {
+  const chooseTarget = (rowId: string, value: string, option: ComboboxOption) => {
     setSelectedTargets((previous) => ({ ...previous, [rowId]: value }));
+    setChosenOptions((previous) => ({ ...previous, [rowId]: option }));
     setRowErrors((previous) => {
+      const next = { ...previous };
+      delete next[rowId];
+      return next;
+    });
+    setOutcome(null);
+  };
+
+  const clearTarget = (rowId: string) => {
+    setSelectedTargets((previous) => {
+      const next = { ...previous };
+      delete next[rowId];
+      return next;
+    });
+    setChosenOptions((previous) => {
       const next = { ...previous };
       delete next[rowId];
       return next;
@@ -213,7 +235,12 @@ export function ProjectMatchReview({
       return next;
     });
     setRowErrors(errors);
-    setOutcome(t('uxs09.saveOutcome', '{{saved}} links saved; {{failed}} need attention.', { saved, failed }));
+    setOutcome([
+      t('uxs09.savedCount', { count: saved, defaultValue_one: '{{count}} link saved', defaultValue_other: '{{count}} links saved' }),
+      failed > 0
+        ? t('uxs09.attentionCount', { count: failed, defaultValue_one: '{{count}} needs attention', defaultValue_other: '{{count}} need attention' })
+        : null,
+    ].filter(Boolean).join('; ') + '.');
     setConfirmationOpen(false);
     setSaving(false);
     if (saved) {
@@ -281,9 +308,12 @@ export function ProjectMatchReview({
     ? projectHref(binding.data?.site_url, currentTarget)
     : null;
   const projectCanReview = rows.length > 0;
+  // A pre-win project has nothing to link: render no empty heading.
+  if (projectId && !projectCanReview && !currentTarget) return null;
   const headingId = projectId ? 'project-erp-match-heading' : 'erp-project-review-heading';
   const openReview = () => {
     setSelectedTargets({});
+    setChosenOptions({});
     setRowErrors({});
     setOutcome(null);
     setSearchText('');
@@ -316,6 +346,11 @@ export function ProjectMatchReview({
           )
           : <p className='break-words text-sm text-foreground'>{currentTarget}</p>
       )}
+      {projectId && projectCanReview && !currentTarget && (
+        <p className='text-sm text-muted-foreground'>
+          {t('uxs09.notLinked', 'Not linked yet')}
+        </p>
+      )}
       {projectId && projectCanReview && canManage && !reviewOpen && (
         <Button variant='outline' size='sm' onClick={openReview}>
           {t('uxs09.reviewAction', 'Review project match')}
@@ -326,9 +361,11 @@ export function ProjectMatchReview({
           {currentTarget
             ? t('uxs09.readOnlyLinked', 'Ask an administrator to review changes to this ERP project link.')
             : t('uxs09.readOnlyHandoff', 'Ask an administrator to review the ERP project match.')}{' '}
-          <a className='font-medium text-foreground underline underline-offset-4' href='/administration/integrations'>
-            {t('uxs09.openSetup', 'Open organization ERP setup')}
-          </a>
+          {canOpenAdministration && (
+            <a className='font-medium text-foreground underline underline-offset-4' href='/administration/integrations'>
+              {t('uxs09.openSetup', 'Open organization ERP setup')}
+            </a>
+          )}
         </p>
       )}
 
@@ -400,9 +437,7 @@ export function ProjectMatchReview({
                 const suggestedCandidate = proposal?.candidateId
                   ? candidateRows.find((candidate) => candidate.name.trim() === proposal.candidateId)
                   : undefined;
-                const selectedOption = candidateRows.find((candidate) =>
-                  candidate.name === selectedTargets[row.id]
-                );
+                const selectedOption = chosenOptions[row.id] ?? null;
                 return (
                   <li key={row.id} className='min-w-0 space-y-3 p-3 sm:p-4'>
                     <div className='min-w-0'>
@@ -411,8 +446,8 @@ export function ProjectMatchReview({
                       </p>
                       <p className='mt-1 break-words text-sm text-muted-foreground'>
                         {row.code
-                          ? t('uxs09.projectCode', 'PMO project code: {{code}}', { code: row.code })
-                          : t('uxs09.noProjectCode', 'No PMO project code recorded')}
+                          ? t('uxs09.projectCode', 'Client project code: {{code}}', { code: row.code })
+                          : t('uxs09.noProjectCode', 'No client project code recorded')}
                       </p>
                       {projectId && currentTarget && (
                         <p className='mt-1 break-words text-sm text-muted-foreground'>
@@ -435,9 +470,10 @@ export function ProjectMatchReview({
                             size='sm'
                             className='mt-2'
                             disabled={saving}
-                            onClick={() => chooseTarget(row.id, suggestedCandidate.name)}
+                            aria-label={t('uxs09.useSuggestion', 'Use suggested match for {{name}}', { name: row.name })}
+                            onClick={() => chooseTarget(row.id, suggestedCandidate.name, candidateOption(suggestedCandidate))}
                           >
-                            {t('uxs09.useSuggestion', 'Use suggested match for {{name}}', { name: row.name })}
+                            {t('uxs09.useSuggestionShort', 'Use this match')}
                           </Button>
                         </div>
                       )}
@@ -460,10 +496,12 @@ export function ProjectMatchReview({
                       <Combobox
                         label={t('uxs09.candidateLabel', 'ERP project for {{name}}', { name: row.name })}
                         value={selectedTargets[row.id] ?? null}
-                        selectedOption={selectedOption ? candidateOption(selectedOption) : null}
-                        onChange={(value) => chooseTarget(row.id, value)}
+                        selectedOption={selectedOption}
+                        onChange={(value, option) => chooseTarget(row.id, value, option)}
+                        clearable
+                        onClear={() => clearTarget(row.id)}
                         loadOptions={async () => candidateRows.map(candidateOption)}
-                        required
+                        placeholder={t('uxs09.pickerPlaceholder', 'Select ERP project')}
                         noun={t('uxs09.projectNoun', 'ERP project')}
                         searchPlaceholder={t('uxs09.pickerSearch', 'Search loaded ERP projects')}
                       />
@@ -495,7 +533,7 @@ export function ProjectMatchReview({
               {t('uxs09.closeReview', 'Close review')}
             </Button>
           )}
-          {canManage && (
+          {projectId && canManage && (
             <a className='block w-fit text-sm font-medium text-foreground underline underline-offset-4' href='/administration/integrations'>
               {t('uxs09.operatorRecovery', 'Open organization ERP setup')}
             </a>

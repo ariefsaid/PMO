@@ -108,6 +108,9 @@ it('read-only project viewers see the link without relink controls', async () =>
   await screen.findByRole('link', { name: 'PROJ-00042' });
   expect(screen.queryByRole('button', { name: 'Review project match' })).not
     .toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Open organization ERP setup' }))
-    .toHaveAttribute('href', '/administration/integrations');
+  // UXS09: a role that cannot open Administration gets the handoff text, not a dead-end link.
+  expect(screen.getByText(/Ask an administrator to review changes to this ERP project link/))
+    .toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Open organization ERP setup' })).not
+    .toBeInTheDocument();
 });
