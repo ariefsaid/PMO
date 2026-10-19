@@ -929,13 +929,31 @@ function sameTimestampInstant(left: unknown, right: string): boolean {
   return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs === rightMs;
 }
 
+const STATEMENT_FIRST_PUBLICATION_BACKFILL_MS = 6 * 60 * 60 * 1000;
+
+type StatementReportBatchReadinessRow = { org_id?: unknown; started_at?: unknown; context?: unknown };
+
+function statementReportBatchMatchesBinding(
+  batchContext: unknown,
+  context: NativeStatementBindingContext,
+): boolean {
+  if (!isJsonRecord(batchContext)) return false;
+  const batchBinding = batchContext.binding;
+  return batchContext.company === context.company && sameJson(batchContext.projectMap, context.projectMap) &&
+    isJsonRecord(batchBinding) && batchBinding.id === context.bindingId &&
+    batchBinding.versionMajor === context.versionMajor &&
+    sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
+}
+
 /**
  * The ordinary cron has a five-minute window for the whole sweep. Between those windows it may
  * return early once each active binding accepted by the native collector's binding guard has a
- * publication for that same company, binding activation, version, and project map. Other active
- * bindings stay on the hourly cadence because the collector itself cannot process them. The
- * publication context is written only by the native snapshot trigger for a committed generation;
- * attempts and legacy status fields do not establish publication.
+ * publication for that same company, binding activation, version, and project map. A binding without
+ * its first publication can keep the five-minute cadence for six hours after activation; an older
+ * binding can do so only while an exact-identity native report batch started within the last six
+ * hours remains open. Other bindings stay on the hourly cadence. The publication context is written
+ * only by the native snapshot trigger for a committed generation; attempts and legacy status fields
+ * do not establish publication.
  */
 async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: SupabaseClient): Promise<boolean> {
   const { data, error } = await serviceClient.from('external_org_bindings')
@@ -960,7 +978,43 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
     return context ? [{ binding, context }] : [];
   });
 
+  const readinessNowMs = Date.now();
+  const oldEligibleOrgIds = [...new Set(eligibleBindings
+    .filter(({ context }) => readinessNowMs - Date.parse(context.activatedAt) >= STATEMENT_FIRST_PUBLICATION_BACKFILL_MS)
+    .map(({ context }) => context.orgId))];
+  const recentBatches: StatementReportBatchReadinessRow[] = [];
+  const batchWindowStart = new Date(readinessNowMs - STATEMENT_FIRST_PUBLICATION_BACKFILL_MS).toISOString();
+  const batchWindowEnd = new Date(readinessNowMs).toISOString();
+  // The report-batch table has one row per org. Read only orgs with old, otherwise eligible
+  // bindings, and chunk the primary-key filter to keep each REST request bounded.
+  for (let offset = 0; offset < oldEligibleOrgIds.length; offset += 100) {
+    const orgIds = oldEligibleOrgIds.slice(offset, offset + 100);
+    const { data: batches, error: batchError } = await serviceClient.from('erp_financial_statement_report_batch')
+      .select('org_id, started_at, context')
+      .in('org_id', orgIds)
+      .gte('started_at', batchWindowStart)
+      .lte('started_at', batchWindowEnd);
+    if (batchError || !Array.isArray(batches)) {
+      console.error(`[erpnext-sweep] statement batch readiness read failed: code=${batchError?.code ?? 'unknown'} message=${batchError?.message ?? 'invalid response'}`);
+      continue;
+    }
+    recentBatches.push(...batches as StatementReportBatchReadinessRow[]);
+  }
+
   for (const { binding, context } of eligibleBindings) {
+    const activationAgeMs = readinessNowMs - Date.parse(context.activatedAt);
+    // Give newly activated bindings a bounded fast retry window for their first native publication.
+    // A future activation timestamp is not allowed to extend that exception.
+    if (activationAgeMs < 0) continue;
+    const activationBackfillActive = activationAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS;
+    const recentBatchActive = !activationBackfillActive && recentBatches.some((batch) => {
+      if (batch.org_id !== context.orgId || typeof batch.started_at !== 'string') return false;
+      const batchAgeMs = readinessNowMs - Date.parse(batch.started_at);
+      return batchAgeMs >= 0 && batchAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS &&
+        statementReportBatchMatchesBinding(batch.context, context);
+    });
+    if (!activationBackfillActive && !recentBatchActive) continue;
+
     const { company, projectMap } = context;
 
     // `activatedAt` is jsonb text, so compare instants in JavaScript: the same PostgreSQL timestamp

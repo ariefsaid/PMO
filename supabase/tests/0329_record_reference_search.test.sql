@@ -171,7 +171,7 @@ select ok(jsonb_array_length(public.search_record_references('TENANT-SHARED', 8)
           and (public.search_record_references('TENANT-SHARED', 8) -> 'items' -> 0 ->> 'exact')::boolean
           and not exists(select 1 from jsonb_array_elements(public.search_record_references('TENANT-SHARED', 8) -> 'items') as rows(item)
             where item ->> 'id' = '03290000-0000-0000-0000-000000000f06'),
-  'AC-S40-003 authenticated Finance gets the canonical own-org invoice and not the foreign same-reference invoice'); -- 25
+  'AC-S40-003 superuser session with Finance JWT claims gets the canonical own-org invoice and not the foreign same-reference invoice'); -- 25
 set local request.jwt.claims = '{"sub":"03290000-0000-0000-0000-000000000201","role":"authenticated"}';
 select is((select coalesce(jsonb_agg(item ->> 'id' order by item ->> 'id'), '[]'::jsonb)
              from jsonb_array_elements(public.search_record_references('TENANT-SHARED', 8) -> 'items') as rows(item)

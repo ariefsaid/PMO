@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ErpClientDeps } from './client.ts';
 import type { StatementReportSide } from './statementReports.ts';
@@ -51,6 +52,37 @@ function reportResponse(debit?: string, account = 'Synthetic Cash') {
 }
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function deferWebCryptoDigests() {
+  const pending: Array<() => void> = [];
+  let started = 0;
+  let completed = 0;
+  vi.spyOn(globalThis.crypto.subtle, 'digest').mockImplementation((algorithm, data) => new Promise<ArrayBuffer>((resolve, reject) => {
+    started += 1;
+    pending.push(() => {
+      try {
+        const name = typeof algorithm === 'string' ? algorithm : algorithm.name;
+        if (name.toUpperCase() !== 'SHA-256') throw new Error(`unexpected digest algorithm: ${name}`);
+        const bytes = new Uint8Array(data as Uint8Array);
+        const digest = createHash('sha256').update(bytes).digest();
+        const result = new Uint8Array(digest.byteLength);
+        result.set(digest);
+        completed += 1;
+        resolve(result.buffer);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }));
+  return {
+    pendingCount: () => pending.length,
+    startedCount: () => started,
+    completedCount: () => completed,
+    completePending: () => {
+      for (const complete of pending.splice(0)) complete();
+    },
+  };
 }
 
 function fixture(options: {
@@ -359,6 +391,7 @@ describe('refreshStatementReportBatch', () => {
 
   it('AC-005: repeatedly advances a persisted first-missing sequence after slow context work without exceeding each tick budget', async () => {
     vi.useFakeTimers();
+    const deferredDigests = deferWebCryptoDigests();
     const periods = [
       ['2024-01-01', '2024-01-31', '2023-01-01', '2023-01-31'],
       ['2024-02-01', '2024-02-29', '2023-02-01', '2023-02-28'],
@@ -407,12 +440,16 @@ describe('refreshStatementReportBatch', () => {
       });
       while (!settled && Date.now() - segmentStartedAt < 5_000) {
         await vi.advanceTimersByTimeAsync(100);
+        deferredDigests.completePending();
       }
       if (!settled) await vi.advanceTimersByTimeAsync(1);
       result = await pending;
       expect(Date.now() - segmentStartedAt).toBeLessThanOrEqual(Math.min(7_000, 5_000));
       segmentCount += 1;
       if (segmentCount === 1) {
+        expect(deferredDigests.startedCount()).toBeGreaterThan(0);
+        expect(deferredDigests.completedCount()).toBe(deferredDigests.startedCount());
+        expect(deferredDigests.pendingCount()).toBe(0);
         expect(h.counts().stageCount, JSON.stringify({ result, counts: h.counts(), events: h.events, rpcCalls: h.rpcCalls.map(({ name }) => name), nativeRequests: h.nativeRequests.length, reportStartedAt, reportFinishedAt, reportAbortedAt })).toBeGreaterThan(0);
       }
       if (result.status === 'published') break;
@@ -426,6 +463,7 @@ describe('refreshStatementReportBatch', () => {
     expect(h.nativeRequests).toHaveLength(requests.length);
     expect(new Set(h.nativeRequests.map((request) => new URL(request.url).searchParams.get('filters'))).size).toBe(requests.length);
     expect(h.counts()).toMatchObject({ stageCount: requests.length, publishCount: 1 });
+    expect(deferredDigests.completedCount()).toBe(requests.length);
     expect(h.stagedAtPublish()).toBe(requests.length);
     expect(h.publishedSnapshot()).toBe(SNAPSHOT);
   });
