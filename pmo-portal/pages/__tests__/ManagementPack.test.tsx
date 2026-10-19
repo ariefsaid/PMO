@@ -6,6 +6,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { buildManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
+import { BahasaProvider } from '../../test/bahasa';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
@@ -157,6 +158,53 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(unavailable.length).toBeGreaterThanOrEqual(2);
     expect(projectRow && within(projectRow).getByText('Unavailable')).toHaveAttribute('title',
       'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  });
+});
+
+describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
+  const ID_UNAVAILABLE = 'Belum tersedia';
+  const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui.';
+  const renderBahasa = () =>
+    render(<BahasaProvider><MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter></BahasaProvider>);
+
+  // Alpha's name can label more than one row (contract + per-currency); take the row carrying the backlog cell.
+  const alphaContractRow = () =>
+    screen.getAllByRole('row').find((r) => within(r).queryByText('Alpha') && within(r).queryByText(ID_UNAVAILABLE))!;
+
+  it('AC-V24P-017: unavailable backlog shows the Bahasa label and reason on the row and an aggregate cell, never English', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    renderBahasa();
+    const unavailable = screen.getAllByText(ID_UNAVAILABLE);
+    // KPI tile + project row (contract currency) + currency subtotal.
+    expect(unavailable.length).toBeGreaterThanOrEqual(2);
+    const projectRow = alphaContractRow();
+    expect(within(projectRow).getByText(ID_UNAVAILABLE)).toHaveAttribute('title', ID_REASON);
+    const titled = unavailable.filter((el) => el.getAttribute('title') === ID_REASON);
+    expect(titled.length).toBeGreaterThanOrEqual(2);
+    // Subtotal row: a cell outside the project row carries the same Bahasa explanation.
+    expect(titled.some((el) => !projectRow.contains(el))).toBe(true);
+    expect(screen.queryByText('Unavailable')).toBeNull();
+    expect(screen.queryByTitle(/needs reconciliation/)).toBeNull();
+  });
+
+  it('AC-V24P-017: a known zero-or-positive backlog shows no unavailable copy in Bahasa', () => {
+    renderBahasa();
+    expect(screen.queryByText(ID_UNAVAILABLE)).toBeNull();
+    expect(screen.queryByTitle(ID_REASON)).toBeNull();
+    const row = within(screen.getByText('Alpha').closest('tr')!);
+    expect(row.getByTestId('pack-cell-backlog')).toHaveTextContent(/750/);
+  });
+
+  it('AC-V24P-017: earlier zero-net foreign invoices stay unavailable in Bahasa and keep the null backing figure', () => {
+    h.query.data = buildManagementPack({ ...facts, invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)] });
+    renderBahasa();
+    const projectRow = alphaContractRow();
+    expect(within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(ID_UNAVAILABLE);
+    expect(within(projectRow).getByText(ID_UNAVAILABLE)).toHaveAttribute('title', ID_REASON);
+    expect(screen.queryByText('Unavailable')).toBeNull();
   });
 });
 
