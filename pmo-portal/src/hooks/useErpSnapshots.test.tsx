@@ -62,4 +62,14 @@ describe('useArAgingSnapshot', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(row);
   });
+
+  it('can gate the read without changing its established org-scoped query key', () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useArAgingSnapshot({ enabled: false }), { wrapper: wrap(client) });
+
+    expect(result.current.isFetching).toBe(false);
+    expect(erpSnapshots.arAging).not.toHaveBeenCalled();
+    expect(client.getQueryCache().find({ queryKey: ['erp-ar-aging-snapshot', 'org-1'] })?.queryKey)
+      .toEqual(['erp-ar-aging-snapshot', 'org-1']);
+  });
 });

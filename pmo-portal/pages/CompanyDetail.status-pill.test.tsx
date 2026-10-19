@@ -70,6 +70,9 @@ vi.mock('@/src/hooks/useContacts', () => ({
     logActivity: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ isEnabled: false }),
+}));
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({

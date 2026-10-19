@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+import type { CompanyCollectionsHookResult } from '@/src/hooks/useCompanyCollections';
 
 /**
  * AC-IFW-COMPANY-01 — CompanyDetail renders related projects (always) and
@@ -51,6 +53,7 @@ const {
     refetch: vi.fn(),
   },
 }));
+const collectionsHook = vi.hoisted(() => ({ useCompanyCollections: vi.fn() }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompany: () => detailState,
@@ -72,6 +75,10 @@ vi.mock('@/src/hooks/useContacts', () => ({
     deleteActivity: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: collectionsHook.useCompanyCollections,
+}));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -97,6 +104,40 @@ const vendorCompany = {
   archived_at: null,
   created_at: '2026-01-01T00:00:00Z',
 };
+
+const customerPosition: ErpAgingSnapshotRow = {
+  party: 'Customer:C-0001',
+  partyType: 'Customer',
+  currency: 'USD',
+  totalOutstanding: 250,
+  current: 0,
+  bucket0to30: 250,
+  bucket31to60: 0,
+  bucket61to90: 0,
+  bucketOver90: 0,
+  rangeLabels: { b_0_30: '0–30 days' },
+  reportDate: '2026-10-18',
+  ageingBasedOn: 'Due Date',
+  asOf: '2026-10-18T00:00:00Z',
+  sourceReport: 'Accounts Receivable',
+  reportVersion: '15',
+  snapshotId: 'snapshot-1',
+};
+
+const collectionsResult = (
+  state: 'known' | 'unavailable' | 'ambiguous',
+  positions: ErpAgingSnapshotRow[] = [],
+): CompanyCollectionsHookResult => ({
+  rows: positions,
+  refsBySnapshotCustomer: [],
+  byCompany: new Map([['co-client-1', { state, positions }]]),
+  customerLinks: new Map(),
+  isEnabled: true,
+  isPending: false,
+  isError: false,
+  error: null,
+  refetch: vi.fn(async () => undefined),
+});
 
 const renderPage = (companyId: string = 'co-client-1') => {
   return render(
@@ -131,6 +172,8 @@ beforeEach(() => {
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.archive.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
+  collectionsHook.useCompanyCollections.mockReset();
+  collectionsHook.useCompanyCollections.mockReturnValue(collectionsResult('unavailable'));
 });
 
 describe('CompanyDetail — related objects (AC-IFW-COMPANY-01)', () => {
@@ -200,5 +243,86 @@ describe('CompanyDetail — related objects (AC-IFW-COMPANY-01)', () => {
     procurementsState.data = [];
     renderPage('co-vendor-1');
     expect(screen.getByText(/no procurement yet/i)).toBeInTheDocument();
+  });
+});
+
+describe('CompanyDetail — customer collections (AC-S36-003)', () => {
+  it('AC-S36-002: follows the collections hash to the section and focuses its heading', async () => {
+    const scrollIntoView = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+
+    try {
+      render(
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/companies/co-client-1#collections']}>
+            <Routes>
+              <Route path="/companies/:companyId" element={<CompanyDetail />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>,
+      );
+
+      const heading = screen.getByRole('heading', { name: 'Customer collections' });
+      await waitFor(() => {
+        expect(heading).toHaveFocus();
+        expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+      });
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+    }
+  });
+
+  it('AC-S36-003: shows the mapped ERP aging position and an exact company invoice doorway', () => {
+    collectionsHook.useCompanyCollections.mockReturnValue(collectionsResult('known', [customerPosition]));
+
+    renderPage('co-client-1');
+
+    expect(screen.getByRole('heading', { name: 'Customer collections' })).toBeInTheDocument();
+    expect(screen.getByText('Customer:C-0001')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Customer:C-0001/ })).toHaveTextContent(/\$250\s*USD/);
+    expect(screen.getByText('Report date: 2026-10-18')).toBeInTheDocument();
+    expect(screen.getByText('Ageing basis: Due Date')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
+      'href', '/sales-invoices?customer=co-client-1',
+    );
+    expect(screen.queryByText('AP aging')).not.toBeInTheDocument();
+    expect(screen.getByText('Related projects', { exact: true })).toBeInTheDocument();
+  });
+
+  it('AC-S36-003: keeps missing or ambiguous ERP mapping explicitly unavailable', () => {
+    collectionsHook.useCompanyCollections.mockReturnValue(collectionsResult('unavailable'));
+    const { rerender } = renderPage('co-client-1');
+
+    expect(screen.getByText(/does not indicate a zero balance/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
+      'href', '/sales-invoices?customer=co-client-1',
+    );
+    expect(screen.queryByText(/250\.00/)).not.toBeInTheDocument();
+
+    collectionsHook.useCompanyCollections.mockReturnValue(collectionsResult('ambiguous', [customerPosition]));
+    rerender(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/companies/co-client-1']}>
+          <Routes>
+            <Route path="/companies/:companyId" element={<CompanyDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText(/mapped to multiple companies/i)).toBeInTheDocument();
+    expect(screen.queryByText(/250\.00/)).not.toBeInTheDocument();
+  });
+
+  it('AC-S36-003: does not mount customer receivables on a Vendor company', () => {
+    detailState.data = vendorCompany;
+
+    renderPage('co-vendor-1');
+
+    expect(screen.queryByRole('heading', { name: 'Customer collections' })).not.toBeInTheDocument();
+    expect(collectionsHook.useCompanyCollections).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Procurement$/i)).toBeInTheDocument();
   });
 });

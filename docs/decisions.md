@@ -3407,3 +3407,15 @@ eligible account rules and Finance read-only behavior remain unchanged.
 
 The v0.24.0 slice remains held from dev until the v0.23.0 release branch transition is authorized
 and completed. AC-V24P-001–003 own draft retention, exact save arguments and state distinctions.
+
+
+### UXS-036 — customer collections through exact identity (2026-10-19)
+
+Finance opens a customer aging position through its canonical Customer mapping to the company’s
+collections section, then uses the customer-filtered invoice register. Ambiguous mappings do not
+assign an aging amount to a company. Keep the source currency, report date, aging basis and range
+labels visible; missing balances or currency remain unavailable rather than becoming zero or
+inheriting another currency. The invoice amount retains its explicit source currency.
+
+A collections deep link moves focus to its heading after the company loads. Preserve this path’s
+ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.

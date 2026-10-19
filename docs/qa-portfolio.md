@@ -313,3 +313,16 @@ Rich rendered review covers both locales and themes at phone and desktop sizes. 
 Synthetic Discover covers phone/desktop, both themes/locales, keyboard recovery, cached binding
 errors and zero writes during refresh. The existing AC-ADMIA-005 journey supports real shell
 reachability and overflow; the new acceptance criteria remain unit-owned.
+
+
+### Customer collections — UXS-036 (2026-10-19)
+
+| Route | Retained oracle | Owning proof |
+|---|---|---|
+| Finance dashboard | Only unique canonical Customer mappings become company links | companyCollections repository and FinanceDashboard RTL |
+| Company collections | Permission, exact mapping, ambiguity, pending/error and unavailable states | useCompanyCollections and CompanyCollections RTL |
+| Customer invoice register | URL customer filter intersects other filters; clear retains the working set; source currency stays explicit | SalesInvoices.customerFilter RTL |
+| Dashboard → company → invoice | Ordinary Finance follows the aging position to the exact customer and its overdue invoice | AC-S36-006-customer-collections.spec.ts |
+
+Rich rendered review retains phone/desktop layouts and dark/light link contrast. Source metadata
+and unknown-versus-zero behavior stay covered by AccountingSnapshotsSection RTL.
