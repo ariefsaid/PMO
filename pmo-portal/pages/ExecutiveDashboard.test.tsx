@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
+import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
 type Analytics = typeof import('@/src/lib/analytics');
@@ -23,9 +24,9 @@ const populated = {
   active_projects: 2,
   total_contract_value: 8000000,
   on_hand_margin: 0.949375,
-  on_hand_value: 8000000,
-  on_hand_contract_remaining: 7_595_000,
-  on_hand_realized_margin: 1_200_000,
+  on_hand_value: 8000000 as number | null,
+  on_hand_contract_remaining: 7_595_000 as number | null,
+  on_hand_realized_margin: 1_200_000 as number | null,
   on_hand_actual_known: 4_000_000,
   on_hand_actual_project_count: 2,
   on_hand_actual_project_total: 2,
@@ -72,7 +73,7 @@ function resetWinRateRangeTracker(): void {
 }
 
 const dashState: {
-  data: typeof populated | null;
+  data: (typeof populated & Pick<ExecutiveDashboardData, 'on_hand_value_by_currency' | 'on_hand_realized_margin_by_currency'>) | null;
   isPending: boolean;
   isError: boolean;
   refetch: ReturnType<typeof vi.fn>;
@@ -118,6 +119,33 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
+  it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_value: null,
+      on_hand_contract_remaining: null,
+      on_hand_realized_margin: null,
+      on_hand_value_by_currency: [
+        { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 144, actual_coverage_total: 150, realized_margin_known: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null, contract_remaining: null, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', known_amount: null, unknown_projects: 1 },
+      ],
+      on_hand_actual_coverage_count: 144,
+      on_hand_actual_coverage_total: 150,
+    };
+    renderPage();
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    expect(tile).toHaveTextContent('IDR');
+    expect(tile).toHaveTextContent('USD');
+    expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
+    expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
+      .toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(tile).not.toHaveTextContent('Not available yet');
+  });
+
   it('gives active contract value its own label distinct from contract value on hand', () => {
     renderPage();
     const onHand = screen.getByTestId('kpi-on-hand-margin');

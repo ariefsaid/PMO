@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -114,6 +115,29 @@ const ExecutiveDashboard: React.FC = () => {
 
     const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
       ?? t('uxs03.notAvailableYet', 'Not available yet');
+    const currencyMoney = (value: number, currency: string) =>
+      formatDashboardMoney(value, currency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet');
+    const onHandCurrencies = data.on_hand_value_by_currency ?? [];
+    const unmappedCategories = Math.max(0, data.on_hand_actual_coverage_total - data.on_hand_actual_coverage_count);
+    const canOpenAccountingMap = can('edit', 'budgetLine', { realRole });
+    const onHandValueDisplay = onHandCurrencies.length > 0 ? (
+      <span className="flex flex-col gap-0.5 text-base leading-snug">
+        {onHandCurrencies.map((row) => (
+          <span key={row.currency}>{row.currency} {currencyMoney(row.contract_value, row.currency)}</span>
+        ))}
+        {unmappedCategories > 0 && canOpenAccountingMap && (
+          <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+            {t('uxs03.openAccountingMap', 'Review accounting mappings')}
+          </Link>
+        )}
+      </span>
+    ) : money(data.on_hand_value);
+    const remainingByCurrency = onHandCurrencies
+      .filter((row) => row.contract_remaining !== null)
+      .map((row) => `${row.currency} ${currencyMoney(row.contract_remaining!, row.currency)}`);
+    const marginByCurrency = (data.on_hand_realized_margin_by_currency ?? [])
+      .filter((row) => row.known_amount !== null)
+      .map((row) => `${row.currency} ${currencyMoney(row.known_amount!, row.currency)}`);
     const mixedPipelineCurrencies = (data.pipeline_total_value_by_currency ?? []).length > 1;
     const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
       .reduce((sum, item) => sum + item.unknown_projects, 0);
@@ -268,9 +292,15 @@ const ExecutiveDashboard: React.FC = () => {
             tone="green"
             icon="dollar"
             label={t('uxs03.contractValueOnHand', 'Contract value on hand')}
-            value={money(data.on_hand_value)}
-            vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data.on_hand_contract_remaining)
-              + ' · ' + marginLabel + ': ' + money(data.on_hand_realized_margin) + ' · ' + actualCoverage}
+            value={onHandValueDisplay}
+            vs={onHandCurrencies.length > 0
+              ? [
+                  remainingByCurrency.length > 0 ? `${t('uxs03.contractRemaining', 'Contract remaining after known Actual')}: ${remainingByCurrency.join(' · ')}` : null,
+                  marginByCurrency.length > 0 ? `${marginLabel}: ${marginByCurrency.join(' · ')}` : null,
+                  unmappedCategories > 0 ? t('uxs03.actualIncompleteCategories', 'Actual incomplete: {{count}} cost categories not mapped', { count: unmappedCategories }) : null,
+                ].filter(Boolean).join(' · ')
+              : t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data.on_hand_contract_remaining)
+                + ' · ' + marginLabel + ': ' + money(data.on_hand_realized_margin) + ' · ' + actualCoverage}
             helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
             help={t(
               'dashboard.kpi.revenueOnHand.help',
