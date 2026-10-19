@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Executive dashboard — proposed structure — 1440</title>
+<link rel="stylesheet" href="tokens.css">
+</head>
+<body>
+<div class="frame-1440">
+  <nav class="rail" aria-label="Main">
+    <div class="brand">PMO</div>
+    <div class="item active" aria-current="page">Dashboard</div>
+    <div class="item">Approvals</div>
+    <div class="group">Delivery</div>
+    <div class="item">Projects</div>
+    <div class="item">Procurement</div>
+    <div class="group">CRM</div>
+    <div class="item">Sales pipeline</div>
+    <div class="item">Companies</div>
+    <div class="group">Finance</div>
+    <div class="item">Sales invoices</div>
+    <div class="item">Incoming payments</div>
+  </nav>
+  <div>
+    <header class="topbar"><b>Dashboard</b><div class="search">Search ⌘K</div></header>
+    <main class="page">
+
+      <div class="anno"><b>Sketch-glance — what changed (RD-S2).</b>
+        <ul>
+          <li>Six equal KPI tiles → three wide figures. Exact amounts, no ".00" on whole amounts, nothing clips.</li>
+          <li>Missing data is explained <b>once</b>, in the notice below, with what to do. Before, coverage sentences repeated in 3 tiles and on every project row.</li>
+          <li>Deleted: duplicate "Contract value on hand" tile, "Pipeline forecast margin" tile (needs budgets; none exist), "Active projects" tile (count now sits under the contract figure), the full-width zero-approvals card.</li>
+        </ul>
+      </div>
+
+      <div class="head">
+        <div>
+          <h1 class="h1">Executive Dashboard</h1>
+          <p class="sub">What needs you, and how the contracting book stands.</p>
+        </div>
+        <button class="btn btn-outline">Board pack</button>
+      </div>
+
+      <section aria-label="Needs you" class="attention">
+        <div>
+          <span class="count">0</span>
+          <div class="stack-item" style="gap:2px">
+            <span style="font-weight:600">Nothing waiting for your approval</span>
+            <a class="link caption" href="#" style="color:hsl(var(--primary-text))">Open approvals</a>
+          </div>
+        </div>
+        <div>
+          <span class="count muted">—</span>
+          <div class="stack-item" style="gap:2px">
+            <span style="font-weight:600">Project risk can't be checked yet</span>
+            <span class="caption">No project has an active budget or dated delivery phases.</span>
+          </div>
+        </div>
+      </section>
+
+      <details class="notice" open>
+        <summary><span class="warn-dot" aria-hidden="true"></span>3 things limit these figures</summary>
+        <ol>
+          <li>Spending covers <b class="tabular">144 of 150</b> cost categories, so spending totals are partial. <a class="link" href="#">Review spending setup</a></li>
+          <li>No project has an active budget, so budget risk and pipeline margin can't be calculated. <a class="link" href="#">Open projects</a></li>
+          <li>5 closed-out projects are in USD. Totals are shown per currency and never converted.</li>
+        </ol>
+      </details>
+
+      <section class="stack-group" aria-labelledby="book">
+        <h2 id="book" class="section-title">Contract book</h2>
+        <div class="cols-3">
+          <div class="fig">
+            <span class="label">Contract value in delivery</span>
+            <span class="metric">IDR 160,890,500,000</span>
+            <span class="caption">6 projects · excl. tax</span>
+          </div>
+          <div class="fig">
+            <span class="label">Recorded spending to date <span class="pill pill-partial" style="margin-left:4px">Partial</span></span>
+            <span class="metric">IDR 58,214,330,500</span>
+            <span class="caption">Delivery projects · updated 18 Oct 2026</span>
+          </div>
+          <div class="fig">
+            <span class="label">Open pipeline, weighted</span>
+            <span class="metric">IDR 75,185,000,000</span>
+            <span class="caption">of IDR 190,900,000,000 across 19 opportunities</span>
+          </div>
+        </div>
+        <p class="caption" style="margin:0">Closed out (19 projects): <span class="tabular">IDR 212,640,000,000</span> · <span class="tabular">USD 3,412,800</span></p>
+      </section>
+
+      <div class="cols-7-5">
+        <section class="stack-group" aria-labelledby="delivery">
+          <h2 id="delivery" class="section-title">Delivery projects</h2>
+          <div class="dt-wrap">
+            <table class="dt" aria-label="Delivery projects">
+              <colgroup><col><col style="width:184px"><col style="width:184px"><col style="width:132px"></colgroup>
+              <thead><tr><th>Project</th><th class="num">Contract · IDR</th><th class="num">Spending · IDR<span class="caveat-mark" aria-hidden="true">*</span></th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><div class="primary-name">Gedung Kantor Regional Tahap II – Paket Struktur dan Arsitektur Lantai 1 sampai 12</div><div class="secondary">PT Sinar Hutama Konstruksi</div></td><td class="num">63,400,000,000</td><td class="num">24,118,640,000</td><td><span class="pill">In delivery</span></td></tr>
+                <tr><td><div class="primary-name">Jaringan Distribusi Air Bersih Kawasan Industri Timur</div><div class="secondary">PT Graha Lintas Nusantara</div></td><td class="num">48,215,000,000</td><td class="num">18,402,775,000</td><td><span class="pill">In delivery</span></td></tr>
+                <tr><td><div class="primary-name">Rehabilitasi Jembatan dan Akses Jalan Lingkar Selatan</div><div class="secondary">Dinas PUPR Kabupaten Bekasi</div></td><td class="num">21,870,500,000</td><td class="num">9,640,210,500</td><td><span class="pill">In delivery</span></td></tr>
+                <tr><td><div class="primary-name">Pemeliharaan Terpadu Fasilitas Gedung 2025–2026</div><div class="secondary">PT Mitra Arta Properti</div></td><td class="num">15,300,000,000</td><td class="num">4,212,505,000</td><td><span class="pill">In delivery</span></td></tr>
+                <tr><td><div class="primary-name">Instalasi Sistem Proteksi Kebakaran Gudang Logistik</div><div class="secondary">PT Cakra Logistik Mandiri</div></td><td class="num">7,925,000,000</td><td class="num">1,505,200,000</td><td><span class="pill">In delivery</span></td></tr>
+                <tr><td><div class="primary-name">Studi Kelayakan dan Desain Rinci Terminal Penumpang</div><div class="secondary">Badan Usaha Pelabuhan Sentosa</div></td><td class="num">4,180,000,000</td><td class="num">335,000,000</td><td><span class="pill">In delivery</span></td></tr>
+                <tr class="total"><td>Total · 6 projects</td><td class="num">160,890,500,000</td><td class="num">58,214,330,500</td><td></td></tr>
+              </tbody>
+            </table>
+            <div class="dt-foot"><span class="caveat-mark" aria-hidden="true">*</span>Partial: 6 of 150 cost categories are not set up, so their spending isn't included. <a class="link" href="#">Review spending setup</a></div>
+          </div>
+        </section>
+
+        <section class="stack-group" aria-labelledby="pipe">
+          <h2 id="pipe" class="section-title">Pipeline by stage</h2>
+          <div class="stack-item" role="group" aria-label="Weighted value by stage">
+            <a class="barrow" href="#" style="text-decoration:none"><span class="muted">Leads · 10%</span><span class="track"><span style="width:9%"></span></span><span class="amt">IDR 3,820,000,000</span></a>
+            <a class="barrow" href="#" style="text-decoration:none"><span class="muted">Pre-Qual · 25%</span><span class="track"><span style="width:15%"></span></span><span class="amt">IDR 6,625,000,000</span></a>
+            <a class="barrow" href="#" style="text-decoration:none"><span class="muted">Quotation · 40%</span><span class="track"><span style="width:51%"></span></span><span class="amt">IDR 21,960,000,000</span></a>
+            <a class="barrow" href="#" style="text-decoration:none"><span class="muted">Tender · 60%</span><span class="track"><span style="width:100%"></span></span><span class="amt">IDR 42,780,000,000</span></a>
+            <a class="barrow" href="#" style="text-decoration:none"><span class="muted">Negotiation</span><span class="track"><span style="width:0%"></span></span><span class="amt muted">IDR 0</span></a>
+            <div class="barrow hair" style="padding-top:8px"><span style="font-weight:600">Weighted</span><span></span><span class="amt">IDR 75,185,000,000</span></div>
+          </div>
+          <div class="card card-pad stack-item">
+            <span class="label">Win rate · all time</span>
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="metric">96.2%</span><span class="caption">by count · 25 won of 26 decided</span></div>
+            <span class="caption">By value: IDR 97.5% (1 lost, IDR 9,750,000,000) · USD — no losses recorded</span>
+          </div>
+        </section>
+      </div>
+
+      <details class="hair" style="padding-top:12px">
+        <summary class="caption" style="cursor:pointer;font-weight:600">More: PMO purchasing requests (4) · Work orders</summary>
+      </details>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

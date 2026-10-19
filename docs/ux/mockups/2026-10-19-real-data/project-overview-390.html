@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390">
+<title>Project detail — Overview — proposed — 390</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid hsl(var(--border)); overflow-x: auto; }
+  .tab { height: 44px; padding: 0 12px; display: flex; align-items: center; font-size: 13.5px; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+  .tab[aria-selected="true"] { color: hsl(var(--primary-text)); font-weight: 600; box-shadow: inset 0 -2px 0 hsl(var(--primary)); }
+</style>
+</head>
+<body>
+<div class="frame-390">
+  <header class="topbar"><span>Back to Projects</span><div class="search" aria-label="Search">Find</div></header>
+  <main class="page">
+    <div class="anno"><b>Phone order:</b> identity → the three money figures → tabs → checklist → spending. The full-width title wraps; status and customer sit below it. Before this, Overview opened with an empty phases prompt and a "No active budget" card.</div>
+
+    <section class="stack-item" style="gap:10px" aria-label="Project">
+      <h1 class="h1" style="font-size:20px">Jaringan Distribusi Air Bersih Kawasan Industri Timur – Paket Pipa Transmisi dan Reservoir</h1>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill">Ongoing</span><span class="caption">PT Graha Lintas Nusantara</span></div>
+      <span class="caption">PO <span class="mono">PO/GLN/2025/0412-REV.03</span></span>
+      <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-sm">More</button></div>
+    </section>
+
+    <section class="stack-group" aria-label="Money position">
+      <div class="fig"><span class="label">Contract</span><span class="metric">IDR 48,215,000,000</span><span class="caption">Excl. tax · PPN 11%</span></div>
+      <div class="fig hair" style="padding-top:12px"><span class="label">Invoiced to date</span><span class="metric">IDR 0</span><span class="caption">No invoices yet</span></div>
+      <div class="fig hair" style="padding-top:12px"><span class="label">Recorded spending <span class="pill pill-partial">Partial</span></span><span class="metric">IDR 18,402,775,000</span><span class="caption">144 of 150 categories · 18 Oct 2026</span></div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Project sections"><span class="tab" role="tab" aria-selected="true">Overview</span><span class="tab" role="tab">Budget</span><span class="tab" role="tab">Procurement</span><span class="tab" role="tab">Tasks</span><span class="tab" role="tab">More sections</span></nav>
+
+    <section class="stack-group" aria-labelledby="ck">
+      <h2 id="ck" class="section-title">Complete this project's picture</h2>
+      <ul class="checklist">
+        <li><span class="ring" aria-hidden="true"></span><div><div class="what">Add delivery phases</div><div class="why">Unlocks progress tracking.</div></div><a class="link" href="#">Add</a></li>
+        <li><span class="ring" aria-hidden="true"></span><div><div class="what">Activate a budget</div><div class="why">Unlocks budget risk and forecast.</div></div><a class="link" href="#">Open</a></li>
+        <li><span class="ring" aria-hidden="true"></span><div><div class="what">Finish spending setup</div><div class="why">6 categories missing.</div></div><a class="link" href="#">Review</a></li>
+        <li><span class="ring" aria-hidden="true"></span><div><div class="what">Raise the first invoice</div><div class="why">Unlocks margin and cash.</div></div><a class="link" href="#">Billing</a></li>
+      </ul>
+    </section>
+
+    <section class="stack-group" aria-labelledby="sbc">
+      <h2 id="sbc" class="section-title">Spending by category</h2>
+      <ul class="cards">
+        <li><dl><dt>Materials</dt><dd>IDR 9,815,400,000</dd><dt>Subcontractors</dt><dd>IDR 4,920,000,000</dd><dt>Equipment rental</dt><dd>IDR 1,846,375,000</dd><dt>Labor</dt><dd>IDR 1,320,000,000</dd><dt>Site overhead</dt><dd>IDR 501,000,000</dd></dl></li>
+      </ul>
+      <p class="caption" style="margin:0">6 more categories aren't set up yet.</p>
+    </section>
+  </main>
+</div>
+</body>
+</html>

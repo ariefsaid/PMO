@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project detail — Overview — proposed — 1440</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .rec-head { display: flex; gap: 12px; align-items: flex-start; }
+  .rec-icon { width: 36px; height: 36px; border-radius: var(--radius); background: hsl(var(--violet) / 0.12); color: hsl(var(--violet)); display: grid; place-items: center; font-weight: 700; flex: none; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid hsl(var(--border)); }
+  .tab { height: 38px; padding: 0 12px; display: flex; align-items: center; font-size: 13.5px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+  .tab[aria-selected="true"] { color: hsl(var(--primary-text)); font-weight: 600; box-shadow: inset 0 -2px 0 hsl(var(--primary)); }
+  .details dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 0; margin: 0; }
+  .details dt, .details dd { padding: 9px 0; border-top: 1px solid hsl(var(--border) / 0.7); font-size: 13px; margin: 0; }
+  .details dt { color: hsl(var(--muted-foreground)); }
+  .details dd { text-align: right; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="frame-1440">
+  <nav class="rail" aria-label="Main"><div class="brand">PMO</div><div class="item">Dashboard</div><div class="group">Delivery</div><div class="item active" aria-current="page">Projects</div><div class="item">Procurement</div><div class="item">Timesheets</div></nav>
+  <div>
+    <header class="topbar">Projects <span aria-hidden="true">/</span> <b>Jaringan Distribusi Air Bersih Kawasan Industri Timur…</b><div class="search">Search ⌘K</div></header>
+    <main class="page" style="gap:24px">
+      <div class="anno"><b>Sketch-glance — what changed (RD-S6, RD-S7).</b> Before, the page said "nothing here" 12 times: budget card, budget snapshot, empty procurement, empty progress curve, statements, phases prompt, "No budget", "No submitted invoices", and three unavailable header tiles…
+        <ul>
+          <li>The header money strip keeps <b>three figures this org actually has</b>. It drops "PMO purchase orders" (not tracked here), "Contract remaining after cost" and "Spend %" (both need data that doesn't exist yet).</li>
+          <li>What's missing becomes <b>one checklist</b>. Each line says what it unlocks and links to where to fix it.</li>
+          <li>Empty sections don't render. Each comes back on its own once it has data. One spacing rhythm: 32 between sections, 16 inside.</li>
+        </ul>
+      </div>
+
+      <section class="stack-group" aria-label="Project">
+        <div class="head">
+          <div class="rec-head" style="min-width:0;flex:1">
+            <span class="rec-icon" aria-hidden="true">J</span>
+            <div class="stack-item" style="gap:4px;min-width:0">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1 class="h1" style="max-width:62ch">Jaringan Distribusi Air Bersih Kawasan Industri Timur – Paket Pipa Transmisi dan Reservoir</h1><span class="pill">Ongoing</span></div>
+              <div class="caption" style="font-size:13px"><b style="color:hsl(var(--foreground));font-weight:500">PT Graha Lintas Nusantara</b> · PO <span class="mono">PO/GLN/2025/0412-REV.03</span> (14 Mar 2025)</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-sm">Archive</button></div>
+        </div>
+
+        <div class="cols-3" aria-label="Money position">
+          <div class="fig"><span class="label">Contract</span><span class="metric">IDR 48,215,000,000</span><span class="caption">Excl. tax · PPN 11% <a class="link" href="#">details</a></span></div>
+          <div class="fig"><span class="label">Invoiced to date</span><span class="metric">IDR 0</span><span class="caption">No invoices yet · IDR 48,215,000,000 left to invoice</span></div>
+          <div class="fig"><span class="label">Recorded spending <span class="pill pill-partial">Partial</span></span><span class="metric">IDR 18,402,775,000</span><span class="caption">144 of 150 cost categories · updated 18 Oct 2026</span></div>
+        </div>
+      </section>
+
+      <nav class="tabs" role="tablist" aria-label="Project sections">
+        <span class="tab" role="tab" aria-selected="true">Overview</span><span class="tab" role="tab">Budget</span><span class="tab" role="tab">Procurement</span><span class="tab" role="tab">Tasks</span><span class="tab" role="tab">Work orders</span><span class="tab" role="tab">Billing</span><span class="tab" role="tab">Documents</span><span class="tab" role="tab">History</span>
+      </nav>
+
+      <div class="cols-8-4">
+        <div class="stack-group" style="gap:var(--space-section)">
+          <section class="stack-group" aria-labelledby="sbc">
+            <div class="head"><h2 id="sbc" class="section-title">Spending by category</h2><span class="caption">Lifetime to date · from the ERP</span></div>
+            <div class="dt-wrap">
+              <table class="dt">
+                <colgroup><col><col style="width:200px"></colgroup>
+                <thead><tr><th>Category</th><th class="num">Recorded · IDR</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="primary-name">Materials</div></td><td class="num">9,815,400,000</td></tr>
+                  <tr><td><div class="primary-name">Subcontractors</div></td><td class="num">4,920,000,000</td></tr>
+                  <tr><td><div class="primary-name">Equipment rental</div></td><td class="num">1,846,375,000</td></tr>
+                  <tr><td><div class="primary-name">Labor</div></td><td class="num">1,320,000,000</td></tr>
+                  <tr><td><div class="primary-name">Site overhead</div></td><td class="num">501,000,000</td></tr>
+                </tbody>
+              </table>
+              <div class="dt-foot">6 more categories aren't set up yet, so their spending isn't shown here or included in Recorded spending above.</div>
+            </div>
+          </section>
+
+          <section class="stack-group" aria-labelledby="cm">
+            <h2 id="cm" class="section-title">Comments</h2>
+            <div class="card card-pad caption">Write a comment…</div>
+          </section>
+        </div>
+
+        <aside class="stack-group" style="gap:var(--space-section)">
+          <section class="stack-group" aria-labelledby="ck">
+            <h2 id="ck" class="section-title">Complete this project's picture</h2>
+            <ul class="checklist">
+              <li><span class="ring" aria-hidden="true"></span><div><div class="what">Add delivery phases</div><div class="why">Unlocks progress and the planned-vs-actual curve.</div></div><a class="link" href="#" style="font-size:13px">Add phases</a></li>
+              <li><span class="ring" aria-hidden="true"></span><div><div class="what">Activate a budget</div><div class="why">Unlocks budget risk, forecast and remaining budget.</div></div><a class="link" href="#" style="font-size:13px">Open Budget</a></li>
+              <li><span class="ring" aria-hidden="true"></span><div><div class="what">Finish spending setup</div><div class="why">6 cost categories aren't set up, so spending is partial.</div></div><a class="link" href="#" style="font-size:13px">Review</a></li>
+              <li><span class="ring" aria-hidden="true"></span><div><div class="what">Raise the first invoice</div><div class="why">Unlocks margin on billed work and cash received.</div></div><a class="link" href="#" style="font-size:13px">Open Billing</a></li>
+            </ul>
+          </section>
+
+          <section class="details stack-item" aria-labelledby="dt">
+            <h2 id="dt" class="label" style="text-transform:none">Details</h2>
+            <dl>
+              <dt>Project manager</dt><dd>Unassigned</dd>
+              <dt>Start · target end</dt><dd class="tabular">3 Mar 2025 · 30 Jun 2027</dd>
+              <dt>PMO number</dt><dd class="mono">PMO-2025-014</dd>
+              <dt>Client code</dt><dd class="mono">GLN-WTR-TRANS-02</dd>
+            </dl>
+            <details><summary class="caption" style="cursor:pointer">Accounting project · change status</summary></details>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

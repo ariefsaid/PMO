@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Finance dashboard — proposed structure — 1440</title>
+<link rel="stylesheet" href="tokens.css">
+</head>
+<body>
+<div class="frame-1440">
+  <nav class="rail" aria-label="Main">
+    <div class="brand">PMO</div>
+    <div class="item active" aria-current="page">Dashboard</div>
+    <div class="item">Approvals</div>
+    <div class="group">Finance</div>
+    <div class="item">Sales invoices</div>
+    <div class="item">Incoming payments</div>
+    <div class="item">Vendors</div>
+    <div class="item">Management pack</div>
+  </nav>
+  <div>
+    <header class="topbar"><b>Dashboard</b><div class="search">Search ⌘K</div></header>
+    <main class="page">
+
+      <div class="anno"><b>Sketch-glance — what changed (RD-S3).</b>
+        <ul>
+          <li>One job: what to pay, what to collect, whether the books are in sync. Payables first, then collections.</li>
+          <li>"Outstanding invoices" was money <b>owed to vendors</b>. It is now called "Vendor invoices to pay".</li>
+          <li>Up to five empty blocks each said "Ask your administrator to sync". One notice now says it once, with the action. Empty blocks don't render.</li>
+          <li>ERP aging stays exactly as the ERP reports it: buckets and totals are not regrouped or added up (ADR-0048).</li>
+        </ul>
+      </div>
+
+      <div class="head">
+        <div>
+          <h1 class="h1">Finance Dashboard</h1>
+          <p class="sub">What to pay, what to collect, and whether the books are in sync.</p>
+        </div>
+      </div>
+
+      <section aria-label="Needs you" class="attention">
+        <div><span class="count">2</span><div class="stack-item" style="gap:2px"><span style="font-weight:600">Purchase requests waiting for you</span><span class="caption">Oldest: 4 days</span></div><button class="btn btn-primary" style="margin-left:auto">Review 2</button></div>
+        <div><span class="count">3</span><div class="stack-item" style="gap:2px"><span style="font-weight:600">Vendor invoices ready to pay</span><a class="link caption" href="#ready" style="color:hsl(var(--primary-text))">See below</a></div></div>
+      </section>
+
+      <details class="notice" open>
+        <summary><span class="warn-dot" aria-hidden="true"></span>2 things limit these figures</summary>
+        <ol>
+          <li>Accounting data last synced <b>18 Oct 2026, 09:40</b>. Spending covers 144 of 150 cost categories. <a class="link" href="#">Review spending setup</a></li>
+          <li>No project has an active budget, so there is no budget review yet.</li>
+        </ol>
+      </details>
+
+      <div class="cols-3">
+        <div class="fig"><span class="label">Vendor invoices to pay</span><span class="metric">IDR 1,284,600,000</span><span class="caption">3 invoices · oldest 12 days</span></div>
+        <div class="fig"><span class="label">Recorded spending to date <span class="pill pill-partial">Partial</span></span><span class="metric">IDR 58,214,330,500</span><span class="caption">Delivery projects · 144 of 150 categories</span></div>
+        <div class="fig"><span class="label">Contract value in delivery</span><span class="metric">IDR 160,890,500,000</span><span class="caption">6 projects · excl. tax</span></div>
+      </div>
+
+      <section class="stack-group" id="ready" aria-labelledby="pay">
+        <h2 id="pay" class="section-title">Ready to pay</h2>
+        <div class="dt-wrap">
+          <table class="dt">
+            <colgroup><col><col style="width:260px"><col style="width:112px"><col style="width:184px"></colgroup>
+            <thead><tr><th>Request</th><th>Project</th><th>Invoiced</th><th class="num">Amount · IDR</th></tr></thead>
+            <tbody>
+              <tr><td><div class="primary-name">Besi beton ulir D16 dan D19 untuk struktur lantai 5–8</div><div class="secondary"><span class="mono">PR-2026-0187</span> · PT Baja Prima Utama</div></td><td class="meta">Gedung Kantor Regional Tahap II</td><td class="tabular">7 Oct 2026</td><td class="num">842,500,000</td></tr>
+              <tr><td><div class="primary-name">Sewa crane mobil 50 ton, Oktober</div><div class="secondary"><span class="mono">PR-2026-0193</span> · CV Angkat Berat Jaya</div></td><td class="meta">Jaringan Distribusi Air Bersih</td><td class="tabular">12 Oct 2026</td><td class="num">318,000,000</td></tr>
+              <tr><td><div class="primary-name">Pipa HDPE 315 mm PN10</div><div class="secondary"><span class="mono">PR-2026-0201</span> · PT Polimer Nusa</div></td><td class="meta">Jaringan Distribusi Air Bersih</td><td class="tabular">15 Oct 2026</td><td class="num">124,100,000</td></tr>
+              <tr class="total"><td>Total · 3 invoices</td><td></td><td></td><td class="num">1,284,600,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="stack-group" aria-labelledby="ar">
+        <div class="head"><h2 id="ar" class="section-title">Customer collections</h2><span class="caption">As reported by the ERP · Accounts Receivable · 18 Oct 2026 · ages by due date</span></div>
+        <div class="dt-wrap">
+          <table class="dt">
+            <colgroup><col><col style="width:136px"><col style="width:136px"><col style="width:136px"><col style="width:136px"><col style="width:136px"><col style="width:160px"></colgroup>
+            <thead><tr><th>Customer</th><th class="num">Current</th><th class="num">0–30</th><th class="num">31–60</th><th class="num">61–90</th><th class="num">90+</th><th class="num">Outstanding · IDR</th></tr></thead>
+            <tbody>
+              <tr><td><div class="primary-name">PT Graha Lintas Nusantara</div></td><td class="num">2,410,000,000</td><td class="num">605,000,000</td><td class="num">500,000,000</td><td class="num">0</td><td class="num">0</td><td class="num" style="font-weight:600">3,515,000,000</td></tr>
+              <tr><td><div class="primary-name">PT Sinar Hutama Konstruksi</div></td><td class="num">1,980,000,000</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num" style="font-weight:600">1,980,000,000</td></tr>
+              <tr><td><div class="primary-name">Dinas PUPR Kabupaten Bekasi</div></td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">412,400,000</td><td class="num">600,000,000</td><td class="num" style="font-weight:600">1,012,400,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <details class="hair" style="padding-top:12px">
+        <summary class="caption" style="cursor:pointer;font-weight:600">Vendor balances (AP aging) · Spending by account</summary>
+      </details>
+    </main>
+  </div>
+</div>
+</body>
+</html>

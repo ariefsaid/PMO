@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DataTable hierarchy contract — Projects list — 1440</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-bottom: 0; border-radius: var(--radius) var(--radius) 0 0; }
+  .toolbar + .dt-wrap { border-radius: 0 0 var(--radius) var(--radius); }
+  .seg { display: inline-flex; height: 32px; padding: 2px; border-radius: var(--radius); background: hsl(var(--secondary)); }
+  .seg span { height: 28px; padding: 0 10px; display: flex; align-items: center; font-size: 13px; border-radius: calc(var(--radius) - 2px); color: hsl(var(--secondary-foreground)); }
+  .seg span[aria-selected="true"] { background: hsl(var(--background)); color: hsl(var(--foreground)); font-weight: 600; box-shadow: 0 1px 2px hsl(240 6% 10% / 0.08); }
+  .field { height: 32px; border: 1px solid hsl(var(--input)); border-radius: var(--radius); padding: 0 10px; display: flex; align-items: center; color: hsl(var(--muted-foreground)); font-size: 13.5px; min-width: 220px; }
+  .w { font-size: 10.5px; }
+  .grp-toggle { font-weight: 600; }
+  .legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+</style>
+</head>
+<body>
+<div class="frame-1440">
+  <nav class="rail" aria-label="Main"><div class="brand">PMO</div><div class="item">Dashboard</div><div class="group">Delivery</div><div class="item active" aria-current="page">Projects</div><div class="item">Procurement</div></nav>
+  <div>
+    <header class="topbar"><b>Projects</b><div class="search">Search ⌘K</div></header>
+    <main class="page" style="gap:24px">
+      <div class="anno"><b>Table hierarchy contract (T1), shown on Projects (T2).</b>
+        <ul>
+          <li><b>Primary column</b>: name in 600 weight (wraps to 2 lines), one muted secondary line (customer · one ID in mono). Customer is no longer its own column.</li>
+          <li><b>Numbers</b> right-aligned and tabular. The currency goes in the header when the column holds one currency, so cells are digits only. Every resizable column has a type default and min/max width.</li>
+          <li><b>Partial data</b> is flagged once, with a header mark and a footnote. Before, "Incomplete source coverage" and "No active budget" repeated in 10px text on all 25 rows.</li>
+          <li><b>Group and total rows</b> show one subtotal per currency, never added across currencies.</li>
+          <li><b>Resize handle</b> (header edges): invisible at rest; a 2px line shows when you hover the header; ring colour when focused or dragging. Arrow keys change width in 16px steps.</li>
+        </ul>
+      </div>
+
+      <div class="head"><div><h1 class="h1">Projects</h1><p class="sub">25 delivery and closed-out projects</p></div><button class="btn btn-primary">New project</button></div>
+
+      <div>
+        <div class="toolbar">
+          <div class="seg" role="tablist" aria-label="Scope"><span role="tab" aria-selected="false">All</span><span role="tab" aria-selected="true">Delivery</span><span role="tab" aria-selected="false">Pipeline</span></div>
+          <div class="field">Search projects…</div>
+          <button class="btn btn-outline btn-sm">Filters</button>
+          <span style="margin-left:auto" class="caption">Group by: Status</span>
+          <div class="seg" role="tablist" aria-label="View"><span role="tab" aria-selected="true">Table</span><span role="tab" aria-selected="false">Board</span></div>
+        </div>
+        <div class="dt-wrap">
+          <table class="dt" aria-label="Projects">
+            <colgroup><col><col style="width:168px"><col style="width:140px"><col style="width:184px"><col style="width:184px"><col style="width:168px"><col style="width:40px"></colgroup>
+            <thead><tr>
+              <th>Project <span class="rh" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Project column" aria-valuenow="420" aria-valuemin="240" aria-valuemax="640"></span></th>
+              <th>Project manager <span class="rh is-hover" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Project manager column" aria-valuenow="168" aria-valuemin="120" aria-valuemax="320"></span></th>
+              <th>Status <span class="rh" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Status column" aria-valuenow="140" aria-valuemin="112" aria-valuemax="220"></span></th>
+              <th class="num">Contract · IDR <span class="rh is-drag" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Contract column" aria-valuenow="184" aria-valuemin="144" aria-valuemax="320"></span></th>
+              <th class="num">Spending · IDR<span class="caveat-mark" title="Partial — see note below">*</span> <span class="rh" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Spending column" aria-valuenow="184" aria-valuemin="144" aria-valuemax="320"></span></th>
+              <th class="num">Invoiced · IDR <span class="rh" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize Invoiced column" aria-valuenow="168" aria-valuemin="144" aria-valuemax="320"></span></th>
+              <th><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              <tr class="group"><td colspan="3"><span class="grp-toggle">Ongoing</span> <span class="caption">· 6 projects</span></td><td class="num">160,890,500,000</td><td class="num">58,214,330,500</td><td class="num">0</td><td></td></tr>
+              <tr><td><div class="primary-name">Gedung Kantor Regional Tahap II – Paket Struktur dan Arsitektur Lantai 1 sampai 12</div><div class="secondary">PT Sinar Hutama Konstruksi · <span class="mono">PMO-2025-009</span></div></td><td class="meta">Rizal Pratama</td><td><span class="pill">Ongoing</span></td><td class="num">63,400,000,000</td><td class="num">24,118,640,000</td><td class="num">0</td><td>⋯</td></tr>
+              <tr><td><div class="primary-name">Jaringan Distribusi Air Bersih Kawasan Industri Timur – Paket Pipa Transmisi dan Reservoir</div><div class="secondary">PT Graha Lintas Nusantara · <span class="mono">PMO-2025-014</span></div></td><td class="meta">Unassigned</td><td><span class="pill">Ongoing</span></td><td class="num">48,215,000,000</td><td class="num">18,402,775,000</td><td class="num">0</td><td>⋯</td></tr>
+              <tr><td><div class="primary-name">Rehabilitasi Jembatan dan Akses Jalan Lingkar Selatan</div><div class="secondary">Dinas PUPR Kabupaten Bekasi · <span class="mono">PMO-2025-017</span></div></td><td class="meta">Dewi Anggraini</td><td><span class="pill">Ongoing</span></td><td class="num">21,870,500,000</td><td class="num">9,640,210,500</td><td class="num">0</td><td>⋯</td></tr>
+              <tr class="group"><td colspan="3"><span class="grp-toggle">Close out</span> <span class="caption">· 19 projects · collapsed</span></td><td class="num">212,640,000,000<div class="secondary" style="text-align:right">USD 3,412,800</div></td><td class="num">—</td><td class="num">—</td><td></td></tr>
+            </tbody>
+          </table>
+          <div class="dt-foot"><span class="caveat-mark">*</span> Spending is partial for all 6 ongoing projects: 6 of 150 cost categories aren't set up. <a class="link" href="#">Review spending setup</a> · Budget columns are hidden because no project has an active budget. <a class="link" href="#">Show columns</a></div>
+        </div>
+      </div>
+
+      <section class="legend" aria-label="Resize handle states">
+        <div class="anno"><b>Rest</b><br>No visible handle. The 1px header divider is the only line.</div>
+        <div class="anno"><b>Header hover / handle hover</b><br>2px line in <span class="mono">--input</span>, darker <span class="mono">--muted-foreground</span> on the handle. Cursor: col-resize.</div>
+        <div class="anno"><b>Focus / drag</b><br>Focus ring (<span class="mono">--ring</span>, 2px, drawn inside the header). During drag the line uses <span class="mono">--ring</span>. Escape cancels; Enter or a double-click resets.</div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
