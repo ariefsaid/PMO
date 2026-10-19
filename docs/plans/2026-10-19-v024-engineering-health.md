@@ -88,7 +88,8 @@ Operational tooling is a separately reviewed private delivery. Do not combine is
 **Read:** the issue body; `docs/specs/test-hygiene.spec.md`; current
 `pmo-portal/e2e/AC-911-timesheet-approval.spec.ts`, `AC-ADMIA-001-administration-navigation.spec.ts`,
 `AC-CONFIRM-001-procurement-confirm.spec.ts`, `AC-VB-E01-view-builder-compose-save.spec.ts`,
-`UIP-005-project-tab-work-fold.spec.ts`, `AC-MTG-022-minutes-editor-surface.spec.ts`.
+`UIP-005-project-tab-work-fold.spec.ts`, `AC-MTG-022-minutes-editor-surface.spec.ts`,
+`AC-S15-004-project-billing-context.spec.ts`.
 **Write:** private issue evidence only until a current warning and a useful split are established.
 
 - [ ] Map each old warning to current test titles/dimensions. Include both warned UIP-005 PM/light
@@ -98,7 +99,9 @@ Operational tooling is a separately reviewed private delivery. Do not combine is
   counts; use run 39172841168 as historical green evidence, not proof of a later head. Do not
   rerun CI to sample a faster machine. Record current source changes since the measured revision.
 - [ ] If no warning remains, hand Root an evidence-only closure recommendation for #1106; do not
-  create a cosmetic test PR. The observed baseline has zero warnings, so this is the default path.
+  create a cosmetic test PR. The earlier baseline had zero warnings. Required dev run 39178064792 (0c299358) later
+  recorded four warnings: procurement confirmation, project billing context and both PM/light
+  UIP-005 viewports. Diagnose these actual cases while retaining the historical goal map.
 - [ ] If a warning recurs on an already required run, propose exactly the affected independent
   journey boundary, old→new goal map and fixture setup to Root. Never split a goal's causal chain
   into UI-independent assertions or fabricate a new case purely to reduce a timer. Source change
@@ -106,7 +109,7 @@ Operational tooling is a separately reviewed private delivery. Do not combine is
 
 ### Task B2 — Conditional bounded split and proof
 
-**Potential files:** only the six current spec files listed in B1; Root assigns one affected file
+**Potential files:** only the seven current spec files listed in B1; Root assigns one affected file
 per fresh task and names the exact warning identity. No shared helper/config edit by default.
 
 - [ ] Snapshot old collected full identities and expanded goal/dimension map privately. Add the

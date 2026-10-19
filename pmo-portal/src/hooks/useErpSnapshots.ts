@@ -30,12 +30,12 @@ export function useApAgingSnapshot() {
   });
 }
 
-export function useArAgingSnapshot() {
+export function useArAgingSnapshot(options?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ErpAgingSnapshotRow[]>({
     queryKey: ['erp-ar-aging-snapshot', orgId],
     queryFn: () => repositories.erpSnapshots.arAging(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && options?.enabled !== false,
   });
 }

@@ -158,6 +158,17 @@ export const computeChangedLinesCoverage = ({ changedLinesByFile, coverage, min,
   let covered = 0;
   const perFile = [];
 
+  const comparePositions = (left, right) => {
+    if (left.line !== right.line) return left.line < right.line ? -1 : 1;
+    if (left.column !== right.column) return left.column < right.column ? -1 : 1;
+    return 0;
+  };
+  const properlyContains = (outer, inner) => {
+    const startOrder = comparePositions(outer.start, inner.start);
+    const endOrder = comparePositions(outer.end, inner.end);
+    return startOrder <= 0 && endOrder >= 0 && (startOrder < 0 || endOrder > 0);
+  };
+
   for (const [relPath, lines] of changedLinesByFile.entries()) {
     const entry = findEntry(relPath);
     if (!entry || !entry.statementMap) continue;
@@ -165,23 +176,26 @@ export const computeChangedLinesCoverage = ({ changedLinesByFile, coverage, min,
     let fileTotal = 0;
     let fileCovered = 0;
     for (const line of lines) {
-      let executable = false;
-      let lineCovered = false;
+      const containingRanges = [];
       for (const [id, stmt] of Object.entries(entry.statementMap)) {
         const startLine = stmt?.start?.line;
         const endLine = stmt?.end?.line ?? startLine;
         if (startLine == null) continue;
         if (line >= startLine && line <= endLine) {
-          executable = true;
-          if ((entry.s?.[id] ?? 0) > 0) {
-            lineCovered = true;
-            break;
-          }
+          containingRanges.push({
+            start: { line: startLine, column: stmt.start?.column ?? 0 },
+            end: { line: endLine, column: stmt.end?.column ?? Number.POSITIVE_INFINITY },
+            hits: entry.s?.[id] ?? 0,
+          });
         }
       }
-      if (!executable) continue;
+      if (containingRanges.length === 0) continue;
+
+      const smallestRanges = containingRanges.filter((range) =>
+        !containingRanges.some((other) => other !== range && properlyContains(range, other)),
+      );
       fileTotal += 1;
-      if (lineCovered) fileCovered += 1;
+      if (smallestRanges.some((range) => range.hits > 0)) fileCovered += 1;
     }
 
     if (fileTotal > 0) {

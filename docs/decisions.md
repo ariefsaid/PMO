@@ -3391,3 +3391,31 @@ without a concurrent route file edit.
 ### UXS-030 — deliberate employee identity confirmation (2026-10-18)
 
 An employee proposal remains a suggestion. Admin reviews both identities and explicitly selects an eligible destination before the existing audited confirmation. Selection or profile refresh alone never rewrites attribution. A failed save retains the dialog and selection for retry; missing identity or a stale choice withholds confirmation. Keep these renderer, read-model and host/cache regressions with the approvals route in the QA portfolio.
+
+### UXS-021 — deliberate task-list setup (2026-10-19)
+
+Project task work stays ahead of compact integration status. Admin reviews the exact list identity and explicitly chooses the initial task source before confirming a link. A saved link is retained when list details fail or disappear; initial transfer remains unconfirmed until independently proved. Exact-name proposals never write a link by themselves.
+
+
+### UXP-1145 — retained account drafts explain unavailable choices (2026-10-19)
+
+An unsaved account omitted by a successful chart refresh remains selected. Its field explains
+why Save is unavailable and offers correction or explicit clearing. A missing saved value keeps
+its established saved-value wording, visible beside the vendor-tax field even when its picker
+is collapsed. Pending and failed chart reads keep their existing recovery states. Exact setters,
+eligible account rules and Finance read-only behavior remain unchanged.
+
+The v0.24.0 slice remains held from dev until the v0.23.0 release branch transition is authorized
+and completed. AC-V24P-001–003 own draft retention, exact save arguments and state distinctions.
+
+
+### UXS-036 — customer collections through exact identity (2026-10-19)
+
+Finance opens a customer aging position through its canonical Customer mapping to the company’s
+collections section, then uses the customer-filtered invoice register. Ambiguous mappings do not
+assign an aging amount to a company. Keep the source currency, report date, aging basis and range
+labels visible; missing balances or currency remain unavailable rather than becoming zero or
+inheriting another currency. The invoice amount retains its explicit source currency.
+
+A collections deep link moves focus to its heading after the company loads. Preserve this path’s
+ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.

@@ -7,6 +7,9 @@
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
+**Dev gate:** browser run 39180678334 at `00e067cf` is red on two task-link journeys.
+New code merges are paused for regression #1182; keep prepared slices on their branches.
+No timeout increase or goal-oracle change is authorized.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -71,9 +74,19 @@ font-wait correction and current dev were included; its worktree was cleaned. Th
 contrast/header fix merged in PR #1169 (`ee28bae6`) after its 383-browser-check run passed.
 The lock ownership-record fix (#1148) merged to dev in PR #1171 (`ec877187`): all four unit
 shards, verify and pgTAP passed, as did four focused process tests. Exact-tip cleanup was
-independently verified. Registering those process tests in CI remains tracked in #1170.
-The resumed dev browser run passed 384 browser and 12 served-function checks, with 67 justified
-skips and zero timing warnings or failures. Since that run, one code slice has merged.
+independently verified. CI registration and the pinned browser runtime (#1170/#1174) merged in
+PR #1176 (`0c299358`), with all fast checks green and all four process tests executed in verify.
+Task-list review (#1160 / S-21) merged in PR #1177 (`00e067cf`), with all fast checks green,
+the real persisted local journey passed, and the final 955-test changed-import run passed.
+Changed-line coverage specificity (#1125) merged in PR #1178 (`519c22d7`): all fast checks and
+28 focused tests passed; the original broad-hit implementation fails the regression controls.
+All three exact-tip cleanups were verified. The completed dev browser run at `0c299358` passed
+384 browser and 12 served-function checks, with 67 justified skips, four timing warnings tracked
+in #1106 and no timing failures. That later dev run is the red gate recorded above; its traces and screenshots are retained for #1182.
+Customer collections (#1172 / S-36) is in PR #1181: its final 4,338-test changed-import run and
+real Finance journey passed, and all six fast CI checks are green (run 39183351849; 6,733 pgTAP tests and 97.2% changed-line coverage). Its closing browser run was stopped after
+confirming it contained the same failing task-link source; rerun only after the dependency is corrected.
+S-35 is now building in a native subagent against the existing statement views and reviewed customer-collections interfaces (owner, 2026-10-19). “Last” meant after the statement views, already on dev; its merge still requires green dependencies and the dev browser gate.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -179,8 +192,12 @@ operator work (outcomes, budget account map, budget activation by a second perso
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 
 Start in parallel with fresh workers and separate worktrees. Keep this scope separate from
-v0.23.0; S-21, S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
+v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
+
+Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
+its dev merge stays held. Dispatch classification (#1103) is in tooling PR #1180 with all six fast checks green; its dev merge and separate private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
+verification; the editor observation (#1108) is in bounded diagnosis.
 
 **May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.

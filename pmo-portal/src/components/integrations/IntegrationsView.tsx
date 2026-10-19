@@ -30,6 +30,10 @@ import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { TaskListMatchReview } from './TaskListMatchReview';
+import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
+import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
 const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
 
@@ -109,6 +113,7 @@ export const IntegrationsView: React.FC = () => {
     refetch,
     connect,
     disconnect,
+    linkProject,
     getBinding,
     getHealth,
     clickupLists = [],
@@ -186,6 +191,12 @@ export const IntegrationsView: React.FC = () => {
   const [setCompanyTier, setSetCompanyTier] = useState<ExternalTier | null>(null);
   const [setCompanyError, setSetCompanyError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [taskListReview, setTaskListReview] = useState<{
+    projectId: string;
+    projectName: string;
+    proposedListId: string | null;
+  } | null>(null);
+  const [taskListReviewError, setTaskListReviewError] = useState<string | null>(null);
 
   // Form state (using useEntityForm)
   const connectForm = useEntityForm<ConnectFormValues>({
@@ -309,8 +320,15 @@ export const IntegrationsView: React.FC = () => {
   const clickUpBindings = projectBindings.filter(
     (binding) => binding.external_tier === 'clickup' && activeProjectIds.has(binding.project_id),
   );
+  const activeProjects = projects.filter((project) => !project.archived_at);
   const bindingByProjectId = new Map(clickUpBindings.map((binding) => [binding.project_id, binding]));
   const boundListIds = new Set(clickUpBindings.map((binding) => binding.external_container_id));
+  const matchProposals = proposeTaskListMatches(
+    activeProjects.map(({ id, name }) => ({ id, name })),
+    clickupLists,
+    clickUpBindings,
+  );
+  const matchProposalByProjectId = new Map(matchProposals.map((proposal) => [proposal.projectId, proposal]));
   const clickUpListById = new Map(clickupLists.map((list) => [list.id, list]));
   const bindingMapVisible = activeClickUpBinding;
   const clickUpListsUnavailable = isListsError || isListsPending;
@@ -321,6 +339,17 @@ export const IntegrationsView: React.FC = () => {
     isBindingsError ||
     projectsPending ||
     projectsError;
+
+  const handleTaskListLinkConfirm = async (input: LinkClickUpProjectInput) => {
+    try {
+      await linkProject.mutateAsync(input);
+      setTaskListReviewError(null);
+      setTaskListReview(null);
+      void refetchBindings();
+    } catch (error) {
+      setTaskListReviewError(classifyMutationError(error).detail);
+    }
+  };
 
   // Loading state (AC-IRUX-001): the binding read is loading.
   if (isPending) {
@@ -615,32 +644,78 @@ export const IntegrationsView: React.FC = () => {
                   <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.projectColumn', 'PMO project')}</th>
                   <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.listColumn', 'ClickUp List')}</th>
                   <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.statusColumn', 'Status')}</th>
+                  {canManageIntegrations && <th scope="col" className="px-3 py-2 font-medium">{t('uxs21.reviewColumn', 'Review')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {projects.filter((project) => !project.archived_at).map((project) => {
+                {activeProjects.map((project) => {
                   const binding = bindingByProjectId.get(project.id);
                   const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
+                  const proposal = matchProposalByProjectId.get(project.id);
+                  const suggestedList = proposal?.state === 'proposed' && proposal.listId
+                    ? clickUpListById.get(proposal.listId)
+                    : undefined;
                   return (
                     <tr key={project.id}>
                       <th scope="row" className="px-3 py-2 font-medium text-foreground">{project.name}</th>
                       <td className="px-3 py-2 text-muted-foreground">
                         {bindingMapDataUnavailable
                           ? t('integrations.organization.readiness.map.unknown', 'Unknown')
-                          : list?.name ??
-                          (binding
-                            ? t('integrations.organization.readiness.map.listUnavailable', 'List unavailable')
-                            : '—')}
+                          : binding
+                            ? list?.name ?? t('uxs21.savedListUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId: binding.external_container_id })
+                            : suggestedList
+                              ? <span>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</span>
+                              : proposal?.state === 'ambiguous'
+                                ? t('uxs21.ambiguousMatch', 'Several lists have this project name')
+                                : '—'}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? t('integrations.organization.readiness.map.bound', 'Bound') : t('integrations.organization.readiness.map.pmoNative', 'PMO-native')}
+                        {bindingMapDataUnavailable
+                          ? t('integrations.organization.readiness.map.unknown', 'Unknown')
+                          : binding
+                            ? <>{t('integrations.organization.readiness.map.bound', 'Bound')} · {t('uxs21.initialTransferPendingShort', 'Initial transfer not confirmed')}</>
+                            : t('integrations.organization.readiness.map.pmoNative', 'PMO-native')}
                       </td>
+                      {canManageIntegrations && (
+                        <td className="px-3 py-2">
+                          {!binding && !bindingMapDataUnavailable && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setTaskListReviewError(null);
+                                setTaskListReview({
+                                  projectId: project.id,
+                                  projectName: project.name,
+                                  proposedListId: proposal?.state === 'proposed' ? proposal.listId : null,
+                                });
+                              }}
+                            >
+                              {t('uxs21.reviewMatch', 'Review list match')}
+                            </Button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+          {taskListReview && (
+            <TaskListMatchReview
+              open
+              projectId={taskListReview.projectId}
+              projectName={taskListReview.projectName}
+              lists={clickupLists.filter((list) => !boundListIds.has(list.id))}
+              proposedListId={taskListReview.proposedListId}
+              canConfirm={canManageIntegrations}
+              saving={linkProject.isPending}
+              error={taskListReviewError}
+              onClose={() => setTaskListReview(null)}
+              onConfirm={handleTaskListLinkConfirm}
+            />
+          )}
           {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (
             <>
               <h5 className="mb-2 mt-5 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>

@@ -1,8 +1,8 @@
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { HistorySection } from '@/src/components/history/HistorySection';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useLayoutEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate, Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -29,6 +29,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { VendorTaxDefaultsCard } from './company/VendorTaxDefaultsCard';
+import { CompanyCollections } from '@/src/components/companies/CompanyCollections';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import {
@@ -83,6 +84,7 @@ const kindOptions = (t: TFunction) => [
 const CompanyDetail: React.FC = () => {
   const { t } = useTranslation();
   const { companyId } = useParams<{ companyId: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
@@ -115,6 +117,22 @@ const CompanyDetail: React.FC = () => {
   const canEdit = may('edit', 'company');
   const canArchive = may('archive', 'company');
   const canCreateContact = may('create', 'contact');
+  const canViewSalesInvoices = may('view', 'salesInvoice');
+
+  useEffect(() => {
+    const company = query.data;
+    if (location.hash !== '#collections' || company?.type !== 'Client' || !canViewSalesInvoices) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const section = document.getElementById('collections');
+      const heading = document.getElementById('company-collections-heading');
+      if (!section || !heading) return;
+      heading.focus({ preventScroll: true });
+      section.scrollIntoView?.({ block: 'start' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canViewSalesInvoices, location.hash, query.data]);
 
   // list-working-set-return (#683, AC-LRC-006): the mobile BackBar returns to the validated
   // Companies list context (filter + search + scroll) when the record was opened from that list,
@@ -265,6 +283,7 @@ const CompanyDetail: React.FC = () => {
           (always fetch; visible for Vendors or any type when vendor PRs exist). */}
       <RelatedProjects companyId={company.id} />
       <RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} />
+      {company.type === 'Client' && canViewSalesInvoices && <CompanyCollections companyId={company.id} />}
 
       {/* T17: Account-level activity timeline — aggregated across all company contacts.
           CD-4: pass the add-contact opener so the cold-start card can surface it. */}
