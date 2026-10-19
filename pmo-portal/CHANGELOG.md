@@ -10,6 +10,16 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [Unreleased] — v0.23.0 validation disposition
+
+The owner accepted the rehearsal data-path evidence on 2026-10-19: ordinary Finance reads and
+saved-report provenance were validated against the captured ERPNext output. The remaining local
+screen-render check was blocked by private test tooling. It does not block release preparation.
+The owner deliberately moved that screen check to after production deployment and the first
+statement backfill (approximately one hour), when Claude will verify the real Finance screen.
+This changes the timing of the screen check; the data-correctness requirements remain in force.
+Production deployment still requires separate explicit owner approval.
+
 ## [0.22.0](https://github.com/ariefsaid/PMO/compare/v0.21.0...v0.22.0) (2026-10-17)
 
 
