@@ -96,10 +96,11 @@ also passed. Exact-tip and changed-file adoption cleanup was verified.
 The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
 All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
 the complete dev timing proof above closes #1106. Verified publication-worktree cleanup is complete.
-S-35's read-only company view is built on these merged dependencies. Focused tests, coverage,
-phone/desktop geometry and rendered discovery passed. The owner accepted the existing project-cost
-and billed-work margin helpers; that integration, the final gate and formal review remain open.
-This is not yet a completed slice.
+S-35's read-only company view is open against dev in PR #1187 (`1ad4302f`). The accepted
+project-cost and billed-work margin helpers are integrated; review, the 4,477-test changed-import
+gate, 95.4% changed-line coverage and all eight final geometry/accessibility cases passed.
+All six fast CI checks passed (39200000107). Closing browser integration (39201229559) is running;
+the merge remains held while dev's browser recovery (#1186) is open. This slice is not yet merged.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
