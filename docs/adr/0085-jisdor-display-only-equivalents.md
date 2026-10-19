@@ -27,7 +27,7 @@ The repository already provides a repository/DAL seam, RLS organization stamping
 - Supersedes DD-CUR-6's absence-of-rates premise **only for labelled display equivalents**; exact per-currency breakdowns remain mandatory. DD-FX-1 text in the spec is prepared for the Director to copy into the decision log.
 - Rate corrections can change a later displayed approximation; the publication date/source remain visible and original documents never change. This is not a revaluation ledger or immutable rate snapshot.
 - Reference import has a small dedicated preview/commit controller instead of stretching the generic create-per-row wizard or introducing another spreadsheet engine.
-- Up to one historical request per distinct invoice date remains a bounded MVP cost; React Query coalesces repeated dates and all outstanding cells share the latest-day key. A future batch API requires observed volume and must reuse the selector's rule, not duplicate it.
+- The initial implementation allows one historical request per distinct invoice date; React Query coalesces repeated dates and all outstanding cells share the latest-day key. The proposed 2026-10-19 addendum below replaces this transport budget with bounded batching in response to the explicit #1012 follow-on planning brief. It does not claim measured client volume or change the selector's rule.
 - The broad 1,000–100,000 plausibility band catches thousandfold separator errors; legitimate outside-band publications need a reviewed change. Six-place precision and 5 MiB/500-row input bounds are explicit engineering choices.
 - Rollback file `supabase/migrations/rollback/0291_fx_rates_jisdor_down.sql` removes only the new reference table/functions; reference history must be backed up before deliberate reversal. Existing audit events and document values remain.
 
@@ -38,6 +38,22 @@ The repository already provides a repository/DAL seam, RLS organization stamping
 - Download all rate history into every page and select in TypeScript: duplicates the date rule and scales by history × readers.
 - Use the descriptor wizard's per-row create loop: cannot provide atomic date-keyed corrections or trustworthy unchanged counts.
 - Add SheetJS/another decoder speculatively: prohibited and unnecessary without real-format evidence.
+
+## Proposed addendum — bounded read batches (2026-10-19)
+
+Context: the follow-on #1012 brief explicitly prefers one batched read over per-row requests. At the inspected source revision, `pmo-portal/src/hooks/useFxRates.ts:22-32` uses one scalar lookup per distinct org/pair/day; `pmo-portal/src/hooks/useFxRates.test.tsx:80-92` asserts two calls for two dates. The existing selector is declared at `supabase/migrations/0291_fx_rates_jisdor.sql:76-85`. This is a transport optimization for existing display consumers, not a new accounting model or a claim about production traffic.
+
+Decision proposed for Director approval:
+
+- Add STABLE SECURITY INVOKER `fx_rates_on(base text, quote text, on_dates date[])` as a bounded wrapper around `fx_rate_on`. Return one requested-date row per distinct cutoff, with paired nullable rate/publication-date fields. Accept no org/actor input; retain existing table/RLS authority. Reject null/non-finite dates and more than 64 supplied elements; empty input returns no rows.
+- Retain the scalar API. Extend the typed DAL/repository with `onDates`; validate complete, unique response coverage before resolving queries. Do not fetch the complete reference history or reimplement predecessor selection in TypeScript.
+- Coalesce pending `useFxRate` query functions per QueryClient/org, group pair/dates and flush on a zero-delay timer. Cap each RPC at 64 distinct dates and serialize chunks. React Query retains per-org/pair/day cache identity, freshness and write invalidation; the coalescer stores no results. A cancelled subscriber does not cancel a live sibling's shared read.
+- Keep the existing component props, page surface set, approximation/source/date labels, locale conventions and missing/error states. A later prerequisite resolution or retry may cause a later batch; the budget applies to one queued working set, not an entire route lifetime.
+- Use an additive function migration and a down migration that removes only this wrapper. Roll back the client before removing the new function. Preserve existing rates, original document values, audit history, scalar selector and management rights.
+
+Consequences: fewer client round trips, still up to 64 indexed predecessor probes per batch; deterministic scheduler/cancellation tests and a response decoder are required. No dependency, new rate table, posting/revaluation logic or broader surface conversion is introduced. Explicit maximum-age policy and rollout expansion remain optional owner questions with defaults in `docs/specs/rupiah-equivalents-batched.spec.md`; neither changes the locked display-only/date rules.
+
+Implementation and canonical test ownership: `docs/plans/2026-10-19-rupiah-equivalents-batched.md`. This addendum is a proposal, not evidence that code, migration or deployment has occurred.
 
 ## Verification
 
