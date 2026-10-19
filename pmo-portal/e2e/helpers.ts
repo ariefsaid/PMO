@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
 /** Copy project-level browser settings onto a context created outside Playwright's page fixture. */
-export function ownedContextOptions(testInfo: TestInfo, overrides: Record<string, unknown> = {}) {
+export function ownedContextOptions(testInfo: Pick<TestInfo, 'project'>, overrides: Record<string, unknown> = {}) {
   const { baseURL, locale, timezoneId, trace, screenshot, video } = testInfo.project.use;
   return { baseURL, locale, timezoneId, trace, screenshot, video, ...overrides };
 }

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { requireServiceRoleKey, SEED_PASSWORD } from './helpers';
+import { ownedContextOptions, requireServiceRoleKey, SEED_PASSWORD } from './helpers';
 
 /**
  * AC-CLI-001..005 (#728) — the PMO command-line client, signed in as the user through Supabase's
@@ -114,6 +114,7 @@ async function loginAs(
   browser: Browser,
   configDir: string,
   user: Fixture,
+  contextOptions: ReturnType<typeof ownedContextOptions>,
   { consent = 'ask' }: { consent?: 'ask' | 'already' } = {},
 ): Promise<CliResult> {
   const child = spawn(process.execPath, [CLI, 'login', '--no-browser', '--timeout', '90'], { env: cliEnv(configDir) });
@@ -132,7 +133,7 @@ async function loginAs(
     child.on('close', () => reject(new Error(`pmo login exited before printing a URL:\n${stderr}`)));
   });
 
-  const context = await browser.newContext();
+  const context = await browser.newContext(contextOptions);
   try {
     const page = await context.newPage();
     await page.goto(authorizeUrl);
@@ -196,7 +197,7 @@ async function createFixtureUser(role: 'Project Manager' | 'Engineer', label: st
   return { id: data.user.id, email };
 }
 
-test.beforeAll(async ({ browser }) => {
+test.beforeAll(async ({ browser }, workerInfo) => {
   admin = adminClient();
   await sweep();
   // The one-time admin setup, run for real: registers a PUBLIC client with the CLI's loopback URIs.
@@ -220,7 +221,7 @@ test.beforeAll(async ({ browser }) => {
   users.returning = await createFixtureUser('Project Manager', 'returning');
   const firstDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-cli-e2e-'));
   try {
-    const first = await loginAs(browser, firstDir, users.returning);
+    const first = await loginAs(browser, firstDir, users.returning, ownedContextOptions(workerInfo));
     if (first.code !== 0) throw new Error(`AC-CLI-001 fixture: first login failed: ${first.stderr}`);
   } finally {
     fs.rmSync(firstDir, { recursive: true, force: true });
@@ -239,8 +240,8 @@ test.afterEach(() => {
   fs.rmSync(configDir, { recursive: true, force: true });
 });
 
-test('AC-CLI-001: the CLI signs in as the user, and what it creates lands under that user’s own permissions', async ({ browser }) => {
-  const login = await loginAs(browser, configDir, users.pm);
+test('AC-CLI-001: the CLI signs in as the user, and what it creates lands under that user’s own permissions', async ({ browser }, testInfo) => {
+  const login = await loginAs(browser, configDir, users.pm, ownedContextOptions(testInfo));
   expect(login.code, login.stderr).toBe(0);
   expect(login.json).toMatchObject({ signed_in: true, user: { id: users.pm.id, email: users.pm.email } });
   expect(fs.statSync(path.join(configDir, 'credentials.json')).mode & 0o777).toBe(0o600);
@@ -293,7 +294,7 @@ test('AC-CLI-001: the CLI signs in as the user, and what it creates lands under 
   expect(still).toEqual([{ name: 'Mobilisation' }]);
 });
 
-test('AC-CLI-002: a user without write permission on an entity gets the database’s refusal', async ({ browser }) => {
+test('AC-CLI-002: a user without write permission on an entity gets the database’s refusal', async ({ browser }, testInfo) => {
   const { data: project, error } = await admin
     .from('projects')
     .insert({ name: `${NAME_PREFIX}${RUN} eng`, status: 'Internal Project', org_id: SEED_ORG })
@@ -301,7 +302,7 @@ test('AC-CLI-002: a user without write permission on an entity gets the database
     .single();
   if (error) throw new Error(error.message);
 
-  const login = await loginAs(browser, configDir, users.engineer);
+  const login = await loginAs(browser, configDir, users.engineer, ownedContextOptions(testInfo));
   expect(login.code, login.stderr).toBe(0);
 
   // Engineers may not write milestones (project_milestones_write: Admin / Project Manager only).
@@ -317,8 +318,8 @@ test('AC-CLI-002: a user without write permission on an entity gets the database
   expect(data).toEqual([]);
 });
 
-test('AC-CLI-003: a banned user’s token is refused — writes, reads and refresh', async ({ browser }) => {
-  const login = await loginAs(browser, configDir, users.banned);
+test('AC-CLI-003: a banned user’s token is refused — writes, reads and refresh', async ({ browser }, testInfo) => {
+  const login = await loginAs(browser, configDir, users.banned, ownedContextOptions(testInfo));
   expect(login.code, login.stderr).toBe(0);
   const before = await pmo(configDir, ['get', 'companies', '--select', 'id', '--limit', '1']);
   expect((before.json as unknown[]).length).toBe(1);
@@ -344,9 +345,9 @@ test('AC-CLI-003: a banned user’s token is refused — writes, reads and refre
   expect(data).toEqual([]);
 });
 
-test('AC-CLI-004: after logout the CLI refuses, and the old session is refused by the server', async ({ browser }) => {
+test('AC-CLI-004: after logout the CLI refuses, and the old session is refused by the server', async ({ browser }, testInfo) => {
   // `returning` allowed this client in beforeAll, so the consent screen sends the browser straight back.
-  const login = await loginAs(browser, configDir, users.returning, { consent: 'already' });
+  const login = await loginAs(browser, configDir, users.returning, ownedContextOptions(testInfo), { consent: 'already' });
   expect(login.code, login.stderr).toBe(0);
   const creds = readCreds(configDir);
   const { access_token, refresh_token } = creds[SUPABASE_URL];
@@ -375,8 +376,8 @@ test('AC-CLI-004: after logout the CLI refuses, and the old session is refused b
   expect(user.status).toBe(403);
 });
 
-test('AC-CLI-005: an expired access token is refreshed transparently and the rotated refresh token is kept', async ({ browser }) => {
-  const login = await loginAs(browser, configDir, users.returning, { consent: 'already' });
+test('AC-CLI-005: an expired access token is refreshed transparently and the rotated refresh token is kept', async ({ browser }, testInfo) => {
+  const login = await loginAs(browser, configDir, users.returning, ownedContextOptions(testInfo), { consent: 'already' });
   expect(login.code, login.stderr).toBe(0);
   const creds = readCreds(configDir);
   const old = { ...creds[SUPABASE_URL] };
