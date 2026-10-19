@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
@@ -51,6 +52,12 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Preferred width in CSS pixels for resizable desktop tables. */
+  size?: number;
+  /** Minimum width when resizing is enabled. */
+  minSize?: number;
+  /** Maximum width when resizing is enabled. */
+  maxSize?: number;
 }
 
 export interface SortState {
@@ -114,6 +121,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Stable identity for saved column widths. */
+  tableId?: string;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -246,6 +255,7 @@ export function DataTable<Row>({
   className,
   cardBelow,
   accessibleName,
+  tableId,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -261,6 +271,25 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
+  const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => ({
+    id: column.key,
+    accessorFn: (row) => row,
+    enableSorting: Boolean(column.sortKey),
+    header: column.header,
+    cell: ({ row }) => column.cell(row.original),
+  })), [columns]);
+  const table = useReactTable({
+    data: rows,
+    columns: tableColumns,
+    getRowId: (row, index) => rowKey(row) || String(index),
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    state: {
+      sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
+    },
+  });
+  const modelRows = table.getRowModel().rows;
+  const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
@@ -304,19 +333,14 @@ export function DataTable<Row>({
         <table ref={tableRef} aria-label={accessibleName} className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
-              {columns.map((col) => {
-                const sortable = !!col.sortKey;
-                const ariaSort =
-                  sort && col.sortKey === sort.key
-                    ? sort.dir === 'asc'
-                      ? 'ascending'
-                      : 'descending'
-                    : sortable
-                      ? 'none'
-                      : undefined;
+              {modelHeaders.map((header) => {
+                const col = columns.find((column) => column.key === header.column.id)!;
+                const sortable = header.column.getCanSort();
+                const currentSort = header.column.getIsSorted();
+                const ariaSort = currentSort ? (currentSort === 'asc' ? 'ascending' : 'descending') : sortable ? 'none' : undefined;
                 return (
                   <th
-                    key={col.key}
+                    key={header.id}
                     aria-sort={ariaSort}
                     className={cn(
                       'sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
@@ -331,9 +355,7 @@ export function DataTable<Row>({
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
                         {col.header}
-                        {sort && sort.key === col.sortKey && (
-                          <Icon name={sort.dir === 'asc' ? 'up' : 'down'} />
-                        )}
+                        {currentSort && <Icon name={currentSort === 'asc' ? 'up' : 'down'} />}
                       </button>
                     ) : (
                       col.header
@@ -357,8 +379,9 @@ export function DataTable<Row>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
-                const key = rowKey(row);
+              modelRows.map((modelRow) => {
+                const row = modelRow.original;
+                const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
@@ -399,7 +422,8 @@ export function DataTable<Row>({
                       selected && 'bg-primary/[0.07]'
                     )}
                   >
-                    {columns.map((col, colIndex) => {
+                    {modelRow.getVisibleCells().map((cell, colIndex) => {
+                      const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
                       return (
                         <td
@@ -423,10 +447,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.cell(row)}
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </button>
                           ) : (
-                            col.cell(row)
+                            flexRender(cell.column.columnDef.cell, cell.getContext())
                           )}
                         </td>
                       );
@@ -474,8 +498,9 @@ export function DataTable<Row>({
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
-          rows.map((row) => {
-            const key = rowKey(row);
+          modelRows.map((modelRow) => {
+            const row = modelRow.original;
+            const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;
