@@ -252,6 +252,8 @@ Required checks `verify` and `integration` must still cover every test, and a fa
 fail its required check. No silent skips or weaker test oracles. The pinned Deno 2.7.11 browser-job
 prerequisite (#1174) and lock-wrapper process tests in verify (#1170) are approved. The Director
 now owns `.github/workflows/ci.yml`; its previous reservation ended after #1121 merged.
+New test-only follow-ups: #1210 preserves project context settings in shared browser journeys;
+#1211 qualifies optional first-line representations in expense capture without changing its contract.
 
 **Build/review/CI now; hold app changes on their branches:** #1043, #1044, #1030, #1011, #1018,
 #1012, #1008, #1072, #1069, #1070, #1145, #1153, #1154, #1155, #1156, #1157, #1164, #1166 and
