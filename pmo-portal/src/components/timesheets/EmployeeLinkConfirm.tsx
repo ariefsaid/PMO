@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Combobox, ConfirmDialog } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
 import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
+import { employeeChoiceLabels } from './employeeChoiceLabels';
 
 export interface EmployeeProfileOption {
   value: string;
@@ -99,10 +100,11 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
   const [savingId, setSavingId] = useState<string | null>(null);
   const savingRef = useRef(false);
   const comboboxOptions = useMemo<ComboboxOption[]>(
-    () => (profileOptions ?? []).map(({ value, label }) => ({
-      value,
-      label,
-    })),
+    () => employeeChoiceLabels((profileOptions ?? []).map((option) => ({
+      value: option.value,
+      name: profileName(option),
+      email: option.email,
+    }))),
     [profileOptions],
   );
   const activeProfilesById = useMemo(
