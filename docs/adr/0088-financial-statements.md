@@ -5,6 +5,9 @@
 > this release. PMO saves and displays ERPNext standard report outputs. The calculation design
 > remains parked for later PMO-side accounting; see the amended spec and implementation plan.
 
+
+> **Cadence amendment (owner, 2026-10-19):** OD-ERP-023 supersedes the historical five-minute assumption below. The whole ERPNext sweep is hourly at minute seven, including initial statement backfill.
+
 **Date:** 2026-10-16 · **Status:** Proposed (revised implementation plan for #897; Director simplification decision)
 
 ## Context

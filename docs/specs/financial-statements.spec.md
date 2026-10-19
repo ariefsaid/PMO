@@ -12,6 +12,8 @@ older implementation plans are superseded for this release by decision OD-FS-023
 When preparing month-end, Finance reads the connected Company's ERPNext standard statements and
 project P&L in PMO, including the preceding period, without opening ERPNext Desk.
 
+**Cadence amendment (owner, 2026-10-19; OD-ERP-023):** the entire ERPNext sweep runs hourly at minute seven. ERPNext-side changes may appear within an hour; initial statement backfill may take approximately thirteen hours. Immediate adapter-dispatch pushes remain immediate. This supersedes any earlier five-minute refresh assumption; no separate statement-only cadence gate applies.
+
 v0.23 displays **actual ERPNext standard report responses**, saved by the existing ERP sweep:
 Trial Balance, Profit and Loss Statement, Balance Sheet, and P&L with an explicit mapped native
 Project filter. One activated Company, IDR, month/quarter/fiscal-year picker, current/prior ranges.

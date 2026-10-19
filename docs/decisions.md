@@ -3419,3 +3419,8 @@ inheriting another currency. The invoice amount retains its explicit source curr
 
 A collections deep link moves focus to its heading after the company loads. Preserve this path’s
 ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.
+
+
+### OD-ERP-023 — hourly ERPNext reconciliation (2026-10-19)
+
+For v0.23.0, the entire ERPNext sweep runs once an hour, at seven minutes past the hour (`7 * * * *`). This replaces the five-minute schedule. ERPNext-side changes can take up to an hour to appear in PMO; the initial statement catalogue can require approximately thirteen hourly ticks. The owner accepted those delays for the current transaction volume. Adapter-dispatch pushes remain immediate, and ClickUp reconciliation retains its existing schedule. Use a reversible schedule migration, with rollback restoring the five-minute ERPNext schedule. No separate statement-only cadence gate is introduced.
