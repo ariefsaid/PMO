@@ -231,6 +231,13 @@ operator work (outcomes, budget account map, budget activation by a second perso
 
 Final owner cadence decision (2026-10-19 15:45 WIB, clarified 16:15 WIB): retain five-minute cron, but run the whole ERPNext sweep only during UTC minutes 0–4 or while any statement-eligible binding (the collector’s existing active, v16-capable, company-set rules) lacks its first statement publication. Initial backfill keeps five-minute progress (~one hour); later refreshes are hourly. Other ticks are a no-op. Immediate dispatch and ClickUp cadence are unchanged. The handler gate belongs in the release fix bundle (OD-ERP-023); no schedule migration.
 
+**Final release-gate override (owner, 2026-10-19 17:08 WIB; v0.23.0 only):** merge the
+corrective PR #1209 after its already-running browser gate passes. The remaining #1187, #1208 and
+#1212 require all six fast checks; #1208 also requires its local served acceptance proof and #1212
+its final review correction. Do not dispatch further per-PR or dev browser runs for these slices.
+After the last merge, open the dev-to-main release PR: its automatic integration job is the one
+combined browser gate. Main merge and production remain owner-gated.
+
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 
 Start in parallel with fresh workers and separate worktrees. Keep this scope separate from
@@ -264,8 +271,9 @@ New test-only follow-ups: #1210 preserves project context settings in shared bro
 
 **Build/review/CI now; hold app changes on their branches:** #1043, #1044, #1030, #1011, #1018,
 #1012, #1008, #1072, #1069, #1070, #1145, #1153, #1154, #1155, #1156, #1157, #1164, #1166 and
-#1129. Merge these to dev only after the v0.23.0 dev-to-main PR has merged. This timing condition
-does not authorize opening or merging that release PR: dev remains the current ceiling.
+#1129 and #1213 (connection-setup qualification). Merge these to dev only after the v0.23.0
+dev-to-main PR has merged. The 17:08 release-gate direction authorizes opening the release PR
+after the remaining slices land; merging main and production remain separately owner-gated.
 
 **Immediately after v0.23.0 ships:** #1134 restores the one-browser-run cap agreed with MOS.
 Until then, the existing v0.23.0-only two-run allowance and two-heavy-local-run limit remain.
