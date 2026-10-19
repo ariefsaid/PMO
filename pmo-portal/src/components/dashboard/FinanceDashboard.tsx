@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import { KPITile } from '@/src/components/ui/KPITile';
@@ -226,6 +228,9 @@ export const FinanceDashboard: React.FC = () => {
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
+  const { data: clientCompanies } = useCompanies('Client');
+  const clientCompanyIds = useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
+  const { customerLinks } = useCompanyCollections(clientCompanyIds);
   // N17: portfolio-wide budget review — ALL budget>0 projects ranked by committed-basis variance,
   // computed server-side by get_finance_budget_review (OD-E). Replaces the FE re-sort of top_projects.
   // B-0.3: capture isError/refetch so the budget-review card can surface an error branch instead
@@ -512,6 +517,7 @@ export const FinanceDashboard: React.FC = () => {
         arAgingPending={arAgingPending}
         arAgingError={arAgingError}
         onRetryArAging={() => refetchArAging()}
+        customerLinks={customerLinks}
       />
 
       <DashGrid>

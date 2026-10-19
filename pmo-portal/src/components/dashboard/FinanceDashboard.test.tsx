@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
+import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';
+
+const collectionsIntegration = vi.hoisted(() => ({
+  companies: [] as Array<{ id: string; name: string }>,
+  arAging: [] as ErpAgingSnapshotRow[],
+  customerLinks: new Map<string, string>(),
+}));
 
 const dash = {
   active_projects: 2, total_contract_value: 8_000_000, currency: 'USD',
@@ -59,12 +66,18 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: collectionsIntegration.companies, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: collectionsIntegration.customerLinks }),
+}));
 // task FIX-2 (Discover CRITICAL 2): empty by default (the unflipped-org state) — the dedicated
 // AccountingSnapshotsSection.test.tsx owns the populated/loading/error render assertions.
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => ({ data: collectionsIntegration.arAging, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // N15 approvals tile reads the real role + timesheet queue.
 vi.mock('@/src/auth/impersonation', () => ({
@@ -83,6 +96,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
+
+beforeEach(() => {
+  collectionsIntegration.companies = [];
+  collectionsIntegration.arAging = [];
+  collectionsIntegration.customerLinks.clear();
+});
 
 describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
   it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
@@ -185,6 +204,26 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
     expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
     expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
+  });
+
+  it('AC-S36-002: links canonical Customer IDs to their exact company collections page', () => {
+    const agingRow: ErpAgingSnapshotRow = {
+      party: 'Customer:C-0001', partyType: 'Customer', currency: 'USD', totalOutstanding: 250,
+      current: 0, bucket0to30: 250, bucket31to60: 0, bucket61to90: 0, bucketOver90: 0,
+      rangeLabels: { b_0_30: '0–30 days' }, reportDate: '2026-10-18', ageingBasedOn: 'Due Date',
+      asOf: '2026-10-18T00:00:00Z', sourceReport: 'Accounts Receivable', reportVersion: '15', snapshotId: 'snapshot-1',
+    };
+    collectionsIntegration.companies = [{ id: 'co-client-1', name: 'Meridian Display Name' }];
+    collectionsIntegration.arAging = [agingRow];
+    collectionsIntegration.customerLinks.set('Customer:C-0001', 'co-client-1');
+
+    renderPane();
+
+    expect(screen.getByText('Customer collections (AR)', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Customer:C-0001' })).toHaveAttribute(
+      'href', '/companies/co-client-1#collections',
+    );
+    expect(screen.queryByText('Meridian Display Name')).not.toBeInTheDocument();
   });
 });
 

@@ -59,6 +59,7 @@ const LocationProbe: React.FC = () => {
       data-testid="location-probe"
       data-pathname={location.pathname}
       data-search={location.search}
+      data-hash={location.hash}
     >
       {JSON.stringify(location.state ?? null)}
     </div>
@@ -216,6 +217,17 @@ describe('Companies index — RBAC affordance gating (AC-CO-007)', () => {
     renderPage('Engineer');
     expect(screen.queryByRole('button', { name: /New company/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('Companies index — customer collections doorway (AC-S36-005)', () => {
+  it('AC-S36-005: opens a Client record through its existing canonical detail doorway', async () => {
+    renderPage('Finance');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Cascade Port Authority' }));
+
+    const location = screen.getByTestId('location-probe');
+    expect(location).toHaveAttribute('data-pathname', '/companies/c1');
+    expect(location).toHaveAttribute('data-hash', '');
   });
 });
 
