@@ -18,8 +18,12 @@ const makeCoverage = (entries) => {
     const s = {};
     statements.forEach((stmt, i) => {
       statementMap[String(i)] = {
-        start: { line: stmt.start },
-        end: { line: stmt.end ?? stmt.start },
+        start: stmt.startColumn === undefined
+          ? { line: stmt.start }
+          : { line: stmt.start, column: stmt.startColumn },
+        end: stmt.endColumn === undefined
+          ? { line: stmt.end ?? stmt.start }
+          : { line: stmt.end ?? stmt.start, column: stmt.endColumn },
       };
       s[String(i)] = stmt.hits;
     });
@@ -70,6 +74,114 @@ test('AC: a changed line covered by ANY statement with hits is covered', () => {
   const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
   assert.equal(result.covered, 1);
   assert.equal(result.total, 1);
+});
+
+test('AC-EH-001: a hit outer statement does not cover a zero-hit inner statement', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 5, end: 20, hits: 4 },
+      { start: 10, end: 10, hits: 0 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 0);
+  assert.equal(result.pct, 0);
+  assert.equal(result.ok, false);
+});
+
+test('AC-EH-001: inner-statement coverage is order-independent', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 10, end: 10, hits: 0 },
+      { start: 5, end: 20, hits: 4 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 0);
+  assert.equal(result.pct, 0);
+  assert.equal(result.ok, false);
+});
+
+test('AC-EH-002: a zero-hit multiline inner statement keeps its lines uncovered', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 5, end: 20, hits: 4 },
+      { start: 10, end: 12, hits: 0 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([8, 10, 11, 12, 15])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 5);
+  assert.equal(result.covered, 2);
+});
+
+test('AC-EH-002: a hit multiline statement covers each changed line it contains', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [{ start: 10, end: 12, hits: 4 }],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10, 11, 12])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 3);
+  assert.equal(result.covered, 3);
+});
+
+test('AC-EH-002: identical statement ranges are peers and use their maximum hits', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 10, end: 12, hits: 0 },
+      { start: 10, end: 12, hits: 4 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10, 11, 12])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 3);
+  assert.equal(result.covered, 3);
+});
+
+test('AC-EH-002: disjoint same-line column peers use their maximum hits', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 10, end: 10, startColumn: 0, endColumn: 10, hits: 0 },
+      { start: 10, end: 10, startColumn: 20, endColumn: 30, hits: 4 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 1);
+});
+
+test('AC-EH-002: a zero-hit nested column range is not covered by its hit ancestor', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 10, end: 10, startColumn: 0, endColumn: 40, hits: 4 },
+      { start: 10, end: 10, startColumn: 10, endColumn: 20, hits: 0 },
+    ],
+  });
+  const changedLinesByFile = new Map([['pmo-portal/src/a.ts', new Set([10])]]);
+  const result = computeChangedLinesCoverage({ changedLinesByFile, coverage, min: 80 });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 0);
+});
+
+test('AC-EH-002: a hit incomparable smallest peer covers a line despite a zero-hit nested peer', () => {
+  const coverage = makeCoverage({
+    '/repo/pmo-portal/src/a.ts': [
+      { start: 10, end: 10, startColumn: 0, endColumn: 80, hits: 4 },
+      { start: 10, end: 10, startColumn: 10, endColumn: 20, hits: 0 },
+      { start: 10, end: 10, startColumn: 30, endColumn: 40, hits: 4 },
+    ],
+  });
+  const result = computeChangedLinesCoverage({
+    changedLinesByFile: new Map([['pmo-portal/src/a.ts', new Set([10])]]), coverage, min: 80,
+  });
+  assert.equal(result.total, 1);
+  assert.equal(result.covered, 1);
+  assert.equal(result.ok, true);
 });
 
 test('AC: a changed comment/blank line (no covering statement) is not counted', () => {
