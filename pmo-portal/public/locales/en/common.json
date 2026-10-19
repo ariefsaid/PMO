@@ -4106,7 +4106,7 @@
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No sales invoices yet",
-    "createYourFirstInvoiceToStartBillingClients": "Create your first invoice to start billing clients.",
+    "createYourFirstInvoiceToStartBillingClients": "No client invoices have been recorded yet. Use New Invoice to start billing.",
     "noInvoicesMatchYourFilters": "No invoices match your filters",
     "tryADifferentStatusOrClearTheSearch": "Try a different status or clear the search.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.",
@@ -4132,7 +4132,7 @@
     "searchPayments": "Search payments…",
     "searchIncomingPayments": "Search incoming payments",
     "noIncomingPaymentsYet": "No incoming payments yet",
-    "recordYourFirstPaymentReceivedFromAClient": "Record your first payment received from a client.",
+    "recordYourFirstPaymentReceivedFromAClient": "No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.",
     "noPaymentsMatchYourFilters": "No payments match your filters",
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
@@ -4148,7 +4148,7 @@
     "totalInvoices": "Total Invoices",
     "projects": "Projects",
     "noRevenueDataYet": "No revenue data yet",
-    "createSalesInvoicesToSeeRevenuePerProject": "Create sales invoices to see revenue per project.",
+    "createSalesInvoicesToSeeRevenuePerProject": "No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.",
     "noRevenueData": "No revenue data",
     "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
@@ -5100,5 +5100,10 @@
   },
   "v024Polish": {
     "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
+  },
+  "uxs26": {
+    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation. Browse projects to review project work.",
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments. Browse projects to review project work.",
+    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation. Browse projects to review project work."
   }
 }

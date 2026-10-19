@@ -964,13 +964,17 @@ const SalesInvoices: React.FC = () => {
         : native
           ? t('financeCopy.nativeSalesInvoicesDescription', 'Client invoices raised, approved and settled in PMO.')
           : t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
-      primaryAction={
-        canCreate && mode !== undefined && !createRequested && (
+      primaryAction={mode !== undefined && !createRequested ? (
+        canCreate ? (
           <Button variant="primary" onClick={openNewInvoice}>
             <Icon name="plus" />
             {t('financeCopy.newInvoice', "New Invoice")}</Button>
+        ) : (
+          <Button variant="outline" onClick={() => navigate('/projects')}>
+            <Icon name="pipe" className="size-4 mr-2" />
+            {t('financeCopy.browseProjects', 'Browse Projects')}</Button>
         )
-      }
+      ) : undefined}
       filters={
         state !== 'loading' && (
           <div
@@ -1106,11 +1110,12 @@ const SalesInvoices: React.FC = () => {
           variant="empty"
           icon="doc"
           title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
-          sub={t('financeCopy.createYourFirstInvoiceToStartBillingClients', "Create your first invoice to start billing clients.")}
+          sub={canCreate
+            ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'No client invoices have been recorded yet. Use New Invoice to start billing.')
+            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation. Browse projects to review project work.')}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
-          action={canCreate && !createRequested ? { label: t('financeCopy.newInvoice', "New Invoice"), onClick: openNewInvoice } : undefined}
         />
       )}
 

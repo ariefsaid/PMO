@@ -43,6 +43,7 @@ const RevenueByProject: React.FC = () => {
   );
 
   const canView = may('view', 'salesInvoice');
+  const canCreateInvoice = may('create', 'salesInvoice');
 
   const currencyPending = !currencyResolved && !currencyError;
   const state: 'loading' | 'empty' | 'error' | undefined = isError || currencyError
@@ -183,11 +184,15 @@ const RevenueByProject: React.FC = () => {
           </span>
         </>
       }
-      primaryAction={
+      primaryAction={canCreateInvoice ? (
+        <Button variant="primary" onClick={() => navigate('/sales-invoices?create=1')}>
+          <Icon name="plus" />
+          {t('financeCopy.newInvoice', 'New Invoice')}</Button>
+      ) : (
         <Button variant="outline" onClick={() => navigate('/projects')}>
           <Icon name="pipe" className="size-4 mr-2" />
           {t('financeCopy.browseProjects', "Browse Projects")}</Button>
-      }
+      )}
     >
       {/* KPI Summary — honest states only (BLOCK 2 / the AccountingSnapshotsSection rule): while the
           rollup is loading the tiles are skeletons, and on a failed query they show "—", NEVER a
@@ -251,7 +256,9 @@ const RevenueByProject: React.FC = () => {
           variant="empty"
           icon="table"
           title={t('financeCopy.noRevenueDataYet', "No revenue data yet")}
-          sub={t('financeCopy.createSalesInvoicesToSeeRevenuePerProject', "Create sales invoices to see revenue per project.")}
+          sub={canCreateInvoice
+            ? t('financeCopy.createSalesInvoicesToSeeRevenuePerProject', 'No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.')
+            : t('uxs26.revenueEmptyProjectManager', 'No invoice revenue has been recorded yet. Finance manages invoice creation. Browse projects to review project work.')}
         />
       )}
 
