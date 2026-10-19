@@ -151,6 +151,39 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('UX-010 tells a Project Manager that Finance owns invoice creation and keeps project browsing available', () => {
+    revenueState.data = [];
+
+    renderPage('Project Manager');
+
+    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
+    expect(screen.queryByText('Create sales invoices to see revenue per project.')).toBeNull();
+  });
+
+  it('UX-010 gives Finance a single New Invoice doorway from a truly empty revenue view', async () => {
+    revenueState.data = [];
+    const user = userEvent.setup();
+
+    renderPage('Finance');
+
+    const createInvoice = screen.getByRole('button', { name: 'New Invoice' });
+    expect(createInvoice).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
+    await user.click(createInvoice);
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/sales-invoices?create=1');
+  });
+
+  it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
+    revenueState.data = [];
+    await testI18n.changeLanguage('id');
+
+    renderPage('Project Manager');
+
+    expect(screen.getByText(/Finance mengelola pembuatan faktur/)).toBeInTheDocument();
+    await testI18n.changeLanguage('en');
+  });
+
   it('AC-PFIN-009: Finance/Admin has an Assign project action; keyboard activation still opens the unassigned list for readers', async () => {
     revenueState.data = [
       { project_id: null, project_name: null, currency: 'USD', total_amount: 1200, open_ar: 1200, invoice_count: 1 },

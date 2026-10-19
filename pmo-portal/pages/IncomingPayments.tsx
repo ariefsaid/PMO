@@ -436,13 +436,17 @@ const IncomingPayments: React.FC = () => {
         : native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
           : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={
-        canCreate && mode !== undefined && (
+      primaryAction={mode !== undefined ? (
+        canCreate ? (
           <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
             <Icon name="plus" />
             {t('financeCopy.receivePayment', "Receive Payment")}</Button>
+        ) : (
+          <Button variant="outline" onClick={() => navigate('/projects')}>
+            <Icon name="pipe" className="size-4 mr-2" />
+            {t('financeCopy.browseProjects', 'Browse Projects')}</Button>
         )
-      }
+      ) : undefined}
       filters={
         state !== 'loading' && (
           <ViewToggle<StatusFilter>
@@ -497,11 +501,12 @@ const IncomingPayments: React.FC = () => {
           variant="empty"
           icon="dollar"
           title={t('financeCopy.noIncomingPaymentsYet', "No incoming payments yet")}
-          sub={t('financeCopy.recordYourFirstPaymentReceivedFromAClient', "Record your first payment received from a client.")}
+          sub={canCreate
+            ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.')
+            : t('uxs26.receiptsEmptyProjectManager', 'No client receipts have been recorded yet. Finance records client payments. Browse projects to review project work.')}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"
-          action={canCreate ? { label: t('financeCopy.receivePayment', "Receive Payment"), onClick: () => setFormTarget({ payment: null }) } : undefined}
         />
       )}
 

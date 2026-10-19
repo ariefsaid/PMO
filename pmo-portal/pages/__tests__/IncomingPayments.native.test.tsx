@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
+  role: 'Finance' as 'Finance' | 'Project Manager',
   toast: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -25,8 +26,11 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }) }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
+  if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
+  return true;
+} }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
   data: h.route === 'external' ? [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }] : [],
@@ -81,6 +85,7 @@ const renderPage = () => render(
 afterEach(() => resetActiveLocale());
 
 beforeEach(async () => {
+  h.role = 'Finance';
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.createPaymentMutate.mockReset();
   h.createPaymentMutate.mockResolvedValue({ id: 'ip-new' });
@@ -108,6 +113,29 @@ async function setAmount(user: ReturnType<typeof userEvent.setup>, label: RegExp
 }
 
 describe('Incoming Payments while PMO owns revenue (#784)', () => {
+  it('UX-010/011 Finance gets one receive action and no duplicate empty-state CTA', () => {
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);
+    expect(screen.getByText(/Use Receive Payment when a client payment arrives/)).toBeInTheDocument();
+  });
+
+  it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
+    h.role = 'Project Manager';
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.getByText(/Finance records client payments/)).toBeInTheDocument();
+    expect(screen.queryByText(/Record your first payment/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+  });
+
+  it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
+    h.role = 'Project Manager';
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText(/Finance mencatat pembayaran klien/)).toBeInTheDocument();
+    await financeTestI18n.changeLanguage('en');
+  });
+
   it('UXS-042 renders payment money with tabular UI numerals rather than the identifier typeface', () => {
     h.payments.data = [receipt()];
     renderPage();

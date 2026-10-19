@@ -4106,7 +4106,7 @@
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur penjualan",
-    "createYourFirstInvoiceToStartBillingClients": "Buat faktur pertama Anda untuk mulai menagih klien.",
+    "createYourFirstInvoiceToStartBillingClients": "Belum ada faktur klien yang dicatat. Gunakan Faktur Baru untuk mulai menagih.",
     "noInvoicesMatchYourFilters": "Tidak ada faktur yang cocok dengan filter",
     "tryADifferentStatusOrClearTheSearch": "Coba status lain atau hapus pencarian.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "Tindakan ini membatalkan faktur di ERPNext (docstatus 1→2). Faktur akan berstatus Dibatalkan dan tidak dapat diajukan lagi. Jumlah terutang akan dilepaskan.",
@@ -4132,7 +4132,7 @@
     "searchPayments": "Cari pembayaran…",
     "searchIncomingPayments": "Cari pembayaran masuk",
     "noIncomingPaymentsYet": "Belum ada pembayaran masuk",
-    "recordYourFirstPaymentReceivedFromAClient": "Catat pembayaran pertama yang diterima dari klien.",
+    "recordYourFirstPaymentReceivedFromAClient": "Belum ada penerimaan dari klien yang dicatat. Gunakan Terima Pembayaran saat pembayaran klien masuk.",
     "noPaymentsMatchYourFilters": "Tidak ada pembayaran yang cocok dengan filter",
     "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
@@ -4148,7 +4148,7 @@
     "totalInvoices": "Total Faktur",
     "projects": "Proyek",
     "noRevenueDataYet": "Belum ada data pendapatan",
-    "createSalesInvoicesToSeeRevenuePerProject": "Buat faktur penjualan untuk melihat pendapatan per proyek.",
+    "createSalesInvoicesToSeeRevenuePerProject": "Belum ada pendapatan dari faktur yang dicatat. Faktur Baru memulai penagihan; pendapatan akan tampil di sini setelah faktur dicatat.",
     "noRevenueData": "Tidak ada data pendapatan",
     "invoicesWithAmountsWillAppearHere": "Faktur dengan jumlah akan muncul di sini.",
     "name": "Nama",
@@ -5100,5 +5100,10 @@
   },
   "v024Polish": {
     "accountDraftUnavailable": "Pilihan yang belum disimpan ini tidak lagi tersedia di daftar akun saat ini. Pilih akun lain atau kosongkan bidang ini."
+  },
+  "uxs26": {
+    "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur. Lihat proyek untuk meninjau pekerjaan.",
+    "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien. Lihat proyek untuk meninjau pekerjaan.",
+    "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur. Lihat proyek untuk meninjau pekerjaan."
   }
 }

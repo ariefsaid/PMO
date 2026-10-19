@@ -216,6 +216,7 @@ describe('SalesInvoices e-Faktur details', () => {
     h.setEfaktur.mockRejectedValueOnce(Object.assign(new Error('save refused'), { code: '42501' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+    fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010.001-26.12345678' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('alert', { name: 'Save failed' })).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();

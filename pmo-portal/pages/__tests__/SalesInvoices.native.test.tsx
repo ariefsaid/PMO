@@ -140,6 +140,29 @@ beforeEach(async () => {
 });
 
 describe('Sales Invoices while PMO owns revenue (#784)', () => {
+  it('UX-010/011 Finance gets one create action and no duplicate empty-state CTA', () => {
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'New Invoice' })).toHaveLength(1);
+    expect(screen.getByText(/Use New Invoice to start billing/)).toBeInTheDocument();
+  });
+
+  it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
+    h.role = 'Project Manager';
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
+    expect(screen.queryByText(/Create your first invoice/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New Invoice' })).toBeNull();
+  });
+
+  it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
+    h.role = 'Project Manager';
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText(/Finance mengelola pembuatan faktur/)).toBeInTheDocument();
+    await financeTestI18n.changeLanguage('en');
+  });
+
   it('AC-NAR-001 the page says invoices are raised and settled in PMO', () => {
     renderPage();
     expect(screen.getByText('Client invoices raised, approved and settled in PMO.')).toBeInTheDocument();
