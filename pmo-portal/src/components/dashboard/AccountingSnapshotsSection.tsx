@@ -137,7 +137,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
     header: t('dashboard.finance.project', 'Project'),
     cell: (r) => r.projectId ? (
       <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
-        {projectNames?.get(r.projectId) ?? r.projectId}
+        {projectNames?.get(r.projectId) ?? <span title={t('dashboard.finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard.finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
       </Link>
     ) : <span className="text-muted-foreground">{t('dashboard.finance.unattributed', 'Not attributed to a project')}</span>,
   },
@@ -161,8 +161,8 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
     header: t('dashboard.finance.net', 'Net'),
     align: 'num',
     cell: (r) => r.net === null || !Number.isFinite(r.net) ? (
-      <span className="inline-flex flex-col items-end text-muted-foreground" title={t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
-        <span>—</span><span className="text-[11px]">{t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
+      <span className="text-muted-foreground" title={t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
+        —<span className="sr-only"> {t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
       </span>
     ) : <span className="font-semibold">{formatCurrency(r.net, orgCurrency)}</span>,
   },

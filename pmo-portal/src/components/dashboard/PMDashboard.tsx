@@ -15,7 +15,7 @@ import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
-import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 
@@ -46,12 +46,14 @@ export const PMDashboard: React.FC = () => {
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
     ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
   const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
-  const riskCheckable = useMemo(() => mine
-    .filter((project) => ACTIVE_PROJECT_STATUSES.has(project.status))
-    .every((project) => project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
+  const riskCheckable = useMemo(() => {
+    const delivery = mine.filter((project) => ACTIVE_PROJECT_STATUSES.has(project.status));
+    const unchecked = delivery.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
       && project.budget_currency === project.currency && project.actual_complete
       && project.spent !== null && Number.isFinite(project.spent)
-      && (project.actual_currency ?? project.currency) === project.currency), [mine]);
+      && (project.actual_currency ?? project.currency) === project.currency)).length;
+    return riskCheckableFor(delivery.length, unchecked);
+  }, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(

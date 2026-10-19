@@ -8,7 +8,7 @@ import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
-import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
+import { riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -98,13 +98,7 @@ const ExecutiveDashboard: React.FC = () => {
         </div>
       );
     }
-    const activeProjectRows = data.top_projects.filter((project) => ACTIVE_PROJECT_STATUSES.has(project.status));
-    const riskCheckable = data.projects_at_risk > 0 || data.active_projects === 0 || (
-      activeProjectRows.length === data.active_projects && activeProjectRows.every((project) =>
-        project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
-          && project.actual_complete === true && project.spent !== null && Number.isFinite(project.spent)
-          && project.actual_currency === project.budget_currency && project.actual_currency === project.currency)
-    );
+    const riskCheckable = riskCheckableFor(data.active_delivery_projects ?? 0, data.risk_unchecked_projects ?? 0);
     const hasProjectEvidence = (data.projects_by_status ?? []).some((row) => row.count > 0);
     const hasProcurementEvidence = (data.procurements_by_status ?? []).some((row) => row.count > 0);
     const isEmpty = !hasProjectEvidence && !hasProcurementEvidence;

@@ -67,7 +67,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }), useProjectIdentity: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: collectionsIntegration.companies, isPending: false, isError: false, refetch: vi.fn() }),
 }));

@@ -1271,7 +1271,7 @@
     "spend": { "partial": "Partial" },
     "finance": {
       "project": "Project", "unattributed": "Not attributed to a project", "account": "Account", "costCenter": "Cost center", "fiscalYear": "Fiscal year", "net": "Net",
-      "netUnavailableReason": "The source snapshot did not supply a Net value.", "party": "Party", "current": "Current", "totalOutstanding": "Total outstanding",
+      "netUnavailableReason": "The source snapshot did not supply a Net value.", "projectUnavailableReason": "Project name is unavailable.", "budgetReviewLoadError": "Couldn't load budget review", "party": "Party", "current": "Current", "totalOutstanding": "Total outstanding",
       "actualsTitle": "Actuals (ERP ledger)", "apTitle": "Vendor payables (AP)",
       "actualsError": "Couldn't load actuals", "apError": "Couldn't load vendor payables", "arError": "Couldn't load customer receivables",
       "awaiting": "Purchase requests awaiting your decision", "contractValue": "Contract value in progress", "contractValueHelp": "Total contract value across active projects.",

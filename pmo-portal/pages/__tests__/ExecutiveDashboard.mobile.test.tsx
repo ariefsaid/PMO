@@ -22,6 +22,8 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 // ── Data fixtures ─────────────────────────────────────────────────────────────
 const populated = {
   active_projects: 18,
+  active_delivery_projects: 18,
+  risk_unchecked_projects: 0,
   total_contract_value: 23050000, currency: 'USD',
   on_hand_margin: 0.224,
   on_hand_value: 26650000,
@@ -351,6 +353,7 @@ describe('AC-RD-RISK-001: risk availability', () => {
     dashState.data = {
       ...populated,
       projects_at_risk: 0,
+      risk_unchecked_projects: 1,
       top_projects: [{ ...populated.top_projects[0]!, budget: null as unknown as number, budget_currency: null as unknown as string, spent: null as unknown as number, actual_currency: null as unknown as string, actual_complete: false }],
     };
     mockIsDesktop = false;
@@ -367,6 +370,8 @@ describe('AC-MOBILE edge: zero at-risk', () => {
     dashState.data = {
       ...populated,
       active_projects: 1,
+      active_delivery_projects: 1,
+      risk_unchecked_projects: 0,
       projects_at_risk: 0,
       top_projects: [{ ...populated.top_projects[0]!, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' }],
     };

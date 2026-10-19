@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCompanies } from '@/src/hooks/useCompanies';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectIdentity } from '@/src/hooks/useProjects';
 import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
@@ -226,7 +226,7 @@ function compareNullable(
 export const FinanceDashboard: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { data, isPending, isError, refetch } = useDashboard();
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectIdentity();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
   const orgCurrency = useOrgCurrency();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
@@ -481,7 +481,7 @@ export const FinanceDashboard: React.FC = () => {
           {budgetError ? (
             <ListState
               variant="error"
-              title="Couldn't load budget review"
+              title={t('dashboard.finance.budgetReviewLoadError', "Couldn't load budget review")}
               onRetry={() => refetchBudget()}
             />
           ) : (

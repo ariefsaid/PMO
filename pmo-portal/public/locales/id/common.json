@@ -1271,7 +1271,7 @@
     "spend": { "partial": "Parsial" },
     "finance": {
       "project": "Proyek", "unattributed": "Tidak terkait dengan proyek", "account": "Akun", "costCenter": "Pusat biaya", "fiscalYear": "Tahun fiskal", "net": "Neto",
-      "netUnavailableReason": "Snapshot sumber tidak menyediakan nilai neto.", "party": "Pihak", "current": "Saat ini", "totalOutstanding": "Total terutang",
+      "netUnavailableReason": "Snapshot sumber tidak menyediakan nilai neto.", "projectUnavailableReason": "Nama proyek tidak tersedia.", "budgetReviewLoadError": "Tidak dapat memuat tinjauan anggaran", "party": "Pihak", "current": "Saat ini", "totalOutstanding": "Total terutang",
       "actualsTitle": "Aktual (buku besar ERP)", "apTitle": "Utang kepada vendor (AP)",
       "actualsError": "Gagal memuat aktual", "apError": "Gagal memuat utang vendor", "arError": "Gagal memuat piutang pelanggan",
       "awaiting": "Permintaan pembelian menunggu keputusan Anda", "contractValue": "Nilai kontrak berjalan", "contractValueHelp": "Total nilai kontrak proyek aktif.",

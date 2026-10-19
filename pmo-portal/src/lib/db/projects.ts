@@ -234,6 +234,12 @@ export async function listProjects(
  * One project by id at ANY stage (on-hand, internal, pipeline or lost) — the project detail route's
  * read. Same select as the list, so the row shape is identical; `null` when absent / not visible.
  */
+export async function listProjectIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>> {
+  const { data, error } = await supabase.from('projects').select('id,name');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getProject(id: string): Promise<ProjectWithRefs | null> {
   const { data, error } = await supabase.from('projects').select(SELECT).eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);

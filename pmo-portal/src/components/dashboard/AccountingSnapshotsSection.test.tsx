@@ -101,19 +101,25 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 });
 
 describe('AccountingSnapshotsSection — populated state', () => {
-  it('AC-RD-FIN-001: keeps a missing Net unknown and explains that the snapshot supplied no value', () => {
+  it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
     const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
-    expect(within(actuals).getByText('—')).toBeInTheDocument();
-    expect(within(actuals).getByText(/source snapshot did not supply a net value/i)).toBeInTheDocument();
+    expect(within(actuals).getByText('—')).toHaveAttribute('title', 'The source snapshot did not supply a Net value.');
+    expect(within(actuals).getByText(/source snapshot did not supply a net value/i)).toHaveClass('sr-only');
     expect(within(actuals).queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('AC-RD-FIN-002: identifies the project for each actuals row', () => {
+  it('AC-RD-FIN-002: identifies the project for each actuals row and never exposes an unknown UUID', () => {
     render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, projectId: 'project-17' }]} actualProjectNames={new Map([['project-17', 'Synthetic Project']])} /></MemoryRouter>);
     const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
     expect(within(actuals).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(within(actuals).getByRole('link', { name: 'Synthetic Project' })).toHaveAttribute('href', '/projects/project-17');
+
+    const unknown = 'project-closed-uuid';
+    const { rerender } = render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, projectId: unknown }]} actualProjectNames={new Map()} /></MemoryRouter>);
+    expect(screen.getByText('—')).toHaveAttribute('title', 'Project name is unavailable.');
+    expect(screen.queryByText(unknown)).not.toBeInTheDocument();
+    rerender(<></>);
   });
 
   it('AC-RD-FIN-003: renders Bahasa money labels for accounting snapshots', () => {
@@ -191,6 +197,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
     expect(screen.queryByText('USD')).not.toBeInTheDocument();
     expect(screen.queryByText('CAD')).not.toBeInTheDocument();
     expect(screen.getByText('$100')).toBeInTheDocument();
+    expect(screen.getByText('CA$200')).toBeInTheDocument();
     const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.rounded-lg.border') as HTMLElement;
     expect(within(arCard).getAllByRole('row')).toHaveLength(3);
   });
