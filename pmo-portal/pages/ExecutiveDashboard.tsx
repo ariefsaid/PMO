@@ -330,7 +330,7 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-total-contract-value"
             tone="amber"
             icon="grid"
-            label={t('uxs03.contractValueOnHand', 'Contract value on hand')}
+            label={t('uxs03.activeContractValue', 'Active contract value')}
             value={money(data.total_contract_value)}
             vs={t('dashboard.kpi.totalContractValue.vs', 'active projects')}
             to="/projects?filter=Ongoing"

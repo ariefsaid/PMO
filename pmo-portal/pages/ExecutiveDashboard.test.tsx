@@ -118,9 +118,13 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
-  it('labels contract value on hand distinctly from finance contract value in progress', () => {
+  it('gives active contract value its own label distinct from contract value on hand', () => {
     renderPage();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('Contract value on hand');
+    const onHand = screen.getByTestId('kpi-on-hand-margin');
+    const active = screen.getByTestId('kpi-total-contract-value');
+    expect(onHand).toHaveTextContent('Contract value on hand');
+    expect(active).toHaveTextContent('Active contract value');
+    expect(active).not.toHaveTextContent('Contract value on hand');
   });
 
   it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
