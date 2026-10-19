@@ -24,6 +24,10 @@ import {
   S21_MAX_HANDLER_POSTS,
   validateS21TransportSummary,
 } from './support/AC-S21-005-transport.mjs';
+import {
+  runS21FixtureCleanup,
+  S21_FIXTURE_PHASE_TIMEOUT_MS,
+} from './support/AC-S21-005-lifecycle.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -85,6 +89,49 @@ type FixtureSnapshot = {
   projectHistoryVisible: boolean;
   organization: { name: string; lifecycle_state: string } | null;
 };
+
+let status: LocalStatus;
+let serviceUrl: string;
+let serviceKey: string;
+let anonKey: string;
+let apiOrigin: string;
+let appOrigin: string;
+let fixture: Fixture;
+let ledger: Ledger;
+let journeyStage: string;
+let evidence: Awaited<ReturnType<typeof makeEvidencePath>>;
+let ledgerPath: string;
+let initialAdmin: SupabaseClient;
+let actorClient: SupabaseClient;
+let actorAuthenticated = false;
+let pageRouteSnapshot: (() => { handlerPosts: number; clickupOnboardRequests: number }) | null = null;
+let browserBlocked: Record<string, number> = {};
+let handlerServer: HandlerServer | null = null;
+let reloadDiagnostic: ReturnType<typeof createS21ReloadDiagnostic> | null = null;
+let primaryFailure: unknown = null;
+let cleanupFailed = false;
+let cleanupFailureErrors: Error[] = [];
+let projectCreated = false;
+let bindingCreated = false;
+let projectDeleted = false;
+let fixturePreflightPassed = false;
+let browserAdminLoginConfirmed = false;
+let ephemeralPassword: string | null = null;
+let vaultSecretSentinel: string | null = null;
+let actorAccessToken: string | null = null;
+let actorRefreshToken: string | null = null;
+
+function markCleanupFailure(step: string): void {
+  cleanupFailed = true;
+  ledger.cleanupFailureSteps.push(step);
+  const code = `S21_CLEANUP_${step.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}`;
+  cleanupFailureErrors.push(safeFailure(code));
+}
+
+function setJourneyStage(stage: string): void {
+  journeyStage = stage;
+  ledger.journeyStage = stage;
+}
 
 function safeFailure(code: string): Error {
   return new Error(code);
@@ -601,18 +648,19 @@ async function captureS21ReloadDom(page: Page, fixture: Fixture): Promise<Record
   };
 }
 
-test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial source, and sees the persisted link after reload', async ({ page }, testInfo) => {
-  const status = readLocalStatus();
-  const serviceUrl = status.API_URL;
-  const serviceKey = status.SERVICE_ROLE_KEY;
-  const anonKey = status.ANON_KEY;
+test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  status = readLocalStatus();
+  serviceUrl = status.API_URL ?? '';
+  serviceKey = status.SERVICE_ROLE_KEY ?? '';
+  anonKey = status.ANON_KEY ?? '';
   if (!serviceUrl || !serviceKey || !anonKey || !status.DB_URL) throw safeFailure('S21_LOCAL_CONFIG_UNAVAILABLE');
-  const apiOrigin = new URL(serviceUrl).origin;
+  apiOrigin = new URL(serviceUrl).origin;
   if (!loopbackHost(new URL(serviceUrl).hostname)) throw safeFailure('S21_API_TARGET_NOT_LOCAL');
 
-  const fixture = createS21FixtureIdentity();
-  const ledger = createS21WriteAheadLedger(fixture) as unknown as Ledger;
-  let journeyStage = 'fixture-preflight';
+  fixture = createS21FixtureIdentity();
+  ledger = createS21WriteAheadLedger(fixture) as unknown as Ledger;
+  journeyStage = 'fixture-preflight';
   ledger.journeyStage = journeyStage;
   ledger.failedJourneyStage = null;
   ledger.primaryFailureDiagnostic = null;
@@ -624,35 +672,27 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
   ledger.transportSummary = null;
   ledger.primaryFailure = null;
   ledger.cleanupFailureSteps = [];
-  const evidence = await makeEvidencePath();
-  const ledgerPath = evidence.ledgerPath;
-  const initialAdmin = createAdminClient(serviceUrl, serviceKey);
-  const actorClient = createAdminClient(serviceUrl, anonKey);
-  let actorAuthenticated = false;
-  let pageRouteSnapshot: (() => { handlerPosts: number; clickupOnboardRequests: number }) | null = null;
-  let browserBlocked: Record<string, number> = {};
-  let handlerServer: HandlerServer | null = null;
-  let reloadDiagnostic: ReturnType<typeof createS21ReloadDiagnostic> | null = null;
-  let primaryFailure: Error | null = null;
-  let cleanupFailed = false;
-  let projectCreated = false;
-  let bindingCreated = false;
-  let projectDeleted = false;
-  let fixturePreflightPassed = false;
-  let browserAdminLoginConfirmed = false;
-  let ephemeralPassword: string | null = null;
-  let vaultSecretSentinel: string | null = null;
-  let actorAccessToken: string | null = null;
-  let actorRefreshToken: string | null = null;
-
-  const markCleanupFailure = (step: string) => {
-    cleanupFailed = true;
-    ledger.cleanupFailureSteps.push(step);
-  };
-  const setJourneyStage = (stage: string) => {
-    journeyStage = stage;
-    ledger.journeyStage = stage;
-  };
+  evidence = await makeEvidencePath();
+  ledgerPath = evidence.ledgerPath;
+  initialAdmin = createAdminClient(serviceUrl, serviceKey);
+  actorClient = createAdminClient(serviceUrl, anonKey);
+  actorAuthenticated = false;
+  pageRouteSnapshot = null;
+  browserBlocked = {};
+  handlerServer = null;
+  reloadDiagnostic = null;
+  primaryFailure = null;
+  cleanupFailed = false;
+  cleanupFailureErrors = [];
+  projectCreated = false;
+  bindingCreated = false;
+  projectDeleted = false;
+  fixturePreflightPassed = false;
+  browserAdminLoginConfirmed = false;
+  ephemeralPassword = null;
+  vaultSecretSentinel = null;
+  actorAccessToken = null;
+  actorRefreshToken = null;
 
   await saveLedger(ledgerPath, ledger);
   try {
@@ -823,16 +863,60 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     handlerServer = await startHandlerServer(status, fixture, clickupSentinel);
     const appBaseUrl = testInfo.project.use.baseURL;
     if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
-    const appOrigin = new URL(appBaseUrl).origin;
+    appOrigin = new URL(appBaseUrl).origin;
+    await saveLedger(ledgerPath, ledger);
+  } catch (error) {
+    primaryFailure = error;
+    recordS21PrimaryFailure(ledger, error, {
+      stage: journeyStage,
+      secretValues: [status.DB_URL, serviceKey, anonKey, ephemeralPassword, vaultSecretSentinel]
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      includeDetails: false,
+    });
+    try {
+      await saveLedger(ledgerPath, ledger);
+    } catch {
+      // Preserve the fixture/setup failure when private evidence storage is unavailable.
+    }
+    throw error;
+  }
+});
+
+test.beforeEach(async ({ page }) => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  if (!handlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+  try {
     const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
     pageRouteSnapshot = routeGuard.snapshot;
     browserBlocked = routeGuard.blocked;
+  } catch (error) {
+    primaryFailure = error;
+    recordS21PrimaryFailure(ledger, error, {
+      stage: 'browser-route-guard',
+      secretValues: [serviceKey, anonKey, ephemeralPassword, vaultSecretSentinel, actorAccessToken, actorRefreshToken]
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      includeDetails: false,
+    });
+    try {
+      await saveLedger(ledgerPath, ledger);
+    } catch {
+      // Preserve the route setup failure when private evidence storage is unavailable.
+    }
+    throw error;
+  }
+});
 
+test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial source, and sees the persisted link after reload', async ({ page }) => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  try {
+    const activeHandlerServer = handlerServer;
+    if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
     setJourneyStage('admin-login-page-load');
     await page.goto('/login');
     setJourneyStage('admin-login-email-entry');
     await page.getByLabel(/email/i).fill(fixture.email);
     setJourneyStage('admin-login-password-entry');
+    if (!ephemeralPassword) throw safeFailure('S21_FIXTURE_PASSWORD_UNAVAILABLE');
     await page.getByLabel(/password/i).fill(ephemeralPassword);
     setJourneyStage('admin-login-submit');
     await page.getByRole('button', { name: /sign in/i }).click();
@@ -941,7 +1025,7 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     ledger.browserBlockedByReason = { ...browserBlocked };
     if (Object.keys(browserBlocked).length > 0) throw safeFailure('S21_BROWSER_OUTBOUND_BLOCKED');
     ledger.steps.projectBinding = 'verified-after-reload';
-    ledger.transportSummary = handlerServer.summary();
+    ledger.transportSummary = activeHandlerServer.summary();
     await saveLedger(ledgerPath, ledger);
   } catch (error) {
     const secretValues = [
@@ -953,12 +1037,12 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
       actorAccessToken,
       actorRefreshToken,
     ].filter((value): value is string => typeof value === 'string' && value.length > 0);
-    const code = recordS21PrimaryFailure(ledger, error, {
+    recordS21PrimaryFailure(ledger, error, {
       stage: journeyStage,
       secretValues,
       includeDetails: browserAdminLoginConfirmed,
     });
-    primaryFailure = safeFailure(code);
+    primaryFailure = error;
     if (browserAdminLoginConfirmed) {
       try {
         const reloadFailure = journeyStage === 'reload-linked-task-route' || journeyStage.startsWith('reloaded-');
@@ -977,19 +1061,25 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
       }
     }
     ledger.journeyStage = 'cleanup';
+    try {
+      await saveLedger(ledgerPath, ledger);
+    } catch {
+      // The original journey failure remains authoritative if diagnostics cannot be saved.
+    }
+    throw error;
   }
 
+});
+
+
+async function stopAndVerifyOwnedHandler(server: HandlerServer): Promise<void> {
+  const failureStart = cleanupFailureErrors.length;
   try {
-    await page.close();
-  } catch {
-    // Page may already be closed by the browser after a failed request.
-  }
-  try {
-    ledger.transportSummary = await stopHandlerServer(handlerServer);
+    ledger.transportSummary = await stopHandlerServer(server);
   } catch {
     markCleanupFailure('handler-stop');
   }
-  if (handlerServer) {
+  {
     try {
       const measured = validateS21TransportSummary(ledger.transportSummary, { requireLink: primaryFailure === null });
       const browserSnapshot = pageRouteSnapshot?.();
@@ -1014,8 +1104,14 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     markCleanupFailure('write-ahead-ledger');
   }
 
-  if (!fixturePreflightPassed) markCleanupFailure('fixture-preflight');
 
+  if (cleanupFailureErrors.length > failureStart) {
+    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned handler cleanup failed');
+  }
+}
+
+async function cleanupOwnedFixtureRows(): Promise<void> {
+  const failureStart = cleanupFailureErrors.length;
   try {
       if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
       const binding = await projectBindingReadback(initialAdmin, fixture);
@@ -1117,7 +1213,19 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     }
   }
   await actorClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
+  if (cleanupFailureErrors.length > failureStart) {
+    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned fixture row cleanup failed');
+  }
+}
 
-  if (cleanupFailed) throw safeFailure('S21_CLEANUP_OR_RETENTION_PROOF_FAILED');
-  if (primaryFailure) throw safeFailure(primaryFailure.message);
+test.afterAll(async () => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  if (!ledger) return;
+  await runS21FixtureCleanup({
+    preflightPassed: fixturePreflightPassed,
+    ownedServer: handlerServer,
+    primaryFailure,
+    stopOwnedServer: (server) => stopAndVerifyOwnedHandler(server as HandlerServer),
+    cleanupOwnedRows: cleanupOwnedFixtureRows,
+  });
 });
