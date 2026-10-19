@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
@@ -197,6 +197,30 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
+function defaultColumnSize<Row>(column: Column<Row>): number {
+  if (column.size) return column.size;
+  const key = `${column.key} ${typeof column.header === 'string' ? column.header : ''}`.toLowerCase();
+  if (/status|state|phase/.test(key)) return 112;
+  if (/date|updated|created|due/.test(key)) return 144;
+  if (/action|menu/.test(key)) return 48;
+  if (column.align === 'num' || /amount|budget|contract|actual|value|cost|total|percent|progress/.test(key)) return 128;
+  if (/project|name|title|company|customer/.test(key)) return 220;
+  return 168;
+}
+
+function readColumnSizing(tableId: string | undefined): Record<string, number> {
+  if (!tableId || typeof window === 'undefined') return {};
+  try {
+    const saved = window.localStorage.getItem(`pmo:datatable:${tableId}:columnSizing`);
+    if (!saved) return {};
+    const value: unknown = JSON.parse(saved);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([, width]) => typeof width === 'number' && Number.isFinite(width)));
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
  * when projecting a column into the card branch. Cards have vertical room that the
@@ -258,6 +282,7 @@ export function DataTable<Row>({
   tableId,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId));
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -271,21 +296,42 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
-  const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => ({
-    id: column.key,
-    accessorFn: (row) => row,
-    enableSorting: Boolean(column.sortKey),
-    header: column.header,
-    cell: ({ row }) => column.cell(row.original),
-  })), [columns]);
+  const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
+    const defaultSize = defaultColumnSize(column);
+    return {
+      id: column.key,
+      accessorFn: (row) => row,
+      enableSorting: Boolean(column.sortKey),
+      header: () => column.header,
+      size: defaultSize,
+      minSize: column.minSize ?? (column.align === 'num' ? 84 : 96),
+      maxSize: column.maxSize ?? Math.max(defaultSize * 2, defaultSize + 160),
+    };
+  }), [columns]);
   const table = useReactTable({
     data: rows,
     columns: tableColumns,
     getRowId: (row, index) => rowKey(row) || String(index),
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
+    columnResizeMode: 'onChange',
+    enableColumnResizing: isDesktop,
     state: {
       sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
+      columnSizing,
+    },
+    onColumnSizingChange: (updater) => {
+      setColumnSizing((current) => {
+        const next = typeof updater === 'function' ? updater(current) : updater;
+        if (tableId && typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(`pmo:datatable:${tableId}:columnSizing`, JSON.stringify(next));
+          } catch {
+            // Storage is an enhancement; live resizing remains available when it is denied.
+          }
+        }
+        return next;
+      });
     },
   });
   const modelRows = table.getRowModel().rows;
@@ -330,7 +376,12 @@ export function DataTable<Row>({
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
         className="relative overflow-x-auto"
       >
-        <table ref={tableRef} aria-label={accessibleName} className="w-full border-collapse text-[13.5px]">
+        <table
+          ref={tableRef}
+          aria-label={accessibleName}
+          style={{ minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' }}
+          className="w-full border-collapse text-[13.5px]"
+        >
           <thead>
             <tr>
               {modelHeaders.map((header) => {
@@ -342,8 +393,11 @@ export function DataTable<Row>({
                   <th
                     key={header.id}
                     aria-sort={ariaSort}
+                    // ponytail: the resize handle is a named child; pin the header name so it is not announced as part of it.
+                    aria-label={typeof col.header === 'string' ? col.header : undefined}
+                    style={{ width: header.getSize(), minWidth: header.column.columnDef.minSize!, maxWidth: header.column.columnDef.maxSize! }}
                     className={cn(
-                      'sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
                       alignClass(col.align),
                       col.colClassName
                     )}
@@ -359,6 +413,37 @@ export function DataTable<Row>({
                       </button>
                     ) : (
                       col.header
+                    )}
+                    {isDesktop && (
+                      <div
+                        role="separator"
+                        title={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                        aria-orientation="vertical"
+                        aria-valuenow={header.getSize()}
+                        aria-valuemin={header.column.columnDef.minSize}
+                        aria-valuemax={header.column.columnDef.maxSize}
+                        tabIndex={0}
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        onDoubleClick={() => header.column.resetSize()}
+                        onKeyDown={(event) => {
+                          const current = header.getSize();
+                          const min = header.column.columnDef.minSize!;
+                          const max = header.column.columnDef.maxSize!;
+                          let next: number | undefined;
+                          if (event.key === 'ArrowLeft') next = current - 16;
+                          if (event.key === 'ArrowRight') next = current + 16;
+                          if (event.key === 'Home') next = min;
+                          if (event.key === 'End') next = max;
+                          if (next !== undefined) {
+                            event.preventDefault();
+                            table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                          }
+                        }}
+                        className="absolute right-0 top-0 z-[4] h-full w-6 cursor-col-resize opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring group-hover:opacity-100"
+                      >
+                        <span aria-hidden className="pointer-events-none absolute inset-y-2 right-0 w-px bg-border" />
+                      </div>
                     )}
                   </th>
                 );
@@ -428,6 +513,7 @@ export function DataTable<Row>({
                       return (
                         <td
                           key={col.key}
+                          style={{ width: cell.column.getSize(), minWidth: cell.column.columnDef.minSize!, maxWidth: cell.column.columnDef.maxSize! }}
                           className={cn(
                             'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
                             alignClass(col.align),
@@ -447,10 +533,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              {col.cell(row)}
                             </button>
                           ) : (
-                            flexRender(cell.column.columnDef.cell, cell.getContext())
+                            col.cell(row)
                           )}
                         </td>
                       );

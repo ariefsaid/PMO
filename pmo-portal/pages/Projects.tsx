@@ -420,6 +420,9 @@ const Projects: React.FC = () => {
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
+      size: 244,
+      minSize: 190,
+      maxSize: 420,
       colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
       exportValue: (p) => p.name,
       cell: (p) => {
@@ -1264,6 +1267,7 @@ const Projects: React.FC = () => {
             rows={filtered}
             columns={visibleColumns}
             rowKey={(p) => p.id}
+            tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
             state={filtered.length === 0 ? 'empty' : undefined}
