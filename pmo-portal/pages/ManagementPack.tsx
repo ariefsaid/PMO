@@ -10,6 +10,7 @@ import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
+import { ManagementPositionSection } from '@/src/components/reports/ManagementPositionSection';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
@@ -303,6 +304,7 @@ const ManagementPack: React.FC = () => {
 
       {pack && state === undefined && (
         <>
+          <ManagementPositionSection pack={pack} />
           <h2 className="mb-2 text-[15px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>

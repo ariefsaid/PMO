@@ -12,12 +12,23 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   userId: 'u-fin',
   query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
+  position: {
+    identityReady: true,
+    rows: [{
+      projectId: 'p1', projectName: 'Alpha', projectNumber: null,
+      actual: { state: 'known', amount: '75.00', currency: 'IDR', asOf: '2026-10-18T08:00:00Z', basis: 'pmo', complete: true, categories: [], excludesRestrictedRows: false },
+    }],
+    pageIndex: 0, pageCount: 1, expandedProjectId: null, detail: null,
+    actualState: 'known', projectState: 'not-requested', financeState: 'not-requested', collectionsState: 'not-requested',
+    retryActual: vi.fn(), retryProject: vi.fn(), retryFinances: vi.fn(), retryCollections: vi.fn(),
+  } as unknown,
   exportTable: vi.fn(),
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => h.query,
+  useManagementPosition: () => h.position,
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
@@ -132,6 +143,19 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     expect(screen.getByText('Cumulative amounts · since project start through Apr 26')).toBeInTheDocument();
     expect(screen.getByText('Monthly figures · selected period Mar 26–Apr 26')).toBeInTheDocument();
+  });
+
+  it('AC-S35-005/007: current source position stays separate from the selected-period pack and its table remains intact', () => {
+    renderPage();
+    const positionHeading = screen.getByRole('heading', { name: 'Current project position' });
+    const periodHeading = screen.getByRole('heading', { name: 'Projects as at Apr 26' });
+    expect(positionHeading.compareDocumentPosition(periodHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Latest recorded position; separate from selected-period revenue.')).toBeInTheDocument();
+    expect(within(positionHeading.closest('section')!).getByText((_content, element) =>
+      element !== null && element.classList.contains('tabular-nums') && (element.textContent ?? '').includes('75.00'),
+    )).toBeInTheDocument();
+    expect(within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
   });
 
   it('RF-036: labels contract-currency backlog and subtotal unavailable pending reconciliation', () => {
