@@ -54,6 +54,12 @@ export type Margin =
   | { amount: ExactMoney; reason: null }
   | { amount: null; reason: 'different-currencies' | 'work-unavailable' | 'actuals-unavailable' | 'restricted-rows' };
 
+export type CanonicalMarginCoverage = {
+  basis: ActualPosition['basis'];
+  readSucceeded: boolean;
+  complete: boolean;
+};
+
 export type ActualPosition = {
   amount: ExactMoney | null;
   currency: string | null;
@@ -303,12 +309,24 @@ export function parseProjectReceiptCash(value: unknown): ProjectReceiptCash {
   return unavailableCash('invalid-reading');
 }
 
-export function deriveMargin(bucket: InvoiceFinanceBucket, actuals: ProjectFinances['actuals']): Margin {
+export function deriveMargin(
+  bucket: InvoiceFinanceBucket,
+  actuals: ProjectFinances['actuals'],
+  coverage?: CanonicalMarginCoverage,
+): Margin {
   if (actuals.currency && bucket.currency !== actuals.currency) return { amount: null, reason: 'different-currencies' };
   if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
   const revenue = moneyUnits(bucket.work_revenue);
   if (revenue === null || bucket.missing_work > 0) return { amount: null, reason: 'work-unavailable' };
-  if (!hasCompleteActuals(actuals)) return { amount: null, reason: 'actuals-unavailable' };
+  const actualsComplete = coverage
+    ? coverage.complete && isActualComplete({
+      basis: coverage.basis,
+      readSucceeded: coverage.readSucceeded,
+      complete: coverage.complete,
+      actuals,
+    })
+    : hasCompleteActuals(actuals);
+  if (!actualsComplete) return { amount: null, reason: 'actuals-unavailable' };
   const cost = moneyUnits(actuals.total);
   if (cost === null || !actuals.currency) return { amount: null, reason: 'actuals-unavailable' };
   return { amount: moneyText(revenue - cost), reason: null };
