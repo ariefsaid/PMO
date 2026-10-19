@@ -7,6 +7,9 @@
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
+**Dev gate:** browser run 39180678334 at `00e067cf` is red on two task-link journeys.
+New code merges are paused for regression #1182; keep prepared slices on their branches.
+No timeout increase or goal-oracle change is authorized.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -79,9 +82,10 @@ Changed-line coverage specificity (#1125) merged in PR #1178 (`519c22d7`): all f
 28 focused tests passed; the original broad-hit implementation fails the regression controls.
 All three exact-tip cleanups were verified. The completed dev browser run at `0c299358` passed
 384 browser and 12 served-function checks, with 67 justified skips, four timing warnings tracked
-in #1106 and no timing failures. A new dev browser run covers the two later code merges.
+in #1106 and no timing failures. That later dev run is the red gate recorded above; its traces and screenshots are retained for #1182.
 Customer collections (#1172 / S-36) is in PR #1181: its final 4,338-test changed-import run and
-real Finance journey passed; fast CI and the billing-lane closing integration remain pending.
+real Finance journey passed; fast CI remains pending. Its closing browser run was stopped after
+confirming it contained the same failing task-link source; rerun only after the dependency is corrected.
 S-35 remains last, after customer collections lands.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
@@ -191,8 +195,8 @@ Start in parallel with fresh workers and separate worktrees. Keep this scope sep
 v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
 
-Current branches: account-refresh feedback (#1145) is reviewed in draft PR #1179, with CI pending
-and its dev merge held. Dispatch classification (#1103) is in tooling PR #1180; CI and the separate
+Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
+its dev merge stays held. Dispatch classification (#1103) is in tooling PR #1180; CI and the separate
 private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
 verification; the editor observation (#1108) is in bounded diagnosis.
 
