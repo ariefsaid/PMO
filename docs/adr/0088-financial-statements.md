@@ -6,7 +6,7 @@
 > remains parked for later PMO-side accounting; see the amended spec and implementation plan.
 
 
-> **Cadence amendment (owner, 2026-10-19):** OD-ERP-023 supersedes the historical five-minute assumption below. The whole ERPNext sweep is hourly at minute seven, including initial statement backfill.
+> **Cadence amendment (owner, 2026-10-19 15:45 WIB):** OD-ERP-023 keeps the five-minute trigger. The whole sweep runs during UTC minutes 0–4 or while any active binding lacks its first statement publication; other ticks are a no-op. This supersedes the historical five-minute full-refresh assumption below.
 
 **Date:** 2026-10-16 · **Status:** Proposed (revised implementation plan for #897; Director simplification decision)
 

@@ -222,7 +222,7 @@ operator work (outcomes, budget account map, budget activation by a second perso
 7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
 8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
-Owner cadence decision (2026-10-19): v0.23.0 ERPNext reconciliation is hourly at minute seven; initial statement backfill may take about thirteen hours. Immediate dispatch stays immediate; ClickUp cadence is unchanged. The reversible schedule update belongs in the release fix bundle (OD-ERP-023).
+Final owner cadence decision (2026-10-19 15:45 WIB): retain five-minute cron, but run the whole ERPNext sweep only during UTC minutes 0–4 or while any active binding lacks its first statement publication. Initial backfill keeps five-minute progress (~one hour); later refreshes are hourly. Other ticks are a no-op. Immediate dispatch and ClickUp cadence are unchanged. The handler gate belongs in the release fix bundle (OD-ERP-023); no schedule migration.
 
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 
