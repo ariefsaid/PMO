@@ -46,8 +46,10 @@ function runSelfTest() {
   const base = ['old'];
   if (checkCatalogues({ ...clean, baseline: base, allowlist: [] }).length) throw new Error('clean self-test fixture was rejected');
   if (!checkCatalogues({ ...clean, en: { ...clean.en, feature: { title: 'Title', extra: 'Extra' } }, baseline: base, allowlist: [] }).some((error) => error.includes('parity'))) throw new Error('namespace parity defect was not detected');
+  if (!checkCatalogues({ ...clean, id: { common: clean.id.common }, baseline: base, allowlist: [] }).some((error) => error.includes('must exist in both'))) throw new Error('namespace missing from one locale was not detected');
   if (!checkCatalogues({ ...clean, en: { ...clean.en, common: { old: 'old', added: 'New' } }, baseline: base, allowlist: [] }).some((error) => error.includes('new common key'))) throw new Error('common-key policy defect was not detected');
   if (checkCatalogues({ ...clean, en: { ...clean.en, common: { old: 'old', added: 'New' } }, id: { ...clean.id, common: { old: 'lama', added: 'Baru' } }, baseline: base, allowlist: ['added'] }).length) throw new Error('allowlisted common key was rejected');
+  if (!checkCatalogues({ ...clean, baseline: base, allowlist: ['not-added'] }).some((error) => error.includes('stale common-key allowlist'))) throw new Error('stale common-key allowlist was not detected');
   console.log('i18n namespace guard self-test passed');
 }
 

@@ -80,7 +80,45 @@ describe('FR-L10N-041 / AC-L10N-040: a missing key never renders as a raw key', 
 });
 
 describe('feature namespaces', () => {
+  it('AC-1070-002: loads an unlisted namespace through the shipped backend in EN and ID', async () => {
+    const { createInstance } = await import('i18next');
+    const { initReactI18next, I18nextProvider, useTranslation } = await import('react-i18next');
+    const { render, screen, waitFor } = await import('@testing-library/react');
+    const React = await import('react');
+    const runtimeFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const catalogues: Record<string, object> = {
+        '/locales/en/common.json': { shared: 'Shared English' },
+        '/locales/en/runtimeFeature.json': { title: 'English feature' },
+        '/locales/id/common.json': { shared: 'Bersama' },
+        '/locales/id/runtimeFeature.json': { title: 'Fitur Indonesia' },
+      };
+      return { ok: Boolean(catalogues[url]), json: () => Promise.resolve(catalogues[url] ?? {}) };
+    });
+    vi.stubGlobal('fetch', runtimeFetch);
+    const instance = createInstance();
+    await instance.use(catalogueBackend).use(initReactI18next).init({
+      lng: 'en', fallbackLng: 'en', fallbackNS: 'common', defaultNS: 'common',
+      ns: ['common'], partialBundledLanguages: true,
+      react: { useSuspense: false },
+    });
+    const Feature = () => {
+      const { t } = useTranslation('runtimeFeature');
+      return React.createElement('p', null, `${t('title')} / ${t('shared')}`);
+    };
+    const view = render(React.createElement(I18nextProvider, { i18n: instance }, React.createElement(Feature)));
+    await waitFor(() => expect(screen.getByText('English feature / Shared English')).toBeInTheDocument());
+    await instance.changeLanguage('id');
+    view.rerender(React.createElement(I18nextProvider, { i18n: instance }, React.createElement(Feature)));
+    await waitFor(() => expect(screen.getByText('Fitur Indonesia / Bersama')).toBeInTheDocument());
+    expect(runtimeFetch).toHaveBeenCalledWith('/locales/en/runtimeFeature.json');
+    expect(runtimeFetch).toHaveBeenCalledWith('/locales/id/runtimeFeature.json');
+    view.unmount();
+  });
+
   it('AC-1070-001: resolves feature keys in English and Indonesian with common fallback', async () => {
+    const { cleanup } = await import('@testing-library/react');
+    cleanup();
     const { createInstance } = await import('i18next');
     const { initReactI18next, I18nextProvider, useTranslation } = await import('react-i18next');
     const { render, screen } = await import('@testing-library/react');
