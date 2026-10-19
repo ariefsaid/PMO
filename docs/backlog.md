@@ -14,8 +14,11 @@ cases and 12 served-function checks, with zero timing warnings or failures and 6
 After two further tooling merges, dev run 39194552556 at `c13d2e9d` failed: Chromium
 completed 360 passing cases, one timeout and 13 skips; later integration stages did not run.
 S-21 timed out, and the confirm and project-billing journeys exceeded the timing budget.
-Recovery #1186 is active; unrelated code merges are held until the dev browser gate is green.
-Existing timeouts and goal oracles are retained.
+Recovery #1186 is open in PR #1189 (`135a8b98`): inactive project panels now load on demand.
+All six fast checks passed (39201808400; 1,218 unit files, 6,733 database checks and 100%
+changed-line coverage). The unchanged task-link and billing journeys passed locally in 9.2s
+and 7.6s within their existing 30s limits. Full browser integration 39201829613 remains active;
+unrelated code merges stay held until the dev browser gate is green. Goal oracles are retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -217,6 +220,9 @@ in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests cove
 boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
 closed on the complete dev timing proof above; the editor observation (#1108) remains in diagnosis.
 Any resulting editor product change stays held with the other v0.24.0 app changes.
+The approval-tile and sales-invoice Bahasa item (#1011) is closed as already shipped in
+PR #1021 (`4e3ed641`), included in v0.22.0; its translated visible/help labels and shared noun
+are covered by the shipped-catalogue tests.
 
 **May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners (#1188);
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
