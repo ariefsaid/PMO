@@ -19,8 +19,10 @@ and the task-link proof is split at its existing saved-row readback. Both ordere
 normal sign-in, every goal oracle and the original 30s limits. They pass locally in 9.353s and
 9.405s, with protected fixtures unchanged. All six fast checks passed (39208360962); closing
 browser run 39208421135 passed all 399 executed cases and 12 served-function checks, with
-67 justified skips, six timing warnings and no timing failures. The new dev browser gate
-39212501320 at `7dadb1d7` is active. Unrelated code merges remain held until that dev gate is green.
+67 justified skips, six timing warnings and no timing failures. The dev browser gate
+39212501320 at `7dadb1d7` passed all 399 cases and 12 served-function checks, with
+67 justified skips, four timing warnings and no timing failures. After the next two engineering
+merges, dev run 39216806168 at `f083b634` is active. A red dev result stops unrelated merges.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -101,12 +103,14 @@ also passed. Exact-tip and changed-file adoption cleanup was verified.
 The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
 All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
 the complete dev timing proof above closes #1106. Verified publication-worktree cleanup is complete.
-S-35's read-only company view is open against dev in PR #1187 (`1ad4302f`). The accepted
-project-cost and billed-work margin helpers are integrated; review, the 4,477-test changed-import
-gate, 95.4% changed-line coverage and all eight final geometry/accessibility cases passed.
-All six fast CI checks passed (39200000107). Closing browser integration is held for the
-task-list recovery (#1186); the premature dispatch (39201229559) was cancelled because it still
-contained the known affected route. This slice is not yet merged.
+S-35's read-only company view is open against dev in PR #1187 (`15782db2`), including
+the task-list recovery without changing its thirteen reviewed source files. The accepted project-cost
+and billed-work margin helpers are integrated; review, the 4,477-test changed-import gate,
+95.4% changed-line coverage and eight final geometry/accessibility cases passed. Refreshed fast
+CI passed all six checks (39212911722). The first refreshed browser run failed during database
+restart before any browser case; the evidence is retained in #1196. The new logged closing run
+39215200546 is active. This slice is not yet merged. Both whole-release reviews have started
+against dev `f083b634`; later changes require delta reviews.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -216,10 +220,12 @@ v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on share
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
 
 Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
-its dev merge stays held. Durable browser-dispatch reservations (#1133) are reviewed in
-PR #1190 (`a0de3076`), with all six fast checks green; its merge waits for dev recovery.
-Browser inventory and reporter adapters (#1188) are reviewed in PR #1192 (`b9f79a2e`);
-fast CI is active. Runner fanout remains a separate capacity decision. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
+its dev merge stays held. Durable browser-dispatch reservations (#1133) merged in
+PR #1190 (`8089acff`), and browser inventory/reporter adapters (#1188) merged in
+PR #1192 (`f083b634`), both with all six fast checks green and verified cleanup.
+The remaining sharding implementation is checkpointed for release-review capacity; runner fanout
+remains a separate capacity decision. The static locale guard (#1069) is reviewed with all fast
+checks green in draft PR #1195; its dev merge stays held. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
 with all six fast checks green and the private adapter adopted. Verified cleanup (#1113) merged
 in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests covering 43 failure
 boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
