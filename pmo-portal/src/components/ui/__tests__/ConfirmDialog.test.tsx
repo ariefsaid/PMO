@@ -465,6 +465,52 @@ describe('AC-A11Y-MODAL-001: ConfirmDialog makes the app shell inert while open'
     expect(shell).not.toHaveAttribute('inert');
   });
 
+  it('LIB-001: Escape closes only a nested confirm and returns focus inside the legacy form', async () => {
+    const NestedConfirm = () => {
+      const [confirmOpen, setConfirmOpen] = React.useState(false);
+      const [formOpen, setFormOpen] = React.useState(true);
+      return (
+        <>
+          <EntityFormModal
+            open={formOpen}
+            title="Edit deal"
+            submitLabel="Save"
+            onSubmit={(e) => e.preventDefault()}
+            onClose={() => setFormOpen(false)}
+          >
+            <input aria-label="Deal name" />
+            <button type="button" onClick={() => setConfirmOpen(true)}>
+              Delete deal
+            </button>
+          </EntityFormModal>
+          <ConfirmDialog
+            {...baseProps}
+            open={confirmOpen}
+            title="Delete deal"
+            tone="destructive"
+            onCancel={() => setConfirmOpen(false)}
+          />
+        </>
+      );
+    };
+
+    render(<NestedConfirm />);
+    const formField = screen.getByRole('textbox', { name: 'Deal name' });
+    const opener = screen.getByRole('button', { name: 'Delete deal' });
+    opener.focus();
+    await userEvent.click(opener);
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Mark lost' })).toHaveLength(1);
+
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit deal' })).toBeInTheDocument();
+    expect(formField).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete deal' })).toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
   it('AC-A11Y-MODAL-001: a confirm stacked on an open EntityFormModal leaves the form background inert after it closes', () => {
     const form = render(
       <EntityFormModal
