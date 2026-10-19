@@ -10,7 +10,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -122,8 +122,8 @@ vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: (
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
-const renderAs = (realRole: Role, path: string) =>
-  render(
+const renderAs = async (realRole: Role, path: string) => {
+  const view = render(
     <ImpersonationProvider realRole={realRole}>
       <ToastProvider>
         <MemoryRouter initialEntries={[path]}>
@@ -135,20 +135,23 @@ const renderAs = (realRole: Role, path: string) =>
       </ToastProvider>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W5-C3-A)', () => {
   // ── CW-7: Engineer now ALSO defaults to Overview — the URL is role-invariant ──
 
-  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-01): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', () => {
-    renderAs('Engineer', '/projects/p1');
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-01): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', async () => {
+    await renderAs('Engineer', '/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview tab item is aria-selected=true for Engineer (no tab param)', () => {
-    renderAs('Engineer', '/projects/p1');
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview tab item is aria-selected=true for Engineer (no tab param)', async () => {
+    await renderAs('Engineer', '/projects/p1');
     const tablist = screen.getByRole('tablist', { name: /project sections/i });
     const overviewTab = Array.from(tablist.querySelectorAll('[role="tab"]')).find(
       (t) => t.textContent === 'Overview',
@@ -159,53 +162,53 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
 
   // ── All other roles ALSO default to Overview (unchanged) ───────────────────
 
-  it('AC-IXD-PROJ-W5-C3-A-03: Project Manager opening /projects/:id (no tab) lands on Overview', () => {
-    renderAs('Project Manager', '/projects/p1');
+  it('AC-IXD-PROJ-W5-C3-A-03: Project Manager opening /projects/:id (no tab) lands on Overview', async () => {
+    await renderAs('Project Manager', '/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-04: Executive opening /projects/:id (no tab) lands on Overview', () => {
-    renderAs('Executive', '/projects/p1');
+  it('AC-IXD-PROJ-W5-C3-A-04: Executive opening /projects/:id (no tab) lands on Overview', async () => {
+    await renderAs('Executive', '/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-05: Finance opening /projects/:id (no tab) lands on Overview', () => {
-    renderAs('Finance', '/projects/p1');
+  it('AC-IXD-PROJ-W5-C3-A-05: Finance opening /projects/:id (no tab) lands on Overview', async () => {
+    await renderAs('Finance', '/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-06: Admin opening /projects/:id (no tab) lands on Overview', () => {
-    renderAs('Admin', '/projects/p1');
+  it('AC-IXD-PROJ-W5-C3-A-06: Admin opening /projects/:id (no tab) lands on Overview', async () => {
+    await renderAs('Admin', '/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
   // ── Deep-link always wins regardless of role ──────────────────────────────
 
-  it('AC-IXD-PROJ-W5-C3-A-07: Engineer with explicit /projects/:id/budget deep-link opens Budget (deep-link wins over role default)', () => {
-    renderAs('Engineer', '/projects/p1/budget');
+  it('AC-IXD-PROJ-W5-C3-A-07: Engineer with explicit /projects/:id/budget deep-link opens Budget (deep-link wins over role default)', async () => {
+    await renderAs('Engineer', '/projects/p1/budget');
     expect(screen.getByTestId('tab-budget')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-08: Project Manager with explicit /projects/:id/tasks deep-link opens Tasks', () => {
-    renderAs('Project Manager', '/projects/p1/tasks');
+  it('AC-IXD-PROJ-W5-C3-A-08: Project Manager with explicit /projects/:id/tasks deep-link opens Tasks', async () => {
+    await renderAs('Project Manager', '/projects/p1/tasks');
     expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-09: Engineer with explicit /projects/:id/overview deep-link opens Overview', () => {
-    renderAs('Engineer', '/projects/p1/overview');
+  it('AC-IXD-PROJ-W5-C3-A-09: Engineer with explicit /projects/:id/overview deep-link opens Overview', async () => {
+    await renderAs('Engineer', '/projects/p1/overview');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-A-10: Finance with explicit /projects/:id/procurement deep-link opens Procurement', () => {
-    renderAs('Finance', '/projects/p1/procurement');
+  it('AC-IXD-PROJ-W5-C3-A-10: Finance with explicit /projects/:id/procurement deep-link opens Procurement', async () => {
+    await renderAs('Finance', '/projects/p1/procurement');
     expect(screen.getByTestId('tab-procurement')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
   });
