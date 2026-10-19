@@ -9,8 +9,10 @@
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.
-The merge hold is lifted. The required next dev run after two slice merges is 39190951947 at
-`48a3a62b`; it is running. Existing timeouts and goal oracles are retained.
+The merge hold is lifted. The next dev run, 39190951947 at `48a3a62b`, passed 398 browser
+cases and 12 served-function checks, with zero timing warnings or failures and 67 justified skips.
+After two further tooling merges, dev run 39194552556 at `c13d2e9d` is running.
+Existing timeouts and goal oracles are retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -90,10 +92,11 @@ timing warnings or failures. The final 4,338-test changed-import run and real Fi
 also passed. Exact-tip and changed-file adoption cleanup was verified.
 The UIP-005 timing split (#1106) merged in PR #1184 (`48a3a62b`), with all six fast checks green.
 All 23 local cases passed; the slowest took 19.2 seconds. Assertions and timeouts are retained;
-the remaining timing follow-ups stay tracked in #1106. Verified publication-worktree cleanup is complete.
+the complete dev timing proof above closes #1106. Verified publication-worktree cleanup is complete.
 S-35's read-only company view is built on these merged dependencies. Focused tests, coverage,
-phone/desktop geometry and rendered discovery passed. The margin-source decision, final gate
-and formal review remain open; this is not yet a completed slice.
+phone/desktop geometry and rendered discovery passed. The owner accepted the existing project-cost
+and billed-work margin helpers; that integration, the final gate and formal review remain open.
+This is not yet a completed slice.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -203,8 +206,12 @@ v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on share
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
 
 Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
-its dev merge stays held. Dispatch classification (#1103) is in tooling PR #1180 with all six fast checks green; its dev merge and separate private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
-verification; the editor observation (#1108) is in bounded diagnosis.
+its dev merge stays held. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
+with all six fast checks green and the private adapter adopted. Verified cleanup (#1113) merged
+in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests covering 43 failure
+boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
+closed on the complete dev timing proof above; the editor observation (#1108) remains in diagnosis.
+Any resulting editor product change stays held with the other v0.24.0 app changes.
 
 **May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
