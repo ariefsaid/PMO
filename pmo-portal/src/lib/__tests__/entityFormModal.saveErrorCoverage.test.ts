@@ -25,8 +25,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
  * A reason is mandatory — "not done yet" is not one.
  */
 const EXEMPT: Record<string, string> = {
-  'src/components/projects/ProjectIntegrationsCard.tsx':
-    'Already surfaces a rejected save persistently in the dialog via errorSummary + FieldError, anchored to the field it concerns. Adding submitError would render the same failure twice.',
   'src/components/integrations/IntegrationsView.tsx':
     'Same as ProjectIntegrationsCard — connectError/setCompanyError already drive a persistent in-dialog errorSummary.',
   'src/components/NewRevisionModal.tsx':
