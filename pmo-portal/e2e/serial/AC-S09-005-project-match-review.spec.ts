@@ -118,7 +118,7 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(`${projectName}: No current ERP Project → ${erpProject}`);
     await dialog.getByRole('button', { name: 'Confirm links' }).click();
-    await expect(review.getByText('1 links saved; 0 need attention.')).toBeVisible({ timeout: 60_000 });
+    await expect(review.getByText('1 link saved.')).toBeVisible({ timeout: 60_000 });
 
     // -- Then: after a hard reload the queue no longer proposes the project ... --
     await page.reload();
