@@ -413,7 +413,7 @@ function run() {
     );
     if (deleteLocalHead !== expectedHead) fail(stage, "local branch changed before deletion");
     attemptedMutations.push(stage);
-    runGit(["branch", "-D", "--", branch], { cwd: repoRoot, stage });
+    runGit(["update-ref", "-d", branchRef, expectedHead], { cwd: repoRoot, stage });
     completed.push("local branch deletion");
 
     stage = "local branch deletion verification";
@@ -450,7 +450,10 @@ function run() {
 
       stage = "remote branch deletion";
       attemptedMutations.push(stage);
-      runGit(["push", "origin", "--delete", branchRef], { cwd: repoRoot, stage });
+      runGit(
+        ["push", "--force-with-lease=" + branchRef + ":" + expectedHead, "origin", ":" + branchRef],
+        { cwd: repoRoot, stage },
+      );
       completed.push("remote branch deletion");
     }
 
