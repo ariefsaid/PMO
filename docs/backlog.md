@@ -218,7 +218,7 @@ boundaries, verified worktree cleanup and private wrapper adoption. Timing headr
 closed on the complete dev timing proof above; the editor observation (#1108) remains in diagnosis.
 Any resulting editor product change stays held with the other v0.24.0 app changes.
 
-**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
+**May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners (#1188);
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
 Required checks `verify` and `integration` must still cover every test, and a failed shard must
 fail its required check. No silent skips or weaker test oracles. The pinned Deno 2.7.11 browser-job
