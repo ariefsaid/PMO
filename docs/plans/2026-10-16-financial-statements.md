@@ -10,6 +10,10 @@ on existing org sweep/lease → one complete snapshot publisher → invoker read
 ERPNext owns every financial calculation; PMO normalizes structure/lexical numeric representation.
 **Tech:** existing TypeScript/Deno/React/Supabase/pgTAP/Vitest/Playwright; no new numeric/ERP framework.
 
+## Owner cadence amendment — OD-ERP-023 (2026-10-19 15:45 WIB)
+
+Keep the five-minute cron registration. Gate the actual whole-sweep handler after authentication and configuration: run during UTC minutes 0–4 or while any active ERPNext binding lacks its first published native generation; otherwise return a successful no-op before ERP calls or domain work. Match publication to the current binding identity. Test through the shipped handler with its real clock seam; keep the seven-second stage and five-second request bounds. No schedule migration or statement-only gate. Immediate dispatch and ClickUp remain unchanged. Initial backfill continues every tick, then routine refresh is hourly.
+
 ## Owner display and rehearsal corrections (2026-10-18)
 
 Remove System Settings resource, permission and singleton-load dependencies from native display;
