@@ -7,7 +7,7 @@
  * heading. The empty S-curve is not rendered at all for pre-win records.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -154,8 +154,8 @@ vi.mock('react-router', async (orig) => {
 
 // ── render helper ────────────────────────────────────────────────────────────
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
-const renderAt = (path: string) =>
-  render(
+const renderAt = async (path: string) => {
+  const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
@@ -166,6 +166,9 @@ const renderAt = (path: string) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 // ── tests ────────────────────────────────────────────────────────────────────
 describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above delivery planner and S-curve', () => {
@@ -177,8 +180,8 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', () => {
-    renderAt('/projects/opp1');
+  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
+    await renderAt('/projects/opp1');
 
     // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
     const projectJourney = screen.getByLabelText('Project stage journey');
@@ -200,15 +203,15 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', () => {
-    renderAt('/projects/opp1');
+  it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', async () => {
+    await renderAt('/projects/opp1');
 
     // The S-curve heading must not be present for a pre-win record
     expect(screen.queryByText('Progress curve')).toBeNull();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', () => {
-    renderAt('/projects/opp1');
+  it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {
+    await renderAt('/projects/opp1');
 
     // The sales action buttons from PipelineLens must be visible
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
@@ -216,9 +219,9 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', () => {
+  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', async () => {
     // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
-    renderAt('/projects/opp1');
+    await renderAt('/projects/opp1');
 
     // The full EmptyPlanningPrompt heading must NOT be visible on pre-win
     expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
