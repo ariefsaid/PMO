@@ -105,6 +105,12 @@ stderr, attachments, metadata, absolute paths, and response bodies. An unavailab
 be marked incomplete, never reported as a complete portfolio pass. Preserve human-readable CI
 output and ordinary-before-served execution order. The skip and timing gates remain independent.
 
+**Case expansion after #1106.** The eight original role/theme/viewport identities now expand to
+20 UIP-005 cases: the two PM/light identities each have seven independent tab journeys, and the
+other six identities remain unchanged. The original Tasks journey retains its overview, editing,
+and accessibility checks. Every original goal, the 120000ms timeout, the explicit 90000ms budget,
+and AC-TH-007 ownership remain in force for the expanded cases.
+
 **FR-008 — Wave-closing proof.** When a PR closes a wave/milestone, the release checklist shall
 require a completed green integration run covering the final changes before merge, recording
 the run URL and tested revision in release evidence. For PRs to `dev`, dispatch only through
