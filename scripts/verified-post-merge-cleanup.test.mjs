@@ -191,10 +191,10 @@ function createFixture(options = {}) {
   };
   return {
     tempRoot, root, worktreePath, statePath, env,
-    run(worktree = worktreePath, timeout = 10000) {
+    run(worktree = worktreePath) {
       return spawnSync(NODE, [
         SCRIPT, "--pr", "123", "--worktree", worktree, "--expected-head", HEAD, "--base", "dev",
-      ], { cwd: root, env, encoding: "utf8", timeout });
+      ], { cwd: root, env, encoding: "utf8", timeout: 10000 });
     },
     state() { return JSON.parse(readFileSync(statePath, "utf8")); },
     cleanup() { rmSync(tempRoot, { recursive: true, force: true }); },
@@ -369,7 +369,7 @@ test("AC-OPS-1113-2: a remote branch that advances after its final lookup is pre
   const newerRemoteHead = "e".repeat(40);
   const remote = createFixture({ advanceRemoteOidAfterRead: newerRemoteHead });
   t.after(() => remote.cleanup());
-  const remoteResult = remote.run(remote.worktreePath, 30000);
+  const remoteResult = remote.run(remote.worktreePath);
   const remoteState = remote.state();
   assert.notEqual(remoteResult.status, 0, remoteResult.stdout + remoteResult.stderr);
   assert.doesNotMatch(remoteResult.stdout, /VERIFIED CLEANUP COMPLETE/);

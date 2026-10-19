@@ -55,6 +55,7 @@ function response(body: unknown, status = 200): Response {
 
 function fixture(options: {
   opens?: Array<ReturnType<typeof batch>>;
+  openByStageCount?: RequestKey[];
   stageErrors?: number[];
   publishErrors?: number[];
   admissionError?: boolean;
@@ -62,6 +63,8 @@ function fixture(options: {
   contextFailure?: boolean;
   currencyFormatByMetadataRead?: string[];
   metadataDelayMs?: number;
+  contextDelayMs?: number;
+  openDelayMs?: number;
   reportFetch?: (request: Request, count: number) => Promise<Response> | Response;
 } = {}) {
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
@@ -72,6 +75,7 @@ function fixture(options: {
   let openCount = 0;
   let stageCount = 0;
   let publishCount = 0;
+  let stagedAtPublish: number | null = null;
   let metadataReads = 0;
   let activeErpRequests = 0;
   let maximumConcurrentErpRequests = 0;
@@ -98,6 +102,15 @@ function fixture(options: {
         });
       }
       if (path === '/api/method/frappe.utils.change_log.get_versions') {
+        if (options.contextDelayMs) {
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(resolve, options.contextDelayMs);
+            const signal = request.signal;
+            const onAbort = () => { clearTimeout(timer); reject(signal.reason ?? new DOMException('aborted', 'AbortError')); };
+            if (signal.aborted) onAbort();
+            else signal.addEventListener('abort', onAbort, { once: true });
+          });
+        }
         if (options.contextFailure) return response({ exc_type: 'Unavailable' }, 503);
         return response({ message: { erpnext: { version: PROFILE.erpVersion }, frappe: { version: PROFILE.frappeVersion } } });
       }
@@ -159,7 +172,10 @@ function fixture(options: {
         return { data: null, error: null };
       }
       if (name === 'open_erp_statement_report_batch') {
-        const result = openResults[Math.min(openCount, openResults.length - 1)]!;
+        if (options.openDelayMs) await new Promise((resolve) => setTimeout(resolve, options.openDelayMs));
+        const result = options.openByStageCount
+          ? batch(options.openByStageCount[stageCount] ?? null)
+          : openResults[Math.min(openCount, openResults.length - 1)]!;
         openCount += 1;
         return { data: structuredClone(result), error: null };
       }
@@ -172,6 +188,7 @@ function fixture(options: {
       if (name === 'publish_erp_financial_statements') {
         publishCount += 1;
         if (options.publishErrors?.includes(publishCount)) return { data: null, error: { code: 'XX002', message: 'sensitive publish error' } };
+        stagedAtPublish = stageCount;
         publishedSnapshot = SNAPSHOT;
         delayed = false;
         return { data: SNAPSHOT, error: null };
@@ -195,6 +212,7 @@ function fixture(options: {
   return {
     input, rpcCalls, nativeRequests, staged, events,
     counts: () => ({ openCount, stageCount, publishCount, metadataReads }),
+    stagedAtPublish: () => stagedAtPublish,
     maximumConcurrentErpRequests: () => maximumConcurrentErpRequests,
     delayed: () => delayed,
     publishedSnapshot: () => publishedSnapshot,
@@ -297,6 +315,119 @@ describe('refreshStatementReportBatch', () => {
     expect(JSON.stringify(log)).not.toContain('Synthetic Co');
     expect(JSON.stringify(log)).not.toContain('Synthetic Cash');
     expect(JSON.stringify(log)).not.toContain('synthetic-key');
+  });
+
+  it('AC-005: admits a cold first report using the remaining request allowance after two RPC reserves', async () => {
+    vi.useFakeTimers();
+    let reportStartedAt: number | null = null;
+    let reportAbortedAt: number | null = null;
+    const h = fixture({
+      opens: [batch(currentRequest)],
+      admissionDelayMs: 500,
+      contextDelayMs: 1_500,
+      openDelayMs: 500,
+      reportFetch: async (request) => {
+        reportStartedAt = Date.now();
+        await new Promise<Response>((_resolve, reject) => {
+          const signal = request.signal;
+          const onAbort = () => {
+            reportAbortedAt = Date.now();
+            reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+          };
+          if (signal.aborted) onAbort();
+          else signal.addEventListener('abort', onAbort, { once: true });
+        });
+        return response(reportResponse('10.00'));
+      },
+    });
+    const segmentStartedAt = Date.now();
+    const pending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 5_000 });
+    await vi.advanceTimersByTimeAsync(4_500);
+    const result = await pending;
+
+    const requestAllowance = 5_000 - 2_500 - 2 * 800;
+    expect(reportStartedAt).toBe(segmentStartedAt + 2_500);
+    expect(reportAbortedAt).not.toBeNull();
+    expect(reportAbortedAt! - reportStartedAt!).toBeLessThanOrEqual(Math.min(5_000, requestAllowance));
+    expect(reportAbortedAt! - reportStartedAt!).toBeGreaterThanOrEqual(requestAllowance);
+    expect(result).toMatchObject({ status: 'failed', staged: 0, complete: false, errorCode: 'native-report-unavailable' });
+    expect(Date.now() - segmentStartedAt).toBeLessThan(5_000);
+    expect(h.nativeRequests).toHaveLength(1);
+    expect(h.counts().stageCount).toBe(0);
+    expect(h.publishedSnapshot()).toBe('old-complete-generation');
+  });
+
+  it('AC-005: repeatedly advances a persisted first-missing sequence after slow context work without exceeding each tick budget', async () => {
+    vi.useFakeTimers();
+    const periods = [
+      ['2024-01-01', '2024-01-31', '2023-01-01', '2023-01-31'],
+      ['2024-02-01', '2024-02-29', '2023-02-01', '2023-02-28'],
+      ['2024-03-01', '2024-03-31', '2023-03-01', '2023-03-31'],
+      ['2024-04-01', '2024-04-30', '2023-04-01', '2023-04-30'],
+      ['2024-05-01', '2024-05-31', '2023-05-01', '2023-05-31'],
+      ['2024-06-01', '2024-06-30', '2023-06-01', '2023-06-30'],
+      ['2024-07-01', '2024-07-31', '2023-07-01', '2023-07-31'],
+      ['2024-08-01', '2024-08-31', '2023-08-01', '2023-08-31'],
+      ['2024-09-01', '2024-09-30', '2023-09-01', '2023-09-30'],
+      ['2024-10-01', '2024-10-31', '2023-10-01', '2023-10-31'],
+      ['2024-11-01', '2024-11-30', '2023-11-01', '2023-11-30'],
+      ['2024-12-01', '2024-12-31', '2023-12-01', '2023-12-31'],
+    ] as const;
+    const requests: RequestKey[] = periods.map(([currentStart, currentEnd, priorStart, priorEnd], index) => ({
+      statement: 'trial_balance', projectId: null, periodKind: 'month',
+      currentStart, currentEnd, priorStart, priorEnd,
+      side: index % 2 === 0 ? 'current' : 'prior',
+    }));
+    let reportStartedAt: number | null = null;
+    let reportFinishedAt: number | null = null;
+    let reportAbortedAt: number | null = null;
+    const h = fixture({
+      openByStageCount: requests,
+      admissionDelayMs: 500,
+      contextDelayMs: 1_500,
+      openDelayMs: 500,
+      reportFetch: async (request, count) => {
+        reportStartedAt ??= Date.now();
+        request.signal.addEventListener('abort', () => { reportAbortedAt = Date.now(); }, { once: true });
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+        reportFinishedAt = Date.now();
+        return response(reportResponse(String(count)));
+      },
+    });
+
+    let result: Awaited<ReturnType<typeof refreshStatementReportBatch>> | undefined;
+    let segmentCount = 0;
+    let stagedBefore = 0;
+    while (segmentCount < 10) {
+      const segmentStartedAt = Date.now();
+      let settled = false;
+      const pending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 5_000 }).then((next) => {
+        settled = true;
+        return next;
+      });
+      while (!settled && Date.now() - segmentStartedAt < 5_000) {
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      if (!settled) await vi.advanceTimersByTimeAsync(1);
+      result = await pending;
+      expect(Date.now() - segmentStartedAt).toBeLessThanOrEqual(Math.min(7_000, 5_000));
+      segmentCount += 1;
+      if (segmentCount === 1) {
+        expect(h.counts().stageCount, JSON.stringify({ result, counts: h.counts(), events: h.events, rpcCalls: h.rpcCalls.map(({ name }) => name), nativeRequests: h.nativeRequests.length, reportStartedAt, reportFinishedAt, reportAbortedAt })).toBeGreaterThan(0);
+      }
+      if (result.status === 'published') break;
+      expect(h.counts().stageCount, JSON.stringify({ segmentCount, result, counts: h.counts(), events: h.events, rpcCalls: h.rpcCalls.map(({ name }) => name), nativeRequests: h.nativeRequests.length, reportStartedAt, reportFinishedAt, reportAbortedAt })).toBeGreaterThan(stagedBefore);
+      stagedBefore = h.counts().stageCount;
+    }
+
+    expect(segmentCount).toBeGreaterThan(1);
+    expect(result).toMatchObject({ status: 'published', complete: true, snapshotId: SNAPSHOT });
+    expect(h.staged.map((entry) => entry.selection)).toEqual(requests);
+    expect(h.nativeRequests).toHaveLength(requests.length);
+    expect(new Set(h.nativeRequests.map((request) => new URL(request.url).searchParams.get('filters'))).size).toBe(requests.length);
+    expect(h.counts()).toMatchObject({ stageCount: requests.length, publishCount: 1 });
+    expect(h.stagedAtPublish()).toBe(requests.length);
+    expect(h.publishedSnapshot()).toBe(SNAPSHOT);
   });
 
   it('AC-005: confirmed attempt remains visible when the following native context request fails, with the old publication retained', async () => {
