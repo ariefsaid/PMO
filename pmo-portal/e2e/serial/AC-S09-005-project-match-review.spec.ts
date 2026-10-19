@@ -135,6 +135,8 @@ test('AC-S09-005 an Admin confirms a proposed match to an existing ERP project; 
 
     // ... the confirmed target persisted (shown on the project, stored in the ERP project map) ...
     await page.goto(`/projects/${projectId}`);
+    // The ERP link lives in the rail's collapsed "Project details and actions" disclosure — open it as a user would.
+    await page.locator('summary:visible').filter({ hasText: 'Project details and actions' }).click();
     await expect(
       page
         .locator('section[aria-labelledby="project-erp-match-heading"]:visible')
