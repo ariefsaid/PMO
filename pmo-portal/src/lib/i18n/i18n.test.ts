@@ -21,6 +21,12 @@ describe('FR-L10N-043: lazy per-locale catalogue load', () => {
     expect(fetchMock).toHaveBeenCalledWith('/locales/en/common.json');
   });
 
+  it('loads any feature namespace lazily from the public locale path', () => {
+    const cb = vi.fn();
+    catalogueBackend.read!('en', 'billingFeature', cb);
+    expect(fetchMock).toHaveBeenCalledWith('/locales/en/billingFeature.json');
+  });
+
   it('AC-L10N-043: an en session requests no id catalogue', () => {
     const cb = vi.fn();
     catalogueBackend.read!('en', 'common', cb);
@@ -73,6 +79,34 @@ describe('FR-L10N-041 / AC-L10N-040: a missing key never renders as a raw key', 
   });
 });
 
+describe('feature namespaces', () => {
+  it('AC-1070-001: resolves feature keys in English and Indonesian with common fallback', async () => {
+    const { createInstance } = await import('i18next');
+    const { initReactI18next, I18nextProvider, useTranslation } = await import('react-i18next');
+    const { render, screen } = await import('@testing-library/react');
+    const React = await import('react');
+    const instance = createInstance();
+    await instance.use(initReactI18next).init({
+      lng: 'en', fallbackLng: 'en', fallbackNS: 'common', defaultNS: 'common',
+      ns: ['common', 'localeSlice'],
+      resources: {
+        en: { common: { shared: 'Shared English' }, localeSlice: { title: 'English feature' } },
+        id: { common: { shared: 'Bersama' }, localeSlice: { title: 'Fitur Indonesia' } },
+      },
+      initImmediate: false,
+    });
+    const Feature = () => {
+      const { t } = useTranslation('localeSlice');
+      return React.createElement('p', null, `${t('title')} / ${t('shared')}`);
+    };
+    const { rerender } = render(React.createElement(I18nextProvider, { i18n: instance }, React.createElement(Feature)));
+    expect(screen.getByText('English feature / Shared English')).toBeInTheDocument();
+    await instance.changeLanguage('id');
+    rerender(React.createElement(I18nextProvider, { i18n: instance }, React.createElement(Feature)));
+    expect(screen.getByText('Fitur Indonesia / Bersama')).toBeInTheDocument();
+  });
+});
+
 describe('init config', () => {
   it('boots in English and takes its language from resolveLocale, never a detector', async () => {
     // FR-L10N-003 is binding: no navigator.language, no localStorage, no detector plugin. Before
@@ -81,6 +115,7 @@ describe('init config', () => {
     const i18n = await initI18n();
     expect(i18n.language).toBe('en');
     expect(i18n.options.fallbackLng).toEqual(['en']);
+    expect(i18n.options.fallbackNS).toEqual(['common']);
     expect(i18n.options.returnEmptyString).toBe(false);
     vi.unstubAllGlobals();
   });
