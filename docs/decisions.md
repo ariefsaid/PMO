@@ -3407,3 +3407,20 @@ eligible account rules and Finance read-only behavior remain unchanged.
 
 The v0.24.0 slice remains held from dev until the v0.23.0 release branch transition is authorized
 and completed. AC-V24P-001–003 own draft retention, exact save arguments and state distinctions.
+
+
+### UXS-036 — customer collections through exact identity (2026-10-19)
+
+Finance opens a customer aging position through its canonical Customer mapping to the company’s
+collections section, then uses the customer-filtered invoice register. Ambiguous mappings do not
+assign an aging amount to a company. Keep the source currency, report date, aging basis and range
+labels visible; missing balances or currency remain unavailable rather than becoming zero or
+inheriting another currency. The invoice amount retains its explicit source currency.
+
+A collections deep link moves focus to its heading after the company loads. Preserve this path’s
+ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.
+
+
+### OD-ERP-023 — hourly ERPNext reconciliation (2026-10-19)
+
+The final owner amendment (15:45 WIB, eligibility clarified at 16:15 WIB), with the bounded release-review refinement in PR #1212, is: Keep the five-minute cron trigger. The whole ERPNext sweep runs during UTC minutes 0–4. Between those windows, a statement-eligible binding without a matching first publication may keep five-minute progress for up to six hours after activation, or while its matching native report batch has been open for less than six hours. Match the existing collector eligibility and the current company, binding identity, activation instant, version and project map. A future activation timestamp does not extend either window. Older connections start collection on an ordinary hourly attempt; once that attempt opens a validated batch, its bounded five-minute continuation can finish the initial catalogue (normally about one hour after collection starts). Expired or unconfirmed batch windows follow the hourly cadence. Other ticks make no ERP calls or domain writes. Immediate dispatch and ClickUp cadence remain unchanged; keep the existing seven-second stage and five-second request bounds. No schedule migration or statement-only gate applies. This supersedes the earlier statement-only gate and hourly cron migration proposals.

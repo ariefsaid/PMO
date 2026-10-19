@@ -38,6 +38,12 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: new Map() }),
+}));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

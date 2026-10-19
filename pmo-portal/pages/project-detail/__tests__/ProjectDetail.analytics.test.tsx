@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -100,8 +100,8 @@ import ProjectDetail from '../ProjectDetail';
 
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 
-const renderAt = (path: string) =>
-  render(
+const renderAt = async (path: string) => {
+  const view = render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
@@ -113,26 +113,29 @@ const renderAt = (path: string) =>
       </MemoryRouter>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 beforeEach(() => {
   analytics.trackProjectTabViewed.mockClear();
 });
 
 describe('ProjectDetail: project_tab_viewed fires when a tab is switched (2026-07-13 wiring plan)', () => {
-  it('AC: clicking the Budget tab fires trackProjectTabViewed("budget") via the facade', () => {
-    renderAt('/projects/p1');
+  it('AC: clicking the Budget tab fires trackProjectTabViewed("budget") via the facade', async () => {
+    await renderAt('/projects/p1');
     fireEvent.click(screen.getByRole('tab', { name: 'Budget' }));
     expect(analytics.trackProjectTabViewed).toHaveBeenCalledWith('budget');
   });
 
-  it('AC: clicking the Documents tab fires trackProjectTabViewed("documents")', () => {
-    renderAt('/projects/p1');
+  it('AC: clicking the Documents tab fires trackProjectTabViewed("documents")', async () => {
+    await renderAt('/projects/p1');
     fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
     expect(analytics.trackProjectTabViewed).toHaveBeenCalledWith('documents');
   });
 
-  it('does not fire on initial mount — only on an actual tab switch', () => {
-    renderAt('/projects/p1/budget');
+  it('does not fire on initial mount — only on an actual tab switch', async () => {
+    await renderAt('/projects/p1/budget');
     expect(analytics.trackProjectTabViewed).not.toHaveBeenCalled();
   });
 });

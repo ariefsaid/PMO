@@ -57,7 +57,7 @@ it('project choices and setup actions use the same org-derived authenticated end
   expect(await api.listErpProjects('Delivery')).toEqual([{
     name: 'PROJ-00042',
   }]);
-  await api.linkErpProject('project-1', 'PROJ-00042');
+  await api.linkErpProject('project-1', 'PROJ-00042', null);
   await api.employErpDomain('procurement');
   await api.onboardErpParties();
   expect(h.invoke.mock.calls).toEqual([
@@ -74,6 +74,7 @@ it('project choices and setup actions use the same org-derived authenticated end
         setupAction: 'link-project',
         projectId: 'project-1',
         erpProject: 'PROJ-00042',
+        expectedErpProject: null,
       },
     }],
     ['external-set-company', {

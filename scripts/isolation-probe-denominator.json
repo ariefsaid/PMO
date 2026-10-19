@@ -157,6 +157,7 @@
     "publish_erp_financial_statements(uuid,uuid,uuid)",
     "clone_budget_version(uuid)",
     "confirm_erp_employee_link(uuid,uuid)",
+    "confirm_erp_project_link(uuid,uuid,uuid,text,jsonb,text,text)",
     "confirm_outbox(uuid,integer)",
     "correct_vendor_withholding_slip(uuid,integer,text,date,date,text)",
     "create_native_sales_invoice(uuid,uuid,jsonb,uuid)",

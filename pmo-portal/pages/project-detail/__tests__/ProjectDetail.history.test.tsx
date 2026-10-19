@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -114,8 +114,8 @@ import ProjectDetail from '../ProjectDetail';
 
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 
-const renderAt = (path: string) =>
-  render(
+const renderAt = async (path: string) => {
+  const view = render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
@@ -127,19 +127,22 @@ const renderAt = (path: string) =>
       </MemoryRouter>
     </ImpersonationProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 describe('ProjectDetail — History tab (AC-CHG-018)', () => {
-  it('AC-CHG-018: /projects/:id/history deep-links to the History tab with child roll-up and kind filters', () => {
-    renderAt('/projects/p1/history');
+  it('AC-CHG-018: /projects/:id/history deep-links to the History tab with child roll-up and kind filters', async () => {
+    await renderAt('/projects/p1/history');
     expect(screen.getByTestId('tab-history')).toHaveTextContent('project:p1:true:true');
   });
 
   it('AC-CHG-018: the History tab is keyboard-operable and selects via the tab bar', async () => {
-    renderAt('/projects/p1');
+    await renderAt('/projects/p1');
     const tab = screen.getByRole('tab', { name: 'History' });
     tab.focus();
     await userEvent.keyboard('{Enter}');
-    expect(screen.getByTestId('tab-history')).toBeInTheDocument();
+    expect(await screen.findByTestId('tab-history')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
   });
 });

@@ -111,6 +111,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-05',
   },
   {
+    file: 'serial/AC-S09-005-project-match-review.spec.ts',
+    reason: 'ERP project match review proof needs the served functions lane, the throwaway ERPNext bench (its goal oracle is the persisted map and the bench Project count) and a prepared HTTPS binding.',
+    restore: 'Run in the local served-functions lane with the disposable ERP bench and ready binding (same fixture as AC-SETUP-001).',
+    verified: '2026-10-19',
+  },
+  {
     file: 'serial/AC-PB-003-progress-billing-erp.spec.ts',
     reason: 'Progress-billing ledger proof needs the served functions lane and the throwaway ERPNext bench (its goal oracle is the ERP GL). The spec now enables Allow Negative rates and its tax template on the bench itself; the bench is still not provisioned in CI.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench, with the bench API key exported.',

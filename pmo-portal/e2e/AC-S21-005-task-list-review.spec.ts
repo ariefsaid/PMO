@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — this journey owns one fresh test organization and exact run-scoped rows.
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -19,11 +19,16 @@ import {
   createS21ReloadDiagnostic,
 } from './support/AC-S21-005-diagnostics.mjs';
 import {
+  aggregateS21BrowserGuardSnapshots,
   createS21BrowserRequestGuard,
   S21_MAX_CLICKUP_GETS,
   S21_MAX_HANDLER_POSTS,
   validateS21TransportSummary,
 } from './support/AC-S21-005-transport.mjs';
+import {
+  runS21FixtureCleanup,
+  S21_FIXTURE_PHASE_TIMEOUT_MS,
+} from './support/AC-S21-005-lifecycle.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -40,6 +45,11 @@ type LocalStatus = {
 
 type Fixture = ReturnType<typeof createS21FixtureIdentity>;
 type FixtureLedger = ReturnType<typeof createS21WriteAheadLedger>;
+type BrowserGuardSnapshot = { handlerPosts: number; clickupOnboardRequests: number };
+type BrowserRouteGuard = {
+  snapshot: () => BrowserGuardSnapshot;
+  blocked: Record<string, number>;
+};
 type Ledger = Omit<FixtureLedger, 'ownedIds' | 'steps'> & {
   ownedIds: Omit<FixtureLedger['ownedIds'], 'projectBindingId' | 'auditEventIds' | 'historyEventIds'> & {
     projectBindingId: string | null;
@@ -85,6 +95,53 @@ type FixtureSnapshot = {
   projectHistoryVisible: boolean;
   organization: { name: string; lifecycle_state: string } | null;
 };
+
+let status: LocalStatus;
+let serviceUrl: string;
+let serviceKey: string;
+let anonKey: string;
+let apiOrigin: string;
+let appOrigin: string;
+let fixture: Fixture;
+let ledger: Ledger;
+let journeyStage: string;
+let evidence: Awaited<ReturnType<typeof makeEvidencePath>>;
+let ledgerPath: string;
+let initialAdmin: SupabaseClient;
+let actorClient: SupabaseClient;
+let actorAuthenticated = false;
+let pageRouteSnapshot: (() => BrowserGuardSnapshot) | null = null;
+let browserBlocked: Record<string, number> = {};
+let browserRouteGuards: BrowserRouteGuard[] = [];
+let handlerServer: HandlerServer | null = null;
+let reloadDiagnostic: ReturnType<typeof createS21ReloadDiagnostic> | null = null;
+let primaryFailure: unknown = null;
+let cleanupFailed = false;
+let cleanupFailureErrors: Error[] = [];
+let projectCreated = false;
+let bindingCreated = false;
+let projectDeleted = false;
+let fixturePreflightPassed = false;
+let browserAdminLoginConfirmed = false;
+let continuationContext: BrowserContext | null = null;
+let continuationPage: Page | null = null;
+let continuationBindingId: string | null = null;
+let ephemeralPassword: string | null = null;
+let vaultSecretSentinel: string | null = null;
+let actorAccessToken: string | null = null;
+let actorRefreshToken: string | null = null;
+
+function markCleanupFailure(step: string): void {
+  cleanupFailed = true;
+  ledger.cleanupFailureSteps.push(step);
+  const code = `S21_CLEANUP_${step.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}`;
+  cleanupFailureErrors.push(safeFailure(code));
+}
+
+function setJourneyStage(stage: string): void {
+  journeyStage = stage;
+  ledger.journeyStage = stage;
+}
 
 function safeFailure(code: string): Error {
   return new Error(code);
@@ -601,18 +658,19 @@ async function captureS21ReloadDom(page: Page, fixture: Fixture): Promise<Record
   };
 }
 
-test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial source, and sees the persisted link after reload', async ({ page }, testInfo) => {
-  const status = readLocalStatus();
-  const serviceUrl = status.API_URL;
-  const serviceKey = status.SERVICE_ROLE_KEY;
-  const anonKey = status.ANON_KEY;
+test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  status = readLocalStatus();
+  serviceUrl = status.API_URL ?? '';
+  serviceKey = status.SERVICE_ROLE_KEY ?? '';
+  anonKey = status.ANON_KEY ?? '';
   if (!serviceUrl || !serviceKey || !anonKey || !status.DB_URL) throw safeFailure('S21_LOCAL_CONFIG_UNAVAILABLE');
-  const apiOrigin = new URL(serviceUrl).origin;
+  apiOrigin = new URL(serviceUrl).origin;
   if (!loopbackHost(new URL(serviceUrl).hostname)) throw safeFailure('S21_API_TARGET_NOT_LOCAL');
 
-  const fixture = createS21FixtureIdentity();
-  const ledger = createS21WriteAheadLedger(fixture) as unknown as Ledger;
-  let journeyStage = 'fixture-preflight';
+  fixture = createS21FixtureIdentity();
+  ledger = createS21WriteAheadLedger(fixture) as unknown as Ledger;
+  journeyStage = 'fixture-preflight';
   ledger.journeyStage = journeyStage;
   ledger.failedJourneyStage = null;
   ledger.primaryFailureDiagnostic = null;
@@ -624,35 +682,31 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
   ledger.transportSummary = null;
   ledger.primaryFailure = null;
   ledger.cleanupFailureSteps = [];
-  const evidence = await makeEvidencePath();
-  const ledgerPath = evidence.ledgerPath;
-  const initialAdmin = createAdminClient(serviceUrl, serviceKey);
-  const actorClient = createAdminClient(serviceUrl, anonKey);
-  let actorAuthenticated = false;
-  let pageRouteSnapshot: (() => { handlerPosts: number; clickupOnboardRequests: number }) | null = null;
-  let browserBlocked: Record<string, number> = {};
-  let handlerServer: HandlerServer | null = null;
-  let reloadDiagnostic: ReturnType<typeof createS21ReloadDiagnostic> | null = null;
-  let primaryFailure: Error | null = null;
-  let cleanupFailed = false;
-  let projectCreated = false;
-  let bindingCreated = false;
-  let projectDeleted = false;
-  let fixturePreflightPassed = false;
-  let browserAdminLoginConfirmed = false;
-  let ephemeralPassword: string | null = null;
-  let vaultSecretSentinel: string | null = null;
-  let actorAccessToken: string | null = null;
-  let actorRefreshToken: string | null = null;
-
-  const markCleanupFailure = (step: string) => {
-    cleanupFailed = true;
-    ledger.cleanupFailureSteps.push(step);
-  };
-  const setJourneyStage = (stage: string) => {
-    journeyStage = stage;
-    ledger.journeyStage = stage;
-  };
+  evidence = await makeEvidencePath();
+  ledgerPath = evidence.ledgerPath;
+  initialAdmin = createAdminClient(serviceUrl, serviceKey);
+  actorClient = createAdminClient(serviceUrl, anonKey);
+  actorAuthenticated = false;
+  pageRouteSnapshot = null;
+  browserBlocked = {};
+  browserRouteGuards = [];
+  handlerServer = null;
+  reloadDiagnostic = null;
+  primaryFailure = null;
+  cleanupFailed = false;
+  cleanupFailureErrors = [];
+  projectCreated = false;
+  bindingCreated = false;
+  projectDeleted = false;
+  fixturePreflightPassed = false;
+  browserAdminLoginConfirmed = false;
+  continuationContext = null;
+  continuationPage = null;
+  continuationBindingId = null;
+  ephemeralPassword = null;
+  vaultSecretSentinel = null;
+  actorAccessToken = null;
+  actorRefreshToken = null;
 
   await saveLedger(ledgerPath, ledger);
   try {
@@ -823,179 +877,279 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     handlerServer = await startHandlerServer(status, fixture, clickupSentinel);
     const appBaseUrl = testInfo.project.use.baseURL;
     if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
-    const appOrigin = new URL(appBaseUrl).origin;
-    const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
-    pageRouteSnapshot = routeGuard.snapshot;
-    browserBlocked = routeGuard.blocked;
-
-    setJourneyStage('admin-login-page-load');
-    await page.goto('/login');
-    setJourneyStage('admin-login-email-entry');
-    await page.getByLabel(/email/i).fill(fixture.email);
-    setJourneyStage('admin-login-password-entry');
-    await page.getByLabel(/password/i).fill(ephemeralPassword);
-    setJourneyStage('admin-login-submit');
-    await page.getByRole('button', { name: /sign in/i }).click();
-    setJourneyStage('admin-home-after-login');
-    await expect(page).toHaveURL(/\/$/);
-    browserAdminLoginConfirmed = true;
-
-    setJourneyStage('open-project-task-route');
-    await page.goto(`/projects/${fixture.projectId}/tasks`);
-    setJourneyStage('tasks-heading-visible');
-    await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible();
-    setJourneyStage('empty-task-state-visible');
-    await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible();
-    const integrationCard = page.getByTestId('project-integrations-compact');
-    setJourneyStage('clickup-link-action-visible');
-    await expect(integrationCard.getByRole('button', { name: 'Link to ClickUp' })).toBeVisible();
-    setJourneyStage('open-clickup-link-picker');
-    await integrationCard.getByRole('button', { name: 'Link to ClickUp' }).click();
-
-    setJourneyStage('clickup-list-picker-opens');
-    const listPicker = page.getByRole('combobox', { name: 'ClickUp List' });
-    await listPicker.click();
-    setJourneyStage('exact-existing-list-option-selectable');
-    await page.getByRole('option', { name: new RegExp(fixture.listName) }).click();
-    setJourneyStage('initial-transfer-direction-selected');
-    await page.getByRole('radio', { name: /Start with PMO tasks/ }).check();
-    setJourneyStage('review-link-action');
-    await page.getByRole('button', { name: 'Review link' }).click();
-    const reviewDialog = page.getByRole('dialog', { name: 'Review ClickUp link' });
-    const reviewProjectField = reviewDialog.getByText('PMO project', { exact: true }).locator('..');
-    const reviewListField = reviewDialog.getByText('ClickUp List', { exact: true }).locator('..');
-    setJourneyStage('review-project-name-visible');
-    await expect(reviewDialog).toBeVisible();
-    await expect(reviewProjectField.getByText(fixture.projectName, { exact: true })).toBeVisible();
-    setJourneyStage('review-list-name-visible');
-    await expect(reviewListField.getByText(fixture.listName, { exact: true })).toBeVisible();
-    setJourneyStage('review-transfer-direction-visible');
-    await expect(reviewDialog.getByText(/Start with PMO tasks/).last()).toBeVisible();
-    setJourneyStage('review-transfer-notice-visible');
-    await expect(reviewDialog.getByText(/This choice describes the initial task transfer only/)).toBeVisible();
-    setJourneyStage('review-no-transfer-completion-claim');
-    await expect(reviewDialog.getByText(/Saving this link does not confirm that the initial task transfer has completed/)).toBeVisible();
-
-    setJourneyStage('confirm-project-link-action');
-    await page.getByRole('button', { name: 'Confirm ClickUp link' }).click();
-    setJourneyStage('link-success-and-pending-transfer-visible');
-    await expect(page.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
-    setJourneyStage('initial-project-binding-readback');
-    const firstBinding = await projectBindingReadback(initialAdmin, fixture);
-    if (!firstBinding || firstBinding.external_container_id !== fixture.listId ||
-      firstBinding.config?.direction !== 'push-seed' || firstBinding.linked_by !== fixture.userId) {
-      throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
-    }
-    ledger.ownedIds.projectBindingId = firstBinding.id;
-    bindingCreated = true;
-    ledger.steps.projectBinding = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('reload-linked-task-route');
-    reloadDiagnostic = createS21ReloadDiagnostic();
-    page.on('response', (response) => {
-      const category = classifyS21DiagnosticEndpoint(response.url(), apiOrigin);
-      if (category) reloadDiagnostic?.recordResponse(category, response.status());
-    });
-    page.on('requestfailed', (request) => {
-      const category = classifyS21DiagnosticEndpoint(request.url(), apiOrigin);
-      if (category) reloadDiagnostic?.recordFailure(category);
-    });
-    await page.reload();
-    setJourneyStage('reloaded-list-name-visible');
-    const reloadedListField = integrationCard.getByText('ClickUp List:', { exact: true }).locator('..');
-    await expect(reloadedListField).toHaveCount(1);
-    await expect(reloadedListField).toHaveText(`ClickUp List: ${fixture.listName}`);
-    setJourneyStage('reloaded-transfer-direction-visible');
-    const reloadedSourceField = integrationCard.getByText('Initial source:', { exact: true }).locator('..');
-    await expect(reloadedSourceField).toHaveCount(1);
-    await expect(reloadedSourceField).toHaveText('Initial source: Start with PMO tasks');
-    setJourneyStage('reloaded-link-success-visible');
-    await expect(integrationCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
-    setJourneyStage('reloaded-empty-task-state-visible');
-    await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible();
-    setJourneyStage('persisted-project-binding-readback');
-    const secondBinding = await projectBindingReadback(initialAdmin, fixture);
-    setJourneyStage('persisted-project-binding-fields-match');
-    expect(secondBinding).toMatchObject({
-      id: firstBinding.id,
-      org_id: fixture.orgId,
-      project_id: fixture.projectId,
-      external_tier: 'clickup',
-      external_container_id: fixture.listId,
-      config: { direction: 'push-seed' },
-      linked_by: fixture.userId,
-    });
-    setJourneyStage('task-set-remains-unchanged');
-    const { count: taskCount, error: taskCountError } = await initialAdmin
-      .from('tasks')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', fixture.orgId)
-      .eq('project_id', fixture.projectId);
-    if (taskCountError || taskCount !== 0) throw safeFailure('S21_TASK_SET_CHANGED');
-
-    const browserSnapshot = pageRouteSnapshot?.();
-    if (!browserSnapshot || browserSnapshot.clickupOnboardRequests !== 0 || browserSnapshot.handlerPosts > S21_MAX_HANDLER_POSTS) {
-      throw safeFailure('S21_BROWSER_REQUEST_POLICY_VIOLATION');
-    }
-    ledger.browserBlockedByReason = { ...browserBlocked };
-    if (Object.keys(browserBlocked).length > 0) throw safeFailure('S21_BROWSER_OUTBOUND_BLOCKED');
-    ledger.steps.projectBinding = 'verified-after-reload';
-    ledger.transportSummary = handlerServer.summary();
+    appOrigin = new URL(appBaseUrl).origin;
     await saveLedger(ledgerPath, ledger);
   } catch (error) {
-    const secretValues = [
-      status.DB_URL,
-      serviceKey,
-      anonKey,
-      ephemeralPassword,
-      vaultSecretSentinel,
-      actorAccessToken,
-      actorRefreshToken,
-    ].filter((value): value is string => typeof value === 'string' && value.length > 0);
-    const code = recordS21PrimaryFailure(ledger, error, {
+    primaryFailure = error;
+    recordS21PrimaryFailure(ledger, error, {
       stage: journeyStage,
-      secretValues,
-      includeDetails: browserAdminLoginConfirmed,
+      secretValues: [status.DB_URL, serviceKey, anonKey, ephemeralPassword, vaultSecretSentinel]
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      includeDetails: false,
     });
-    primaryFailure = safeFailure(code);
-    if (browserAdminLoginConfirmed) {
-      try {
-        const reloadFailure = journeyStage === 'reload-linked-task-route' || journeyStage.startsWith('reloaded-');
-        if (reloadFailure && reloadDiagnostic) {
-          try {
-            ledger.reloadDiagnostic = reloadDiagnostic.snapshot(await captureS21ReloadDom(page, fixture));
-          } catch {
-            ledger.reloadDiagnostic = reloadDiagnostic.snapshot();
-          }
-        }
-        await page.screenshot({ path: evidence.failureScreenshotPath, animations: 'disabled', fullPage: reloadFailure });
-        await chmod(evidence.failureScreenshotPath, 0o600);
-        ledger.failureScreenshot = path.basename(evidence.failureScreenshotPath);
-      } catch {
-        ledger.failureScreenshot = 'unavailable';
-      }
+    try {
+      await saveLedger(ledgerPath, ledger);
+    } catch {
+      // Preserve the fixture/setup failure when private evidence storage is unavailable.
     }
-    ledger.journeyStage = 'cleanup';
+    throw error;
   }
+});
 
-  try {
-    await page.close();
-  } catch {
-    // Page may already be closed by the browser after a failed request.
+async function installBrowserRouteGuardForPage(page: Page): Promise<void> {
+  setJourneyStage('browser-route-guard');
+  if (!handlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+  const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
+  pageRouteSnapshot = routeGuard.snapshot;
+  browserBlocked = routeGuard.blocked;
+  browserRouteGuards.push(routeGuard);
+}
+
+async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
+  browserAdminLoginConfirmed = false;
+  setJourneyStage('admin-login-page-load');
+  await page.goto('/login');
+  setJourneyStage('admin-login-email-entry');
+  await page.getByLabel(/email/i).fill(fixture.email);
+  setJourneyStage('admin-login-password-entry');
+  if (!ephemeralPassword) throw safeFailure('S21_FIXTURE_PASSWORD_UNAVAILABLE');
+  await page.getByLabel(/password/i).fill(ephemeralPassword);
+  setJourneyStage('admin-login-submit');
+  await page.getByRole('button', { name: /sign in/i }).click();
+  setJourneyStage('admin-home-after-login');
+  await expect(page).toHaveURL(/\/$/);
+  browserAdminLoginConfirmed = true;
+
+  setJourneyStage('open-project-task-route');
+  await page.goto(`/projects/${fixture.projectId}/tasks`);
+  setJourneyStage('tasks-heading-visible');
+  await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible();
+  setJourneyStage('empty-task-state-visible');
+  await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible();
+  return page.getByTestId('project-integrations-compact');
+}
+
+async function recordS21BrowserFailure(page: Page | null, error: unknown): Promise<void> {
+  const secretValues = [
+    status.DB_URL,
+    serviceKey,
+    anonKey,
+    ephemeralPassword,
+    vaultSecretSentinel,
+    actorAccessToken,
+    actorRefreshToken,
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+  recordS21PrimaryFailure(ledger, error, {
+    stage: journeyStage,
+    secretValues,
+    includeDetails: browserAdminLoginConfirmed,
+  });
+  primaryFailure = error;
+  if (browserAdminLoginConfirmed && page) {
+    try {
+      const reloadFailure = journeyStage === 'reload-linked-task-route' || journeyStage.startsWith('reloaded-');
+      if (reloadFailure && reloadDiagnostic) {
+        try {
+          ledger.reloadDiagnostic = reloadDiagnostic.snapshot(await captureS21ReloadDom(page, fixture));
+        } catch {
+          ledger.reloadDiagnostic = reloadDiagnostic.snapshot();
+        }
+      }
+      await page.screenshot({ path: evidence.failureScreenshotPath, animations: 'disabled', fullPage: reloadFailure });
+      await chmod(evidence.failureScreenshotPath, 0o600);
+      ledger.failureScreenshot = path.basename(evidence.failureScreenshotPath);
+    } catch {
+      ledger.failureScreenshot = 'unavailable';
+    }
   }
+  ledger.journeyStage = 'cleanup';
   try {
-    ledger.transportSummary = await stopHandlerServer(handlerServer);
+    await saveLedger(ledgerPath, ledger);
+  } catch {
+    // The original journey failure remains authoritative if diagnostics cannot be saved.
+  }
+}
+
+test.describe.serial('S21 complete ordered task-link journey', () => {
+  test('Supporting proof: Admin reviews the ClickUp list, saves the source, and reads back the binding', async ({ page }) => {
+    test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+    try {
+      const activeHandlerServer = handlerServer;
+      if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+      await installBrowserRouteGuardForPage(page);
+      const integrationCard = await adminLoginAndOpenTaskRoute(page);
+      setJourneyStage('clickup-link-action-visible');
+      await expect(integrationCard.getByRole('button', { name: 'Link to ClickUp' })).toBeVisible();
+      setJourneyStage('open-clickup-link-picker');
+      await integrationCard.getByRole('button', { name: 'Link to ClickUp' }).click();
+
+      setJourneyStage('clickup-list-picker-opens');
+      const listPicker = page.getByRole('combobox', { name: 'ClickUp List' });
+      await listPicker.click();
+      setJourneyStage('exact-existing-list-option-selectable');
+      await page.getByRole('option', { name: new RegExp(fixture.listName) }).click();
+      setJourneyStage('initial-transfer-direction-selected');
+      await page.getByRole('radio', { name: /Start with PMO tasks/ }).check();
+      setJourneyStage('review-link-action');
+      await page.getByRole('button', { name: 'Review link' }).click();
+      const reviewDialog = page.getByRole('dialog', { name: 'Review ClickUp link' });
+      const reviewProjectField = reviewDialog.getByText('PMO project', { exact: true }).locator('..');
+      const reviewListField = reviewDialog.getByText('ClickUp List', { exact: true }).locator('..');
+      setJourneyStage('review-project-name-visible');
+      await expect(reviewDialog).toBeVisible();
+      await expect(reviewProjectField.getByText(fixture.projectName, { exact: true })).toBeVisible();
+      setJourneyStage('review-list-name-visible');
+      await expect(reviewListField.getByText(fixture.listName, { exact: true })).toBeVisible();
+      setJourneyStage('review-transfer-direction-visible');
+      await expect(reviewDialog.getByText(/Start with PMO tasks/).last()).toBeVisible();
+      setJourneyStage('review-transfer-notice-visible');
+      await expect(reviewDialog.getByText(/This choice describes the initial task transfer only/)).toBeVisible();
+      setJourneyStage('review-no-transfer-completion-claim');
+      await expect(reviewDialog.getByText(/Saving this link does not confirm that the initial task transfer has completed/)).toBeVisible();
+
+      setJourneyStage('confirm-project-link-action');
+      await page.getByRole('button', { name: 'Confirm ClickUp link' }).click();
+      setJourneyStage('link-success-and-pending-transfer-visible');
+      await expect(page.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
+      setJourneyStage('initial-project-binding-readback');
+      const firstBinding = await projectBindingReadback(initialAdmin, fixture);
+      if (!firstBinding || firstBinding.external_container_id !== fixture.listId ||
+        firstBinding.config?.direction !== 'push-seed' || firstBinding.linked_by !== fixture.userId) {
+        throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
+      }
+      ledger.ownedIds.projectBindingId = firstBinding.id;
+      bindingCreated = true;
+      ledger.steps.projectBinding = 'verified';
+      const browserSnapshot = pageRouteSnapshot?.();
+      if (!browserSnapshot || browserSnapshot.clickupOnboardRequests !== 0 || browserSnapshot.handlerPosts > S21_MAX_HANDLER_POSTS) {
+        throw safeFailure('S21_BROWSER_REQUEST_POLICY_VIOLATION');
+      }
+      ledger.browserBlockedByReason = { ...browserBlocked };
+      if (Object.keys(browserBlocked).length > 0) throw safeFailure('S21_BROWSER_OUTBOUND_BLOCKED');
+      ledger.transportSummary = activeHandlerServer.summary();
+      await saveLedger(ledgerPath, ledger);
+    } catch (error) {
+      await recordS21BrowserFailure(page, error);
+      throw error;
+    }
+  });
+
+  test('Supporting proof: Admin opens the linked task route for the reload continuation', async ({ browser }, testInfo) => {
+    test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+    browserAdminLoginConfirmed = false;
+    let page: Page | null = null;
+    try {
+      const activeHandlerServer = handlerServer;
+      if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+      const appBaseUrl = testInfo.project.use.baseURL;
+      if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
+      setJourneyStage('reload-support-browser-context');
+      const ownedContext = await browser.newContext({ baseURL: appBaseUrl });
+      continuationContext = ownedContext;
+      page = await ownedContext.newPage();
+      continuationPage = page;
+      await installBrowserRouteGuardForPage(page);
+      await adminLoginAndOpenTaskRoute(page);
+      const firstBindingId = ledger.ownedIds.projectBindingId;
+      if (!firstBindingId) throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
+      continuationBindingId = firstBindingId;
+    } catch (error) {
+      await recordS21BrowserFailure(page, error);
+      throw error;
+    }
+  });
+
+  test('AC-S21-005: Admin sees the persisted ClickUp link and initial source after reload', async () => {
+    test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+    const page = continuationPage;
+    try {
+      if (!page || page.isClosed()) throw safeFailure('S21_RELOAD_CONTINUATION_PAGE_UNAVAILABLE');
+      const activeHandlerServer = handlerServer;
+      if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+      const integrationCard = page.getByTestId('project-integrations-compact');
+      const firstBindingId = continuationBindingId;
+      if (!firstBindingId) throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
+
+      setJourneyStage('reload-linked-task-route');
+      reloadDiagnostic = createS21ReloadDiagnostic();
+      page.on('response', (response) => {
+        const category = classifyS21DiagnosticEndpoint(response.url(), apiOrigin);
+        if (category) reloadDiagnostic?.recordResponse(category, response.status());
+      });
+      page.on('requestfailed', (request) => {
+        const category = classifyS21DiagnosticEndpoint(request.url(), apiOrigin);
+        if (category) reloadDiagnostic?.recordFailure(category);
+      });
+      await page.reload();
+      setJourneyStage('reloaded-list-name-visible');
+      const reloadedListField = integrationCard.getByText('ClickUp List:', { exact: true }).locator('..');
+      await expect(reloadedListField).toHaveCount(1);
+      await expect(reloadedListField).toHaveText(`ClickUp List: ${fixture.listName}`);
+      setJourneyStage('reloaded-transfer-direction-visible');
+      const reloadedSourceField = integrationCard.getByText('Initial source:', { exact: true }).locator('..');
+      await expect(reloadedSourceField).toHaveCount(1);
+      await expect(reloadedSourceField).toHaveText('Initial source: Start with PMO tasks');
+      setJourneyStage('reloaded-link-success-visible');
+      await expect(integrationCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
+      setJourneyStage('reloaded-empty-task-state-visible');
+      await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible();
+      setJourneyStage('persisted-project-binding-readback');
+      const secondBinding = await projectBindingReadback(initialAdmin, fixture);
+      setJourneyStage('persisted-project-binding-fields-match');
+      expect(secondBinding).toMatchObject({
+        id: firstBindingId,
+        org_id: fixture.orgId,
+        project_id: fixture.projectId,
+        external_tier: 'clickup',
+        external_container_id: fixture.listId,
+        config: { direction: 'push-seed' },
+        linked_by: fixture.userId,
+      });
+      setJourneyStage('task-set-remains-unchanged');
+      const { count: taskCount, error: taskCountError } = await initialAdmin
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', fixture.orgId)
+        .eq('project_id', fixture.projectId);
+      if (taskCountError || taskCount !== 0) throw safeFailure('S21_TASK_SET_CHANGED');
+
+      const browserSnapshot = pageRouteSnapshot?.();
+      if (!browserSnapshot || browserSnapshot.clickupOnboardRequests !== 0 || browserSnapshot.handlerPosts > S21_MAX_HANDLER_POSTS) {
+        throw safeFailure('S21_BROWSER_REQUEST_POLICY_VIOLATION');
+      }
+      ledger.browserBlockedByReason = { ...browserBlocked };
+      if (Object.keys(browserBlocked).length > 0) throw safeFailure('S21_BROWSER_OUTBOUND_BLOCKED');
+      ledger.steps.projectBinding = 'verified-after-reload';
+      ledger.transportSummary = activeHandlerServer.summary();
+      await saveLedger(ledgerPath, ledger);
+    } catch (error) {
+      await recordS21BrowserFailure(page, error);
+      throw error;
+    }
+  });
+});
+
+
+async function stopAndVerifyOwnedHandler(server: HandlerServer): Promise<void> {
+  const failureStart = cleanupFailureErrors.length;
+  try {
+    ledger.transportSummary = await stopHandlerServer(server);
   } catch {
     markCleanupFailure('handler-stop');
   }
-  if (handlerServer) {
+  let browserGuardSummary: ReturnType<typeof aggregateS21BrowserGuardSnapshots> | null = null;
+  {
     try {
       const measured = validateS21TransportSummary(ledger.transportSummary, { requireLink: primaryFailure === null });
-      const browserSnapshot = pageRouteSnapshot?.();
+      browserGuardSummary = browserRouteGuards.length > 0
+        ? aggregateS21BrowserGuardSnapshots(browserRouteGuards.map((guard) => ({
+          snapshot: guard.snapshot(),
+          blocked: guard.blocked,
+        })))
+        : null;
       const browserStatusTotal = Object.values(ledger.handlerResponseStatusCounts).reduce((sum, count) => sum + count, 0);
       const browserStatusesSuccessful = Object.keys(ledger.handlerResponseStatusCounts).every((status) => /^2\d\d$/.test(status));
-      if (!browserSnapshot || browserSnapshot.handlerPosts !== measured.handlerPosts ||
+      if (!browserGuardSummary || browserGuardSummary.handlerPosts !== measured.handlerPosts ||
           browserStatusTotal !== measured.handlerPosts || !browserStatusesSuccessful) {
         throw safeFailure('S21_HANDLER_COUNT_MISMATCH');
       }
@@ -1003,10 +1157,10 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
       markCleanupFailure('transport-summary');
     }
   }
-  if (pageRouteSnapshot) {
-    const routeSnapshot = pageRouteSnapshot();
-    ledger.browserBlockedByReason = { ...browserBlocked };
-    if (routeSnapshot.clickupOnboardRequests !== 0) markCleanupFailure('operator-initializer');
+  if (browserGuardSummary) {
+    ledger.browserBlockedByReason = { ...browserGuardSummary.blocked };
+    if (browserGuardSummary.clickupOnboardRequests !== 0) markCleanupFailure('operator-initializer');
+    if (Object.keys(browserGuardSummary.blocked).length > 0) markCleanupFailure('browser-outbound');
   }
   try {
     await saveLedger(ledgerPath, ledger);
@@ -1014,8 +1168,14 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     markCleanupFailure('write-ahead-ledger');
   }
 
-  if (!fixturePreflightPassed) markCleanupFailure('fixture-preflight');
 
+  if (cleanupFailureErrors.length > failureStart) {
+    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned handler cleanup failed');
+  }
+}
+
+async function cleanupOwnedFixtureRows(): Promise<void> {
+  const failureStart = cleanupFailureErrors.length;
   try {
       if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
       const binding = await projectBindingReadback(initialAdmin, fixture);
@@ -1117,7 +1277,38 @@ test('AC-S21-005: Admin reviews an existing ClickUp list, saves its initial sour
     }
   }
   await actorClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
+  if (cleanupFailureErrors.length > failureStart) {
+    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned fixture row cleanup failed');
+  }
+}
 
-  if (cleanupFailed) throw safeFailure('S21_CLEANUP_OR_RETENTION_PROOF_FAILED');
-  if (primaryFailure) throw safeFailure(primaryFailure.message);
+test.afterAll(async () => {
+  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+  const ownedContext = continuationContext;
+  let cleanupError: unknown = null;
+  try {
+    if (ledger) {
+      await runS21FixtureCleanup({
+        preflightPassed: fixturePreflightPassed,
+        ownedServer: handlerServer,
+        primaryFailure,
+        stopOwnedServer: (server) => stopAndVerifyOwnedHandler(server as HandlerServer),
+        cleanupOwnedRows: cleanupOwnedFixtureRows,
+      });
+    }
+  } catch (error) {
+    cleanupError = error;
+  }
+  continuationPage = null;
+  continuationBindingId = null;
+  continuationContext = null;
+  try {
+    await ownedContext?.close();
+  } catch (contextError) {
+    if (cleanupError) {
+      throw new AggregateError([cleanupError, contextError], 'S21 fixture and continuation context cleanup failed', { cause: contextError });
+    }
+    throw contextError;
+  }
+  if (cleanupError) throw cleanupError;
 });

@@ -324,6 +324,10 @@ const SalesInvoices: React.FC = () => {
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const requestedCustomerId = searchParams.get('customer');
+  const selectedCustomer = requestedCustomerId
+    ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
+    : null;
   const requestedStatus = searchParams.get('status');
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
@@ -343,7 +347,7 @@ const SalesInvoices: React.FC = () => {
   const loadFilterProjects = useCallback(async (): Promise<ComboboxOption[]> => projectOptions ?? [], [projectOptions]);
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
 
-  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'overdue' | 'sort', value: string) => {
+  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue' | 'sort', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
@@ -469,6 +473,7 @@ const SalesInvoices: React.FC = () => {
       .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
       .filter((inv) => matchesStatus(inv, statusFilter))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
+      .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
       .filter((inv) => searchParams.get('overdue') !== 'true' || (
         (inv.status === 'Submitted' || inv.status === 'Unpaid')
         && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
@@ -753,8 +758,13 @@ const SalesInvoices: React.FC = () => {
       // pre-selects a form and is never read here.
       cell: (inv) => (
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
-          <span className="tabular text-right text-[13px]">
-            {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+          <span className="inline-flex items-baseline justify-end gap-1">
+            <span className="tabular text-right text-[13px]">
+              {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+            </span>
+            {inv.amount != null && inv.currency && (
+              <span className="text-xs text-muted-foreground">{inv.currency}</span>
+            )}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
@@ -990,6 +1000,21 @@ const SalesInvoices: React.FC = () => {
                   placeholder={t('uxs05.allProjects', 'All projects')}
                 />
               </div>
+              {requestedCustomerId && (
+                <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
+                  <span role="status" className="min-w-0 break-words text-sm">
+                    {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
+                      {selectedCustomer?.label ?? t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}
+                    </span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => updateListParam('customer', '')}
+                  >{t('dashboard.uxs36CustomerFilterClear', 'Clear customer filter')}</Button>
+                </div>
+              )}
               <Button
                 type="button"
                 variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}

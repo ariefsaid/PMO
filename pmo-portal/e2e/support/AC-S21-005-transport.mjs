@@ -8,6 +8,39 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Preserves the whole-journey browser policy when an ordered journey uses fresh pages.
+ * @param {Array<{snapshot: {handlerPosts: number, clickupOnboardRequests: number}, blocked: Record<string, number>}>} guards
+ * @returns {{handlerPosts: number, clickupOnboardRequests: number, blocked: Record<string, number>}}
+ */
+export function aggregateS21BrowserGuardSnapshots(guards) {
+  if (!Array.isArray(guards) || guards.length === 0) throw new Error('S21_BROWSER_GUARD_SNAPSHOT_INVALID');
+
+  const aggregate = { handlerPosts: 0, clickupOnboardRequests: 0, blocked: {} };
+  for (const guard of guards) {
+    if (!isRecord(guard) || !isRecord(guard.snapshot) || !isRecord(guard.blocked)) {
+      throw new Error('S21_BROWSER_GUARD_SNAPSHOT_INVALID');
+    }
+    const { handlerPosts, clickupOnboardRequests } = guard.snapshot;
+    if (!Number.isSafeInteger(handlerPosts) || handlerPosts < 0 ||
+        !Number.isSafeInteger(clickupOnboardRequests) || clickupOnboardRequests < 0) {
+      throw new Error('S21_BROWSER_GUARD_SNAPSHOT_INVALID');
+    }
+    aggregate.handlerPosts += handlerPosts;
+    aggregate.clickupOnboardRequests += clickupOnboardRequests;
+    for (const [reason, count] of Object.entries(guard.blocked)) {
+      if (!Number.isSafeInteger(count) || count < 0) throw new Error('S21_BROWSER_GUARD_SNAPSHOT_INVALID');
+      aggregate.blocked[reason] = (aggregate.blocked[reason] ?? 0) + count;
+    }
+  }
+  if (!Number.isSafeInteger(aggregate.handlerPosts) || !Number.isSafeInteger(aggregate.clickupOnboardRequests) ||
+      Object.values(aggregate.blocked).some((count) => !Number.isSafeInteger(count))) {
+    throw new Error('S21_BROWSER_GUARD_SNAPSHOT_INVALID');
+  }
+  if (aggregate.handlerPosts > S21_MAX_HANDLER_POSTS) throw new Error('S21_HANDLER_POST_CAP_EXCEEDED');
+  return aggregate;
+}
+
 /** @param {unknown} counts @param {boolean} requireSuccess */
 function successfulStatusCount(counts, requireSuccess) {
   if (!isRecord(counts)) return null;

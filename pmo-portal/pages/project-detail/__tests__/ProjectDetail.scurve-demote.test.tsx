@@ -8,7 +8,7 @@
  * is superseded — the scope test (Overview-only) is the correct oracle.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -161,8 +161,8 @@ const milestonePhases: MilestoneWithProgress[] = [
 
 // ── render helper ────────────────────────────────────────────────────────────
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
-const renderAt = (path: string) =>
-  render(
+const renderAt = async (path: string) => {
+  const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
@@ -174,6 +174,9 @@ const renderAt = (path: string) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  return view;
+};
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects', () => {
@@ -185,24 +188,24 @@ describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects',
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-02 (a): the Progress curve IS rendered when the Overview tab is active', () => {
+  it('AC-IFW-RECORD-02 (a): the Progress curve IS rendered when the Overview tab is active', async () => {
     // Default route → Overview tab is active.
-    renderAt('/projects/del1');
-    expect(screen.getByText('Progress curve')).toBeInTheDocument();
+    await renderAt('/projects/del1');
+    expect(await screen.findByText('Progress curve')).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Tasks tab is active', () => {
-    renderAt('/projects/del1/tasks');
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Tasks tab is active', async () => {
+    await renderAt('/projects/del1/tasks');
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Budget tab is active', () => {
-    renderAt('/projects/del1/budget');
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Budget tab is active', async () => {
+    await renderAt('/projects/del1/budget');
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', () => {
-    renderAt('/projects/del1');
+  it('AC-IFW-RECORD-02: the PipelineLens deal banner is NOT rendered for a delivery project', async () => {
+    await renderAt('/projects/del1');
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });

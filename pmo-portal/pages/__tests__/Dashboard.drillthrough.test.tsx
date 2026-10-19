@@ -63,6 +63,12 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: new Map() }),
+}));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false }),
 }));

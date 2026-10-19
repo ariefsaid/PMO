@@ -89,6 +89,9 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useCompanyActivities: () => contactActivitiesState,
   useContactMutations: () => contactMutations,
 }));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ isEnabled: false }),
+}));
 
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({

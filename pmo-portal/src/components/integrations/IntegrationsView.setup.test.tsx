@@ -22,10 +22,16 @@ const erpSetup = vi.hoisted(() => ({
   listErpProjects: vi.fn(async () => []),
   linkErpProject: vi.fn(async () => ({ ok: true, erpProject: 'PROJ-00042' })),
   ensureErpProject: vi.fn(async () => ({ ok: true, erpProject: 'PROJ-00042' })),
+  getBinding: vi.fn(async () => ({
+    status: 'active',
+    site_url: 'https://erp.example.test',
+    config: { company: 'Example Company', project_map: {} },
+  })),
   employErpDomain: vi.fn(async () => ({ ok: true })),
   onboardErpParties: vi.fn(async () => ({ ok: true })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: erpSetup } }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),
@@ -107,7 +113,8 @@ describe('ERP setup checklist', () => {
     expect(screen.getByRole('button',{name:'Review work and billing settings'})).toBeInTheDocument();
     expect(screen.getByRole('link',{name:'Review budget account setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     expect(screen.getByRole('link',{name:'Review employee links'})).toHaveAttribute('href','/approvals');
-    expect(screen.getByRole('link',{name:'Review proposed link for Example Delivery'})).toHaveAttribute('href','/projects/project-2');
+    expect(await screen.findByRole('heading',{name:'Review existing ERP project matches'})).toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Review proposed link for Example Delivery'})).not.toBeInTheDocument();
   });
   it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
     erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));

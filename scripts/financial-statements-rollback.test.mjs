@@ -20,6 +20,13 @@ function psql(sql) {
   return output.trim();
 }
 
+function functionDefinition(sql, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = sql.match(new RegExp(`create or replace function public\\.${escapedName}\\([\\s\\S]*?\\n\\$\\$;`, 'i'));
+  assert.ok(match, `expected complete public.${name} function definition`);
+  return match[0].trim();
+}
+
 function verifyLocalTarget() {
   const target = execFileSync('docker', ['inspect', '--format', '{{.Name}}', dbContainer], { encoding: 'utf8' }).trim();
   assert.equal(target, `/${dbContainer}`, 'rollback test may target only the named local Supabase database container');
@@ -29,6 +36,224 @@ test('0320 down migration drops only the pre-context status RPC', () => {
   const down = sqlFile('supabase/migrations/rollback/0320_financial_statement_native_status_down.sql').trim();
   assert.match(down, /^drop function if exists public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\);$/i);
   assert.doesNotMatch(down, /external_org_bindings|erp_financial_statement_snapshot|erp_financial_statement_report_(batch|pending)/i);
+});
+
+test('0313 down restores exact 0312 source definition', () => {
+  const source0312 = sqlFile('supabase/migrations/0312_statement_gl_replay_finish.sql');
+  const down0313 = sqlFile('supabase/migrations/rollback/0313_statement_gl_missing_reference_down.sql');
+  assert.equal(
+    functionDefinition(down0313, 'finish_erp_gl_replay'),
+    functionDefinition(source0312, 'finish_erp_gl_replay'),
+  );
+});
+
+test('0330 down restores exact 0321 dirty-date function source definition', () => {
+  const source0321 = sqlFile('supabase/migrations/0321_financial_statement_incremental_refresh.sql');
+  const down0330 = sqlFile('supabase/migrations/rollback/0330_statement_dirty_org_delete_down.sql');
+  assert.equal(
+    functionDefinition(down0330, 'track_erp_statement_dirty_date'),
+    functionDefinition(source0321, 'track_erp_statement_dirty_date'),
+  );
+});
+
+test('0330 up adds only the deleted-org cascade guard to the 0321 dirty-date function', () => {
+  const source0321 = sqlFile('supabase/migrations/0321_financial_statement_incremental_refresh.sql');
+  const up0330 = sqlFile('supabase/migrations/0330_statement_dirty_org_delete.sql');
+  const originalFunction = functionDefinition(source0321, 'track_erp_statement_dirty_date');
+  const updatedFunction = functionDefinition(up0330, 'track_erp_statement_dirty_date');
+  const guard = `begin
+  if TG_OP='DELETE' and not exists (
+    select 1 from public.organizations where id=OLD.org_id
+  ) then
+    return OLD;
+  end if;
+
+`;
+  assert.equal(updatedFunction, originalFunction.replace('begin\n', guard));
+});
+
+test('AC-RF-001 replay rollback semantics', () => {
+  verifyLocalTarget();
+  const up0312 = sqlFile('supabase/migrations/0312_statement_gl_replay_finish.sql');
+  const up0313 = sqlFile('supabase/migrations/0313_statement_gl_missing_reference.sql');
+  const down0313 = sqlFile('supabase/migrations/rollback/0313_statement_gl_missing_reference_down.sql');
+  const functionSignature = 'public.finish_erp_gl_replay(uuid,text,uuid,text)';
+  const source0312Definition = functionDefinition(up0312, 'finish_erp_gl_replay');
+  const source0312Acl = up0312.slice(up0312.indexOf('revoke execute on function public.finish_erp_gl_replay'));
+  const orgId = '03120000-0000-0000-0000-000000000001';
+  const replayId = '03120000-0000-0000-0000-000000000002';
+  const script = `begin;
+set local client_min_messages=warning;
+create temporary table before_finish_definition on commit drop as
+  select pg_get_functiondef('${functionSignature}'::regprocedure) as definition;
+${source0312Definition}
+${source0312Acl}
+create temporary table expected_0312_finish_definition on commit drop as
+  select pg_get_functiondef('${functionSignature}'::regprocedure) as definition;
+${up0313}
+${down0313}
+do $$ begin
+  if (select definition from expected_0312_finish_definition)
+       is distinct from pg_get_functiondef('${functionSignature}'::regprocedure) then
+    raise exception '0313 down did not restore the installed 0312 function definition';
+  end if;
+end $$;
+${up0313}
+${down0313}
+do $$ begin
+  if (select definition from expected_0312_finish_definition)
+       is distinct from pg_get_functiondef('${functionSignature}'::regprocedure) then
+    raise exception 'repeated 0313 down did not restore the established 0312 definition';
+  end if;
+end $$;
+
+insert into public.organizations(id,name,default_currency,default_timezone)
+values ('${orgId}','Synthetic replay rollback org','IDR','UTC');
+insert into public.external_org_bindings(org_id,external_tier,site_url,secret_ref,config)
+values ('${orgId}','erpnext','https://replay.invalid','synthetic-ref','{"company":"Replay Co"}');
+insert into public.erp_gl_entry_mirror(org_id,erp_name,company,account,posting_date,erp_modified,replay_seen_id)
+values
+  ('${orgId}','rollback-legacy-null',null,'Synthetic Account',null,'synthetic-legacy',null),
+  ('${orgId}','rollback-current-marked','Replay Co','Synthetic Account',null,'synthetic-kept','${replayId}'),
+  ('${orgId}','rollback-current-unmarked','Replay Co','Synthetic Account',null,'synthetic-unmarked',null),
+  ('${orgId}','rollback-old-company','Previous Co','Synthetic Account',null,'synthetic-old',null);
+insert into public.external_sync_watermarks(org_id,external_tier,domain,watermark_cursor)
+values ('${orgId}','erpnext','ledger::GL Entry','cursor-before');
+create temporary table before_stale_replay_rows on commit drop as
+  select to_jsonb(gl) as row_json from public.erp_gl_entry_mirror gl where gl.org_id='${orgId}';
+create temporary table stale_replay_result on commit drop as
+  select public.finish_erp_gl_replay('${orgId}','Previous Co','${replayId}','cursor-after') as result;
+do $$ begin
+  if (select result->>'stale_binding' from stale_replay_result) is distinct from 'true'
+     or exists(select to_jsonb(gl) from public.erp_gl_entry_mirror gl where gl.org_id='${orgId}'
+       except select row_json from before_stale_replay_rows)
+     or exists(select row_json from before_stale_replay_rows
+       except select to_jsonb(gl) from public.erp_gl_entry_mirror gl where gl.org_id='${orgId}')
+     or not (select statement_full_ledger_replay_needed from public.external_org_bindings
+       where org_id='${orgId}' and external_tier='erpnext')
+     or (select watermark_cursor from public.external_sync_watermarks
+       where org_id='${orgId}' and external_tier='erpnext' and domain='ledger::GL Entry') is distinct from 'cursor-before' then
+    raise exception 'stale binding replay mutated the ledger, watermark, or replay-needed flag';
+  end if;
+end $$;
+create temporary table complete_replay_result on commit drop as
+  select public.finish_erp_gl_replay('${orgId}','Replay Co','${replayId}',null) as result;
+do $$ begin
+  if (select result ? 'stale_binding' from complete_replay_result)
+     or not exists(select 1 from public.erp_gl_entry_mirror where org_id='${orgId}' and erp_name='rollback-current-marked' and replay_seen_id is null)
+     or exists(select 1 from public.erp_gl_entry_mirror where org_id='${orgId}' and erp_name in
+       ('rollback-legacy-null','rollback-current-unmarked','rollback-old-company'))
+     or exists(select 1 from public.external_sync_watermarks where org_id='${orgId}'
+       and external_tier='erpnext' and domain='ledger::GL Entry' and watermark_cursor is distinct from 'cursor-before')
+     or not exists(select 1 from public.external_sync_watermarks where org_id='${orgId}'
+       and external_tier='erpnext' and domain='ledger::GL Entry' and watermark_cursor='cursor-before')
+     or (select statement_full_ledger_replay_needed from public.external_org_bindings
+       where org_id='${orgId}' and external_tier='erpnext') then
+    raise exception '0312 down-restored replay did not handle NULL watermark and complete replay semantics';
+  end if;
+end $$;
+${up0313}
+do $$ begin
+  if (select definition from before_finish_definition)
+       is distinct from pg_get_functiondef('${functionSignature}'::regprocedure)
+     or not exists(select 1 from pg_trigger where tgname='external_org_bindings_statement_company_replay'
+       and not tgisinternal) then
+    raise exception '0313 reapply did not restore the prior installed function and leave the 0314 trigger intact';
+  end if;
+end $$;
+select 'AC_RF_001_ROLLBACK_OK';
+rollback;
+`;
+  const output = psql(script);
+  assert.match(output, /AC_RF_001_ROLLBACK_OK/);
+});
+
+test('AC-RF-002 dirty-delete rollback semantics', () => {
+  verifyLocalTarget();
+  const up = sqlFile('supabase/migrations/0330_statement_dirty_org_delete.sql');
+  const down = sqlFile('supabase/migrations/rollback/0330_statement_dirty_org_delete_down.sql');
+  const functionSignature = 'public.track_erp_statement_dirty_date()';
+  const orgId = '03300000-0000-0000-0000-000000000011';
+  const controlOrgId = '03300000-0000-0000-0000-000000000012';
+  const reupOrgId = '03300000-0000-0000-0000-000000000013';
+  const script = `begin;
+set local client_min_messages=warning;
+create temporary table before_dirty_function on commit drop as
+  select pg_get_functiondef(p.oid) as definition,p.prosecdef,p.proconfig,p.proacl
+    from pg_proc p where p.oid='${functionSignature}'::regprocedure;
+${up}
+do $$ begin
+  if not exists(select 1 from before_dirty_function b join pg_proc p
+    on p.oid='${functionSignature}'::regprocedure
+    where p.prosecdef is not distinct from b.prosecdef
+      and p.proconfig is not distinct from b.proconfig
+      and p.proacl is not distinct from b.proacl) then
+    raise exception '0330 up changed the function security properties or grants';
+  end if;
+end $$;
+insert into public.organizations(id,name,default_currency,default_timezone) values
+ ('${orgId}','Synthetic dirty cascade org','IDR','UTC'),
+ ('${controlOrgId}','Synthetic dirty cascade control','IDR','UTC');
+insert into public.erp_gl_entry_mirror(org_id,erp_name,company,account,posting_date,erp_modified)
+values
+ ('${orgId}','rollback-dirty-target','Cascade Test Co','Synthetic Account','2026-10-19','synthetic-target'),
+ ('${controlOrgId}','rollback-dirty-control','Cascade Test Co','Synthetic Account','2026-10-19','synthetic-control');
+create temporary table dirty_control_before on commit drop as
+  select revision from public.erp_financial_statement_dirty_date
+   where org_id='${controlOrgId}' and company='Cascade Test Co' and posting_date='2026-10-19';
+delete from public.organizations where id='${orgId}';
+do $$ begin
+  if exists(select 1 from public.organizations where id='${orgId}')
+     or exists(select 1 from public.erp_gl_entry_mirror where org_id='${orgId}')
+     or exists(select 1 from public.erp_financial_statement_dirty_date where org_id='${orgId}') then
+    raise exception '0330 up did not allow a clean organization cascade';
+  end if;
+end $$;
+delete from public.erp_gl_entry_mirror where org_id='${controlOrgId}' and erp_name='rollback-dirty-control';
+do $$ begin
+  if not exists(select 1 from public.erp_financial_statement_dirty_date d
+       cross join dirty_control_before b where d.org_id='${controlOrgId}'
+        and d.company='Cascade Test Co' and d.posting_date='2026-10-19' and d.revision>b.revision)
+     or (select count(*) from public.erp_financial_statement_dirty_date where org_id='${controlOrgId}'
+       and company='Cascade Test Co' and posting_date='2026-10-19') <> 1 then
+    raise exception '0330 changed ordinary surviving-org dirty revision behavior';
+  end if;
+end $$;
+${down}
+do $$ begin
+  if (select definition from before_dirty_function)
+       is distinct from pg_get_functiondef('${functionSignature}'::regprocedure)
+     or not exists(select 1 from before_dirty_function b join pg_proc p
+       on p.oid='${functionSignature}'::regprocedure
+       where p.prosecdef is not distinct from b.prosecdef
+         and p.proconfig is not distinct from b.proconfig
+         and p.proacl is not distinct from b.proacl) then
+    raise exception '0330 down did not restore the exact installed 0321 function';
+  end if;
+end $$;
+${up}
+insert into public.organizations(id,name,default_currency,default_timezone)
+values ('${reupOrgId}','Synthetic dirty cascade reapply org','IDR','UTC');
+insert into public.erp_gl_entry_mirror(org_id,erp_name,company,account,posting_date,erp_modified)
+values ('${reupOrgId}','rollback-dirty-reup','Cascade Test Co','Synthetic Account','2026-10-20','synthetic-reup');
+delete from public.organizations where id='${reupOrgId}';
+do $$ begin
+  if exists(select 1 from public.organizations where id='${reupOrgId}')
+     or exists(select 1 from public.erp_gl_entry_mirror where org_id='${reupOrgId}')
+     or exists(select 1 from public.erp_financial_statement_dirty_date where org_id='${reupOrgId}')
+     or not exists(select 1 from before_dirty_function b join pg_proc p
+       on p.oid='${functionSignature}'::regprocedure
+       where p.prosecdef is not distinct from b.prosecdef
+         and p.proconfig is not distinct from b.proconfig
+         and p.proacl is not distinct from b.proacl) then
+    raise exception '0330 reapply did not restore cascade success';
+  end if;
+end $$;
+select 'AC_RF_002_ROLLBACK_OK';
+rollback;
+`;
+  const output = psql(script);
+  assert.match(output, /AC_RF_002_ROLLBACK_OK/);
 });
 
 test('financial statement source migrations roll back and reapply inside a self-restoring transaction', () => {

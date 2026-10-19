@@ -158,10 +158,22 @@ function rpcAdmissionReserve(runtime: Runtime): number {
   return conservativeObservedCost(runtime.telemetry.rpc.maxElapsedMs, REQUEST_RESERVE_MS, 50, 1_000);
 }
 
+function maxObservedReportMs(runtime: Runtime): number {
+  return Math.max(...Object.values(runtime.telemetry.reports).map((group) => group.maxElapsedMs));
+}
+
 function reportAdmissionReserve(runtime: Runtime): number {
-  const maxObserved = Math.max(...Object.values(runtime.telemetry.reports).map((group) => group.maxElapsedMs));
+  const maxObserved = maxObservedReportMs(runtime);
   return conservativeObservedCost(maxObserved, STATEMENT_READ_REQUEST_TIMEOUT_MS, REQUEST_RESERVE_MS,
     STATEMENT_READ_REQUEST_TIMEOUT_MS) + 2 * rpcAdmissionReserve(runtime);
+}
+
+function reportRequestTimeoutMs(runtime: Runtime, remainingMs: number): number | null {
+  const allowance = Math.min(
+    STATEMENT_READ_REQUEST_TIMEOUT_MS,
+    remainingMs - 2 * rpcAdmissionReserve(runtime),
+  );
+  return allowance >= REQUEST_RESERVE_MS ? allowance : null;
 }
 
 function contextRecheckReserve(runtime: Runtime): number {
@@ -453,15 +465,22 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
   while (batch.nextRequest && runtime.active && !runtime.controller.signal.aborted) {
     const request = batch.nextRequest;
     const remaining = runtime.expiresAt - Date.now();
-    if (remaining < reportAdmissionReserve(runtime)) return progressResult(batch, staged);
+    const reportIsCold = maxObservedReportMs(runtime) <= 0;
+    if (!reportIsCold && remaining < reportAdmissionReserve(runtime)) return progressResult(batch, staged);
+    const requestTimeoutMs = reportRequestTimeoutMs(runtime, remaining);
+    if (requestTimeoutMs === null) return progressResult(batch, staged);
     const mapped = reportSelection(request, context, input.binding);
     if (!mapped) return errorResult(ERROR_CODES.response, batch, staged);
+    const reportClient: ErpClientDeps = {
+      ...context.client,
+      timeoutMs: requestTimeoutMs,
+    };
     let fetched: Awaited<ReturnType<typeof fetchStatementReport>>;
     const reportStarted = performance.now();
     runtime.telemetry.phase = 'report';
     runtime.telemetry.reportKind = request.statement;
     try {
-      fetched = await fetchStatementReport(context.client, mapped.selection, context.fetch);
+      fetched = await fetchStatementReport(reportClient, mapped.selection, context.fetch);
     } catch {
       return errorResult(runtime.active ? ERROR_CODES.request : ERROR_CODES.deadline, batch, staged);
     } finally {

@@ -126,6 +126,49 @@ describe('AccountingSnapshotsSection — populated state', () => {
     expect(within(apCard).getAllByText('$0')).toHaveLength(6);
   });
 
+  it('keeps missing AR amounts and currency unavailable while showing the source aging window', () => {
+    const unknownRow: ErpAgingSnapshotRow = {
+      ...arRows[0]!,
+      party: 'C-0001',
+      currency: null,
+      totalOutstanding: null,
+      current: null,
+      bucket0to30: 0,
+      bucket31to60: null,
+      bucket61to90: null,
+      bucketOver90: null,
+      rangeLabels: { range1: 'ERP Current', range2: 'ERP 1–30', range3: 'ERP 31–60', range4: 'ERP 61+' },
+      reportDate: '2026-07-11',
+      ageingBasedOn: 'Posting Date',
+      asOf: '2026-07-12T08:00:00Z',
+      sourceReport: 'Accounts Receivable',
+    };
+
+    render(<AccountingSnapshotsSection {...emptyProps} arAging={[unknownRow]} />);
+
+    const arCard = screen.getByText('C-0001').closest('.rounded-lg.border') as HTMLElement;
+    expect(within(arCard).getAllByText('Unavailable').length).toBeGreaterThanOrEqual(6);
+    expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
+    expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
+    expect(within(arCard).getByText(/Posting Date/)).toBeInTheDocument();
+    expect(within(arCard).getByText(/range1: ERP Current/)).toBeInTheDocument();
+    expect(within(arCard).getByText(/Accounts Receivable/)).toBeInTheDocument();
+  });
+
+  it('keeps same-party positions in distinct source currencies without combining the rows', () => {
+    const sharedPartyRows: ErpAgingSnapshotRow[] = [
+      { ...arRows[0]!, party: 'Shared ERP Party', currency: 'USD', totalOutstanding: 100, reportDate: '2026-07-10' },
+      { ...arRows[0]!, party: 'Shared ERP Party', currency: 'CAD', totalOutstanding: 200, reportDate: '2026-07-11' },
+    ];
+
+    render(<AccountingSnapshotsSection {...emptyProps} arAging={sharedPartyRows} />);
+
+    expect(screen.getAllByText('USD')).toHaveLength(6);
+    expect(screen.getAllByText('CAD')).toHaveLength(6);
+    const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.rounded-lg.border') as HTMLElement;
+    expect(within(arCard).getAllByRole('row')).toHaveLength(3);
+  });
+
   it('renders the AccountingSnapshotProvenance strip for each populated snapshot', () => {
     render(
       <AccountingSnapshotsSection

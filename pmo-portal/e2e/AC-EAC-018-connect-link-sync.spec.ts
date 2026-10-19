@@ -207,13 +207,26 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
 
   // external-link: push-seed → seed the project binding (what the link RPC would persist), return ok.
   await page.route('**/functions/v1/external-link', async (route) => {
+    const body = route.request().postDataJSON() as {
+      tier?: string;
+      projectId?: string;
+      listId?: string;
+      direction?: string;
+    };
+    if (
+      body.tier !== 'clickup' || body.projectId !== projectId ||
+      body.listId !== LIST_ID || body.direction !== 'push-seed'
+    ) {
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'unexpected link request' }) });
+      return;
+    }
     const { error } = await db.from('external_project_bindings').upsert(
       {
         org_id: ORG,
         project_id: projectId,
         external_tier: 'clickup',
         external_container_id: LIST_ID,
-        config: { direction: 'push-seed' },
+        config: { direction: body.direction },
         linked_by: adminId,
         linked_at: new Date().toISOString(),
       },
@@ -223,7 +236,7 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, binding: { id: 'eac018_pb', direction: 'push-seed', listId: LIST_ID } }),
+      body: JSON.stringify({ ok: true, binding: { id: 'eac018_pb', direction: body.direction, listId: LIST_ID } }),
     });
   });
 
@@ -280,26 +293,30 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   // Org is connected → the "Link to ClickUp" affordance is now visible.
   await expect(projClickupCard.getByRole('button', { name: /Link to ClickUp/i })).toBeVisible({ timeout: 15_000 });
   await projClickupCard.getByRole('button', { name: /Link to ClickUp/i }).click();
-  const linkDialog = page.getByRole('dialog', { name: /Link to ClickUp/i });
+  const linkDialog = page.getByRole('dialog', { name: /Review ClickUp link/i });
   await expect(linkDialog).toBeVisible({ timeout: 10_000 });
 
-  // Pick the one List from the picker (direction defaults to push-seed — the AC's chosen direction).
+  // Pick the one List and explicitly choose the initial source before reviewing the link.
   const listTrigger = linkDialog.getByRole('combobox', { name: /ClickUp List/i });
   await expect(listTrigger).toBeVisible();
   await listTrigger.click();
   await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 });
   await page.getByRole('option', { name: new RegExp(LIST_NAME) }).click();
   await expect(listTrigger).toContainText(LIST_NAME);
+  await linkDialog.getByRole('radio', { name: /Start with PMO tasks/i }).check();
 
-  await linkDialog.getByRole('button', { name: /Link to ClickUp/i }).click();
-  // App note: handleLinkSubmit does NOT auto-close the link dialog on success (unlike connect, which
-  // does) — it only refetches the project bindings, leaving the dialog open. That is a minor UX
-  // inconsistency, NOT the goal-oracle: the goal is the project is linked (the card flips to
-  // "Linked"), so we prove THAT (the refetch updates the card behind the dialog), then dismiss the
-  // dialog the way a user would. The inconsistency is reported alongside this spec, not asserted.
+  await linkDialog.getByRole('button', { name: /Review link/i }).click();
+  await expect(linkDialog).toContainText(PROJ_NAME);
+  await expect(linkDialog).toContainText(LIST_NAME);
+  await expect(linkDialog).toContainText('Start with PMO tasks');
+  await expect(linkDialog).toContainText(/This choice describes the initial task transfer only/i);
+  await expect(linkDialog).toContainText(/Saving this link does not confirm that the initial task transfer has completed/i);
+  await linkDialog.getByRole('button', { name: /Confirm ClickUp link/i }).click();
+  await expect(linkDialog).toBeHidden({ timeout: 15_000 });
   await expect(projClickupCard.getByText(/Linked/i).first()).toBeVisible({ timeout: 15_000 });
-  await linkDialog.getByRole('button', { name: 'Close' }).click();
-  await expect(linkDialog).toBeHidden({ timeout: 10_000 });
+  const initialSourceRow = projClickupCard.getByText(/Initial source:/i).locator('..');
+  await expect(initialSourceRow).toContainText(/Initial source:\s*Start with PMO tasks/i);
+  await expect(projClickupCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
 
   // ===========================================================================
   // WHEN-c: the Admin edits a PMO task status (the push-direction trigger).

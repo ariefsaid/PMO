@@ -141,6 +141,7 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStats
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+import type { CompanyCustomerRef } from '@/src/lib/db/companyCollections';
 import type { RecordSlipInput, CorrectSlipInput, VoidSlipInput, SlipWriteResult } from '@/src/lib/vendorWithholdingSlip';
 import type { BillContextLabels, BillCursor, BillPage, ReadBillContextsInput, SlipCursor, SlipDetail, SlipPage } from '@/src/lib/db/vendorWithholdingSlips';
 import type { FinancialStatementCatalogue, FinancialStatementRead } from '@/src/lib/financialStatements';
@@ -838,6 +839,7 @@ export interface Repositories {
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
+  companyCollections: CompanyCollectionsRepository;
   financialStatements: FinancialStatementsRepository;
   integrations: IntegrationsRepository;
   reports: ReportsRepository;
@@ -918,6 +920,12 @@ export interface ErpSnapshotsRepository {
   actuals(): Promise<ErpActualsSnapshotRow[]>;
   apAging(): Promise<ErpAgingSnapshotRow[]>;
   arAging(): Promise<ErpAgingSnapshotRow[]>;
+}
+
+/** Read-only canonical Customer-reference reads for composing ERP aging by PMO company. */
+export interface CompanyCollectionsRepository {
+  listForCompanies(companyIds: readonly string[]): Promise<CompanyCustomerRef[]>;
+  listForErpCustomerIds(erpCustomerIds: readonly string[]): Promise<CompanyCustomerRef[]>;
 }
 
 // ============================================================================
@@ -1058,7 +1066,7 @@ export interface IntegrationsRepository {
   getErpSetup(): Promise<ErpSetupReadiness>;
   saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
   listErpProjects(query: string): Promise<ErpProjectOption[]>;
-  linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
+  linkErpProject(projectId: string, erpProject: string, expectedErpProject: string | null): Promise<ErpProjectLink>;
   ensureErpProject(projectId: string): Promise<ErpProjectLink>;
   employErpDomain(domain: string): Promise<{ ok: true }>;
   /** #775 phase B — save one key of the expense account map (validated against ERPNext server-side, FR-EXP-112). */

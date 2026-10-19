@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(36);
 
 insert into public.organizations (id, name, default_currency) values
   ('03220000-0000-0000-0000-000000000001', 'Actual basis ERP org', 'IDR'),
@@ -43,6 +43,8 @@ insert into public.projects (id, org_id, name, status, currency, contract_value,
   ('03220000-0000-0000-0000-000000000d26', '03220000-0000-0000-0000-000000000004', 'High value tender', 'Tender Submitted', 'USD', 9000, 0, 'exclusive', 0),
   ('03220000-0000-0000-0000-000000000d27', '03220000-0000-0000-0000-000000000004', 'High value loss', 'Loss Tender', 'USD', 8000, 0, 'exclusive', 0),
   ('03220000-0000-0000-0000-000000000d28', '03220000-0000-0000-0000-000000000004', 'Open lead', 'Leads', 'USD', 7000, 0, 'exclusive', 0);
+insert into public.projects (id, org_id, name, status, currency, contract_value, budget, tax_treatment, tax_amount) values
+  ('03220000-0000-0000-0000-000000000d29', '03220000-0000-0000-0000-000000000001', 'Foreign high-value active project', 'Ongoing Project', 'IDR', 999999999, 0, 'exclusive', 0);
 
 insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at) values
   ('03220000-0000-0000-0000-000000000001', 'erpnext', 'https://erp.example.test', 'test-ref', 'active', '03220000-0000-0000-0000-0000000000a1', now()),
@@ -181,6 +183,10 @@ set local request.jwt.claims = '{"sub":"03220000-0000-0000-0000-0000000000a5","r
 select is(array(select value->>'id' from json_array_elements(public.get_executive_dashboard()->'top_projects') with ordinality as result(value, ord) order by ord),
           array['03220000-0000-0000-0000-000000000d20','03220000-0000-0000-0000-000000000d21','03220000-0000-0000-0000-000000000d22','03220000-0000-0000-0000-000000000d23','03220000-0000-0000-0000-000000000d24']::text[],
           'AC-FAA-005: eligible delivery rows are filtered before the five-row limit');
+select ok(not exists(
+  select 1 from json_array_elements(public.get_executive_dashboard()->'top_projects') as project
+   where project->>'id'='03220000-0000-0000-0000-000000000d29'),
+  'AC-FAA-009: delivery Finance dashboard excludes a foreign high-value project');
 select is((public.get_executive_dashboard()->>'pipeline_total_value')::numeric, 16000::numeric,
           'AC-FAA-005: pipeline aggregate still includes the high-value open stages');
 select is((public.get_executive_dashboard()->>'on_hand_value')::numeric, 3900::numeric,

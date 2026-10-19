@@ -4,6 +4,7 @@ import {
   createS21ClickUpFetch,
   createS21BrowserRequestGuard,
   classifyS21BrowserRequest,
+  aggregateS21BrowserGuardSnapshots,
   S21_MAX_CLICKUP_GETS,
   validateS21TransportSummary,
 } from './AC-S21-005-transport.mjs';
@@ -172,6 +173,27 @@ test('browser forwarding enforces the 16 handler POST cap and counts the initial
     { kind: 'blocked', reason: 'operator-initializer' },
   );
   assert.deepEqual(guard.snapshot(), { handlerPosts: 16, clickupOnboardRequests: 2 });
+});
+
+test('ordered browser cases aggregate all guard snapshots and blocked requests under the journey caps', () => {
+  assert.deepEqual(aggregateS21BrowserGuardSnapshots([
+    {
+      snapshot: { handlerPosts: 2, clickupOnboardRequests: 1 },
+      blocked: { 'unexpected-method': 1 },
+    },
+    {
+      snapshot: { handlerPosts: 3, clickupOnboardRequests: 2 },
+      blocked: { 'unexpected-method': 2, 'unowned-function': 1 },
+    },
+  ]), {
+    handlerPosts: 5,
+    clickupOnboardRequests: 3,
+    blocked: { 'unexpected-method': 3, 'unowned-function': 1 },
+  });
+  assert.throws(() => aggregateS21BrowserGuardSnapshots([
+    { snapshot: { handlerPosts: 10, clickupOnboardRequests: 0 }, blocked: {} },
+    { snapshot: { handlerPosts: 7, clickupOnboardRequests: 0 }, blocked: {} },
+  ]), /S21_HANDLER_POST_CAP_EXCEEDED/);
 });
 
 test('transport summary requires successful bounded handler posts and synthetic ClickUp GETs', () => {

@@ -1,6 +1,6 @@
 -- AC-S29-002: atomic, claimant-scoped, stable-ID creation of a Draft claim and its optional first line.
 begin;
-select plan(18);
+select plan(24);
 
 insert into organizations (id, name, default_currency) values
   ('03270000-0000-0000-0000-00000000000a','S29 Capture Org A','IDR'),
@@ -9,11 +9,13 @@ insert into auth.users (id, email) values
   ('03270000-0000-0000-0000-0000000000a1','s29-capture-a@example.com'),
   ('03270000-0000-0000-0000-0000000000a2','s29-capture-b@example.com'),
   ('03270000-0000-0000-0000-0000000000a3','s29-capture-disabled@example.com'),
+  ('03270000-0000-0000-0000-0000000000a4','s29-capture-approver@example.com'),
   ('03270000-0000-0000-0000-0000000000b1','s29-capture-foreign@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('03270000-0000-0000-0000-0000000000a1','03270000-0000-0000-0000-00000000000a','S29 Claimant A','s29-capture-a@example.com','Engineer','active'),
   ('03270000-0000-0000-0000-0000000000a2','03270000-0000-0000-0000-00000000000a','S29 Claimant B','s29-capture-b@example.com','Engineer','active'),
   ('03270000-0000-0000-0000-0000000000a3','03270000-0000-0000-0000-00000000000a','S29 Disabled','s29-capture-disabled@example.com','Engineer','disabled'),
+  ('03270000-0000-0000-0000-0000000000a4','03270000-0000-0000-0000-00000000000a','S29 Approver','s29-capture-approver@example.com','Project Manager','active'),
   ('03270000-0000-0000-0000-0000000000b1','03270000-0000-0000-0000-00000000000b','S29 Foreign','s29-capture-foreign@example.com','Engineer','active');
 insert into projects (id, org_id, name, status) values
   ('03270000-0000-0000-0000-000000000201','03270000-0000-0000-0000-00000000000a','S29 Project A','Ongoing Project'),
@@ -44,6 +46,36 @@ select is((select expense_date::text || '|' || expense_type::text || '|' || desc
   'AC-S29-002: the first line persists with the stable line ID and supplied source amount');
 select is((select count(*)::int from expense_posting_erp_mirror where claim_id='03270000-0000-0000-0000-000000000101'), 0,
   'AC-S29-002: capture creates no posting or approval record');
+set local request.jwt.claims = '{"sub":"03270000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select is((select count(*)::int from expense_claims where id='03270000-0000-0000-0000-000000000101'), 1,
+  'AC-S29-002: an active Project Manager approver can read the claimant Draft');
+select throws_ok($$select public.create_expense_capture(
+  '03270000-0000-0000-0000-000000000101','03270000-0000-0000-0000-000000000102',
+  '{"title":"Taxi to project site","purpose":null,"projectId":"03270000-0000-0000-0000-000000000201","budgetCategory":"Special expenses","advanceId":null}'::jsonb,
+  '{"expenseDate":"2026-10-07","expenseType":"Travel","description":"Taxi to project site","amount":150000}'::jsonb
+)$$, '42501', null, 'AC-S29-002: an approver cannot replay another claimant’s stable Draft ID');
+select ok(exists(select 1 from expense_claims
+    where id='03270000-0000-0000-0000-000000000101'
+      and kind='claim' and org_id='03270000-0000-0000-0000-00000000000a'
+      and claimant_id='03270000-0000-0000-0000-0000000000a1'
+      and status='Draft' and title='Taxi to project site' and purpose is null
+      and project_id='03270000-0000-0000-0000-000000000201'
+      and budget_category='Special expenses' and advance_id is null and amount=150000
+      and approved_by_id is null and approved_at is null and approval_notes is null),
+  'AC-S29-002: rejected approver replay leaves the Draft header and amount unchanged');
+select is((select count(*)::int from expense_claim_lines where claim_id='03270000-0000-0000-0000-000000000101'), 1,
+  'AC-S29-002: rejected approver replay does not add a line');
+select ok(exists(select 1 from expense_claim_lines
+    where id='03270000-0000-0000-0000-000000000102'
+      and claim_id='03270000-0000-0000-0000-000000000101'
+      and expense_date='2026-10-07' and expense_type='Travel'
+      and description='Taxi to project site' and amount=150000),
+  'AC-S29-002: rejected approver replay leaves the original line unchanged');
+select ok(not exists(select 1 from expense_posting_erp_mirror where claim_id='03270000-0000-0000-0000-000000000101')
+    and exists(select 1 from expense_claims where id='03270000-0000-0000-0000-000000000101'
+      and status='Draft' and approved_by_id is null and approved_at is null and approval_notes is null),
+  'AC-S29-002: rejected approver replay creates no posting or approval state');
+set local request.jwt.claims = '{"sub":"03270000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is(public.create_expense_capture(
   '03270000-0000-0000-0000-000000000101','03270000-0000-0000-0000-000000000102',
   '{"title":"Taxi to project site","purpose":null,"projectId":"03270000-0000-0000-0000-000000000201","budgetCategory":"Special expenses","advanceId":null}'::jsonb,
