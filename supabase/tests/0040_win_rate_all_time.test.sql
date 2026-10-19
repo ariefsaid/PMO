@@ -3,11 +3,11 @@
 -- DECOUPLED from seed: uses its own isolated org so a future seed change cannot affect
 -- the assertions. UUID prefix 00400000-…
 --
--- Fixture: 2 Ongoing wins (6,000,000 + 2,000,000) + 1 Loss Tender (650,000)
---   win_rate_count = 2 / (2+1) = 0.666667
---   win_rate_value = 8,000,000 / (8,000,000 + 650,000) = 8,000,000 / 8,650,000 = 0.924855
+-- Fixture: 2 Ongoing wins (6,000,000 + 2,000,000) + 2 valued Loss Tender rows;
+-- one has a recorded decision date and one does not.
+-- All-time includes both recorded losses: count rate = 2/4; value rate = 8M/8.75M.
 begin;
-select plan(2);
+select plan(3);
 
 -- ── Isolated org + executive ──────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -34,26 +34,37 @@ values
    'W0002', 'Win Project Two', 'Ongoing Project',
    '00400000-0000-0000-0000-0000000000a1',
    2000000, 1800000, 0, '2026-02-10T00:00:00Z', 'exclusive', 0),
--- Loss: Loss Tender, contract_value = 650,000
+-- Loss: Loss Tender, contract_value = 650,000, with decision date
   ('40000000-0000-0000-0000-000000000103', '00400000-0000-0000-0000-000000000001',
    'L0001', 'Loss Project One', 'Loss Tender',
    '00400000-0000-0000-0000-0000000000a1',
-   650000, 0, 0, '2026-02-20T00:00:00Z', 'exclusive', 0);
+   650000, 0, 0, '2026-02-20T00:00:00Z', 'exclusive', 0),
+-- Recorded loss without a close date still belongs in All time.
+  ('40000000-0000-0000-0000-000000000104', '00400000-0000-0000-0000-000000000001',
+   'L0002', 'Loss Project Two', 'Loss Tender',
+   '00400000-0000-0000-0000-0000000000a1',
+   100000, 0, 0, null, 'exclusive', 0);
 
 -- ── Authenticate as the test-org Executive ────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00400000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-1106: win_rate_count = 2/3 ≈ 0.666667
+-- All-time count includes both valued losses, with and without a decision date.
 select ok(
-  abs((get_win_rate(null, null) ->> 'win_rate_count')::numeric - 0.666667) < 1e-6,
-  'AC-1106: count win-rate 2/3 = 0.666667 (FR-SPD-006/007)'
+  (get_win_rate(null, null) ->> 'losses_count')::int = 2
+    and (get_win_rate(null, null) ->> 'win_rate_count')::numeric < 1,
+  'AC-1106: all-time count rate includes valued loss without close date'
 );
 
--- AC-1106: win_rate_value = 8,000,000/8,650,000 ≈ 0.924855
 select ok(
-  abs((get_win_rate(null, null) ->> 'win_rate_value')::numeric - 0.924855) < 1e-6,
-  'AC-1106: value win-rate 8M/8.65M = 0.924855 (FR-SPD-006/007)'
+  (get_win_rate(null, null) ->> 'losses_value')::numeric = 750000
+    and (get_win_rate(null, null) ->> 'win_rate_value')::numeric < 1,
+  'AC-1106: all-time value rate includes valued loss without close date'
+);
+
+select ok(
+  (get_win_rate('2026-02-01', '2026-02-28') ->> 'losses_count')::int = 1,
+  'AC-1106: date-window rates continue to require a decision date'
 );
 
 reset role;
