@@ -84,10 +84,16 @@ export interface WinRate {
   losses_count: number;
   /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
   declined_count?: number;
-  wins_value: number;
-  losses_value: number;
+  wins_value: number | null;
+  losses_value: number | null;
   win_rate_count: number;
-  win_rate_value: number;
+  win_rate_value: number | null;
+  value_by_currency?: Array<{
+    currency: string;
+    wins_value: number;
+    losses_value: number;
+    win_rate_value: number | null;
+  }>;
 }
 
 export interface PipelineStage {

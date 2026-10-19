@@ -1264,7 +1264,7 @@
     "winRate": {
       "title": "Tingkat kemenangan", "basisCount": "Menurut jumlah", "basisValue": "Menurut nilai", "basis": "Dasar tingkat kemenangan", "periodAll": "Sepanjang waktu", "periodYtd": "Tahun ini", "periodQuarter": "Kuartal terakhir", "periodTrailing": "12 bulan terakhir", "period": "Periode",
       "errorTitle": "Gagal memuat tingkat kemenangan", "errorSub": "Terjadi kesalahan. Coba lagi.", "emptyTitle": "Tidak ada proyek selesai dalam periode ini", "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
-      "result": "{{wins}} menang dari {{total}} proyek selesai", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+      "result": "{{wins}} menang dari {{total}} proyek selesai", "currencyResult": "{{currency}} {{percent}}% — {{wins}} menang dari {{total}} proyek selesai", "noRecordedLosses": "{{currency}} — belum ada kekalahan tercatat; {{wins}} menang", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
     "bva": { "atRisk": "Berisiko" },
     "projectedMargin": { "group": "Margin proyeksi pipeline", "weightedPipelineValue": "Nilai pipeline tertimbang", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },

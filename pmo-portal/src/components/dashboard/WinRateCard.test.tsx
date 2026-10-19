@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { WinRateCard } from './WinRateCard';
+import i18next from 'i18next';
+import idCommon from '../../../public/locales/id/common.json';
 
 const populatedOracle = {
   wins_count: 2, losses_count: 1, wins_value: 8_000_000, losses_value: 650_000,
@@ -11,7 +13,7 @@ const zeroOracle = {
   win_rate_count: 0, win_rate_value: 0,
 };
 
-let oracle: typeof populatedOracle = populatedOracle;
+let oracle: typeof populatedOracle & { value_by_currency?: Array<{ currency: string; wins_value: number; losses_value: number; win_rate_value: number | null }> } = populatedOracle;
 let lastRange: { key: string } | null = null;
 
 vi.mock('@/src/hooks/useDashboard', async (orig) => {
@@ -35,6 +37,45 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+  });
+
+  it('AC-1106: renders mixed-currency value rates separately and labels unmeasured loss rate', () => {
+    oracle = {
+      ...populatedOracle,
+      wins_value: null as unknown as number,
+      losses_value: null as unknown as number,
+      win_rate_value: null as unknown as number,
+      value_by_currency: [
+        { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
+        { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
+      ],
+    };
+    render(<WinRateCard currency="USD" />);
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent(/IDR.*92\.5%.*won of.*closed/i);
+    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD.*No recorded losses/i);
+    expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
+  });
+
+  it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
+    i18next.addResourceBundle('id', 'common', idCommon, true, true);
+    await i18next.changeLanguage('id');
+    oracle = {
+      ...populatedOracle,
+      wins_value: null as unknown as number,
+      losses_value: null as unknown as number,
+      win_rate_value: null as unknown as number,
+      value_by_currency: [
+        { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
+        { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
+      ],
+    };
+    render(<WinRateCard currency="USD" />);
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent('IDR 92.5%');
+    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD — belum ada kekalahan tercatat/i);
+    await i18next.changeLanguage('en');
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {
