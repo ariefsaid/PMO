@@ -17,8 +17,11 @@ S-21 timed out, and the confirm and project-billing journeys exceeded the timing
 Recovery #1186 is open in PR #1189 (`135a8b98`): inactive project panels now load on demand.
 All six fast checks passed (39201808400; 1,218 unit files, 6,733 database checks and 100%
 changed-line coverage). The unchanged task-link and billing journeys passed locally in 9.2s
-and 7.6s within their existing 30s limits. Full browser integration 39201829613 remains active;
-unrelated code merges stay held until the dev browser gate is green. Goal oracles are retained.
+and 7.6s within their existing 30s limits. Full browser integration 39201829613 passed all 398
+executed cases, with 67 justified skips, but failed the timing gate: S-21 took 27.518s against
+the unchanged 25.5s budget. Confirmation and project billing remain timing warnings; served-function
+checks were not reached. The recovery continues in #1189; unrelated code merges remain held
+until the dev browser gate is green. Every goal oracle and timeout is retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
