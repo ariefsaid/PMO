@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -182,4 +182,39 @@ it('AC-S11-002: catalogue errors keep the saved value visible and offer a retry'
   expect(screen.getByRole('button', { name: 'Save account' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: /retry|try again/i }));
   expect(await screen.findByRole('combobox', { name: 'Tax-prepaid account' })).toHaveTextContent('Tax Prepaid - DEMO');
+});
+
+it('AC-V24P-001: a removed unsaved receipt account stays visible with a clear correction path', async () => {
+  const original = { account: '1120 - Tax Credit', accountName: 'Tax Credit', accountNumber: '1120', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false };
+  const replacement = { account: '1130 - Tax Prepaid', accountName: 'Tax Prepaid', accountNumber: '1130', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false };
+  h.listAccounts.mockResolvedValue({ accounts: [original, replacement], source: 'mirror' });
+  const queryClient = renderSetting();
+  const user = userEvent.setup();
+  const field = await screen.findByRole('combobox', { name: 'Tax-prepaid account' });
+
+  await user.click(field);
+  await user.click(await screen.findByRole('option', { name: /1120 - Tax Credit/ }));
+  expect(field).toHaveTextContent('1120 - Tax Credit');
+  expect(h.set).not.toHaveBeenCalled();
+
+  await act(async () => {
+    queryClient.setQueryData(['uxs11', 'account-catalogue', 'fixture-org'], {
+      accounts: [replacement],
+      source: 'mirror',
+    });
+  });
+
+  const explanation = 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.';
+  expect(field).toHaveTextContent('1120 - Tax Credit');
+  expect(await screen.findByText(explanation)).toBeInTheDocument();
+  expect(field).toHaveAttribute('aria-invalid', 'true');
+  expect(field).toHaveAttribute('aria-describedby');
+  expect(screen.getByRole('button', { name: 'Save account' })).toBeDisabled();
+  expect(h.set).not.toHaveBeenCalled();
+
+  await user.click(field);
+  await user.click(await screen.findByRole('option', { name: /1130 - Tax Prepaid/ }));
+  await user.click(screen.getByRole('button', { name: 'Save account' }));
+  expect(h.set).toHaveBeenCalledTimes(1);
+  expect(h.set).toHaveBeenCalledWith('1130 - Tax Prepaid');
 });

@@ -194,14 +194,19 @@ export default function OrgVendorTaxAccounts() {
             {fields.map((field) => {
               const value = values[field.key];
               const fieldCandidates = candidates[field.key === 'inputVatAccount' ? 'inputVat' : field.key === 'pph23PayableAccount' ? 'pph23' : 'pph42'];
+              const baseline = savedBaseline.current ?? saved;
+              const isUnavailable = Boolean(value && catalogue.isSuccess && !fieldCandidates.some((account) => account.account === value));
+              const isSavedChoiceUnavailable = isUnavailable && baseline[field.key] === value;
+              const isUnavailableDraftChoice = isUnavailable && baseline[field.key] !== value;
+              const savedUnavailableCopy = isSavedChoiceUnavailable
+                ? t('uxs11.savedChoiceUnavailable', 'Saved value is not in the current chart; it remains saved until replaced.')
+                : undefined;
               return (
                 <div key={field.key} className="space-y-1.5">
                   <Combobox
                     label={t(field.labelKey, field.label)}
                     value={value}
-                    selectedOption={value ? valueOption(value, fieldCandidates, catalogue.isSuccess
-                      ? t('uxs11.savedChoiceUnavailable', 'Saved value is not in the current chart; it remains saved until replaced.')
-                      : undefined) : null}
+                    selectedOption={value ? valueOption(value, fieldCandidates, savedUnavailableCopy) : null}
                     onChange={(next) => {
                       if (field.key === 'inputVatAccount') setInputVat(next);
                       else if (field.key === 'pph23PayableAccount') setPph23(next);
@@ -220,7 +225,9 @@ export default function OrgVendorTaxAccounts() {
                     placeholder={t('uxs11.accountPlaceholder', 'Choose an account')}
                     searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
                     disabled={mutation.isPending || !canBrowse}
+                    error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
                   />
+                  {savedUnavailableCopy && <p className="text-[13px] text-muted-foreground">{savedUnavailableCopy}</p>}
                   {canBrowse && fieldCandidates.length === 0 && <p className="text-[13px] text-muted-foreground">{t(field.emptyKey, field.empty)}</p>}
                 </div>
               );
