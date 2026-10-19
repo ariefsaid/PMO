@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
+import { BahasaProvider } from '@/test/bahasa';
+import { MemoryRouter } from 'react-router';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
 // FR-L10N-020: aging rows carry the ERP document's own (nullable) currency; actuals fall back
@@ -99,6 +101,29 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 });
 
 describe('AccountingSnapshotsSection — populated state', () => {
+  it('AC-RD-FIN-001: keeps a missing Net unknown and explains that the snapshot supplied no value', () => {
+    render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
+    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    expect(within(actuals).getByText('—')).toBeInTheDocument();
+    expect(within(actuals).getByText(/source snapshot did not supply a net value/i)).toBeInTheDocument();
+    expect(within(actuals).queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-FIN-002: identifies the project for each actuals row', () => {
+    render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, projectId: 'project-17' }]} actualProjectNames={new Map([['project-17', 'Synthetic Project']])} /></MemoryRouter>);
+    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    expect(within(actuals).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
+    expect(within(actuals).getByRole('link', { name: 'Synthetic Project' })).toHaveAttribute('href', '/projects/project-17');
+  });
+
+  it('AC-RD-FIN-003: renders Bahasa money labels for accounting snapshots', () => {
+    render(<BahasaProvider locale="id"><MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={actualsRows} apAging={apRows} arAging={arRows} /></MemoryRouter></BahasaProvider>);
+    expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
+    expect(screen.getByText('Utang kepada vendor (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Piutang pelanggan (AR)')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Akun' })).toBeInTheDocument();
+  });
   it('renders the actuals net figure, AP aging party row, and AR aging party row as-is (no recompute)', () => {
     render(
       <AccountingSnapshotsSection
@@ -163,8 +188,9 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
     render(<AccountingSnapshotsSection {...emptyProps} arAging={sharedPartyRows} />);
 
-    expect(screen.getAllByText('USD')).toHaveLength(6);
-    expect(screen.getAllByText('CAD')).toHaveLength(6);
+    expect(screen.queryByText('USD')).not.toBeInTheDocument();
+    expect(screen.queryByText('CAD')).not.toBeInTheDocument();
+    expect(screen.getByText('$100')).toBeInTheDocument();
     const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.rounded-lg.border') as HTMLElement;
     expect(within(arCard).getAllByRole('row')).toHaveLength(3);
   });

@@ -15,7 +15,7 @@ describe('dashboard money catalogue copy', () => {
     expect(spendHelp.toLowerCase()).toContain('on-hand portfolio actual');
     for (const catalogue of [en, id]) {
       expect(catalogue.uxs03.contractValueOnHand).toBeTruthy();
-      expect(catalogue.uxs03.contractValueInProgress).toBeTruthy();
+      expect(catalogue.dashboard.finance.contractValue).toBeTruthy();
     }
   });
 });

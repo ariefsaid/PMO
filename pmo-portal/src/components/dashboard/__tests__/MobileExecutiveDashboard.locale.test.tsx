@@ -44,7 +44,7 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
     render(
       <I18nextProvider i18n={i18n}>
         <MemoryRouter>
-          <MobileExecutiveDashboard data={data} approvalCount={0} belowFold={null} />
+          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
         </MemoryRouter>
       </I18nextProvider>,
     );

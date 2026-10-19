@@ -205,6 +205,7 @@ const mine = [
 ];
 
 
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));

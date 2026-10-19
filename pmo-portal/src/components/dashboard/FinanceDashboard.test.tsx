@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';
+import { BahasaProvider } from '@/test/bahasa';
 
 const collectionsIntegration = vi.hoisted(() => ({
   companies: [] as Array<{ id: string; name: string }>,
@@ -66,6 +67,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: collectionsIntegration.companies, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -98,6 +100,12 @@ vi.mock('@/src/auth/useAuth', () => ({
 const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
 
 beforeEach(() => {
+  procurements[0]!.total_value = 250_000;
+  procurements[1]!.total_value = 150_000;
+  dash.on_hand_actual_project_count = 2;
+  dash.on_hand_actual_project_total = 2;
+  dash.on_hand_actual_coverage_count = 2;
+  dash.on_hand_actual_coverage_total = 2;
   collectionsIntegration.companies = [];
   collectionsIntegration.arAging = [];
   collectionsIntegration.customerLinks.clear();
@@ -139,9 +147,38 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
     procurements.push(...previous);
   });
+  it('AC-RD-SPEND-001: calls an incomplete portfolio sum recorded spending and marks it partial', () => {
+    dash.on_hand_actual_project_count = 2;
+    dash.on_hand_actual_project_total = 3;
+    dash.on_hand_actual_coverage_count = 4;
+    dash.on_hand_actual_coverage_total = 5;
+    renderPane();
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Recorded spending');
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Partial');
+  });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
     expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4,000,000.00');
+  });
+  it('does not treat a missing vendor invoice amount as zero', () => {
+    procurements[0]!.total_value = null as unknown as number;
+    renderPane();
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Not available yet');
+    expect(screen.getByTestId('kpi-outstanding')).not.toHaveTextContent('$150,000');
+  });
+  it('AC-RD-FIN-003: localizes finance money labels and names vendor balances as payables in Bahasa', () => {
+    render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Nilai kontrak berjalan');
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Pengeluaran tercatat');
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada vendor');
+    expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
+    expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
+    expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
+    expect(screen.getByText('Utang kepada vendor (AP)')).toBeInTheDocument();
+    const rendered = document.body.textContent ?? '';
+    for (const englishLabel of ['PRs awaiting you', 'Total project spend', 'Outstanding invoices', 'vendor-invoiced, awaiting payment', 'Ready to pay', 'Actuals (ERP ledger)', 'AP aging', 'Fiscal year', 'Total outstanding']) {
+      expect(rendered).not.toContain(englishLabel);
+    }
   });
   it('shows billed-work margin separately from contract remaining', () => {
     renderPane();
