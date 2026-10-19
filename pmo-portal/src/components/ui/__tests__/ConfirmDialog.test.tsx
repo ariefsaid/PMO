@@ -49,6 +49,12 @@ afterEach(() => {
 });
 
 describe('AC-CONFIRM-001: render gating', () => {
+  it('AC-CONFIRM-001: renders the mobile bottom-sheet drag handle on phone widths', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    expect(document.querySelector('[aria-hidden].mx-auto.mb-3.h-1.w-10.rounded-full.bg-border')).toBeInTheDocument();
+  });
+
   it('AC-CONFIRM-001: renders title, description, confirm + default Cancel label when open', () => {
     render(<ConfirmDialog {...baseProps} />);
     expect(screen.getByText('Mark deal as lost')).toBeInTheDocument();
@@ -144,6 +150,7 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     expect(descId).toBeTruthy();
     expect(document.getElementById(labelId!)?.textContent).toContain('Mark deal as lost');
     expect(document.getElementById(descId!)?.textContent).toContain('terminal stage');
+    expect(document.getElementById(descId!)?.tagName).toBe('DIV');
   });
 
   it('AC-CONFIRM-005: on open, focus lands on Cancel (safe default, not the destructive confirm)', async () => {

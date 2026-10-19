@@ -68,7 +68,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const triggerRef = useRef<HTMLElement | null>(null);
   const fallbackRef = useRef(restoreFocusFallback);
   fallbackRef.current = restoreFocusFallback;
-  const Primitive = Dialog;
 
   useEffect(() => {
     if (open) {
@@ -118,25 +117,25 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </span>
       )}
       <div className="flex flex-col gap-1.5">
-        <Primitive.Title id={titleId} className="text-[18px] font-semibold leading-[1.3] text-popover-foreground">
+        <Dialog.Title id={titleId} className="text-[18px] font-semibold leading-[1.3] text-popover-foreground">
           {title}
-        </Primitive.Title>
-        <Primitive.Description id={descId} className={cn('text-[14px] leading-[1.45] text-foreground', isDesktop && 'max-w-[60ch]')}>
+        </Dialog.Title>
+        <Dialog.Description render={<div />} id={descId} className={cn('text-[14px] leading-[1.45] text-foreground', isDesktop && 'max-w-[60ch]')}>
           {description}
-        </Primitive.Description>
+        </Dialog.Description>
       </div>
     </>
   );
 
   return (
-    <Primitive.Root open={open} modal={false} onOpenChange={handleOpenChange}>
-      <Primitive.Portal>
+    <Dialog.Root open={open} modal={false} onOpenChange={handleOpenChange}>
+      <Dialog.Portal>
         <div className={cn('fixed inset-0 z-[800] flex', isDesktop ? 'items-center justify-center p-4' : 'items-end')}>
-        <Primitive.Backdrop
+        <Dialog.Backdrop
           data-testid="confirm-scrim"
-          className={cn('fixed inset-0 z-[800]', overlayBackdropClassName)}
+          className={cn('z-[800]', overlayBackdropClassName)}
         />
-        <Primitive.Popup
+        <Dialog.Popup
           initialFocus={() => cancelRef.current}
           finalFocus={false}
           onKeyDown={(event) => {
@@ -167,6 +166,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             'relative',
           )}
         >
+          {!isDesktop && <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />}
           <div className="flex items-start gap-3">{content}</div>
           <div data-testid="confirm-action-row" className={cn('mt-4 flex justify-end gap-2', !isDesktop && 'mt-5 flex-col')}>
             {isDesktop ? (
@@ -181,10 +181,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               </>
             )}
           </div>
-        </Primitive.Popup>
+        </Dialog.Popup>
         </div>
-      </Primitive.Portal>
-    </Primitive.Root>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 
