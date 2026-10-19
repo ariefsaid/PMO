@@ -733,7 +733,7 @@
         "profilePlaceholder": "Select a PMO profile",
         "saveFailure": "Couldn't confirm this employee link. The selected profile is still available; try again.",
         "searchProfiles": "Search active profiles",
-        "staleProfile": "The selected PMO profile is no longer active. Choose an active profile before confirming.",
+        "staleProfile": "The selected employee is no longer available. Choose another active employee before confirming.",
         "unknownEmployee": "this employee"
       },
       "title": "Employee links awaiting confirmation"
