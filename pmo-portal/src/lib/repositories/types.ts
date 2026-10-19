@@ -1066,7 +1066,7 @@ export interface IntegrationsRepository {
   getErpSetup(): Promise<ErpSetupReadiness>;
   saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
   listErpProjects(query: string): Promise<ErpProjectOption[]>;
-  linkErpProject(projectId: string, erpProject: string): Promise<ErpProjectLink>;
+  linkErpProject(projectId: string, erpProject: string, expectedErpProject: string | null): Promise<ErpProjectLink>;
   ensureErpProject(projectId: string): Promise<ErpProjectLink>;
   employErpDomain(domain: string): Promise<{ ok: true }>;
   /** #775 phase B — save one key of the expense account map (validated against ERPNext server-side, FR-EXP-112). */

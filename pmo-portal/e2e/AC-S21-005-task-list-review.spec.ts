@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — this journey owns one fresh test organization and exact run-scoped rows.
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -123,6 +123,9 @@ let bindingCreated = false;
 let projectDeleted = false;
 let fixturePreflightPassed = false;
 let browserAdminLoginConfirmed = false;
+let continuationContext: BrowserContext | null = null;
+let continuationPage: Page | null = null;
+let continuationBindingId: string | null = null;
 let ephemeralPassword: string | null = null;
 let vaultSecretSentinel: string | null = null;
 let actorAccessToken: string | null = null;
@@ -697,6 +700,9 @@ test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
   projectDeleted = false;
   fixturePreflightPassed = false;
   browserAdminLoginConfirmed = false;
+  continuationContext = null;
+  continuationPage = null;
+  continuationBindingId = null;
   ephemeralPassword = null;
   vaultSecretSentinel = null;
   actorAccessToken = null;
@@ -890,33 +896,17 @@ test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
   }
 });
 
-test.beforeEach(async ({ page }) => {
-  test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
-  browserAdminLoginConfirmed = false;
+async function installBrowserRouteGuardForPage(page: Page): Promise<void> {
+  setJourneyStage('browser-route-guard');
   if (!handlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
-  try {
-    const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
-    pageRouteSnapshot = routeGuard.snapshot;
-    browserBlocked = routeGuard.blocked;
-    browserRouteGuards.push(routeGuard);
-  } catch (error) {
-    primaryFailure = error;
-    recordS21PrimaryFailure(ledger, error, {
-      stage: 'browser-route-guard',
-      secretValues: [serviceKey, anonKey, ephemeralPassword, vaultSecretSentinel, actorAccessToken, actorRefreshToken]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0),
-      includeDetails: false,
-    });
-    try {
-      await saveLedger(ledgerPath, ledger);
-    } catch {
-      // Preserve the route setup failure when private evidence storage is unavailable.
-    }
-    throw error;
-  }
-});
+  const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
+  pageRouteSnapshot = routeGuard.snapshot;
+  browserBlocked = routeGuard.blocked;
+  browserRouteGuards.push(routeGuard);
+}
 
 async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
+  browserAdminLoginConfirmed = false;
   setJourneyStage('admin-login-page-load');
   await page.goto('/login');
   setJourneyStage('admin-login-email-entry');
@@ -939,7 +929,7 @@ async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
   return page.getByTestId('project-integrations-compact');
 }
 
-async function recordS21BrowserFailure(page: Page, error: unknown): Promise<void> {
+async function recordS21BrowserFailure(page: Page | null, error: unknown): Promise<void> {
   const secretValues = [
     status.DB_URL,
     serviceKey,
@@ -955,7 +945,7 @@ async function recordS21BrowserFailure(page: Page, error: unknown): Promise<void
     includeDetails: browserAdminLoginConfirmed,
   });
   primaryFailure = error;
-  if (browserAdminLoginConfirmed) {
+  if (browserAdminLoginConfirmed && page) {
     try {
       const reloadFailure = journeyStage === 'reload-linked-task-route' || journeyStage.startsWith('reloaded-');
       if (reloadFailure && reloadDiagnostic) {
@@ -986,6 +976,7 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
     try {
       const activeHandlerServer = handlerServer;
       if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+      await installBrowserRouteGuardForPage(page);
       const integrationCard = await adminLoginAndOpenTaskRoute(page);
       setJourneyStage('clickup-link-action-visible');
       await expect(integrationCard.getByRole('button', { name: 'Link to ClickUp' })).toBeVisible();
@@ -1043,13 +1034,40 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
     }
   });
 
-  test('AC-S21-005: Admin sees the persisted ClickUp link and initial source after reload', async ({ page }) => {
+  test('Supporting proof: Admin opens the linked task route for the reload continuation', async ({ browser }, testInfo) => {
     test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+    browserAdminLoginConfirmed = false;
+    let page: Page | null = null;
     try {
       const activeHandlerServer = handlerServer;
       if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
-      const integrationCard = await adminLoginAndOpenTaskRoute(page);
+      const appBaseUrl = testInfo.project.use.baseURL;
+      if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
+      setJourneyStage('reload-support-browser-context');
+      const ownedContext = await browser.newContext({ baseURL: appBaseUrl });
+      continuationContext = ownedContext;
+      page = await ownedContext.newPage();
+      continuationPage = page;
+      await installBrowserRouteGuardForPage(page);
+      await adminLoginAndOpenTaskRoute(page);
       const firstBindingId = ledger.ownedIds.projectBindingId;
+      if (!firstBindingId) throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
+      continuationBindingId = firstBindingId;
+    } catch (error) {
+      await recordS21BrowserFailure(page, error);
+      throw error;
+    }
+  });
+
+  test('AC-S21-005: Admin sees the persisted ClickUp link and initial source after reload', async () => {
+    test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
+    const page = continuationPage;
+    try {
+      if (!page || page.isClosed()) throw safeFailure('S21_RELOAD_CONTINUATION_PAGE_UNAVAILABLE');
+      const activeHandlerServer = handlerServer;
+      if (!activeHandlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
+      const integrationCard = page.getByTestId('project-integrations-compact');
+      const firstBindingId = continuationBindingId;
       if (!firstBindingId) throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
 
       setJourneyStage('reload-linked-task-route');
@@ -1266,12 +1284,31 @@ async function cleanupOwnedFixtureRows(): Promise<void> {
 
 test.afterAll(async () => {
   test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
-  if (!ledger) return;
-  await runS21FixtureCleanup({
-    preflightPassed: fixturePreflightPassed,
-    ownedServer: handlerServer,
-    primaryFailure,
-    stopOwnedServer: (server) => stopAndVerifyOwnedHandler(server as HandlerServer),
-    cleanupOwnedRows: cleanupOwnedFixtureRows,
-  });
+  const ownedContext = continuationContext;
+  let cleanupError: unknown = null;
+  try {
+    if (ledger) {
+      await runS21FixtureCleanup({
+        preflightPassed: fixturePreflightPassed,
+        ownedServer: handlerServer,
+        primaryFailure,
+        stopOwnedServer: (server) => stopAndVerifyOwnedHandler(server as HandlerServer),
+        cleanupOwnedRows: cleanupOwnedFixtureRows,
+      });
+    }
+  } catch (error) {
+    cleanupError = error;
+  }
+  continuationPage = null;
+  continuationBindingId = null;
+  continuationContext = null;
+  try {
+    await ownedContext?.close();
+  } catch (contextError) {
+    if (cleanupError) {
+      throw new AggregateError([cleanupError, contextError], 'S21 fixture and continuation context cleanup failed', { cause: contextError });
+    }
+    throw contextError;
+  }
+  if (cleanupError) throw cleanupError;
 });

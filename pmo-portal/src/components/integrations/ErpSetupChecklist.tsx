@@ -16,6 +16,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 import { COMPANY_DEFAULTS, getErpSetupIncompleteness } from './erpSetupIncompleteness';
+import { ProjectMatchReview } from './ProjectMatchReview';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -319,26 +320,14 @@ export function ErpSetupChecklist(
                 <p className='font-medium'>
                   {t('uxs08.projectLabel', 'Project connections')}
                 </p>
-                {setup.data.unmappedProjects.length
-                  ? (
-                    <ul className='mt-2 space-y-2'>
-                      {setup.data.unmappedProjects.map((project) => (
-                        <li key={project.id}>
-                          <a
-                            className={actionLink}
-                            href={`/projects/${project.id}`}
-                          >
-                            {t(
-                              'uxs08.projectAction',
-                              'Review proposed link for {{name}}',
-                              { name: project.name },
-                            )}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )
-                  : null}
+                {setup.data.unmappedProjects.length > 0 && (
+                  <div className='mt-2'>
+                    <ProjectMatchReview
+                      orgId={orgId}
+                      projects={setup.data.unmappedProjects}
+                    />
+                  </div>
+                )}
               </li>
             </ul>
             {!hasOutstandingSetup && (

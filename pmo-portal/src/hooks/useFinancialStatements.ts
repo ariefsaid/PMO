@@ -39,8 +39,16 @@ type LiveAuth = {
 
 type RequestGuard = {
   key: string;
+  identity: string;
+  epoch: number;
+  generation: number;
   authEligible: boolean;
   enabled: boolean;
+};
+
+type RetiredRequest = {
+  key: string;
+  generation: number;
 };
 
 class QueryAdmissionDenied extends Error {
@@ -131,6 +139,23 @@ function useLiveAuth() {
   };
 }
 
+function useRequestGuard(
+  key: string,
+  identity: string,
+  epoch: number,
+  authEligible: boolean,
+  enabled: boolean,
+) {
+  const guardRef = useRef<RequestGuard>({ key, identity, epoch, generation: 0, authEligible, enabled });
+  const previous = guardRef.current;
+  const generation = previous.key === key && previous.identity === identity && previous.epoch === epoch &&
+    previous.authEligible === authEligible && previous.enabled === enabled
+    ? previous.generation
+    : previous.generation + 1;
+  guardRef.current = { key, identity, epoch, generation, authEligible, enabled };
+  return guardRef;
+}
+
 function useRetirement(
   queryKey: readonly unknown[],
   identityPrefix: readonly unknown[],
@@ -209,10 +234,9 @@ export function useFinancialStatementCatalogue(
   );
   const keyId = keyToken(key);
   const identityPrefix = useMemo(() => [FEATURE_KEY[0], ...auth.identityParts] as const, [auth.identityParts]);
-  const guardRef = useRef<RequestGuard>({ key: keyId, authEligible: eligible, enabled });
-  guardRef.current = { key: keyId, authEligible: eligible, enabled };
+  const guardRef = useRequestGuard(keyId, auth.identity, auth.liveAuthRef.current.epoch, eligible, enabled);
   const [accessRetiredKey, setAccessRetiredKey] = useState<string | null>(null);
-  const retiredRef = useRef<string | null>(null);
+  const retiredRef = useRef<RetiredRequest | null>(null);
   const requestEnabled = eligible && enabled && accessRetiredKey !== keyId;
 
   const query = useQuery<FinancialStatementCatalogue, Error>({
@@ -222,11 +246,13 @@ export function useFinancialStatementCatalogue(
     queryFn: async ({ signal }) => {
       const guard = guardRef.current;
       const state = queryClient.getQueryState<FinancialStatementCatalogue, Error>(key);
-      const accessDenied = retiredRef.current === keyId || isAccessLoss(state?.error);
+      const accessDenied = (retiredRef.current?.key === keyId &&
+        retiredRef.current.generation === guard.generation) || isAccessLoss(state?.error);
       if (accessDenied) setAccessRetiredKey(keyId);
       if (!guard.authEligible || !guard.enabled || guard.key !== keyId || accessDenied) {
         throw new QueryAdmissionDenied();
       }
+      const requestGuard = guard;
       const requestAuth = auth.liveAuthRef.current;
       if (!requestAuth.eligible) throw new QueryAdmissionDenied();
       try {
@@ -240,8 +266,14 @@ export function useFinancialStatementCatalogue(
         }
         return result;
       } catch (error) {
-        if (isAccessLoss(error)) {
-          retiredRef.current = keyId;
+        const currentAuth = auth.liveAuthRef.current;
+        const currentGuard = guardRef.current;
+        const requestIsCurrent = !signal.aborted && currentGuard.key === keyId &&
+          currentGuard.generation === requestGuard.generation && currentGuard.authEligible &&
+          currentGuard.enabled && currentAuth.eligible && currentAuth.identity === requestAuth.identity &&
+          currentAuth.epoch === requestAuth.epoch;
+        if (isAccessLoss(error) && requestIsCurrent) {
+          retiredRef.current = { key: keyId, generation: requestGuard.generation };
           setAccessRetiredKey(keyId);
           retireQueries(queryClient, identityPrefix, key, true);
         }
@@ -336,10 +368,9 @@ export function useFinancialStatement(
   );
   const keyId = keyToken(key);
   const identityPrefix = useMemo(() => [FEATURE_KEY[0], ...auth.identityParts] as const, [auth.identityParts]);
-  const guardRef = useRef<RequestGuard>({ key: keyId, authEligible: eligible, enabled });
-  guardRef.current = { key: keyId, authEligible: eligible, enabled };
+  const guardRef = useRequestGuard(keyId, auth.identity, auth.liveAuthRef.current.epoch, eligible, enabled);
   const [accessRetiredKey, setAccessRetiredKey] = useState<string | null>(null);
-  const retiredRef = useRef<string | null>(null);
+  const retiredRef = useRef<RetiredRequest | null>(null);
   const requestEnabled = eligible && enabled && request !== null && accessRetiredKey !== keyId;
 
   const query = useQuery<FinancialStatementRead, Error>({
@@ -349,11 +380,13 @@ export function useFinancialStatement(
     queryFn: async ({ signal }) => {
       const guard = guardRef.current;
       const state = queryClient.getQueryState<FinancialStatementRead, Error>(key);
-      const accessDenied = retiredRef.current === keyId || isAccessLoss(state?.error);
+      const accessDenied = (retiredRef.current?.key === keyId &&
+        retiredRef.current.generation === guard.generation) || isAccessLoss(state?.error);
       if (accessDenied) setAccessRetiredKey(keyId);
       if (!guard.authEligible || !guard.enabled || guard.key !== keyId || request === null || accessDenied) {
         throw new QueryAdmissionDenied();
       }
+      const requestGuard = guard;
       const requestAuth = auth.liveAuthRef.current;
       if (!requestAuth.eligible) throw new QueryAdmissionDenied();
       try {
@@ -365,8 +398,14 @@ export function useFinancialStatement(
         }
         return result;
       } catch (error) {
-        if (isAccessLoss(error)) {
-          retiredRef.current = keyId;
+        const currentAuth = auth.liveAuthRef.current;
+        const currentGuard = guardRef.current;
+        const requestIsCurrent = !signal.aborted && currentGuard.key === keyId &&
+          currentGuard.generation === requestGuard.generation && currentGuard.authEligible &&
+          currentGuard.enabled && currentAuth.eligible && currentAuth.identity === requestAuth.identity &&
+          currentAuth.epoch === requestAuth.epoch;
+        if (isAccessLoss(error) && requestIsCurrent) {
+          retiredRef.current = { key: keyId, generation: requestGuard.generation };
           setAccessRetiredKey(keyId);
           retireQueries(queryClient, identityPrefix, key, true);
         }

@@ -710,6 +710,137 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
     expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(2);
   });
 
+  it('AC-009: a denied catalogue key recovers after leaving and returning to that project scope', async () => {
+    vi.mocked(repositories.financialStatements.catalogue)
+      .mockRejectedValueOnce(new AppError('opaque', '42501'))
+      .mockResolvedValueOnce(UNAVAILABLE_CATALOGUE)
+      .mockResolvedValueOnce(UNAVAILABLE_CATALOGUE);
+    const env = environment();
+    const hook = renderHook(({ projectId }: { projectId: string }) =>
+      useFinancialStatementCatalogue({ kind: 'project', projectId }), {
+      wrapper: env.wrapper,
+      initialProps: { projectId: PROJECT_ID },
+    });
+
+    await waitFor(() => expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(hook.result.current.eligible).toBe(false));
+    expect(hook.result.current.data).toBeUndefined();
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(1);
+
+    hook.rerender({ projectId: OTHER_PROJECT_ID });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE));
+    expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(2);
+
+    hook.rerender({ projectId: PROJECT_ID });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE));
+    expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(3);
+  });
+
+  it('AC-009: a denied statement key recovers after leaving and returning to that period', async () => {
+    const januaryRecovery: FinancialStatementRead = {
+      ...UNAVAILABLE_READ,
+      selection: { ...UNAVAILABLE_READ.selection, periodStart: '2026-01-01' },
+    };
+    const february: FinancialStatementRead = {
+      ...UNAVAILABLE_READ,
+      selection: { ...UNAVAILABLE_READ.selection, periodStart: '2026-02-01' },
+    };
+    vi.mocked(repositories.financialStatements.get)
+      .mockRejectedValueOnce(new AppError('opaque', '42501'))
+      .mockResolvedValueOnce(february)
+      .mockResolvedValueOnce(januaryRecovery);
+    const env = environment();
+    const hook = renderHook(({ periodStart }: { periodStart: string }) => useFinancialStatement({
+      periodKind: 'month', periodStart, statement: 'profit_and_loss',
+    }), {
+      wrapper: env.wrapper,
+      initialProps: { periodStart: '2026-01-01' },
+    });
+
+    await waitFor(() => expect(repositories.financialStatements.get).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(hook.result.current.eligible).toBe(false));
+    expect(hook.result.current.data).toBeUndefined();
+    await act(async () => { await hook.result.current.refetch(); });
+    expect(repositories.financialStatements.get).toHaveBeenCalledTimes(1);
+
+    hook.rerender({ periodStart: '2026-02-01' });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toBe(february));
+    expect(repositories.financialStatements.get).toHaveBeenCalledTimes(2);
+
+    hook.rerender({ periodStart: '2026-01-01' });
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(hook.result.current.data).toBe(januaryRecovery));
+    expect(repositories.financialStatements.get).toHaveBeenCalledTimes(3);
+  });
+
+  it('AC-009: a late catalogue denial from a retired identity cannot block a fresh return to the original identity', async () => {
+    const late = deferred<FinancialStatementCatalogue>();
+    vi.mocked(repositories.financialStatements.catalogue)
+      .mockImplementationOnce(() => late.promise)
+      .mockResolvedValue(UNAVAILABLE_CATALOGUE);
+    const env = environment();
+    const hook = renderHook(() => useFinancialStatementCatalogue({ kind: 'company' }), { wrapper: env.wrapper });
+
+    await waitFor(() => expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(1));
+    env.setAuth(authContext({ role: 'Admin', currentUser: profile('Admin', { org_id: OTHER_ORG_ID }) }), 'Admin');
+    hook.rerender();
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE));
+
+    env.setAuth(authContext({ role: 'Admin' }), 'Admin');
+    hook.rerender();
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE));
+
+    await act(async () => {
+      late.reject(new AppError('opaque', 'PGRST301'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE);
+    expect(hook.result.current.eligible).toBe(true);
+    expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(3);
+  });
+
+  it('AC-009: a late statement denial from a retired identity cannot block a fresh return to the original identity', async () => {
+    const late = deferred<FinancialStatementRead>();
+    vi.mocked(repositories.financialStatements.get)
+      .mockImplementationOnce(() => late.promise)
+      .mockResolvedValue(UNAVAILABLE_READ);
+    const env = environment();
+    const hook = renderHook(() => useFinancialStatement({
+      periodKind: 'month', periodStart: '2026-01-01', statement: 'profit_and_loss',
+    }), { wrapper: env.wrapper });
+
+    await waitFor(() => expect(repositories.financialStatements.get).toHaveBeenCalledTimes(1));
+    env.setAuth(authContext({ role: 'Admin', currentUser: profile('Admin', { org_id: OTHER_ORG_ID }) }), 'Admin');
+    hook.rerender();
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(repositories.financialStatements.get).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_READ));
+
+    env.setAuth(authContext({ role: 'Admin' }), 'Admin');
+    hook.rerender();
+    expect(hook.result.current.data).toBeUndefined();
+    await waitFor(() => expect(repositories.financialStatements.get).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(hook.result.current.data).toBe(UNAVAILABLE_READ));
+
+    await act(async () => {
+      late.reject(new AppError('opaque', '42501'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(hook.result.current.data).toBe(UNAVAILABLE_READ);
+    expect(hook.result.current.eligible).toBe(true);
+    expect(repositories.financialStatements.get).toHaveBeenCalledTimes(3);
+  });
+
   it('AC-009: eligible Retry performs one new read while a denied manual refetch performs none', async () => {
     vi.mocked(repositories.financialStatements.catalogue)
       .mockRejectedValueOnce(new Error('temporary'))

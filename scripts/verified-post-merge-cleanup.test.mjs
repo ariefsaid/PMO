@@ -85,9 +85,21 @@ if (!isGit) {
     out(state.dirty ? "?? untracked.txt\n" : "");
   } else if (first === "rev-parse" && effective[1] === "refs/heads/" + state.branch) {
     if (!state.localHead) code = 128;
-    else out(state.localHead + "\n");
+    else {
+      const localRefRead = (state.localRefReadCount || 0) + 1;
+      state.localRefReadCount = localRefRead;
+      out(state.localHead + "\n");
+      if (state.advanceLocalHeadAfterRead && localRefRead === 3) {
+        state.localHead = state.advanceLocalHeadAfterRead;
+      }
+    }
   } else if (first === "ls-remote" && effective[1] === "--heads" && effective[2] === "origin") {
     out(remoteLines());
+    const remoteRefRead = (state.remoteRefReadCount || 0) + 1;
+    state.remoteRefReadCount = remoteRefRead;
+    if (state.advanceRemoteOidAfterRead && remoteRefRead === 4) {
+      state.remoteOid = state.advanceRemoteOidAfterRead;
+    }
     if (state.changeRemoteAfterLsRemote) state.remoteOid = state.changeRemoteAfterLsRemote;
   } else if (first === "fetch" && effective[1] === "origin" && effective[2] === "refs/heads/dev:refs/remotes/origin/dev") {
     state.fetched = true;
@@ -114,19 +126,22 @@ if (!isGit) {
     }
   } else if (first === "worktree" && effective[1] === "prune") {
     state.pruned = true;
-  } else if (first === "branch" && effective[1] === "-D") {
-    if (effective.at(-1) !== state.branch) code = 2;
+  } else if (first === "update-ref" && effective[1] === "-d") {
+    if (effective.length !== 4 || effective[2] !== ref || effective[3] !== state.expectedHead) code = 2;
+    else if (state.localHead !== effective[3]) code = 1;
     else if (!state.keepLocalRefAfterDelete) state.localHead = null;
   } else if (first === "log" && effective[1] === "--format=%B") {
     const logIndex = state.logCount || 0;
     out(state.commitMessages?.[logIndex] ?? state.commitMessage ?? "topic change\n");
     state.logCount = logIndex + 1;
-  } else if (first === "push" && effective[1] === "origin" && effective[2] === "--delete") {
-    if (state.failRemoteDelete) {
+  } else if (first === "push") {
+    const expectedLease = "--force-with-lease=" + ref + ":" + state.expectedHead;
+    if (effective.length !== 4 || effective[1] !== expectedLease || effective[2] !== "origin" || effective[3] !== ":" + ref) code = 2;
+    else if (state.remoteOid !== state.expectedHead) code = 1;
+    else if (state.failRemoteDelete) {
       if (state.remoteDeleteAppliedDespiteFailure) state.remoteOid = null;
       code = 1;
-    }
-    else if (!state.retainRemoteAfterDelete) state.remoteOid = null;
+    } else if (!state.retainRemoteAfterDelete) state.remoteOid = null;
   } else if (first === "show-ref" && effective[1] === "--verify" && effective[2] === "--quiet") {
     code = state.localHead ? 0 : 1;
   } else code = 64;
@@ -196,8 +211,8 @@ function assertFailureBeforeMerge(fixture, result) {
   const state = fixture.state();
   assert.equal(state.mergeExecuted, false);
   assert.equal(hasCommand(state, "git", "worktree remove"), false);
-  assert.equal(hasCommand(state, "git", "branch -D"), false);
-  assert.equal(hasCommand(state, "git", "push origin --delete"), false);
+  assert.equal(hasCommand(state, "git", "update-ref -d"), false);
+  assert.equal(hasCommand(state, "git", "push --force-with-lease="), false);
 }
 
 test("AC-OPS-1113-1: checks, exact squash merge, and proof-bound cleanup run in order", (t) => {
@@ -219,7 +234,7 @@ test("AC-OPS-1113-1: checks, exact squash merge, and proof-bound cleanup run in 
   const adoption = index((e) => e.tool === "git" && e.args[0] === "diff" && e.args[1] === "--quiet");
   const remove = index((e) => e.tool === "git" && e.args[0] === "worktree" && e.args[1] === "remove");
   const prune = index((e) => e.tool === "git" && e.args[0] === "worktree" && e.args[1] === "prune");
-  const localDelete = index((e) => e.tool === "git" && e.args[0] === "branch" && e.args[1] === "-D");
+  const localDelete = index((e) => e.tool === "git" && e.args[0] === "update-ref" && e.args[1] === "-d");
   const attribution = state.journal.findLastIndex((e) => e.tool === "git" && e.args[0] === "log");
   const push = index((e) => e.tool === "git" && e.args[0] === "push");
   const lastRemoteCheck = state.journal.findLastIndex((e) =>
@@ -241,7 +256,10 @@ test("AC-OPS-1113-1: checks, exact squash merge, and proof-bound cleanup run in 
   );
   assert.deepEqual(state.journal[remove].args, ["worktree", "remove", fixture.worktreePath]);
   assert.equal(state.journal.some((e) => e.args.includes("--force") || e.args.includes("-f")), false);
-  assert.equal(state.journal[push].args.at(-1), "refs/heads/" + BRANCH);
+  assert.deepEqual(state.journal[localDelete].args, ["update-ref", "-d", "refs/heads/" + BRANCH, HEAD]);
+  assert.deepEqual(state.journal[push].args, [
+    "push", "--force-with-lease=refs/heads/" + BRANCH + ":" + HEAD, "origin", ":refs/heads/" + BRANCH,
+  ]);
   assert.equal(existsSync(fixture.worktreePath), false);
   assert.equal(state.localHead, null);
   assert.equal(state.remoteOid, null);
@@ -326,11 +344,103 @@ test("AC-OPS-1113-2: moved head, malformed merge result, unreachable merge, or c
     assert.match(result.stderr, expectedStage);
     const state = fixture.state();
     assert.equal(hasCommand(state, "git", "worktree remove"), false);
-    assert.equal(hasCommand(state, "git", "branch -D"), false);
-    assert.equal(hasCommand(state, "git", "push origin --delete"), false);
+    assert.equal(hasCommand(state, "git", "update-ref -d"), false);
+    assert.equal(hasCommand(state, "git", "push --force-with-lease="), false);
     fixture.cleanup();
     t.diagnostic("stopped after " + label);
   }
+});
+
+test("AC-OPS-1113-2: a local branch that advances after its final lookup is preserved", (t) => {
+  const newerLocalHead = "d".repeat(40);
+  const local = createFixture({ advanceLocalHeadAfterRead: newerLocalHead });
+  t.after(() => local.cleanup());
+  const localResult = local.run();
+  const localState = local.state();
+  assert.notEqual(localResult.status, 0, localResult.stdout + localResult.stderr);
+  assert.doesNotMatch(localResult.stdout, /VERIFIED CLEANUP COMPLETE/);
+  assert.match(localResult.stderr, /local branch deletion/i);
+  assert.equal(localState.localHead, newerLocalHead);
+  assert.deepEqual(localState.journal.at(-1).args, ["update-ref", "-d", "refs/heads/" + BRANCH, HEAD]);
+  assert.equal(hasCommand(localState, "git", "push --force-with-lease="), false);
+});
+
+test("AC-OPS-1113-2: a remote branch that advances after its final lookup is preserved", (t) => {
+  const newerRemoteHead = "e".repeat(40);
+  const remote = createFixture({ advanceRemoteOidAfterRead: newerRemoteHead });
+  t.after(() => remote.cleanup());
+  const remoteResult = remote.run(remote.worktreePath);
+  const remoteState = remote.state();
+  assert.notEqual(remoteResult.status, 0, remoteResult.stdout + remoteResult.stderr);
+  assert.doesNotMatch(remoteResult.stdout, /VERIFIED CLEANUP COMPLETE/);
+  assert.match(remoteResult.stderr, /remote branch deletion/i);
+  assert.equal(remoteState.remoteOid, newerRemoteHead);
+  const remoteDeleteIndex = remoteState.journal.findLastIndex((event) =>
+    event.tool === "git" && event.args[0] === "push" && event.args[1]?.startsWith("--force-with-lease=")
+  );
+  assert.ok(remoteDeleteIndex >= 0);
+  assert.equal(remoteDeleteIndex, remoteState.journal.length - 1, "no cleanup command follows the rejected delete");
+});
+
+test("AC-OPS-1113-2: real Git compare-delete accepts the expected tip and rejects a stale tip", (t) => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "cleanup-compare-delete-git-"));
+  t.after(() => rmSync(tempRoot, { recursive: true, force: true }));
+  const repo = join(tempRoot, "repo");
+  const bare = join(tempRoot, "origin.git");
+  mkdirSync(repo);
+  mkdirSync(bare);
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  const git = (cwd, args) => spawnSync("git", args, {
+    cwd, env, encoding: "utf8", timeout: 10000,
+  });
+  const success = (result) => assert.equal(result.status, 0, result.stdout + result.stderr);
+
+  success(git(repo, ["init", "--quiet", "--initial-branch=dev"]));
+  success(git(bare, ["init", "--bare", "--quiet"]));
+  success(git(repo, ["config", "user.name", "Temporary cleanup test"]));
+  success(git(repo, ["config", "user.email", "cleanup-test@example.invalid"]));
+  success(git(repo, ["config", "commit.gpgsign", "false"]));
+  writeFileSync(join(repo, "tracked.txt"), "first\n");
+  success(git(repo, ["add", "tracked.txt"]));
+  success(git(repo, ["commit", "--quiet", "-m", "initial fixture"]));
+  success(git(repo, ["checkout", "--quiet", "-b", BRANCH]));
+  success(git(repo, ["remote", "add", "origin", bare]));
+  success(git(repo, ["push", "--quiet", "-u", "origin", "refs/heads/" + BRANCH]));
+  const expectedHead = git(repo, ["rev-parse", "HEAD"]).stdout.trim();
+  assert.match(expectedHead, /^[0-9a-f]{40}$/);
+
+  success(git(repo, ["checkout", "--quiet", "--detach"]));
+  success(git(repo, ["update-ref", "-d", "refs/heads/" + BRANCH, expectedHead]));
+  assert.equal(git(repo, ["show-ref", "--verify", "--quiet", "refs/heads/" + BRANCH]).status, 1);
+
+  writeFileSync(join(repo, "tracked.txt"), "second\n");
+  success(git(repo, ["add", "tracked.txt"]));
+  success(git(repo, ["commit", "--quiet", "-m", "advanced fixture"]));
+  const newerHead = git(repo, ["rev-parse", "HEAD"]).stdout.trim();
+  assert.notEqual(newerHead, expectedHead);
+  success(git(repo, ["update-ref", "refs/heads/" + BRANCH, newerHead]));
+  const staleLocalDelete = git(repo, ["update-ref", "-d", "refs/heads/" + BRANCH, expectedHead]);
+  assert.notEqual(staleLocalDelete.status, 0, staleLocalDelete.stdout + staleLocalDelete.stderr);
+  assert.equal(git(repo, ["rev-parse", "refs/heads/" + BRANCH]).stdout.trim(), newerHead);
+
+  success(git(repo, ["push", "--quiet", "origin", newerHead + ":refs/heads/" + BRANCH]));
+  const remoteDelete = (ref, head) => git(repo, [
+    "push", "--force-with-lease=" + ref + ":" + head, "origin", ":" + ref,
+  ]);
+  const staleRemoteDelete = remoteDelete("refs/heads/" + BRANCH, expectedHead);
+  assert.notEqual(staleRemoteDelete.status, 0, staleRemoteDelete.stdout + staleRemoteDelete.stderr);
+  const remoteHeadAfterStaleDelete = git(repo, ["ls-remote", "--heads", "origin", "refs/heads/" + BRANCH]);
+  success(remoteHeadAfterStaleDelete);
+  assert.match(remoteHeadAfterStaleDelete.stdout, new RegExp("^" + newerHead + "\\s+refs/heads/" + BRANCH + "\\n$"));
+
+  const successRef = "refs/heads/codex/expected-cleanup";
+  success(git(repo, ["push", "--quiet", "origin", expectedHead + ":" + successRef]));
+  success(remoteDelete(successRef, expectedHead));
+  assert.equal(git(repo, ["ls-remote", "--heads", "origin", successRef]).stdout, "");
 });
 
 test("AC-OPS-1113-2: feature file content must be present on fetched dev before any removal", (t) => {
@@ -347,8 +457,8 @@ test("AC-OPS-1113-2: feature file content must be present on fetched dev before 
     assert.match(result.stderr, /content adoption/i);
     const state = fixture.state();
     assert.equal(hasCommand(state, "git", "worktree remove"), false);
-    assert.equal(hasCommand(state, "git", "branch -D"), false);
-    assert.equal(hasCommand(state, "git", "push origin --delete"), false);
+    assert.equal(hasCommand(state, "git", "update-ref -d"), false);
+    assert.equal(hasCommand(state, "git", "push --force-with-lease="), false);
     fixture.cleanup();
     t.diagnostic("preserved cleanup state when " + label);
   }
@@ -360,7 +470,7 @@ test("AC-OPS-1113-2: an absent remote is accepted only after the expected local 
   const result = fixture.run();
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal((result.stdout.match(/VERIFIED CLEANUP COMPLETE/g) || []).length, 1);
-  assert.equal(hasCommand(fixture.state(), "git", "push origin --delete"), false);
+  assert.equal(hasCommand(fixture.state(), "git", "push --force-with-lease="), false);
 });
 
 test("AC-OPS-1113-2: deletion failure or any final absence mismatch is not completion", (t) => {
@@ -394,7 +504,7 @@ test("AC-OPS-1113-2: deletion failure or any final absence mismatch is not compl
       ).length, 1);
     }
     if (label === "local ref remains") {
-      assert.equal(hasCommand(state, "git", "push origin --delete"), false);
+      assert.equal(hasCommand(state, "git", "push --force-with-lease="), false);
     }
     fixture.cleanup();
     t.diagnostic("rejected " + label);
@@ -413,7 +523,7 @@ test("AC-OPS-1113-2: any co-authored marker blocks merge and is checked again be
     assert.match(result.stderr, /attribution/i);
     const state = fixture.state();
     assert.equal(state.mergeExecuted, !mergeMustNotRun);
-    assert.equal(hasCommand(state, "git", "push origin --delete"), false);
+    assert.equal(hasCommand(state, "git", "push --force-with-lease="), false);
     if (mergeMustNotRun) assert.equal(hasCommand(state, "git", "worktree remove"), false);
     fixture.cleanup();
     t.diagnostic("blocked " + label);

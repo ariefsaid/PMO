@@ -444,8 +444,10 @@ const SalesPipeline: React.FC = () => {
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
   // controls move together (no second event drops the first call). Shared by the table's
   // DataTable `emptyAction` and the board's zero-match ListState below.
+  const [classificationResetToken, setClassificationResetToken] = useState(0);
   const clearFilters = () => {
     setSearch('');
+    setClassificationResetToken((n) => n + 1);
     setWorkingSet(() => parseListWorkingSet('sales', '', { sessionView: readPipelineView() }));
   };
 
@@ -586,7 +588,7 @@ const SalesPipeline: React.FC = () => {
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <ProjectClassificationFilters rows={kanbanProjects} value={workingSet}
-              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger />
+              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
             <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
           </div>
         </div>
@@ -608,6 +610,7 @@ const SalesPipeline: React.FC = () => {
           rows={kanbanProjects}
           value={workingSet}
           onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
+          resetToken={classificationResetToken}
         />
       )}
       search={
