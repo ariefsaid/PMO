@@ -3559,6 +3559,7 @@
   "table": {
     "actions": "Tindakan",
     "openRow": "Buka {{name}}",
+    "resizeColumn": "Ubah ukuran kolom {{column}}",
     "rowActions": "Tindakan baris"
   },
   "task": {

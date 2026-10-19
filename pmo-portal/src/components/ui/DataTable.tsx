@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
+import { AuthContext } from '@/src/auth/AuthContext';
 
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
@@ -51,6 +53,12 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Preferred width in CSS pixels for resizable desktop tables. */
+  size?: number;
+  /** Minimum width when resizing is enabled. */
+  minSize?: number;
+  /** Maximum width when resizing is enabled. */
+  maxSize?: number;
 }
 
 export interface SortState {
@@ -114,6 +122,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Stable identity for saved column widths. */
+  tableId?: string;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -188,6 +198,19 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
+function readColumnSizing(tableId: string | undefined, userId: string | undefined): Record<string, number> {
+  if (!tableId || !userId || typeof window === 'undefined') return {};
+  try {
+    const saved = window.localStorage.getItem(`pmo:datatable:${userId}:${tableId}:columnSizing`);
+    if (!saved) return {};
+    const value: unknown = JSON.parse(saved);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([, width]) => typeof width === 'number' && Number.isFinite(width)));
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
  * when projecting a column into the card branch. Cards have vertical room that the
@@ -246,8 +269,11 @@ export function DataTable<Row>({
   className,
   cardBelow,
   accessibleName,
+  tableId,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
+  const userId = useContext(AuthContext)?.currentUser?.id;
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId));
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -261,6 +287,65 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
+  const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
+    return {
+      id: column.key,
+      accessorFn: (row) => row,
+      enableSorting: Boolean(column.sortKey),
+      header: () => column.header,
+      ...(column.size !== undefined ? { size: column.size } : {}),
+      ...(column.minSize !== undefined ? { minSize: column.minSize } : {}),
+      ...(column.maxSize !== undefined ? { maxSize: column.maxSize } : {}),
+    };
+  }), [columns]);
+  const table = useReactTable({
+    data: rows,
+    columns: tableColumns,
+    getRowId: (row, index) => rowKey(row) || String(index),
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    columnResizeMode: 'onChange',
+    enableColumnResizing: isDesktop,
+    state: {
+      sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
+      columnSizing,
+    },
+    onColumnSizingChange: (updater) => {
+      setColumnSizing((current) => {
+        const next = typeof updater === 'function' ? updater(current) : updater;
+        if (tableId && userId && typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(`pmo:datatable:${userId}:${tableId}:columnSizing`, JSON.stringify(next));
+          } catch {
+            // Storage is an enhancement; live resizing remains available when it is denied.
+          }
+        }
+        return next;
+      });
+    },
+  });
+  const modelRows = table.getRowModel().rows;
+  const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+  // Resize handles sit outside the header cells (so they are not part of a header's name);
+  // place them on the RENDERED column edges, not TanStack's notional sizes.
+  const [columnEdges, setColumnEdges] = useState<{ edges: Record<string, number>; width: number }>({ edges: {}, width: 0 });
+  const measureColumnEdges = useCallback(() => {
+    const tableEl = tableRef.current;
+    if (!tableEl) return;
+    const edges: Record<string, number> = {};
+    tableEl.querySelectorAll<HTMLTableCellElement>('thead th[data-col-key]').forEach((th) => {
+      if (th.offsetWidth > 0) edges[th.dataset.colKey!] = th.offsetLeft + th.offsetWidth;
+    });
+    setColumnEdges({ edges, width: tableEl.offsetWidth });
+  }, []);
+  // ponytail: re-measure on render, window resize and header hover/focus; a container-only resize
+  // is caught on the next hover/focus (handles are invisible until then and clamped inside the table).
+  useLayoutEffect(() => {
+    if (!isDesktop) return;
+    measureColumnEdges();
+    window.addEventListener('resize', measureColumnEdges);
+    return () => window.removeEventListener('resize', measureColumnEdges);
+  }, [isDesktop, columns, columnSizing, rows.length, measureColumnEdges]);
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
@@ -301,25 +386,31 @@ export function DataTable<Row>({
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
         className="relative overflow-x-auto"
       >
-        <table ref={tableRef} aria-label={accessibleName} className="w-full border-collapse text-[13.5px]">
-          <thead>
+        <table
+          ref={tableRef}
+          aria-label={accessibleName}
+          style={{
+            ...(columns.some((column) => column.size !== undefined) ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          }}
+          className="w-full border-collapse text-[13.5px]"
+        >
+          <thead onMouseEnter={isDesktop ? measureColumnEdges : undefined}>
             <tr>
-              {columns.map((col) => {
-                const sortable = !!col.sortKey;
-                const ariaSort =
-                  sort && col.sortKey === sort.key
-                    ? sort.dir === 'asc'
-                      ? 'ascending'
-                      : 'descending'
-                    : sortable
-                      ? 'none'
-                      : undefined;
+              {modelHeaders.map((header) => {
+                const col = columns.find((column) => column.key === header.column.id)!;
+                const sortable = header.column.getCanSort();
+                const currentSort = header.column.getIsSorted();
+                const ariaSort = currentSort ? (currentSort === 'asc' ? 'ascending' : 'descending') : sortable ? 'none' : undefined;
                 return (
                   <th
-                    key={col.key}
+                    key={header.id}
+                    data-col-key={col.key}
                     aria-sort={ariaSort}
+                    style={columnSizing[col.key] !== undefined || col.size !== undefined
+                      ? { width: header.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                      : undefined}
                     className={cn(
-                      'sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
                       alignClass(col.align),
                       col.colClassName
                     )}
@@ -331,13 +422,12 @@ export function DataTable<Row>({
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
                         {col.header}
-                        {sort && sort.key === col.sortKey && (
-                          <Icon name={sort.dir === 'asc' ? 'up' : 'down'} />
-                        )}
+                        {currentSort && <Icon name={currentSort === 'asc' ? 'up' : 'down'} />}
                       </button>
                     ) : (
                       col.header
                     )}
+
                   </th>
                 );
               })}
@@ -357,8 +447,9 @@ export function DataTable<Row>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
-                const key = rowKey(row);
+              modelRows.map((modelRow) => {
+                const row = modelRow.original;
+                const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
@@ -399,11 +490,15 @@ export function DataTable<Row>({
                       selected && 'bg-primary/[0.07]'
                     )}
                   >
-                    {columns.map((col, colIndex) => {
+                    {modelRow.getVisibleCells().map((cell, colIndex) => {
+                      const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
                       return (
                         <td
                           key={col.key}
+                          style={columnSizing[col.key] !== undefined || col.size !== undefined
+                            ? { width: cell.column.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                            : undefined}
                           className={cn(
                             'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
                             alignClass(col.align),
@@ -446,6 +541,50 @@ export function DataTable<Row>({
             )}
           </tbody>
         </table>
+        {isDesktop && (
+          <div className="pointer-events-none absolute left-0 top-0 z-[4] h-[38px]" onFocusCapture={measureColumnEdges}>
+            {modelHeaders.map((header) => {
+              const col = columns.find((column) => column.key === header.column.id)!;
+              const measured = Object.keys(columnEdges.edges).length > 0;
+              const edge = measured ? columnEdges.edges[col.key] : header.getStart() + header.getSize();
+              if (edge === undefined) return null; // column hidden at this width
+              const left = measured ? Math.max(0, Math.min(edge - 12, columnEdges.width - 24)) : edge - 12;
+              const min = col.minSize ?? 20;
+              const max = col.maxSize ?? 900;
+              return (
+                <div
+                  key={header.id}
+                  role="separator"
+                  title={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                  aria-orientation="vertical"
+                  aria-valuenow={header.getSize()}
+                  aria-valuemin={min}
+                  aria-valuemax={max}
+                  tabIndex={0}
+                  onMouseDown={header.getResizeHandler()}
+                  onTouchStart={header.getResizeHandler()}
+                  onDoubleClick={() => header.column.resetSize()}
+                  onKeyDown={(event) => {
+                    const current = header.getSize();
+                    let next: number | undefined;
+                    if (event.key === 'ArrowLeft') next = current - 16;
+                    if (event.key === 'ArrowRight') next = current + 16;
+                    if (event.key === 'Home') next = min;
+                    if (event.key === 'End') next = max;
+                    if (next !== undefined) {
+                      event.preventDefault();
+                      table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                    }
+                  }}
+                  style={{ left, width: 24, height: 38 }}
+                  className="pointer-events-auto absolute top-0 cursor-col-resize opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                >
+                  <span aria-hidden className="pointer-events-none absolute inset-y-2 right-0 w-px bg-border" />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       ) : (
       /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -474,8 +613,9 @@ export function DataTable<Row>({
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
-          rows.map((row) => {
-            const key = rowKey(row);
+          modelRows.map((modelRow) => {
+            const row = modelRow.original;
+            const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;

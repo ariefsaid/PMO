@@ -3559,6 +3559,7 @@
   "table": {
     "actions": "Actions",
     "openRow": "Open {{name}}",
+    "resizeColumn": "Resize {{column}} column",
     "rowActions": "Row actions"
   },
   "task": {
