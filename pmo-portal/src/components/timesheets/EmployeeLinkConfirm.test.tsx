@@ -364,11 +364,59 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Casey Reviewer');
     expect(dialog).toHaveTextContent('candidate-a@example.test');
-    expect(within(dialog).getByRole('alert')).toHaveTextContent(/selected PMO profile is no longer active/i);
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(/selected employee is no longer available/i);
     const confirm = within(dialog).getByRole('button', { name: 'Confirm link' });
     expect(confirm).toBeDisabled();
     await user.click(confirm);
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('AC-S30-004: retains the draft and lets the Admin choose again in the open dialog', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn(async (_link: ProposedEmployeeLink) => {});
+    const view = render(
+      <EmployeeLinkConfirmWithOptions
+        links={[unlinked]}
+        canConfirm
+        profileOptions={ACTIVE_PROFILE_OPTIONS}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
+    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    const dialog = screen.getByRole('dialog');
+    view.rerender(
+      <EmployeeLinkConfirmWithOptions
+        links={[unlinked]}
+        canConfirm
+        profileOptions={[ACTIVE_PROFILE_OPTIONS[1]]}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(/selected employee is no longer available/i);
+    expect(dialog).toHaveTextContent('candidate-a@example.test');
+    const confirm = within(dialog).getByRole('button', { name: 'Confirm link' });
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('combobox', { name: 'PMO user to attribute hours to' }));
+    await user.click(await screen.findByRole('option', { name: 'Casey Reviewer' }));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(confirm).toBeEnabled();
+    const { blocking } = await axeViolations(dialog);
+    expect(blocking).toEqual([]);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.click(confirm);
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({
+      ...unlinked,
+      profile_id: 'profile-b',
+      profile_name: 'Casey Reviewer',
+      profile_email: 'candidate-b@example.test',
+    }));
   });
 });
 

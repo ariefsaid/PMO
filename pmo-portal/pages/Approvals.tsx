@@ -27,6 +27,7 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
+import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -315,30 +316,13 @@ function EmployeeLinkConfirmSection() {
   const may = usePermission();
   const { links, profiles, confirm } = useEmployeeLinkConfirm();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const profileOptions = useMemo(() => {
-    const candidates = Array.isArray(profiles) ? profiles : [];
-    const nameCounts = new Map<string, number>();
-    for (const profile of candidates) {
-      const name = profile.full_name.trim();
-      if (name) {
-        const key = name.toLocaleLowerCase();
-        nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
-      }
-    }
-
-    return candidates.map((profile) => {
-      const name = profile.full_name.trim();
-      const email = profile.email.trim();
-      const duplicateName = name && (nameCounts.get(name.toLocaleLowerCase()) ?? 0) > 1;
-      return {
-        value: profile.id,
-        label: name
-          ? duplicateName && email ? `${name} · ${email}` : name
-          : email,
-        email: email || undefined,
-      };
-    });
-  }, [profiles]);
+  const profileOptions = useMemo(() => employeeChoiceLabels(
+    (Array.isArray(profiles) ? profiles : []).map((profile) => ({
+      value: profile.id,
+      name: profile.full_name,
+      email: profile.email,
+    })),
+  ), [profiles]);
 
   if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
 

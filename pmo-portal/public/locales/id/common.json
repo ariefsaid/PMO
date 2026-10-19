@@ -733,7 +733,7 @@
         "profilePlaceholder": "Pilih profil PMO",
         "saveFailure": "Tautan karyawan ini gagal dikonfirmasi. Profil yang dipilih masih tersedia; coba lagi.",
         "searchProfiles": "Cari profil aktif",
-        "staleProfile": "Profil PMO yang dipilih sudah tidak aktif. Pilih profil aktif sebelum mengonfirmasi.",
+        "staleProfile": "Karyawan yang dipilih sudah tidak tersedia. Pilih karyawan aktif lain sebelum mengonfirmasi.",
         "unknownEmployee": "karyawan ini"
       },
       "title": "Tautan karyawan menunggu konfirmasi"
