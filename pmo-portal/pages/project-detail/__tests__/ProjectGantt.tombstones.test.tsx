@@ -106,7 +106,7 @@ describe('the Gantt screen-reader summary states every clause (#575)', () => {
     // The WHOLE label, not a substring: a clause silently dropped from the join is exactly the
     // failure mode, and a per-clause `toMatch` cannot see a missing neighbour.
     expect(ganttSummary()).toBe(
-      'Task Gantt timeline: 1 task across 1 milestone, today at 100% of the span, ' +
+      'Task Gantt timeline: 1 task across 1 phase, today at 100% of the span, ' +
         '0 dependency connectors drawn, scale: Month.',
     );
   });
@@ -121,7 +121,7 @@ describe('the Gantt screen-reader summary states every clause (#575)', () => {
       />,
     );
     const summary = ganttSummary();
-    expect(summary).toContain('2 tasks across 2 milestones');   // both plural
+    expect(summary).toContain('2 tasks across 2 phases');   // both plural
     expect(summary).toContain('1 dependency connector drawn');  // singular, same sentence
     expect(summary).not.toMatch(/\{\{|\}\}/);                   // no unresolved interpolation
   });

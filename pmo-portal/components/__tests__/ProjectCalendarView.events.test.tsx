@@ -59,6 +59,21 @@ async function renderLocalizedCalendar(locale: 'en' | 'id', props: React.Compone
 beforeEach(() => vi.clearAllMocks());
 
 describe('ProjectCalendarView — event placement', () => {
+  it.each([
+    ['en', 'Previous month', 'Next month', 'Go to today', 'Today', 'No events this month'],
+    ['id', 'Bulan sebelumnya', 'Bulan berikutnya', 'Ke hari ini', 'Hari ini', 'Tidak ada acara bulan ini'],
+  ] as const)('AC-VOCAB-1018: calendar controls and empty state are localized in %s', async (locale, previous, next, goToday, today, empty) => {
+    await renderLocalizedCalendar(locale, {
+      projects: [],
+      milestoneDates: [],
+      onOpenProject: () => {},
+      initialCursor: JUNE,
+    });
+    expect(screen.getByRole('button', { name: previous })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: next })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: goToday })).toHaveTextContent(today);
+    expect(screen.getByText(empty)).toBeInTheDocument();
+  });
   it('AC-CAL-002: project start/end events land in their day cells', () => {
     render(
       <ProjectCalendarView

@@ -956,14 +956,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
           {milestones.length > 0 && (
             <Combobox
-              label={t('projectDetail.tasks.form.milestone', 'Milestone')}
+              label={t('projectDetail.tasks.form.milestone', 'Phase')}
               value={milestoneId}
               selectedOption={selectedMilestone}
               loadOptions={async () => milestoneOptions}
               onChange={(v) => setMilestoneId(v || null)}
               placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
-              searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search milestones…')}
-              noun="milestone"
+              searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search phases…')}
+              noun={t('projectDetail.tasks.phaseNoun', 'phase')}
             />
           )}
           {/* OD-INT-9 — the parent-task picker. Options already exclude the task itself and
@@ -1136,7 +1136,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           {isUngrouped ? (
             <span className="text-[12px] text-muted-foreground">
-              {t('projectDetail.tasks.noMilestone', 'No milestone')}
+              {t('projectDetail.tasks.noMilestone', 'No phase')}
             </span>
           ) : (
             <MilestonePhaseHeader
