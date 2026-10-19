@@ -3,7 +3,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { dispatchCreateRevenue, dispatchTransitionRevenue, SAR_CURRENCY, seedSAR, signInAdmin, signInApprover } from './_sarHelpers';
-import { pickComboboxOption, signIn, waitForFonts } from '../helpers';
+import { ownedContextOptions, pickComboboxOption, signIn, waitForFonts } from '../helpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -93,7 +93,7 @@ async function cleanupErpInvoice(name: string): Promise<'deleted' | 'cancelled-r
   return 'cancelled-retained';
 }
 
-test('AC-PPNC-001 Finance cancels and re-issues with fresh PPN and independent approval', async ({ page, browser }) => {
+test('AC-PPNC-001 Finance cancels and re-issues with fresh PPN and independent approval', async ({ page, browser }, testInfo) => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
   // seedSAR references this fixed synthetic ERP Customer and may best-effort create it. Require the
   // shared fixture to exist first, so this journey never leaves an untracked bench Customer behind.
@@ -133,7 +133,7 @@ test('AC-PPNC-001 Finance cancels and re-issues with fresh PPN and independent a
       createKeys.add(body.idempotencyKey);
     }
   });
-  const approverContext = await browser.newContext({ baseURL: 'http://localhost:3000', locale: 'en-US', timezoneId: 'UTC' });
+  const approverContext = await browser.newContext(ownedContextOptions(testInfo, { baseURL: 'http://localhost:3000' }));
   const approverPage = await approverContext.newPage();
   const record = { id: originalId, customerId: seeded.companyId, projectId: seeded.projectId, workOrderId, items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1_200_000 }] };
   const customerName = `Spike Customer ${suffix}`;

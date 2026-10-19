@@ -29,6 +29,7 @@ import {
   runS21FixtureCleanup,
   S21_FIXTURE_PHASE_TIMEOUT_MS,
 } from './support/AC-S21-005-lifecycle.mjs';
+import { ownedContextOptions } from './helpers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -1044,7 +1045,7 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
       const appBaseUrl = testInfo.project.use.baseURL;
       if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
       setJourneyStage('reload-support-browser-context');
-      const ownedContext = await browser.newContext({ baseURL: appBaseUrl });
+      const ownedContext = await browser.newContext(ownedContextOptions(testInfo, { baseURL: appBaseUrl }));
       continuationContext = ownedContext;
       page = await ownedContext.newPage();
       continuationPage = page;

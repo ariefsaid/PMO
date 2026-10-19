@@ -1,9 +1,15 @@
-import { expect, request as pwRequest, type Locator, type Page } from '@playwright/test';
+import { expect, request as pwRequest, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
+
+/** Copy project-level browser settings onto a context created outside Playwright's page fixture. */
+export function ownedContextOptions(testInfo: TestInfo, overrides: Record<string, unknown> = {}) {
+  const { baseURL, locale, timezoneId, trace, screenshot, video } = testInfo.project.use;
+  return { baseURL, locale, timezoneId, trace, screenshot, video, ...overrides };
+}
 
 /** Locate the rendered toast copy (not its separate, screen-reader-only live announcement). */
 export function visibleToast(page: Page, text: string | RegExp): Locator {
