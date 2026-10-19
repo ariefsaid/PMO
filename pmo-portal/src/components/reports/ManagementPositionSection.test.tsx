@@ -45,6 +45,7 @@ const aging: ErpAgingSnapshotRow = {
 
 const detail: ManagementPositionDetail = {
   projectId: 'p1',
+  projectCurrency: 'USD',
   cash: { state: 'known', buckets: [{ currency: 'USD', amount: '1000.00' }], receipt_count: 1 },
   billedWork: [{ currency: 'USD', work_revenue: '1200.00', missing_work: 0 }],
   margins: [
@@ -126,6 +127,81 @@ describe('ManagementPositionSection', () => {
     expect(screen.getByTestId('customer-aging')).toHaveTextContent('Customer:C-0001 200');
     expect(screen.getByRole('link', { name: 'Open customer collections' })).toHaveAttribute('href', '/companies/company-id#collections');
     expect(screen.getByRole('link', { name: 'Open customer invoices' })).toHaveAttribute('href', '/sales-invoices?customer=company-id');
+  });
+
+  it('AC-S35-005: invoice totals with every row known show their exact amounts', async () => {
+    h.useManagementPosition.mockImplementation((_pack, page, expanded) => ({
+      ...(h.view as object), pageIndex: page, expandedProjectId: expanded, detail: expanded ? h.detail : null,
+      projectState: 'known', financeState: 'known', collectionsState: 'known',
+    }));
+
+    await renderSection();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Position details' })[0]);
+
+    const billed = screen.getByRole('region', { name: 'Billed work to date' });
+    expect(within(billed).getByText('$1,200.00')).toBeInTheDocument();
+    expect(within(billed).queryByText(/Incomplete/)).not.toBeInTheDocument();
+    const outstanding = screen.getByRole('region', { name: 'Project invoice outstanding' });
+    expect(within(outstanding).getByText('$200.00')).toBeInTheDocument();
+    expect(within(outstanding).queryByText(/Incomplete/)).not.toBeInTheDocument();
+  });
+
+  it('AC-S35-005: a partial invoice sum shows Incomplete instead of the partial amount', async () => {
+    // Three open invoices; the source summed the two known rows and skipped the one whose amount is unknown.
+    h.detail = {
+      ...detail,
+      billedWork: [{ currency: 'USD', work_revenue: '1200.00', missing_work: 1 }],
+      projectOutstanding: [{ currency: 'USD', outstanding: '200.00', missing_outstanding: 1, tax_basis: 'exclusive' }],
+    };
+    h.useManagementPosition.mockImplementation((_pack, page, expanded) => ({
+      ...(h.view as object), pageIndex: page, expandedProjectId: expanded, detail: expanded ? h.detail : null,
+      projectState: 'known', financeState: 'known', collectionsState: 'known',
+    }));
+
+    await renderSection();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Position details' })[0]);
+
+    const billed = screen.getByRole('region', { name: 'Billed work to date' });
+    expect(within(billed).queryByText('$1,200.00')).not.toBeInTheDocument();
+    expect(within(billed).getByText('Incomplete — invoice work amount missing')).toBeInTheDocument();
+    expect(within(billed).getByText('1 invoice row lacks a work amount.')).toBeInTheDocument();
+    const outstanding = screen.getByRole('region', { name: 'Project invoice outstanding' });
+    expect(within(outstanding).queryByText('$200.00')).not.toBeInTheDocument();
+    expect(within(outstanding).getByText('Incomplete — ERP outstanding missing')).toBeInTheDocument();
+    expect(within(outstanding).getByText('1 invoice row lacks a known outstanding amount.')).toBeInTheDocument();
+  });
+
+  it('AC-S35-005: plural counts read naturally for several missing invoice rows', async () => {
+    h.detail = {
+      ...detail,
+      billedWork: [{ currency: 'USD', work_revenue: '1200.00', missing_work: 2 }],
+      projectOutstanding: [{ currency: 'USD', outstanding: '200.00', missing_outstanding: 3, tax_basis: 'exclusive' }],
+    };
+    h.useManagementPosition.mockImplementation((_pack, page, expanded) => ({
+      ...(h.view as object), pageIndex: page, expandedProjectId: expanded, detail: expanded ? h.detail : null,
+      projectState: 'known', financeState: 'known', collectionsState: 'known',
+    }));
+
+    await renderSection();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Position details' })[0]);
+
+    expect(screen.getByText('2 invoice rows lack a work amount.')).toBeInTheDocument();
+    expect(screen.getByText('3 invoice rows lack a known outstanding amount.')).toBeInTheDocument();
+  });
+
+  it('AC-S35-005: known zero cash shows a formatted zero like the project page', async () => {
+    h.detail = { ...detail, cash: { state: 'known', buckets: [], receipt_count: 0 } };
+    h.useManagementPosition.mockImplementation((_pack, page, expanded) => ({
+      ...(h.view as object), pageIndex: page, expandedProjectId: expanded, detail: expanded ? h.detail : null,
+      projectState: 'known', financeState: 'known', collectionsState: 'known',
+    }));
+
+    await renderSection();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Position details' })[0]);
+
+    const cash = screen.getByRole('region', { name: 'Cash received' });
+    expect(within(cash).getByText('$0.00')).toBeInTheDocument();
+    expect(within(cash).queryByText(/No receipt-backed amount/)).not.toBeInTheDocument();
   });
 
   it('AC-S35-005: ambiguous customer aging never renders its supplied amount', async () => {

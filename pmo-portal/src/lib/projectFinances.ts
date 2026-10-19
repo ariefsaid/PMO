@@ -318,15 +318,11 @@ export function deriveMargin(
   if (actuals.excludes_restricted_rows) return { amount: null, reason: 'restricted-rows' };
   const revenue = moneyUnits(bucket.work_revenue);
   if (revenue === null || bucket.missing_work > 0) return { amount: null, reason: 'work-unavailable' };
-  const actualsComplete = coverage
-    ? coverage.complete && isActualComplete({
-      basis: coverage.basis,
-      readSucceeded: coverage.readSucceeded,
-      complete: coverage.complete,
-      actuals,
-    })
-    : hasCompleteActuals(actuals);
-  if (!actualsComplete) return { amount: null, reason: 'actuals-unavailable' };
+  // The shipped all-categories check always applies; canonical coverage can only narrow it further.
+  // PMO-ledger cost is committed POs, not cost incurred, so it never yields a margin.
+  const canonicalComplete = !coverage
+    || (coverage.basis === 'erp' && coverage.readSucceeded && coverage.complete);
+  if (!hasCompleteActuals(actuals) || !canonicalComplete) return { amount: null, reason: 'actuals-unavailable' };
   const cost = moneyUnits(actuals.total);
   if (cost === null || !actuals.currency) return { amount: null, reason: 'actuals-unavailable' };
   return { amount: moneyText(revenue - cost), reason: null };

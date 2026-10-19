@@ -137,7 +137,11 @@ export const ManagementPositionSection: React.FC<ManagementPositionSectionProps>
                     <span>{bucket.currency}</span><span>{moneyText(bucket.amount, bucket.currency, unavailable)}</span>
                   </li>
                 ))}
-                {detail.cash.buckets.length === 0 && <li className="text-muted-foreground">{t('uxs35.noReceipts', 'No receipt-backed amount reported')}</li>}
+                {detail.cash.buckets.length === 0 && (
+                  <li className="flex flex-wrap justify-between gap-x-3">
+                    <span>{detail.projectCurrency}</span><span>{moneyText('0.00', detail.projectCurrency, unavailable)}</span>
+                  </li>
+                )}
               </ul>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">{detail.cash.state === 'incomplete'
@@ -155,8 +159,15 @@ export const ManagementPositionSection: React.FC<ManagementPositionSectionProps>
               <ul className="mt-2 space-y-1 text-sm tabular-nums">
                 {detail.billedWork.map((bucket) => (
                   <li key={bucket.currency} className="flex flex-wrap justify-between gap-x-3">
-                    <span>{bucket.currency}</span><span>{moneyText(bucket.work_revenue, bucket.currency, unavailable)}</span>
-                    {bucket.missing_work > 0 && <span className="w-full text-xs text-muted-foreground">{t('uxs35.missingWork', '{{count}} invoice rows lack a work amount.', { count: bucket.missing_work })}</span>}
+                    <span>{bucket.currency}</span>
+                    <span>{bucket.missing_work > 0
+                      ? t('uxs35.billedWorkIncomplete', 'Incomplete — invoice work amount missing')
+                      : moneyText(bucket.work_revenue, bucket.currency, unavailable)}</span>
+                    {bucket.missing_work > 0 && <span className="w-full text-xs text-muted-foreground">{t('uxs35.missingWork', {
+                      count: bucket.missing_work,
+                      defaultValue_one: '{{count}} invoice row lacks a work amount.',
+                      defaultValue_other: '{{count}} invoice rows lack a work amount.',
+                    })}</span>}
                   </li>
                 ))}
               </ul>
@@ -191,8 +202,14 @@ export const ManagementPositionSection: React.FC<ManagementPositionSectionProps>
                 {detail.projectOutstanding.map((bucket, index) => (
                   <li key={`${bucket.currency}-${index}`} className="flex flex-wrap justify-between gap-x-3">
                     <span>{bucket.currency} · {taxBasisLabel(bucket.tax_basis, t)}</span>
-                    <span>{moneyText(bucket.outstanding, bucket.currency, unavailable)}</span>
-                    {bucket.missing_outstanding > 0 && <span className="w-full text-xs text-muted-foreground">{t('uxs35.missingOutstanding', '{{count}} invoice rows lack a known outstanding amount.', { count: bucket.missing_outstanding })}</span>}
+                    <span>{bucket.missing_outstanding > 0
+                      ? t('projectFinances.incomplete', 'Incomplete — ERP outstanding missing')
+                      : moneyText(bucket.outstanding, bucket.currency, unavailable)}</span>
+                    {bucket.missing_outstanding > 0 && <span className="w-full text-xs text-muted-foreground">{t('uxs35.missingOutstanding', {
+                      count: bucket.missing_outstanding,
+                      defaultValue_one: '{{count}} invoice row lacks a known outstanding amount.',
+                      defaultValue_other: '{{count}} invoice rows lack a known outstanding amount.',
+                    })}</span>}
                   </li>
                 ))}
               </ul>

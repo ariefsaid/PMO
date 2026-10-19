@@ -32,6 +32,8 @@ export interface ManagementPositionRow {
 
 export interface ManagementPositionDetail {
   projectId: string;
+  /** Currency for a known-zero cash reading, which carries no bucket of its own. */
+  projectCurrency: string;
   cash: ProjectReceiptCash;
   billedWork: ReadonlyArray<Pick<ProjectFinances['invoices'][number], 'currency' | 'work_revenue' | 'missing_work'>>;
   margins: ReadonlyArray<{ currency: string; value: Margin }>;
@@ -143,6 +145,7 @@ export function buildManagementPositionDetail(
   if (row.projectId !== project.id || project.id !== finances.project_id) {
     return {
       projectId: row.projectId,
+      projectCurrency: project.currency,
       cash: mismatchedCash,
       billedWork: [],
       margins: [],
@@ -160,21 +163,18 @@ export function buildManagementPositionDetail(
     || row.actual.asOf !== finances.actuals.as_of
     || row.actual.excludesRestrictedRows !== finances.actuals.excludes_restricted_rows
   );
-  const canonicalActuals: ProjectFinances['actuals'] = {
-    currency: row.actual.currency,
-    as_of: row.actual.asOf,
-    total: row.actual.amount,
-    excludes_restricted_rows: row.actual.excludesRestrictedRows,
-    categories: row.actual.categories.map(({ category, mapped, amount }) => ({ category, mapped, amount })),
-  };
+  // Margin reads the same project-finances cost the project page uses, so the shipped
+  // all-categories check applies; the canonical reading must also be a complete ERP Actual.
   const marginCoverage = {
     basis: row.actual.basis,
     readSucceeded: row.actual.state === 'known' || row.actual.state === 'partial',
-    complete: row.actual.complete && !actualsChanged,
+    complete: row.actual.complete,
   } as const;
+  const unavailableMargin: Margin = { amount: null, reason: 'actuals-unavailable' };
 
   return {
     projectId: row.projectId,
+    projectCurrency: project.currency,
     cash: finances.cash_received ?? { state: 'unavailable', buckets: [], reason: 'not-reported' },
     billedWork: finances.invoices.map(({ currency, work_revenue, missing_work }) => ({
       currency,
@@ -183,7 +183,7 @@ export function buildManagementPositionDetail(
     })),
     margins: finances.invoices.map((bucket) => ({
       currency: bucket.currency,
-      value: deriveMargin(bucket, canonicalActuals, marginCoverage),
+      value: actualsChanged ? unavailableMargin : deriveMargin(bucket, finances.actuals, marginCoverage),
     })),
     projectOutstanding: finances.invoices.map(({ currency, outstanding, missing_outstanding, tax_basis }) => ({
       currency,

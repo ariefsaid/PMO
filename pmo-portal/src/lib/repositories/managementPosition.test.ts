@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
-import type { ProjectFinances, ProjectReceiptCash } from '@/src/lib/projectFinances';
+import { deriveMargin, type ProjectFinances, type ProjectReceiptCash } from '@/src/lib/projectFinances';
 import type { CompanyCollectionsComposition } from '@/src/lib/repositories/companyCollections';
 import type { PackRow } from '@/src/lib/reports/managementPack';
 
@@ -148,7 +148,7 @@ describe('management position source projection', () => {
     expect({ aging, collections, finances }).toEqual(before);
   });
 
-  it('AC-S35-002: derives each billed-work margin from the canonical S02 Actual', async () => {
+  it('AC-S35-002: PMO-ledger committed cost never yields a billed-work margin', async () => {
     const row = (await projectRows([packRow('p1')], { p1: money('50.00') }, 'success'))[0];
     const finances: ProjectFinances = {
       project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null,
@@ -159,17 +159,78 @@ describe('management position source projection', () => {
           missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100.00', missing_work: 0 },
       ],
       budget: null,
-      actuals: { currency: 'USD', as_of: null, total: '999.00', excludes_restricted_rows: false, categories: [] },
+      actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] },
     };
 
     const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
 
-    expect(detail).toMatchObject({
-      margins: [
-        { currency: 'USD', value: { amount: '50.00', reason: null } },
-        { currency: 'EUR', value: { amount: null, reason: 'different-currencies' } },
-      ],
-    });
+    expect(detail.margins).toEqual([
+      { currency: 'USD', value: { amount: null, reason: 'actuals-unavailable' } },
+      { currency: 'EUR', value: { amount: null, reason: 'different-currencies' } },
+    ]);
+  });
+
+  it('AC-S35-002: an ERP project with an unmapped category withholds margin exactly as the project page does', async () => {
+    const categories = [
+      { category: 'Labor', mapped: true, amount: '30.00' },
+      { category: 'Materials', mapped: false, amount: null },
+    ];
+    const row = (await projectRows([packRow('p1')], {
+      p1: money('30.00', { complete: true, categories }, 'erp'),
+    }, 'success'))[0];
+    const finances: ProjectFinances = {
+      project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null,
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
+        missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100.00', missing_work: 0 }],
+      budget: null,
+      actuals: { currency: 'USD', as_of: '2026-10-18T08:00:00Z', total: '30.00', excludes_restricted_rows: false, categories },
+    };
+
+    const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
+
+    expect(detail.margins).toEqual([{ currency: 'USD', value: { amount: null, reason: 'actuals-unavailable' } }]);
+    expect(detail.margins[0].value).toEqual(deriveMargin(finances.invoices[0], finances.actuals));
+  });
+
+  it('AC-S35-002: a fully complete ERP project shows the same margin as the project page', async () => {
+    const categories = [
+      { category: 'Labor', mapped: true, amount: '30.00' },
+      { category: 'Materials', mapped: true, amount: '20.00' },
+    ];
+    const row = (await projectRows([packRow('p1')], {
+      p1: money('50.00', { complete: true, categories }, 'erp'),
+    }, 'success'))[0];
+    const finances: ProjectFinances = {
+      project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null,
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
+        missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100.00', missing_work: 0 }],
+      budget: null,
+      actuals: { currency: 'USD', as_of: '2026-10-18T08:00:00Z', total: '50.00', excludes_restricted_rows: false, categories },
+    };
+
+    const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
+
+    expect(detail.margins).toEqual([{ currency: 'USD', value: { amount: '50.00', reason: null } }]);
+    expect(detail.margins[0].value).toEqual(deriveMargin(finances.invoices[0], finances.actuals));
+  });
+
+  it('AC-S35-002: a canonical ERP reading that is not complete withholds margin even when every category maps', async () => {
+    const categories = [{ category: 'Labor', mapped: true, amount: '50.00' }];
+    const row = (await projectRows([packRow('p1')], {
+      p1: money('50.00', { complete: false, categories }, 'erp'),
+    }, 'success'))[0];
+    const finances: ProjectFinances = {
+      project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null,
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
+        missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100.00', missing_work: 0 }],
+      budget: null,
+      actuals: { currency: 'USD', as_of: '2026-10-18T08:00:00Z', total: '50.00', excludes_restricted_rows: false, categories },
+    };
+
+    const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
+
+    expect(detail.margins).toEqual([{ currency: 'USD', value: { amount: null, reason: 'actuals-unavailable' } }]);
   });
 
   it.each([
@@ -205,15 +266,16 @@ describe('management position source projection', () => {
   });
 
   it('AC-S35-003: ERP exact amounts with equivalent decimal scale remain comparable', async () => {
+    const categories = [{ category: 'Labor', mapped: true, amount: '50.00' }];
     const row = (await projectRows([packRow('p1')], {
-      p1: money('50.00', {}, 'erp'),
+      p1: money('50.00', { categories }, 'erp'),
     }, 'success'))[0];
     const finances: ProjectFinances = {
       project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null,
       invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: null, outstanding: null,
         missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100.00', missing_work: 0 }],
       budget: null,
-      actuals: { currency: 'USD', as_of: '2026-10-18T08:00:00Z', total: '50', excludes_restricted_rows: false, categories: [] },
+      actuals: { currency: 'USD', as_of: '2026-10-18T08:00:00Z', total: '50', excludes_restricted_rows: false, categories },
     };
 
     const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
@@ -241,6 +303,7 @@ describe('management position source projection', () => {
     const detail = await projectDetail(row, finances, { id: 'p1', client_id: null, currency: 'USD' }, null);
 
     expect(detail.cash).toEqual(expected);
+    expect(detail.projectCurrency).toBe('USD');
     expect(detail.customerId).toBeNull();
     expect(detail.collections).toBeNull();
   });
