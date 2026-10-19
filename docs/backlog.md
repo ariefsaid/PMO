@@ -9,9 +9,12 @@
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.
-The merge hold is lifted. The next dev run, 39190951947 at `48a3a62b`, passed 398 browser
+The next dev run, 39190951947 at `48a3a62b`, passed 398 browser
 cases and 12 served-function checks, with zero timing warnings or failures and 67 justified skips.
-After two further tooling merges, dev run 39194552556 at `c13d2e9d` is running.
+After two further tooling merges, dev run 39194552556 at `c13d2e9d` failed: Chromium
+completed 360 passing cases, one timeout and 13 skips; later integration stages did not run.
+S-21 timed out, and the confirm and project-billing journeys exceeded the timing budget.
+Recovery #1186 is active; unrelated code merges are held until the dev browser gate is green.
 Existing timeouts and goal oracles are retained.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
