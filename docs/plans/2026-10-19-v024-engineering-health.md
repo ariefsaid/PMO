@@ -148,8 +148,8 @@ per fresh task and names the exact warning identity. No shared helper/config edi
   in one transaction, check command success and verify all five own counts are zero. Keep normal
   integrity behavior enabled. Report journey+cleanup errors together using `AggregateError`.
 - [ ] In the concurrency helper, put initial setup inside the protected try/finally so partial
-  setup is cleaned; scope each delete to its owned IDs, and remove only its own audit/identity/
-  organization fixture rows after business rows. Use the same transactional principle without
+  setup is cleaned; scope each delete to its owned IDs, preserve append-only audit/history rows, and remove only
+  its exact identity/organization fixture rows after business rows. Use the same transactional principle without
   schema changes. Preserve both original race sequences and their active/released counts.
 - [ ] Add/execute a deliberate cleanup failure control without touching shared fixtures: use the
   helper's isolated synthetic fixture/transaction, force a local rollback, require nonzero output
