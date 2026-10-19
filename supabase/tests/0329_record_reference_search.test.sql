@@ -166,8 +166,12 @@ select ok((select position('S40 Main Project' in (item ->> 'context')) > 0
 reset role;
 set local request.jwt.claims = '{"sub":"03290000-0000-0000-0000-000000000101","role":"authenticated"}';
 select ok(jsonb_array_length(public.search_record_references('TENANT-SHARED', 8) -> 'items') = 1
-          and (public.search_record_references('TENANT-SHARED', 8) -> 'items' -> 0 ->> 'id') = '03290000-0000-0000-0000-000000000f05',
-  'AC-S40-003 explicit org predicates fence results even when invoker bypasses RLS');             -- 25
+          and (public.search_record_references('TENANT-SHARED', 8) -> 'items' -> 0 ->> 'id') = '03290000-0000-0000-0000-000000000f05'
+          and (public.search_record_references('TENANT-SHARED', 8) -> 'items' -> 0 ->> 'kind') = 'invoice'
+          and (public.search_record_references('TENANT-SHARED', 8) -> 'items' -> 0 ->> 'exact')::boolean
+          and not exists(select 1 from jsonb_array_elements(public.search_record_references('TENANT-SHARED', 8) -> 'items') as rows(item)
+            where item ->> 'id' = '03290000-0000-0000-0000-000000000f06'),
+  'AC-S40-003 authenticated Finance gets the canonical own-org invoice and not the foreign same-reference invoice'); -- 25
 set local request.jwt.claims = '{"sub":"03290000-0000-0000-0000-000000000201","role":"authenticated"}';
 select is((select coalesce(jsonb_agg(item ->> 'id' order by item ->> 'id'), '[]'::jsonb)
              from jsonb_array_elements(public.search_record_references('TENANT-SHARED', 8) -> 'items') as rows(item)

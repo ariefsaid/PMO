@@ -1,6 +1,6 @@
 -- AC-005: uncancelled GL references absent from the chart require replay; successful replay clears it.
 begin;
-select plan(10);
+select plan(12);
 
 insert into public.external_org_bindings(org_id,external_tier,site_url,secret_ref,config)
 values ('00000000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','synthetic-ref','{"company":"Replay Co"}')
@@ -35,6 +35,13 @@ select ok((select statement_calendar='[{"start":"2025-01-01","end":"2025-12-31"}
   'missing-reference replay leaves native calendar, delay, last success and snapshot unchanged');
 select ok(not public.mark_erp_statement_replay_for_missing_accounts('00000000-0000-0000-0000-000000000001','Other Co'),'no references for another company do not request replay');
 select ok(not has_function_privilege('anon','public.mark_erp_statement_replay_for_missing_accounts(uuid,text)','EXECUTE'),'anon cannot invoke replay detection');
+select ok(not has_function_privilege('authenticated','public.mark_erp_statement_replay_for_missing_accounts(uuid,text)','EXECUTE'),
+  'authenticated callers cannot execute replay detection');
+set local role authenticated;
+select throws_ok($$select public.mark_erp_statement_replay_for_missing_accounts(
+  '00000000-0000-0000-0000-000000000001','Replay Co')$$,
+  '42501', null, 'authenticated replay-detection call is denied');
+reset role;
 
 update public.erp_gl_entry_mirror set replay_seen_id='30000000-0000-0000-0000-000000000002'
 where erp_name='GL-MISSING-ACCOUNT';
