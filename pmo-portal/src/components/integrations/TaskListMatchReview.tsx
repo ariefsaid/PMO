@@ -1,10 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
   Combobox,
   EntityFormModal,
-  FieldError,
   FormGrid,
   FormSection,
 } from '@/src/components/ui';
@@ -45,6 +44,7 @@ export function TaskListMatchReview({
   const [listId, setListId] = useState(proposedListId ?? '');
   const [initialSource, setInitialSource] = useState<LinkDirection | ''>('');
   const [stage, setStage] = useState<ReviewStage>('selection');
+  const submitError = useMemo(() => error ? { headline: error } : null, [error]);
 
   if (!open) return null;
 
@@ -82,6 +82,7 @@ export function TaskListMatchReview({
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={saving}
+      submitError={submitError}
       dirty={Boolean(initialSource) || listId !== (proposedListId ?? '')}
       submitDisabled={!canConfirm || !selectedList || !isLinkDirection(initialSource)}
     >
@@ -198,7 +199,6 @@ export function TaskListMatchReview({
           <p className="text-sm text-muted-foreground">
             {t('uxs21.transferPendingNote', 'Saving this link does not confirm that the initial task transfer has completed.')}
           </p>
-          {error && <FieldError id="task-list-match-save-error">{error}</FieldError>}
           <Button
             type="button"
             variant="outline"
