@@ -14,17 +14,13 @@ cases and 12 served-function checks, with zero timing warnings or failures and 6
 After two further tooling merges, dev run 39194552556 at `c13d2e9d` failed: Chromium
 completed 360 passing cases, one timeout and 13 skips; later integration stages did not run.
 S-21 timed out, and the confirm and project-billing journeys exceeded the timing budget.
-Recovery #1186 is open in PR #1189 (`135a8b98`): inactive project panels now load on demand.
-All six fast checks passed (39201808400; 1,218 unit files, 6,733 database checks and 100%
-changed-line coverage). The unchanged task-link and billing journeys passed locally in 9.2s
-and 7.6s within their existing 30s limits. Full browser integration 39201829613 passed all 398
-executed cases, with 67 justified skips, but failed the timing gate: S-21 took 27.518s against
-the unchanged 25.5s budget. Confirmation and project billing remain timing warnings; served-function
-checks were not reached. The next revision in #1189 (`ba3ebfb4`) splits the task-link proof at its existing saved-row
-readback. Both ordered cases keep normal sign-in and their 30s limits; they pass locally in
-9.353s and 9.405s, with protected fixtures unchanged. Fast run 39208360962 and closing browser
-run 39208421135 are active. Unrelated code merges remain held until the dev browser gate is
-green. Every goal oracle and timeout is retained.
+Recovery #1186 merged in PR #1189 (`7dadb1d7`): inactive project panels load on demand,
+and the task-link proof is split at its existing saved-row readback. Both ordered cases retain
+normal sign-in, every goal oracle and the original 30s limits. They pass locally in 9.353s and
+9.405s, with protected fixtures unchanged. All six fast checks passed (39208360962); closing
+browser run 39208421135 passed all 399 executed cases and 12 served-function checks, with
+67 justified skips, six timing warnings and no timing failures. The new dev browser gate
+39212501320 at `7dadb1d7` is active. Unrelated code merges remain held until that dev gate is green.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -222,8 +218,8 @@ Write a spec and plan before building any item that lacks them. Route owner deci
 Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
 its dev merge stays held. Durable browser-dispatch reservations (#1133) are reviewed in
 PR #1190 (`a0de3076`), with all six fast checks green; its merge waits for dev recovery.
-Browser inventory and reporter adapters (#1188) are in review; runner fanout remains a separate
-capacity decision. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
+Browser inventory and reporter adapters (#1188) are reviewed in PR #1192 (`b9f79a2e`);
+fast CI is active. Runner fanout remains a separate capacity decision. Dispatch classification (#1103) merged in PR #1180 (`a684e81e`),
 with all six fast checks green and the private adapter adopted. Verified cleanup (#1113) merged
 in PR #1185 (`c13d2e9d`), with all six fast checks green, nine driver tests covering 43 failure
 boundaries, verified worktree cleanup and private wrapper adoption. Timing headroom (#1106) is
