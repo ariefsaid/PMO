@@ -25,6 +25,10 @@ const populated = {
   total_contract_value: 23050000, currency: 'USD',
   on_hand_margin: 0.224,
   on_hand_value: 26650000,
+  on_hand_contract_remaining: 22000000,
+  on_hand_realized_margin: 4650000,
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 4650000, unknown_projects: 0 }],
+  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 26650000, actual_known: 4650000, contract_remaining: 22000000, actual_coverage_count: 18, actual_coverage_total: 18, realized_margin_known: 4650000, unknown_projects: 0 }],
   pipeline_weighted_value: 8400000,
   pipeline_projected_margin: 0.315,
   pipeline_total_value: 19200000,
@@ -194,6 +198,32 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
       const value = tile.querySelector('.text-\\[23px\\]');
       expect(value, `${testId} should render the shared KPITile value`).not.toBeNull();
     }
+  });
+
+  it('shows mixed-currency on-hand values and contract remainder on the phone', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_value: null as unknown as number,
+      on_hand_contract_remaining: null as unknown as number,
+      on_hand_realized_margin: null as unknown as number,
+      on_hand_value_by_currency: [
+        { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 2, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+    const onHand = screen.getByTestId('mobile-kpi-on-hand');
+    expect(onHand).toHaveTextContent('IDR');
+    expect(onHand).toHaveTextContent('USD');
+    expect(onHand).toHaveTextContent('2,000,000,000');
+    expect(onHand).toHaveTextContent('1,000,000');
+    expect(onHand).toHaveTextContent('800,000,000');
+    expect(onHand).toHaveTextContent('100,000,000');
+    expect(onHand).not.toHaveTextContent('Not available yet');
   });
 
   it('AC-MOBILE-4: B-MIN-3 source-lines are present in the contract book', () => {

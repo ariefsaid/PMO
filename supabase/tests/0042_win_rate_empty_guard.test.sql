@@ -1,6 +1,6 @@
 -- 0042_win_rate_empty_guard.test.sql — win-rate empty-range divide-by-zero guard
 -- AC-1108 / FR-SPD-008
--- A future range with no decided deals must return 0/0 (no error)
+-- An empty range returns a zero count rate and no currency-denominated scalar value.
 begin;
 select plan(2);
 
@@ -15,11 +15,11 @@ select is(
   'AC-1108: empty range win_rate_count = 0 (no div-by-zero) (FR-SPD-008)'
 );
 
--- AC-1108: empty future range → win_rate_value = 0 (no division error)
+-- AC-1108: empty future range has no single currency, so value rate is unknown rather than a fabricated scalar.
 select is(
-  (get_win_rate('2030-01-01', '2030-12-31') ->> 'win_rate_value')::numeric,
-  0::numeric,
-  'AC-1108: empty range win_rate_value = 0 (no div-by-zero) (FR-SPD-008)'
+  get_win_rate('2030-01-01', '2030-12-31') ->> 'win_rate_value',
+  null::text,
+  'AC-1108: empty range win_rate_value is null without a currency (no div-by-zero) (FR-SPD-008)'
 );
 
 reset role;

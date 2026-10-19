@@ -250,16 +250,40 @@ const MobileApprovalsBand: React.FC<{ count: number; error?: boolean }> = ({ cou
  */
 const ContractBook: React.FC<{
   onHandValue: number | null;
+  onHandValueByCurrency?: NonNullable<ExecutiveDashboard['on_hand_value_by_currency']>;
   onHandContractRemaining: number | null;
   realizedMargin: number | null;
+  realizedMarginByCurrency?: NonNullable<ExecutiveDashboard['on_hand_realized_margin_by_currency']>;
   realizedMarginLabel: string;
   activeContractValue: number | null;
   activeProjects: number;
-}> = ({ onHandValue, onHandContractRemaining, realizedMargin, realizedMarginLabel, activeContractValue, activeProjects }) => {
+}> = ({ onHandValue, onHandValueByCurrency = [], onHandContractRemaining, realizedMargin, realizedMarginByCurrency = [], realizedMarginLabel, activeContractValue, activeProjects }) => {
   const { t, i18n } = useTranslation();
   const orgCurrency = useOrgCurrency();
   const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
+  const currencyMoney = (value: number | null, currency: string) =>
+    formatDashboardMoney(value, currency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet');
+  const remainingRows = onHandValueByCurrency
+    .filter((row) => row.contract_remaining !== null)
+    .map((row) => `${row.currency} ${currencyMoney(row.contract_remaining, row.currency)}`);
+  const marginRows = realizedMarginByCurrency
+    .filter((row) => row.known_amount !== null)
+    .map((row) => `${row.currency} ${currencyMoney(row.known_amount, row.currency)}`);
+  const onHandValueDisplay = onHandValueByCurrency.length > 0 ? (
+    <span className="flex flex-col gap-0.5 text-base leading-snug">
+      {onHandValueByCurrency.map((row) => (
+        <span key={row.currency}>{row.currency} {currencyMoney(row.contract_value, row.currency)}</span>
+      ))}
+    </span>
+  ) : money(onHandValue);
+  const detail = onHandValueByCurrency.length > 0
+    ? [
+        remainingRows.length > 0 ? `${t('uxs03.contractRemaining', 'Contract remaining after known Actual')}: ${remainingRows.join(' · ')}` : null,
+        marginRows.length > 0 ? `${realizedMarginLabel}: ${marginRows.join(' · ')}` : null,
+      ].filter(Boolean).join(' · ')
+    : t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(onHandContractRemaining)
+      + ' · ' + realizedMarginLabel + ': ' + money(realizedMargin);
 
   return (
     <div
@@ -274,9 +298,8 @@ const ContractBook: React.FC<{
         tone="green"
         icon="dollar"
         label={t('uxs03.contractedRevenue', 'Contracted revenue')}
-        value={money(onHandValue)}
-        vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(onHandContractRemaining) + ' · '
-          + realizedMarginLabel + ': ' + money(realizedMargin)}
+        value={onHandValueDisplay}
+        vs={detail}
         helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
         help={t('dashboard.kpi.revenueOnHand.help', 'Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received.')}
       />
@@ -351,8 +374,10 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         <Overline className="mb-2">{t('dashboard.mobile.contractBook', 'Contract book')}</Overline>
         <ContractBook
           onHandValue={data.on_hand_value}
+          onHandValueByCurrency={data.on_hand_value_by_currency}
           onHandContractRemaining={data.on_hand_contract_remaining}
           realizedMargin={data.on_hand_realized_margin}
+          realizedMarginByCurrency={data.on_hand_realized_margin_by_currency}
           realizedMarginLabel={marginLabel}
           activeContractValue={data.total_contract_value}
           activeProjects={data.active_projects}
