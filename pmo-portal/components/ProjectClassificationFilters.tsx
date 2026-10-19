@@ -60,23 +60,16 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   // Typing updates the box at once; the URL (and so the working set) follows after a pause.
   const [locationText, setLocationText] = useState(value.location ?? '');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const emittedChange = useRef(false);
-  const emitChange = (patch: FilterValues) => {
-    // Flag only a patch that really changes the working set: a no-op leaves `value` unchanged,
-    // and a flag left set would swallow the next OUTSIDE change (e.g. Clear filters).
-    const changes = (Object.keys(patch) as (keyof FilterValues)[]).some((k) => (patch[k] ?? '') !== (value[k] ?? ''));
-    if (changes) emittedChange.current = true;
-    onChange(patch);
-  };
-  // Outside changes (e.g. Clear filters) drop pending typed text; own emits preserve it while
-  // the URL-backed working set catches up. The timer also cancels if the disclosure unmounts.
+  const lastLocation = useRef(value.location ?? '');
+  // Only an outside change that moves `value.location` (Clear filters, Back, drill links) drops
+  // the typed text. Own select/chip emits leave location alone, so the URL-backed value catching
+  // up in any number of router transitions never wipes a pending debounced entry.
   useEffect(() => {
-    if (emittedChange.current) {
-      emittedChange.current = false;
-      return;
-    }
+    const next = value.location ?? '';
+    if (next === lastLocation.current) return;
+    lastLocation.current = next;
     clearTimeout(timer.current);
-    setLocationText(value.location ?? '');
+    setLocationText(next);
   }, [value]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const all = t('projectClassification.all', 'All');
@@ -103,18 +96,22 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
         className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
         <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
-            onChange={(serviceLine) => emitChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
+            onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
           <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
-            onChange={(sector) => emitChange({ sector })} options={optionsFor('sector', value.sector)} />
+            onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} />
           <SelectField label={t('projectClassification.filterAwardType', 'Filter by award type')} value={value.awardType ?? ''}
-            onChange={(awardType) => emitChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
+            onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
           <SelectField label={t('projectClassification.filterBiddingEntity', 'Filter by bidding entity')} value={value.biddingEntity ?? ''}
-            onChange={(biddingEntity) => emitChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
+            onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
           <TextField label={t('projectClassification.filterLocation', 'Filter by location')} value={locationText}
             onChange={(location) => {
               setLocationText(location);
               clearTimeout(timer.current);
-              timer.current = setTimeout(() => emitChange({ location }), LOCATION_DEBOUNCE_MS);
+              timer.current = setTimeout(() => {
+                // Our own emit: when the URL catches up to it, that is not an outside change.
+                lastLocation.current = location;
+                onChange({ location });
+              }, LOCATION_DEBOUNCE_MS);
             }} />
         </div>
       </MobileToolbarDisclosure>
@@ -130,7 +127,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
                     onClick={() => {
                       focusTrigger();
                       if (key === 'location') { clearTimeout(timer.current); setLocationText(''); }
-                      emitChange({ [key]: '' });
+                      onChange({ [key]: '' });
                     }}>
                     <Icon name="x" />
                   </Button>
@@ -142,7 +139,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
             focusTrigger();
             clearTimeout(timer.current);
             setLocationText('');
-            emitChange({ serviceLine: '', sector: '', awardType: undefined, biddingEntity: undefined, location: '' });
+            onChange({ serviceLine: '', sector: '', awardType: undefined, biddingEntity: undefined, location: '' });
           }}>
             {t('projectClassification.clear', 'Clear classifications')}
           </Button>
