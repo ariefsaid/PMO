@@ -561,7 +561,7 @@ The handoff is the **90-family inventory, 21-slice portfolio and ADR-0090**, not
 
 Executed in this docs-only worktree:
 
-- `bash scripts/check-adr-collisions.sh`: PASS (no duplicate number; 0089 follows highest existing 0088).
+- `bash scripts/check-adr-collisions.sh`: PASS (no duplicate number; 0090 follows 0089 (daily statement refresh)).
 - Inventory validation: PASS, LIB-001 through LIB-090 contiguous/unique, category totals agree with 65 K / 25 U / 0 A; complete inline registers total 14 details, 16 other expansions, 31 date fields, 9 raw selects and 9 standalone forms.
 - Explicit single-source LOC citations and existing test/catalogue paths checked against the checkout: PASS. New test files in the migration plan are intentionally future artifacts, not existing evidence.
 - Base UI React 19/JSDOM Dialog open/name/close/focus-return probe: PASS. In-memory minified gzip envelope probe: PASS; numbers in ADR-0090. No source/package changes or installed dependencies were made by these probes.
