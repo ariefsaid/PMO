@@ -1938,6 +1938,8 @@
       "status": "Status"
     },
     "preview": {
+      "region": "Preview for {{title}}",
+      "toggle": "Show preview for {{title}}",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
       "viewFullRequest": "View full request"
