@@ -300,3 +300,16 @@ the `helpCorpus.ts` always-on injection (spec `docs/specs/deputy-help.spec.md`).
 | Project tasks after reload | Ordinary Admin confirms a real persisted link; exact saved list and initial source survive reload | AC-S21-005-task-list-review.spec.ts |
 
 Rich rendered review covers both locales and themes at phone and desktop sizes. Repository tests retain ambiguous identity, stale selection and no-write proposal boundaries.
+
+
+### Account refresh feedback — #1145 (v0.24.0 branch hold)
+
+| Route | Retained oracle | Owning proof |
+|---|---|---|
+| Administration accounting / receipt withholding | Missing unsaved choice retains identity, announces correction, blocks Save and sends only an explicit valid replacement | OrgWithholdingAccount AC-V24P-001 RTL |
+| Administration accounting / vendor tax accounts | Refresh retains all fields; explicit replacement or clear sends the exact three-field shape | OrgVendorTaxAccounts AC-V24P-002 RTL |
+| Both account settings | Saved-missing wording, pending/error recovery and Finance read-only remain distinct in both locales | OrgVendorTaxAccounts AC-V24P-003 RTL and retained receipt tests |
+
+Synthetic Discover covers phone/desktop, both themes/locales, keyboard recovery, cached binding
+errors and zero writes during refresh. The existing AC-ADMIA-005 journey supports real shell
+reachability and overflow; the new acceptance criteria remain unit-owned.

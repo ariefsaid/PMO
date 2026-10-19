@@ -3395,3 +3395,15 @@ An employee proposal remains a suggestion. Admin reviews both identities and exp
 ### UXS-021 — deliberate task-list setup (2026-10-19)
 
 Project task work stays ahead of compact integration status. Admin reviews the exact list identity and explicitly chooses the initial task source before confirming a link. A saved link is retained when list details fail or disappear; initial transfer remains unconfirmed until independently proved. Exact-name proposals never write a link by themselves.
+
+
+### UXP-1145 — retained account drafts explain unavailable choices (2026-10-19)
+
+An unsaved account omitted by a successful chart refresh remains selected. Its field explains
+why Save is unavailable and offers correction or explicit clearing. A missing saved value keeps
+its established saved-value wording, visible beside the vendor-tax field even when its picker
+is collapsed. Pending and failed chart reads keep their existing recovery states. Exact setters,
+eligible account rules and Finance read-only behavior remain unchanged.
+
+The v0.24.0 slice remains held from dev until the v0.23.0 release branch transition is authorized
+and completed. AC-V24P-001–003 own draft retention, exact save arguments and state distinctions.
