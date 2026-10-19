@@ -22,7 +22,9 @@ browser run 39208421135 passed all 399 executed cases and 12 served-function che
 67 justified skips, six timing warnings and no timing failures. The dev browser gate
 39212501320 at `7dadb1d7` passed all 399 cases and 12 served-function checks, with
 67 justified skips, four timing warnings and no timing failures. After the next two engineering
-merges, dev run 39216806168 at `f083b634` is active. A red dev result stops unrelated merges.
+merges, dev run 39216806168 at `f083b634` failed AC-TAG-002: the pipeline location filter did not
+persist in the URL. Chromium passed 362 cases; serial passed 29 with one failure; later stages did
+not run. The failure evidence is retained, and unrelated code merges are stopped pending correction.
 Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard Trial Balance,
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
@@ -109,8 +111,15 @@ and billed-work margin helpers are integrated; review, the 4,477-test changed-im
 95.4% changed-line coverage and eight final geometry/accessibility cases passed. Refreshed fast
 CI passed all six checks (39212911722). The first refreshed browser run failed during database
 restart before any browser case; the evidence is retained in #1196. The new logged closing run
-39215200546 is active. This slice is not yet merged. Both whole-release reviews have started
-against dev `f083b634`; later changes require delta reviews.
+39215200546 passed all 407 browser cases, but its timing gate failed on the S-21 persisted-link
+case (25.632s against the unchanged 25.5s budget). The owner approved a further timed continuation
+split retaining the same Admin journey, page, assertions and 30s limits. This slice is not yet merged.
+Both whole-release reviews are complete against dev `f083b634`; their bounded corrections are
+tracked in #1203 and will share one corrective PR and delta review. Rehearsal acceptance and
+production capacity evidence remain separate open gates.
+Reviewed ERP project matching (#1135 / S-09) remains in signed v0.23.0 scope. Its built branch
+is preserved; current-base integration, owning local acceptance, rendered checks and publication
+remain open. Claude has been asked to take the finishing lane; no scope deferral is approved.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -212,6 +221,8 @@ operator work (outcomes, budget account map, budget activation by a second perso
    #1044 remains open for the broader cross-record-page acceptance.
 7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
 8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
+
+Final owner cadence decision (2026-10-19 15:45 WIB): retain five-minute cron, but run the whole ERPNext sweep only during UTC minutes 0–4 or while any active binding lacks its first statement publication. Initial backfill keeps five-minute progress (~one hour); later refreshes are hourly. Other ticks are a no-op. Immediate dispatch and ClickUp cadence are unchanged. The handler gate belongs in the release fix bundle (OD-ERP-023); no schedule migration.
 
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 

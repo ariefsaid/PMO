@@ -3419,3 +3419,8 @@ inheriting another currency. The invoice amount retains its explicit source curr
 
 A collections deep link moves focus to its heading after the company loads. Preserve this path’s
 ordinary Finance journey, role gating, unavailable/error recovery and exact-customer filtering.
+
+
+### OD-ERP-023 — hourly ERPNext reconciliation (2026-10-19)
+
+The final owner amendment (15:45 WIB) keeps the ERPNext cron trigger every five minutes (`*/5 * * * *`). The whole sweep runs only during the first five minutes of each UTC hour, or while any active ERPNext binding has no first published statement generation. Other ticks return without ERP calls or domain work. Initial statement backfill therefore keeps five-minute progress (approximately one hour at the measured catalogue size); after first publication, ERPNext-side changes may take up to an hour to appear in PMO. Adapter-dispatch pushes remain immediate, and ClickUp reconciliation retains its existing schedule. Keep the existing per-stage and per-request time bounds. This supersedes the earlier 15:35 statement-only gate and 15:40 hourly cron migration proposals; neither is part of the final implementation.
