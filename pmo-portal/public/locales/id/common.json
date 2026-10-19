@@ -5062,6 +5062,7 @@
     "retryLists": "Coba muat ulang detail daftar",
     "bindingReadUnavailable": "Detail tautan proyek tidak dapat dimuat ulang. Tautan tersimpan tetap dipertahankan.",
     "retryBinding": "Coba muat ulang tautan proyek",
+    "unlinkFailed": "Tidak dapat melepas tautan dari ClickUp. Proyek masih tertaut. Gunakan Unlink from ClickUp untuk mencoba lagi.",
     "reviewTitle": "Tinjau tautan ClickUp",
     "reviewSubtitle": "Pastikan daftar yang sudah ada memang milik proyek ini.",
     "reviewAction": "Tinjau tautan",

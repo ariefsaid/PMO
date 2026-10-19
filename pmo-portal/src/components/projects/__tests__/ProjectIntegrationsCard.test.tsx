@@ -434,6 +434,46 @@ describe('ProjectIntegrationsCard', () => {
       });
     });
 
+    it('AC-V24P-013 shows a persistent failure and keeps the link after a failed unlink, then retries deliberately', async () => {
+      const user = userEvent.setup();
+      const denied = Object.assign(new Error('permission denied for table integration_project_bindings'), { code: '42501' });
+      const mockUnlinkProject = vi
+        .fn()
+        .mockRejectedValueOnce(denied)
+        .mockResolvedValueOnce({ ok: true });
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [mockProjectClickUpBinding],
+        unlinkProject: { ...baseMockReturn.unlinkProject, mutateAsync: mockUnlinkProject },
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      const confirmDialog = await screen.findByRole('alertdialog');
+      await user.click(within(confirmDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
+
+      // The user SEES why it failed, in the card (the link modal is closed) ...
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/Could not unlink from ClickUp\. The project is still linked\./);
+      expect(alert).toHaveTextContent(/Your role does not allow this change/);
+      expect(alert).not.toHaveTextContent(/integration_project_bindings/);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      // ... and the accepted link is still shown as linked, with a deliberate way to retry.
+      expect(screen.getByText('Linked to ClickUp')).toBeInTheDocument();
+      expect(mockUnlinkProject).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      const retryDialog = await screen.findByRole('alertdialog');
+      await user.click(within(retryDialog).getByRole('button', { name: /^Unlink from ClickUp$/i }));
+
+      await waitFor(() => expect(mockUnlinkProject).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    });
+
     it('shows inline error when linkProject fails with 409 action-required', async () => {
       const user = userEvent.setup();
       const error = new Error('Mixed state: project has tasks and list is not empty');
