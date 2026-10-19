@@ -45,7 +45,7 @@ serial/consent/served tail. Keep `verify` and `integration` as the sole required
 - `artifacts` record the matching metadata, explicit process outcome and projected test results.
 - CLI subcommands: `plan --input <manifest-input.json> --output <plan.json>` and
   `check --plan <plan.json> --results <artifact-dir> --jobs <jobs.json> --summary <safe.json>`.
-  Exit 0 complete success, 1 failed/incomplete evidence, 2 invalid usage. Write safe diagnostics
+  Exit 0 complete success, 1 failed/incomplete evidence, 2 invalid usage or inability to write the required plan/summary output. Both failure classes remain nonzero. Write safe diagnostics
   before setting `process.exitCode`; no browser/process/network action at module import.
 
 - [ ] Write failing AC-tagged pure fixtures: complete full set A/B/C/D, shards {A,B}/{C,D}; then
