@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 /** A canonical PMO company to ERP Customer document-name mapping, read under external_refs RLS. */
 export interface CompanyCustomerRef {
@@ -7,11 +8,7 @@ export interface CompanyCustomerRef {
   erpCustomerId: string;
 }
 
-interface ExternalRefRow {
-  id: string;
-  pmo_record_id: string;
-  external_record_id: string;
-}
+type ExternalRefRow = Pick<Tables<'external_refs'>, 'id' | 'pmo_record_id' | 'external_record_id'>;
 
 const INPUT_CHUNK_SIZE = 100;
 const CUSTOMER_PREFIX = 'Customer:';
