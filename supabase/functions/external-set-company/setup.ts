@@ -26,6 +26,7 @@ export interface ErpSetupBody {
   receivableAccount?: string;
   projectId?: string;
   erpProject?: string;
+  expectedErpProject?: string | null;
   query?: string;
   domain?: string;
   /** #775 phase B — `save-expense-account` / `clear-expense-account` (FR-EXP-112). */
@@ -184,6 +185,13 @@ const DEFAULT_KEYS = [
   "default_receivable_account",
   "default_activity_type",
 ] as const;
+const REVIEWABLE_PROJECT_STATUSES = new Set([
+  "Won, Pending KoM",
+  "Ongoing Project",
+  "On Hold",
+  "Close Out",
+  "Internal Project",
+]);
 async function readErpSetup(ctx: ErpSetupContext) {
   const read = (table: string, columns: string, active = false) =>
     fetchAllRowsByKeyset<{ id: string; [key: string]: unknown }>(
@@ -207,7 +215,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
         "org_id",
         ctx.orgId,
       ).eq("external_tier", "erpnext"),
-      read("projects", "id,name,code"),
+      read("projects", "id,name,code,status"),
       read("budget_category_account_map", "id,category,erp_account,is_push_target"),
       read("profiles", "id", true),
       read("erp_employees", "id,profile_id,link_state"),
@@ -242,9 +250,10 @@ async function readErpSetup(ctx: ErpSetupContext) {
     ),
     domains: (ownership.data ?? []).map((row) => row.domain).sort(),
     unmappedProjects: projects.filter((row) =>
-      typeof projectMap[row.id] !== "string" ||
-      !String(projectMap[row.id]).trim()
-    ),
+      REVIEWABLE_PROJECT_STATUSES.has(String(row.status)) &&
+      (typeof projectMap[row.id] !== "string" ||
+        !String(projectMap[row.id]).trim())
+    ).map((row) => ({ id: row.id, name: row.name, code: row.code })),
     // #768 FR-BAM-009: a category may list several accounts; it is push-ready only when one is its push
     // account, and it counts ONCE however many accounts it lists ("N of 8 configured").
     budgetMappedCategories: [
@@ -268,26 +277,33 @@ async function ownProject(body: ErpSetupBody, ctx: ErpSetupContext) {
     throw new AppError("Choose a PMO project", "BAD_REQUEST");
   }
   const { data, error } = await ctx.serviceClient.from("projects").select(
-    "id,name,code",
+    "id,name,code,status",
   ).eq("org_id", ctx.orgId).eq("id", body.projectId).is("archived_at", null)
     .maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   if (!data) throw new AppError("Project is unavailable", "NOT_FOUND");
-  return data as { id: string; name: string; code: string | null };
+  return data as {
+    id: string;
+    name: string;
+    code: string | null;
+    status: string;
+  };
 }
 async function linkErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
-  const project = await ownProject(body, ctx);
-  if (!body.erpProject || typeof body.erpProject !== "string") {
+  if (!Object.prototype.hasOwnProperty.call(body, "expectedErpProject")) {
+    throw new AppError("Review the current project match before saving", "BAD_REQUEST");
+  }
+  if (
+    body.expectedErpProject !== null &&
+    (typeof body.expectedErpProject !== "string" ||
+      !body.expectedErpProject.trim() || body.expectedErpProject.length > 140)
+  ) {
+    throw new AppError("The expected ERP Project identity is invalid", "BAD_REQUEST");
+  }
+  if (typeof body.erpProject !== "string" || !body.erpProject.trim()) {
     throw new AppError("Choose an ERPNext Project", "BAD_REQUEST");
   }
-  const erpProject = await getDoc(
-    ctx.client,
-    "Project",
-    body.erpProject,
-  ) as Record<string, unknown>;
-  assertErpProject(erpProject, ctx.company);
-  await saveProjectMap(ctx, project.id, erpProject.name as string);
-  return { ok: true, erpProject: erpProject.name };
+  return await confirmReviewedProjectLink(body, ctx);
 }
 function assertErpProject(
   project: Record<string, unknown>,
@@ -302,6 +318,99 @@ function assertErpProject(
       "config-rejected",
     );
   }
+}
+async function confirmReviewedProjectLink(
+  body: ErpSetupBody,
+  ctx: ErpSetupContext,
+) {
+  let expectedConfig = ctx.config;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const project = await ownProject(body, ctx);
+    if (!REVIEWABLE_PROJECT_STATUSES.has(project.status)) {
+      throw new AppError(
+        "Only delivery or Internal Project records can be linked",
+        "config-rejected",
+      );
+    }
+    const erpProject = await getDoc(
+      ctx.client,
+      "Project",
+      body.erpProject!,
+    ) as Record<string, unknown>;
+    assertErpProject(erpProject, ctx.company);
+
+    const { data, error } = await ctx.serviceClient.rpc(
+      "confirm_erp_project_link",
+      {
+        p_org_id: ctx.orgId,
+        p_actor_id: ctx.actorId,
+        p_project_id: project.id,
+        p_erp_project: erpProject.name as string,
+        p_expected_config: expectedConfig,
+        p_site_url: ctx.client.baseUrl,
+        p_expected_erp_project: body.expectedErpProject!,
+      },
+    );
+    if (error) throw new AppError(error.message, error.code);
+    if (data === true) {
+      return { ok: true, erpProject: erpProject.name };
+    }
+    if (data !== false) {
+      throw new AppError(
+        "The ERP project match could not be confirmed; reload and review it",
+        "config-rejected",
+      );
+    }
+    if (attempt === 3) break;
+
+    const { data: current, error: readError } = await ctx.serviceClient.from(
+      "external_org_bindings",
+    ).select("config,status,site_url").eq("org_id", ctx.orgId).eq(
+      "external_tier",
+      "erpnext",
+    ).maybeSingle();
+    if (readError) throw new AppError(readError.message, readError.code);
+    if (
+      !current || current.status !== "active" ||
+      current.site_url !== ctx.client.baseUrl ||
+      current.config?.company !== ctx.company
+    ) {
+      throw new AppError(
+        "The ERP connection changed; reload and review the project match",
+        "config-rejected",
+      );
+    }
+
+    const rawMap = current.config.project_map;
+    if (
+      rawMap !== undefined &&
+      (typeof rawMap !== "object" || rawMap === null || Array.isArray(rawMap))
+    ) {
+      throw new AppError(
+        "ERP project mappings need administrator repair",
+        "config-rejected",
+      );
+    }
+    const projectMap = (rawMap ?? {}) as Record<string, unknown>;
+    const currentTarget = typeof projectMap[project.id] === "string" &&
+        String(projectMap[project.id]).trim()
+      ? projectMap[project.id] as string
+      : null;
+    if (
+      currentTarget !== body.expectedErpProject &&
+      currentTarget !== erpProject.name
+    ) {
+      throw new AppError(
+        "The project match changed; reload and review the current ERP Project",
+        "config-rejected",
+      );
+    }
+    expectedConfig = current.config as Record<string, unknown>;
+  }
+  throw new AppError(
+    "ERP settings changed concurrently; reload and try again",
+    "config-rejected",
+  );
 }
 /** Conditional writes preserve nested project mappings as well as concurrent scalar settings. */
 async function saveProjectMap(
