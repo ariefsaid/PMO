@@ -185,6 +185,10 @@ export function companyDefaultsFromDoc(
  *  (Report fetch probe). The integration user must have READ perm on every entry or the feed silently
  *  under-syncs (R13). This is the ERP-side integration-user perm gate; PMO RLS is unaffected.
  */
+export const ACTIVATION_STATEMENT_DOCTYPES = [
+  'Company', 'Accounts Settings', 'Currency', 'Finance Book', 'Fiscal Year',
+] as const;
+
 export interface ReadPermScope {
   /** Frappe DocType names to probe via `GET /api/resource/<DocType>?limit_page_length=1` (a one-row
    *  list-read — verifies the user can list/read the doctype without pulling the table). */
@@ -217,7 +221,10 @@ const MISSING_READ_STATUSES = new Set([401, 403, 404]);
 export function activationReadPermScope(ownedDomains: readonly string[]): ReadPermScope {
   const doctypes = new Set(sweepKindsForOrg(ownedDomains).map(({ doctype }) => doctype));
   for (const ledger of LEDGER_MIRROR_DOCTYPES) doctypes.add(ledger);
-  for (const source of ['Account', 'Company', 'Fiscal Year', 'Accounts Settings', 'System Settings', 'Currency']) doctypes.add(source);
+  // Account is also read by the expense-posting resolver (`readErpAccounts` in erpnext-sweep);
+  // keep it separate from the statement-only required set below.
+  doctypes.add('Account');
+  for (const source of ACTIVATION_STATEMENT_DOCTYPES) doctypes.add(source);
   return { doctypes: [...doctypes] };
 }
 
