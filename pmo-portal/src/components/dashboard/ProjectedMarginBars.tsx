@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatCompactCurrency } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SALES_COLUMNS } from '@/components/salesPipeline';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
@@ -34,7 +35,8 @@ export interface ProjectedMarginBarsProps {
  */
 export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
   const { t, i18n } = useTranslation();
-  const money = (value: number) => formatDashboardMoney(value, currency, i18n.language)
+  const money = (value: number) => formatCompactCurrency(value, currency);
+  const fullMoney = (value: number) => formatDashboardMoney(value, currency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const statusLabel = useProjectStatusLabel();
   const open = useMemo(
@@ -47,10 +49,14 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
     <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')}>
       <div className="mb-3.5 flex items-baseline gap-2.5">
         <span className="text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
-          {projectedMargin === null ? t('uxs03.noActiveBudget', 'No active budget') : `${(projectedMargin * 100).toFixed(1)}%`}
+          {projectedMargin === null
+            ? t('dashboard.projectedMargin.weightedPipelineValue', 'Weighted pipeline value')
+            : `${(projectedMargin * 100).toFixed(1)}%`}
         </span>
         <span className="text-xs text-muted-foreground">
-          {t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
+          {projectedMargin === null
+            ? t('uxs03.noActiveBudget', 'No active budget')
+            : t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
         </span>
       </div>
 
@@ -69,7 +75,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
               <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>
               <span
                 role="progressbar"
-                aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: money(s.weighted_value) })}
+                aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
                 aria-valuenow={s.weighted_value}
                 aria-valuemin={0}
                 aria-valuemax={max}
@@ -80,7 +86,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
                   style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
-              <span className="w-[68px] shrink-0 text-right text-xs font-semibold tabular">
+              <span title={fullMoney(s.weighted_value)} className="w-[68px] min-w-0 shrink-0 truncate text-right text-xs font-semibold tabular">
                 {money(s.weighted_value)}
               </span>
             </Link>

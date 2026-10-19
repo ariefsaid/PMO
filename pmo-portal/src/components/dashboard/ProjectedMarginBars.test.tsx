@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { chartTheme } from '@/src/components/ui/chartTheme';
+import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { ProjectedMarginBars } from './ProjectedMarginBars';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
@@ -22,11 +23,20 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     expect(screen.getByText('14.1%')).toBeInTheDocument();
   });
 
+  it('renders compact full-value amounts and describes the bars when margin is unavailable', () => {
+    wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
+    expect(screen.getByText('Weighted pipeline value')).toBeInTheDocument();
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+    const amount = document.querySelector<HTMLElement>('[title]')!;
+    expect(amount.title).toContain('600,000');
+    expect(amount.textContent).toMatch(/600\.0K/);
+  });
+
   it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
-    expect(screen.getByText('$600,000.00')).toBeInTheDocument();
+    expect(screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!)).toHaveTextContent('$600.0K');
     // terminal stages excluded
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
     expect(screen.queryByText('Loss Tender')).toBeNull();
