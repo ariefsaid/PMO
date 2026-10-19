@@ -64,6 +64,8 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
 
   // UI state
   const [linkError, setLinkError] = useState<string | null>(null);
+  // Failed-unlink detail lives on the card (the link modal is closed), separate from linkError.
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [unlinkTier, setUnlinkTier] = useState<'clickup' | null>(null);
   const [confirmUnlinkBindingId, setConfirmUnlinkBindingId] = useState<string | null>(null);
@@ -105,12 +107,13 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
     if (!confirmUnlinkBindingId) return;
     try {
       await unlinkProject.mutateAsync({ tier: 'clickup', projectId });
+      setUnlinkError(null);
       setUnlinkTier(null);
       setConfirmUnlinkBindingId(null);
       refetchBindings();
     } catch (err) {
       const { detail } = classifyMutationError(err);
-      setLinkError(detail);
+      setUnlinkError(detail);
       setUnlinkTier(null);
       setConfirmUnlinkBindingId(null);
     }
@@ -167,6 +170,21 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </div>
           )}
         </div>
+
+        {unlinkError && (
+          <div
+            role="alert"
+            className="flex max-w-[65ch] items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-sm"
+          >
+            <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="font-medium text-destructive-text">
+                {t('uxs21.unlinkFailed', 'Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.')}
+              </p>
+              <p className="mt-0.5 text-muted-foreground">{unlinkError}</p>
+            </div>
+          </div>
+        )}
 
         <CanWrite entity="project" action="edit">
           <Button
