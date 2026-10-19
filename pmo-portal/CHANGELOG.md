@@ -10,6 +10,47 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.23.0](https://github.com/ariefsaid/PMO/compare/v0.22.0...v0.23.0) (2026-10-19)
+
+
+### Features
+
+* **billing:** start invoices from the project context ([#1142](https://github.com/ariefsaid/PMO/issues/1142)) ([f227942](https://github.com/ariefsaid/PMO/commit/f227942171e77552da44f02fa436cff985f2bb1e))
+* choose ERP accounts and items in accounting setup ([#1150](https://github.com/ariefsaid/PMO/issues/1150)) ([8808d92](https://github.com/ariefsaid/PMO/commit/8808d92717554aa22b0188c6072f96dd9200b349))
+* disclose secondary tax facts on record surfaces ([#1162](https://github.com/ariefsaid/PMO/issues/1162)) ([19307e3](https://github.com/ariefsaid/PMO/commit/19307e3da56b423dfa5ea4c040eb1aae1843eb21))
+* **expenses:** receipt-first draft capture (S-29) ([#1168](https://github.com/ariefsaid/PMO/issues/1168)) ([39dc295](https://github.com/ariefsaid/PMO/commit/39dc2953f244c553f26d1545de910ab294c4188e))
+* extract project money position ([#1128](https://github.com/ariefsaid/PMO/issues/1128)) ([3c67546](https://github.com/ariefsaid/PMO/commit/3c675462493a4bc69d05042f6738da8715f12614))
+* **finance:** add statement metadata readers ([#1122](https://github.com/ariefsaid/PMO/issues/1122)) ([cbc0551](https://github.com/ariefsaid/PMO/commit/cbc055189ee790f5cc5ac1d9a74cea06e91ceef5))
+* **finance:** connect customer aging to collections ([#1181](https://github.com/ariefsaid/PMO/issues/1181)) ([31294cf](https://github.com/ariefsaid/PMO/commit/31294cffea573cd8017dec5b480efee0a7d99921))
+* **finance:** read native ERPNext statements losslessly ([#1124](https://github.com/ariefsaid/PMO/issues/1124)) ([5958127](https://github.com/ariefsaid/PMO/commit/59581270a5ee4038781fd1b7f718f5af4380eae8))
+* **history:** lead with business summaries and retain details ([#1138](https://github.com/ariefsaid/PMO/issues/1138)) ([bc70432](https://github.com/ariefsaid/PMO/commit/bc70432cd25c9dd89be2e2f16f4b99c443a39a61))
+* **integrations:** review existing ERP project matches before confirming (S-09) ([#1208](https://github.com/ariefsaid/PMO/issues/1208)) ([b9630d4](https://github.com/ariefsaid/PMO/commit/b9630d4efedfa95b0a3ec1fb4ca6d9e40cb565b8)), closes [#1135](https://github.com/ariefsaid/PMO/issues/1135)
+* **integrations:** review task-list links before confirmation ([#1177](https://github.com/ariefsaid/PMO/issues/1177)) ([00e067c](https://github.com/ariefsaid/PMO/commit/00e067cfbbe6e3842ce4f75f0ae0be244724cea5))
+* **purchasing:** clarify request states and daily actions ([#1165](https://github.com/ariefsaid/PMO/issues/1165)) ([b875783](https://github.com/ariefsaid/PMO/commit/b8757832fc50aab91e967d2f53fe0869cc0fa6b6))
+* **receipts:** retain optional withholding in a clear disclosure ([#1141](https://github.com/ariefsaid/PMO/issues/1141)) ([292f69f](https://github.com/ariefsaid/PMO/commit/292f69f2672f8e947da4eabd7cd9e7c07994d3ac))
+* **reports:** show current project position ([#1187](https://github.com/ariefsaid/PMO/issues/1187)) ([2746672](https://github.com/ariefsaid/PMO/commit/274667260e380aa3b166e6d765143aed88e28f10))
+* review employee identity before confirmation ([#1152](https://github.com/ariefsaid/PMO/issues/1152)) ([58e0e5d](https://github.com/ariefsaid/PMO/commit/58e0e5d614189d53855057fdf487bb1b2fb081cd))
+* review invoice amounts before creating a draft ([#1151](https://github.com/ariefsaid/PMO/issues/1151)) ([c0baddb](https://github.com/ariefsaid/PMO/commit/c0baddb0d0f75bf22759f29eb09030cf795ba536))
+* **sales:** make the phone pipeline a readable stage list ([#1140](https://github.com/ariefsaid/PMO/issues/1140)) ([e2381cc](https://github.com/ariefsaid/PMO/commit/e2381ccd81ecc4431ecc700c45ef55694ff87e1b))
+* **search:** find records by canonical reference ([#1163](https://github.com/ariefsaid/PMO/issues/1163)) ([2997921](https://github.com/ariefsaid/PMO/commit/299792147cd82f99f888e616e92977325e74c938))
+* **statements:** add accessible period picker ([#1119](https://github.com/ariefsaid/PMO/issues/1119)) ([f95dbfd](https://github.com/ariefsaid/PMO/commit/f95dbfd80336cdf3b367cf9917a94c4f9f9c374d))
+* **statements:** collect and publish native ERPNext reports ([#1126](https://github.com/ariefsaid/PMO/issues/1126)) ([148aa79](https://github.com/ariefsaid/PMO/commit/148aa79ec8fbec6835e7fe528686bc2583f7ac58))
+* **statements:** complete the ERP statement source ([#1074](https://github.com/ariefsaid/PMO/issues/1074)) ([301d433](https://github.com/ariefsaid/PMO/commit/301d433af5e982d694e8d2fbb6cac2b09a6461c3))
+* **statements:** display saved company and project reports ([#1146](https://github.com/ariefsaid/PMO/issues/1146)) ([19a0f7f](https://github.com/ariefsaid/PMO/commit/19a0f7f2d5f2b7f17a91aa4ef7e854bd1708fb13))
+
+
+### Bug Fixes
+
+* complete project cash and numbering correctness checks ([#1118](https://github.com/ariefsaid/PMO/issues/1118)) ([595afaa](https://github.com/ariefsaid/PMO/commit/595afaa1a6ad35a08d2fac2761ea01d8b33f4a08))
+* finalize native report refresh and release checks ([#1212](https://github.com/ariefsaid/PMO/issues/1212)) ([512db8b](https://github.com/ariefsaid/PMO/commit/512db8bebc6d394727dd5798ae912a73f29c48ee))
+* **finance:** align actuals, completeness and project review ([#1147](https://github.com/ariefsaid/PMO/issues/1147)) ([bdc2c27](https://github.com/ariefsaid/PMO/commit/bdc2c27d02b71e79ac9c4b9600cb95352d952e22))
+* **integrations:** clearer ERP project match review (S-09 follow-up) ([#1218](https://github.com/ariefsaid/PMO/issues/1218)) ([263ca5c](https://github.com/ariefsaid/PMO/commit/263ca5ccf18df401888feffab26bf1cf5e0cf9ad)), closes [#1135](https://github.com/ariefsaid/PMO/issues/1135)
+* **projects:** keep a typed location while other filters commit ([#1209](https://github.com/ariefsaid/PMO/issues/1209)) ([f1686f4](https://github.com/ariefsaid/PMO/commit/f1686f411162ae4deba0256d130fe383cf268b76)), closes [#1000](https://github.com/ariefsaid/PMO/issues/1000)
+* **projects:** load detail panels on demand ([7dadb1d](https://github.com/ariefsaid/PMO/commit/7dadb1d79f215bf967b7fb5041e63ffb04df6a75))
+* **projects:** load only the selected detail panel ([135a8b9](https://github.com/ariefsaid/PMO/commit/135a8b98cddba282d961a0049d4e93d453eea315))
+* retain invoice presence when earlier amounts net to zero ([#1130](https://github.com/ariefsaid/PMO/issues/1130)) ([eafbfc6](https://github.com/ariefsaid/PMO/commit/eafbfc6f5e0e0e100fe1854f0952c1d9d71bbd60))
+* **tax:** readable tax-details toggle that keeps the header height ([#1169](https://github.com/ariefsaid/PMO/issues/1169)) ([ee28bae](https://github.com/ariefsaid/PMO/commit/ee28bae6ce55c3a6e24612c941f3c8216e3ead63))
+
 ## [Unreleased] — v0.23.0 validation disposition
 
 The owner accepted the rehearsal data-path evidence on 2026-10-19: ordinary Finance reads and
