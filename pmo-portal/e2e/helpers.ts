@@ -7,8 +7,17 @@ export const SEED_PASSWORD = 'Passw0rd!dev';
 
 /** Copy project-level browser settings onto a context created outside Playwright's page fixture. */
 export function ownedContextOptions(testInfo: Pick<TestInfo, 'project'>, overrides: Record<string, unknown> = {}) {
-  const { baseURL, locale, timezoneId, trace, screenshot, video } = testInfo.project.use;
-  return { baseURL, locale, timezoneId, trace, screenshot, video, ...overrides };
+  const projectUse = testInfo.project.use;
+  // Trace/screenshot are test-scoped; video is fixture-only, not a newContext option.
+  const contextKeys = [
+    'baseURL', 'locale', 'timezoneId', 'viewport', 'deviceScaleFactor', 'isMobile', 'hasTouch',
+    'userAgent', 'javaScriptEnabled', 'bypassCSP', 'permissions', 'geolocation', 'offline', 'httpCredentials',
+    'extraHTTPHeaders', 'ignoreHTTPSErrors', 'serviceWorkers', 'acceptDownloads', 'colorScheme',
+  ] as const;
+  const contextOptions = Object.fromEntries(
+    contextKeys.filter((key) => projectUse[key] !== undefined).map((key) => [key, projectUse[key]]),
+  );
+  return { ...contextOptions, ...overrides };
 }
 
 /** Locate the rendered toast copy (not its separate, screen-reader-only live announcement). */
