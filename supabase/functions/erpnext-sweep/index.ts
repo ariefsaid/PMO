@@ -88,7 +88,6 @@ import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
-import { fetchStatementMetadata } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementMetadata.ts';
 import {
   refreshStatementReportBatch,
   STATEMENT_READ_REQUEST_TIMEOUT_MS,
@@ -864,6 +863,139 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
   }));
 }
 
+type StatementCadenceBindingRow = {
+  id?: string | null;
+  org_id?: string | null;
+  config?: Record<string, unknown> | null;
+  activated_at?: string | null;
+  version_major?: number | null;
+};
+
+type NativeStatementBindingContext = {
+  orgId: string;
+  bindingId: string;
+  activatedAt: string;
+  versionMajor: 16;
+  company: string;
+  projectMap: Record<string, unknown>;
+};
+
+const STATEMENT_BINDING_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Binding-side criteria are kept aligned with refreshStatementReportBatch's shipped input guard. */
+function nativeStatementBindingContext(input: {
+  orgId: unknown;
+  bindingId: unknown;
+  activatedAt: unknown;
+  versionMajor: unknown;
+  company: unknown;
+  projectMap: unknown;
+}): NativeStatementBindingContext | null {
+  if (typeof input.orgId !== 'string' || !STATEMENT_BINDING_UUID_PATTERN.test(input.orgId) ||
+    typeof input.bindingId !== 'string' || !STATEMENT_BINDING_UUID_PATTERN.test(input.bindingId) ||
+    typeof input.activatedAt !== 'string' || !input.activatedAt || !Number.isFinite(Date.parse(input.activatedAt)) ||
+    input.versionMajor !== 16 || typeof input.company !== 'string' || input.company.trim() === '' ||
+    !isJsonRecord(input.projectMap)) return null;
+  return {
+    orgId: input.orgId,
+    bindingId: input.bindingId,
+    activatedAt: input.activatedAt,
+    versionMajor: 16,
+    company: input.company,
+    projectMap: input.projectMap,
+  };
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (isJsonRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return stableJson(left) === stableJson(right);
+}
+
+function sameTimestampInstant(left: unknown, right: string): boolean {
+  if (typeof left !== 'string') return false;
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs === rightMs;
+}
+
+/**
+ * The ordinary cron has a five-minute window for the whole sweep. Between those windows it may
+ * return early once each active binding accepted by the native collector's binding guard has a
+ * publication for that same company, binding activation, version, and project map. Other active
+ * bindings stay on the hourly cadence because the collector itself cannot process them. The
+ * publication context is written only by the native snapshot trigger for a committed generation;
+ * attempts and legacy status fields do not establish publication.
+ */
+async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: SupabaseClient): Promise<boolean> {
+  const { data, error } = await serviceClient.from('external_org_bindings')
+    .select('id, org_id, config, activated_at, version_major')
+    .eq('external_tier', ERPNEXT_TIER)
+    .not('activated_at', 'is', null);
+  if (error || !Array.isArray(data)) {
+    console.error(`[erpnext-sweep] publication readiness binding read failed: code=${error?.code ?? 'unknown'} message=${error?.message ?? 'invalid response'}`);
+    return false;
+  }
+
+  const eligibleBindings = (data as StatementCadenceBindingRow[]).flatMap((binding) => {
+    const projectMap = binding.config?.project_map === undefined ? {} : binding.config.project_map;
+    const context = nativeStatementBindingContext({
+      orgId: binding.org_id,
+      bindingId: binding.id,
+      activatedAt: binding.activated_at,
+      versionMajor: binding.version_major,
+      company: binding.config?.company,
+      projectMap,
+    });
+    return context ? [{ binding, context }] : [];
+  });
+
+  for (const { binding, context } of eligibleBindings) {
+    const { company, projectMap } = context;
+
+    // `activatedAt` is jsonb text, so compare instants in JavaScript: the same PostgreSQL timestamp
+    // can be serialized as either a `Z` suffix or an explicit UTC offset across runtime versions.
+    const pageSize = 250;
+    for (let from = 0; ; from += pageSize) {
+      const { data: contexts, error: contextError } = await serviceClient.from('erp_financial_statement_published_context')
+        .select('context')
+        .eq('org_id', context.orgId)
+        .eq('company', company)
+        .eq('context->binding->>id', context.bindingId)
+        .eq('context->binding->>versionMajor', String(context.versionMajor))
+        .contains('context', { company, projectMap })
+        .range(from, from + pageSize - 1);
+      if (contextError || !Array.isArray(contexts)) {
+        console.error(`[erpnext-sweep] publication readiness context read failed: code=${contextError?.code ?? 'unknown'} message=${contextError?.message ?? 'invalid response'}`);
+        return false;
+      }
+
+      const foundCurrentPublication = contexts.some((row: { context?: unknown }) => {
+        if (!isJsonRecord(row.context)) return false;
+        const publishedContext = row.context;
+        const contextBinding = publishedContext.binding;
+        return publishedContext.company === company && sameJson(publishedContext.projectMap, projectMap) &&
+          isJsonRecord(contextBinding) && contextBinding.id === binding.id &&
+          contextBinding.versionMajor === context.versionMajor &&
+          sameTimestampInstant(contextBinding.activatedAt, context.activatedAt);
+      });
+      if (foundCurrentPublication) break;
+      if (contexts.length < pageSize) return false;
+    }
+  }
+  return true;
+}
+
 /** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
  *  Payment Entry's `references` child rows carry the Sales Invoice link the money read-model needs. */
 async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string): Promise<Record<string, unknown>> {
@@ -1467,7 +1599,6 @@ async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding
 type StatementReadOutcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 type StatementSourceReadResults = {
   accounts?: StatementReadOutcome<Awaited<ReturnType<typeof fetchStatementAccounts>>>;
-  metadata?: StatementReadOutcome<Awaited<ReturnType<typeof fetchStatementMetadata>>>;
   timedOut: boolean;
 };
 
@@ -1486,14 +1617,9 @@ async function readStatementSourcesBounded(client: ErpClientDeps, company: strin
   };
   let acceptingResults = true;
   let accounts: StatementSourceReadResults['accounts'];
-  let metadata: StatementSourceReadResults['metadata'];
   const accountRead = fetchStatementAccounts(boundedClient, { company }).then(
     (value) => { if (acceptingResults) accounts = { ok: true, value }; },
     (error: unknown) => { if (acceptingResults) accounts = { ok: false, error }; },
-  );
-  const metadataRead = fetchStatementMetadata(boundedClient, { company }).then(
-    (value) => { if (acceptingResults) metadata = { ok: true, value }; },
-    (error: unknown) => { if (acceptingResults) metadata = { ok: false, error }; },
   );
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
@@ -1505,8 +1631,8 @@ async function readStatementSourcesBounded(client: ErpClientDeps, company: strin
     }, STATEMENT_READ_STAGE_TIMEOUT_MS);
   });
   try {
-    await Promise.race([Promise.all([accountRead, metadataRead]).then(() => true), deadline]);
-    return { accounts, metadata, timedOut };
+    await Promise.race([accountRead.then(() => true), deadline]);
+    return { accounts, timedOut };
   } finally {
     acceptingResults = false;
     if (timer !== undefined) clearTimeout(timer);
@@ -1558,10 +1684,6 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
   } else {
     statementErrors.push(`chart unavailable: ${reads.accounts ? errorMessage(reads.accounts.error) : 'statement source read deadline expired'}`);
   }
-  const metadataResult = reads.metadata;
-  const metadata = metadataResult?.ok ? metadataResult.value : undefined;
-  if (!metadata) statementErrors.push(`report metadata unavailable: ${metadataResult && !metadataResult.ok ? errorMessage(metadataResult.error) : 'statement source read deadline expired'}`);
-
   let referencesCheckedBefore = false;
   let referencesBefore: boolean | undefined;
   if (chartReady) {
@@ -1618,7 +1740,7 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
 
   // Legacy readiness is diagnostic only; native pending/publication status belongs to the batch RPCs.
   const statementReady = Boolean(
-    chartReady && metadata && referencesCheckedBefore && referencesResolved &&
+    chartReady && referencesCheckedBefore && referencesResolved &&
     statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError,
   );
 
@@ -2708,6 +2830,7 @@ async function reconcileOrgExpensePostingsLive(
 }
 
 serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
+  const handlerEntryMs = Date.now();
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
   //    secret from the Vault `erpnext_sweep_secret`; the master key never crosses into the DB. ──
@@ -2774,6 +2897,10 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     return json({ ok: result.failedIds.length === 0, ...result });
   }
 
+  if (new Date(handlerEntryMs).getUTCMinutes() >= 5 && await allActiveBindingsHavePublishedStatementGeneration(serviceClient)) {
+    return json({ ok: true, skipped: true });
+  }
+
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
@@ -2790,12 +2917,15 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     },
     refreshNativeStatements: async (org) => {
       const rawProjectMap = org.config.project_map;
-      const projectMap = rawProjectMap === undefined
-        ? {}
-        : rawProjectMap !== null && typeof rawProjectMap === 'object' && !Array.isArray(rawProjectMap)
-          ? rawProjectMap as Record<string, unknown>
-          : null;
-      if (!org.bindingId || !org.activatedAt || org.versionMajor !== 16 || !org.statementLockHolder || !projectMap) {
+      const context = nativeStatementBindingContext({
+        orgId: org.orgId,
+        bindingId: org.bindingId,
+        activatedAt: org.activatedAt,
+        versionMajor: org.versionMajor,
+        company: org.company,
+        projectMap: rawProjectMap === undefined ? {} : rawProjectMap,
+      });
+      if (!context || !org.statementLockHolder) {
         return { errorCode: 'native-context-unavailable' };
       }
       try {
@@ -2805,11 +2935,11 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
           orgId: org.orgId,
           holder: org.statementLockHolder,
           binding: {
-            id: org.bindingId,
-            activatedAt: org.activatedAt,
-            versionMajor: org.versionMajor,
-            company: org.company,
-            projectMap,
+            id: context.bindingId,
+            activatedAt: context.activatedAt,
+            versionMajor: context.versionMajor,
+            company: context.company,
+            projectMap: context.projectMap,
           },
           client,
           service: serviceClient as unknown as StatementReportBatchService,

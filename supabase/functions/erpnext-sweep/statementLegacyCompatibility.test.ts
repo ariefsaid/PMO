@@ -1,6 +1,9 @@
 // Compatibility tests drive the shipped sweep cycle, ERP source feeds, and legacy accounting refreshers.
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { feedOrgLedgersLive, refreshOrgAccountingLive, runErpSweepCycle, STATEMENT_READ_STAGE_TIMEOUT_MS } = await import('./index.ts');
+const {
+  feedOrgLedgersLive, refreshOrgAccountingLive, runErpSweepCycle,
+  STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS,
+} = await import('./index.ts');
 const { feedLedgerMirrors } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts');
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -10,7 +13,9 @@ type QueryResult = { data: unknown; error: { message: string; code?: string } | 
 type Scenario = {
   org: TestOrg;
   metadata?: 'valid' | 'settings-403' | 'usd' | 'missing-opening-field' | 'hang-settings' | 'stage-overrun';
-  chart?: 'valid' | 'http-403' | 'invalid-company';
+  systemSettings?: '403';
+  chart?: 'valid' | 'http-403' | 'invalid-company' | 'hang-account' | 'stage-overrun';
+  accountReadAborted?: boolean;
   gl?: 'valid' | 'http-503' | 'ordinary-partial' | 'full-replay-exhaustion';
   ple?: 'valid' | 'incomplete';
   aging?: 'native' | 'report-error';
@@ -305,10 +310,34 @@ function makeHarness(scenarios: Scenario[]) {
 
     if (pathname === '/api/resource/Account') {
       if (scenario.chart === 'http-403') return response({ message: 'synthetic chart read refused' }, 403);
-      const rows = chartSource(org);
+      if (scenario.chart === 'hang-account') {
+        return await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) {
+            scenario.accountReadAborted = true;
+            reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+          } else {
+            signal?.addEventListener('abort', () => {
+              scenario.accountReadAborted = true;
+              reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+            }, { once: true });
+          }
+        });
+      }
+      const rows: AnyRow[] = scenario.chart === 'stage-overrun'
+        ? Number(parsed.searchParams.get('limit_start') ?? '0') === 0
+          ? Array.from({ length: 500 }, (_, index) => ({
+              ...chartSource(org)[1]!,
+              name: `Synthetic Account ${index} - ${org.company}`,
+              account_name: `Synthetic Account ${index}`,
+              lft: index + 2,
+              rgt: index + 3,
+            }))
+          : chartSource(org)
+        : chartSource(org);
       if (scenario.chart === 'invalid-company') rows[1]!.company = 'Different Synthetic Company';
       const res = response({ data: rows });
-      return scenario.metadata === 'stage-overrun' ? await delayedResponse(init, res, 4_500) : res;
+      return scenario.chart === 'stage-overrun' ? await delayedResponse(init, res, 4_500) : res;
     }
     if (pathname.startsWith('/api/resource/Company/')) {
       const currency = scenario.metadata === 'usd' ? 'USD' : 'IDR';
@@ -333,7 +362,10 @@ function makeHarness(scenarios: Scenario[]) {
       const res = response({ data: settings });
       return scenario.metadata === 'stage-overrun' ? await delayedResponse(init, res, 4_500) : res;
     }
-    if (pathname.startsWith('/api/resource/System Settings/')) return response({ data: { currency_precision: 2, float_precision: 3, rounding_method: "Banker's Rounding" } });
+    if (pathname.startsWith('/api/resource/System Settings/')) {
+      if (scenario.systemSettings === '403') return response({ message: 'synthetic settings permission refusal' }, 403);
+      return response({ data: { currency_precision: 2, float_precision: 3, rounding_method: "Banker's Rounding" } });
+    }
     if (pathname.startsWith('/api/resource/Currency/')) return response({ data: { name: 'IDR', smallest_currency_fraction_value: 100 } });
     if (pathname === '/api/resource/GL Entry') {
       if (scenario.gl === 'http-503') return response({ exc: 'SyntheticERPUnavailable' }, 503);
@@ -390,6 +422,18 @@ function snapshot(db: MemoryDatabase, org: TestOrg, table: string): Snapshot {
 function requestsFor(db: MemoryDatabase, org: TestOrg, doctype: string): RecordedRequest[] {
   return db.requests.filter((entry) => entry.orgId === org.orgId && decodeURIComponent(entry.path.split('?')[0] ?? '') === `/api/resource/${doctype}`);
 }
+function diagnosticMetadataRequests(db: MemoryDatabase, org: TestOrg): RecordedRequest[] {
+  const prefixes = [
+    '/api/resource/Company/', '/api/resource/Fiscal Year', '/api/resource/Accounts Settings/',
+    '/api/resource/System Settings/', '/api/resource/Currency/',
+  ];
+  return db.requests.filter((entry) => {
+    if (entry.orgId !== org.orgId) return false;
+    const path = decodeURIComponent(entry.path.split('?')[0] ?? '');
+    return prefixes.some((prefix) => path.startsWith(prefix)) ||
+      path === '/api/method/frappe.core.doctype.system_settings.system_settings.load';
+  });
+}
 function noModifiedFilter(request: RecordedRequest): boolean {
   return !Array.isArray(request.filters) || !(request.filters as unknown[][]).some((filter) => filter[0] === 'modified');
 }
@@ -401,19 +445,19 @@ function assertNativeStatementStateUnchanged(db: MemoryDatabase, org: TestOrg, l
     ('statement_update_delayed' in entry.values || 'statement_calendar' in entry.values)), `${label}: legacy source feed wrote native status fields`);
 }
 
-Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/AP/AR refreshes reachable', async () => {
+Deno.test('AC-005: v15 statement metadata denial does not affect the ordinary GL/PLE or accounting feed', async () => {
   const first = orgFor('v15-settings-403', 15, true);
   const second = orgFor('neighbor', 16, false);
-  const harness = makeHarness([{ org: first, metadata: 'settings-403' }, { org: second }]);
+  const harness = makeHarness([{ org: first, metadata: 'settings-403', systemSettings: '403' }, { org: second }]);
   try {
     const cycle = await harness.runCycle();
     const firstLedger = cycle.perOrg.find((entry) => entry.orgId === first.orgId)?.ledger as { glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean } | undefined;
     const actuals = snapshot(harness.db, first, 'erp_actuals_snapshot');
     assert(actuals.generation !== 'old-actuals-generation' && actuals.rows.length === 1, `Actuals generation was not replaced with nonempty GL money: ${stable(actuals)}`);
     assert(firstLedger?.glCaughtUp === true && firstLedger.pleCaughtUp === true, `raw feeds did not complete: ${stable(firstLedger)}`);
-    assert(firstLedger.statementReady === false, 'metadata denial was incorrectly marked statement-ready');
+    assert(firstLedger.statementReady === true, 'unused statement metadata denial blocked otherwise-complete legacy readiness');
     const resultErrors = cycle.perOrg.find((entry) => entry.orgId === first.orgId)?.errors ?? [];
-    assert(resultErrors.some((error) => error.startsWith('statement:')), `statement-only failure was not recorded separately: ${stable(resultErrors)}`);
+    assert(!resultErrors.some((error) => error.startsWith('statement:')), `unused statement metadata denial became a permanent diagnostic error: ${stable(resultErrors)}`);
     assert(!resultErrors.some((error) => error.startsWith('ledger:')), `metadata denial was misreported as raw failure: ${stable(resultErrors)}`);
 
     equal(actuals.rows[0], {
@@ -433,6 +477,7 @@ Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/A
       assert(stored.rows.every((row) => row.snapshot_id === stored.generation && row.as_of === stored.asOf), 'snapshot generation/provenance is not internally atomic');
     }
     assertNativeStatementStateUnchanged(harness.db, first, 'v15 metadata denial');
+    assert(diagnosticMetadataRequests(harness.db, first).length === 0, 'ordinary v15 feed requested native statement metadata');
     const initialFinish = harness.db.rpcCalls.find((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay');
     assert(initialFinish && initialFinish.args.p_company === first.company && typeof initialFinish.args.p_replay_id === 'string' && initialFinish.args.p_watermark === '2026-10-01 10:00:00.000000', `initial replay completion arguments were not preserved: ${stable(initialFinish)}`);
     assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'the migrated initial replay must finish exactly once');
@@ -443,10 +488,11 @@ Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/A
     const next = { ...first, statementReplayNeeded: false };
     const retryCache = new Map([[first.orgId, Promise.resolve({ apiKey: 'synthetic-key', apiSecret: 'synthetic-secret' })]]);
     const retry = await feedOrgLedgersLive(harness.db as unknown as SupabaseClient, next, retryCache) as { glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean };
-    assert(retry.glCaughtUp === true && retry.pleCaughtUp === true && retry.statementReady === false, `later ordinary feed did not stay separate from metadata readiness: ${stable(retry)}`);
+    assert(retry.glCaughtUp === true && retry.pleCaughtUp === true && retry.statementReady === true, `later ordinary feed did not stay separate from unused metadata: ${stable(retry)}`);
     const glRequests = requestsFor(harness.db, first, 'GL Entry');
-    assert(glRequests.length === 2 && !noModifiedFilter(glRequests[1]!), 'metadata failure alone must not repeat a full replay on the next tick');
-    assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'metadata failure caused a duplicate replay completion');
+    assert(glRequests.length === 2 && !noModifiedFilter(glRequests[1]!), 'an unused metadata denial must not repeat a full replay on the next tick');
+    assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'metadata denial caused a duplicate replay completion');
+    assert(diagnosticMetadataRequests(harness.db, first).length === 0, 'ordinary retry requested native statement metadata');
 
     assert(cycle.perOrg.length === 2 && cycle.perOrg[1]?.orgId === second.orgId, 'later org did not run after statement-only failure');
     assert(harness.db.cycleEvents.includes(`expenses:${second.orgId}`), 'later org backstops did not finish');
@@ -457,22 +503,24 @@ Deno.test('AC-005: v15 metadata denial leaves real GL/PLE and nonempty Actuals/A
   }
 });
 
-Deno.test('AC-005: v16 USD and missing required statement metadata still refresh real legacy accounting', async () => {
-  for (const [key, metadata, expectedError] of [
-    ['v16-usd', 'usd', /IDR/i],
-    ['v16-missing-field', 'missing-opening-field', /opening check/i],
+Deno.test('AC-005: unused v16 statement metadata does not affect real chart and raw accounting refreshes', async () => {
+  for (const [key, metadata] of [
+    ['v16-usd', 'usd'],
+    ['v16-missing-field', 'missing-opening-field'],
   ] as const) {
     const org = orgFor(key, 16, false);
-    const harness = makeHarness([{ org, metadata }]);
+    const harness = makeHarness([{ org, metadata, systemSettings: '403' }]);
     try {
       const cycle = await harness.runCycle();
       const errors = cycle.perOrg[0]?.errors ?? [];
       assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, `${key}: real project Actuals were not published`);
-      assert(errors.some((error) => error.startsWith('statement:') && expectedError.test(error)), `expected independent metadata error ${expectedError}, got ${stable(errors)}`);
+      assert(cycle.perOrg[0]?.ledger?.statementReady === true, `${key}: unused native metadata prevented ordinary chart readiness`);
+      assert(!errors.some((error) => error.startsWith('statement:')), `${key}: unused native metadata became an ordinary-feed error: ${stable(errors)}`);
       assert(!errors.some((error) => error.startsWith('ledger:')), `valid raw feed was blocked for ${key}: ${stable(errors)}`);
       assert(snapshot(harness.db, org, 'erp_ap_aging_snapshot').rows[0]?.total_outstanding === 45000, `${key}: real AP snapshot was not published`);
       assert(snapshot(harness.db, org, 'erp_ar_aging_snapshot').rows[0]?.total_outstanding === 78000, `${key}: real AR snapshot was not published`);
       assertNativeStatementStateUnchanged(harness.db, org, key);
+      assert(diagnosticMetadataRequests(harness.db, org).length === 0, `${key}: ordinary feed requested native statement metadata`);
     } finally {
       harness.restore();
     }
@@ -497,13 +545,13 @@ Deno.test('AC-005: valid chart and complete raw history retain diagnostic readin
   }
 });
 
-Deno.test('AC-005: metadata/report failures preserve legacy refresh and use real Payment Ledger aging fallback', async () => {
+Deno.test('AC-005: aging report failures preserve legacy refresh and use real Payment Ledger fallback', async () => {
   const org = orgFor('fallback-aging', 16, false);
   const sourcePle = [
     { ...pleSource(org)[0], amount: '125000.50', due_date: daysAgo(45) },
     { ...pleSource(org)[1], amount: '260000.25', due_date: daysAgo(100) },
   ];
-  const harness = makeHarness([{ org, metadata: 'settings-403', aging: 'report-error', pleRows: sourcePle }]);
+  const harness = makeHarness([{ org, metadata: 'settings-403', systemSettings: '403', aging: 'report-error', pleRows: sourcePle }]);
   try {
     const cycle = await harness.runCycle();
     assert(cycle.perOrg[0]?.ledger?.glCaughtUp === true && cycle.perOrg[0]?.ledger?.pleCaughtUp === true, 'raw GL/PLE did not complete alongside statement/report errors');
@@ -514,7 +562,8 @@ Deno.test('AC-005: metadata/report failures preserve legacy refresh and use real
     assert(fallbackAp?.source_report === 'Accounts Payable (mirrored-ledger fallback)' && fallbackAp.total_outstanding === 125000.5 && fallbackAp.b_31_60 === 125000.5, `AP fallback did not bucket the real mirrored PLE amount: ${stable(ap.rows)}`);
     assert(fallbackAr?.source_report === 'Accounts Receivable (mirrored-ledger fallback)' && fallbackAr.total_outstanding === 260000.25 && fallbackAr.b_90_plus === 260000.25, `AR fallback did not bucket the real mirrored PLE amount: ${stable(ar.rows)}`);
     assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'statement/report-only failure prevented real Actuals refresh');
-    assert(cycle.perOrg[0]?.errors.some((error) => error.startsWith('statement:')), 'metadata error was not kept separate');
+    assert(!cycle.perOrg[0]?.errors.some((error) => error.startsWith('statement:')), 'unused statement metadata surfaced as an ordinary-feed error');
+    assert(diagnosticMetadataRequests(harness.db, org).length === 0, 'ordinary aging fallback requested native statement metadata');
   } finally {
     harness.restore();
   }
@@ -676,16 +725,24 @@ Deno.test('AC-005: full replay page exhaustion fetches all allowed pages before 
   }
 });
 
-Deno.test('AC-005: a hung statement-only endpoint is aborted at its per-request bound before legacy accounting', async () => {
-  const org = orgFor('hung-metadata', 16, false);
-  const harness = makeHarness([{ org, metadata: 'hang-settings' }]);
+Deno.test('AC-005: a hung readable Account request is aborted at its per-request bound before legacy accounting', async () => {
+  const org = orgFor('hung-account', 16, false);
+  const scenario: Scenario = { org, chart: 'hang-account' };
+  const harness = makeHarness([scenario]);
   try {
+    const startedAt = Date.now();
     const cycle = await harness.runCycle();
+    const elapsedMs = Date.now() - startedAt;
     const entry = cycle.perOrg[0]!;
-    assert(entry.ledger?.glCaughtUp === true && entry.ledger.pleCaughtUp === true, 'hung metadata prevented real raw feeds');
-    assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:')), 'hung metadata was certified ready');
-    assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'hung metadata prevented Actuals refresh');
-    assert(requestsFor(harness.db, org, 'GL Entry').length > 0 && requestsFor(harness.db, org, 'Payment Ledger Entry').length > 0, 'raw feeds were not reached after the hung endpoint');
+    assert(scenario.accountReadAborted === true, 'hung Account request was not aborted by its configured request bound');
+    assert(elapsedMs < STATEMENT_READ_REQUEST_TIMEOUT_MS + 1_500,
+      `per-request Account timeout exceeded its 5000ms bound plus tolerance (${elapsedMs}ms)`);
+    assert(entry.ledger?.glCaughtUp === true && entry.ledger.pleCaughtUp === true, 'hung Account read prevented real raw feeds');
+    assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:')), 'unavailable chart was certified ready');
+    assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'hung Account read prevented Actuals refresh from mirrored GL');
+    assert(requestsFor(harness.db, org, 'Account').length === 1, 'ordinary feed did not perform the actual Account source read');
+    assert(requestsFor(harness.db, org, 'GL Entry').length > 0 && requestsFor(harness.db, org, 'Payment Ledger Entry').length > 0, 'raw feeds were not reached after the hung Account read');
+    assert(diagnosticMetadataRequests(harness.db, org).length === 0, 'ordinary feed requested native statement metadata while recovering from the Account timeout');
   } finally {
     harness.restore();
   }
@@ -693,14 +750,38 @@ Deno.test('AC-005: a hung statement-only endpoint is aborted at its per-request 
 
 Deno.test('AC-005: the whole statement-read stage deadline bounds cumulative reads and still reaches raw accounting', async () => {
   const org = orgFor('stage-deadline', 16, false);
-  const harness = makeHarness([{ org, metadata: 'stage-overrun' }]);
+  const harness = makeHarness([{ org, chart: 'stage-overrun' }]);
   try {
     const cycle = await harness.runCycle();
     const entry = cycle.perOrg[0]!;
     assert(entry.ledger?.glCaughtUp === true && entry.ledger.pleCaughtUp === true, 'statement-stage deadline blocked raw feeds');
     assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:') && error.includes(`${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`)), 'cumulative statement-read stage did not hit its whole-stage deadline');
+    assert(requestsFor(harness.db, org, 'Account').length === 2, 'cumulative source budget did not cross multiple real Account pages');
     assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'whole-stage deadline prevented actuals refresh');
     assert(requestsFor(harness.db, org, 'GL Entry').length === 1 && requestsFor(harness.db, org, 'Payment Ledger Entry').length === 1, 'raw source requests did not continue after the statement-stage deadline');
+    assert(diagnosticMetadataRequests(harness.db, org).length === 0, 'ordinary feed requested native statement metadata while enforcing the source-stage budget');
+  } finally {
+    harness.restore();
+  }
+});
+
+Deno.test('AC-005: a System Settings 403 is not read or surfaced by the ordinary ledger feed', async () => {
+  const org = orgFor('least-privilege-settings', 16, true);
+  const harness = makeHarness([{ org, systemSettings: '403' }]);
+  try {
+    const cycle = await harness.runCycle();
+    const entry = cycle.perOrg[0]!;
+    const settingsRequests = harness.db.requests.filter((request) =>
+      decodeURIComponent(request.path.split('?')[0] ?? '').startsWith('/api/resource/System Settings/'));
+
+    assert(settingsRequests.length === 0, `ordinary ledger feed requested System Settings: ${stable(settingsRequests)}`);
+    assert(entry.ledger?.glCaughtUp === true && entry.ledger?.pleCaughtUp === true, `raw GL/PLE did not complete: ${stable(entry.ledger)}`);
+    assert(!entry.errors.some((error) => error.startsWith('statement:')), `System Settings affected ordinary feed status: ${stable(entry.errors)}`);
+    assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'System Settings availability prevented real Actuals refresh');
+    assert(snapshot(harness.db, org, 'erp_ap_aging_snapshot').rows[0]?.total_outstanding === 45000, 'System Settings availability prevented real AP refresh');
+    assert(snapshot(harness.db, org, 'erp_ar_aging_snapshot').rows[0]?.total_outstanding === 78000, 'System Settings availability prevented real AR refresh');
+    assertNativeStatementStateUnchanged(harness.db, org, 'ordinary feed with restricted System Settings access');
+    assert(harness.db.rpcCalls.some((call) => call.orgId === org.orgId && call.name === 'finish_erp_gl_replay'), 'removing diagnostic metadata changed full replay completion');
   } finally {
     harness.restore();
   }
