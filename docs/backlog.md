@@ -84,9 +84,9 @@ All three exact-tip cleanups were verified. The completed dev browser run at `0c
 384 browser and 12 served-function checks, with 67 justified skips, four timing warnings tracked
 in #1106 and no timing failures. That later dev run is the red gate recorded above; its traces and screenshots are retained for #1182.
 Customer collections (#1172 / S-36) is in PR #1181: its final 4,338-test changed-import run and
-real Finance journey passed; fast CI remains pending. Its closing browser run was stopped after
+real Finance journey passed, and all six fast CI checks are green (run 39183351849; 6,733 pgTAP tests and 97.2% changed-line coverage). Its closing browser run was stopped after
 confirming it contained the same failing task-link source; rerun only after the dependency is corrected.
-S-35 remains last, after customer collections lands.
+S-35 is now building in a native subagent against the existing statement views and reviewed customer-collections interfaces (owner, 2026-10-19). “Last” meant after the statement views, already on dev; its merge still requires green dependencies and the dev browser gate.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -196,8 +196,7 @@ v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on share
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
 
 Current branches: account-refresh feedback (#1145) is reviewed and all fast CI is green in draft PR #1179;
-its dev merge stays held. Dispatch classification (#1103) is in tooling PR #1180; CI and the separate
-private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
+its dev merge stays held. Dispatch classification (#1103) is in tooling PR #1180 with all six fast checks green; its dev merge and separate private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
 verification; the editor observation (#1108) is in bounded diagnosis.
 
 **May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
