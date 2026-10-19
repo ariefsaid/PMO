@@ -29,6 +29,13 @@ Work toward v0.23.0 financial-statement display (#897): save ERPNext's standard 
 Profit and Loss, Balance Sheet and mapped-project P&L responses, including current/prior periods,
 and display the saved copy. The owner changed the source on 2026-10-18 (OD-FS-023); independent
 PMO-side calculation (#1109) is parked after v0.23.0 with its branches, worktrees and capture tooling retained.
+**Owner acceptance disposition (2026-10-19, 17:00 WIB):** the rehearsal's ordinary Finance reads
+and saved-report provenance validation establish the data path. A private-tooling failure prevented
+the local screen proof. The owner moved that remaining screen check to Claude after production's
+first statement backfill (approximately one hour), without changing data-correctness requirements.
+Rehearsal retries are stopped; this screen check does not block dev merges or the dev-to-main PR.
+Production actions still require separate explicit owner approval.
+
 The period picker is on dev in PR #1119 (`f95dbfd8`), with verify, pgTAP and integration green.
 The reusable statement metadata readers merged in PR #1122 (`cbc05518`): all four unit shards,
 verify and pgTAP passed (11,108 unit tests; 6,318 database checks). The native report reader merged
@@ -222,7 +229,14 @@ operator work (outcomes, budget account map, budget activation by a second perso
 7. **UX waves 3–4 moved into v0.23.0** (see item 4; slices in `docs/ux/2026-10-16-fix-backlog.md`).
 8. **Triage**: #1069, #1070, #1072 (#1068 moved into v0.23.0).
 
-Final owner cadence decision (2026-10-19 15:45 WIB, clarified 16:15 WIB): retain five-minute cron, but run the whole ERPNext sweep only during UTC minutes 0–4 or while any statement-eligible binding (the collector’s existing active, v16-capable, company-set rules) lacks its first statement publication. Initial backfill keeps five-minute progress (~one hour); later refreshes are hourly. Other ticks are a no-op. Immediate dispatch and ClickUp cadence are unchanged. The handler gate belongs in the release fix bundle (OD-ERP-023); no schedule migration.
+Final owner cadence decision (2026-10-19 15:45/16:15 WIB; bounded release-review refinement in PR #1212): Keep the five-minute cron trigger. The whole ERPNext sweep runs during UTC minutes 0–4. Between those windows, a statement-eligible binding without a matching first publication may keep five-minute progress for up to six hours after activation, or while its matching native report batch has been open for less than six hours. Match the existing collector eligibility and the current company, binding identity, activation instant, version and project map. A future activation timestamp does not extend either window. Older connections start collection on an ordinary hourly attempt; once that attempt opens a validated batch, its bounded five-minute continuation can finish the initial catalogue (normally about one hour after collection starts). Expired or unconfirmed batch windows follow the hourly cadence. Other ticks make no ERP calls or domain writes. Immediate dispatch and ClickUp cadence remain unchanged; keep the existing seven-second stage and five-second request bounds. No schedule migration or statement-only gate applies. The handler gate belongs in the release fix bundle (OD-ERP-023).
+
+**Final release-gate override (owner, 2026-10-19 17:08 WIB; v0.23.0 only):** merge the
+corrective PR #1209 after its already-running browser gate passes. The remaining #1187, #1208 and
+#1212 require all six fast checks; #1208 also requires its local served acceptance proof and #1212
+its final review correction. Do not dispatch further per-PR or dev browser runs for these slices.
+After the last merge, open the dev-to-main release PR: its automatic integration job is the one
+combined browser gate. Main merge and production remain owner-gated.
 
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 
@@ -257,8 +271,9 @@ New test-only follow-ups: #1210 preserves project context settings in shared bro
 
 **Build/review/CI now; hold app changes on their branches:** #1043, #1044, #1030, #1011, #1018,
 #1012, #1008, #1072, #1069, #1070, #1145, #1153, #1154, #1155, #1156, #1157, #1164, #1166 and
-#1129. Merge these to dev only after the v0.23.0 dev-to-main PR has merged. This timing condition
-does not authorize opening or merging that release PR: dev remains the current ceiling.
+#1129 and #1213 (connection-setup qualification). Merge these to dev only after the v0.23.0
+dev-to-main PR has merged. The 17:08 release-gate direction authorizes opening the release PR
+after the remaining slices land; merging main and production remain separately owner-gated.
 
 **Immediately after v0.23.0 ships:** #1134 restores the one-browser-run cap agreed with MOS.
 Until then, the existing v0.23.0-only two-run allowance and two-heavy-local-run limit remain.
