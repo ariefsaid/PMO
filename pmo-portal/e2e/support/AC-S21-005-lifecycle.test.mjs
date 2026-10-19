@@ -34,7 +34,7 @@ test('S21 reload continuation keeps both normal logins timed and reloads the sup
   assert.match(firstSupport, /test\.setTimeout\(S21_FIXTURE_PHASE_TIMEOUT_MS\)/);
   assert.match(firstSupport, /await adminLoginAndOpenTaskRoute\(page\)/);
   assert.match(reloadSupport, /test\.setTimeout\(S21_FIXTURE_PHASE_TIMEOUT_MS\)/);
-  assert.match(reloadSupport, /browser\.newContext\(\{\s*baseURL:\s*appBaseUrl\s*\}\)/);
+  assert.match(reloadSupport, /browser\.newContext\(ownedContextOptions\(testInfo,\s*\{\s*baseURL:\s*appBaseUrl\s*\}\)\)/);
   assert.match(reloadSupport, /page = await ownedContext\.newPage\(\)/);
   assert.match(reloadSupport, /await installBrowserRouteGuardForPage\(page\)/);
   assert.match(reloadSupport, /await adminLoginAndOpenTaskRoute\(page\)/);
