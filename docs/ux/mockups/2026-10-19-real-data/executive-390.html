@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390">
+<title>Executive dashboard — proposed structure — 390</title>
+<link rel="stylesheet" href="tokens.css">
+</head>
+<body>
+<div class="frame-390">
+  <header class="topbar"><span>Menu</span><b>Dashboard</b><div class="search" aria-label="Search">Find</div></header>
+  <main class="page">
+
+    <div class="anno"><b>Same content and order as 1440, one column.</b> Figures take the full width, so no IDR amount needs to shrink or clip. Project rows become cards; the partial-spending note appears once, under the list.</div>
+
+    <div class="head">
+      <div>
+        <h1 class="h1">Executive Dashboard</h1>
+        <p class="sub">What needs you, and how the contracting book stands.</p>
+      </div>
+      <button class="btn btn-outline btn-sm">Board pack</button>
+    </div>
+
+    <section aria-label="Needs you" class="attention">
+      <div><span class="count">0</span><div class="stack-item" style="gap:2px"><span style="font-weight:600">Nothing waiting for your approval</span><a class="link caption" href="#" style="color:hsl(var(--primary-text))">Open approvals</a></div></div>
+      <div><span class="count muted">—</span><div class="stack-item" style="gap:2px"><span style="font-weight:600">Project risk can't be checked yet</span><span class="caption">No active budgets or dated phases.</span></div></div>
+    </section>
+
+    <details class="notice">
+      <summary><span class="warn-dot" aria-hidden="true"></span>3 things limit these figures</summary>
+      <ol>
+        <li>Spending covers 144 of 150 cost categories. <a class="link" href="#">Review spending setup</a></li>
+        <li>No active budgets: budget risk and pipeline margin can't be calculated.</li>
+        <li>5 closed-out projects are in USD; totals stay per currency.</li>
+      </ol>
+    </details>
+
+    <section class="stack-group" aria-labelledby="book">
+      <h2 id="book" class="section-title">Contract book</h2>
+      <div class="fig"><span class="label">Contract value in delivery</span><span class="metric">IDR 160,890,500,000</span><span class="caption">6 projects · excl. tax</span></div>
+      <div class="fig hair" style="padding-top:12px"><span class="label">Recorded spending to date <span class="pill pill-partial">Partial</span></span><span class="metric">IDR 58,214,330,500</span><span class="caption">Updated 18 Oct 2026</span></div>
+      <div class="fig hair" style="padding-top:12px"><span class="label">Open pipeline, weighted</span><span class="metric">IDR 75,185,000,000</span><span class="caption">of IDR 190,900,000,000 · 19 opportunities</span></div>
+      <p class="caption" style="margin:0">Closed out (19): IDR 212,640,000,000 · USD 3,412,800</p>
+    </section>
+
+    <section class="stack-group" aria-labelledby="delivery">
+      <h2 id="delivery" class="section-title">Delivery projects</h2>
+      <ul class="cards">
+        <li><div style="font-weight:600">Gedung Kantor Regional Tahap II – Paket Struktur dan Arsitektur Lantai 1 sampai 12</div><span class="caption">PT Sinar Hutama Konstruksi</span>
+          <dl><dt>Contract</dt><dd>IDR 63,400,000,000</dd><dt>Spending*</dt><dd>IDR 24,118,640,000</dd><dt>Status</dt><dd><span class="pill">Ongoing</span></dd></dl></li>
+        <li><div style="font-weight:600">Jaringan Distribusi Air Bersih Kawasan Industri Timur</div><span class="caption">PT Graha Lintas Nusantara</span>
+          <dl><dt>Contract</dt><dd>IDR 48,215,000,000</dd><dt>Spending*</dt><dd>IDR 18,402,775,000</dd><dt>Status</dt><dd><span class="pill">Ongoing</span></dd></dl></li>
+        <li><div style="font-weight:600">Rehabilitasi Jembatan dan Akses Jalan Lingkar Selatan</div><span class="caption">Dinas PUPR Kabupaten Bekasi</span>
+          <dl><dt>Contract</dt><dd>IDR 21,870,500,000</dd><dt>Spending*</dt><dd>IDR 9,640,210,500</dd><dt>Status</dt><dd><span class="pill">Ongoing</span></dd></dl></li>
+        <li class="caption">3 more · <a class="link" href="#">Open projects</a></li>
+      </ul>
+      <p class="caption" style="margin:0">* Partial: 6 of 150 cost categories aren't set up.</p>
+    </section>
+
+    <section class="stack-group" aria-labelledby="pipe">
+      <h2 id="pipe" class="section-title">Pipeline by stage</h2>
+      <div class="stack-item">
+        <div class="barrow"><span class="muted">Leads</span><span class="track"><span style="width:9%"></span></span><span class="amt">IDR 3,820,000,000</span></div>
+        <div class="barrow"><span class="muted">Pre-Qual</span><span class="track"><span style="width:15%"></span></span><span class="amt">IDR 6,625,000,000</span></div>
+        <div class="barrow"><span class="muted">Quotation</span><span class="track"><span style="width:51%"></span></span><span class="amt">IDR 21,960,000,000</span></div>
+        <div class="barrow"><span class="muted">Tender</span><span class="track"><span style="width:100%"></span></span><span class="amt">IDR 42,780,000,000</span></div>
+      </div>
+      <div class="card card-pad stack-item"><span class="label">Win rate · all time</span><span><span class="metric">96.2%</span> <span class="caption">by count · 25 of 26</span></span><span class="caption">By value: IDR 97.5% · USD no losses</span></div>
+    </section>
+  </main>
+</div>
+</body>
+</html>
