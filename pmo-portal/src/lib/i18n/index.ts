@@ -77,6 +77,7 @@ export function initI18n(): Promise<I18nInstance> {
       .init({
         lng: FALLBACK_LOCALE,
         fallbackLng: FALLBACK_LOCALE,
+        fallbackNS: DEFAULT_NS,
         ns: [...NAMESPACES],
         defaultNS: DEFAULT_NS,
         // An empty translation is a MISSING one, not a deliberate blank — otherwise an untranslated

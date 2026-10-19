@@ -1,7 +1,9 @@
 # E2E parallel-safety conventions (binding)
 
 One-page checklist for **every new/edited `pmo-portal/e2e/*.spec.ts`**, so the `workers:4` parallel
-lane stays green. This is the authoring contract; the mechanism (why/how it works) is documented once
+lane stays green.
+
+New feature UI copy belongs in its own i18next namespace, not `public/locales/{en,id}/common.json`, to keep parallel feature slices editing separate files. Add matching `public/locales/en/<feature>.json` and `public/locales/id/<feature>.json` files with identical key trees, then call `useTranslation('<feature>')`; namespaces load lazily from the existing locale URL and missing keys fall back to `common`. Existing `common.json` keys remain in place; the namespace guard rejects new common keys unless their exact key is recorded in `scripts/i18n-common-key-allowlist.json`. This is the authoring contract; the mechanism (why/how it works) is documented once
 in `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md` and enforced by
 `pmo-portal/playwright.config.ts` + `scripts/check-e2e-isolation.sh` — don't re-derive it, link it.
 

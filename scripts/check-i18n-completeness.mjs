@@ -191,11 +191,35 @@ export function blankComments(src) {
  * key ever appears, this gate reports its keys as orphans — which is the correct alarm, not a
  * bug to be worked around by loosening the scan.
  */
-export function collectKeyRefs(src) {
-  const keys = new Set();
+export function collectKeyRefEntries(src) {
+  const refs = [];
   const sourceFile = ts.createSourceFile('source.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const translationFunctions = new Map();
   const literalText = (node) =>
     node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : undefined;
+  const objectProperty = (node, name) => node && ts.isObjectLiteralExpression(node)
+    ? node.properties.find((property) => ts.isPropertyAssignment(property) &&
+      ((ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name))?.initializer
+    : undefined;
+  const findHookNamespaces = (node) => {
+    if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression) || node.expression.text !== 'useTranslation') return;
+    const ns = literalText(node.arguments[0]) ?? literalText(objectProperty(node.arguments[0], 'ns')) ?? 'common';
+    const parent = node.parent;
+    if (!ts.isVariableDeclaration(parent) || !ts.isObjectBindingPattern(parent.name)) return;
+    for (const element of parent.name.elements) {
+      if (!ts.isBindingElement(element)) continue;
+      const sourceName = element.propertyName && ts.isIdentifier(element.propertyName)
+        ? element.propertyName.text : ts.isIdentifier(element.name) ? element.name.text : undefined;
+      if (sourceName === 't' && ts.isIdentifier(element.name)) translationFunctions.set(element.name.text, ns);
+    }
+  };
+  const refsForKey = (key, namespace) => {
+    const colon = key.indexOf(':');
+    if (colon > 0) return { key: key.slice(colon + 1), namespace: key.slice(0, colon) };
+    return { key, namespace };
+  };
+  const findHooks = (node) => { findHookNamespaces(node); ts.forEachChild(node, findHooks); };
+  findHooks(sourceFile);
   const isTargetCall = (expression) =>
     (ts.isIdentifier(expression) && expression.text === 't') ||
     (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
@@ -204,7 +228,11 @@ export function collectKeyRefs(src) {
   const visit = (node) => {
     if (ts.isCallExpression(node) && isTargetCall(node.expression)) {
       const key = literalText(node.arguments[0]);
-      if (key !== undefined && key.length > 0) keys.add(key);
+      if (key !== undefined && key.length > 0) {
+        const baseNamespace = ts.isIdentifier(node.expression) ? translationFunctions.get(node.expression.text) ?? 'common' : 'common';
+        const optionsNs = literalText(objectProperty(node.arguments[1], 'ns'));
+        refs.push(refsForKey(key, optionsNs ?? baseNamespace));
+      }
     } else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && isBareTrans(node.tagName)) {
       const attribute = node.attributes.properties.find((property) =>
         ts.isJsxAttribute(property) && property.name.text === 'i18nKey');
@@ -212,13 +240,17 @@ export function collectKeyRefs(src) {
         const key = ts.isStringLiteral(attribute.initializer)
           ? decodeQuotedJsxString(attribute.initializer, sourceFile)
           : ts.isJsxExpression(attribute.initializer) ? literalText(attribute.initializer.expression) : undefined;
-        if (key !== undefined && key.length > 0) keys.add(key);
+        if (key !== undefined && key.length > 0) refs.push(refsForKey(key, 'common'));
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return keys;
+  return refs;
+}
+
+export function collectKeyRefs(src) {
+  return new Set(collectKeyRefEntries(src).map(({ key }) => key));
 }
 
 /** Parse with the app's installed TypeScript compiler; no additional dependency is needed. */
@@ -803,7 +835,7 @@ function hasRequiredPluralForm(known, key) {
  * @param referenceFiles   {Record<string,string>} rel path → source, the whole app
  * @param catalogue        {object} the parsed `en` catalogue
  */
-export function analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMismatchBaseline = [] }) {
+export function analyse({ launchScopeFiles, referenceFiles, catalogue, namespaces = {}, defaultMismatchBaseline = [] }) {
   const catalogueKeys = flattenCatalogue(catalogue);
   const known = new Set(catalogueKeys);
   const sourceFiles = { ...referenceFiles, ...launchScopeFiles };
@@ -816,8 +848,10 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMi
   const unverifiedDefaults = [];
   for (const [file, src] of Object.entries(launchScopeFiles)) {
     for (const hit of findUnextracted(src)) unextracted.push({ file, ...hit });
-    for (const key of collectKeyRefs(src)) {
-      if (!known.has(key) && !hasRequiredPluralForm(known, key)) missing.push({ file, key });
+    for (const { key, namespace } of collectKeyRefEntries(src)) {
+      const namespaceKeys = new Set(flattenCatalogue(namespaces[namespace] ?? {}));
+      if (!namespaceKeys.has(key) && !hasRequiredPluralForm(namespaceKeys, key) &&
+          !known.has(key) && !hasRequiredPluralForm(known, key)) missing.push({ file, key });
     }
     const sourceFile = getParsedSourceFile(file, src, parsedModules);
     const candidates = collectDefaultCandidates(src, sourceFile);
@@ -913,33 +947,31 @@ function catalogueValue(catalogue, dotted) {
   return cur;
 }
 
-export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
+export function analyseId({ launchScopeFiles, catalogue, idCatalogue, namespaces = {}, idNamespaces = {} }) {
   for (const [file, source] of Object.entries(launchScopeFiles)) assertSourceSize(file, source);
-  const enKeys = new Set(flattenCatalogue(catalogue));
-  const idMap = flattenCatalogueEntries(idCatalogue);
+  const enMaps = { common: flattenCatalogueEntries(catalogue) };
+  const idMaps = { common: flattenCatalogueEntries(idCatalogue) };
+  for (const [namespace, value] of Object.entries(namespaces)) enMaps[namespace] = flattenCatalogueEntries(value);
+  for (const [namespace, value] of Object.entries(idNamespaces)) idMaps[namespace] = flattenCatalogueEntries(value);
 
-  const scopeKeys = new Set();
+  const scopeKeys = new Map();
   for (const src of Object.values(launchScopeFiles)) {
-    for (const key of collectKeyRefs(src)) {
-      if (enKeys.has(key)) {
-        scopeKeys.add(key);
-        continue;
-      }
-      // ⚑ A PLURAL CALL SITE REFERENCES THE BASE, WHICH en NEVER HOLDS. Without this branch the
-      // base is silently filtered out and its suffixed forms are checked by NOTHING — so an
-      // en-only plural key passes the id gate green while every Indonesian reader gets English at
-      // every count. That is stage 2's whole purpose defeated, and it was live: `analyse` was
-      // taught about plurals and this sibling was not (#575 review, Critical 1).
-      for (const suffix of PLURAL_SUFFIXES) {
-        if (enKeys.has(`${key}${suffix}`)) scopeKeys.add(`${key}${suffix}`);
+    for (const { key, namespace } of collectKeyRefEntries(src)) {
+      const preferred = namespace === 'common' ? 'common' : namespace;
+      const selected = enMaps[preferred]?.has(key) || PLURAL_SUFFIXES.some((suffix) => enMaps[preferred]?.has(`${key}${suffix}`))
+        ? preferred : (enMaps.common.has(key) || PLURAL_SUFFIXES.some((suffix) => enMaps.common.has(`${key}${suffix}`)) ? 'common' : null);
+      if (selected) {
+        const enMap = enMaps[selected];
+        if (enMap.has(key)) scopeKeys.set(`${selected}:${key}`, { namespace: selected, key });
+        else for (const suffix of PLURAL_SUFFIXES) if (enMap.has(`${key}${suffix}`)) scopeKeys.set(`${selected}:${key}${suffix}`, { namespace: selected, key: `${key}${suffix}` });
       }
     }
   }
 
   const untranslated = [];
   const placeholderMismatches = [];
-  for (const key of [...scopeKeys].sort()) {
-    const v = idMap.get(key);
+  for (const { namespace, key } of [...scopeKeys.values()].sort((a, b) => `${a.namespace}:${a.key}`.localeCompare(`${b.namespace}:${b.key}`))) {
+    const v = idMaps[namespace]?.get(key);
     if (v === undefined) {
       untranslated.push({ key, why: 'absent' });
       continue;
@@ -952,7 +984,7 @@ export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
     // broken sentence ONLY for Indonesian readers — a money confirmation with no money — and no
     // en-side test can see it. The catalogue was machine-translated in bulk (#567), which is
     // exactly the process that drops a token silently.
-    const en = catalogueValue(catalogue, key);
+    const en = catalogueValue(namespace === 'common' ? catalogue : namespaces[namespace], key);
     if (typeof en === 'string') {
       const want = placeholders(en);
       const got = placeholders(v);
@@ -962,6 +994,8 @@ export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
     }
   }
 
+  const enKeys = new Set(flattenCatalogue(catalogue));
+  const idMap = flattenCatalogueEntries(idCatalogue);
   const extraneous = [...idMap.keys()].filter((k) => !enKeys.has(k)).sort();
 
   return {
@@ -1093,7 +1127,16 @@ function readFromDisk() {
   }
 
   const catalogue = JSON.parse(fs.readFileSync(EN_CATALOGUE, 'utf8'));
-  return { entries, launchScopeFiles, referenceFiles, catalogue };
+  const namespaces = Object.fromEntries(fs.readdirSync(path.dirname(EN_CATALOGUE))
+    .filter((name) => name.endsWith('.json') && name !== 'common.json')
+    .map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(path.dirname(EN_CATALOGUE), name), 'utf8'))]));
+  return { entries, launchScopeFiles, referenceFiles, catalogue, namespaces };
+}
+
+function readIdNamespacesFromDisk() {
+  const dir = path.dirname(ID_CATALOGUE);
+  return Object.fromEntries(fs.readdirSync(dir).filter((name) => name.endsWith('.json') && name !== 'common.json')
+    .map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))]));
 }
 
 /** --id mode ONLY. Kept out of `readFromDisk` so the en-side gate stays structurally incapable
@@ -1733,6 +1776,40 @@ function selfTest() {
     );
   }
 
+  // Namespace references must resolve in the hook namespace, with common fallback.
+  {
+    const namespaceSource = `const { t } = useTranslation('feature'); t('title');`;
+    const result = analyse({
+      ...clean,
+      launchScopeFiles: { [acFile]: namespaceSource },
+      referenceFiles: { [acFile]: namespaceSource },
+      catalogue: { shared: 'Shared' },
+      namespaces: { feature: { title: 'Title' } },
+    });
+    check('namespaced key present passes', !result.missing.length, JSON.stringify(result.missing));
+    const explicitNamespaces = analyse({
+      ...clean, launchScopeFiles: { [acFile]: "t('feature:title'); t('title', { ns: 'feature' });" },
+      referenceFiles: { [acFile]: "t('feature:title'); t('title', { ns: 'feature' });" },
+      catalogue: {}, namespaces: { feature: { title: 'Title' } },
+    });
+    check('ns:key prefix and ns option resolve feature catalogue', !explicitNamespaces.missing.length, JSON.stringify(explicitNamespaces.missing));
+    const missing = analyse({
+      ...clean, launchScopeFiles: { [acFile]: namespaceSource }, referenceFiles: { [acFile]: namespaceSource },
+      catalogue: { shared: 'Shared' }, namespaces: { feature: {} },
+    });
+    check('missing in namespace and common fails', missing.missing.some((item) => item.key === 'title'), JSON.stringify(missing.missing));
+    const fallback = analyse({
+      ...clean, launchScopeFiles: { [acFile]: namespaceSource }, referenceFiles: { [acFile]: namespaceSource },
+      catalogue: { title: 'Common title' }, namespaces: { feature: {} },
+    });
+    check('common catalogue fallback satisfies namespace ref', !fallback.missing.length, JSON.stringify(fallback.missing));
+    const idMissing = analyseId({
+      launchScopeFiles: { [acFile]: namespaceSource }, catalogue: {},
+      idCatalogue: {}, namespaces: { feature: { title: 'Title' } }, idNamespaces: { feature: {} },
+    });
+    check('ID missing namespaced key fails', idMissing.untranslated.some((item) => item.key === 'title'), JSON.stringify(idMissing.untranslated));
+  }
+
   // 2. Plant an ORPHAN: a catalogue key no source file references.
   {
     const r = analyse({
@@ -1927,7 +2004,7 @@ function selfTest() {
   {
     const source = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
     const enStart = source.indexOf('function readFromDisk');
-    const idStart = source.indexOf('function readIdFromDisk');
+    const idStart = source.indexOf('function readIdNamespacesFromDisk');
     const enLoader = source.slice(enStart, idStart);
     check(
       'the en-side loader never reads the id catalogue (FR-L10N-042a)',
@@ -2062,12 +2139,12 @@ if (isMain) {
     process.exit(selfTest());
   }
   if (process.argv.includes('--id')) {
-    const { entries, launchScopeFiles, catalogue } = readFromDisk();
-    const result = analyseId({ launchScopeFiles, catalogue, idCatalogue: readIdFromDisk() });
+    const { entries, launchScopeFiles, catalogue, namespaces } = readFromDisk();
+    const result = analyseId({ launchScopeFiles, catalogue, namespaces, idCatalogue: readIdFromDisk(), idNamespaces: readIdNamespacesFromDisk() });
     process.exit(reportId(result, entries, Object.keys(launchScopeFiles).length));
   }
-  const { entries, launchScopeFiles, referenceFiles, catalogue } = readFromDisk();
+  const { entries, launchScopeFiles, referenceFiles, catalogue, namespaces } = readFromDisk();
   const baseline = JSON.parse(fs.readFileSync(DEFAULT_MISMATCH_BASELINE, 'utf8'));
-  const result = analyse({ launchScopeFiles, referenceFiles, catalogue, defaultMismatchBaseline: baseline });
+  const result = analyse({ launchScopeFiles, referenceFiles, catalogue, namespaces, defaultMismatchBaseline: baseline });
   process.exit(report(result, entries, Object.keys(launchScopeFiles).length));
 }
