@@ -71,9 +71,18 @@ font-wait correction and current dev were included; its worktree was cleaned. Th
 contrast/header fix merged in PR #1169 (`ee28bae6`) after its 383-browser-check run passed.
 The lock ownership-record fix (#1148) merged to dev in PR #1171 (`ec877187`): all four unit
 shards, verify and pgTAP passed, as did four focused process tests. Exact-tip cleanup was
-independently verified. Registering those process tests in CI remains tracked in #1170.
-The resumed dev browser run passed 384 browser and 12 served-function checks, with 67 justified
-skips and zero timing warnings or failures. Since that run, one code slice has merged.
+independently verified. CI registration and the pinned browser runtime (#1170/#1174) merged in
+PR #1176 (`0c299358`), with all fast checks green and all four process tests executed in verify.
+Task-list review (#1160 / S-21) merged in PR #1177 (`00e067cf`), with all fast checks green,
+the real persisted local journey passed, and the final 955-test changed-import run passed.
+Changed-line coverage specificity (#1125) merged in PR #1178 (`519c22d7`): all fast checks and
+28 focused tests passed; the original broad-hit implementation fails the regression controls.
+All three exact-tip cleanups were verified. The completed dev browser run at `0c299358` passed
+384 browser and 12 served-function checks, with 67 justified skips, four timing warnings tracked
+in #1106 and no timing failures. A new dev browser run covers the two later code merges.
+Customer collections (#1172 / S-36) is in PR #1181: its final 4,338-test changed-import run and
+real Finance journey passed; fast CI and the billing-lane closing integration remain pending.
+S-35 remains last, after customer collections lands.
 Full browser integration for accounting setup and invoice draft review remains with the
 billing/purchasing lane-closing PRs. Employee identity
 review (#1149 / S-30) merged in PR #1152 (`58e0e5d6`): all four unit shards, verify and pgTAP passed;
@@ -179,8 +188,13 @@ operator work (outcomes, budget account map, budget activation by a second perso
 ### v0.24.0 queue — RIS go-live polish and engineering health (owner, 2026-10-19)
 
 Start in parallel with fresh workers and separate worktrees. Keep this scope separate from
-v0.23.0; S-21, S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
+v0.23.0; S-36, S-35, rehearsal and both release reviews retain priority on shared capacity.
 Write a spec and plan before building any item that lacks them. Route owner decisions to Claude.
+
+Current branches: account-refresh feedback (#1145) is reviewed in draft PR #1179, with CI pending
+and its dev merge held. Dispatch classification (#1103) is in tooling PR #1180; CI and the separate
+private adoption remain pending. Timing headroom (#1106) has a reviewed-source candidate under
+verification; the editor observation (#1108) is in bounded diagnosis.
 
 **May merge to dev now — test/CI-only engineering health:** browser-test sharding across runners;
 #1133, #1125, #1106, #1107, #1108, #1170, #1113 and #1103. Keep the serial browser lane serial.
