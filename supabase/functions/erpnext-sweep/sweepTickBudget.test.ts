@@ -135,6 +135,7 @@ function statefulFakeDb() {
   const client = {
     from(table: string) {
       // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mutable fake query builder
       const b: any = { cols: {} as Record<string, string>, inDomains: null as string[] | null };
       b.select = () => b;
       b.eq = (col: string, val: string | number) => { b.cols[col] = String(val); return b; };
@@ -404,6 +405,7 @@ Deno.test('#916: a repeatedly halted 3000-row doctype yields to a healthy siblin
   (db.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
     if (table === 'external_ref_lineage' && activeDoctype === 'Timesheet') {
       // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mutable fake query builder
       const b: any = {};
       b.select = () => b;
       b.eq = () => b;
@@ -433,8 +435,8 @@ Deno.test('#916: the shipped tick budgets are coherent and well under the edge C
     `the tick document budget equals one doctype's quantum (1000) — a walk never stops mid-doctype for the doc budget, got ${SWEEP_TICK_MAX_DOCS}`,
   );
   assert(
-    SWEEP_TICK_TIME_BUDGET_MS === 20_000 && SWEEP_TICK_TIME_BUDGET_MS < 60_000,
-    `the whole-tick wall-clock budget is 20s — far under any CPU hard limit, got ${SWEEP_TICK_TIME_BUDGET_MS}`,
+    SWEEP_TICK_TIME_BUDGET_MS === 100_000 && SWEEP_TICK_TIME_BUDGET_MS < 120_000,
+    `the whole-tick wall-clock budget is 100s, fitting the 75s statement stage and below edge wall-clock limits, got ${SWEEP_TICK_TIME_BUDGET_MS}`,
   );
 });
 
@@ -459,6 +461,7 @@ Deno.test('#916: a failing apply still consumes the tick budget (the walk counts
   (db.client as unknown as { from: (t: string) => unknown }).from = (table: string) => {
     if (table === 'external_ref_lineage') {
       // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mutable fake query builder
       const b: any = {};
       b.select = () => b;
       b.eq = () => b;

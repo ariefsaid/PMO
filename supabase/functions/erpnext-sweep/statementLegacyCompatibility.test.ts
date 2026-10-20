@@ -2,7 +2,7 @@
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const {
   feedOrgLedgersLive, refreshOrgAccountingLive, runErpSweepCycle,
-  STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS,
+  STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS, STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS,
 } = await import('./index.ts');
 const { feedLedgerMirrors } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts');
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -735,7 +735,7 @@ Deno.test('AC-005: a hung readable Account request is aborted at its per-request
     const elapsedMs = Date.now() - startedAt;
     const entry = cycle.perOrg[0]!;
     assert(scenario.accountReadAborted === true, 'hung Account request was not aborted by its configured request bound');
-    assert(elapsedMs < STATEMENT_READ_REQUEST_TIMEOUT_MS + 1_500,
+    assert(elapsedMs < STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS + 1_500,
       `per-request Account timeout exceeded its 5000ms bound plus tolerance (${elapsedMs}ms)`);
     assert(entry.ledger?.glCaughtUp === true && entry.ledger.pleCaughtUp === true, 'hung Account read prevented real raw feeds');
     assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:')), 'unavailable chart was certified ready');
@@ -755,7 +755,7 @@ Deno.test('AC-005: the whole statement-read stage deadline bounds cumulative rea
     const cycle = await harness.runCycle();
     const entry = cycle.perOrg[0]!;
     assert(entry.ledger?.glCaughtUp === true && entry.ledger.pleCaughtUp === true, 'statement-stage deadline blocked raw feeds');
-    assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:') && error.includes(`${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`)), 'cumulative statement-read stage did not hit its whole-stage deadline');
+    assert(entry.ledger.statementReady === false && entry.errors.some((error) => error.startsWith('statement:') && error.includes(`${STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS}ms`)), 'cumulative statement-read stage did not hit its whole-stage deadline');
     assert(requestsFor(harness.db, org, 'Account').length === 2, 'cumulative source budget did not cross multiple real Account pages');
     assert(snapshot(harness.db, org, 'erp_actuals_snapshot').rows[0]?.net === 1250.75, 'whole-stage deadline prevented actuals refresh');
     assert(requestsFor(harness.db, org, 'GL Entry').length === 1 && requestsFor(harness.db, org, 'Payment Ledger Entry').length === 1, 'raw source requests did not continue after the statement-stage deadline');

@@ -121,6 +121,7 @@ async function invokeHandler(
     publicationReadError?: boolean;
     statementBatchReadError?: boolean;
     statementBatches?: StatementReportBatch[];
+    statementProgress?: Array<{ org_id: string; acquired_at: string }>;
     statementErpVersion?: string;
     body?: string;
   } = {},
@@ -196,6 +197,14 @@ async function invokeHandler(
         const result = secretOnly ? rows.map(({ secret_ref }) => ({ secret_ref })) : rows;
         if (request.headers.get('Accept')?.includes('vnd.pgrst.object')) return jsonResponse(result[0] ?? null);
         return jsonResponse(result);
+      }
+      if (table === 'erp_financial_statement_report_pending') {
+        const orgFilter = queryValue(url, 'org_id', 'in.');
+        const orgIds = orgFilter?.startsWith('(') && orgFilter.endsWith(')')
+          ? new Set(orgFilter.slice(1, -1).split(',').map((value) => value.replace(/^"|"$/g, '')))
+          : null;
+        return jsonResponse((options.statementProgress ?? []).filter((row) =>
+          currentOrgIds.has(row.org_id) && (!orgIds || orgIds.has(row.org_id))));
       }
       if (table === 'erp_financial_statement_report_batch') {
         if (options.statementBatchReadError) {
@@ -295,7 +304,8 @@ function assertNoSweepWork(requests: RecordedRequest[], label: string): void {
   const unexpected = requests.find(({ path, origin, method }) => method !== 'GET' || origin.startsWith('https://erp-') ||
     !(path.startsWith('/rest/v1/external_org_bindings') ||
       path.startsWith('/rest/v1/erp_financial_statement_published_context') ||
-      path.startsWith('/rest/v1/erp_financial_statement_report_batch')));
+      path.startsWith('/rest/v1/erp_financial_statement_report_batch') ||
+      path.startsWith('/rest/v1/erp_financial_statement_report_pending')));
   assert(!unexpected, `${label}: reached sweep work before cadence decision: ${unexpected?.method} ${unexpected?.path}`);
 }
 
@@ -366,7 +376,9 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
 
   await t.step('AC-CAD-003: one unpublished member of a two-binding org set runs the whole cycle', async () => {
     const publicationState = [publicationFor(first)];
-    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [first, second], publicationState);
+    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [first, second], publicationState, {
+      statementBatches: [statementBatchFor(second, '2026-10-19T07:10:00.000Z')],
+    });
     assert(result.status === 200 && result.body.ok === true && result.body.skipped !== true,
       `an unpublished active binding failed to activate the cycle: ${result.status} ${JSON.stringify(result.body)}`);
     const claimedOrgs = result.requests
@@ -404,39 +416,29 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const staleActivation = publicationFor(current, { binding: { id: current.id, activatedAt: '2026-09-01T00:00:00.000Z', versionMajor: current.version_major } });
     const staleVersion = publicationFor(current, { binding: { id: current.id, activatedAt: current.activated_at, versionMajor: 15 } });
     const staleProjectMap = publicationFor(current, { projectMap: {} });
-    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [current], [foreignBinding, staleActivation, staleVersion, staleProjectMap]);
+    const result = await invokeHandler('2026-10-19T08:04:00.000Z', [current], [foreignBinding, staleActivation, staleVersion, staleProjectMap]);
     assert(result.status === 200 && result.body.ok === true && result.body.skipped !== true,
-      `an older/foreign generation was treated as current: ${result.status} ${JSON.stringify(result.body)}`);
+      `stale or foreign generations did not trigger the hourly first-publication attempt: ${result.status} ${JSON.stringify(result.body)}`);
     assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'stale publication identity did not activate the normal cycle');
   });
 
-  await t.step('AC-CAD-005: an activated v16 binding with an unsupported native version stops holding five-minute sweeps at six hours', async () => {
+  await t.step('AC-1202: activation age alone does not keep an unpublished binding on five-minute cadence', async () => {
     const unsupported = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-19T07:05:00.001Z');
     const publicationState: PublishedContext[] = [];
-    const initial = await invokeHandler('2026-10-19T07:35:00.000Z', [unsupported], publicationState, {
+    const midhour = await invokeHandler('2026-10-19T07:35:00.000Z', [unsupported], publicationState, {
       statementErpVersion: '16.32.0',
     });
-    assert(initial.status === 200 && initial.body.ok === true && initial.body.skipped !== true,
-      `a newly activated binding did not get its initial midhour attempt: ${initial.status} ${JSON.stringify(initial.body)}`);
-    assert(initial.requests.some(({ path }) => path.includes('/api/method/frappe.utils.change_log.get_versions')),
-      'the first native collector attempt did not inspect the actual ERP version');
-    assert(!initial.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')) &&
-      publicationState.length === 0,
-    'the unsupported native version unexpectedly published a first generation');
+    assert(midhour.status === 200 && midhour.body.ok === true && midhour.body.skipped === true,
+      `activation age without a batch incorrectly kept five-minute cadence: ${midhour.status} ${JSON.stringify(midhour.body)}`);
+    assertNoSweepWork(midhour.requests, 'unpublished binding with no progress between hourly windows');
 
-    const justBeforeExpiry = await invokeHandler('2026-10-19T13:05:00.000Z', [unsupported], publicationState, {
+    const hourly = await invokeHandler('2026-10-19T08:04:00.000Z', [unsupported], publicationState, {
       statementErpVersion: '16.32.0',
     });
-    assert(justBeforeExpiry.status === 200 && justBeforeExpiry.body.ok === true && justBeforeExpiry.body.skipped !== true,
-      `the unpublished binding stopped receiving five-minute attempts before six hours: ${justBeforeExpiry.status} ${JSON.stringify(justBeforeExpiry.body)}`);
-
-    const atExpiry = await invokeHandler('2026-10-19T13:05:00.001Z', [unsupported], publicationState, {
-      statementErpVersion: '16.32.0',
-    });
-    assert(atExpiry.status === 200 && atExpiry.body.ok === true && atExpiry.body.skipped === true,
-      `the unsupported binding kept the whole fleet on five-minute sweeps at the six-hour boundary: ${atExpiry.status} ${JSON.stringify(atExpiry.body)}`);
-    assertNoSweepWork(atExpiry.requests, 'expired first-publication backfill window');
+    assert(hourly.status === 200 && hourly.body.skipped !== true &&
+      hourly.requests.some(({ path }) => path.includes('/api/method/frappe.utils.change_log.get_versions')),
+    'an unpublished binding without progress did not receive its normal hourly attempt');
   });
 
   await t.step('AC-CAD-005: a future activation timestamp cannot extend the first-publication cadence exception', async () => {
@@ -447,8 +449,8 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     assert(result.status === 200 && result.body.ok === true && result.body.skipped === true,
       `a future activation timestamp held the fleet on five-minute sweeps: ${result.status} ${JSON.stringify(result.body)}`);
     assertNoSweepWork(result.requests, 'future activation timestamp');
-    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/erp_financial_statement_report_batch')),
-      'a future activation timestamp entered the recent-batch fast cadence path');
+    assert(!result.requests.some(({ origin }) => origin.startsWith('https://erp-')),
+      'a future activation timestamp reached the ERP collector');
   });
 
   await t.step('AC-CAD-006: a recent matching batch keeps an old binding on five-minute cadence for at most six hours', async () => {
@@ -471,6 +473,18 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     assert(expired.status === 200 && expired.body.ok === true && expired.body.skipped === true,
       `a batch at the exact six-hour boundary kept five-minute cadence: ${expired.status} ${JSON.stringify(expired.body)}`);
     assertNoSweepWork(expired.requests, 'expired recent batch window');
+  });
+
+  await t.step('AC-1202: recent native acquisition keeps an old first-publication binding on five-minute cadence', async () => {
+    const oldBinding = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-18T00:00:00.000Z');
+    const oldBatch = statementBatchFor(oldBinding, '2026-10-18T00:00:00.000Z');
+    const result = await invokeHandler('2026-10-19T07:35:00.000Z', [oldBinding], [], {
+      statementBatches: [oldBatch],
+      statementProgress: [{ org_id: ORG_A, acquired_at: '2026-10-19T06:00:00.000Z' }],
+    });
+    assert(result.body.skipped !== true, `recent report acquisition did not preserve fast cadence: ${JSON.stringify(result.body)}`);
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
+      'recently progressing batch did not run the sweep');
   });
 
   await t.step('AC-CAD-006: a foreign or stale batch identity cannot keep an old binding on five-minute cadence', async (t) => {
