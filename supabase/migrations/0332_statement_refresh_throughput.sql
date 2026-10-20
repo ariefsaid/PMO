@@ -1,4 +1,5 @@
--- 0332 — prune future statement periods and rotate failed native reads without losing publication.
+-- 0332 — record native report attempts and rotate failed reads behind never-attempted work (no plan change:
+-- publish_erp_financial_statements requires the exact plan, so every planned period is still fetched).
 alter table public.erp_financial_statement_report_pending
   add column attempts integer not null default 0 check (attempts >= 0),
   add column last_attempt_at timestamptz;
@@ -181,9 +182,6 @@ begin
     end loop;
   end if;
 
-  delete from public.erp_financial_statement_report_pending
-   where org_id=p_org_id and batch_id=v_batch_id and normalized_report is null
-     and current_start>v_effective_date;
   update public.external_org_bindings set statement_update_delayed=true
    where id=v_binding.id and org_id=p_org_id and external_tier='erpnext';
   select * into v_next from public.erp_financial_statement_report_pending

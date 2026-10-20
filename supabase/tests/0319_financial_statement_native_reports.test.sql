@@ -253,15 +253,8 @@ reset role;
 select is((select array_agg(key order by key)::text from jsonb_object_keys((select result from native_first)) key),
   '{batchId,complete,nextRequest,startedAt}','AC-005 open returns exactly the fixed progress envelope');
 select is((select count(*)::int from public.erp_financial_statement_report_pending
-  where org_id='03190000-0000-0000-0000-000000000001'),
-  (select count(*)::int from public._erp_statement_report_plan((select context from native_context)) plan
-    join public.erp_financial_statement_report_batch b on b.org_id='03190000-0000-0000-0000-000000000001'
-   where plan.current_start<=b.effective_date),
-  'AC-1202 future-start report periods are excluded from pending publication work');
-select is((select count(*)::int from public.erp_financial_statement_report_pending p
-  join public.erp_financial_statement_report_batch b using(org_id,batch_id)
-  where p.org_id='03190000-0000-0000-0000-000000000001' and p.current_start>b.effective_date),0,
-  'AC-1202 first publication does not wait for future-start native reports');
+  where org_id='03190000-0000-0000-0000-000000000001'),248,
+  'AC-005 SQL materializes one complete two-sided company and mapped-project plan');
 select is((select result->'nextRequest'->>'statement' from native_first),'trial_balance',
   'AC-005 plan order begins with company Trial Balance');
 select is((select result->'nextRequest'->>'side' from native_first),'current',
@@ -274,6 +267,15 @@ select is((select (result->'nextRequest')=(select result->'nextRequest' from nat
   select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
     '03190000-0000-0000-0000-000000000101',context) result from native_context) opened),false,
   'AC-1202 a perpetually failing first report rotates behind never-attempted work');
+select throws_ok($$select public.mark_erp_statement_report_attempt(
+  '03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000999',
+  (select (result->>'batchId')::uuid from native_first),(select result->'nextRequest' from native_first))$$,
+  '55000',null,'AC-1202 attempt marking requires the current statement lease holder');
+select throws_ok($$select public.mark_erp_statement_report_attempt(
+  '03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',
+  (select (result->>'batchId')::uuid from native_first),
+  jsonb_set((select result->'nextRequest' from native_first),'{currentStart}','"1999-01-01"'))$$,
+  '22023',null,'AC-1202 attempt marking rejects a selection that is not pending');
 reset role;
 select is((select array_agg(key order by key)::text from jsonb_object_keys((select result->'nextRequest' from native_first)) key),
   '{currentEnd,currentStart,periodKind,priorEnd,priorStart,projectId,side,statement}',
