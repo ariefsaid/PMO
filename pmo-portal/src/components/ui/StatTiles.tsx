@@ -1,9 +1,15 @@
 import React from 'react';
 import { cn } from './cn';
+import { FigureContent } from './FigureContent';
+import { figureTitle } from './figureTitle';
 
 export interface StatTile {
   label: React.ReactNode;
   value: React.ReactNode;
+  /** Exact money value when the visible figure is compact. */
+  exactValue?: string;
+  /** Unavailable reason; visible figure is always an em dash. */
+  unavailableReason?: string;
   /** Positive → success, negative → destructive coloring on the value. */
   tone?: 'pos' | 'neg';
   sub?: React.ReactNode;
@@ -100,8 +106,9 @@ export const StatTiles: React.FC<StatTilesProps> = ({
           >
             <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
             <div
+              title={figureTitle(t)}
               className={cn(
-                'text-[17px] font-bold tracking-[-0.01em] tabular',
+                'min-w-0 break-words text-[17px] font-bold tracking-[-0.01em] tabular',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
                 // uses --success-text (the AA on-canvas variant), same move as destructive-text.
@@ -111,7 +118,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
                 t.tone === 'neg' && 'text-destructive-text',
               )}
             >
-              {t.value}
+              <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
             {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
           </div>

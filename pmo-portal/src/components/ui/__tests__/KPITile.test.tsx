@@ -21,6 +21,35 @@ describe('KPITile', () => {
     expect(screen.getByTestId('kpi-x').className).not.toContain('hover:shadow-');
   });
 
+  it('AC-RD-MONEY-001: shows the short figure; exact amount is the title and screen-reader text', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
+    const figure = screen.getByText('$1.2M');
+    expect(figure).toHaveAttribute('aria-hidden', 'true');
+    expect(figure.closest('[title]')).toHaveAttribute('title', '$1,200,000');
+    expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
+  });
+
+  it('AC-RD-UNAVAIL-001: unavailable figure is a dash; the reason is the title and sr-only text, never the figure', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="Not available yet" unavailableReason="Not available yet" />);
+    const dash = screen.getByText('—');
+    expect(dash).toHaveAttribute('aria-hidden', 'true');
+    expect(dash.closest('[title]')).toHaveAttribute('title', 'Not available yet');
+    expect(screen.getByText('Not available yet', { selector: '.sr-only' })).toBeInTheDocument();
+    expect(screen.queryByText('Not available yet', { selector: ':not(.sr-only)' })).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-GEOM-001 (unit): the figure can shrink and wrap instead of crossing the card edge', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
+    const box = screen.getByText('$1.2M').closest('[title]')!;
+    expect(box.className).toContain('min-w-0');
+    expect(box.className).toContain('break-words');
+  });
+
+  it('RD-077: the help "?" is not dimmed below the 3:1 non-text contrast floor', () => {
+    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" help="About" helpLabel="About this metric" />);
+    expect(screen.getByRole('button', { name: /About this metric/ }).className).not.toMatch(/opacity-/);
+  });
+
   it('renders label + tabular value', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" />);
     expect(screen.getByText('Pipeline value')).toBeInTheDocument();

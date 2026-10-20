@@ -79,15 +79,22 @@ export function formatCurrency(value: number, currency: string): string {
 }
 
 /** Format exact decimal money without converting its whole or fractional units through Number. */
-export function formatExactMoney(value: string | null, currency: string, locale: string): string | null {
+export function formatExactMoney(
+  value: string | null,
+  currency: string,
+  locale: string,
+  opts: { trimZeroFraction?: boolean } = {},
+): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
-    const parts = numberFormatterFor('exact-currency', locale, currency, {
-      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    const trim = opts.trimZeroFraction === true && cents === 0n;
+    const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
+      style: 'currency', currency,
+      minimumFractionDigits: trim ? 0 : 2, maximumFractionDigits: trim ? 0 : 2,
     }).formatToParts(whole);
     const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
     return negative ? `−${body}` : body;
