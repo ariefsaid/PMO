@@ -73,7 +73,9 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('heading', { name: 'Dashboard Eksekutif' })).toBeInTheDocument();
     expect(screen.getByText('Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8.000.000,00');
+    // OD-MONEY-FMT: short figure visible; the exact amount stays in the Bahasa format (title + sr text).
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('$8.0M');
+    expect(screen.getByTestId('kpi-on-hand-margin').querySelector('[title="US$8.000.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Nilai kontrak dalam portofolio saat ini');
     expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getByText('Menunggu persetujuan Anda')).toBeInTheDocument();

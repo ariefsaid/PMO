@@ -140,12 +140,29 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const tile = screen.getByTestId('kpi-on-hand-margin');
-    expect(tile).toHaveTextContent('IDR');
-    expect(tile).toHaveTextContent('USD');
+    // OD-MONEY-FMT: each currency shows once, in the short form (amount plus currency, never "USD $...").
+    expect(tile).toHaveTextContent('IDR 2.0B');
+    expect(tile).toHaveTextContent('$1.0M');
+    expect(tile).not.toHaveTextContent(/USD\s*\$/);
     expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
     expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
       .toHaveAttribute('href', '/administration/accounting#budget-account-map');
     expect(tile).not.toHaveTextContent('Not available yet');
+  });
+
+  it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
+    dashState.data = {
+      ...populated,
+      pipeline_projected_margin: null as unknown as number,
+      pipeline_weighted_value: null as unknown as number,
+    };
+    renderPage();
+    const margin = screen.getByTestId('kpi-pipeline-projected-margin');
+    expect(within(margin).getByText('—')).toBeInTheDocument();
+    expect(within(margin).getByText('No active budget', { selector: '.sr-only' })).toBeInTheDocument();
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(within(weighted).getByText('—').closest('[title]')).toHaveAttribute('title', 'Not available yet');
+    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
   });
 
   it('gives active contract value its own label distinct from contract value on hand', () => {
@@ -288,7 +305,10 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     renderPage();
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Margin on billed work');
     expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
-    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent('$800,000.00');
+    // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the title (goal oracle: right currency).
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(weighted).toHaveTextContent('$800.0K');
+    expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
     // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');

@@ -1267,7 +1267,7 @@
       "result": "{{wins}} won of {{total}} closed", "currencyResult": "{{currency}} {{percent}}% — {{wins}} won of {{total}} closed", "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": { "atRisk": "At risk" },
-    "projectedMargin": { "group": "Pipeline projected margin", "weightedPipelineValue": "Weighted pipeline value", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
+    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",

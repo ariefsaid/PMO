@@ -15,7 +15,8 @@ import {
 import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
-import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
+import { formatCurrencyCents, formatNumber } from '@/src/lib/format';
+import { moneyTotalsFigure } from '@/src/lib/dashboardMoney';
 import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
 import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
 
@@ -24,7 +25,7 @@ const RevenueByProject: React.FC = () => {
   // OWN currency and never converted or added across currencies. The org default only denominates the
   // empty-org zero.
   const { currency: orgCurrency, isResolved: currencyResolved, isError: currencyError } = useOrgCurrencyState();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
   const { data, isPending, isError } = useRevenuePerProject();
@@ -33,10 +34,9 @@ const RevenueByProject: React.FC = () => {
   // Calculate totals (must be before any early return for hooks rules)
   const revenueTotals = useMemo(() => sumPerCurrency(all, (row) => row.total_amount), [all]);
   const openARTotals = useMemo(() => sumPerCurrency(all, (row) => row.open_ar), [all]);
+  // OD-MONEY-FMT: KPI cards show the short form per currency; the exact amounts ride in title + sr text.
   const money = (totals: Array<{ currency: string; amount: number }>) =>
-    totals.length === 0
-      ? formatCurrencyAuto(0, orgCurrency)
-      : totals.map((x) => formatCurrencyAuto(x.amount, x.currency)).join(' · ');
+    moneyTotalsFigure(totals, orgCurrency, i18n.language);
   const totalInvoices = useMemo(
     () => all.reduce((sum, row) => sum + row.invoice_count, 0),
     [all]
@@ -200,7 +200,7 @@ const RevenueByProject: React.FC = () => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
           label={`${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`}
-          value={money(revenueTotals)}
+          {...money(revenueTotals)}
           icon="dollar"
           tone="blue"
           loading={isPending || currencyPending}
@@ -208,7 +208,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label={`${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`}
-          value={money(openARTotals)}
+          {...money(openARTotals)}
           icon="dollar"
           tone="amber"
           loading={isPending || currencyPending}

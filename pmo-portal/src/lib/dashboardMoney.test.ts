@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCompactCurrency } from './format';
-import { formatDashboardMoney, moneyFigure } from './dashboardMoney';
+import { formatDashboardMoney, moneyFigure, moneyTotalsFigure } from './dashboardMoney';
 
 afterEach(() => resetActiveLocale());
 
@@ -53,5 +53,23 @@ describe('AC-RD-MONEY-001 moneyFigure (short visible, exact in metadata)', () =>
       expect(fig.unavailableReason).toBe('Budget not loaded');
       expect(fig.exactValue).toBeUndefined();
     }
+  });
+});
+
+describe('AC-RD-MONEY-001 small amounts', () => {
+  it('omits the exact twin when the short form already is the exact amount', () => {
+    expect(moneyFigure(500, 'USD', 'en-US', 'x')).toEqual({ value: '$500' });
+  });
+});
+
+describe('AC-RD-MONEY-001 moneyTotalsFigure (per-currency totals, never summed)', () => {
+  it('keeps each currency separate in the short and the exact form', () => {
+    const fig = moneyTotalsFigure([{ currency: 'USD', amount: 1_200_000 }, { currency: 'EUR', amount: 3_000 }], 'USD', 'en-US');
+    expect(fig.value).toBe('$1.2M · €3.0K');
+    expect(fig.exactValue).toBe('$1,200,000 · €3,000');
+  });
+  it('an empty org shows a known zero in its own currency', () => {
+    const fig = moneyTotalsFigure([], 'USD', 'en-US');
+    expect(fig).toEqual({ value: '$0' });
   });
 });

@@ -217,12 +217,14 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     };
     renderPage();
     const onHand = screen.getByTestId('mobile-kpi-on-hand');
-    expect(onHand).toHaveTextContent('IDR');
-    expect(onHand).toHaveTextContent('USD');
+    expect(onHand).toHaveTextContent('IDR 2.0B');
+    expect(onHand).toHaveTextContent('$1.0M');
+    expect(onHand).not.toHaveTextContent(/USD\s*\$/);
     expect(onHand).toHaveTextContent('2,000,000,000');
     expect(onHand).toHaveTextContent('1,000,000');
-    expect(onHand).toHaveTextContent('800,000,000');
-    expect(onHand).toHaveTextContent('100,000,000');
+    // OD-MONEY-FMT: the running-text remainder/margin lines use the short form per currency.
+    expect(onHand).toHaveTextContent('IDR 800.0M');
+    expect(onHand).toHaveTextContent('IDR 100.0M');
     expect(onHand).not.toHaveTextContent('Not available yet');
   });
 

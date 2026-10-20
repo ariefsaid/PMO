@@ -16,7 +16,8 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatCurrencyCents, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrencyCents, formatUtcMonthYear } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -30,7 +31,7 @@ const money = (cents: number | null, currency: string) =>
   cents === null ? '—' : formatCurrencyCents(fromCents(cents), currency);
 
 const ManagementPack: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -271,7 +272,11 @@ const ManagementPack: React.FC = () => {
           <div key={tot.currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
             {KPI_MEASURES.map((k) => (
               <KPITile key={k} label={`${label[k]} · ${tot.currency}`}
-                value={m[k] === null ? '—' : formatCurrencyAuto(fromCents(m[k]), tot.currency)} icon="dollar" tone="blue"
+                {...moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, i18n.language,
+                  k === 'backlog'
+                    ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')
+                    : t('uxs03.notAvailableYet', 'Not available yet'))}
+                icon="dollar" tone="blue"
                 help={k === 'backlog' && m[k] === null ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.') : undefined}
                 helpLabel={k === 'backlog' && m[k] === null ? t('uxs34.backlogUnavailable', 'Unavailable') : undefined} />
             ))}

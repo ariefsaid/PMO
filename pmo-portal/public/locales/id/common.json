@@ -1267,7 +1267,7 @@
       "result": "{{wins}} menang dari {{total}} proyek selesai", "currencyResult": "{{currency}} {{percent}}% — {{wins}} menang dari {{total}} proyek selesai", "noRecordedLosses": "{{currency}} — belum ada kekalahan tercatat; {{wins}} menang", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
     "bva": { "atRisk": "Berisiko" },
-    "projectedMargin": { "group": "Margin proyeksi pipeline", "weightedPipelineValue": "Nilai pipeline tertimbang", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
+    "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {
       "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",

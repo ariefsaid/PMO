@@ -71,7 +71,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
     expect(screen.getByText('Status Proyek')).toBeInTheDocument();
     expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$9.000.000,00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9.0M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="US$9.000.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
     expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
@@ -102,7 +103,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   it('sums my contract value, not the whole org', () => {
     renderPane();
     // The server read model supplies assigned projects only; the display preserves the row currency.
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000.00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9.0M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$9,000,000"]')).not.toBeNull();
   });
   it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();

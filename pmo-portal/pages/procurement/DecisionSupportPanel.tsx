@@ -35,6 +35,8 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
@@ -158,22 +160,24 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     });
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
+  // OD-MONEY-FMT: stat tiles are KPI cards - short figure, exact amount in title + sr text.
+  const figure = (amount: number) => moneyFigure(amount, currency, getNumberLocale(), 'Not available yet');
   const tiles = [
-    { label: 'This request', value: formatCurrency(totalValue, currency) },
+    { label: 'This request', ...figure(totalValue) },
     {
       label: 'Reserved',
-      value: formatCurrency(otherReserved, currency),
+      ...figure(otherReserved),
       sub: 'approved, not yet ordered',
     },
     {
       label: 'Available',
-      value: formatCurrency(available, currency),
+      ...figure(available),
       tone: available < 0 ? ('neg' as const) : undefined,
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
+    { label: 'Project budget', ...figure(budgetAmount) },
     {
       label: 'After this request',
-      value: formatCurrency(afterRequest, currency),
+      ...figure(afterRequest),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
       sub: `${afterPct.toFixed(1)}% headroom remaining`,
