@@ -260,18 +260,23 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       <Card variant="bare">
-        <CardHead level={2} className="justify-between text-base">
+        <CardHead
+          level={2}
+          className="text-base"
+          actions={
+            canStartInvoice && (
+              <ProjectBillingStart
+                projectId={projectId}
+                clientId={clientId}
+                onWorkOrder={() => {
+                  navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
+                }}
+                onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
+              />
+            )
+          }
+        >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
-          {canStartInvoice && (
-            <ProjectBillingStart
-              projectId={projectId}
-              clientId={clientId}
-              onWorkOrder={() => {
-                navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
-              }}
-              onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
-            />
-          )}
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -298,18 +303,23 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </Card>
 
       <Card variant="bare">
-        <CardHead level={2} className="justify-between text-base">
+        <CardHead
+          level={2}
+          className="text-base"
+          actions={
+            <>
+              {canAssess && boqRows.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
+                  {t('projectDetail.billing.assessment.record', 'Record progress')}
+                </Button>
+              )}
+              {may('create', 'boqItem') && (
+                <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+              )}
+            </>
+          }
+        >
           {t('projectDetail.billing.boq.title', 'Bill of quantities')}
-          <div className="flex gap-1.5">
-            {canAssess && boqRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                {t('projectDetail.billing.assessment.record', 'Record progress')}
-              </Button>
-            )}
-            {may('create', 'boqItem') && (
-              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
-            )}
-          </div>
         </CardHead>
         <CardPad>
           <DataTable<BoqItemRow>
@@ -327,11 +337,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </Card>
 
       <Card variant="bare">
-        <CardHead level={2} className="justify-between text-base">
+        <CardHead
+          level={2}
+          className="text-base"
+          actions={
+            canBill && (
+              <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            )
+          }
+        >
           {t('projectDetail.billing.claims.title', 'Billing claims')}
-          {canBill && (
-            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
-          )}
         </CardHead>
         <CardPad>
           <DataTable<ProgressClaimWithInvoice>

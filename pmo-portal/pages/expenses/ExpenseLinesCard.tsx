@@ -43,13 +43,14 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
 
   return (
     <Card variant="bare" className="mb-4">
-      <CardHead>
-        <span>{t('expenses.lines.title', 'Lines')}</span>
-        {editable && (
-          <span className="ml-auto">
+      <CardHead
+        actions={
+          editable && (
             <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>
-          </span>
-        )}
+          )
+        }
+      >
+        {t('expenses.lines.title', 'Lines')}
       </CardHead>
       <CardPad>
         {isPending ? (

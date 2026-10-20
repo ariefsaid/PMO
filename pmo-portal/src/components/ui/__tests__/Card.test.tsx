@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Card, CardHead, CardPad } from '../Card';
 
 describe('Card', () => {
@@ -25,7 +27,35 @@ describe('Card', () => {
     render(<CardHead>Pipeline</CardHead>);
     // Default sits one level under the page h1 (no h1 -> h3 skip); explicit level for nested cards.
     const heading = screen.getByRole('heading', { name: 'Pipeline', level: 2 });
-    expect(heading.className).toContain('border-b');
+    expect(heading.parentElement?.className).toContain('border-b');
+  });
+
+  it('CardHead actions sit beside the heading: its accessible name is the title only', async () => {
+    const onClick = vi.fn();
+    render(
+      <CardHead actions={<button type="button" onClick={onClick}>Add line</button>}>Billing summary</CardHead>,
+    );
+    // Exact name: the action's text must not leak into the heading (UIP-005 regression).
+    const heading = screen.getByRole('heading', { name: 'Billing summary', exact: true });
+    expect(heading).not.toContainElement(screen.getByRole('button', { name: 'Add line' }));
+    // The action stays operable and shares the header row.
+    await userEvent.click(screen.getByRole('button', { name: 'Add line' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Add line' }).closest('[class*="border-b"]')).toBe(heading.parentElement);
+  });
+
+  it('CardHead forwards ref, id and tabIndex to the heading element (not the wrapper)', () => {
+    const ref = React.createRef<HTMLHeadingElement>();
+    render(<CardHead ref={ref} id="h" tabIndex={-1} actions={<button type="button">x</button>}>Title</CardHead>);
+    const heading = screen.getByRole('heading', { name: 'Title' });
+    expect(ref.current).toBe(heading);
+    expect(heading).toHaveAttribute('id', 'h');
+    expect(heading).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('CardHead without actions renders no empty actions container', () => {
+    render(<CardHead>Solo</CardHead>);
+    expect(screen.getByRole('heading', { name: 'Solo' }).parentElement?.children).toHaveLength(1);
   });
 
   it('CardHead accepts an explicit heading level', () => {

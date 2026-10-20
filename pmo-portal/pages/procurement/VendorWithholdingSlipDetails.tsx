@@ -35,8 +35,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     if (!suppressArrivalFocus && query.data && titleRef.current) { titleRef.current.focus(); titleRef.current.scrollIntoView({ block: 'nearest' }); }
   }, [query.data, suppressArrivalFocus]);
   const close = () => { onClose(); requestAnimationFrame(() => returnFocus.current?.focus()); };
-  if (query.isLoading) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} className="justify-between">{t('bupot.detailTitle', 'Bukti potong details')}<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></CardHead><CardPad><div role="status" className="space-y-3"><div className="h-4 w-2/3 animate-pulse rounded bg-muted" /><div className="h-4 w-1/2 animate-pulse rounded bg-muted" />{t('bupot.loading', 'Loading bukti potong…')}</div></CardPad></Card>;
-  if (query.isError || !query.data) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} className="justify-between">{t('bupot.detailTitle', 'Bukti potong details')}<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></CardHead><CardPad><p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')}</p><Button onClick={() => void query.refetch()}>{t('bupot.reload', 'Reload')}</Button></CardPad></Card>;
+  if (query.isLoading) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead><CardPad><div role="status" className="space-y-3"><div className="h-4 w-2/3 animate-pulse rounded bg-muted" /><div className="h-4 w-1/2 animate-pulse rounded bg-muted" />{t('bupot.loading', 'Loading bukti potong…')}</div></CardPad></Card>;
+  if (query.isError || !query.data) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead><CardPad><p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')}</p><Button onClick={() => void query.refetch()}>{t('bupot.reload', 'Reload')}</Button></CardPad></Card>;
   const header = query.data.header as unknown as Header;
   const correct = async (event: React.FormEvent) => {
     event.preventDefault(); setError(null); setCorrectionError(null); setCorrectionDatesTouched(true);
@@ -53,11 +53,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     catch (e) { setError(t(`bupot.refusal.${bupotRefusal(e).key}`, 'Unable to void this PMO entry')); }
   };
   return <Card className="mt-3" aria-label={t('bupot.detailTitle', 'Bukti potong details')}>
-    {/* Close sits beside (not inside) the heading so the heading's name is just the title, and no second label clashes with the Card's region name (AC-BUPOT-020/021 getByLabel). */}
-    <div className="flex items-center justify-between gap-2.5 border-b border-border pr-4">
-      <CardHead level={2} ref={titleRef} tabIndex={-1} className="min-w-0 flex-1 border-b-0!">{t('bupot.detailTitle', 'Bukti potong details')}</CardHead>
-      <Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>
-    </div>
+    {/* Close is an `actions` slot, outside the heading, so the heading's name is just the title and no second label clashes with the Card's region name (AC-BUPOT-020/021 getByLabel). */}
+    <CardHead level={2} ref={titleRef} tabIndex={-1} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead>
     <CardPad>
       <dl className="grid gap-3 sm:grid-cols-2">
         <Fact label={t('bupot.slipNumber', 'Issued slip number')} value={header.slip_number} />

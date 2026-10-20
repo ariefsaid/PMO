@@ -605,13 +605,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       )}
 
       <Card variant="bare">
-        <CardHead level={2} className="justify-between text-base">
+        <CardHead
+          level={2}
+          className="text-base"
+          actions={
+            may('create', 'workOrder') && (
+              <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
+                {t('projectDetail.workOrders.action.new', 'New work order')}
+              </Button>
+            )
+          }
+        >
           {t('projectDetail.workOrders.title', 'Work orders')}
-          {may('create', 'workOrder') && (
-            <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
-              {t('projectDetail.workOrders.action.new', 'New work order')}
-            </Button>
-          )}
         </CardHead>
         <CardPad>
           {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`

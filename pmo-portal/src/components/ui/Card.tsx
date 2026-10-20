@@ -51,26 +51,38 @@ export const Card: React.FC<CardProps> = ({
 );
 
 export type CardHeadingLevel = 2 | 3 | 4 | 5 | 6;
-type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'> & { level?: CardHeadingLevel };
+type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'> & {
+  level?: CardHeadingLevel;
+  /**
+   * Controls that live beside the title (buttons, links, menus, file inputs). They render OUTSIDE the
+   * heading so its accessible name stays the title alone. `children` must be title text only.
+   * `className` styles the header row (wrapper); `ref`/`id`/`tabIndex`/aria props go to the heading.
+   */
+  actions?: React.ReactNode;
+};
 
 export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   level = 2,
   className,
   children,
+  actions,
   ...rest
 }, ref) => {
   const Heading = `h${level}` as const;
   return (
-    <Heading
-      ref={ref}
+    <div
       className={cn(
         'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
         className
       )}
-      {...rest}
     >
-      {children}
-    </Heading>
+      <Heading ref={ref} className="flex min-w-0 flex-1 items-center gap-2.5" {...rest}>
+        {children}
+      </Heading>
+      {actions != null && actions !== false && (
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>
+      )}
+    </div>
   );
 });
 CardHead.displayName = 'CardHead';
