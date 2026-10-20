@@ -17,8 +17,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const REQUEST_RESERVE_MS = 250;
 const CONTEXT_RECHECK_ADMISSION_MS = 5_000;
-export const STATEMENT_READ_REQUEST_TIMEOUT_MS = 5_000;
-export const STATEMENT_READ_STAGE_TIMEOUT_MS = 7_000;
+export const STATEMENT_READ_REQUEST_TIMEOUT_MS = 25_000;
+export const STATEMENT_READ_STAGE_TIMEOUT_MS = 75_000;
 const ERROR_CODES = {
   context: 'native-context-unavailable',
   rpc: 'native-batch-unavailable',
@@ -224,7 +224,7 @@ function validateOpenBatch(value: unknown): OpenBatch | null {
   if (typeof value.complete !== 'boolean') return null;
   const nextRequest = value.nextRequest === null ? null : validateSelection(value.nextRequest);
   if (value.nextRequest !== null && nextRequest === null) return null;
-  if (value.complete !== (nextRequest === null)) return null;
+  if (value.complete && nextRequest !== null) return null;
   return { batchId: value.batchId, startedAt: value.startedAt, nextRequest, complete: value.complete };
 }
 
@@ -475,6 +475,14 @@ async function runBatch(input: StatementReportRefreshInput, runtime: Runtime): P
       ...context.client,
       timeoutMs: requestTimeoutMs,
     };
+    const markedAttempt = await rpc(input, 'mark_erp_statement_report_attempt', {
+      p_org_id: input.orgId,
+      p_holder: input.holder,
+      p_batch_id: batch.batchId,
+      p_selection: request,
+    }, runtime);
+    if (!runtime.active || runtime.controller.signal.aborted) return progressResult(batch, staged, ERROR_CODES.deadline);
+    if (!markedAttempt.ok) return progressResult(batch, staged, ERROR_CODES.rpc);
     let fetched: Awaited<ReturnType<typeof fetchStatementReport>>;
     const reportStarted = performance.now();
     runtime.telemetry.phase = 'report';

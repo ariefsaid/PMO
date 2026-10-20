@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ErpClientDeps } from './client.ts';
 import type { StatementReportSide } from './statementReports.ts';
-import { refreshStatementReportBatch, type StatementReportRefreshInput } from './statementReportRefresh.ts';
+import { refreshStatementReportBatch, STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS, type StatementReportRefreshInput } from './statementReportRefresh.ts';
 
 const PROFILE = { erpVersion: '16.33.0', frappeVersion: '16.31.0' } as const;
 const BATCH = '11111111-1111-4111-8111-111111111111';
@@ -203,6 +203,7 @@ function fixture(options: {
         delayed = true;
         return { data: null, error: null };
       }
+      if (name === 'mark_erp_statement_report_attempt') return { data: null, error: null };
       if (name === 'open_erp_statement_report_batch') {
         if (options.openDelayMs) await new Promise((resolve) => setTimeout(resolve, options.openDelayMs));
         const result = options.openByStageCount
@@ -252,6 +253,24 @@ function fixture(options: {
 }
 
 describe('refreshStatementReportBatch', () => {
+  it('AC-1202: a native report taking 20 seconds succeeds within its 25-second request timeout', async () => {
+    vi.useFakeTimers();
+    const h = fixture({
+      opens: [batch(currentRequest), batch(null)],
+      reportFetch: async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 20_000));
+        return response(reportResponse('10.00'));
+      },
+    });
+    expect(STATEMENT_READ_REQUEST_TIMEOUT_MS).toBe(25_000);
+    expect(STATEMENT_READ_STAGE_TIMEOUT_MS).toBe(75_000);
+    const pending = refreshStatementReportBatch(h.input);
+    await vi.advanceTimersByTimeAsync(20_000);
+    const result = await pending;
+    expect(result).toMatchObject({ status: 'published', staged: 1, complete: true });
+    expect(h.nativeRequests).toHaveLength(1);
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
   });
@@ -268,8 +287,8 @@ describe('refreshStatementReportBatch', () => {
 
     expect(result).toMatchObject({ status: 'published', batchId: BATCH, staged: 2, complete: true, snapshotId: SNAPSHOT });
     expect(h.rpcCalls.map(({ name }) => name)).toEqual([
-      'mark_erp_statement_report_refresh_attempt', 'open_erp_statement_report_batch', 'stage_erp_statement_report', 'open_erp_statement_report_batch',
-      'stage_erp_statement_report', 'open_erp_statement_report_batch', 'publish_erp_financial_statements',
+      'mark_erp_statement_report_refresh_attempt', 'open_erp_statement_report_batch', 'mark_erp_statement_report_attempt', 'stage_erp_statement_report', 'open_erp_statement_report_batch',
+      'mark_erp_statement_report_attempt', 'stage_erp_statement_report', 'open_erp_statement_report_batch', 'publish_erp_financial_statements',
     ]);
     for (const call of h.rpcCalls) {
       expect(call.args.p_org_id).toBe(ORG);
@@ -497,7 +516,7 @@ describe('refreshStatementReportBatch', () => {
   it('AC-005: an admission response arriving after the fixed segment deadline cannot start ERP work', async () => {
     vi.useFakeTimers();
     const h = fixture({ admissionDelayMs: 8_000 });
-    const pending = refreshStatementReportBatch(h.input);
+    const pending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 7_000 });
 
     await vi.advanceTimersByTimeAsync(7_000);
     const result = await pending;
@@ -638,7 +657,7 @@ describe('refreshStatementReportBatch', () => {
         return response(reportResponse(count === 1 ? '10.00' : '20.00'));
       },
     });
-    const firstPending = refreshStatementReportBatch(h.input);
+    const firstPending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 5_000 });
     await vi.advanceTimersByTimeAsync(3_500);
     const first = await firstPending;
 
@@ -662,7 +681,7 @@ describe('refreshStatementReportBatch', () => {
         return response(reportResponse('10.00'));
       },
     });
-    const firstPending = refreshStatementReportBatch(h.input);
+    const firstPending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 7_000 });
     await vi.advanceTimersByTimeAsync(2_500);
     const first = await firstPending;
 
@@ -704,7 +723,7 @@ describe('refreshStatementReportBatch', () => {
   it('AC-005: stops the shared stage deadline during cumulative metadata reads', async () => {
     vi.useFakeTimers();
     const h = fixture({ metadataDelayMs: 4_000 });
-    const pending = refreshStatementReportBatch(h.input);
+    const pending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 7_000 });
     await vi.advanceTimersByTimeAsync(7_001);
     const result = await pending;
     await vi.advanceTimersByTimeAsync(10_000);
@@ -725,7 +744,7 @@ describe('refreshStatementReportBatch', () => {
         return response(reportResponse());
       },
     });
-    const pending = refreshStatementReportBatch(h.input);
+    const pending = refreshStatementReportBatch({ ...h.input, remainingTickBudgetMs: 7_000 });
     await vi.advanceTimersByTimeAsync(7_001);
     const result = await pending;
     await vi.advanceTimersByTimeAsync(10_000);
