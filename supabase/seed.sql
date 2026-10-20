@@ -124,7 +124,18 @@ insert into companies (id, name, type) values
   ('c0000000-0000-0000-0000-000000000008', 'SunVolt Modules Co.',       'Vendor'),
   ('c0000000-0000-0000-0000-000000000009', 'VoltEdge Inverters',        'Vendor'),
   ('c0000000-0000-0000-0000-000000000010', 'RackMount Structures',      'Vendor'),
-  ('c0000000-0000-0000-0000-000000000011', 'CableCore Electrical',      'Vendor')
+  ('c0000000-0000-0000-0000-000000000011', 'CableCore Electrical',      'Vendor'),
+  -- Additional synthetic clients keep unrelated seeded projects distinct
+  ('c0000000-0000-0000-0000-000000000012', 'Pinecrest Paper Products',  'Client'),
+  ('c0000000-0000-0000-0000-000000000013', 'Westhaven Data Services',   'Client'),
+  ('c0000000-0000-0000-0000-000000000014', 'Stonebridge Cold Storage',  'Client'),
+  ('c0000000-0000-0000-0000-000000000015', 'Redwood Transit Group',     'Client'),
+  ('c0000000-0000-0000-0000-000000000016', 'Lakeside Packaging Works',  'Client'),
+  ('c0000000-0000-0000-0000-000000000017', 'Brighton Medical Supply',   'Client'),
+  ('c0000000-0000-0000-0000-000000000018', 'Fairview Building Partners','Client'),
+  ('c0000000-0000-0000-0000-000000000019', 'Cedar Grove Research',      'Client'),
+  ('c0000000-0000-0000-0000-000000000020', 'Summit Valley Retail',      'Client'),
+  ('c0000000-0000-0000-0000-000000000021', 'Brookfield Civic Services', 'Client')
 on conflict (id) do nothing;
 
 -- ============================================================
@@ -236,35 +247,35 @@ values
   -- ── e2e isolation fixtures (UNCHANGED — only budgets added below) ─────────────
   -- P011 used exclusively by AC-SP drilldown spec
   ('40000000-0000-0000-0000-000000000011','P011','Highfield Bridge Survey','Tender Submitted',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000019','00000000-0000-0000-0000-0000000000a2',
    950000,'exclusive',0,0,0,null,null),
   -- P012 used exclusively by AC-1011 win-a-deal e2e
   ('40000000-0000-0000-0000-000000000012','P012','Eastgate Depot Upgrade','Tender Submitted',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000020','00000000-0000-0000-0000-0000000000a2',
    1000000,'exclusive',0,0,0,null,null),
   -- P013 used exclusively by AC-DEL-022 delivery-milestones e2e (zero milestones intentional)
   ('40000000-0000-0000-0000-000000000013','P013','Seabridge Terminal Delivery','Ongoing Project',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000021','00000000-0000-0000-0000-0000000000a2',
    2000000,'exclusive',0,2000000,0,null,null),
   -- P002 Tender Submitted (stale last_update for AC-1117 / pipeline attention)
   ('40000000-0000-0000-0000-000000000002','P002','Northwind ERP Rollout','Tender Submitted',
-   'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000016','00000000-0000-0000-0000-0000000000a2',
    1200000,'exclusive',0,0,0,null,null),
   -- SV-2310 PQ Submitted (pipeline fixture for AC-IXD-WP-001/002 procurement specs)
   ('40000000-0000-0000-0000-000000000003','SV-2310','Riverside Plastics Phase 2 Scoping','PQ Submitted',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000017','00000000-0000-0000-0000-0000000000a2',
    800000,'exclusive',0,0,0,null,null),
   -- P001 Ongoing (timesheet / task fixture for e2e)
   ('40000000-0000-0000-0000-000000000001','P001','Innovate Corp HQ Fit-Out','Ongoing Project',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000015','00000000-0000-0000-0000-0000000000a2',
    5000000,'exclusive',0,4700000,2100000,'2026-01-06','2026-12-18'),
   -- P003 Ongoing (additional on-hand fixture for margin)
   ('40000000-0000-0000-0000-000000000004','P003','Acme Internal Platform','Ongoing Project',
-   'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
+   null,'00000000-0000-0000-0000-0000000000a2',
    3000000,'exclusive',0,2000000,1900000,'2026-02-01','2026-11-30'),
   -- P004 Loss Tender (win-rate denominator)
   ('40000000-0000-0000-0000-000000000005','P004','Coastal Depot Bid','Loss Tender',
-   'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
+   'c0000000-0000-0000-0000-000000000018','00000000-0000-0000-0000-0000000000a2',
    650000,'exclusive',0,0,0,null,null)
 on conflict (id) do nothing;
 
