@@ -10,6 +10,85 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.24.0](https://github.com/ariefsaid/PMO/compare/v0.23.0...v0.24.0) (2026-10-20)
+
+
+### Features
+
+* **admin:** migrate admin tools tables to DataTable (T8) ([#1259](https://github.com/ariefsaid/PMO/issues/1259)) ([87ebcc1](https://github.com/ariefsaid/PMO/commit/87ebcc15716196432552e8e824f44f51b7aadce6))
+* **billing:** quiet the Billing tab — non-zero figures only, one tax label, fold empty quantity billing (SUB-B) ([4a7e9c2](https://github.com/ariefsaid/PMO/commit/4a7e9c22157ca404cc5485cd9a59d6cbbd07e3f6))
+* **budget:** budget line items, forecast grid and account map adopt DataTable (T5) ([1b9476e](https://github.com/ariefsaid/PMO/commit/1b9476ed2bbf64f438f0d018f5591702d3a396aa))
+* **budget:** budget tab subtraction - forecast only with an Active version, one incomplete line, no single-version bar or footer total (SUB-D) ([584d7ce](https://github.com/ariefsaid/PMO/commit/584d7ceeb221be9c7ff713cf405f918c5f3edb9a))
+* **dashboard:** aging report date and basis once per card, not per party row (SL-F) ([bec9ab8](https://github.com/ariefsaid/PMO/commit/bec9ab8b3c5dcc74d5cfc1401897ea78a0c52971))
+* **dashboard:** approvals tile and mobile band only while something waits (SL-A) ([d059883](https://github.com/ariefsaid/PMO/commit/d059883e9d76af7d54b2747b9b19e00a6359103e))
+* **dashboard:** one risk note; no uncomputable margin tile or Active projects tile (SL-B) ([c44a333](https://github.com/ariefsaid/PMO/commit/c44a33309c3e1587e697538d0b4bd0c9c074db20))
+* **dashboard:** short-form money on KPI tiles and stat tiles, exact in title and sr text; dash-with-reason for unknowns (RD-S1) ([6757154](https://github.com/ariefsaid/PMO/commit/6757154719896bae500df8d7a77d5d273feb3ace))
+* **expenses:** move expense and receipt tables onto the shared table (T6) ([#1249](https://github.com/ariefsaid/PMO/issues/1249)) ([e1385a1](https://github.com/ariefsaid/PMO/commit/e1385a172cfa4f9187671d6ce89db1dde500d122))
+* **finance:** invoice form drops tax-base, prompt, helper and ERP standing lines; no e-Faktur on drafts (FIN-S3) ([336324e](https://github.com/ariefsaid/PMO/commit/336324eadfeed61d409f74804ab60f1d5059f10c))
+* **finance:** invoice list on the shared table, one primary cell, 7 columns; drop project filter, sort button, Date/Received columns, Browse Projects (FIN-S1, T4) ([d48bd67](https://github.com/ariefsaid/PMO/commit/d48bd676d9b45ab82f99f9e7c21fbf859511434c))
+* **finance:** invoice record states each fact once, shows evidence only when it exists (FIN-S2) ([88fbdce](https://github.com/ariefsaid/PMO/commit/88fbdce5a4828fd91448d3617f47659976406f45))
+* **finance:** receipts list to seven columns; record shows only figures that say something; one outstanding sentence on the form (FIN-S5) ([10e5570](https://github.com/ariefsaid/PMO/commit/10e5570518939a1b75eff9b290e8707e5974a792))
+* **fx:** quiet equivalents — nothing when unsupported, undated or loading; one short failure line, no Retry (FIN-S4) ([1d2ac44](https://github.com/ariefsaid/PMO/commit/1d2ac44d51985069d1950b0786a129d2ee21bd64))
+* **history:** kind chips only when needed; relative time only (SUB-G) ([897fd57](https://github.com/ariefsaid/PMO/commit/897fd57e8fe0bc81be3bf8e18709a124c2847372))
+* **i18n:** per-feature translation namespaces + guard ([#1070](https://github.com/ariefsaid/PMO/issues/1070)) ([3b45483](https://github.com/ariefsaid/PMO/commit/3b454831ab8d95d01383fdec5023a0b137bf9989))
+* **procurement:** move line items and quote comparison onto the shared table (T7) ([#1250](https://github.com/ariefsaid/PMO/issues/1250)) ([d7ef875](https://github.com/ariefsaid/PMO/commit/d7ef87525125aa3982de218229be927e0c529284))
+* **project-tabs:** drop restating subtitles, duplicate empty actions, document count, Next line; New revision to row menu (SUB-E) ([2841520](https://github.com/ariefsaid/PMO/commit/2841520d12c60501bd4b535964c3520149540fa3))
+* **project:** compact header strip, one details disclosure (PD-A) ([2ee0b54](https://github.com/ariefsaid/PMO/commit/2ee0b54d6e4773b93a7f9be2d29a9d2784c5458e))
+* **project:** opportunity lens shows only what the deal state needs (SUB-I) ([a275bb8](https://github.com/ariefsaid/PMO/commit/a275bb836a17d669468c1700f16916e43d5039f9))
+* **projects:** adopt shared DataTable hierarchy (T2) ([869a185](https://github.com/ariefsaid/PMO/commit/869a1859f250bd59a6635a73a8872fc3743449bf))
+* **projects:** clarify overview spending setup ([#1044](https://github.com/ariefsaid/PMO/issues/1044)) ([268ca8e](https://github.com/ariefsaid/PMO/commit/268ca8e207ce703e5d52f44e4e21de60b01f18e3))
+* **projects:** no empty phase line; pre-win has no work orders or billing tab (SUB-A) ([7306e7d](https://github.com/ariefsaid/PMO/commit/7306e7d9f72d8197902d463a92be278a93650918))
+* **projects:** overview renders only blocks with data (PD-B) ([49ce89f](https://github.com/ariefsaid/PMO/commit/49ce89f91701efc85ad042242805c0194186f538))
+* **projects:** project finances shows fewer lines (PD-C) ([211c53a](https://github.com/ariefsaid/PMO/commit/211c53a1d935ddcad61cb0e29955d3cd5e021480))
+* **reports:** management pack drops the position section, keeps one Export and no monthly-scope lines; project table totals per currency with full amounts (FIN-S8, T10, [#1260](https://github.com/ariefsaid/PMO/issues/1260)) ([8b557a4](https://github.com/ariefsaid/PMO/commit/8b557a4fc005bc542cace37b0a1c8b4d590f8185))
+* **revenue:** revenue by project - two money tiles, one clickable Unassigned row, export-only currency, full amounts with per-currency totals; orphaned copy removed (FIN-S6, T10) ([0458df2](https://github.com/ariefsaid/PMO/commit/0458df21b8139e81d8afd3bdb6a7a46652464cef))
+* **sales:** neutral funnel bars, board stage names in the table, mixed-currency stages show a dash with the reason (RD-S5) ([19e62da](https://github.com/ariefsaid/PMO/commit/19e62dad768010cd82265ad6d8af40179f40b44a))
+* **sales:** pipeline table on the shared primary-cell contract; phone has no view toggle (T4) ([0eb9689](https://github.com/ariefsaid/PMO/commit/0eb96893091aa36708915bc591e21993df41d5c4))
+* **shell:** drop Vendors and the My Tasks sub-line from the rail; My integrations moves to the account menu (FIN-S9) ([5afd50e](https://github.com/ariefsaid/PMO/commit/5afd50efef87b0370361af288357f2cff2878163))
+* **table:** DataTable hierarchy contract + saved widths everywhere (T1) ([b9a0aa8](https://github.com/ariefsaid/PMO/commit/b9a0aa8dcb6b91d5a4f123cefdeff9b67fe66cdc))
+* **table:** TanStack-backed DataTable with resizable columns ([#1232](https://github.com/ariefsaid/PMO/issues/1232)) ([e72f0d7](https://github.com/ariefsaid/PMO/commit/e72f0d7aa5fd36194d85077b039046156592dbfc))
+* **tasks:** ClickUp card shows only when connected or linked; linked is one line (SUB-F) ([1c11e8d](https://github.com/ariefsaid/PMO/commit/1c11e8d69522b2024cce3df6a7db6b38a1052316))
+* **timesheets:** weekly grid adopts DataTable - sticky-left project column, editable cells, totals in the table foot (T9) ([5ba3cfb](https://github.com/ariefsaid/PMO/commit/5ba3cfbf44766e47c6714ba166d1b617134555c6))
+* **ui:** Base UI confirmation dialog pilot (ADR-0090 slice 01) ([2188fe0](https://github.com/ariefsaid/PMO/commit/2188fe0b335d1d9e1ee84d2d605d276ec2b319d2))
+* **ui:** short-form figure contract for KPITile/StatTiles with exact title + sr text (RD-S1) ([4a7e27a](https://github.com/ariefsaid/PMO/commit/4a7e27ac90d7bb8eb4a72590ed8a2707bcc852a3))
+* v0.24 declutter, shared tables, dashboards and accounting-format statements ([eace9e7](https://github.com/ariefsaid/PMO/commit/eace9e7d903f44f376c295e5b0c5b695fa3c40f8))
+* v0.24 declutter, shared tables, dashboards and accounting-format statements ([#1265](https://github.com/ariefsaid/PMO/issues/1265)) ([eace9e7](https://github.com/ariefsaid/PMO/commit/eace9e7d903f44f376c295e5b0c5b695fa3c40f8))
+* **work-orders:** drawdown only with work orders, one tax label, trim per-row repetition (SUB-C) ([f87c0ed](https://github.com/ariefsaid/PMO/commit/f87c0edc6df53b0f489beaf7ba83152af0e36ce4))
+
+
+### Bug Fixes
+
+* **admin:** explain retained unavailable account drafts ([#1179](https://github.com/ariefsaid/PMO/issues/1179)) ([db6a604](https://github.com/ariefsaid/PMO/commit/db6a604e095599768a870003db559fc19e5bfe75))
+* **dashboard:** correct money figure fallback and locale (RD-S1) ([33f7fef](https://github.com/ariefsaid/PMO/commit/33f7fefade59cbcc8dd0415a01921622403b7227))
+* **dashboard:** make unknown figures explicit (RD-C1, RD-C2) ([ddd389c](https://github.com/ariefsaid/PMO/commit/ddd389c9db8623c85e36bccb30812b034492db93))
+* **dashboard:** PM dashboard delivery-only counts, visible names, labelled margin ([#1238](https://github.com/ariefsaid/PMO/issues/1238)) ([#1253](https://github.com/ariefsaid/PMO/issues/1253)) ([28599e3](https://github.com/ariefsaid/PMO/commit/28599e3fdacc9a2924b26b6f528ca13c20e90d2a))
+* **dashboard:** RD-S1 discover fixes - exact approval money, revealable unknowns, short-form minors (RD-S1) ([ecc30d5](https://github.com/ariefsaid/PMO/commit/ecc30d56f2f7df0df6d58d3db2dc31ac4d8711c2))
+* **dashboard:** truthful executive figures on real data ([#1231](https://github.com/ariefsaid/PMO/issues/1231)) ([d4daa71](https://github.com/ariefsaid/PMO/commit/d4daa71cdf7c104b8a72c30b4010d0fa0e1cc51d))
+* **e2e:** browser listing ignores node:test helpers; budget journey reads the line row, not the new totals row ([07336c2](https://github.com/ariefsaid/PMO/commit/07336c29075646e2c63a749c27f0527180425e9e))
+* **erpnext:** align activation read permissions ([#1217](https://github.com/ariefsaid/PMO/issues/1217)) ([#1222](https://github.com/ariefsaid/PMO/issues/1222)) ([a9cc15e](https://github.com/ariefsaid/PMO/commit/a9cc15e75b5acbfda7e7f107a69250d1cb9c27f8))
+* **finance:** make empty-state actions role-aware (S-26) ([#1230](https://github.com/ariefsaid/PMO/issues/1230)) ([57415f4](https://github.com/ariefsaid/PMO/commit/57415f4280d8bea650cc0746910ba578ee05b616))
+* **i18n:** statement period labels live in the finance namespace ([8fcdeae](https://github.com/ariefsaid/PMO/commit/8fcdeae15a22573bbfed9e3c821500af04ce5015))
+* **i18n:** use phase vocabulary across project surfaces ([#1018](https://github.com/ariefsaid/PMO/issues/1018)) ([#1229](https://github.com/ariefsaid/PMO/issues/1229)) ([f507997](https://github.com/ariefsaid/PMO/commit/f507997ed8f90649712ad9b77238836e2d076488))
+* **project:** keep the Back-to-Sales-Pipeline link on the opportunity lens (SUB-I) ([994ec7c](https://github.com/ariefsaid/PMO/commit/994ec7ca9e44a39084afa6c298f9d9967ba37e85))
+* **projects:** Filters panel defers outside dismissal; e2e journeys follow the calmer table (PL-A) ([a1883cc](https://github.com/ariefsaid/PMO/commit/a1883cca2f3e02997d9b0cab18ba1f06fb3e971f))
+* **projects:** show a lasting message when unlinking fails [v0.24 hold] ([#1206](https://github.com/ariefsaid/PMO/issues/1206)) ([f72bb81](https://github.com/ariefsaid/PMO/commit/f72bb815877b8ae82943bcf62f58e261b174cb45))
+* **purchasing:** dismissible More menu and Bahasa preview labels ([#1207](https://github.com/ariefsaid/PMO/issues/1207)) ([44df072](https://github.com/ariefsaid/PMO/commit/44df072d3a29588fe1e5634d54cd048be4345e10)), closes [#1155](https://github.com/ariefsaid/PMO/issues/1155)
+* **reports:** name the pack project table 'Project' so the As-at field label stays unique (FIN-S8) ([a3348ae](https://github.com/ariefsaid/PMO/commit/a3348aed41b9862c340694daef32815267b437fc))
+* **shell:** vendors stay reachable without CRM; drop dead Browse-projects hints ([77ba9d3](https://github.com/ariefsaid/PMO/commit/77ba9d3b2cf729c3fbbbfd10da042e887dc939c3))
+* **statements:** show statements in standard accounting format ([a02888f](https://github.com/ariefsaid/PMO/commit/a02888f0b0991be50958f78889162e7fbf5f8208))
+* **statements:** unstick first publication on slow ERP hosts ([#1202](https://github.com/ariefsaid/PMO/issues/1202)) ([7b7a71f](https://github.com/ariefsaid/PMO/commit/7b7a71f89767d9eb7d8b3c3813018f31803abf6a))
+* **table:** resize handles — inert when min=max, hover/focus visible, on-boundary line, header tab order, kbd Enter/Shift/Escape, primary column reflow ([#1239](https://github.com/ariefsaid/PMO/issues/1239)) ([b585fb0](https://github.com/ariefsaid/PMO/commit/b585fb0884440eeb757115f18918fae319d5d77e))
+* **timesheets:** shared employee choice labels; recover an unavailable choice in place ([#1153](https://github.com/ariefsaid/PMO/issues/1153), [#1154](https://github.com/ariefsaid/PMO/issues/1154)) ([#1224](https://github.com/ariefsaid/PMO/issues/1224)) ([bdef989](https://github.com/ariefsaid/PMO/commit/bdef98946c6cb934265b85541029997224e0f24a))
+* **ui:** keep card actions outside the heading name ([#1262](https://github.com/ariefsaid/PMO/issues/1262)) ([222af86](https://github.com/ariefsaid/PMO/commit/222af86832dbc4fd1222da636bf14f959cf0265d))
+* **ui:** overview cards shrink on phones; last column's resize handle stays inside the table ([dfb39ef](https://github.com/ariefsaid/PMO/commit/dfb39ef87c74f3e3eda64100a321bf2841f75a15))
+
+
+### Refactors
+
+* **projects:** calm the Projects table, each fact once (PL-A) ([d4bc7a2](https://github.com/ariefsaid/PMO/commit/d4bc7a2e3f2a547766ac17fa2c72787a37c84c87))
+* **projects:** cards and board say each fact once (PL-B) ([de760c9](https://github.com/ariefsaid/PMO/commit/de760c9ca0de093445b8feef3d498b0ed4266b60))
+* **sales:** subtract pipeline description, stage totals, code lines, End customer column, phone toggle/details (SUB-H) ([598aec5](https://github.com/ariefsaid/PMO/commit/598aec5f8f35b66a5ddd533f5f810616328bc3ab))
+
 ## [0.23.0](https://github.com/ariefsaid/PMO/compare/v0.22.0...v0.23.0) (2026-10-19)
 
 
