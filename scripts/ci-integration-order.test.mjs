@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -7,11 +8,54 @@ const packageJson = JSON.parse(
   readFileSync(new URL('../pmo-portal/package.json', import.meta.url), 'utf8'),
 );
 
+test('AC-BSH-003 integration owns two Chromium artifacts with run/attempt/revision provenance and runs diagnostics after shard failures', () => {
+  const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration:'));
+  assert.match(browser, /shard: \[1, 2\]/);
+  assert.match(browser, /max-parallel: 2/);
+  assert.match(browser, /fail-fast: false/);
+  assert.match(browser, /--shard=\$\{\{ matrix\.shard \}\}\/2/);
+  assert.match(workflow, /needs: browser-chromium/);
+  assert.match(workflow, /--project=serial --workers=1/);
+  assert.match(workflow, /--project=consent/);
+  assert.match(workflow, /check-e2e-skips\.mjs[\s\S]*pw-chromium-1\.json[\s\S]*pw-chromium-2\.json[\s\S]*pw-serial\.json[\s\S]*pw-consent\.json/);
+  assert.match(workflow, /test "\$\{\{ needs\.browser-chromium\.result \}\}" = success/);
+  assert.match(workflow, /name: browser-chromium-\$\{\{ matrix\.shard \}\}/);
+  assert.match(workflow, /browser-shard-\$\{\{ matrix\.shard \}\}\.json/);
+  assert.match(workflow, /GITHUB_RUN_ID[\s\S]*GITHUB_RUN_ATTEMPT[\s\S]*GITHUB_SHA/);
+  assert.match(workflow, /Verify Chromium shard provenance and completeness[\s\S]*processOutcome !== 'success'/);
+  assert.match(workflow, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(workflow, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(workflow, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
+  const gateStart = workflow.indexOf('- name: Required integration result requires all browser evidence and audits');
+  const gateEnd = workflow.indexOf('\n      - name:', gateStart + 1);
+  assert.ok(gateStart !== -1 && gateEnd > gateStart, 'required integration gate bounds are invalid');
+  const gate = workflow.slice(gateStart, gateEnd);
+  for (const step of ['chromium_inventory', 'chromium_evidence', 'serial_e2e', 'consent_e2e', 'e2e_skip_audit', 'e2e_timing_audit', 'serve_adapter_dispatch']) {
+    assert.ok(gate.includes(`steps.${step}.outcome`), `gate must require ${step} to succeed`);
+    assert.ok(gate.includes(`test "\${{ steps.${step}.outcome }}" = success`), `gate must fail closed when ${step} is red`);
+  }
+  assert.match(browser, /denoland\/setup-deno@[a-f0-9]+[\s\S]*deno-version: ['\"]2\.7\.11['\"]/);
+  const diagnosticsStart = browser.indexOf('- name: Upload Chromium shard Playwright diagnostics');
+  const diagnosticsEnd = browser.indexOf('  integration:', diagnosticsStart);
+  const diagnostics = browser.slice(diagnosticsStart, diagnosticsEnd);
+  assert.ok(diagnostics.includes('if: ${{ failure() }}'));
+  assert.ok(diagnostics.includes('pmo-portal/playwright-report/'));
+  assert.ok(diagnostics.includes('/tmp/pmo-portal-test-results/'));
+  assert.ok(diagnostics.includes('name: browser-chromium-playwright-${{ matrix.shard }}'));
+});
+
+test('AC-BSH-001 inventory guard self-test rejects incomplete shard coverage', () => {
+  const result = spawnSync(process.execPath, ['scripts/check-browser-shard-inventory.mjs', '--self-test'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /self-test OK/);
+  assert.match(workflow, /node scripts\/check-browser-shard-inventory\.mjs --self-test/);
+});
+
 test('the ordinary e2e lane runs before the served-function smoke lane', () => {
-  const e2eStep = workflow.indexOf('- name: E2E tests (Playwright / Chromium)');
+  const e2eStep = workflow.indexOf('- name: E2E tests (Playwright / serial)');
   const servedFunctionStep = workflow.indexOf('- name: Serve adapter-dispatch (served-fn lane smoke)');
 
-  assert.notEqual(e2eStep, -1, 'ordinary e2e step is missing');
+  assert.notEqual(e2eStep, -1, 'serial e2e step is missing');
   assert.notEqual(servedFunctionStep, -1, 'served-function smoke step is missing');
   assert.ok(
     e2eStep < servedFunctionStep,
@@ -50,7 +94,7 @@ test('no Playwright retries anywhere: a failure runs once (with a trace) and a f
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
   assert.doesNotMatch(workflowCommands, /--reporter=list,json\s*>/);
-  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-chromium\.json/);
+  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-chromium-\$\{\{ matrix\.shard \}\}\.json/);
   assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-serial\.json/);
   assert.match(
     workflow,
@@ -180,6 +224,7 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
     .join('\n');
   const at = (s) => verifyJob.indexOf(s);
   assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
+  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
   assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
   assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
   // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
@@ -258,7 +303,7 @@ test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the
   const verifyJob = workflow.slice(verifyStart, pgtapStart);
   assert.match(verifyJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
 
-  const ordinaryStart = workflow.indexOf('- name: E2E tests (Playwright / Chromium)');
+  const ordinaryStart = workflow.indexOf('- name: E2E tests (Playwright / serial)');
   const skipStart = workflow.indexOf('- name: E2E skip audit — every skip is explained');
   const auditStart = workflow.indexOf('- name: E2E timing budget audit');
   const uploadStart = workflow.indexOf('- name: Upload E2E timing summary');
@@ -278,22 +323,20 @@ test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the
   const uploadStep = workflow.slice(uploadStart, uploadEnd);
   const servedSmoke = workflow.slice(servedStart);
 
-  assert.match(ordinary, /id: ordinary_e2e/);
-  const commands = [
-    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --reporter=list,json',
-    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json',
-    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json',
-  ];
-  for (const command of commands) assert.equal(ordinary.split(command).length - 1, 1, `ordinary lane command must remain exactly once: ${command}`);
-  assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 3, 'timing work must not add a second Playwright invocation');
-  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  assert.match(ordinary, /id: serial_e2e/);
+  assert.match(ordinary, /--project=serial --workers=1/);
+  assert.match(ordinary, /continue-on-error: true/);
+  assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 1, 'serial remains a single-worker invocation; Chromium runs only in the matrix');
+  assert.equal(workflow.split('PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json').length - 1, 1, 'consent remains exactly once');
+  assert.match(workflow, /E2E tests \(Playwright \/ consent\)[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}[\s\S]*continue-on-error: true/);
+  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
   assert.ok(auditStart > skipStart && auditStart < servedStart, 'audit must follow skip validation and precede served-function cleanup');
 
-  const condition = /if: \$\{\{\s*always\(\)\s*&&\s*!cancelled\(\)\s*&&\s*\(steps\.ordinary_e2e\.outcome == 'success' \|\| steps\.ordinary_e2e\.outcome == 'failure'\)\s*\}\}/;
-  assert.match(auditStep, condition, 'audit must run after either success or failure of the ordinary E2E step');
-  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  const condition = /if: \$\{\{\s*always\(\)\s*&&\s*!cancelled\(\)\s*\}\}/;
+  assert.match(auditStep, condition, 'audit must still run after a failed or missing browser shard');
+  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
   assert.doesNotMatch(auditStep, /npx playwright test/);
-  assert.match(uploadStep, condition, 'summary upload must run when the audit or ordinary lane failed');
+  assert.match(uploadStep, condition, 'summary upload must run when the audit or a browser lane failed');
   assert.match(uploadStep, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
   assert.match(uploadStep, /name: e2e-time-budget-summary/);
   assert.match(uploadStep, /path: \/tmp\/pw-time-budget-summary\.json/);
