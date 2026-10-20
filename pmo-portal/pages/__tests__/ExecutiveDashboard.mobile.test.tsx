@@ -282,7 +282,6 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const desktopLabels = [
       'Contracted revenue',
       'Total contract value',
-      'Active projects',
       'Recorded spending',
     ];
     mockIsDesktop = false;
@@ -338,7 +337,7 @@ describe('AC-MOBILE-6: desktop layout unaffected', () => {
     expect(screen.getByTestId('kpi-on-hand-margin')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-active-projects')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument(); // SL-B: count rides on the contract tile
     expect(screen.getByTestId('kpi-total-contract-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-total-spend')).toBeInTheDocument();
     // Standard approvals tile (KPITile variant), not the mobile band
@@ -361,7 +360,7 @@ describe('AC-RD-RISK-001: risk availability', () => {
     mockIsDesktop = false;
     renderPage();
     const atRisk = screen.getByTestId('dashboard-at-risk');
-    expect(atRisk).toHaveTextContent("Can't be checked yet");
+    expect(atRisk).toHaveTextContent("Risk can't be checked yet");
     expect(atRisk).toHaveTextContent(/active budget/i);
     expect(atRisk).not.toHaveTextContent(/\b0\b|all on track/i);
   });

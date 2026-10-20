@@ -123,6 +123,19 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
+  it('AC-SL-B-001: no budgets → one risk note, no forecast-margin tile or headline, no Active projects tile', () => {
+    dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
+    renderPage();
+    expect(screen.getAllByText(/Risk can't be checked yet/)).toHaveLength(1);
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+    const marginCard = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(marginCard).getByText('Pipeline (weighted)')).toBeInTheDocument();
+    expect(within(marginCard).queryByText('Pipeline forecast margin')).toBeNull();
+    expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
+  });
+
   it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
     orgState.currency = 'IDR';
     try {
@@ -179,8 +192,8 @@ describe('ExecutiveDashboard (real data)', () => {
       pipeline_weighted_value: null as unknown as number,
     };
     renderPage();
-    const margin = screen.getByTestId('kpi-pipeline-projected-margin');
-    expect(within(margin).getByRole('button', { name: 'No active budget' })).toHaveTextContent('—');
+    // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
     expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
     expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
@@ -195,17 +208,16 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(active).not.toHaveTextContent('Contract value on hand');
   });
 
-  it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
+  it('a null pipeline margin from zero gross value shows no margin tile and the weighted card title (SL-B)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
-    const margin = screen.getByTestId('kpi-pipeline-projected-margin');
-    expect(within(margin).getByRole('button', { name: 'No pipeline value to calculate margin' })).toBeInTheDocument();
-    expect(within(margin).queryByRole('button', { name: 'No active budget' })).toBeNull();
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('dashboard-pipeline-margin')).getByText('Pipeline (weighted)')).toBeInTheDocument();
   });
 
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
     renderPage();
-    expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
 

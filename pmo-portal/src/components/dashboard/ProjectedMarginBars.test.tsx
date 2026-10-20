@@ -23,16 +23,17 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     expect(screen.getByText('14.1%')).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unknown margin is a dash with the reason attached, never prose in the figure slot', () => {
+  it('AC-RD-UNAVAIL-001 / SL-B: unknown margin drops the headline row entirely, never prose or a lone dash', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
     const group = screen.getByRole('group', { name: /Pipeline projected margin/i });
-    expect(within(group).getByRole('button', { name: 'No active budget' })).toHaveTextContent('—');
+    expect(within(group).queryByText('—')).toBeNull();
+    expect(within(group).queryByText(/probability-adjusted/)).toBeNull();
     expect(within(group).queryByText('Weighted pipeline value')).toBeNull();
   });
 
   it('AC-RD-MONEY-001: bar values are short with the exact amount as title', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    const amount = document.querySelector<HTMLElement>('span[title]:not([title="No active budget"])')!;
+    const amount = document.querySelector<HTMLElement>('span[title]')!;
     expect(amount.title).toContain('600,000');
     expect(amount.title).not.toContain('.00');
     expect(amount.textContent).toMatch(/600\.0K/);

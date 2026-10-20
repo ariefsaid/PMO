@@ -156,13 +156,6 @@ const ExecutiveDashboard: React.FC = () => {
     }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
       known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
     });
-    const weightedPctReason = data.pipeline_projected_margin === null
-      ? mixedPipelineCurrencies
-        ? t('uxs03.mixedCurrencyTotalUnavailable', 'Unavailable for mixed currencies')
-        : data.pipeline_total_value === 0
-          ? t('uxs03.noPipelineValue', 'No pipeline value to calculate margin')
-          : t('uxs03.noActiveBudget', 'No active budget')
-      : undefined;
     const weightedPct = data.pipeline_projected_margin === null
       ? '—'
       : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
@@ -223,7 +216,9 @@ const ExecutiveDashboard: React.FC = () => {
           <Card data-testid="dashboard-pipeline-margin">
             {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
                 ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
-            <CardHead>{t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</CardHead>
+            <CardHead>{data.pipeline_projected_margin === null
+              ? t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')
+              : t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</CardHead>
             <div className="px-4 pb-4 pt-3">
               {pipeError ? (
                 <ListState
@@ -335,6 +330,9 @@ const ExecutiveDashboard: React.FC = () => {
               'Sum of (project value × stage win-probability) across all open stages.',
             )}
           />
+          {/* SL-B: shown only when the margin is computable (no budgets → no tile; one risk note says why). */}
+          {data.pipeline_projected_margin !== null && (
+            <>
           {/* Pipeline forecast margin: PLAIN tile (OD-W5-C2-D — /sales has no margin lens; drilling
               would misrepresent). ONE metric, ONE number — the probability-weighted pipeline
               projected margin only (SP-7). */}
@@ -344,27 +342,14 @@ const ExecutiveDashboard: React.FC = () => {
             icon="up"
             label={t('dashboard.kpi.pipelineMargin.label', 'Pipeline forecast margin')}
             value={weightedPct}
-            unavailableReason={weightedPctReason}
             vs={t('dashboard.kpi.pipelineMargin.vs', 'probability-weighted')}
             help={t(
               'dashboard.kpi.pipelineMargin.help',
               'Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).',
             )}
           />
-          {/* AC-IXD-DASH-W5-C2A: Active projects → /projects?filter=Ongoing.
-              The "N at-risk" vs text stays informational — a11y: whole tile is ONE link; no nested
-              interactive. The dedicated at-risk drill is via the PM at-risk tile. */}
-          <KPITile
-            testId="kpi-active-projects"
-            tone="violet"
-            icon="folder"
-            label={t('dashboard.kpi.activeProjects.label', 'Active projects')}
-            value={String(data.active_projects)}
-            vs={`${data.projects_at_risk} ${t('dashboard.kpi.activeProjects.vs', 'at-risk')}`}
-            to="/projects?filter=Ongoing"
-            linkLabel={t('dashboard.kpi.activeProjects.linkLabel', 'Open the active projects list')}
-            help={t('dashboard.kpi.activeProjects.help', 'Projects currently in delivery.')}
-          />
+            </>
+          )}
           {/* AC-IXD-DASH-W5-C2A: Total contract value → /projects?filter=Ongoing.
               vs copy corrected from "active + closed-out" to "active" — the RPC total_contract_value
               is Ongoing-project only; the drill destination matches the data (honesty fix). */}
@@ -374,7 +359,7 @@ const ExecutiveDashboard: React.FC = () => {
             icon="grid"
             label={t('uxs03.activeContractValue', 'Active contract value')}
             {...figure(data.total_contract_value)}
-            vs={t('dashboard.kpi.totalContractValue.vs', 'active projects')}
+            vs={t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}
             to="/projects?filter=Ongoing"
             linkLabel={t(
               'dashboard.kpi.totalContractValue.linkLabel',

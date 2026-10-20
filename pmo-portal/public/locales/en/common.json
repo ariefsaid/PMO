@@ -1343,12 +1343,6 @@
         "unavailable": "unavailable — check connection", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
       },
-      "activeProjects": {
-        "help": "Projects currently in delivery.",
-        "label": "Active projects",
-        "linkLabel": "Open the active projects list",
-        "vs": "at-risk"
-      },
       "pipelineMargin": {
         "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
         "label": "Pipeline forecast margin",
@@ -1369,7 +1363,6 @@
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
         "linkLabel": "Open active projects to see total contract value",
-        "vs": "active projects",
         "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
@@ -1382,9 +1375,7 @@
       "needsAttention": "Needs attention",
       "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
       "noRiskSummary": "of {{count}} active projects · all on track",
-      "activeProjectsLink": "Open active projects · {{count}} projects",
       "spendLink": "Open spend breakdown · {{amount}} spent to date",
-      "view": "View",
       "breakdown": "Breakdown",
       "approvals": "Approvals",
       "awaitingApproval": "Awaiting your approval",
@@ -4854,8 +4845,8 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "noPipelineValue":"No pipeline value to calculate margin", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
-    "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
+    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
+    "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
     "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",

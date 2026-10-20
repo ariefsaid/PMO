@@ -1343,12 +1343,6 @@
         "unavailable": "tidak tersedia — periksa koneksi", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
         "linkUnavailable": "{{label}}: tidak tersedia", "linkOne": "{{label}}: {{count}} item menunggu", "linkMany": "{{label}}: {{count}} item menunggu", "review": "Tinjau"
       },
-      "activeProjects": {
-        "help": "Proyek yang sedang dalam pelaksanaan.",
-        "label": "Proyek aktif",
-        "linkLabel": "Buka daftar proyek aktif",
-        "vs": "berisiko"
-      },
       "pipelineMargin": {
         "help": "Proyeksi margin yang disesuaikan dengan peluang menang di seluruh pipeline aktif (Σ(nilai − anggaran) / Σ nilai, tertimbang menurut peluang menang tiap tahap).",
         "label": "Margin proyeksi pipeline",
@@ -1369,7 +1363,6 @@
         "help": "Total nilai kontrak di seluruh portofolio aktif.",
         "label": "Total nilai kontrak",
         "linkLabel": "Buka proyek aktif untuk melihat total nilai kontrak",
-        "vs": "proyek aktif",
         "mobileVs": "Nilai kontrak {{count}} proyek yang masih berjalan"
       },
       "totalSpend": {
@@ -1382,9 +1375,7 @@
       "needsAttention": "Perlu perhatian",
       "riskSummary": "dari {{count}} proyek aktif melewati anggaran atau terlambat",
       "noRiskSummary": "dari {{count}} proyek aktif · semua berjalan sesuai rencana",
-      "activeProjectsLink": "Buka proyek aktif · {{count}} proyek",
       "spendLink": "Buka rincian pengeluaran · {{amount}} hingga kini",
-      "view": "Lihat",
       "breakdown": "Rincian",
       "approvals": "Persetujuan",
       "awaitingApproval": "Menunggu persetujuan Anda",
@@ -4854,8 +4845,8 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Pendapatan terikat kontrak", "contractValueOnHand":"Nilai kontrak dalam portofolio saat ini", "activeContractValue":"Nilai kontrak aktif", "noPipelineValue":"Tidak ada nilai pipeline untuk menghitung margin", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
-    "activeBudgetRisk":"Risiko terhadap anggaran aktif", "noActiveBudget":"Belum ada anggaran aktif", "notAvailableYet":"Belum tersedia",
+    "contractedRevenue":"Pendapatan terikat kontrak", "contractValueOnHand":"Nilai kontrak dalam portofolio saat ini", "activeContractValue":"Nilai kontrak aktif", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
+    "notAvailableYet":"Belum tersedia",
     "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
     "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "actualIncompleteCategories":"Aktual belum lengkap: {{count}} kategori biaya belum dipetakan", "openAccountingMap":"Tinjau pemetaan akuntansi", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",

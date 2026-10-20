@@ -116,10 +116,10 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
       { id: 'p-unknown', name: 'Unbudgeted project', contract_value: null, currency: 'USD', budget: null, spent: null, realized_margin_pct: null, contract_remaining: null, status: 'Ongoing Project', project_manager_id: 'pm-1', actual_complete: false, actual_currency: null, budget_currency: null },
     ];
     renderPane();
-    const tile = screen.getByTestId('kpi-at-risk');
-    expect(tile).toHaveTextContent("Can't be checked yet");
-    expect(tile).toHaveTextContent(/active budget/i);
-    expect(tile).not.toHaveTextContent(/\b0\b|all on track/i);
+    // SL-B: no at-risk tile (no false 0); the one page note says why.
+    expect(screen.queryByTestId('kpi-at-risk')).not.toBeInTheDocument();
+    expect(screen.getAllByText("Risk can't be checked yet — no active budget.")).toHaveLength(1);
+    expect(screen.queryByText(/all on track/i)).not.toBeInTheDocument();
   });
   it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();

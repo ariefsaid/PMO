@@ -106,7 +106,7 @@ const AtRiskBlock: React.FC<{
       data-testid="dashboard-at-risk"
       aria-label={isAtRisk
         ? t('dashboard.mobile.atRiskCount', '{{count}} projects at risk', { count: atRisk })
-        : isUnknown ? t('dashboard:risk.unavailable', "Can't be checked yet") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
+        : isUnknown ? t('dashboard:risk.uncheckedNote', "Risk can't be checked yet — no active budget.") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
       className="rounded-lg border border-border bg-card p-4"
     >
       {/* Icon + label row */}
@@ -140,7 +140,7 @@ const AtRiskBlock: React.FC<{
         <span className="text-[12.5px] text-muted-foreground">
           {isAtRisk
             ? t('dashboard.mobile.riskSummary', 'of {{count}} active projects flagged over budget or behind schedule', { count: activeProjects })
-            : isUnknown ? `${t('dashboard:risk.unavailable', "Can't be checked yet")}. ${t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}`
+            : isUnknown ? t('dashboard:risk.uncheckedNote', "Risk can't be checked yet — no active budget.")
               : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
         </span>
       </div>
@@ -156,22 +156,6 @@ const AtRiskBlock: React.FC<{
 
       {/* Drill cells — two links, each a single focusable element */}
       <div className="mt-3 flex gap-[10px]">
-        <Link
-          to="/projects?filter=Ongoing"
-          aria-label={t('dashboard.mobile.activeProjectsLink', 'Open active projects · {{count}} projects', { count: activeProjects })}
-          className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-            {t('dashboard.kpi.activeProjects.label', 'Active projects')}
-          </span>
-          <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {activeProjects}
-          </span>
-          <span className="mt-1 block text-[11px] font-semibold text-primary-text">
-            {t('dashboard.mobile.view', 'View')} →
-          </span>
-        </Link>
-
         <Link
           to="/projects?filter=Ongoing"
           aria-label={t('dashboard.mobile.spendLink', 'Open spend breakdown · {{amount}} spent to date', { amount: spendText })}

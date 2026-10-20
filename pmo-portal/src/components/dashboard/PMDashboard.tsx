@@ -12,6 +12,7 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { BvACard } from './BvACard';
+import { AtRiskProjectsLink } from './AtRiskProjectsLink';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
@@ -84,6 +85,8 @@ export const PMDashboard: React.FC = () => {
 
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets />
+        {/* SL-B: the one risk note, only when risk can't be checked (replaces the at-risk tile). */}
+        {!isPending && !isError && !riskCheckable && atRiskCount === 0 && <AtRiskProjectsLink count={0} checkable={false} />}
       </section>
 
       <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
@@ -100,13 +103,13 @@ export const PMDashboard: React.FC = () => {
           linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
-        <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
-          value={riskCheckable || atRiskCount > 0 ? String(atRiskCount) : t('dashboard:risk.unavailable', "Can't be checked yet")}
+        {(riskCheckable || atRiskCount > 0 || isPending || isError) && <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
+          value={String(atRiskCount)}
           loading={isPending} error={isError}
-          vs={riskCheckable || atRiskCount > 0 ? t('dashboard.pm.budgetUsage', 'budget usage > 90%') : t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}
+          vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
           to="/projects?filter=at-risk"
           linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
-          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />
+          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />}
       </section>
 
       <DashGrid>
