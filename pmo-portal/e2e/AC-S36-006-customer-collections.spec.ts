@@ -542,8 +542,8 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await expect(collections).toContainText('Accounts Receivable');
     const sourcePosition = collections.getByRole('row').filter({ hasText: fixture.erpCustomerId });
     await expect(collections.getByRole('columnheader', { name: '90+' })).toBeVisible();
-    await expect(sourcePosition.getByRole('cell').nth(5)).toContainText('4,250');
-    await expect(sourcePosition.getByRole('cell').nth(5)).toContainText('USD');
+    // RD-015 (#1234): the aging cell shows the currency once, as its symbol — not "$4,250 USD".
+    await expect(sourcePosition.getByRole('cell').nth(5)).toHaveText('$4,250');
 
     const overdueLink = collections.getByRole('link', { name: 'Overdue invoices first', exact: true });
     await expect(overdueLink).toHaveAttribute('href', `/sales-invoices?customer=${fixture.companyId}&overdue=true&sort=oldest-overdue`);
