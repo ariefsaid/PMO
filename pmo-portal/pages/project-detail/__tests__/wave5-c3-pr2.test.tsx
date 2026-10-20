@@ -211,8 +211,7 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     renderHeader('Project Manager');
     // The 5-tile strip remains in the header for finance-forward roles.
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     // The contract-value SoD row is also in the header (not demoted).
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
@@ -220,21 +219,21 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
   it('AC-IXD-PROJ-W5-C3-02: Finance (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Finance');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-03: Executive (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Executive');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-04: Admin (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Admin');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 

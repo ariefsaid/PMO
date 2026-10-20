@@ -45,6 +45,7 @@ import {
 } from '@/src/lib/taxTreatment';
 import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
+import { UnknownFigure } from './UnknownFigure';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -61,6 +62,10 @@ export function hasFinanceView(role: Role | null): boolean {
   if (!role) return false;
   return (['Admin', 'Executive', 'Finance', 'Project Manager'] as Role[]).includes(role);
 }
+
+// Static class maps (Tailwind JIT): the strip is Contract + N other figures, N = 1..4.
+const STRIP_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4', 5: 'md:grid-cols-5' };
+const REST_SPAN: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4' };
 
 /** The staged contract-value change held by the SoD audit confirm — value AND the basis it is on. */
 interface PendingContractValue {
@@ -161,13 +166,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
     actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
-  const actualLabel = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
+  const actualUnavailable = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
     : moneyPosition.headlineState === 'loading'
-      ? t('uxs01.actualLoading', 'Loading Actual…')
+      ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
       : moneyPosition.headlineState === 'partial'
-        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
-        : t('uxs01.actualUnavailable', 'Unavailable');
+        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
+        : <UnknownFigure reason={actualUnavailable} />;
   const actualCoverage = moneyPosition.coverage.kind === 'pmo'
     ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
     : moneyPosition.coverage.kind === 'complete'
@@ -178,8 +184,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const contractAfterCost = moneyPosition.contractAfterCost;
   const contractAfterCostTone = moneyPosition.contractAfterCostTone;
   const contractAfterCostLabel = contractAfterCost === null
-    ? t('uxs01.actualUnavailable', 'Unavailable')
-    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
+    ? null
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
   const spendPct = moneyPosition.spendPercent;
 
   const canEdit = may('edit', 'project');
@@ -201,24 +207,20 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
       {orderReference && <span>{orderReference}</span>}
-      <details className="text-muted-foreground">
-        <summary className="touch-target cursor-pointer rounded-sm underline underline-offset-2">
-          {t('uxs13.moreProjectDetails', 'More project details')}
-        </summary>
-        <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-          <span>{t('projectDetail.header.pmoNumber', 'PMO Project Number')}: {project.pmo_project_number || t('projectDetail.header.notSet', 'Not set')}</span>
-          <span>{t('projectDetail.header.clientCode', 'Client Project Code')}: {project.code?.trim() || t('projectDetail.header.notSet', 'Not set')}</span>
-        </span>
-      </details>
     </div>
   );
 
+  // PD-A: a figure shows only when it has a value (or is transiently "—"); a capability the org does not
+  // use (PMO purchase orders on an ERP-owned org), no budget, or an incomplete Actual gets no tile or prose.
+  const taxDetailsNeeded = project.tax_rate == null
+    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
+  const spendTileValue: string | null = budgetPending || budgetError || activeBudget <= 0 || spendPct === null ? null : `${spendPct}%`;
   const tiles: StatTile[] = [
     {
       label: t('projectDetail.header.tile.contract', 'Contract'),
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
-          <span data-testid="contract-value-amount">{project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}</span>
+          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={actualUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
           <div className="basis-full min-w-0">
             <FxEquivalent
               amount={project.contract_value}
@@ -248,41 +250,36 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
         </div>
       ),
-      // The basis is rendered once below the KPI row so the compact Contract tile
-      // can keep its value and read-only/edit affordance together without wrapping.
+      sub: project.tax_treatment ? (
+        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={taxDetailsNeeded} detailsMode="disclosure" testId="contract-tile-tax-basis" />
+      ) : undefined,
     },
-    {
-      label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
-      value: commitmentSource === 'pmo'
-        ? commitmentPending
-          ? t('uxs01.actualLoading', 'Loading Actual…')
-          : commitmentError || committed === undefined
-            ? t('uxs01.actualUnavailable', 'Unavailable')
-            : formatCurrency(committed, project.currency)
-        : commitmentSource === 'not-tracked'
-          ? t('uxs01.notTrackedInPmo', 'Not tracked in PMO yet')
-          : t('uxs01.actualUnavailable', 'Unavailable'),
-    },
-    // Actual comes from the project-finances source and is withheld unless coverage is complete.
-    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualLabel,
-      sub: actualPosition.complete ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</> : undefined },
-    {
-      label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
-      value: contractAfterCostLabel,
-      ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
-    },
-    {
-      label: t('projectDetail.header.tile.spend', 'Spend'),
-      value: budgetPending
-        ? t('uxs01.budgetLoading', 'Loading budget…')
-        : budgetError
-          ? t('uxs01.actualUnavailable', 'Unavailable')
-          : activeBudget <= 0
-            ? t('uxs01.noActiveBudget', 'No active budget')
-            : spendPct === null
-              ? t('uxs01.actualUnavailable', 'Unavailable')
-              : `${spendPct}%`,
-    },
+    ...(commitmentSource === 'pmo'
+      ? [{
+          label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+          value: commitmentPending
+            ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
+            : commitmentError || committed === undefined
+              ? <UnknownFigure reason={actualUnavailable} />
+              : formatCurrency(committed, project.currency),
+        }]
+      : []),
+    // Actual comes from the project-finances source and is withheld unless coverage is complete;
+    // partial coverage is a one-word flag — the coverage + date live once in Project finances.
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
+      sub: actualPosition.complete
+        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</>
+        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
+    ...(contractAfterCostLabel === null
+      ? []
+      : [{
+          label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+          value: contractAfterCostLabel,
+          ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
+        }]),
+    ...(spendTileValue === null
+      ? []
+      : [{ label: t('projectDetail.header.tile.spend', 'Spend'), value: spendTileValue }]),
   ];
 
   const beginValueEdit = () => {
@@ -556,11 +553,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
                 {t('projectDetail.overview.finance.title', 'Financial summary')}
               </summary>
-              <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:grid-cols-5 md:gap-3">
+              <div className={`mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:gap-3 ${STRIP_COLS[tiles.length] ?? STRIP_COLS[5]}`}>
                 <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
                   className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
-                <StatTiles tiles={tiles.slice(1)} columns={4} variant="bare"
-                  className="gap-x-3 gap-y-2 md:col-span-4 [&>div]:min-w-0" />
+                <StatTiles tiles={tiles.slice(1)} columns={Math.min(tiles.length - 1, 4)} variant="bare"
+                  className={`gap-x-3 gap-y-2 [&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
               </div>
             </details>
           </div>
@@ -569,11 +566,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
                 {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
               </p>
-            </div>
-          )}
-          {project.tax_treatment && (
-            <div className="mb-1 text-[11px] text-muted-foreground">
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} detailsMode="disclosure" testId="contract-tile-tax-basis" />
             </div>
           )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>

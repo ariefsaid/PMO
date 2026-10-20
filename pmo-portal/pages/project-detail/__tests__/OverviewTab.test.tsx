@@ -471,10 +471,11 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
       </ImpersonationProvider>,
     );
 
-  it('DD-MONEY-3: delivery-role summary labels ERP-owned procurement as not tracked, not zero', () => {
+  it('DD-MONEY-3 / PD-A: delivery-role summary has no PMO purchase-orders tile when ERP owns purchasing — never a zero', () => {
     renderFinanceSummary(0, 'not-tracked');
     const aside = screen.getByTestId('financial-summary');
-    expect(aside).toHaveTextContent('Not tracked in PMO yet');
+    expect(aside).not.toHaveTextContent('PMO purchase orders');
+    expect(aside).not.toHaveTextContent('Not tracked in PMO yet');
     expect(aside).not.toHaveTextContent('$0');
   });
 
@@ -502,7 +503,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
     const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
     expect(actualTile).toBeTruthy();
     // This role cannot read the authorized project-finances source; committed PO spend is not a substitute.
-    expect(actualTile!.textContent).toContain('Unavailable');
+    expect(actualTile!.querySelector('.sr-only')).toHaveTextContent('Unavailable');
     expect(actualTile!.textContent).not.toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
   });
@@ -512,7 +513,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
 // finance tile and the contract-value SoD row) left the entire 7,363-test suite green. Two
 // distinct render sites, so two assertions — one would let the other rot.
 describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
-  it('labels the finance tile and the contract-value SoD row from the row itself', () => {
+  it('labels the finance tile (the one place the Overview states the contract basis) from the row itself', () => {
     // ⚑ The finance tile renders ONLY under the delivery-forward lens (D15 / OD-W5-C3-A), so it
     // needs its own render with that flag on — asserting both from the default render is how this
     // oracle would have gone quietly dead a second time.
@@ -526,7 +527,8 @@ describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
     // Both sites live inside the delivery-forward financial summary, so one render covers them —
     // but they are asserted BY NAME, because they can rot independently and a count would not tell.
     expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(screen.getByTestId('overview-contract-value-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.queryByTestId('overview-contract-value-tax-basis')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
     unmount();
   });
 });

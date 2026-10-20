@@ -117,7 +117,9 @@ async function runTabWorkCase(
     await aboveFold(page, initialPanel.getByRole('heading', { name: 'Tasks', exact: true }));
     await aboveFold(page, initialPanel.getByText('ENG — Detail Design Package', { exact: true }));
     await expect(page.getByRole('heading', { name: 'Delivery phases', exact: true })).toHaveCount(0);
-    await expect(page.getByTestId('milestone-summary').getByRole('link', { name: 'Overview' })).toBeVisible();
+    // PD-A: the compact phase line states progress only; Overview is one tab click away, not a second link.
+    await expect(page.getByTestId('milestone-summary')).toBeVisible();
+    await expect(page.getByTestId('milestone-summary').getByRole('link', { name: 'Overview' })).toHaveCount(0);
     if (viewport.width === 390) {
       const financialSummary = page.locator('summary').filter({ hasText: 'Financial summary' });
       await financialSummary.focus();

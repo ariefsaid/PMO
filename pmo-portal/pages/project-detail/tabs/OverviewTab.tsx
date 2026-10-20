@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, Icon, TaxBasisLabel, type StatTile } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, TaxBasisLabel, type StatTile } from '@/src/components/ui';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -13,10 +13,11 @@ import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
-import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { UnknownFigure } from '../UnknownFigure';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -98,64 +99,68 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   const contractAfterCost = moneyPosition.contractAfterCost;
   const contractAfterCostTone = moneyPosition.contractAfterCostTone;
   const contractAfterCostLabel = contractAfterCost === null
-    ? t('uxs01.actualUnavailable', 'Unavailable')
-    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable');
+    ? null
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
   const spendPctTile = moneyPosition.spendPercent;
+  // PD-A: same cuts as the header strip — unknown = "—" + reason, partial = one word, and a figure
+  // with no value (or a capability the org does not use) gets no tile.
+  const unavailableReason = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={unavailableReason} />
+    : <UnknownFigure reason={moneyPosition.headlineState === 'loading'
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : moneyPosition.headlineState === 'partial'
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : unavailableReason} />;
+  const taxDetailsNeeded = project.tax_rate == null
+    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
         {
           label: t('projectDetail.overview.finance.contract', 'Contract'),
           value: (
             <>
-              <span>{project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}</span>
+              <span>{project.contract_value == null ? <UnknownFigure reason={unavailableReason} /> : formatCurrency(project.contract_value, project.currency)}</span>
               <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
             </>
           ),
           // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
           // states the same basis, read off this project's own row.
-          sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} testId="overview-contract-tax-basis" />,
+          sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={taxDetailsNeeded} testId="overview-contract-tax-basis" />,
         },
-        {
-          label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
-          value: commitmentSource === 'pmo'
-            ? commitmentPending
-              ? t('uxs01.actualLoading', 'Loading Actual…')
-              : commitmentError || committedSpend === undefined
-                ? t('uxs01.actualUnavailable', 'Unavailable')
-                : formatCurrency(committedSpend, project.currency)
-            : commitmentSource === 'not-tracked'
-              ? t('uxs01.notTrackedInPmo', 'Not tracked in PMO yet')
-              : t('uxs01.actualUnavailable', 'Unavailable'),
-        },
+        ...(commitmentSource === 'pmo'
+          ? [{
+              label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+              value: commitmentPending
+                ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
+                : commitmentError || committedSpend === undefined
+                  ? <UnknownFigure reason={unavailableReason} />
+                  : formatCurrency(committedSpend, project.currency),
+            }]
+          : []),
         {
           label: t('projectDetail.overview.finance.actual', 'Actual'),
-          value: actualSpendLabel,
-          sub: actualPosition.complete ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</> : undefined,
+          value: actualFigure,
+          sub: actualPosition.complete
+            ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</>
+            : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined,
         },
-        {
-          label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
-          value: contractAfterCostLabel,
-          ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
-        },
-        {
-          label: t('projectDetail.overview.finance.spend', 'Spend'),
-          value: budgetUtilPending
-            ? t('uxs01.budgetLoading', 'Loading budget…')
-            : budgetUtilError
-              ? t('uxs01.actualUnavailable', 'Unavailable')
-              : activeBudget <= 0
-                ? t('uxs01.noActiveBudget', 'No active budget')
-                : spendPctTile === null
-                  ? t('uxs01.actualUnavailable', 'Unavailable')
-                  : `${spendPctTile}%`,
-        },
+        ...(contractAfterCostLabel === null
+          ? []
+          : [{
+              label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+              value: contractAfterCostLabel,
+              ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
+            }]),
+        ...(!budgetUtilPending && !budgetUtilError && activeBudget > 0 && spendPctTile !== null
+          ? [{ label: t('projectDetail.overview.finance.spend', 'Spend'), value: `${spendPctTile}%` }]
+          : []),
       ]
     : [];
 
   // D15: financial-summary visibility — delivery lens only (on-hand ∪ internal projects).
   const group = projectStatusGroup(project.status as never);
   const isDelivery = showFinanceSummary && (group === 'onHand' || group === 'internal');
-  const isOnHand = showFinanceSummary ? ON_HAND_STATUSES.includes(project.status as string) : false;
 
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
@@ -185,38 +190,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
             <h2 className="mb-3 text-[14px] font-semibold text-foreground">
               {t('projectDetail.overview.finance.title', 'Financial summary')}
             </h2>
-            <StatTiles tiles={financeTiles} columns={5} variant="bare" className="mb-3" />
-            <div
-              data-testid="contract-value-sod"
-              className="flex flex-wrap items-center gap-3 py-1"
-            >
-              <span className="flex items-center gap-2.5">
-                <span className="text-[12.5px] font-semibold text-muted-foreground">
-                  {t('projectDetail.overview.finance.contractValue', 'Contract value')}
-                </span>
-                <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-                  {project.contract_value == null ? t('uxs01.actualUnavailable', 'Unavailable') : formatCurrency(project.contract_value, project.currency)}
-                </span>
-                <TaxBasisLabel
-                  treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
-                  testId="overview-contract-value-tax-basis"
-                />
-                {isOnHand && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                    <Icon name="lock" className="size-3" />
-                    {t('projectDetail.overview.finance.readOnly', 'Read-only')}
-                  </span>
-                )}
-              </span>
-              {isOnHand && (
-                <span className="basis-full text-[12px] text-muted-foreground">
-                  {t(
-                    'projectDetail.overview.finance.lockedNote',
-                    'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.',
-                  )}
-                </span>
-              )}
-            </div>
+            <StatTiles tiles={financeTiles} columns={Math.min(financeTiles.length, 5)} variant="bare" />
           </aside>
         )}
 

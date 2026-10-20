@@ -190,12 +190,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('UIP-005: Tasks keeps compact phase context with an adjacent Overview link, not the full planner', async () => {
+  it('UIP-005 / PD-A: Tasks with no phases shows no phase line at all and not the full planner', async () => {
     await renderAt('/projects/p1/tasks');
     expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
-    const summary = screen.getByTestId('milestone-summary');
-    expect(within(summary).getByText('No delivery phases yet')).toBeInTheDocument();
-    expect(within(summary).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Tasks');
   });
 
@@ -215,6 +214,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
     expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
+    // PD-A: the header status pill is the one status display; the rail has no Status row or help paragraph.
+    expect(within(rail).queryByText('Status')).not.toBeInTheDocument();
+    expect(within(rail).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
