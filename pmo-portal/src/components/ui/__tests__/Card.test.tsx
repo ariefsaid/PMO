@@ -36,7 +36,7 @@ describe('Card', () => {
       <CardHead actions={<button type="button" onClick={onClick}>Add line</button>}>Billing summary</CardHead>,
     );
     // Exact name: the action's text must not leak into the heading (UIP-005 regression).
-    const heading = screen.getByRole('heading', { name: 'Billing summary', exact: true });
+    const heading = screen.getByRole('heading', { name: 'Billing summary' });
     expect(heading).not.toContainElement(screen.getByRole('button', { name: 'Add line' }));
     // The action stays operable and shares the header row.
     await userEvent.click(screen.getByRole('button', { name: 'Add line' }));
