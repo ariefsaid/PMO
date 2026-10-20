@@ -287,7 +287,9 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
     renderPane();
     // Ongoing 4M + Won Pending KoM 2M + On Hold 1M + Close Out 3.6M; Loss Tender + Leads stay excluded.
     expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('4');
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10,600,000.00');
+    // OD-MONEY-FMT: short on the KPI card, the exact sum rides in the figure title.
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
     const spending = screen.getByRole('group', { name: 'Spending vs contract' });
     expect(within(spending).queryByText('My Project C')).toBeNull();
     expect(within(spending).queryByText('My Project E')).toBeNull();
@@ -304,7 +306,7 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
       { ...mine[1], currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR' },
     ];
     renderPane();
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('Not available yet');
+    expect(within(screen.getByTestId('kpi-my-contract-value')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
   });
 });
 
