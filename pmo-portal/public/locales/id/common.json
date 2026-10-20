@@ -2350,7 +2350,6 @@
         "error": "Data penagihan tidak dapat dimuat",
         "exclTax": "belum termasuk PPN",
         "gap": "Pekerjaan selesai, belum ditagih",
-        "noAssessment": "Belum ada penilaian",
         "notSubmitted": "Klaim diterbitkan, belum dikirim",
         "remaining": "Kontrak belum ditagih",
         "title": "Ringkasan penagihan"
@@ -2420,7 +2419,6 @@
       },
       "heading": "Register dokumen",
       "newRevision": "Revisi baru",
-      "newRevisionFor": "Buat revisi baru untuk",
       "noSearchMatch": "Tidak ada dokumen yang cocok dengan pencarian",
       "noSearchMatchSub": "Coba judul, kode, atau kategori lain.",
       "ofWord": "dari",
@@ -2432,7 +2430,6 @@
         "explanation": "Menyetujui dokumen adalah langkah pemisahan tugas, jadi reviewer lain yang harus menyetujui atau menolaknya.",
         "ownDocument": "Anda tidak dapat menyetujui dokumen Anda sendiri"
       },
-      "subheading": "Gambar, spesifikasi, dan transmittal untuk proyek ini. Upload file pada baris Draf.",
       "supersededNotice": "Hanya lihat — lanjutkan di Rev",
       "toast": {
         "added": "Dokumen ditambahkan",
@@ -2760,7 +2757,6 @@
       },
       "newRequest": "Permintaan baru",
       "openRow": "Buka",
-      "subtitle": "Permintaan yang diajukan untuk proyek ini, dilacak sepanjang siklusnya.",
       "title": "Permintaan pembelian"
     },
     "rail": {
@@ -2873,7 +2869,6 @@
       "noTasksInGroup": "Tidak ada tugas di grup ini.",
       "showArchived": "Tampilkan arsip",
       "statusFor": "Status untuk",
-      "subheading": "Rencanakan, tugaskan, dan lacak pekerjaan proyek ini.",
       "subtaskLevel": "Subtugas, level",
       "toast": {
         "archived": "Tugas diarsipkan",
@@ -2999,13 +2994,10 @@
           "awaitingSubmission": "Menunggu dikirim"
         },
         "stillToInvoice": "Sisa untuk ditagih",
-        "summaryNote": "Work Order yang diterbitkan dan ditutup, dikurangi yang sudah ditagih atau masih draf.",
         "summaryTitle": "Penagihan per Work Order",
         "toast": {
           "created": "Draf faktur dibuat",
-          "createdSub": "{{number}} — kirimkan dari Faktur Penjualan.",
-          "nativeCreated": "Draf faktur dibuat di PMO",
-          "nativeCreatedSub": "{{wo}} — orang Finance/Admin kedua menyetujuinya dari Faktur Penjualan."
+          "nativeCreated": "Draf faktur dibuat di PMO"
         },
         "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",
@@ -3019,7 +3011,6 @@
       },
       "clientPo": "PO klien",
       "issueGate": {
-        "title": "Work Order ini harus diterbitkan oleh peninjau lain",
         "body": "Anda yang menetapkan nilainya. Minta peninjau lain yang berwenang untuk meninjau dan menerbitkannya.",
         "peerBody": "Nilai harus ditetapkan oleh atasan Anda atau peninjau aktif dengan jabatan lebih tinggi sebelum pesanan ini dapat diterbitkan.",
         "unstampedBody": "Nilai harus ditetapkan oleh peninjau yang berwenang sebelum pesanan ini dapat diterbitkan."
@@ -5057,16 +5048,11 @@
     }
   },
   "uxs21": {
-    "askIntegrationAdmin": "Minta administrator integrasi untuk menghubungkan ClickUp.",
-    "clickupNotConnected": "ClickUp belum terhubung untuk organisasi ini.",
-    "setupClickUp": "Siapkan ClickUp",
     "listUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
     "listDetailsLoading": "Memuat detail daftar; ID daftar tersimpan: {{listId}}",
-    "unknownInitialSource": "Sumber awal tidak tercatat",
     "initialSourceLabel": "Sumber awal",
     "sourcePmo": "Mulai dengan tugas PMO",
     "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
-    "initialTransferPending": "Proyek terhubung. Transfer tugas awal belum dikonfirmasi. Minta administrator integrasi Anda untuk menyelesaikan transfer awal.",
     "listReadUnavailable": "Detail daftar tidak dapat dimuat ulang. Tautan daftar tersimpan tetap dipertahankan.",
     "retryLists": "Coba muat ulang detail daftar",
     "bindingReadUnavailable": "Detail tautan proyek tidak dapat dimuat ulang. Tautan tersimpan tetap dipertahankan.",
