@@ -81,23 +81,20 @@ export function FinancialStatementsSection({
 
     content = (
       <>
-        <AccountingSnapshotProvenance asOf={state.asOf} updatedLabel={labels.updated} />
-        {(isDelayed || isRefreshing) && (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div
-              role="status"
-              className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-warning-foreground"
-            >
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <AccountingSnapshotProvenance asOf={state.asOf} updatedLabel={labels.updated} />
+          {(isDelayed || isRefreshing) && (
+            <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-warning-foreground">
               {isDelayed && <span>{labels.delayed}</span>}
               {isRefreshing && <span>{labels.refreshing}</span>}
             </div>
-            {canRetry && (
-              <Button variant="outline" loading={isRefreshing} onClick={onRetry}>
-                {labels.retry}
-              </Button>
-            )}
-          </div>
-        )}
+          )}
+          {canRetry && (
+            <Button variant="outline" size="sm" loading={isRefreshing} onClick={onRetry}>
+              {labels.retry}
+            </Button>
+          )}
+        </div>
         {state.hasActivity ? (
           <div className="min-w-0">{children}</div>
         ) : (
@@ -117,9 +114,9 @@ export function FinancialStatementsSection({
         <CardHead level={2} id={headingId} className="min-w-0 flex-wrap break-words">
           {title}
         </CardHead>
-        <CardPad className="flex min-w-0 flex-col gap-4">
+        <CardPad className="flex min-w-0 flex-col gap-3">
           {context !== undefined && context !== '' && (
-            <p className="min-w-0 break-words text-sm text-muted-foreground">{context}</p>
+            <p className="min-w-0 break-words text-xs text-muted-foreground">{context}</p>
           )}
           {content}
         </CardPad>

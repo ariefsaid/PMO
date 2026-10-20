@@ -161,12 +161,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// The trial balance shows one period at a time (statement format); its period switch reaches the
+// previous period's saved rows and returns to the current period.
+function expectBothTrialBalancePeriods() {
+  expect(screen.getByText('Current native row')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Previous period' }));
+  expect(screen.getByText('Prior native row')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Current period' }));
+  expect(screen.getByText('Current native row')).toBeInTheDocument();
+}
+
 describe('Financial statements company scope (AC-007)', () => {
   it('AC-007: uses the safe read context, mapped PMO names, and the supplied current/prior month pair', async () => {
     renderPage();
 
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
-    expect(screen.getByText('Prior native row')).toBeInTheDocument();
+    expectBothTrialBalancePeriods();
     expect(screen.getByText(/Read Company Label/)).toBeInTheDocument();
     expect(screen.queryByText('Catalogue Company Label')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Statement' })).toHaveValue('trial_balance');
@@ -198,8 +208,7 @@ describe('Financial statements company scope (AC-007)', () => {
     projectGetSpy.mockRejectedValue(new Error('private project lookup failure'));
     await client.invalidateQueries({ queryKey: ['financial-statements', 'mapped-project-name'] });
 
-    expect(await screen.findByText(/Some mapped project names are unavailable/)).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Named delivery project/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('option', { name: /Named delivery project/ })).not.toBeInTheDocument());
     expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
     expect(screen.queryByText('private project lookup failure')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('');
@@ -217,17 +226,18 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'quarter' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'quarter', periodStart: '2026-04-01' })));
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'balance_sheet' } });
-    expect(await screen.findAllByText(/As at/)).toHaveLength(2);
+    expect(await screen.findByText(/As at Jun 30, 2026/)).toBeInTheDocument();
+    expect(screen.getAllByText(/As at/)).toHaveLength(1);
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
       periodKind: 'quarter', periodStart: '2026-04-01', statement: 'balance_sheet', viewKind: 'account_breakdown',
     }));
-    expect(screen.getByText(/As at Jun 30, 2026/)).toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveAccessibleName(/As at Jun 30, 2026/);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'fiscal_year' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'fiscal_year', periodStart: '2026-04-01' })));
   });
 
-  it('AC-008 support: delayed complete reads retry the same selection and retain the saved window and values during a failed refresh', async () => {
+  it('AC-008 support: delayed complete reads retry the same selection and retain the saved update time and values during a failed refresh', async () => {
     let rejectRefresh: ((error: Error) => void) | undefined;
     readSpy
       .mockImplementationOnce(async (input: GetFinancialStatementInput) => read(input, true))
@@ -235,24 +245,22 @@ describe('Financial statements company scope (AC-007)', () => {
     renderPage();
 
     expect(await screen.findByText('Current native row')).toBeInTheDocument();
-    expect(screen.getByText('Prior native row')).toBeInTheDocument();
+    expectBothTrialBalancePeriods();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
-    const captureWindow = screen.getByText(/Capture window:/).textContent;
+    const updated = screen.getByTestId('snapshot-provenance').textContent;
     const callsBeforeRetry = readSpy.mock.calls.length;
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(readSpy).toHaveBeenCalledTimes(callsBeforeRetry + 1));
     expect(await screen.findByText(/Refreshing statements/)).toBeVisible();
-    expect(screen.getByText('Current native row')).toBeInTheDocument();
-    expect(screen.getByText('Prior native row')).toBeInTheDocument();
-    expect(screen.getByText(captureWindow ?? '')).toBeInTheDocument();
+    expectBothTrialBalancePeriods();
+    expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent(updated ?? '');
 
     await act(async () => { rejectRefresh?.(new Error('private refresh failure')); });
     await waitFor(() => expect(screen.getByText('Update delayed')).toBeVisible());
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
-    expect(screen.getByText('Current native row')).toBeInTheDocument();
-    expect(screen.getByText('Prior native row')).toBeInTheDocument();
-    expect(screen.getByText(captureWindow ?? '')).toBeInTheDocument();
+    expectBothTrialBalancePeriods();
+    expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent(updated ?? '');
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
       periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
     }));
@@ -292,7 +300,9 @@ describe('Financial statements company scope (AC-007)', () => {
     });
     await waitFor(() => expect(screen.queryByText('Current native row')).not.toBeInTheDocument());
     expect(requestedInputs().filter((input) => input.projectId === projectId)).toHaveLength(1);
-    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('');
+    // With no project admitted any more there is nothing to scope; the cleared content stays cleared.
+    expect(screen.queryByRole('combobox', { name: 'Scope' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Current native row')).not.toBeInTheDocument();
   });
 
   it('AC-007: a denied direct link renders calm denial copy and makes no statement or project request', async () => {
@@ -304,3 +314,4 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(projectGetSpy).not.toHaveBeenCalled();
   });
 });
+

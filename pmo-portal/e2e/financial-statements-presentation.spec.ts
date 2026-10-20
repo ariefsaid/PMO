@@ -293,18 +293,19 @@ async function saveMountedScreenshot(page: Page, surface: 'company' | 'project',
     await sectionHeading.locator('xpath=../../..').screenshot({ path: join(directory, `${surface}-${width}-${locale}-${theme}-section.png`) });
   }
   if (surface === 'company' && width === 390) {
-    const priorPanel = page.getByRole('region', { name: /Previous period|Periode sebelumnya/ }).last();
-    await priorPanel.scrollIntoViewIfNeeded();
+    await page.getByRole('button', { name: /Previous period|Periode sebelumnya/ }).click();
+    const statementTable = page.getByRole('table');
+    await statementTable.scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(directory, `${surface}-${width}-${locale}-${theme}-prior-viewport.png`) });
-    const finalPriorRow = priorPanel.locator('[data-testid="dt-card-branch"] li').last();
-    await finalPriorRow.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: join(directory, `${surface}-${width}-${locale}-${theme}-prior-bottom-viewport.png`) });
+    await page.getByRole('button', { name: /Current period|Periode berjalan/ }).click();
   }
 }
 
 async function expectCompanyAccountLabel(page: Page) {
+  // Statement format: one table, each account listed once.
   const accountLabel = page.getByText('Long native account label for responsive wrapping across narrow screens');
-  await expect(accountLabel).toHaveCount(2);
+  await expect(page.getByRole('table')).toHaveCount(1);
+  await expect(accountLabel).toHaveCount(1);
   await expect(accountLabel.first()).toBeVisible();
 }
 
@@ -315,7 +316,6 @@ for (const width of [390, 1440] as const) {
         const routes = await openCompanyStatements(page, locale, theme, 'populated', width);
         await expect(page.getByRole('heading', { level: 1, name: locale === 'id' ? 'Laporan keuangan' : 'Financial statements' })).toBeVisible();
         await expectCompanyAccountLabel(page);
-        await expect(page.getByRole('heading', { level: 3 })).toHaveCount(2);
         await expectNoHorizontalOverflow(page);
         await expect.poll(routes.readCount).toBeGreaterThan(0);
         await saveMountedScreenshot(page, 'company', width, locale, theme);
@@ -350,21 +350,23 @@ test('AC-008 support: company profit and loss preserves both native sides and so
   await openCompanyStatements(page, 'id', 'light');
   await page.getByRole('combobox', { name: 'Laporan' }).selectOption('profit_and_loss');
   await expectCompanyAccountLabel(page);
-  await expect(page.getByRole('heading', { level: 3 })).toHaveCount(2);
-  await expect(page.getByRole('combobox', { name: 'Cakupan' })).toHaveValue('company');
+  await expect(page.getByRole('columnheader', { name: /Periode berjalan/ }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Periode sebelumnya/ }).first()).toBeVisible();
+  // No project is admitted for this Company, so there is nothing to scope.
+  await expect(page.getByRole('combobox', { name: 'Cakupan' })).toHaveCount(0);
 });
 
-test('AC-008 support: balance sheet shows both supplied as-at dates without changing native ranges', async ({ page }) => {
+test('AC-008 support: balance sheet states its supplied as-at date once', async ({ page }) => {
   await openCompanyStatements(page, 'en', 'light');
   await page.getByRole('combobox', { name: 'Statement' }).selectOption('balance_sheet');
   await expect(page.getByText(/As at Sep 30, 2026/)).toBeVisible();
-  await expect(page.getByText(/As at Aug 31, 2026/)).toBeVisible();
+  await expect(page.getByText(/As at/)).toHaveCount(1);
 });
 
-test('AC-008 support: mixed native emptiness keeps both report panels visible', async ({ page }) => {
+test('AC-008 support: mixed native emptiness keeps both periods reachable', async ({ page }) => {
   await openCompanyStatements(page, 'en', 'light', 'mixed');
-  await expect(page.getByRole('heading', { level: 3 })).toHaveCount(2);
   await expect(page.getByText('No activity in this period')).toBeVisible();
+  await page.getByRole('button', { name: 'Previous period' }).click();
   await expect(page.getByText('Net result')).toBeVisible();
 });
 
@@ -404,7 +406,7 @@ test('AC-008 support: initial read error hides backend detail and Retry restores
   await expect.poll(routes.readCount).toBe(2);
 });
 
-test('AC-008 support: keyboard order stays period kind, period, statement, scope, then Retry', async ({ page }) => {
+test('AC-008 support: keyboard order stays period kind, period, statement, then Retry', async ({ page }) => {
   await openCompanyStatements(page, 'en', 'light', 'persistent-error');
   const statement = page.getByRole('combobox', { name: 'Statement' });
   await statement.selectOption('profit_and_loss');
@@ -415,8 +417,6 @@ test('AC-008 support: keyboard order stays period kind, period, statement, scope
   await expect(page.getByRole('combobox', { name: 'Period', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(statement).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(page.getByRole('combobox', { name: 'Scope' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
 });

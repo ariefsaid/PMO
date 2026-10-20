@@ -15,7 +15,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
-import { formatDateOnly, formatDateTime } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
@@ -47,21 +47,6 @@ function completeDetailRead(value: FinancialStatementRead | undefined): value is
 } {
   return value?.state === 'complete' && value.generation !== null && value.generation !== undefined &&
     value.result?.viewKind === 'account_breakdown';
-}
-
-function captureContext(read: FinancialStatementRead, currentLabel: string, priorLabel: string, captureWindowLabel: string): string {
-  if (!completeDetailRead(read)) return '';
-  const { generation, result } = read;
-  const captureStarted = formatDateTime(new Date(generation.captureStartedAt));
-  const captureCompleted = formatDateTime(new Date(generation.captureCompletedAt));
-  const values = [
-    read.companyLabel,
-    generation.currency,
-    `${currentLabel}: ${formatDateOnly(result.period.currentStart)} – ${formatDateOnly(result.period.currentEnd)}`,
-    `${priorLabel}: ${formatDateOnly(result.period.priorStart)} – ${formatDateOnly(result.period.priorEnd)}`,
-    `${captureWindowLabel}: ${captureStarted} – ${captureCompleted}`,
-  ].filter((value): value is string => Boolean(value));
-  return values.join(' · ');
 }
 
 const FinancialStatements: React.FC = () => {
@@ -106,13 +91,6 @@ const FinancialStatements: React.FC = () => {
     const label = project.code ? `${project.code} · ${project.name}` : project.name;
     return [{ value: projectId, label }];
   });
-  const unresolvedProjectNames = projectNameQueries.some((query) =>
-    query.isPending || query.isFetching || query.isError ||
-    (query.isSuccess && (!query.data || typeof query.data.name !== 'string' || query.data.name.trim() === '')),
-  );
-  const failedOrMissingProjectNames = projectNameQueries.some((query) =>
-    query.isError || (query.isSuccess && (!query.data || typeof query.data.name !== 'string' || query.data.name.trim() === '')),
-  );
 
   useEffect(() => {
     if (selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
@@ -205,7 +183,7 @@ const FinancialStatements: React.FC = () => {
 
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} description={t('financialStatements.description', 'View saved Company statements and mapped project reports.')}>
+      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
         <ListState variant="loading" />
       </ListPage>
     );
@@ -213,7 +191,7 @@ const FinancialStatements: React.FC = () => {
 
   if (!catalogueQuery.eligible) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')} description={t('financialStatements.description', 'View saved Company statements and mapped project reports.')}>
+      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
         <section className="min-w-0 rounded-lg border border-border bg-card p-4" aria-labelledby="financial-statements-access-title">
           <h2 id="financial-statements-access-title" className="text-base font-semibold text-foreground">
             {t('financialStatements.accessDenied', "You don't have access to financial statements")}
@@ -232,12 +210,13 @@ const FinancialStatements: React.FC = () => {
   const labels = {
     current: t('financialStatements.current', 'Current period'),
     prior: t('financialStatements.prior', 'Previous period'),
-    values: t('financialStatements.values', 'Values'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     notProvided: t('financialStatements.notProvided', 'Not provided'),
-    collected: t('financialStatements.collected', 'Collected'),
     asAt: t('financialStatements.asAt', 'As at'),
+    forThePeriod: t('financialStatements.forThePeriod', 'For the period'),
+    amountsIn: t('financialStatements.amountsIn', 'Amounts in'),
+    periodShown: t('financialStatements.periodShown', 'Period shown'),
   };
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
@@ -251,16 +230,11 @@ const FinancialStatements: React.FC = () => {
     delayed: t('financialStatements.delayed', 'Update delayed'),
     refreshing: t('financialStatements.refreshing', 'Refreshing statements…'),
   };
-  const currentLabel = t('financialStatements.current', 'Current period');
-  const priorLabel = t('financialStatements.prior', 'Previous period');
-  const captureWindowLabel = t('financialStatements.captureWindow', 'Capture window');
-  const context = isValidRead && detailRead ? captureContext(detailRead, currentLabel, priorLabel, captureWindowLabel) : '';
-  const projectRetry = () => projectNameQueries.forEach((query) => { void query.refetch(); });
 
   return (
     <ListPage
       title={t('shell.nav.financialStatements', 'Financial statements')}
-      description={t('financialStatements.description', 'View saved Company statements and mapped project reports.')}
+     
       className="min-w-0"
     >
       {catalogue?.state === 'complete' && (
@@ -298,7 +272,7 @@ const FinancialStatements: React.FC = () => {
               }}
               disabled={!catalogueQuery.eligible}
             />
-            {statement === 'profit_and_loss' && (
+            {statement === 'profit_and_loss' && admittedProjectIds.length > 0 && (
               <SelectField
                 label={t('financialStatements.scope', 'Scope')}
                 value={selectedScope && scopeOptions.some((option) => option.value === selectedScope) ? selectedScope : ''}
@@ -311,31 +285,23 @@ const FinancialStatements: React.FC = () => {
               />
             )}
           </FormGrid>
-          {statement === 'profit_and_loss' && unresolvedProjectNames && admittedProjectIds.length > 0 && (
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <p role="status" className="min-w-0 flex-1 text-sm text-muted-foreground">
-                {failedOrMissingProjectNames
-                  ? t('financialStatements.projectNamesUnavailable', 'Some mapped project names are unavailable. Company reports remain usable.')
-                  : t('financialStatements.projectNamesLoading', 'Loading mapped project names…')}
-              </p>
-              {failedOrMissingProjectNames && (
-                <Button variant="outline" onClick={projectRetry}>
-                  {t('financialStatements.retryProjectNames', 'Retry project names')}
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       )}
       <FinancialStatementsSection
         title={reportTitle(statement, t)}
-        context={context}
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
       >
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
-          <NativeStatementPair pair={detailRead.result.payload} reportTitle={reportTitle(statement, t)} labels={labels} />
+          <NativeStatementPair
+            pair={detailRead.result.payload}
+            reportTitle={reportTitle(statement, t)}
+            companyLabel={detailRead.companyLabel}
+            currency={detailRead.generation.currency}
+            presentation={detailRead.generation.presentation}
+            labels={labels}
+          />
         )}
       </FinancialStatementsSection>
     </ListPage>
