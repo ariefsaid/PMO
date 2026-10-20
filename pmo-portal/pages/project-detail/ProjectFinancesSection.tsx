@@ -5,6 +5,7 @@ import { Button, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -15,7 +16,9 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
-  const canReviewSetup = may('manage', 'integration');
+  const { realRole } = useEffectiveRole();
+  const canInspectAccounting = realRole === 'Finance' || realRole === 'Admin';
+  const canManageAccounting = may('manage', 'orgAccounting');
   const query = useProjectFinances(project.id);
   const commitments = useProjectCommittedSpend(project.id, true);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
@@ -51,6 +54,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
   const completeCoverage = moneyPosition.coverage.kind === 'complete';
+  const needsCategorySetup = actualPosition.basis === 'erp' && actuals.categories.some((row) => !row.mapped);
+  const knownCategories: typeof actuals.categories = [];
+  const unavailableCategories: typeof actuals.categories = [];
+  for (const row of actuals.categories) {
+    const known = row.mapped && actuals.currency !== null &&
+      formatExactMoney(row.amount, actuals.currency, i18n.language) !== null;
+    (known ? knownCategories : unavailableCategories).push(row);
+  }
   const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
   const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
@@ -93,7 +104,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       {!data.budget && <p role="status">{t('uxs01.noBudget', 'No budget')}</p>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals);
-        const incomplete = t('projectFinances.incomplete', 'Incomplete — ERP outstanding missing');
+        const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
         const reasons = {
           'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
           'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
@@ -139,12 +150,18 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground" role="status">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'erp' && (actualPosition.asOf
           ? <p className="text-xs text-muted-foreground">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</p>
-          : <p className="text-xs text-muted-foreground">{t('projectFinances.actualsUnavailable', 'Not available yet')}</p>)}
-        {actualPosition.basis === 'erp' && !completeCoverage && (canReviewSetup
-          ? <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('uxs01.reviewSetup', 'Review spending setup')}</Link>
-          : <p className="text-xs text-muted-foreground">{t('uxs01.setupHandoff', 'Ask Finance or Admin to review spending setup.')}</p>)}
+          : <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>)}
+        {needsCategorySetup && canInspectAccounting && (
+          <p className="text-xs text-muted-foreground" data-testid="spending-setup-prompt">
+            {canManageAccounting
+              ? <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+                  {t('project:finishSpendingSetup', 'Finish spending setup')}
+                </Link>
+              : t('project:spendingAdminHandoff', 'Ask an administrator to finish spending setup.')}
+          </p>
+        )}
         {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
-        {actualPosition.basis === 'erp' && <details className="min-w-0">
+        {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -156,13 +173,13 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               </tr>
             </thead>
             <tbody>
-              {actuals.categories.map((row) => (
+              {knownCategories.map((row) => (
                 <tr key={row.category}>
                   <th scope="row" className="break-words text-left font-normal">
                     {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
                   </th>
                   <td className="break-words text-right tabular-nums">
-                    {row.mapped ? money(row.amount, actuals.currency) : t('projectFinances.mappingUnavailable', 'Not available yet')}
+                    {money(row.amount, actuals.currency)}
                   </td>
                 </tr>
               ))}
@@ -170,9 +187,22 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </table>
           </div>
         </details>}
+        {actualPosition.basis === 'erp' && canInspectAccounting && unavailableCategories.length > 0 && (
+          <details className="min-w-0">
+            <summary className="cursor-pointer text-sm font-medium">{t('project:spendingSetupDetails', 'Spending setup details')}</summary>
+            <ul className="mt-2 list-disc pl-5 text-sm">
+              {unavailableCategories.map((row) => <li key={row.category}>
+                {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
+                {' — '}{row.mapped
+                  ? t('project:noSpendingReading', "Spending hasn't been updated yet.")
+                  : t('project:categoryNeedsSetup', 'Spending setup is not complete for this category.')}
+              </li>)}
+            </ul>
+          </details>
+        )}
       </div>
       <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
-        {t('projectDetail.overview.invoicing.scopeNote', 'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.')}
+        {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
       </p>
     </section>
   );

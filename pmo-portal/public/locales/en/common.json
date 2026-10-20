@@ -2680,9 +2680,6 @@
         "spend": "Spend",
         "title": "Financial summary"
       },
-      "invoicing": {
-        "scopeNote": "Counts invoices linked to this project. Invoices raised in the ERP without a project are not included."
-      },
       "procSummary": {
         "closed": "Closed",
         "completed": "Completed",
@@ -4745,7 +4742,6 @@
     "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "mappingUnavailable":"Not available yet",
     "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
     "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
@@ -4766,8 +4762,6 @@
     "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
     "coverageUnavailable": "Spending coverage unavailable",
     "updated": "Updated {{date}}",
-    "setupHandoff": "Ask Finance or Admin to review spending setup.",
-    "reviewSetup": "Review spending setup",
     "showCategoryDetails": "Show category details",
     "categoryDetails": "Recorded spending by category",
     "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
