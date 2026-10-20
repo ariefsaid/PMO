@@ -14,7 +14,7 @@ const HEAD = "a".repeat(40);
 const MERGE = "b".repeat(40);
 const DEV = "c".repeat(40);
 const BRANCH = "codex/topic";
-const REQUIRED_CHECKS = ["unit (1)", "unit (2)", "unit (3)", "unit (4)", "verify", "pgtap"];
+const REQUIRED_CHECKS = ["unit (1)", "unit (2)", "verify", "pgtap"];
 const GATE_PASSES = REQUIRED_CHECKS.map((name) => ({ name, bucket: "pass", state: "SUCCESS" }));
 
 const FAKE_TOOL = String.raw`#!/usr/bin/env node

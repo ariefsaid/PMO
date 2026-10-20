@@ -234,8 +234,8 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
   assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
-  assert.match(unitJob, /shard: \[1, 2, 3, 4\]/, 'unit job must run every shard');
-  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/4 .*--reporter=blob/, 'each shard must record coverage');
+  assert.match(unitJob, /shard: \[1, 2\]/, 'unit job must run every shard');
+  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/2 .*--reporter=blob/, 'each shard must record coverage');
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
