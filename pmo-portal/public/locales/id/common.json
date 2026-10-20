@@ -1267,21 +1267,6 @@
       "result": "{{wins}} menang dari {{total}} proyek selesai", "currencyResult": "{{currency}} {{percent}}% — {{wins}} menang dari {{total}} proyek selesai", "noRecordedLosses": "{{currency}} — belum ada kekalahan tercatat; {{wins}} menang", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
     "bva": { "atRisk": "Berisiko" },
-    "risk": { "unavailable": "Belum dapat diperiksa", "noBudgetBasis": "Anggaran aktif dan aktual lengkap diperlukan untuk memeriksa risiko." },
-    "spend": { "partial": "Parsial" },
-    "finance": {
-      "project": "Proyek", "unattributed": "Tidak terkait dengan proyek", "account": "Akun", "costCenter": "Pusat biaya", "fiscalYear": "Tahun fiskal", "net": "Neto",
-      "netUnavailableReason": "Snapshot sumber tidak menyediakan nilai neto.", "projectUnavailableReason": "Nama proyek tidak tersedia.", "budgetReviewLoadError": "Tidak dapat memuat tinjauan anggaran", "party": "Pihak", "current": "Saat ini", "totalOutstanding": "Total terutang",
-      "actualsTitle": "Aktual (buku besar ERP)", "apTitle": "Utang kepada vendor (AP)",
-      "actualsError": "Gagal memuat aktual", "apError": "Gagal memuat utang vendor", "arError": "Gagal memuat piutang pelanggan",
-      "awaiting": "Permintaan pembelian menunggu keputusan Anda", "contractValue": "Nilai kontrak berjalan", "contractValueHelp": "Total nilai kontrak proyek aktif.",
-      "recordedSpending": "Pengeluaran tercatat", "spendingHelp": "Pengeluaran aktual yang tercatat di seluruh portofolio proyek berjalan.", "spendingLink": "Buka proyek aktif untuk melihat rincian pengeluaran",
-      "margin": "Margin hingga saat ini", "marginHelp": "Pendapatan pekerjaan yang ditagihkan dikurangi pengeluaran tercatat; bukan kas yang diterima.",
-      "payables": "Utang kepada vendor", "payablesDetail": "Ditagihkan vendor, menunggu pembayaran", "payablesHelp": "Nilai pengadaan yang terutang kepada vendor dengan status Ditagihkan Vendor.",
-      "request": "Permintaan", "value": "Nilai", "invoiced": "Ditagihkan", "nothingAwaitingPayment": "Tidak ada yang menunggu pembayaran", "allInvoicesPaid": "Semua faktur vendor telah dibayar atau tidak ada yang menunggu tindakan.", "loadInvoicesError": "Gagal memuat faktur",
-      "today": "Hari ini", "oneDay": "1 hari", "days": "{{count}} hari", "dashboardError": "Gagal memuat dasbor keuangan", "kpiBand": "KPI keuangan",
-      "contractValueLink": "Buka proyek aktif untuk melihat nilai kontrak", "payablesLink": "Buka faktur vendor yang menunggu pembayaran", "openRequest": "Buka {{request}}", "invoicedHelp": "Jumlah hari sejak faktur vendor dicatat; catatan lama menggunakan tanggal pembaruan terakhir."
-    },
     "projectedMargin": { "group": "Margin proyeksi pipeline", "weightedPipelineValue": "Nilai pipeline tertimbang", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {

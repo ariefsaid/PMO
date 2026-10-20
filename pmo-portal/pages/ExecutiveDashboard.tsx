@@ -33,7 +33,7 @@ import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLin
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const ExecutiveDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const procurementStatusLabel = useProcurementStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
@@ -383,7 +383,7 @@ const ExecutiveDashboard: React.FC = () => {
             icon="cart"
             label={t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
             value={money(data.on_hand_actual_known)}
-            vs={`${data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total ? `${t('dashboard.spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
+            vs={`${data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
               known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
             })}`}
             to="/projects?filter=Ongoing"

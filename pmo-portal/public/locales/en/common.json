@@ -1267,21 +1267,6 @@
       "result": "{{wins}} won of {{total}} closed", "currencyResult": "{{currency}} {{percent}}% — {{wins}} won of {{total}} closed", "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": { "atRisk": "At risk" },
-    "risk": { "unavailable": "Can't be checked yet", "noBudgetBasis": "An active budget and complete actuals are needed to check risk." },
-    "spend": { "partial": "Partial" },
-    "finance": {
-      "project": "Project", "unattributed": "Not attributed to a project", "account": "Account", "costCenter": "Cost center", "fiscalYear": "Fiscal year", "net": "Net",
-      "netUnavailableReason": "The source snapshot did not supply a Net value.", "projectUnavailableReason": "Project name is unavailable.", "budgetReviewLoadError": "Couldn't load budget review", "party": "Party", "current": "Current", "totalOutstanding": "Total outstanding",
-      "actualsTitle": "Actuals (ERP ledger)", "apTitle": "Vendor payables (AP)",
-      "actualsError": "Couldn't load actuals", "apError": "Couldn't load vendor payables", "arError": "Couldn't load customer receivables",
-      "awaiting": "Purchase requests awaiting your decision", "contractValue": "Contract value in progress", "contractValueHelp": "Total contract value across active projects.",
-      "recordedSpending": "Recorded spending", "spendingHelp": "Actual spending recorded across the delivery portfolio.", "spendingLink": "Open active projects to see spending details",
-      "margin": "Margin to date", "marginHelp": "Billed-work revenue less recorded spending; this is not cash received.",
-      "payables": "Vendor payables", "payablesDetail": "Vendor-invoiced, awaiting payment", "payablesHelp": "Procurement value owed to vendors in the Vendor Invoiced state.",
-      "request": "Request", "value": "Value", "invoiced": "Invoiced", "nothingAwaitingPayment": "Nothing awaiting payment", "allInvoicesPaid": "All vendor invoices have been paid or none are awaiting action.", "loadInvoicesError": "Couldn't load invoices",
-      "today": "Today", "oneDay": "1 day", "days": "{{count}} days", "dashboardError": "Couldn't load the finance dashboard", "kpiBand": "Finance KPIs",
-      "contractValueLink": "Open active projects to see contract value", "payablesLink": "Open vendor invoices awaiting payment", "openRequest": "Open {{request}}", "invoicedHelp": "Days since the vendor invoice was recorded; older records use their last update date."
-    },
     "projectedMargin": { "group": "Pipeline projected margin", "weightedPipelineValue": "Weighted pipeline value", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {

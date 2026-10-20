@@ -38,7 +38,7 @@ const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
  * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
   const { data: mine = [], isPending, isError, refetch } = usePMDashboardProjects();
   const orgCurrency = useOrgCurrency();
@@ -92,9 +92,9 @@ export const PMDashboard: React.FC = () => {
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
-          value={riskCheckable || atRiskCount > 0 ? String(atRiskCount) : t('dashboard.risk.unavailable', "Can't be checked yet")}
+          value={riskCheckable || atRiskCount > 0 ? String(atRiskCount) : t('dashboard:risk.unavailable', "Can't be checked yet")}
           loading={isPending} error={isError}
-          vs={riskCheckable || atRiskCount > 0 ? t('dashboard.pm.budgetUsage', 'budget usage > 90%') : t('dashboard.risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}
+          vs={riskCheckable || atRiskCount > 0 ? t('dashboard.pm.budgetUsage', 'budget usage > 90%') : t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}
           to="/projects?filter=at-risk"
           linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
           help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />

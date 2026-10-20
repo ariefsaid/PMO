@@ -134,35 +134,35 @@ const agingColumns = (
 const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) => string, projectNames?: ReadonlyMap<string, string>): Column<ErpActualsSnapshotRow>[] => [
   {
     key: 'project',
-    header: t('dashboard.finance.project', 'Project'),
+    header: t('dashboard:finance.project', 'Project'),
     cell: (r) => r.projectId ? (
       <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
-        {projectNames?.get(r.projectId) ?? <span title={t('dashboard.finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard.finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
+        {projectNames?.get(r.projectId) ?? <span title={t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
       </Link>
-    ) : <span className="text-muted-foreground">{t('dashboard.finance.unattributed', 'Not attributed to a project')}</span>,
+    ) : <span className="text-muted-foreground">{t('dashboard:finance.unattributed', 'Not attributed to a project')}</span>,
   },
   {
     key: 'account',
-    header: t('dashboard.finance.account', 'Account'),
+    header: t('dashboard:finance.account', 'Account'),
     cell: (r) => <span className="font-medium">{r.account ?? '—'}</span>,
   },
   {
     key: 'costCenter',
-    header: t('dashboard.finance.costCenter', 'Cost center'),
+    header: t('dashboard:finance.costCenter', 'Cost center'),
     cell: (r) => <span className="text-muted-foreground">{r.costCenter ?? '—'}</span>,
   },
   {
     key: 'fiscalYear',
-    header: t('dashboard.finance.fiscalYear', 'Fiscal year'),
+    header: t('dashboard:finance.fiscalYear', 'Fiscal year'),
     cell: (r) => <span className="text-muted-foreground">{r.fiscalYear ?? '—'}</span>,
   },
   {
     key: 'net',
-    header: t('dashboard.finance.net', 'Net'),
+    header: t('dashboard:finance.net', 'Net'),
     align: 'num',
     cell: (r) => r.net === null || !Number.isFinite(r.net) ? (
-      <span className="text-muted-foreground" title={t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
-        —<span className="sr-only"> {t('dashboard.finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
+      <span className="text-muted-foreground" title={t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
+        —<span className="sr-only"> {t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
       </span>
     ) : <span className="font-semibold">{formatCurrency(r.net, orgCurrency)}</span>,
   },
@@ -244,7 +244,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   showActuals = true,
   showApAging = true,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('dashboard');
   // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
   // currency explicit; a missing or malformed currency cannot inherit the org's currency.
   const orgCurrency = useOrgCurrency();
@@ -253,16 +253,16 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   const ageingBasisLabel = t('dashboard.uxs36AgeingBasis', 'Ageing basis');
   const rangeLabelsLabel = t('dashboard.uxs36ErpRanges', 'ERP ranges');
   const agingLabels = {
-    party: t('dashboard.finance.party', 'Party'), current: t('dashboard.finance.current', 'Current'),
-    total: t('dashboard.finance.totalOutstanding', 'Total outstanding'), unavailable,
+    party: t('dashboard:finance.party', 'Party'), current: t('dashboard:finance.current', 'Current'),
+    total: t('dashboard:finance.totalOutstanding', 'Total outstanding'), unavailable,
     reportDate: reportDateLabel, ageingBasis: ageingBasisLabel, ranges: rangeLabelsLabel,
   };
   return (
   <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
     {showActuals && (
     <SnapshotBlock<ErpActualsSnapshotRow>
-      title={t('dashboard.finance.actualsTitle', 'Actuals (ERP ledger)')}
-      errorLabel={t('dashboard.finance.actualsError', "Couldn't load actuals")}
+      title={t('dashboard:finance.actualsTitle', 'Actuals (ERP ledger)')}
+      errorLabel={t('dashboard:finance.actualsError', "Couldn't load actuals")}
       emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
       emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
       rows={actuals}
@@ -281,8 +281,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     )}
     {showApAging && (
     <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard.finance.apTitle', 'Vendor payables (AP)')}
-      errorLabel={t('dashboard.finance.apError', "Couldn't load vendor payables")}
+      title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
+      errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
@@ -297,7 +297,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     )}
     <SnapshotBlock<ErpAgingSnapshotRow>
       title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
-      errorLabel={t('dashboard.finance.arError', "Couldn't load customer receivables")}
+      errorLabel={t('dashboard:finance.arError', "Couldn't load customer receivables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}

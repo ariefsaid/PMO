@@ -92,7 +92,7 @@ const AtRiskBlock: React.FC<{
    *  a different org. */
   currency: string;
 }> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const spendText = formatDashboardMoney(totalSpend, currency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const isAtRisk = atRisk > 0;
@@ -103,7 +103,7 @@ const AtRiskBlock: React.FC<{
       data-testid="dashboard-at-risk"
       aria-label={isAtRisk
         ? t('dashboard.mobile.atRiskCount', '{{count}} projects at risk', { count: atRisk })
-        : isUnknown ? t('dashboard.risk.unavailable', "Can't be checked yet") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
+        : isUnknown ? t('dashboard:risk.unavailable', "Can't be checked yet") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
       className="rounded-lg border border-border bg-card p-4"
     >
       {/* Icon + label row */}
@@ -137,7 +137,7 @@ const AtRiskBlock: React.FC<{
         <span className="text-[12.5px] text-muted-foreground">
           {isAtRisk
             ? t('dashboard.mobile.riskSummary', 'of {{count}} active projects flagged over budget or behind schedule', { count: activeProjects })
-            : isUnknown ? `${t('dashboard.risk.unavailable', "Can't be checked yet")}. ${t('dashboard.risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}`
+            : isUnknown ? `${t('dashboard:risk.unavailable', "Can't be checked yet")}. ${t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}`
               : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
         </span>
       </div>
@@ -180,7 +180,7 @@ const AtRiskBlock: React.FC<{
           <span className="tabular mt-[3px] block text-[17px] font-bold">
             {spendText}
           </span>
-          {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard.spend.partial', 'Partial')}</span>}
+          {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">
             {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: actualProjectCount ?? 0, total: actualProjectTotal ?? 0 })}
             {' · '}{t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: actualCoverageCount ?? 0, total: actualCoverageTotal ?? 0 })}
@@ -202,7 +202,7 @@ const AtRiskBlock: React.FC<{
  * The whole row is a link (no nested button inside link — single focusable element).
  */
 const MobileApprovalsBand: React.FC<{ count: number; error?: boolean }> = ({ count, error }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('dashboard');
   const label = error
     ? t('dashboard.mobile.approvalsLinkError', 'Awaiting your approval. Open approvals inbox.')
     : t('dashboard.mobile.approvalsLink', 'Awaiting your approval: {{count}} items. Open approvals inbox.', { count });
@@ -263,7 +263,7 @@ const ContractBook: React.FC<{
   activeContractValue: number | null;
   activeProjects: number;
 }> = ({ onHandValue, onHandValueByCurrency = [], onHandContractRemaining, realizedMargin, realizedMarginByCurrency = [], realizedMarginLabel, activeContractValue, activeProjects }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
   const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
@@ -343,7 +343,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
   headingAction,
   belowFold,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
   const totalSpend = data.on_hand_actual_known;
   const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
