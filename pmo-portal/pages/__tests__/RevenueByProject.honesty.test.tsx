@@ -151,12 +151,12 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('UX-010 tells a Project Manager that Finance owns invoice creation and keeps project browsing available', () => {
+  it('UX-010 tells a Project Manager that Finance owns invoice creation (no Browse Projects button, FIN-S1)', () => {
     revenueState.data = [];
 
     renderPage('Project Manager');
 
-    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
     expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
     expect(screen.queryByText('Create sales invoices to see revenue per project.')).toBeNull();
   });

@@ -282,7 +282,8 @@ const SalesInvoices: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
-  const { day: organizationToday, isPending: isOrganizationDayPending } = useFxOrgDay(true);
+  const { day: organizationToday } = useFxOrgDay(true);
+  const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
   const pdfDownload = useInvoicePdfDownload();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
@@ -344,10 +345,9 @@ const SalesInvoices: React.FC = () => {
   }, [mode, searchParams, setSearchParams, statusFilters]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
 
-  const loadFilterProjects = useCallback(async (): Promise<ComboboxOption[]> => projectOptions ?? [], [projectOptions]);
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
 
-  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue' | 'sort', value: string) => {
+  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
@@ -483,23 +483,24 @@ const SalesInvoices: React.FC = () => {
         || invoiceNumber(inv)?.toLowerCase().includes(q)
         || inv.reference_number?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
-        || inv.customer_name?.toLowerCase().includes(q));
-  }, [all, organizationToday, search, searchParams, statusFilter]);
+        || inv.customer_name?.toLowerCase().includes(q)
+        // FIN-S1: the project filter control is gone; the project is reachable through search.
+        || projectOptions?.find((option) => option.value === inv.project_id)?.label.toLowerCase().includes(q));
+  }, [all, organizationToday, projectOptions, search, searchParams, statusFilter]);
 
+  // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
-    if (searchParams.get('sort') !== 'oldest-overdue') return filtered;
+    if (searchParams.get('overdue') !== 'true') return filtered;
     return filtered
-      .map((invoice, index) => {
-        const age = overdueAgeDays(
+      .map((invoice, index) => ({
+        invoice,
+        index,
+        age: overdueAgeDays(
           deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
           organizationToday,
-        );
-        const overdueUnpaid = (invoice.status === 'Submitted' || invoice.status === 'Unpaid') && age !== null && age > 0;
-        return { invoice, index, age, overdueUnpaid };
-      })
-      .sort((a, b) => Number(b.overdueUnpaid) - Number(a.overdueUnpaid)
-        || (a.overdueUnpaid && b.overdueUnpaid ? (b.age ?? 0) - (a.age ?? 0) : 0)
-        || a.index - b.index)
+        ) ?? 0,
+      }))
+      .sort((a, b) => b.age - a.age || a.index - b.index)
       .map(({ invoice }) => invoice);
   }, [filtered, organizationToday, searchParams]);
 
@@ -667,104 +668,110 @@ const SalesInvoices: React.FC = () => {
     );
   }
 
-  const columns: Column<SalesInvoiceRow>[] = [
-    {
-      key: 'si_number',
-      header: t('financeCopy.invoice', "Invoice #"),
-      cell: (inv) => {
-        const number = invoiceNumber(inv);
-        // M-2: a Draft is numbered on approval (DD-NAR-9), so until then it reads by its customer, never a bare dash.
-        const draftLabel = !number && inv.status === 'Draft'
-          ? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })
-          : null;
-        const preErp = t('financeCopy.recordedBeforeErp', 'Recorded in PMO before the ERP was connected');
-        return (
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            <Link
-              to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
-              state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-              className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
-              title={draftLabel ?? number ?? ''}
-            >{draftLabel ?? number ?? '—'}</Link>
-            {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. M-3: a
-                compact badge, the full sentence as its tooltip and for a screen reader. */}
-            {inv.pmo_native && !native && (
-              <Badge title={preErp}>
-                {t('financeCopy.preErpBadge', 'Pre-ERP')}
-                <span className="sr-only">{preErp}</span>
-              </Badge>
-            )}
-          </span>
-        );
-      },
-      exportValue: (inv) => invoiceNumber(inv) ?? '',
+  // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
+  // columns. Dates other than Due, and the separate Customer, are export-only below.
+  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.label;
+  const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
+  const invoiceColumn: Column<SalesInvoiceRow> = {
+    key: 'si_number',
+    header: t('financeCopy.invoice', "Invoice #"),
+    kind: 'primary',
+    size: 280,
+    primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
+    cell: (inv) => {
+      const number = invoiceNumber(inv);
+      // M-2: a Draft is numbered on approval (DD-NAR-9), so until then it reads by its customer, never a bare dash.
+      const draftLabel = !number && inv.status === 'Draft'
+        ? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })
+        : null;
+      const preErp = t('financeCopy.recordedBeforeErp', 'Recorded in PMO before the ERP was connected');
+      // The opening-balance fact rides the Pre-ERP badge (tooltip + screen reader), not a line in the row.
+      const preErpDetail = inv.erp_opening_amount != null && inv.erp_opening_at
+        ? `${preErp}. ${t('financeCopy.carriedIntoErpOpening', 'Carried into the ERP opening balance: {{amount}} on {{date}}', {
+          amount: formatCurrencyCents(inv.erp_opening_amount, inv.currency),
+          date: formatInstantDate(inv.erp_opening_at),
+        })}`
+        : preErp;
+      return (
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+          <Link
+            to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
+            state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
+            className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            title={draftLabel ?? number ?? ''}
+          >{draftLabel ?? number ?? '—'}</Link>
+          {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
+          {inv.pmo_native && !native && (
+            <Badge title={preErpDetail}>
+              {t('financeCopy.preErpBadge', 'Pre-ERP')}
+              <span className="sr-only">{preErpDetail}</span>
+            </Badge>
+          )}
+        </span>
+      );
     },
-    {
-      key: 'reference_number',
-      header: t('uxs05.customerReference', 'Customer reference'),
-      cell: (inv) => {
-        const projectReference = projectOptions?.find((option) => option.value === inv.project_id)?.customerContractRef;
-        return inv.reference_number
-          ? <span className="truncate" title={inv.reference_number}>{inv.reference_number}</span>
-          : projectReference
-            ? <span className="truncate text-muted-foreground" title={projectReference}>{t('uxs05.projectReferenceFallback', 'Project reference: {{reference}}', { reference: projectReference })}</span>
-            : <span className="text-muted-foreground">—</span>;
-      },
-      exportValue: (inv) => inv.reference_number ?? projectOptions?.find((option) => option.value === inv.project_id)?.customerContractRef ?? '',
+    secondaryCell: (inv) => {
+      const project = projectLabelOf(inv);
+      const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
+      if (!customer && !project) return null;
+      return (
+        <>
+          {customer && <span className="block truncate" title={customer}>{customer}</span>}
+          {project && <span className="block truncate" title={project}>{project}</span>}
+        </>
+      );
     },
-    {
-      key: 'customer_id',
-      header: t('financeCopy.customer', "Customer"),
-      cell: (inv) => {
-        const project = projectOptions?.find((option) => option.value === inv.project_id);
-        return (
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate" title={inv.customer_name ?? ''}>{inv.customer_name ?? '—'}</span>
-            {inv.project_id ? (
-              <span className="truncate text-xs text-muted-foreground" title={project?.label ?? ''}>
-                {project?.label ?? (projectOptionsPending ? t('financeCopy.projectLoading', 'Project details loading') : t('financeCopy.projectUnavailable', 'Project details unavailable'))}
-              </span>
-            ) : <span className="truncate text-xs text-muted-foreground">{t('financeCopy.projectNotRecorded', 'Project not recorded')}</span>}
-          </span>
-        );
-      },
-      exportValue: (inv) => inv.customer_name ?? '',
-    },
-    {
-      key: 'status',
-      header: t('financeCopy.status', "Status"),
-      // DD-NAR-3: "Partly paid" is a display state of a PMO Unpaid invoice, never a stored status.
-      cell: (inv) => {
-        const gross = invoiceGross(inv);
-        const partlySettled = isPartlyPaid(inv) || (
-          (inv.status === 'Submitted' || inv.status === 'Unpaid')
-          && gross != null
-          && inv.erp_outstanding_amount != null
-          && inv.erp_outstanding_amount > 0
-          && inv.erp_outstanding_amount < gross
-        );
-        return partlySettled
+    exportValue: (inv) => invoiceNumber(inv) ?? '',
+  };
+  const referenceColumn: Column<SalesInvoiceRow> = {
+    key: 'reference_number',
+    header: t('uxs05.customerReference', 'Customer reference'),
+    kind: 'text',
+    size: 140,
+    cell: (inv) => inv.reference_number
+      ? <span className="truncate" title={inv.reference_number}>{inv.reference_number}</span>
+      : <span className="text-muted-foreground">—</span>,
+    exportValue: (inv) => inv.reference_number ?? '',
+  };
+  const statusColumn: Column<SalesInvoiceRow> = {
+    key: 'status',
+    header: t('financeCopy.status', "Status"),
+    kind: 'status',
+    // DD-NAR-3: "Partly paid" is a display state of a PMO Unpaid invoice, never a stored status.
+    cell: (inv) => {
+      const gross = invoiceGross(inv);
+      const partlySettled = isPartlyPaid(inv) || (
+        (inv.status === 'Submitted' || inv.status === 'Unpaid')
+        && gross != null
+        && inv.erp_outstanding_amount != null
+        && inv.erp_outstanding_amount > 0
+        && inv.erp_outstanding_amount < gross
+      );
+      return partlySettled
         ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
         : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>;
-      },
-      exportValue: (inv) => inv.status,
     },
-    {
-      key: 'amount',
-      header: t('financeCopy.amount', "Amount"),
-      align: 'num',
-      // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
-      // row, so no invoice total may be bare. The basis is the row's own; the org default
-      // pre-selects a form and is never read here.
-      cell: (inv) => (
+    exportValue: (inv) => inv.status,
+  };
+  const amountColumn: Column<SalesInvoiceRow> = {
+    key: 'amount',
+    header: t('financeCopy.amount', "Amount"),
+    kind: 'money',
+    align: 'num',
+    size: 200,
+    // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
+    // row, so no invoice total may be bare. The basis is the row's own; the org default
+    // pre-selects a form and is never read here.
+    cell: (inv) => {
+      // The ISO code is shown only when it tells the reader something: the invoice is not in the org currency.
+      const showCode = inv.amount != null && Boolean(inv.currency) && inv.currency !== orgCurrency;
+      return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
           <span className="inline-flex items-baseline justify-end gap-1">
             <span className="tabular text-right text-[13px]">
               {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
             </span>
-            {inv.amount != null && inv.currency && (
-              <span className="text-xs text-muted-foreground">{inv.currency}</span>
-            )}
+            {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
           {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
@@ -776,94 +783,91 @@ const SalesInvoices: React.FC = () => {
             </span>
           )}
         </span>
-      ),
-      // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
-      exportValue: (inv) => inv.amount ?? '',
+      );
     },
-    {
-      key: 'erp_outstanding_amount',
-      header: t('financeCopy.outstanding', "Outstanding"),
-      align: 'num',
-      cell: (inv) => {
-        const overpaid = overpaidBy(inv);
-        const paid = paidToDate(inv);
-        return (
-          <span className="flex w-full flex-col items-end gap-0.5 text-right">
-            <span className="tabular text-[13px]">
-              {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
+    // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
+    exportValue: (inv) => inv.amount ?? '',
+  };
+  const outstandingColumn: Column<SalesInvoiceRow> = {
+    key: 'erp_outstanding_amount',
+    header: t('financeCopy.outstanding', "Outstanding"),
+    kind: 'money',
+    align: 'num',
+    size: 170,
+    cell: (inv) => {
+      const overpaid = overpaidBy(inv);
+      const paid = paidToDate(inv);
+      return (
+        <span className="flex w-full flex-col items-end gap-0.5 text-right">
+          <span className="tabular text-[13px]">
+            {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
+          </span>
+          {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
+          {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
+          {paid != null && (
+            <span className="text-xs text-muted-foreground">
+              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyCents(paid, inv.currency) })}
             </span>
-            {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
-            {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
-            {paid != null && (
-              <span className="text-xs text-muted-foreground">
-                {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyCents(paid, inv.currency) })}
-              </span>
-            )}
-            {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
-            {overpaid != null && (
-              <span className="text-xs text-muted-foreground">
-                {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
-              </span>
-            )}
-            {/* #784 DD-NAR-16: what this PMO invoice carried into the ERP's opening entry at connect. */}
-            {inv.pmo_native && inv.erp_opening_amount != null && inv.erp_opening_at && (
-              <span className="max-w-[24ch] whitespace-normal text-xs text-muted-foreground">
-                {t('financeCopy.carriedIntoErpOpening', 'Carried into the ERP opening balance: {{amount}} on {{date}}', {
-                  amount: formatCurrencyCents(inv.erp_opening_amount, inv.currency),
-                  date: formatInstantDate(inv.erp_opening_at),
-                })}
-              </span>
-            )}
-          </span>
-        );
-      },
-      exportValue: (inv) => inv.erp_outstanding_amount ?? '',
+          )}
+          {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
+          {overpaid != null && (
+            <span className="text-xs text-muted-foreground">
+              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
+            </span>
+          )}
+        </span>
+      );
     },
-    {
-      key: 'invoice_date',
-      header: t('financeCopy.date', "Date"),
-      cell: (inv) => (inv.invoice_date ? formatDateOnly(inv.invoice_date) : '—'),
-      exportValue: (inv) => inv.invoice_date ?? '',
+    exportValue: (inv) => inv.erp_outstanding_amount ?? '',
+  };
+  const dueColumn: Column<SalesInvoiceRow> = {
+    key: 'due_date',
+    header: t('financeCopy.dueDate', "Due Date"),
+    kind: 'date',
+    size: 130,
+    cell: (inv) => {
+      const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
+      const age = overdueAgeDays(due, organizationToday);
+      const unpaid = inv.status === 'Submitted' || inv.status === 'Unpaid';
+      return (
+        <span className="flex flex-col">
+          <span>{due ? formatDateOnly(due) : '—'}</span>
+          {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{age === 1
+            ? t('uxs05.overdueDay', '{{count}} day overdue', { count: age })
+            : t('uxs05.overdueDays', '{{count}} days overdue', { count: age })}</span>}
+        </span>
+      );
     },
-    {
-      key: 'received_date',
-      header: t('financeCopy.receivedDate', "Received"),
-      cell: (inv) => (inv.received_date ? formatDateOnly(inv.received_date) : '—'),
-      exportValue: (inv) => inv.received_date ?? '',
-    },
-    {
-      key: 'due_date',
-      header: t('financeCopy.dueDate', "Due Date"),
-      cell: (inv) => {
-        const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-        const age = overdueAgeDays(due, organizationToday);
-        const unpaid = inv.status === 'Submitted' || inv.status === 'Unpaid';
-        return (
-          <span className="flex flex-col">
-            <span>{due ? formatDateOnly(due) : '—'}</span>
-            {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{age === 1
-              ? t('uxs05.overdueDay', '{{count}} day overdue', { count: age })
-              : t('uxs05.overdueDays', '{{count}} days overdue', { count: age })}</span>}
-          </span>
-        );
-      },
-      exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
-    },
-    {
-      // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
-      key: 'efaktur',
-      header: t('efaktur.column', 'e-Faktur'),
-      cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
-    },
+    exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
+  };
+  const efakturColumn: Column<SalesInvoiceRow> = {
+    // One cell for the pair (number over a muted date). Shown only when a loaded row carries a value.
+    key: 'efaktur',
+    header: t('efaktur.column', 'e-Faktur'),
+    kind: 'text',
+    size: 150,
+    cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
+  };
+  const columns: Column<SalesInvoiceRow>[] = [
+    invoiceColumn, referenceColumn, statusColumn, amountColumn, outstandingColumn, dueColumn,
+    ...(showEfaktur ? [efakturColumn] : []),
   ];
 
-  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). The
-  // e-Faktur pair shares one cell on screen but stays two sortable columns in the download.
-  const exportColumns = withCurrencyColumn(columns, 'amount', (r) => r.currency).flatMap((col): Column<SalesInvoiceRow>[] =>
-    col.key !== 'efaktur' ? [col] : [
-      { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
-      { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
-    ]);
+  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
+  // screen no longer shows (customer, invoice and received dates, the e-Faktur pair) stays in the download.
+  const exportColumns = withCurrencyColumn<SalesInvoiceRow>([
+    invoiceColumn,
+    referenceColumn,
+    { key: 'customer_id', header: t('financeCopy.customer', "Customer"), cell: (inv) => inv.customer_name, exportValue: (inv) => inv.customer_name ?? '' },
+    statusColumn,
+    amountColumn,
+    outstandingColumn,
+    { key: 'invoice_date', header: t('financeCopy.date', "Date"), cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
+    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
+    dueColumn,
+    { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
+    { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
+  ], 'amount', (r) => r.currency);
 
   const rowMenu = (inv: SalesInvoiceRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [{
@@ -959,21 +963,11 @@ const SalesInvoices: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.salesInvoices', "Sales Invoices")}
-      description={mode === undefined
-        ? undefined
-        : native
-          ? t('financeCopy.nativeSalesInvoicesDescription', 'Client invoices raised, approved and settled in PMO.')
-          : t('financeCopy.clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced', "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.")}
-      primaryAction={mode !== undefined && !createRequested ? (
-        canCreate ? (
-          <Button variant="primary" onClick={openNewInvoice}>
-            <Icon name="plus" />
-            {t('financeCopy.newInvoice', "New Invoice")}</Button>
-        ) : (
-          <Button variant="outline" onClick={() => navigate('/projects')}>
-            <Icon name="pipe" className="size-4 mr-2" />
-            {t('financeCopy.browseProjects', 'Browse Projects')}</Button>
-        )
+      description={t('finance:invoices.description', 'Client invoices.')}
+      primaryAction={mode !== undefined && !createRequested && canCreate ? (
+        <Button variant="primary" onClick={openNewInvoice}>
+          <Icon name="plus" />
+          {t('financeCopy.newInvoice', "New Invoice")}</Button>
       ) : undefined}
       filters={
         state !== 'loading' && (
@@ -993,17 +987,6 @@ const SalesInvoices: React.FC = () => {
               ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
             />
             <div className="mt-2 flex flex-wrap items-end gap-2">
-              <div className="w-full max-w-[280px]">
-                <Combobox
-                  label={t('uxs05.filterProject', 'Filter by project')}
-                  value={selectedProject?.value ?? null}
-                  selectedOption={selectedProject}
-                  onChange={(value) => updateListParam('project', value ?? '')}
-                  loadOptions={loadFilterProjects}
-                  noun={t('uxs05.project', 'Project')}
-                  placeholder={t('uxs05.allProjects', 'All projects')}
-                />
-              </div>
               {requestedCustomerId && (
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
                   <span role="status" className="min-w-0 break-words text-sm">
@@ -1019,6 +1002,18 @@ const SalesInvoices: React.FC = () => {
                   >{t('dashboard.uxs36CustomerFilterClear', 'Clear customer filter')}</Button>
                 </div>
               )}
+              {contextualProjectId && (
+                <div data-testid="project-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
+                  <span role="status" className="min-w-0 break-words text-sm">
+                    {t('financeCopy.project', 'Project')}: <span className="font-medium">
+                      {selectedProject?.label ?? t('financeCopy.projectUnavailable', 'Project details unavailable')}
+                    </span>
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => updateListParam('project', '')}>
+                    {t('finance:invoices.clearProject', 'Clear project filter')}
+                  </Button>
+                </div>
+              )}
               <Button
                 type="button"
                 variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
@@ -1026,14 +1021,6 @@ const SalesInvoices: React.FC = () => {
                 disabled={!organizationToday}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
-              {!organizationToday && <span className="text-sm text-muted-foreground" role="status">{isOrganizationDayPending ? t('uxs05.overdueDateLoading', 'Loading the organization date…') : t('uxs05.overdueDateUnavailable', 'Overdue filtering is unavailable until the organization date is known.')}</span>}
-              <Button
-                type="button"
-                variant={searchParams.get('sort') === 'oldest-overdue' ? 'outline' : 'ghost'}
-                aria-pressed={searchParams.get('sort') === 'oldest-overdue'}
-                disabled={!organizationToday}
-                onClick={() => updateListParam('sort', searchParams.get('sort') === 'oldest-overdue' ? '' : 'oldest-overdue')}
-              >{t('uxs05.sortOldestOverdue', 'Oldest overdue first')}</Button>
             </div>
           </div>
         )

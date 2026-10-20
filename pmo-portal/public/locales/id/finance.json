@@ -1,0 +1,6 @@
+{
+  "invoices": {
+    "description": "Faktur klien.",
+    "clearProject": "Hapus filter proyek"
+  }
+}

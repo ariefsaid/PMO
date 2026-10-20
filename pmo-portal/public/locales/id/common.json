@@ -3942,17 +3942,10 @@
     "noActiveBudget": "Tidak ada anggaran aktif"
   },
   "uxs05": {
-    "project": "Proyek",
     "customerReference": "Referensi pelanggan",
-    "projectReferenceFallback": "Referensi proyek: {{reference}}",
     "overdueDay": "Terlambat {{count}} hari",
     "overdueDays": "Terlambat {{count}} hari",
-    "filterProject": "Filter berdasarkan proyek",
-    "allProjects": "Semua proyek",
-    "overdueOnly": "Hanya yang terlambat",
-    "sortOldestOverdue": "Dahulukan yang paling lama terlambat",
-    "overdueDateLoading": "Memuat tanggal organisasi…",
-    "overdueDateUnavailable": "Filter keterlambatan tidak tersedia sampai tanggal organisasi diketahui."
+    "overdueOnly": "Hanya yang terlambat"
   },
   "uxs37": {
     "basisDescription": "Nilai pekerjaan yang ditagihkan tidak termasuk pajak; piutang terbuka mencakup pajak yang masih terutang. Setiap nilai tetap menggunakan mata uang faktur.",
@@ -3975,7 +3968,6 @@
     "customerNotRecorded": "Pelanggan belum dicatat",
     "unnamedInvoice": "faktur",
     "continueToApprove": "Lanjutkan untuk menyetujui",
-    "nativeSalesInvoicesDescription": "Faktur klien yang dibuat, disetujui, dan dilunasi di PMO.",
     "nativeNewInvoiceSubtitle": "Membuat draf. Pengguna Finance atau Admin lain yang menyetujuinya.",
     "nativeProjectRequired": "Proyek wajib diisi: proyek menentukan PPN faktur.",
     "nativeSelectProject": "Pilih proyek…",
@@ -4100,7 +4092,6 @@
     "dueDate": "Tanggal jatuh tempo",
     "submit": "Ajukan",
     "salesInvoices": "Faktur Penjualan",
-    "clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced": "Faktur klien yang diterbitkan melalui PMO dan dicerminkan dari ERPNext. Jumlah terutang bersumber dari ERP.",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
     "clearFilter": "Hapus filter",
@@ -4145,7 +4136,6 @@
     "openAR": "Piutang Terbuka",
     "invoices": "Faktur",
     "revenueByProject": "Pendapatan per Proyek",
-    "browseProjects": "Lihat Proyek",
     "totalInvoices": "Total Faktur",
     "projects": "Proyek",
     "noRevenueDataYet": "Belum ada data pendapatan",

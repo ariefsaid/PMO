@@ -149,7 +149,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
     h.role = 'Project Manager';
     renderPage();
-    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
     expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
     expect(screen.queryByText(/Create your first invoice/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'New Invoice' })).toBeNull();
@@ -163,9 +163,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage('en');
   });
 
-  it('AC-NAR-001 the page says invoices are raised and settled in PMO', () => {
+  it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
     renderPage();
-    expect(screen.getByText('Client invoices raised, approved and settled in PMO.')).toBeInTheDocument();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
   });
 
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
@@ -381,7 +381,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    expect(screen.getByText(/mirrored from ERPNext/)).toBeInTheDocument();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
     await pick(user, 'Customer', 'Acme Energy');
     await user.type(screen.getByLabelText(/Item code/), 'SVC');
@@ -392,13 +392,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.ownershipLoaded = false;
     h.route = 'external';
     const { rerender } = renderPage();
-    expect(screen.queryByText('Client invoices raised, approved and settled in PMO.')).toBeNull();
-    expect(screen.queryByText(/mirrored from ERPNext/)).toBeNull();
     expect(screen.queryByRole('button', { name: /New Invoice/i })).toBeNull();
     h.ownershipLoaded = true;
     rerender(page());
-    expect(screen.getByText(/mirrored from ERPNext/)).toBeInTheDocument();
-    expect(screen.queryByText('Client invoices raised, approved and settled in PMO.')).toBeNull();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
   });
 
   it('FR-NAR-002 (I-3) a PMO line needs an item code OR a description — a description alone is enough', async () => {

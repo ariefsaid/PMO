@@ -152,12 +152,13 @@ describe('SalesInvoices — currency (#530 / AC-L10N-020)', () => {
 });
 
 describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
-  it('keeps the ERP invoice number and document date visible when their years differ', () => {
+  it('keeps the ERP invoice number and its derived due date visible when their years differ (FIN-S1: no separate Date column)', () => {
     salesInvoicesState.data = [{ ...SEED_INVOICES[0], si_number: 'ACC-SINV-2025-00001', invoice_date: '2026-07-01' }];
     renderAs('Finance');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2025-00001');
-    expect(table).toContain(formatDateOnly('2026-07-01'));
+    expect(table).toContain(formatDateOnly('2026-07-31'));
+    expect(table).not.toContain(formatDateOnly('2026-07-01'));
   });
 
   it('renders the Due Date column with derived values', () => {
@@ -174,10 +175,9 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     // Second invoice: has ERP due date 2026-09-15 (takes precedence)
     // #781 (AC-FIN-003): displayed dates now route through the shared locale formatter.
     const tableText = screen.getByRole('table').textContent ?? '';
-    expect(tableText).toContain(formatDateOnly('2026-07-01'));
     expect(tableText).toContain(formatDateOnly('2026-07-31'));
-    expect(tableText).toContain(formatDateOnly('2026-07-15'));
     expect(tableText).toContain(formatDateOnly('2026-09-15'));
+    expect(tableText).not.toContain(formatDateOnly('2026-07-01'));
   });
 
   it('shows "—" for invoices with no invoice date', () => {

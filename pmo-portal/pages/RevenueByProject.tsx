@@ -188,11 +188,7 @@ const RevenueByProject: React.FC = () => {
         <Button variant="primary" onClick={() => navigate('/sales-invoices?create=1')}>
           <Icon name="plus" />
           {t('financeCopy.newInvoice', 'New Invoice')}</Button>
-      ) : (
-        <Button variant="outline" onClick={() => navigate('/projects')}>
-          <Icon name="pipe" className="size-4 mr-2" />
-          {t('financeCopy.browseProjects', "Browse Projects")}</Button>
-      )}
+      ) : undefined}
     >
       {/* KPI Summary — honest states only (BLOCK 2 / the AccountingSnapshotsSection rule): while the
           rollup is loading the tiles are skeletons, and on a failed query they show "—", NEVER a

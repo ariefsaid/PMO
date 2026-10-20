@@ -1,0 +1,6 @@
+{
+  "invoices": {
+    "description": "Client invoices.",
+    "clearProject": "Clear project filter"
+  }
+}

@@ -436,16 +436,10 @@ const IncomingPayments: React.FC = () => {
         : native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
           : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={mode !== undefined ? (
-        canCreate ? (
-          <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
-            <Icon name="plus" />
-            {t('financeCopy.receivePayment', "Receive Payment")}</Button>
-        ) : (
-          <Button variant="outline" onClick={() => navigate('/projects')}>
-            <Icon name="pipe" className="size-4 mr-2" />
-            {t('financeCopy.browseProjects', 'Browse Projects')}</Button>
-        )
+      primaryAction={mode !== undefined && canCreate ? (
+        <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
+          <Icon name="plus" />
+          {t('financeCopy.receivePayment', "Receive Payment")}</Button>
       ) : undefined}
       filters={
         state !== 'loading' && (

@@ -122,7 +122,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
   it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
     h.role = 'Project Manager';
     renderPage();
-    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
     expect(screen.getByText(/Finance records client payments/)).toBeInTheDocument();
     expect(screen.queryByText(/Record your first payment/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
