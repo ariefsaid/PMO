@@ -35,7 +35,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
-  useBudgetVersions: () => ({ data: [] as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetVersions: () => ({ data: [{ id: 'bv1', status: 'Active', total: 900_000, line_items: [] }] as unknown as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => budgetUtilState,
   useBudgetMutations: () => ({}),
 }));
@@ -88,12 +88,13 @@ beforeEach(() => {
   budgetUtilState.refetch.mockClear();
 });
 
-describe('AC-B-0-4: OverviewTab budget-utilization card — loading/error states', () => {
-  it('AC-B-0-4: normal state shows the utilization bar (not an error)', () => {
+describe('AC-B-0-4: OverviewTab budget use — loading/error states never show a false zero', () => {
+  it('AC-B-0-4: normal state shows budget use in the Budget snapshot (not an error)', () => {
     renderTab();
-    expect(screen.getByText(/Budget utilization/i)).toBeInTheDocument();
-    // Complete mapped Actuals are compared with the Active budget.
-    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
+    // PD-B: the Budget utilization card is gone; complete mapped Actual over the Active budget
+    // reads as "% of budget" in the Budget snapshot's Budget position.
+    expect(screen.queryByText(/Budget utilization/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-used')).toHaveTextContent(/\d+% of budget/);
   });
 
   it('AC-B-0-4: loading state renders a ListState skeleton (not "$0 of $0")', () => {
@@ -108,27 +109,14 @@ describe('AC-B-0-4: OverviewTab budget-utilization card — loading/error states
     expect(document.body.textContent).not.toMatch(/\$0 of \$0/);
   });
 
-  it('AC-B-0-4: error state renders a distinct error message (not "$0 of $0")', () => {
+  it('AC-B-0-4: a failed budget read shows no budget-use figure and no false zero', () => {
     budgetUtilState.isPending = false;
     budgetUtilState.isError = true;
     budgetUtilState.data = undefined;
     renderTab();
 
-    // "Couldn't load budget" error heading must be visible
-    expect(screen.getByText(/Couldn't load budget/i)).toBeInTheDocument();
-    // The utilization bar / actual-spending comparison must NOT be present
-    expect(screen.queryByText(/recorded spending against the active budget/i)).toBeNull();
-    // Should NOT show the false-zero state
+    expect(screen.queryByTestId('budget-used')).toBeNull();
+    expect(screen.queryByText(/0% of budget/)).toBeNull();
     expect(document.body.textContent).not.toMatch(/\$0 of \$0/);
-  });
-
-  it('AC-B-0-4: error state shows a Retry affordance', () => {
-    budgetUtilState.isPending = false;
-    budgetUtilState.isError = true;
-    budgetUtilState.data = undefined;
-    renderTab();
-
-    const retryBtn = screen.getByRole('button', { name: /retry/i });
-    expect(retryBtn).toBeInTheDocument();
   });
 });

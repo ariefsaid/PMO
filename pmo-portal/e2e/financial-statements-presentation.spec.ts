@@ -394,7 +394,8 @@ test('AC-008 support: project Retry repeats the eligible totals read without dro
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect.poll(routes.readCount).toBe(readsBeforeRetry + 1);
   await expect(page.getByText('12,345,678,901,234,567,890.01')).toBeVisible();
-  await expect(page.getByText(/Capture window:/)).toBeVisible();
+  // PD-B: the project context line is currency + the period shown (no capture window).
+  await expect(page.getByText(/Current period:/)).toBeVisible();
 });
 
 test('AC-008 support: initial read error hides backend detail and Retry restores the report', async ({ page }) => {

@@ -78,6 +78,9 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
         actual: actualText,
       });
 
+  // PD-B: no curve to draw (or not known yet) → render nothing; the phases line already says so.
+  if (state === 'loading' || state === 'empty') return null;
+
   return (
     <div>
       <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">
@@ -182,13 +185,15 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </span>
           </figcaption>
 
-          {/* FR-SCA-014 backfill caveat — proxy dates (completed_at absent) are estimates. */}
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            {t(
-              'projectDetail.scurve.backfillCaveat',
-              'Completion dates before today are estimated; live tracking starts now.',
-            )}
-          </p>
+          {/* FR-SCA-014 backfill caveat — shown only when a proxy date (completed_at absent) was used. */}
+          {model.usesProxyDates && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {t(
+                'projectDetail.scurve.backfillCaveat',
+                'Completion dates before today are estimated; live tracking starts now.',
+              )}
+            </p>
+          )}
         </figure>
       </ChartFrame>
     </div>

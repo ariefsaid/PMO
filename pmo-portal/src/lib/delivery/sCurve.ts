@@ -38,6 +38,8 @@ export interface SCurveModel {
   actualToDate: number;
   /** Planned % the plan expected by `asOf` (interpolated), 0..100, or null if undated. */
   plannedToDate: number | null;
+  /** FR-SCA-014: true when a Done task was placed at its scheduled `end_date` (no `completed_at`). */
+  usesProxyDates: boolean;
 }
 
 /**
@@ -236,7 +238,7 @@ export function buildSCurve(
   );
 
   if (totalWeight === 0) {
-    return { points: [], actualToDate: 0, plannedToDate: null };
+    return { points: [], actualToDate: 0, plannedToDate: null, usesProxyDates: false };
   }
 
   const actualToDate = round2(
@@ -256,7 +258,7 @@ export function buildSCurve(
     });
 
   if (dated.length === 0) {
-    return { points: [], actualToDate, plannedToDate: null };
+    return { points: [], actualToDate, plannedToDate: null, usesProxyDates: false };
   }
 
   // Planned cumulative points: origin at the earliest date (0%), then one per milestone.
@@ -308,6 +310,7 @@ export function buildSCurve(
 
     // Collect (ts, numeratorContribution) pairs from each weighted milestone.
     const contributions: Array<{ ts: number; numerator: number }> = [];
+    let usesProxyDates = false;
 
     for (const m of milestones) {
       if (m.weight <= 0) continue;
@@ -334,6 +337,7 @@ export function buildSCurve(
           // Use completed_at if present, else end_date proxy. Skip if both null.
           const dateIso = t.completed_at ?? t.end_date;
           if (dateIso == null) continue;
+          if (t.completed_at == null) usesProxyDates = true;
           const ts = clampDate(dateIso, asOf);
           contributions.push({ ts, numerator: perTaskNumerator });
         }
@@ -374,7 +378,7 @@ export function buildSCurve(
         if (lastPoint) lastPoint.actual = actualToDate;
       }
 
-      return { points, actualToDate, plannedToDate };
+      return { points, actualToDate, plannedToDate, usesProxyDates };
     }
   }
 
@@ -383,7 +387,7 @@ export function buildSCurve(
   // preserve the v1 single "actual to date" dot at asOf.
   points.push({ date: asOf, ts: isoToTs(asOf), planned: null, actual: actualToDate });
 
-  return { points, actualToDate, plannedToDate };
+  return { points, actualToDate, plannedToDate, usesProxyDates: false };
 }
 
 /** Linear interpolation of the planned curve at `asOf`, clamped to [0,100]. */

@@ -86,31 +86,31 @@ const renderTab = (p: ProjectWithRefs, actualSpend = 0) => {
   );
 };
 
+// PD-B: budget use % + At risk live in the Budget snapshot, which exists only with an Active version.
+const activeVersion = { id: 'bv1', status: 'Active', total: 900_000, line_items: [] } as unknown as BudgetVersionWithItems;
+
 beforeEach(() => {
   procState.data = [];
-  budgetState.data = [];
+  budgetState.data = [activeVersion];
   derivedBudgetData = 900_000;
   navigate.mockClear();
 });
 
 describe('OverviewTab — at-risk budget co-location (AC-W6-IXD-ATRISK)', () => {
-  it('AC-W6-IXD-ATRISK: an at-risk project renders the committed-budget bar + a "% of budget" caption + an "At risk" pill', () => {
+  it('AC-W6-IXD-ATRISK: an at-risk project shows "% of budget" + an "At risk" pill together in the Budget position', () => {
     // committed/budget = 850/900 = 94% (>= 0.9 threshold) -> at-risk.
     const p = { ...baseProject, budget: 900_000, spent: 0 } as ProjectWithRefs;
     renderTab(p, 850_000);
-    const bar = screen.getByRole('progressbar', { name: /actual spending/i });
-    expect(bar).toBeInTheDocument();
-    // The caption + flag are co-located inside the same card as the bar.
-    const card = bar.closest('div')!;
-    expect(within(card).getByText(/94% of budget/i)).toBeInTheDocument();
-    expect(within(card).getByText(/^At risk$/i)).toBeInTheDocument();
+    const used = screen.getByTestId('budget-used');
+    expect(within(used).getByText(/94% of budget/i)).toBeInTheDocument();
+    expect(within(used).getByText(/^At risk$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Budget utilization/)).not.toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-ATRISK: a healthy project renders the bar only — no budget caption, no pill', () => {
+  it('AC-W6-IXD-ATRISK: a healthy project shows its % of budget, but no At-risk pill', () => {
     // committed/budget = 400/900 = 44% -> healthy.
     renderTab(baseProject, 400_000);
-    expect(screen.getByRole('progressbar', { name: /actual spending/i })).toBeInTheDocument();
-    expect(screen.queryByText(/% of budget/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-used')).toHaveTextContent('44% of budget');
     expect(screen.queryByText(/^At risk$/i)).not.toBeInTheDocument();
   });
 

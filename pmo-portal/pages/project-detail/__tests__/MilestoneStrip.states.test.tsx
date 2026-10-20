@@ -100,14 +100,16 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(screen.getByTestId('milestone-strip-loading')).toBeInTheDocument();
   });
 
-  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders the planning prompt and first-phase CTA', () => {
+  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders ONE line with the plan-phases CTA (PD-B: no hero, no placeholder bars)', () => {
     milestoneState.data = [];
     milestoneState.isPending = false;
     mockRole = 'Project Manager';
     render$();
-    expect(screen.getByTestId('milestone-strip-empty')).toBeInTheDocument();
-    expect(screen.getByText("Plan this project's delivery phases")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add the first phase/i })).toBeInTheDocument();
+    const empty = screen.getByTestId('milestone-strip-empty');
+    expect(empty).toHaveTextContent('No delivery phases yet');
+    expect(within(empty).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+    expect(screen.queryByText("Plan this project's delivery phases")).not.toBeInTheDocument();
+    expect(empty.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
   });
 
   it('FR-DEL-013: empty + Engineer viewer sees a quiet "No delivery phases yet" line', () => {
@@ -116,7 +118,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     mockRole = 'Engineer';
     render$();
     expect(screen.getByText('No delivery phases yet')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /add the first phase/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /plan delivery phases/i })).not.toBeInTheDocument();
   });
 
   it('AC-DEL-014: error renders an error + Retry, and Retry calls refetch', () => {
@@ -131,9 +133,9 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(refetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('empty state + clicking "Add the first phase" opens CREATE modal (formTarget with null milestone)', () => {
+  it('empty state + clicking "Plan delivery phases" opens CREATE modal (formTarget with null milestone)', () => {
     render$();
-    fireEvent.click(screen.getByRole('button', { name: /add the first phase/i }));
+    fireEvent.click(screen.getByRole('button', { name: /plan delivery phases/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 

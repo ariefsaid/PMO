@@ -211,11 +211,11 @@ const ProjectDetail: React.FC = () => {
     >
       <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
         {tab === 'overview' && (
-          <>
+          // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
+          // nothing, so it leaves no empty slot or stray margin behind.
+          <div className="flex min-w-0 flex-col gap-8">
             {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-            <div className="mb-6">
-              <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
-            </div>
+            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -228,26 +228,21 @@ const ProjectDetail: React.FC = () => {
               // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
               showFinanceSummary={isDeliveryForward && !isPipeline}
             />
-            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+            <React.Suspense fallback={null}>
               <ProjectProfitLossSection projectId={project.id} />
             </React.Suspense>
-            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
-                the Overview tab is active, and is hidden for pre-win records (no real progress
-                data). Scoping it here (not at shell level) prevents it bleeding into
-                Budget / Procurement / Tasks / Documents. */}
+            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget, hidden for pre-win records
+                (no real progress data). Scoped here, not at shell level, so it never bleeds into
+                the other tabs. */}
             {!isPipeline && (
-              <div className="mt-8">
-                <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-80" />}>
-                  <ProjectSCurve projectId={project.id} />
-                </React.Suspense>
-              </div>
-            )}
-            <div className="mt-8">
-              <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
-                <CommentsSection entityType="project" entityId={project.id} />
+              <React.Suspense fallback={null}>
+                <ProjectSCurve projectId={project.id} />
               </React.Suspense>
-            </div>
-          </>
+            )}
+            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+              <CommentsSection entityType="project" entityId={project.id} />
+            </React.Suspense>
+          </div>
         )}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
