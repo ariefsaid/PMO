@@ -338,7 +338,7 @@ const ManagementPack: React.FC = () => {
               columns={columns}
               rowKey={(row) => row.key}
               tableId="managementpack-1-table"
-              accessibleName={t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
+              accessibleName={t('managementPack.col.project', 'Project')}
               totals={projectTotals}
             />
           </Card>

@@ -163,7 +163,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
     });
     renderPage();
-    const projectTable = screen.getByRole('table', { name: 'Projects as at Apr 26' });
+    const projectTable = screen.getByRole('table', { name: 'Project' });
     const footRows = within(projectTable).getAllByRole('row').filter((row) => row.closest('tfoot'));
     expect(footRows.length).toBeGreaterThanOrEqual(2);
     expect(footRows.map((row) => row.textContent).join(' ')).toMatch(/Total/);
