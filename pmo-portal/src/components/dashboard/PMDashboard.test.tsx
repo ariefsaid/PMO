@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { PMDashboard } from './PMDashboard';
 import { BahasaProvider } from '@/test/bahasa';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const mine = [
   { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
@@ -48,11 +49,14 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));
 
-const renderPane = (locale: 'en' | 'id' = 'en') => render(
+const renderPane = (locale: 'en' | 'id' = 'en') => {
+  setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
+  return render(
   <BahasaProvider locale={locale}>
     <MemoryRouter><PMDashboard /></MemoryRouter>
   </BahasaProvider>,
-);
+  );
+};
 
 beforeEach(() => {
   projState.data = mine;

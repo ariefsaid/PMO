@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCompactCurrency } from './format';
 import { formatDashboardMoney, moneyFigure, moneyTotalsFigure } from './dashboardMoney';
 
@@ -36,6 +36,12 @@ describe('AC-RD-MONEY-001 moneyFigure (short visible, exact in metadata)', () =>
     expect(fig.unavailableReason).toBeUndefined();
   });
 
+  it('uses the configured number locale, independent of the UI language', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
+    expect(getNumberLocale()).toBe('id-ID');
+    expect(moneyFigure(1_200_000, 'USD', getNumberLocale(), 'Unavailable').exactValue).toBe('US$1.200.000');
+  });
+
   it('keeps a non-zero fraction in the exact form for an exact decimal string', () => {
     const fig = moneyFigure('29812225000.50', 'IDR', 'en-US', 'Unavailable');
     expect(fig.exactValue).toBe('IDR\u00a029,812,225,000.50');
@@ -64,12 +70,17 @@ describe('AC-RD-MONEY-001 small amounts', () => {
 
 describe('AC-RD-MONEY-001 moneyTotalsFigure (per-currency totals, never summed)', () => {
   it('keeps each currency separate in the short and the exact form', () => {
-    const fig = moneyTotalsFigure([{ currency: 'USD', amount: 1_200_000 }, { currency: 'EUR', amount: 3_000 }], 'USD', 'en-US');
+    const fig = moneyTotalsFigure([{ currency: 'USD', amount: 1_200_000 }, { currency: 'EUR', amount: 3_000 }], 'USD', 'en-US', 'Unavailable');
     expect(fig.value).toBe('$1.2M · €3.0K');
     expect(fig.exactValue).toBe('$1,200,000 · €3,000');
   });
   it('an empty org shows a known zero in its own currency', () => {
-    const fig = moneyTotalsFigure([], 'USD', 'en-US');
+    const fig = moneyTotalsFigure([], 'USD', 'en-US', 'Unavailable');
     expect(fig).toEqual({ value: '$0' });
+  });
+  it('keeps a non-empty unavailable reason if a currency cannot be formatted', () => {
+    const fig = moneyTotalsFigure([{ currency: 'not-a-currency', amount: 12 }], 'USD', 'en-US', 'Revenue unavailable');
+    expect(fig.value).toBe('—');
+    expect(fig.unavailableReason).toBe('Revenue unavailable');
   });
 });

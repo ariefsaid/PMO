@@ -9,6 +9,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { formatDashboardMoney, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { riskCheckableFor } from '@/src/lib/dashboardConstants';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -119,7 +120,7 @@ const ExecutiveDashboard: React.FC = () => {
     const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
     // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
     const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-    const figure = (value: number | null) => moneyFigure(value, orgCurrency, i18n.language, notAvailable);
+    const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
     // The short form already names its currency once ("$1.2M", "IDR 2.0B") - never prefix it again.
     const currencyMoney = (value: number, currency: string) => shortMoney(value, currency, notAvailable);
     const onHandCurrencies = data.on_hand_value_by_currency ?? [];

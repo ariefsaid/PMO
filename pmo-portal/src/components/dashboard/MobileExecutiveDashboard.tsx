@@ -28,6 +28,7 @@ import { AtRiskProjectsLink } from './AtRiskProjectsLink';
 import { formatDashboardMoney, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -93,11 +94,11 @@ const AtRiskBlock: React.FC<{
    *  a different org. */
   currency: string;
 }> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
-  const spendFigure = moneyFigure(totalSpend, currency, i18n.language, notAvailable);
+  const spendFigure = moneyFigure(totalSpend, currency, getNumberLocale(), notAvailable);
   // The link's accessible name carries the exact amount (or the unavailable reason), never the short form.
-  const spendText = spendFigure.exactValue ?? notAvailable;
+  const spendText = spendFigure.unavailableReason ?? spendFigure.exactValue ?? spendFigure.value;
   const isAtRisk = atRisk > 0;
   const isUnknown = !riskCheckable && !isAtRisk;
 
@@ -274,7 +275,7 @@ const ContractBook: React.FC<{
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
   // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
   const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-  const figure = (value: number | null) => moneyFigure(value, orgCurrency, i18n.language, notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
   const currencyMoney = (value: number | null, currency: string) => shortMoney(value, currency, notAvailable);
   const remainingRows = onHandValueByCurrency
     .filter((row) => row.contract_remaining !== null)

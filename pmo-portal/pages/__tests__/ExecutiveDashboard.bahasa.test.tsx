@@ -5,6 +5,7 @@ import React from 'react';
 import ExecutiveDashboard from '../ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { BahasaProvider } from '@/test/bahasa';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const desktop = vi.hoisted(() => ({ value: true }));
 const state = vi.hoisted(() => ({
@@ -58,6 +59,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exe
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 function renderDashboard(locale: 'en' | 'id' = 'id') {
+  setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   return render(<BahasaProvider locale={locale}><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
 }
 
@@ -74,7 +76,7 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByText('Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
     // OD-MONEY-FMT: short figure visible; the exact amount stays in the Bahasa format (title + sr text).
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('$8.0M');
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8,0 jt');
     expect(screen.getByTestId('kpi-on-hand-margin').querySelector('[title="US$8.000.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Nilai kontrak dalam portofolio saat ini');
     expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');

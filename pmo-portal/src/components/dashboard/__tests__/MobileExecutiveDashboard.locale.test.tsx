@@ -56,6 +56,7 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
     );
 
     expect(screen.getByTestId('mobile-contract-book')).toHaveAttribute('aria-label', 'Portofolio kontrak');
+    expect(screen.getByRole('link', { name: /\$200/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute(
       'href',
       '/projects?filter=at-risk',

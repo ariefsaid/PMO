@@ -18,6 +18,7 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
@@ -224,7 +225,7 @@ function compareNullable(
  * - J4 console reframe: tabular nums everywhere, right-aligned money columns
  */
 export const FinanceDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: projects } = useProjectIdentity();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
@@ -255,7 +256,7 @@ export const FinanceDashboard: React.FC = () => {
   // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
   const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-  const figure = (value: number | null) => moneyFigure(value, orgCurrency, i18n.language, notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
   const totalSpend = data?.on_hand_actual_known ?? null;
   const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
     known: data?.on_hand_actual_project_count ?? 0, total: data?.on_hand_actual_project_total ?? 0,

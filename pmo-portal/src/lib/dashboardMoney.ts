@@ -50,10 +50,13 @@ export function moneyTotalsFigure(
   totals: ReadonlyArray<{ currency: string; amount: number }>,
   emptyCurrency: string,
   locale: string,
+  unavailableReason: string,
 ): MoneyFigure {
   const rows = totals.length === 0 ? [{ currency: emptyCurrency, amount: 0 }] : totals;
-  const figures = rows.map((row) => moneyFigure(row.amount, row.currency, locale, ''));
+  const figures = rows.map((row) => moneyFigure(row.amount, row.currency, locale, unavailableReason));
   const value = figures.map((fig) => fig.value).join(' · ');
   const exactValue = figures.map((fig) => fig.exactValue ?? fig.value).join(' · ');
+  const figureUnavailableReason = figures.find((fig) => fig.unavailableReason)?.unavailableReason;
+  if (figureUnavailableReason) return { value, unavailableReason: figureUnavailableReason };
   return exactValue === value ? { value } : { value, exactValue };
 }
