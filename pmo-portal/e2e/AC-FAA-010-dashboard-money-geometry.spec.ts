@@ -15,6 +15,7 @@ async function pinBahasaLocale(page: import('@playwright/test').Page) {
 
 async function expectMoneyFits(locator: Locator, value: string) {
   await expect(locator).toContainText(value);
+  await expect(locator, 'the exact amount is the figure title').toHaveAttribute('title', value);
   const metrics = await locator.evaluate((element) => {
     const box = element.getBoundingClientRect();
     const container = element.closest('[data-testid="kpi-total-spend"]') ?? element.closest('a');
@@ -46,13 +47,14 @@ test('AC-FAA-010: long Indonesian money values stay fully visible in Executive K
   await page.goto('/');
   await waitForFonts(page);
 
-  const expectedAmount = 'US$8.980.000,00';
+  // OD-MONEY-FMT: the card shows the short form; the exact Bahasa amount (zero fraction omitted) is its title + sr text.
+  const expectedAmount = 'US$8.980.000';
   const desktopTile = page.getByTestId('kpi-total-spend');
   await expect(desktopTile).toBeVisible();
   await expectMoneyFits(desktopTile.locator('div.tabular'), expectedAmount);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  const phoneSpendLink = page.getByRole('link', { name: /US\$8\.980\.000,00/ });
+  const phoneSpendLink = page.getByRole('link', { name: /US\$8\.980\.000/ });
   await expect(phoneSpendLink).toBeVisible();
   await waitForFonts(page);
   await expectMoneyFits(phoneSpendLink.locator('span.tabular'), expectedAmount);
