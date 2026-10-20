@@ -64,7 +64,7 @@ async function checkTabWork(
     await page.goto(`${projectPath}/${tab}`);
     const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
       : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
-      : tab === 'work-orders' ? panel.getByRole('heading', { name: /^Contract drawdown/ })
+      : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Work orders', exact: true })
       : tab === 'billing' ? panel.getByRole('heading', { name: /^Billing summary/ })
       : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
       : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))

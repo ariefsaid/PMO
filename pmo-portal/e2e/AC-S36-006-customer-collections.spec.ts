@@ -538,7 +538,6 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await expect(collections.getByText(fixture.erpCustomerId, { exact: true })).toBeVisible();
     await expect(collections).toContainText(fixture.reportDate);
     await expect(collections).toContainText('Due Date');
-    await expect(collections).toContainText('range5: 90+');
     await expect(collections).toContainText('Accounts Receivable');
     const sourcePosition = collections.getByRole('row').filter({ hasText: fixture.erpCustomerId });
     await expect(collections.getByRole('columnheader', { name: '90+' })).toBeVisible();

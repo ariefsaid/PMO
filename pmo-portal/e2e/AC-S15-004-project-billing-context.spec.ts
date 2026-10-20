@@ -275,7 +275,8 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     await page.reload();
     await expect(page.getByRole('heading', { name: /draft invoice|draf faktur/i })).toBeVisible();
     await expect(page.getByText(projectName, { exact: true })).toBeVisible();
-    await expect(page.getByRole('definition').filter({ hasText: companyName })).toBeVisible();
+    // FIN-S2: the client is the record's subtitle, no longer a separate Customer field.
+    await expect(page.getByText(companyName).first()).toBeVisible();
   } catch (error) {
     testFailed = true;
     testFailure = error;
