@@ -50,6 +50,24 @@ describe('DataTable column resizing', () => {
     expect(screen.queryByRole('columnheader', { name: /Resize/i })).not.toBeInTheDocument();
   });
 
+  it('AC-TBL-RESIZE-001: the keyboard handle honors the kind contract bounds (status 112-220), as pointer drag does', () => {
+    desktop();
+    const statusColumns: Column<Row>[] = [
+      { key: 'name', header: 'Project', cell: (row) => row.name, kind: 'status' },
+      { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100 },
+    ];
+    renderTable({ rows, columns: statusColumns, rowKey: (row) => row.id, tableId: 'resize-kind-status' });
+    const separator = screen.getByRole('separator', { name: /Project/i });
+    expect(separator).toHaveAttribute('aria-valuemin', '112');
+    expect(separator).toHaveAttribute('aria-valuemax', '220');
+    fireEvent.keyDown(separator, { key: 'End' });
+    expect(separator).toHaveAttribute('aria-valuenow', '220');
+    fireEvent.keyDown(separator, { key: 'Home' });
+    expect(separator).toHaveAttribute('aria-valuenow', '112');
+    fireEvent.keyDown(separator, { key: 'ArrowLeft' });
+    expect(separator).toHaveAttribute('aria-valuenow', '112');
+  });
+
   it('resizes by keyboard in 16px increments, clamps at min/max, and resets on double click', () => {
     desktop();
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-test' });

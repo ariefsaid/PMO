@@ -142,6 +142,8 @@ describe('DataTable', () => {
     const nameTh = screen.getByRole('columnheader', { name: /Name/ });
     expect(nameTh).toHaveAttribute('aria-sort', 'none');
     expect(within(nameTh).getByTestId('sort-cue')).toBeVisible();
+    // Design pass §4.2: the rest cue is a 12px (size-3) up/down pair, same size as the active arrow.
+    expect(within(nameTh).getByTestId('sort-cue').className).toContain('[&_svg]:size-3');
   });
 
   it('a11y: activatable body rows keep their implicit role="row" (NOT role="link"), so getByRole("row") finds them', () => {

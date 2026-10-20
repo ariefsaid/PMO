@@ -54,7 +54,7 @@ export type CardHeadingLevel = 2 | 3 | 4 | 5 | 6;
 type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'> & { level?: CardHeadingLevel };
 
 export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
-  level = 3,
+  level = 2,
   className,
   children,
   ...rest

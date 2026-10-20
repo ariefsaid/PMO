@@ -389,7 +389,7 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Border:** always a 1px `border` — the primary depth cue. **Drop the wrapper where whitespace/dividers
   suffice** (content-over-containers).
 - **Padding:** 16px standard; compact cards (kanban) ~11px.
-- **CardHead:** a real heading element (default `h3`); set `level` to match the page outline and keep card titles in heading navigation.
+- **CardHead:** a real heading element (default `h2`, a card is a section under the page `h1`); set `level={3}` only under a real `h2` parent, and keep the page outline gap-free and keep card titles in heading navigation.
 - **KPI Tile** (signature): white card, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
   12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
   "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.

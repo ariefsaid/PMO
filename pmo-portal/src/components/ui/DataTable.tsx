@@ -491,7 +491,7 @@ export function DataTable<Row>({
                       >
                         {col.header}
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
-                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-2"><Icon name="up" /><Icon name="down" /></span>}
+                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
                     ) : (
                       <>{col.header}{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
@@ -636,8 +636,9 @@ export function DataTable<Row>({
               const edge = measured ? columnEdges.edges[col.key] : header.getStart() + header.getSize();
               if (edge === undefined) return null; // column hidden at this width
               const left = measured ? Math.max(0, Math.min(edge - 12, columnEdges.width - 24)) : edge - 12;
-              const min = col.minSize ?? 20;
-              const max = col.maxSize ?? 900;
+              // Same kind-contract bounds as the column def, cell styles and the pointer drag.
+              const min = columnMinSize(col) ?? 20;
+              const max = columnMaxSize(col) ?? 900;
               return (
                 <div
                   key={header.id}

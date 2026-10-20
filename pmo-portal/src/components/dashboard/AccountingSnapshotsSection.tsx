@@ -176,6 +176,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   columns,
   rowKey,
   reportVersion,
+  tableId,
 }: {
   title: string;
   emptyLabel: string;
@@ -187,6 +188,8 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   columns: Column<Row>[];
   rowKey: (r: Row) => string;
   reportVersion?: string | null;
+  /** Saved-width identity: blocks sharing a column shape may share an id; different shapes must not. */
+  tableId: string;
 }) {
   const first = rows[0];
   return (
@@ -208,7 +211,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
         ) : rows.length === 0 ? (
           <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
-          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId="components-dashboard-accountingsnapshotssection-table" />
+          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
         )}
       </div>
     </Card>
@@ -251,6 +254,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={actualsPending}
       isError={actualsError}
       onRetry={onRetryActuals}
+      tableId="components-dashboard-accountingsnapshotssection-actuals-table"
       columns={actualsColumns(orgCurrency)}
       // ⚑ Audit round 11 (NEW-2): the key must carry the WHOLE grain. `erp_actuals_snapshot` is keyed
       // by (project, cost_centre, account, fiscal_year); this omitted project and fiscal year, so two
@@ -269,6 +273,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={apAgingPending}
       isError={apAgingError}
       onRetry={onRetryApAging}
+      tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(unavailable, reportDateLabel, ageingBasisLabel, rangeLabelsLabel)}
       rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
@@ -282,6 +287,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={arAgingPending}
       isError={arAgingError}
       onRetry={onRetryArAging}
+      tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(unavailable, reportDateLabel, ageingBasisLabel, rangeLabelsLabel, customerLinks)}
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}

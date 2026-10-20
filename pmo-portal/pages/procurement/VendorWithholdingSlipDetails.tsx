@@ -53,7 +53,11 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     catch (e) { setError(t(`bupot.refusal.${bupotRefusal(e).key}`, 'Unable to void this PMO entry')); }
   };
   return <Card className="mt-3" aria-label={t('bupot.detailTitle', 'Bukti potong details')}>
-    <CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} ref={titleRef} tabIndex={-1} className="justify-between">{t('bupot.detailTitle', 'Bukti potong details')}<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button></CardHead>
+    {/* Close sits beside (not inside) the heading so the heading's name is just the title, and no second label clashes with the Card's region name (AC-BUPOT-020/021 getByLabel). */}
+    <div className="flex items-center justify-between gap-2.5 border-b border-border pr-4">
+      <CardHead level={2} ref={titleRef} tabIndex={-1} className="min-w-0 flex-1 border-b-0!">{t('bupot.detailTitle', 'Bukti potong details')}</CardHead>
+      <Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>
+    </div>
     <CardPad>
       <dl className="grid gap-3 sm:grid-cols-2">
         <Fact label={t('bupot.slipNumber', 'Issued slip number')} value={header.slip_number} />
