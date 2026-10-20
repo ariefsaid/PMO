@@ -486,11 +486,11 @@ describe('Projects table — compact layout (#1)', () => {
     expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
   });
 
-  it('RF-013: status changes remain available from the project card while absent from the table action column', async () => {
+  it('RF-013: status changes are absent from both the table action column and the project card (PL-B)', async () => {
     renderPage();
     expect(screen.queryByRole('columnheader', { name: /^Action$/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
   });
 });
 
@@ -501,24 +501,24 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-1011 (UI): the table keeps project identity concise and status transitions available in the Cards view', async () => {
+  it('AC-1011 (UI): the table keeps project identity concise; the Cards view carries no status control (PL-B: transitions live on the record)', async () => {
     projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
     await userEvent.click(within(wonCard).getByText('More project references'));
     expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 
-  it('AC-1011 (UI): the Cards view also renders the status control + ref (win flow reachable from both views)', async () => {
+  it('AC-1011 (UI): the Cards view renders the contract ref on demand and no status control', async () => {
     projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
     await userEvent.click(within(wonCard).getByText('More project references'));
     expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();

@@ -204,8 +204,6 @@
     "activeBudget": "Anggaran Aktif",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
-    "updated": "Diperbarui {{date}}",
-    "freshnessUnavailable": "Waktu pembaruan tidak tersedia",
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
     "incompleteCoverage": "Cakupan sumber belum lengkap",
