@@ -43,6 +43,21 @@ describe('ExpenseLinesCard', () => {
     expect(await within(dialog).findAllByText('Enter an amount greater than zero.')).not.toHaveLength(0);
     expect(h.addLine.mutateAsync).not.toHaveBeenCalled();
   });
+  it('AC-EXP-062 renders the lines and full total in the shared table', () => {
+    renderCard(false, [LINE]);
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Description' })).toBeInTheDocument();
+    expect(screen.getByTestId('lines-total')).toHaveTextContent(/150,000/);
+    expect(within(table).getByText('Taxi')).toBeInTheDocument();
+  });
+  it('AC-EXP-062 keeps the expense line card layout on phones', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    renderCard(false, [LINE]);
+    const cards = screen.getByTestId('dt-card-branch');
+    expect(within(cards).getByText('Taxi')).toBeInTheDocument();
+    expect(within(cards).getAllByText(/150,000/)).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
   it('AC-EXP-062 read-only shows lines and no add/edit/remove', () => {
     renderCard(false, [LINE]);
     expect(screen.getByText('Taxi')).toBeInTheDocument();

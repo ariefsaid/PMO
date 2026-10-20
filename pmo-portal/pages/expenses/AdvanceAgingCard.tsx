@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ListState } from '@/src/components/ui';
+import { Card, CardHead, CardPad, DataTable, ListState, type Column } from '@/src/components/ui';
 import { useExpenseAdvanceAging } from '@/src/hooks/useExpenseClaims';
 import { formatCurrencyCents } from '@/src/lib/format';
 import { AGING_BUCKETS, agingTotals } from '@/src/lib/expenses/expenseRules';
-import { AGING_LIMIT } from '@/src/lib/db/expenseClaims';
+import { AGING_LIMIT, type ExpenseAdvanceAgingRow } from '@/src/lib/db/expenseClaims';
 import { agingBucketLabel } from './expenseLabels';
 
 /** Advances outstanding (FR-EXP-062, DD-EXP-7). RLS scopes the rows: a claimant sees their own; approval rank sees
@@ -13,6 +13,13 @@ import { agingBucketLabel } from './expenseLabels';
 export const AdvanceAgingCard: React.FC = () => {
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useExpenseAdvanceAging();
+  const columns = useMemo<Column<ExpenseAdvanceAgingRow>[]>(() => [
+    { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}`} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
+    { key: 'claimant', header: t('expenses.aging.columns.claimant', 'Claimant'), kind: 'text', cell: (row) => row.claimantName ?? '—' },
+    { key: 'project', header: t('expenses.aging.columns.project', 'Project'), kind: 'text', cell: (row) => row.projectName ?? t('expenses.overhead', 'Overhead') },
+    { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatCurrencyCents(row.outstanding, row.currency) },
+    { key: 'age', header: t('expenses.aging.columns.age', 'Age (days)'), kind: 'number', align: 'num', cell: (row) => row.ageDays ?? '—' },
+  ], [t]);
   if (isPending) return null;
   if (isError || !data) {
     return (
@@ -45,32 +52,7 @@ export const AdvanceAgingCard: React.FC = () => {
               ))}
             </dl>
           ))}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 font-medium">{t('expenses.aging.columns.advance', 'Advance')}</th>
-                <th className="py-1 font-medium">{t('expenses.aging.columns.claimant', 'Claimant')}</th>
-                <th className="py-1 font-medium">{t('expenses.aging.columns.project', 'Project')}</th>
-                <th className="py-1 text-right font-medium">{t('expenses.aging.columns.outstanding', 'Outstanding')}</th>
-                <th className="py-1 text-right font-medium">{t('expenses.aging.columns.age', 'Age (days)')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((r) => (
-                <tr key={r.advanceId} className="border-t border-border">
-                  <td className="py-1.5">
-                    <Link to={`/expenses/${r.advanceId}`} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                      {r.claimNumber ?? '—'}
-                    </Link>
-                  </td>
-                  <td className="py-1.5">{r.claimantName ?? '—'}</td>
-                  <td className="py-1.5">{r.projectName ?? t('expenses.overhead', 'Overhead')}</td>
-                  <td className="py-1.5 text-right tabular-nums">{formatCurrencyCents(r.outstanding, r.currency)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{r.ageDays ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable rows={data.rows} columns={columns} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Advances outstanding')} />
           {data.truncated && (
             <p role="status" className="mt-2 text-sm text-muted-foreground">
               {t('expenses.aging.truncated', 'Showing the oldest {{count}} advances.', { count: AGING_LIMIT })}

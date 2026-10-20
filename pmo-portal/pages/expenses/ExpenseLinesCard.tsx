@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, EntityFormModal, FormGrid, FormSection, ListState, SelectField,
-  TextField, useEntityForm, useToast, type SubmitError,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, SelectField,
+  TextField, useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
@@ -29,6 +29,25 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   const [editing, setEditing] = useState<ExpenseClaimLineRow | 'new' | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ExpenseClaimLineRow | null>(null);
   const totalCents = lines.reduce((sum, l) => sum + Math.round(Number(l.amount) * 100), 0);
+  const columns = useMemo<Column<ExpenseClaimLineRow>[]>(() => [
+    { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
+    { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
+    { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
+    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrencyCents(Number(line.amount), currency) },
+    ...(editable ? [{
+      key: 'actions', header: '', kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
+      cell: (line: ExpenseClaimLineRow) => <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="sm" onClick={() => setEditing(line)}
+          aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: line.description })}>
+          {t('expenses.lines.edit', 'Edit')}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(line)}
+          aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: line.description })}>
+          {t('expenses.lines.remove', 'Remove')}
+        </Button>
+      </div>,
+    }] : []),
+  ], [currency, editable, t]);
 
   const confirmRemove = async () => {
     if (!removeTarget) return;
@@ -59,46 +78,18 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
         ) : lines.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('expenses.lines.empty', 'No lines yet. Add one per receipt.')}</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 font-medium">{t('expenses.lines.columns.date', 'Date')}</th>
-                <th className="py-1 font-medium">{t('expenses.lines.columns.type', 'Type')}</th>
-                <th className="py-1 font-medium">{t('expenses.lines.columns.description', 'Description')}</th>
-                <th className="py-1 text-right font-medium">{t('expenses.lines.columns.amount', 'Amount')}</th>
-                {editable && <th className="py-1" />}
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.id} className="border-t border-border">
-                  <td className="whitespace-nowrap py-1.5">{formatDateOnly(l.expense_date)}</td>
-                  <td className="py-1.5">{expenseTypeLabel(l.expense_type, t)}</td>
-                  <td className="py-1.5">{l.description}</td>
-                  <td className="py-1.5 text-right tabular-nums">{formatCurrencyCents(Number(l.amount), currency)}</td>
-                  {editable && (
-                    <td className="whitespace-nowrap py-1.5 text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(l)}
-                        aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: l.description })}>
-                        {t('expenses.lines.edit', 'Edit')}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(l)}
-                        aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: l.description })}>
-                        {t('expenses.lines.remove', 'Remove')}
-                      </Button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-border font-semibold">
-                <td className="py-1.5" colSpan={3}>{t('expenses.lines.total', 'Total')}</td>
-                <td className="py-1.5 text-right tabular-nums" data-testid="lines-total">{formatCurrencyCents(totalCents / 100, currency)}</td>
-                {editable && <td />}
-              </tr>
-            </tfoot>
-          </table>
+          <DataTable
+            rows={lines}
+            columns={columns}
+            rowKey={(line) => line.id}
+            tableId="expense-lines"
+            accessibleName={t('expenses.lines.title', 'Lines')}
+            totals={[{
+              key: currency,
+              label: t('expenses.lines.total', 'Total'),
+              values: { amount: <span data-testid="lines-total">{formatCurrencyCents(totalCents / 100, currency)}</span> },
+            }]}
+          />
         )}
       </CardPad>
       {editing && (

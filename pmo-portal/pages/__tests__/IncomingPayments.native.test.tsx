@@ -502,6 +502,15 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(within(table).getByText(/30,000/)).toBeInTheDocument();
   });
 
+  it('keeps settled invoice allocations in cards on phones', () => {
+    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    renderAt('/incoming-payments/ip-erp');
+    const cards = screen.getByTestId('dt-card-branch');
+    expect(within(cards).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
+    expect(within(cards).getByText(/25,000/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {
     h.payments.data = [erpReceipt({ allocation_details: [alloc('ACC-SINV-A', '25000.00', 'si-a', null)] })];
     renderAt('/incoming-payments/ip-erp');
