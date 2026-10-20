@@ -770,7 +770,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >

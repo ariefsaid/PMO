@@ -47,7 +47,7 @@ import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -327,14 +327,20 @@ const Projects: React.FC = () => {
 
   const [classificationResetToken, setClassificationResetToken] = useState(0);
   const classificationCount = activeClassificationCount(workingSet);
-  const classificationFilters = (
-    <ProjectClassificationFilters rows={all} value={workingSet} closeOnMobileSelect resetToken={classificationResetToken}
-      onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))}
-      open={classificationOpen} onOpenChange={(next) => {
-        setClassificationOpen(next);
-        if (next) { setFiltersOpen(false); setMoreOpen(false); }
-      }} />
-  );
+  const classificationFilterProps: React.ComponentProps<typeof ProjectClassificationFilters> = {
+    rows: all,
+    value: workingSet,
+    closeOnMobileSelect: true,
+    resetToken: classificationResetToken,
+    onChange: (patch) => setWorkingSet((ws) => ({ ...ws, ...patch })),
+    open: classificationOpen,
+    onOpenChange: (next: boolean) => {
+      setClassificationOpen(next);
+      if (next) { setFiltersOpen(false); setMoreOpen(false); }
+    },
+  };
+  const classificationFilters = <ProjectClassificationFilters {...classificationFilterProps} />;
+  const desktopClassificationFilters = <ProjectClassificationFilters {...classificationFilterProps} inlineTrigger />;
   const filtersActive =
     classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
   const hasNonDefaultFilter =
@@ -416,15 +422,26 @@ const Projects: React.FC = () => {
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   const hiddenOptionalColumnCount = Number(!hasEndCustomerData) + Number(!hasDeliveryData) + Number(!hasBudgetData);
+  const hasIncompleteCoverage = filtered.some((project) => {
+    const money = projectMoney?.[project.id];
+    return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+  });
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
-      size: 244,
-      minSize: 190,
-      maxSize: 420,
-      colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
+      kind: 'primary',
+      size: 240,
+      minSize: 240,
+      maxSize: 640,
       exportValue: (p) => p.name,
+      primaryTitle: (p) => p.name,
+      secondaryCell: (p) => (
+        <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
+          <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
+          {p.pmo_project_number && <> · <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span><span className="font-mono" title={p.pmo_project_number}>{p.pmo_project_number}</span></>}
+        </span>
+      ),
       cell: (p) => {
         const atRisk = isAtRiskActual(p);
         return (
@@ -455,11 +472,6 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-              {/* #838: value first — the label is screen-reader-only so it can't eat the width. */}
-              <div className="flex min-w-0 font-mono text-[11px] text-muted-foreground">
-                <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>
-                <span className="break-words md:truncate" title={p.pmo_project_number}>{p.pmo_project_number}</span>
-              </div>
               {(p.code || p.customer_contract_ref) && (
                 <details className="mt-0.5" onClick={(event) => event.stopPropagation()}>
                   <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: p.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
@@ -477,37 +489,14 @@ const Projects: React.FC = () => {
       },
     },
     {
-      key: 'customer',
-      header: t('projects.columns.customer', 'Customer'),
-      size: 132,
-      minSize: 132,
-      maxSize: 132,
-      colClassName: 'min-[1280px]:w-[132px] min-[1280px]:max-w-[132px]',
-      exportValue: (p) => p.client ? companyDisplayName(p.client) : '',
-      // PL-1 (AC-JR-W3B-E1): customer name is now a CompanyNameLink so execs/PMs
-      // can navigate directly to the client record. stopPropagation prevents the
-      // row's own click handler (which opens the project detail) from firing when
-      // the user clicks the company link.
-      cell: (p) => (
-        <div onClick={(e) => e.stopPropagation()} title={p.client ? companyDisplayName(p.client) : undefined}>
-          <CompanyNameLink
-            companyId={p.client_id}
-            name={p.client ? companyDisplayName(p.client) : null}
-            className="block max-w-[132px] overflow-visible text-clip whitespace-normal break-words text-[13px]"
-          />
-        </div>
-      ),
-      // The DataTable's bounded scroll keeps ancillary fields reachable on laptops.
-    },
-    {
       // #758: the end customer (the company the work is ultimately for) — optional, rendered as
       // a company link like Client when set, else the em-dash fallback (never "Not set" noise).
       key: 'end-customer',
       header: t('projects.columns.endCustomer', 'End customer'),
-      size: 112,
-      minSize: 112,
-      maxSize: 112,
-      colClassName: 'min-[1280px]:w-[112px] min-[1280px]:max-w-[112px] min-[1280px]:px-2',
+      kind: 'text',
+      size: 120,
+      minSize: 120,
+      maxSize: 360,
       exportValue: (p) => p.end_client ? companyDisplayName(p.end_client) : '',
       cell: (p) => (
         <div onClick={(e) => e.stopPropagation()} title={p.end_client ? companyDisplayName(p.end_client) : undefined}>
@@ -522,10 +511,10 @@ const Projects: React.FC = () => {
     {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
-      size: 44,
-      minSize: 44,
-      maxSize: 44,
-      colClassName: 'min-[1280px]:w-[44px] min-[1280px]:max-w-[44px]',
+      kind: 'meta',
+      size: 112,
+      minSize: 112,
+      maxSize: 320,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -568,29 +557,20 @@ const Projects: React.FC = () => {
       // status labels is its own decision (it needs one map every surface shares) and is not in
       // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
-      size: 76,
-      minSize: 76,
-      maxSize: 76,
-      colClassName: 'min-[1280px]:w-[76px] min-[1280px]:max-w-[76px]',
+      kind: 'status',
+      size: 140,
+      minSize: 112,
+      maxSize: 220,
       exportValue: (p) => String(p.status),
-      cell: (p) => (
-        <StatusPill
-          variant={pillVariantForProjectStatus(p.status as string)}
-          // The label wraps beside its dot: `!` overrides the pill's own whitespace-nowrap (cn does
-          // not merge conflicting utilities), so a long status never forces the column wider.
-          className="max-w-[68px] px-1.5 py-0.5 text-[10px] leading-tight whitespace-normal!"
-        >
-          {p.status}
-        </StatusPill>
-      ),
+      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>,
     },
     {
       key: 'contract',
       header: t('projects.columns.contract', 'Contract'),
-      size: 98,
-      minSize: 98,
-      maxSize: 98,
-      colClassName: 'min-[1280px]:w-[98px] min-[1280px]:max-w-[98px]',
+      kind: 'money',
+      size: 160,
+      minSize: 152,
+      maxSize: 320,
       align: 'num',
       exportValue: (p) => p.contract_value,
       // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
@@ -626,17 +606,19 @@ const Projects: React.FC = () => {
     {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
-      size: 94,
-      minSize: 94,
-      maxSize: 94,
-      colClassName: 'min-[1280px]:w-[94px] min-[1280px]:max-w-[94px]',
+      kind: 'money',
+      size: 160,
+      minSize: 152,
+      maxSize: 320,
       align: 'num',
+      colClassName: 'xl:pr-4',
+      caveat: hasIncompleteCoverage ? { reason: t('uxs02.incompleteCoverage', 'Incomplete source coverage') } : undefined,
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
         const money = projectMoney?.[p.id];
         if (moneyError || !money) {
-          return <span className="text-[12px] text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>{t('uxs02.unavailable', 'Unavailable')}</span>;
+          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
         }
         const actualPosition = deriveActualPosition({
           ledgerBasis: money.ledgerBasis,
@@ -653,36 +635,28 @@ const Projects: React.FC = () => {
           },
         });
         const actual = actualPosition.amount;
-        const incomplete = money.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
         if (actual == null) {
-          return (
-            <div className="flex flex-col gap-0.5 text-right">
-              <span className="text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>
-              {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
-              {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
-            </div>
-          );
+          const reason = money.actuals.excludesRestrictedRows ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
+          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}: {reason}</span></span>;
         }
-        return (
-          <div className="flex flex-col gap-0.5 text-right">
-            <span className="text-muted-foreground">{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}</span>
-            <span className="text-[10px] text-muted-foreground">{money.ledgerBasis === 'erp' ? t('uxs02.erpActual', 'ERP actual') : t('uxs02.pmoActual', 'Committed POs')}</span>
-            {money.ledgerBasis === 'erp' && <span className="text-[10px] text-muted-foreground">{money.actuals.asOf
-              ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
-              : t('uxs02.freshnessUnavailable', 'Update time unavailable')}</span>}
-            {incomplete && <span className="text-[10px] text-warning-foreground">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>}
-            {money.actuals.excludesRestrictedRows && <span className="text-[10px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</span>}
-          </div>
-        );
+        const source = money.ledgerBasis === 'erp' ? t('uxs02.erpActual', 'ERP actual') : t('uxs02.pmoActual', 'Committed POs');
+        const freshness = money.ledgerBasis === 'erp'
+          ? money.actuals.asOf
+            ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(money.actuals.asOf) })
+            : t('uxs02.freshnessUnavailable', 'Update time unavailable')
+          : null;
+        const description = [source, freshness].filter(Boolean).join(' · ');
+        return <span className="text-muted-foreground" title={description}>{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? '—'}<span className="sr-only"> {description}</span></span>;
       },
     },
     {
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
-      size: 108,
-      minSize: 108,
-      maxSize: 108,
-      colClassName: 'min-[1280px]:w-[108px] min-[1280px]:max-w-[108px]',
+      kind: 'percent',
+      size: 120,
+      minSize: 96,
+      maxSize: 160,
+      colClassName: 'xl:pl-4',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -708,46 +682,44 @@ const Projects: React.FC = () => {
     {
       key: 'budget-used',
       header: t('projects.columns.budgetUsed', 'Budget used'),
-      size: 116,
-      minSize: 116,
-      maxSize: 116,
-      colClassName: 'min-[1280px]:w-[116px] min-[1280px]:max-w-[116px]',
+      kind: 'money',
+      size: 160,
+      minSize: 152,
+      maxSize: 320,
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
         const money = projectMoney?.[p.id];
         const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
         const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
         if (moneyError || !money) {
-          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
+          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
         }
         if (!money.hasActiveBudget || activeBudget == null) {
-          return <span className="text-[11px] text-muted-foreground">{t('uxs02.noActiveBudget', 'No active budget')}</span>;
+          return <span className="text-muted-foreground" title={t('uxs02.noActiveBudget', 'No active budget')}>—<span className="sr-only"> {t('uxs02.noActiveBudget', 'No active budget')}</span></span>;
         }
         if (activeBudget === 0) {
-          return <span className="text-[11px] text-muted-foreground">{t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}</span>;
+          return <span className="text-muted-foreground">{t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}</span>;
         }
         if (actual == null) {
-          return <span className="text-[11px] text-muted-foreground">{t('uxs02.unavailable', 'Unavailable')}</span>;
+          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
         }
         if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
-          return <span className="text-[11px] text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
+          return <span className="text-muted-foreground" title={t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}>—<span className="sr-only"> {t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span></span>;
         }
         const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
           categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
         if (!completeCoverage) {
-          return <span className="text-[11px] text-muted-foreground">{money.actuals.excludesRestrictedRows
-            ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')
-            : t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</span>;
+          const reason = money.actuals.excludesRestrictedRows ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
+          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}: {reason}</span></span>;
         }
         const percent = Math.round((actual / activeBudget) * 100);
         const atRisk = isAtRiskActual(p);
         return (
           <div className="flex flex-col gap-0.5">
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
-            <div className="max-w-[120px] whitespace-normal text-[10px] text-muted-foreground">
-              {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual, money.actuals.currency || p.currency), budget: formatCompactCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) })}
+            <div className="whitespace-normal text-[12px] text-muted-foreground">
+              {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale()), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale()) })}
             </div>
-            {atRisk && <span className="text-[10px] font-semibold text-warning-foreground">{t('uxs02.atRisk', 'At risk')}</span>}
           </div>
         );
       },
@@ -901,7 +873,7 @@ const Projects: React.FC = () => {
         />
         {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
             toolbar without page bleed — it scrolls inside this bounded container. */}
-        <div className="ml-auto min-w-0 max-w-full overflow-x-auto">
+        <div data-testid="projects-mobile-view-scroll" className="ml-auto min-w-0 max-w-full overflow-x-auto">
           <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
             options={[
               { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
@@ -1135,6 +1107,7 @@ const Projects: React.FC = () => {
       description={pageDescription}
       primaryAction={primaryAction}
       mobileToolbar={mobileToolbar}
+      desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
@@ -1172,7 +1145,7 @@ const Projects: React.FC = () => {
           the full toolbar unchanged (FE-only on effectiveRole; no state/permission change).
         */
         !isEngineer ? (
-          <>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <MobileToolbarDisclosure
               label={t('uxs14.filters', 'Filters')}
               count={secondaryCount}
@@ -1215,9 +1188,9 @@ const Projects: React.FC = () => {
             />
             </div>
             </MobileToolbarDisclosure>
-            {classificationFilters}
-          </>
-        ) : classificationFilters
+            {desktopClassificationFilters}
+          </div>
+        ) : <div className="flex min-w-0 items-center">{desktopClassificationFilters}</div>
       }
       exportAction={
         <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen} onOpenChange={setMoreOpen}>
@@ -1286,7 +1259,6 @@ const Projects: React.FC = () => {
               </Button>
             </div>
           )}
-          <div className="[&_th]:px-1.5 [&_td]:px-1.5">
           <DataTable<ProjectWithRefs>
             rows={filtered}
             columns={visibleColumns}
@@ -1320,7 +1292,6 @@ const Projects: React.FC = () => {
                   : undefined
             }
           />
-          </div>
         </>
       ) : filtered.length === 0 ? (
         <ListState

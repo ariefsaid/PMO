@@ -99,9 +99,9 @@ describe('AC-CODE-003 active Projects identities', () => {
     const pmoNumber = screen.getByTitle('PMO-26-7711');
     const clientCode = screen.getByTitle('CLIENT-81');
 
-    expect(pmoNumber).toHaveClass('break-words');
-    expect(pmoNumber).toHaveClass('md:truncate');
-    expect(pmoNumber).not.toHaveClass('truncate');
+    expect(pmoNumber).toHaveClass('font-mono');
+    expect(pmoNumber).toHaveTextContent('PMO-26-7711');
+    expect(pmoNumber).toHaveAttribute('title', 'PMO-26-7711');
     expect(clientCode).toHaveClass('break-words');
     expect(clientCode).toHaveClass('md:truncate');
     expect(clientCode).not.toHaveClass('truncate');

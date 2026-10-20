@@ -5,7 +5,7 @@
  * a Budget used value; budget===0 → muted dash, no NaN.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -118,6 +118,8 @@ const renderPage = () =>
     </ImpersonationProvider>,
   );
 
+afterEach(() => vi.unstubAllGlobals());
+
 beforeEach(() => {
   projectsState.data = [atRisk, healthy];
   projectsState.isPending = false;
@@ -139,7 +141,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
     const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget');
-    expect(within(row).getByText('$95.0K of $100.0K Active budget')).toBeInTheDocument();
+    expect(within(row).getByText('$95,000.00 of $100,000.00 Active budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
@@ -151,7 +153,25 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     const progressCell = deliveryBar.closest('td')!;
     expect(within(nameCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(progressCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
+    expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
     expect(within(nameCell).getByText(/^At risk$/i)).toBeInTheDocument();
+  });
+
+  it('AC-TBL-CARDS-001: the phone project card shows At risk once', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const card = screen.getByText('At Risk Project').closest('li')!;
+    expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
+    expect(within(card).getByText('$95,000.00 of $100,000.00 Active budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
@@ -160,7 +180,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     // Seek by aria-label — robust to column count (a rowMenu column was added)
     const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget');
-    expect(within(row).getByText('$40.0K of $80.0K Active budget')).toBeInTheDocument();
+    expect(within(row).getByText('$40,000.00 of $80,000.00 Active budget')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {

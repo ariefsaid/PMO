@@ -650,9 +650,11 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
-    expect(within(body).getByText('ERP actual')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.textContent).toContain('$125,000.00');
+    expect(actualCell.querySelector('[title]')).toHaveAttribute('title', expect.stringMatching(/ERP actual · Updated/));
     expect(within(body).queryByText('$2,100,000')).not.toBeInTheDocument();
-    expect(within(body).getByText(/Updated/)).toBeInTheDocument();
     expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
   });
 
@@ -662,8 +664,10 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Committed POs')).toBeInTheDocument();
-    expect(within(body).queryByText('ERP actual')).not.toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.querySelector('[title]')).toHaveAttribute('title', 'Committed POs');
+    expect(actualCell.textContent).toContain('$125,000.00');
   });
 
   it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', async () => {
@@ -674,9 +678,14 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Unavailable')).toBeInTheDocument();
-    expect(within(body).getByText('No active budget')).toBeInTheDocument();
-    expect(within(body).getByText('Incomplete source coverage')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    const row = body.querySelector('tr')!;
+    expect(row.cells[actualHeaderIndex].textContent).toContain('—');
+    expect(row.cells[actualHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'Incomplete source coverage');
+    expect(row.cells[budgetHeaderIndex].textContent).toContain('—');
+    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'No active budget');
+    expect(screen.getAllByText('Incomplete source coverage')).toHaveLength(1);
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
@@ -722,7 +731,9 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
-      expect(within(body).getAllByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage').length).toBeGreaterThan(0);
+      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+      const actualTitle = body.querySelector('tr')!.cells[actualHeaderIndex].querySelector('[title]');
+      expect(actualTitle).toHaveAttribute('title', actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage');
       unmountAll();
     }
   });
@@ -733,7 +744,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Update time unavailable')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    expect(body.querySelector('tr')!.cells[actualHeaderIndex].querySelector('[title]')).toHaveAttribute('title', expect.stringContaining('Update time unavailable'));
   });
 
   it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
@@ -754,7 +766,10 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const utilization = screen.getByLabelText(/90% of Active budget/);
     expect(utilization).toBeInTheDocument();
-    expect(utilization.parentElement?.parentElement).toHaveTextContent('At risk');
+    const row = utilization.closest('tr')!;
+    expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
+    expect(within(row).getByText(/^At risk$/i)).toBeInTheDocument();
+    expect(utilization.querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-destructive');
   });
 
   it('AC-S02: does not classify cross-currency Actual and Active budget as at risk', () => {

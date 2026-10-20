@@ -172,6 +172,17 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(cardBranch.textContent).toContain('Active');
   });
 
+  it('AC-TBL-CARDS-001: card field labels align with the top of multi-line values', () => {
+    mockViewport(false);
+    const multiline: Column<Row>[] = [
+      columns[0],
+      { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget</div></div> },
+    ];
+    render(<DataTable rows={[rows[0]]} columns={multiline} rowKey={(r) => r.id} />);
+    const label = Array.from(getCardBranch()!.querySelectorAll('dt')).find((dt) => dt.textContent === 'Budget used');
+    expect(label).toHaveClass('self-start');
+  });
+
   it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
@@ -379,6 +390,7 @@ describe('DataTable accessible structure name', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     const mobileList = screen.getByRole('list', { name: 'Perbandingan laba rugi' });
     expect(mobileList).toHaveAttribute('data-testid', 'dt-card-branch');
+    expect(mobileList.querySelector('dt')).toHaveClass('self-start');
     expect(mobileList.querySelectorAll(':scope > li')).toHaveLength(rows.length);
     expect(screen.getAllByText('Alpha Corp')).toHaveLength(1);
     expect(screen.getAllByText('Beta Ltd')).toHaveLength(1);
