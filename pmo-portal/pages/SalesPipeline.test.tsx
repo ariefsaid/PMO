@@ -149,6 +149,8 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
   });
 
   it('AC-1117: the weighted total test id is preserved and sums only the open stages', () => {
+    // Single-currency open pipeline (the shared fixture's IDR deal would make it a mixed one).
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD' && p.id !== 'usd1') };
     renderPage();
     // 200000 + 600000 = 800000
     expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
@@ -685,5 +687,64 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /Lost/ }));
     expect(await screen.findByText('Lost Deal Delta')).toBeInTheDocument();
     expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
+  });
+});
+
+describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
+  const stageCell = (name: string) => {
+    const funnel = screen.getByLabelText('Pipeline summary');
+    return within(funnel).getByText(name, { exact: true }).closest('[data-funnel-stage]') as HTMLElement;
+  };
+
+  it('AC-RD-SALES-002 a stage holding two currencies shows "—" with the reason, never a sum', () => {
+    renderPage(); // Tender holds USD + IDR deals
+    const tender = stageCell('Tender');
+    const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    expect(amount).toHaveTextContent('—');
+    expect(amount.textContent).not.toContain('1,200,000');
+    expect(within(amount).getByText('Mixed currencies, so no single total')).toHaveClass('sr-only');
+    expect(amount.querySelector('[title="Mixed currencies, so no single total"]')).not.toBeNull();
+  });
+
+  it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
+    renderPage();
+    const preQual = stageCell('Pre-Qual');
+    expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
+  });
+
+  it('AC-RD-SALES-002 the weighted forecast total is "—" while the open pipeline mixes currencies', () => {
+    renderPage();
+    const total = screen.getByTestId('pipeline-weighted-total');
+    expect(total).toHaveTextContent('—');
+    expect(total.textContent).not.toMatch(/\d/);
+  });
+
+  it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: seedProjects.filter((p) => p.id === 'idr1').map((p) => ({ ...p, status: 'PQ Submitted' })),
+    };
+    renderPage();
+    const amount = stageCell('Pre-Qual').querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    expect(amount.textContent).toContain('IDR');
+    expect(amount.textContent).not.toContain('$');
+  });
+
+  it('AC-RD-SALES-001 the table Stage column uses the board titles (Pre-Qual, not "PQ Submitted")', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
+    expect(within(row).getByText('Pre-Qual')).toBeInTheDocument();
+    expect(within(row).queryByText('PQ Submitted')).toBeNull();
+    const tenderRow = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
+    expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
+  });
+
+  it('AC-RD-SALES-001 funnel bars are neutral except the selected stage', () => {
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage('/sales?status=Tender%20Submitted');
+    const funnel = screen.getByLabelText('Pipeline summary');
+    const fills = Array.from(funnel.querySelectorAll('[data-funnel-stage-bar]')).map((b) => (b.firstElementChild as HTMLElement).style.background);
+    expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
   });
 });

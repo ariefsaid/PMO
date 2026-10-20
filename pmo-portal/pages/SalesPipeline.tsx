@@ -67,8 +67,8 @@ const SalesPipeline: React.FC = () => {
   const isDesktop = useIsDesktop();
   const stageLabel = useSalesStageLabel();
   const projectStatusLabel = useProjectStatusLabel();
-  // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
-  // deals and so carry no record currency — the org default is the honest denomination for those.
+  // FR-L10N-020: STAGE/FUNNEL AGGREGATES sum across deals. They render in the deals' one shared
+  // currency; with none the org default is used for a true zero; with several there is no total.
   // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
   // (get_sales_pipeline now projects it, migration 0201) — never the org default.
   const orgCurrency = useOrgCurrency();
@@ -176,6 +176,18 @@ const SalesPipeline: React.FC = () => {
     () => new Map(stages.map((s) => [s.status as string, s])),
     [stages],
   );
+  // Money of unlike currencies is never added: a stage that holds deals in more than one currency
+  // (and a pipeline that does) has no honest total, so it renders "—" with the reason (RD-017).
+  const currenciesOf = (statuses: readonly string[]) =>
+    new Set(openProjects.filter((p) => statuses.includes(p.status)).map((p) => p.currency));
+  const pipelineCurrencies = currenciesOf(OPEN_COLUMNS.flatMap((c) => c.statuses));
+  const mixedPipeline = pipelineCurrencies.size > 1;
+  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies, so no single total');
+  const unknownTotal = (
+    <span title={mixedReason}>
+      —<span className="sr-only"> {mixedReason}</span>
+    </span>
+  );
   const totalWeighted = OPEN_COLUMNS.reduce(
     (sum, c) => sum + (stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
     0,
@@ -188,16 +200,20 @@ const SalesPipeline: React.FC = () => {
   const funnelStages: FunnelStage[] = OPEN_COLUMNS.map((col) => {
     const s = stageByStatus.get(col.statuses[0]);
     const weighted = s?.weighted_value ?? 0;
+    const stageCurrencies = currenciesOf(col.statuses);
+    // One currency: show it in that currency (not the org default). None: a true zero in the org's.
+    const stageCurrency = stageCurrencies.size === 1 ? [...stageCurrencies][0] : orgCurrency;
+    const mixedStage = stageCurrencies.size > 1;
     return {
       name: stageLabel(col),
       dotColor: col.dotColor,
       prob: s ? formatPercent(s.win_probability) : undefined,
-      // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
-      value: formatCurrency(s?.total_value ?? 0, orgCurrency),
-      weighted: t('sales.funnel.weighted', '{{value}} weighted', {
-        value: formatCurrency(weighted, orgCurrency),
-      }),
-      barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
+      value: mixedStage ? unknownTotal : formatCurrency(s?.total_value ?? 0, stageCurrency),
+      weighted: mixedStage
+        ? undefined
+        : t('sales.funnel.weighted', '{{value}} weighted', { value: formatCurrency(weighted, stageCurrency) }),
+      // Bars compare magnitudes, which is only meaningful in one currency.
+      barPct: mixedPipeline ? undefined : maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });
 
@@ -562,7 +578,9 @@ const SalesPipeline: React.FC = () => {
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-                  {formatCurrency(totalWeighted, orgCurrency)}
+                  {mixedPipeline
+                    ? unknownTotal
+                    : formatCurrency(totalWeighted, pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency)}
                 </span>
               </div>
             </section>
