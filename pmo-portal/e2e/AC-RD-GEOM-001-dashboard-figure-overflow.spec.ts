@@ -26,6 +26,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 import { installIdrDashboardFixture } from './dashboard-idr.fixtures';
 
+// Multi-step journey; measured at ~80% of the 30s default in CI.
+test.setTimeout(60_000);
+
 const WIDTHS = [1440, 1024, 390] as const;
 
 async function forceBahasa(page: Page) {

@@ -11,6 +11,9 @@ import { createClient } from '@supabase/supabase-js';
 import { signIn } from './helpers';
 import { execSync } from 'node:child_process';
 
+// Multi-step journey; measured at ~80% of the 30s default in CI.
+test.setTimeout(60_000);
+
 function readSupabaseEnv(name: string): string {
   const output = execSync('supabase status -o env', { encoding: 'utf8' });
   const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
