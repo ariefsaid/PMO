@@ -12,7 +12,7 @@ import { FALLBACK_LOCALE } from '@/src/lib/locale/resolveLocale';
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'import'] as const;
+export const NAMESPACES = ['common', 'import', 'projectTabs'] as const;
 export const DEFAULT_NS = 'common';
 
 /**

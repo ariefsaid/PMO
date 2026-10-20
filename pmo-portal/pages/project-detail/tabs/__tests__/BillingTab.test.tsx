@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   userId: 'u-fin',
   connected: true,
+  routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
   claims: [] as unknown[],
@@ -29,7 +30,7 @@ vi.mock('@/src/auth/usePermission', async () => {
 });
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
-vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
   useBoqItems: () => ({ data: h.boq, isPending: false, isError: false, refetch: vi.fn() }),
@@ -64,7 +65,7 @@ const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.role = 'Finance'; h.userId = 'u-fin'; h.connected = true;
+  h.role = 'Finance'; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
   h.billing = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
@@ -108,7 +109,6 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-dp-held')).toHaveTextContent(money(160_000));
     expect(screen.getByTestId('billing-remaining')).toHaveTextContent(money(750_000));
     expect(screen.getByTestId('billing-not-submitted')).toHaveTextContent(money(40_000));
-    expect(screen.getByTestId('billing-billed')).toHaveTextContent('excl. PPN');
   });
 
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
@@ -116,10 +116,11 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-not-submitted').closest('div')).toHaveTextContent('Claims raised, not yet submitted');
   });
 
-  it('AC-PB-008 with no assessment it says so instead of a figure, and shows no gap', () => {
+  it('AC-PB-008 with no assessment the assessed and gap figures are omitted, not shown as a placeholder', () => {
     h.billing = { ...h.billing, data: { ...FACTS, assessment: null, assessedByBoqItem: {} } };
     renderTab();
-    expect(screen.getByTestId('billing-assessed')).toHaveTextContent('No assessment yet');
+    expect(screen.queryByTestId('billing-assessed')).toBeNull();
+    expect(screen.queryByText('No assessment yet')).toBeNull();
     expect(screen.queryByTestId('billing-gap')).toBeNull();
   });
 
@@ -227,5 +228,59 @@ describe('BillingTab', () => {
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
     renderTab(null);
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+  });
+
+  describe('SUB-B subtraction', () => {
+    const QUIET = { ...FACTS, dpBilled: 0, dpRecovered: 0, notSubmitted: 0, assessment: null, assessedByBoqItem: {} };
+
+    it('SUB-B the default summary shows only contract, billed and not-yet-billed; zero or unknown figures are omitted', () => {
+      h.billing = { ...h.billing, data: QUIET };
+      renderTab();
+      expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
+      expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
+      expect(screen.getByTestId('billing-remaining')).toHaveTextContent(money(750_000));
+      for (const id of ['billing-assessed', 'billing-gap', 'billing-dp-held', 'billing-not-submitted']) {
+        expect(screen.queryByTestId(id)).toBeNull();
+      }
+    });
+
+    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. PPN" is said once on the summary head', () => {
+      renderTab();
+      for (const id of ['billing-assessed', 'billing-gap', 'billing-dp-held', 'billing-not-submitted']) {
+        expect(screen.getByTestId(id)).toBeInTheDocument();
+      }
+      expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. PPN');
+      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
+    });
+
+    it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {
+      h.boq = []; h.claims = [];
+      renderTab();
+      const details = screen.getByText('Quantity billing').closest('details') as HTMLDetailsElement;
+      expect(details).not.toBeNull();
+      expect(details.open).toBe(false);
+      expect(within(details).getByText('Bill of quantities')).toBeInTheDocument();
+      expect(within(details).getByText('Billing claims')).toBeInTheDocument();
+    });
+
+    it('SUB-B once there is a BoQ line or a claim, the cards render plainly without the disclosure', () => {
+      renderTab();
+      expect(screen.queryByText('Quantity billing')).toBeNull();
+      expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
+    });
+
+    it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
+      renderTab();
+      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+    });
+
+    it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
+      h.routeReady = false;
+      renderTab();
+      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
+    });
   });
 });
