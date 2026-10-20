@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Icon, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { Button, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
@@ -307,53 +308,35 @@ function MappingRow<Input>({
 const CHIP_VARIANT: StatusVariant = 'won';
 
 function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
+  const { t } = useTranslation();
   const rows = wiz.parsed?.rows ?? [];
+  const columns: Column<(typeof wiz.validation)[number]>[] = [
+    { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
+    ...descriptor.fields.map((field): Column<(typeof wiz.validation)[number]> => ({
+      key: field.key,
+      header: field.label,
+      kind: field.key === descriptor.fields[0]?.key ? 'primary' : 'text',
+      cell: (v) => {
+        const col = wiz.mapping[field.key];
+        const raw = col == null ? '' : (rows[v.index]?.[col] ?? '');
+        return <>{raw || <span className="text-muted-foreground">—</span>}{v.errors[field.key] && <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[field.key]}</span>}</>;
+      },
+    })),
+    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'status', cell: (v) => v.valid ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill> : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill> },
+  ];
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[13px] text-foreground" data-testid="import-summary">
         <b className="font-semibold">{wiz.counts.valid} valid</b>, {wiz.counts.invalid} invalid, {wiz.counts.total} total
       </p>
-      <div className="overflow-x-auto rounded-md border border-border">
-        <table className="w-full text-[12.5px]">
-          <thead>
-            <tr className="border-b border-border bg-card text-left text-muted-foreground">
-              <th className="px-2.5 py-1.5 font-semibold">Row</th>
-              {descriptor.fields.map((f) => (
-                <th key={f.key} className="px-2.5 py-1.5 font-semibold">
-                  {f.label}
-                </th>
-              ))}
-              <th className="px-2.5 py-1.5 font-semibold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {wiz.validation.map((v) => (
-              <tr key={v.index} className="border-b border-border last:border-0">
-                <td className="px-2.5 py-1.5 text-muted-foreground">{v.index + 1}</td>
-                {descriptor.fields.map((f) => {
-                  const col = wiz.mapping[f.key];
-                  const raw = col == null ? '' : (rows[v.index]?.[col] ?? '');
-                  return (
-                    <td key={f.key} className="px-2.5 py-1.5">
-                      <span className="text-foreground">{raw || <span className="text-muted-foreground">—</span>}</span>
-                      {v.errors[f.key] && (
-                        <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[f.key]}</span>
-                      )}
-                    </td>
-                  );
-                })}
-                <td className="px-2.5 py-1.5">
-                  {v.valid ? (
-                    <StatusPill variant={CHIP_VARIANT}>Valid</StatusPill>
-                  ) : (
-                    <StatusPill variant="lost">Skipped</StatusPill>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={wiz.validation}
+        columns={columns}
+        rowKey={(v) => String(v.index)}
+        accessibleName={t('import:preview.tableName', 'Import row preview')}
+        tableId="components-import-importwizard-preview-table"
+        className="text-[12.5px]"
+      />
     </div>
   );
 }

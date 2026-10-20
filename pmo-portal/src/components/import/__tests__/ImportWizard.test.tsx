@@ -75,6 +75,9 @@ describe('ImportWizard', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: /^next$/i }));
 
+    // The preview uses the shared responsive table while preserving the dry-run goal.
+    expect(await screen.findByTestId('dt-table-branch')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
     // preview summary
     const summary = await screen.findByTestId('import-summary');
     expect(summary).toHaveTextContent('1 valid');

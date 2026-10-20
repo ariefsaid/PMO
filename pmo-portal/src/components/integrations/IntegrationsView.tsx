@@ -13,6 +13,8 @@ import {
   TextField,
   FieldError,
   ListState,
+  DataTable,
+  type Column,
   Combobox,
   type StatusVariant,
 } from '@/src/components/ui';
@@ -339,6 +341,26 @@ export const IntegrationsView: React.FC = () => {
     isBindingsError ||
     projectsPending ||
     projectsError;
+  const bindingMapColumns: Column<(typeof activeProjects)[number]>[] = [
+    { key: 'project', header: t('integrations.organization.readiness.map.projectColumn', 'PMO project'), kind: 'primary', cell: (project) => project.name, primaryTitle: (project) => project.name },
+    { key: 'list', header: t('integrations.organization.readiness.map.listColumn', 'ClickUp List'), kind: 'text', cell: (project) => {
+      const binding = bindingByProjectId.get(project.id);
+      const proposal = matchProposalByProjectId.get(project.id);
+      const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
+      const suggestedList = proposal?.state === 'proposed' && proposal.listId ? clickUpListById.get(proposal.listId) : undefined;
+      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? list?.name ?? t('uxs21.savedListUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId: binding.external_container_id }) : suggestedList ? <>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</> : proposal?.state === 'ambiguous' ? t('uxs21.ambiguousMatch', 'Several lists have this project name') : '—';
+    } },
+    { key: 'status', header: t('integrations.organization.readiness.map.statusColumn', 'Status'), kind: 'status', cell: (project) => {
+      const binding = bindingByProjectId.get(project.id);
+      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? <>{t('integrations.organization.readiness.map.bound', 'Bound')} · {t('uxs21.initialTransferPendingShort', 'Initial transfer not confirmed')}</> : t('integrations.organization.readiness.map.pmoNative', 'PMO-native');
+    } },
+    ...(canManageIntegrations ? [{ key: 'review', header: t('uxs21.reviewColumn', 'Review'), kind: 'actions' as const, cell: (project: (typeof activeProjects)[number]) => {
+      const binding = bindingByProjectId.get(project.id);
+      if (binding || bindingMapDataUnavailable) return null;
+      const proposal = matchProposalByProjectId.get(project.id);
+      return <Button variant="outline" size="sm" onClick={() => { setTaskListReviewError(null); setTaskListReview({ projectId: project.id, projectName: project.name, proposedListId: proposal?.state === 'proposed' ? proposal.listId : null }); }}>{t('uxs21.reviewMatch', 'Review list match')}</Button>;
+    } } satisfies Column<(typeof activeProjects)[number]>] : []),
+  ];
 
   const handleTaskListLinkConfirm = async (input: LinkClickUpProjectInput) => {
     try {
@@ -636,72 +658,15 @@ export const IntegrationsView: React.FC = () => {
               {t('integrations.organization.readiness.map.empty', 'No PMO projects are bound to ClickUp yet. Projects remain PMO-native until an admin links them.')}
             </p>
           )}
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-full text-left text-sm">
-              <caption className="sr-only">{t('integrations.organization.readiness.map.caption', 'PMO projects and their ClickUp List bindings')}</caption>
-              <thead className="border-b border-border bg-muted/40 text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.projectColumn', 'PMO project')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.listColumn', 'ClickUp List')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('integrations.organization.readiness.map.statusColumn', 'Status')}</th>
-                  {canManageIntegrations && <th scope="col" className="px-3 py-2 font-medium">{t('uxs21.reviewColumn', 'Review')}</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {activeProjects.map((project) => {
-                  const binding = bindingByProjectId.get(project.id);
-                  const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
-                  const proposal = matchProposalByProjectId.get(project.id);
-                  const suggestedList = proposal?.state === 'proposed' && proposal.listId
-                    ? clickUpListById.get(proposal.listId)
-                    : undefined;
-                  return (
-                    <tr key={project.id}>
-                      <th scope="row" className="px-3 py-2 font-medium text-foreground">{project.name}</th>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {bindingMapDataUnavailable
-                          ? t('integrations.organization.readiness.map.unknown', 'Unknown')
-                          : binding
-                            ? list?.name ?? t('uxs21.savedListUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId: binding.external_container_id })
-                            : suggestedList
-                              ? <span>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</span>
-                              : proposal?.state === 'ambiguous'
-                                ? t('uxs21.ambiguousMatch', 'Several lists have this project name')
-                                : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {bindingMapDataUnavailable
-                          ? t('integrations.organization.readiness.map.unknown', 'Unknown')
-                          : binding
-                            ? <>{t('integrations.organization.readiness.map.bound', 'Bound')} · {t('uxs21.initialTransferPendingShort', 'Initial transfer not confirmed')}</>
-                            : t('integrations.organization.readiness.map.pmoNative', 'PMO-native')}
-                      </td>
-                      {canManageIntegrations && (
-                        <td className="px-3 py-2">
-                          {!binding && !bindingMapDataUnavailable && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setTaskListReviewError(null);
-                                setTaskListReview({
-                                  projectId: project.id,
-                                  projectName: project.name,
-                                  proposedListId: proposal?.state === 'proposed' ? proposal.listId : null,
-                                });
-                              }}
-                            >
-                              {t('uxs21.reviewMatch', 'Review list match')}
-                            </Button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={activeProjects}
+            columns={bindingMapColumns}
+            rowKey={(project) => project.id}
+            accessibleName={t('integrations.organization.readiness.map.caption', 'PMO projects and their ClickUp List bindings')}
+            tableId="components-integrations-integrationsview-clickup-bindings-table"
+            state={isBindingsPending || projectsPending ? 'loading' : undefined}
+            className="text-sm"
+          />
           {taskListReview && (
             <TaskListMatchReview
               open
