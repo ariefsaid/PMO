@@ -123,12 +123,10 @@ describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', (
 });
 
 describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
-  it('renders an approvals tile linking to /approvals (Finance has no timesheet approval)', () => {
+  it('AC-SL-A-001: no approvals tile when nothing awaits Finance (fixture has no Requested rows)', () => {
     renderPane();
-    const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
-    // procurements fixture has NO Requested rows → 0 awaiting (Finance can approve but none pending)
-    expect(tile).toHaveTextContent('0');
+    expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review')).not.toBeInTheDocument();
   });
 });
 

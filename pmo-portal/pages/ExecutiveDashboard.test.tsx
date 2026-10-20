@@ -97,8 +97,9 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false }),
 }));
+const approvalState = vi.hoisted(() => ({ timesheets: [{ id: 't1' }] as Array<{ id: string }> }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [] }),
+  useTimesheetsAwaitingApproval: () => ({ data: approvalState.timesheets }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
@@ -213,6 +214,16 @@ describe('ExecutiveDashboard (real data)', () => {
     const approvals = screen.getByTestId('kpi-awaiting-approval');
     const kpis = container.querySelector('[aria-label="Portfolio KPIs"]')!;
     expect(approvals.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+  it('AC-SL-A-001: nothing waiting → no approvals tile and no Review button on the executive dashboard', () => {
+    approvalState.timesheets = [];
+    try {
+      renderPage();
+      expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+      expect(screen.queryByText('Review')).not.toBeInTheDocument();
+    } finally {
+      approvalState.timesheets = [{ id: 't1' }];
+    }
   });
   it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
     renderPage();

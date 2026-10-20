@@ -1340,8 +1340,8 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Awaiting your approval", "helpWithTimesheets": "Purchase requests and timesheets waiting on your decision. Open the approvals inbox.", "helpProcurementOnly": "Purchase requests waiting on your decision. Open the approvals inbox.",
-        "unavailable": "unavailable — check connection", "zero": "nothing waiting", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
+        "label": "Awaiting your approval",
+        "unavailable": "unavailable — check connection", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
       },
       "activeProjects": {

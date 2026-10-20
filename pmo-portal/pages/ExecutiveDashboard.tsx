@@ -284,7 +284,7 @@ const ExecutiveDashboard: React.FC = () => {
           actions={<BoardPackAction />}
         />
 
-        <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="space-y-2">
+        <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden space-y-2">
           <AtRiskProjectsLink count={data.projects_at_risk} checkable={riskCheckable}
             className="inline-flex min-h-8 items-center font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring" />
           <AwaitingApprovalTile includeTimesheets />

@@ -1340,8 +1340,8 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Menunggu persetujuan Anda", "helpWithTimesheets": "Permintaan pengadaan dan timesheet menunggu keputusan Anda. Buka kotak masuk persetujuan.", "helpProcurementOnly": "Permintaan pengadaan menunggu keputusan Anda. Buka kotak masuk persetujuan.",
-        "unavailable": "tidak tersedia — periksa koneksi", "zero": "Tidak ada yang menunggu", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
+        "label": "Menunggu persetujuan Anda",
+        "unavailable": "tidak tersedia — periksa koneksi", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
         "linkUnavailable": "{{label}}: tidak tersedia", "linkOne": "{{label}}: {{count}} item menunggu", "linkMany": "{{label}}: {{count}} item menunggu", "review": "Tinjau"
       },
       "activeProjects": {

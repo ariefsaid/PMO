@@ -377,10 +377,12 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         />
       </section>
 
-      {/* Section 2: Awaiting approval — primary action band */}
-      <section aria-label={t('dashboard.mobile.approvals', 'Approvals')}>
-        <MobileApprovalsBand count={approvalCount} error={approvalError} />
-      </section>
+      {/* Section 2: Awaiting approval — primary action band, only while something waits (SL-A) */}
+      {(approvalError || approvalCount > 0) && (
+        <section aria-label={t('dashboard.mobile.approvals', 'Approvals')}>
+          <MobileApprovalsBand count={approvalCount} error={approvalError} />
+        </section>
+      )}
 
       {/* Section 3: Contract book — B-MIN-3 grouped money pair */}
       <section aria-label={t('dashboard.mobile.contractBook', 'Contract book')}>
