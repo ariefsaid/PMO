@@ -2693,6 +2693,7 @@
       }
     },
     "pipeline": {
+      "backToSalesPipeline": "← Back to Sales Pipeline",
       "advanceTo": "Advance to",
       "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
       "cancel": "Cancel",

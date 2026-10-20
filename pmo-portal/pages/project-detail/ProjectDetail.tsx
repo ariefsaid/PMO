@@ -302,7 +302,7 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} />
+            <PipelineLens project={project} locationState={location.state} />
           </div>
           {/* Classification, codes and the ERP project link live in the one closed details disclosure. */}
           <ProjectDetailRail project={project} showActionSection={false} />
