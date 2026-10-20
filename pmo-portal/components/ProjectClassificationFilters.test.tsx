@@ -9,7 +9,7 @@ const rows = [{ service_line: 'Engineering', sector: 'Energy' }];
 function setup(initial: FilterValues = {}) {
   const onChange = vi.fn();
   const ui = (value: FilterValues) => (
-    <ProjectClassificationFilters rows={rows} value={value} onChange={onChange} open onOpenChange={() => {}} />
+    <ProjectClassificationFilters rows={rows} value={value} onChange={onChange} panel={(fields) => fields} />
   );
   const view = render(ui(initial));
   return { onChange, rerenderWith: (value: FilterValues) => view.rerender(ui(value)) };
@@ -54,7 +54,7 @@ describe('ProjectClassificationFilters location box', () => {
 
   it('AC-TAG-002 a resetToken bump cancels a pending location even when value.location never moves', () => {
     const onChange = vi.fn();
-    const ui = (token: number) => <ProjectClassificationFilters rows={rows} value={{}} onChange={onChange} open onOpenChange={() => {}} resetToken={token} />;
+    const ui = (token: number) => <ProjectClassificationFilters rows={rows} value={{}} onChange={onChange} panel={(fields) => fields} resetToken={token} />;
     const view = render(ui(0));
     fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Bali' } });
     act(() => view.rerender(ui(1)));

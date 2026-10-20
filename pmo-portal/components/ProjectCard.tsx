@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
-import { formatCurrency, formatCompactCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
@@ -11,8 +11,6 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
-import ProjectStatusControl from './ProjectStatusControl';
-import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 
 export interface ProjectCardProps {
   project: ProjectWithRefs;
@@ -36,8 +34,7 @@ export interface ProjectCardProps {
  * Sales pipeline boards. The Flat-By-Default Rule (1px border at rest, hover-lift
  * only on interaction), the icon/name/status head, and the PM foot all live in the
  * shell; this card supplies the DELIVERY-lens body (Contract/Committed/Actual +
- * utilization bars) and the inline ProjectStatusControl (AC-1011's win-transition
- * RPC), which stops propagation so it never drills.
+ * utilization bars). Status changes (AC-1011's win-transition) live on the record, not here.
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
   const { t } = useTranslation();
@@ -66,17 +63,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const atRisk = isMoneyAtRisk({ status: project.status as string, budget: activeBudget,
     budgetCurrency: projectMoney?.activeBudgetCurrency ?? null, projectCurrency: project.currency, spent: actual,
     actualCurrency: projectMoney?.actuals.currency ?? null, actualComplete: actualIsComplete });
-  const budgetUsageUnavailable = !projectMoney || (projectMoney.hasActiveBudget && actual == null)
-    ? t('uxs02.unavailable', 'Unavailable')
-    : projectMoney.hasActiveBudget && activeBudget === 0
-      ? t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, projectMoney.activeBudgetCurrency ?? currency) })
-      : projectMoney.hasActiveBudget && activeBudget != null && !budgetCurrencyMatches
-        ? t('uxs02.currencyMismatch', 'Budget currency differs from Actual')
-        : projectMoney && projectMoney.hasActiveBudget && !actualIsComplete
-          ? projectMoney.actuals.excludesRestrictedRows
-            ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')
-            : t('uxs02.incompleteCoverage', 'Incomplete source coverage')
-          : t('uxs02.noActiveBudget', 'No active budget');
   // FR-PRJUX-004/005: the footer label reads from the manager ID, so an assigned blank-name
   // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — never the
   // same label for both states.
@@ -88,23 +74,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   });
   const initial = (pmLabel.trim().charAt(0) || '?').toUpperCase();
 
+  // Actual is shown only when complete — the same rule as the table: unknown is never a partial total.
+  const showActual = actual != null && actualIsComplete;
   const body = (
     <>
-      {/* Body: money rows */}
+      {/* Body: money rows. Each fact once: no freshness, coverage or "x of y" prose on the card. */}
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
           <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
-          {/* OD-TAX-1 §2 — the card's headline money figure states its basis, from this project's
-              own stored treatment. */}
+          {/* OD-TAX-1 §2 — the card's headline money figure states its basis (plain; rate/DPP live on the record). */}
           <dd>
-            <TaxBasisLabel
-              treatment={project.tax_treatment}
-              taxRate={project.tax_rate}
-              taxBaseNumerator={project.tax_base_numerator}
-              taxBaseDenominator={project.tax_base_denominator}
-              detailsMode="disclosure"
-            />
+            <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
           </dd>
         </div>
         <div>
@@ -114,72 +95,42 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
           <dd className="font-semibold tabular">
-            {actual == null ? t('uxs02.unavailable', 'Unavailable') : formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')}
+            {showActual ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable') : t('uxs02.unavailable', 'Unavailable')}
           </dd>
-          {actual != null && (
-            <dd className="text-[11px] text-muted-foreground">
-              {projectMoney?.actuals.asOf
-                ? t('uxs02.updated', 'Updated {{date}}', { date: formatInstantDate(projectMoney.actuals.asOf) })
-                : t('uxs02.freshnessUnavailable', 'Update time unavailable')}
-            </dd>
-          )}
-          {!actualIsComplete && projectMoney?.ledgerBasis === 'erp' && (
-            <dd className="text-[11px] text-warning">{t('uxs02.incompleteCoverage', 'Incomplete source coverage')}</dd>
-          )}
-          {projectMoney?.actuals.excludesRestrictedRows && (
-            <dd className="text-[11px] text-muted-foreground">{t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded')}</dd>
-          )}
         </div>
       </dl>
 
-      {/* Delivery progress and Active-budget utilization use separate, explicit denominators. */}
-      {deliverySummary && deliverySummary.deliveryPct != null ? (
+      {/* Delivery progress and Active-budget utilization use separate, explicit denominators;
+          a row appears only when it has a figure. */}
+      {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
         <div
           data-testid="project-card-bars"
           className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
         >
-          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</span>
-          <ProgressBar
-            value={Math.round(deliverySummary.deliveryPct)}
-            showValue
-            tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
-            aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
-          />
-          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
-          <div className="flex flex-col gap-0.5">
-            {budgetUsedPct == null ? (
-              <span className="text-[11px] text-muted-foreground">{budgetUsageUnavailable}</span>
-            ) : (
-              <>
+          {deliverySummary && deliverySummary.deliveryPct != null && (
+            <>
+              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</span>
+              <ProgressBar
+                value={Math.round(deliverySummary.deliveryPct)}
+                showValue
+                tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
+                aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
+              />
+            </>
+          )}
+          {budgetUsedPct != null && (
+            <>
+              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
+              <div className="flex flex-col gap-0.5">
                 <ProgressBar
                   value={budgetUsedPct}
                   showValue
                   tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
                   aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
                 />
-                <span className="text-[11px] text-muted-foreground">
-                  {t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatCompactCurrency(actual!, projectMoney?.actuals.currency ?? currency), budget: formatCompactCurrency(activeBudget!, projectMoney?.activeBudgetCurrency ?? currency) })}
-                </span>
                 {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
-              </>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div
-          data-testid="project-card-bars"
-          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
-        >
-          <span className="text-[12px] font-semibold text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</span>
-          <span className="text-[11px] text-muted-foreground">{activeBudgetLabel}</span>
-          <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
-          {budgetUsedPct == null ? (
-            <span className="text-[11px] text-muted-foreground">{budgetUsageUnavailable}</span>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              <ProgressBar value={budgetUsedPct} showValue tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })} />
-              {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -199,8 +150,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     </>
   );
 
-  // Foot: PM + inline controls. Both the status control and the optional Edit button
-  // stop propagation so they never trigger the card-drill navigation.
+  // Foot: PM + the optional Edit button (stops propagation so it never triggers the card drill).
   const foot = (
     <>
       <span className="flex min-w-0 items-center gap-2 text-[12px]">
@@ -226,13 +176,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
             {t('projects.actions.edit', 'Edit')}
           </Button>
         )}
-        <ProjectStatusControl
-          project={{
-            id: project.id,
-            status: project.status as ProjectStatus,
-            customer_contract_ref: project.customer_contract_ref,
-          }}
-        />
       </div>
     </>
   );

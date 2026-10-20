@@ -28,12 +28,16 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
     let verifiedCustomer = false;
     for (let index = 0; index < await rows.count(); index += 1) {
       const cells = rows.nth(index).locator('td');
-      const customer = cells.nth(1).locator('a').first();
+      const customer = cells.nth(0).locator('a').first();
       const customerName = (await customer.textContent())?.trim() ?? '';
       if (customerName.length < 12 || !(await customer.isVisible())) continue;
       const fitsWithoutEllipsis = await customer.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return style.textOverflow !== 'ellipsis' && element.scrollWidth <= element.clientWidth;
+        // The customer name sits on the project cell's second line: it must end inside the cell (not clipped).
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const text = range.getBoundingClientRect();
+        const cell = element.closest('td')!.getBoundingClientRect();
+        return text.right <= cell.right && element.scrollWidth <= element.clientWidth + 1;
       });
       expect(fitsWithoutEllipsis, `customer name "${customerName}" should be visible without truncation`).toBe(true);
       verifiedCustomer = true;
@@ -48,15 +52,14 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
     await expect(pmAvatar).toHaveAccessibleName(/\s/);
     await expect(pmAvatar).toHaveAttribute('title', accessiblePmName!);
 
-    for (const header of ['Project', 'Customer', 'PM', 'Status', 'Contract', 'Actual']) {
+    for (const header of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
         `core Projects column "${header}" should be visible at 1440px`).toBeVisible();
     }
-    const restoreOptionalColumns = page.getByRole('button', { name: 'Show optional columns', exact: true });
-    if (await restoreOptionalColumns.isVisible()) await restoreOptionalColumns.click();
-    for (const header of ['End customer', 'Progress', 'Budget used']) {
+    await expect(page.getByRole('button', { name: /optional columns/i })).toHaveCount(0);
+    for (const header of ['Progress', 'Budget used']) {
       await expect(table.getByRole('columnheader', { name: header, exact: true }),
-        `restored optional Projects column "${header}" should remain discoverable`).toBeVisible();
+        `Projects column "${header}" should be visible when its data exists`).toBeVisible();
     }
     await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
 

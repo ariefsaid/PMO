@@ -26,7 +26,9 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
     for (const route of ['projects', 'sales']) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`/${route}?view=table`);
-      const disclosure = page.getByRole('button', { name: /^Classification/ });
+      // PL-A: Projects folds classification into its one Filters trigger; the Pipeline keeps its own.
+      const triggerName = route === 'projects' ? 'Filters' : 'Classification';
+      const disclosure = page.getByRole('button', { name: new RegExp(`^${triggerName}`) });
       await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await disclosure.click();
       await page.getByLabel('Filter by award type').selectOption('tender');
@@ -34,7 +36,7 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe(location);
       // Open the record directly from expanded filters: outside dismissal must not move
       // the target between pointer-down and click.
-      await expect(disclosure).toHaveAccessibleName('Classification 2');
+      await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
       await expect(page.getByText(`Location: ${location}`, { exact: true })).toBeVisible();
       const table = page.getByRole('table');
       const intended = route === 'projects'
@@ -51,11 +53,13 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
           await intended.locator('..').screenshot({ path: testInfo.outputPath(`UIP-003-identity-1440-${theme}.png`) });
         }
         const scroller = page.getByTestId('dt-table-branch');
-        const restoreOptionalColumns = page.getByRole('button', { name: 'Show optional columns', exact: true });
-        if (await restoreOptionalColumns.isVisible()) await restoreOptionalColumns.click();
         await scroller.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
-        for (const column of ['Customer', 'End customer', 'Contract', 'Actual', 'Progress', 'Budget used']) {
+        for (const column of ['Contract', 'Actual']) {
           await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();
+        }
+        // These synthetic rows have no delivery or budget data: PL-A omits those columns, with no restore control.
+        for (const column of ['Progress', 'Budget used', 'End customer']) {
+          await expect(table.getByRole('columnheader', { name: column, exact: true })).toHaveCount(0);
         }
         await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
         await scroller.evaluate((el) => { el.scrollLeft = 0; });
@@ -67,14 +71,14 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       if (route === 'projects') await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Projects', exact: true }).click();
       else await page.getByRole('link', { name: /Back to Sales Pipeline/i }).click();
       await expect(page).toHaveURL(narrowed);
-      await expect(disclosure).toHaveAccessibleName('Classification 2');
+      await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
       await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await disclosure.click();
       await expect(page.getByLabel('Filter by award type')).toHaveValue('tender');
       await expect(page.getByLabel('Filter by location')).toHaveValue(location);
       await page.keyboard.press('Escape');
       await page.getByRole('button', { name: 'Clear classifications' }).click();
-      await expect(disclosure).toHaveAccessibleName('Classification');
+      await expect(disclosure).toHaveAccessibleName(triggerName);
       await expect.poll(() => new URL(page.url()).searchParams.has('location')).toBe(false);
     }
     await page.setViewportSize({ width: 390, height: 844 });

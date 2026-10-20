@@ -43,8 +43,6 @@
   "uxs14": {
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "showOptionalColumns": "Tampilkan kolom opsional",
-    "hideEmptyColumns": "Sembunyikan kolom kosong",
     "projectReferences": "Referensi proyek lainnya",
     "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
     "contractReference": "Referensi kontrak pelanggan"
@@ -206,13 +204,9 @@
     "activeBudget": "Anggaran Aktif",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
-    "updated": "Diperbarui {{date}}",
-    "freshnessUnavailable": "Waktu pembaruan tidak tersedia",
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
     "incompleteCoverage": "Cakupan sumber belum lengkap",
-    "erpActual": "Realisasi ERP",
-    "pmoActual": "PO berkomitmen",
     "restrictedRowsExcluded": "Baris terbatas dikecualikan",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
     "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
@@ -3152,19 +3146,17 @@
       "actual": "Realisasi",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
-      "customer": "Klien",
       "pm": "PM",
       "progress": "Progres",
       "project": "Proyek",
-      "status": "Status",
-      "endCustomer": "Pelanggan akhir"
+      "status": "Status"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
       "archiveDescription": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
       "archiveTitle": "Arsipkan proyek ini?"
     },
-    "description": "Pantau proyek yang berjalan dan yang selesai. Buka satu proyek untuk melihat anggaran, pengadaan, dan detailnya. Proyek yang belum menang ada di Pipeline.",
+    "description": "Proyek pra-menang ada di Pipeline.",
     "empty": {
       "clearFilters": "Hapus filter",
       "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",
@@ -3232,8 +3224,6 @@
       "removeCustomer": "Hapus filter klien",
       "removeManager": "Hapus filter manajer proyek",
       "clearAll": "Hapus semua",
-      "loading": "Memuat opsi…",
-      "noOptions": "Tidak ada opsi",
       "error": "Gagal memuat opsi",
       "retry": "Coba lagi",
       "unavailable": "Pilihan tidak tersedia",

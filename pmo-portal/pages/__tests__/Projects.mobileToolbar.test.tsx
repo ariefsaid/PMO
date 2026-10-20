@@ -280,10 +280,12 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     expect(moreBtn).toHaveFocus();
   });
 
-  it('AC-PRJUX-003: an Engineer gets no Filters and a permission-gated More actions (Export only)', async () => {
+  it("AC-PRJUX-003: an Engineer's Filters holds classification only, and More actions is permission-gated (Export only)", async () => {
     const user = userEvent.setup();
     renderPage('Engineer');
-    expect(screen.queryByRole('button', { name: /^Filters$/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    expect(screen.getByRole('combobox', { name: /filter by service line/i })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
     await user.click(moreBtn);
     expect(screen.getByRole('button', { name: /^Export$/i })).toBeInTheDocument();
@@ -308,7 +310,8 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     await user.click(screen.getByRole('tab', { name: /^All$/i }));
     expect(screen.getByText('Advisory engagement')).toBeVisible();
 
-    const classification = screen.getByRole('button', { name: /^Classification$/i });
+    const classification = screen.getByRole('button', { name: /^Filters$/i });
+    expect(screen.queryByRole('button', { name: /^Classification$/i })).not.toBeInTheDocument();
     await user.click(classification);
     const serviceLine = screen.getByRole('combobox', { name: /filter by service line/i });
     expect(serviceLine).toHaveFocus();
@@ -336,13 +339,13 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     roleBox.value = 'Project Manager';
   });
 
-  it('AC-PRJUX-002: customer query loading shows a translated helper and keeps the All option', async () => {
+  it('AC-PRJUX-002: customer query loading says nothing extra and keeps the All option', async () => {
     const user = userEvent.setup();
     clientsState.isPending = true;
     clientsState.isSuccess = false;
     renderPage();
     await user.click(screen.getByRole('button', { name: /^Filters$/i }));
-    expect(screen.getByText(/Loading options/)).toBeInTheDocument();
+    expect(screen.queryByText(/Loading options/)).not.toBeInTheDocument();
     const select = screen.getByRole('combobox', { name: /filter by customer/i }) as HTMLSelectElement;
     expect(Array.from(select.options).some((o) => o.value === 'All')).toBe(true);
   });
@@ -360,7 +363,7 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     expect(clientsState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-PRJUX-002: empty options retain All with a no-options helper (never a blank option)', async () => {
+  it('AC-PRJUX-002: empty options retain All without a helper line (never a blank option)', async () => {
     const user = userEvent.setup();
     clientsState.data = [];
     clientsState.isPending = false;
@@ -368,7 +371,7 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     clientsState.isSuccess = true;
     renderPage();
     await user.click(screen.getByRole('button', { name: /^Filters$/i }));
-    expect(screen.getByText(/No options available/)).toBeInTheDocument();
+    expect(screen.queryByText(/No options available/)).not.toBeInTheDocument();
     const select = screen.getByRole('combobox', { name: /filter by customer/i }) as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent);
     expect(options.some((t) => t && t.trim().length === 0)).toBe(false);
@@ -433,10 +436,8 @@ describe('AC-PRJUX-006 — English and Bahasa resolve every new label', () => {
       ['projects.mobile.clearAll', enMobile.clearAll, idMobile.clearAll],
       ['projects.mobile.removeCustomer', enMobile.removeCustomer, idMobile.removeCustomer],
       ['projects.mobile.removeManager', enMobile.removeManager, idMobile.removeManager],
-      ['projects.mobile.loading', enMobile.loading, idMobile.loading],
       ['projects.mobile.error', enMobile.error, idMobile.error],
       ['projects.mobile.retry', enMobile.retry, idMobile.retry],
-      ['projects.mobile.noOptions', enMobile.noOptions, idMobile.noOptions],
     ];
     for (const [key, enV, idV] of keyAssertions) {
       expect(`${key}(en)`, key).toSatisfy(() => typeof enV === 'string' && (enV as string).trim().length > 0);

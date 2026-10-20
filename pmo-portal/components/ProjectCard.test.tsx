@@ -68,9 +68,9 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
   });
 
-  it('renders the inline ProjectStatusControl with a stable testid', () => {
+  it('PL-B: carries no status-change control (transitions live on the record)', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getByTestId('project-status-control')).toBeInTheDocument();
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
   });
 
   it('shows the customer contract ref on demand', async () => {
@@ -98,14 +98,16 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('Unassigned')).not.toBeInTheDocument();
   });
 
-  it('calls onOpen when the card is activated, but not when the status control is used', async () => {
+  it('calls onOpen when the card is activated, but not when Edit is used', async () => {
     const onOpen = vi.fn();
-    render(<ProjectCard project={base} onOpen={onOpen} />);
-    await userEvent.click(screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i }));
+    const onEdit = vi.fn();
+    render(<ProjectCard project={base} onOpen={onOpen} onEdit={onEdit} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' }));
     expect(onOpen).toHaveBeenCalledWith(base);
 
     onOpen.mockClear();
-    await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Edit Innovate Corp HQ Fit-Out/i }));
+    expect(onEdit).toHaveBeenCalledWith(base);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
@@ -122,7 +124,7 @@ describe('ProjectCard', () => {
 
   it('AC-S02: an unresolved collection read does not claim that no Active budget exists', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getAllByText('Unavailable')).toHaveLength(4);
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByText('$4,700,000')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -150,8 +152,8 @@ describe('ProjectCard', () => {
     expect(budgetBar).toBeInTheDocument();
     expect(screen.getByText('$125,000.00')).toBeInTheDocument();
     expect(screen.getByText('$500,000')).toBeInTheDocument();
-    expect(screen.getByText('Updated Oct 1, 2026')).toBeInTheDocument();
-    expect(screen.getByText('$125.0K of $500.0K Active budget')).toBeInTheDocument();
+    // PL-B: no freshness line and no "x of y" caption on the card.
+    expect(screen.queryByText(/Updated|of .* Active budget/)).not.toBeInTheDocument();
     // Should NOT show the old Committed/Actual bars
     expect(screen.queryByLabelText(/Committed: \d+% of contract/i)).not.toBeInTheDocument();
   });
@@ -160,7 +162,9 @@ describe('ProjectCard', () => {
     const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
     expect(screen.getByText('$125,000.00')).toBeInTheDocument();
-    expect(screen.getByText('Budget currency differs from Actual')).toBeInTheDocument();
+    // Not comparable: no Budget used bar (and no repeated explanation on the card).
+    expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget currency differs from Actual')).not.toBeInTheDocument();
   });
 
   it('formats the exact Actual with the selected number locale, independently of UI language', () => {
@@ -183,27 +187,29 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('At risk')).not.toBeInTheDocument();
   });
 
-  it('AC-S02: partial or restricted Actual is displayed with its qualifier but never drives budget usage', () => {
+  it('AC-S02: partial or restricted Actual shows Unavailable and never drives budget usage', () => {
     for (const actuals of [
       { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
       { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }] },
     ]) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-      expect(screen.getByText('$450.00')).toBeInTheDocument();
+      expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
+      expect(screen.getAllByText('Unavailable')).toHaveLength(1);
       expect(screen.queryByRole('progressbar', { name: /Active budget/i })).not.toBeInTheDocument();
-      expect(screen.getAllByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage').length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Restricted rows excluded|Incomplete source coverage/)).not.toBeInTheDocument();
       unmount();
     }
   });
 
-  it('AC-S02: missing freshness is explicit when Actual is known', () => {
+  it('PL-B: a known Actual carries no per-card freshness prose', () => {
     const projectMoney: ProjectMoneyRead = {
       ledgerBasis: 'erp',
       actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] },
       activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('Update time unavailable')).toBeInTheDocument();
+    expect(screen.getByText('$125.00')).toBeInTheDocument();
+    expect(screen.queryByText(/Update time unavailable|Updated/)).not.toBeInTheDocument();
   });
 
   it('AC-S02: a known zero Active budget is not mislabeled as absent', () => {
@@ -213,8 +219,9 @@ describe('ProjectCard', () => {
       activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    expect(screen.getByText('$0')).toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
   it('AC-S02-011: does not compare or total Actual and Active budget across currencies', () => {
@@ -226,7 +233,6 @@ describe('ProjectCard', () => {
       hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('Budget currency differs from Actual')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/\d+% of Active budget/)).not.toBeInTheDocument();
   });
@@ -241,7 +247,7 @@ describe('ProjectCard', () => {
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
-    expect(screen.getAllByText('No active budget')).toHaveLength(3);
+    expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();
   });
@@ -263,39 +269,19 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
   });
 
-  it('AC-S39-003: discloses the card row tax facts without activating the project card', async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
+  it('PL-B: the card states the plain basis only; rate and DPP live on the record, with no disclosure to operate', () => {
     const project = {
       ...base,
       tax_rate: 12,
       tax_base_numerator: 11,
       tax_base_denominator: 12,
     } as unknown as ProjectWithRefs;
-    render(<ProjectCard project={project} onOpen={onOpen} />);
+    render(<ProjectCard project={project} onOpen={vi.fn()} />);
 
     const card = screen.getByTestId('project-card');
-    const trigger = within(card).getByRole('button', { name: 'Show tax details' });
-    expect(trigger.parentElement?.closest('button')).toBeNull();
-    expect(within(card).getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(within(card).queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
     expect(within(card).getByText('$5,000,000')).toBeInTheDocument();
-
-    await user.tab();
-    expect(within(card).getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toHaveFocus();
-    await user.tab();
-    expect(within(card).getByRole('link')).toHaveFocus();
-    await user.tab();
-    expect(trigger).toHaveFocus();
-    await user.keyboard(' ');
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    const panel = document.getElementById(trigger.getAttribute('aria-controls')!)!;
-    expect(panel).toBeVisible();
-    expect(panel).toHaveTextContent('12%');
-    expect(panel).toHaveTextContent('DPP 11/12');
-    await user.tab();
-    expect(within(card).getByRole('button', { name: 'Change status' })).toHaveFocus();
-    expect(card).toHaveTextContent('Innovate Corp HQ Fit-Out');
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(card).not.toHaveTextContent(/DPP|12%/);
   });
 });

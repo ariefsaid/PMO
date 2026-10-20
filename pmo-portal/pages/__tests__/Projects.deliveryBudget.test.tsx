@@ -118,14 +118,36 @@ describe('Projects delivery progress + budget used', () => {
     };
   });
 
+  it('AC-RD-TBL-PROJ-001: 25 project rows render one coverage caveat and full money amounts', () => {
+    projectsState.data = Array.from({ length: 25 }, (_, index) => ({
+      ...fixtures[0], id: `synthetic-${index}`, name: `Synthetic project ${index}`,
+    }));
+    projectMoneyState.data = Object.fromEntries(projectsState.data.map((project, index) => [project.id, {
+      actuals: { currency: 'USD', total: `${1_234_567 + index}.00`, asOf: null, complete: index !== 0, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: index !== 0, amount: index === 0 ? null : `${1_234_567 + index}.00` }] },
+      activeBudgetAmount: '7654321.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      ledgerBasis: 'erp',
+    }]));
+
+    renderPage();
+
+    expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
+    expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
+    expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    expect(screen.getByText('$1,234,568.00')).toBeInTheDocument();
+    expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321.00"]')).not.toBeNull();
+    expect(screen.queryByText(/\$1\.2M of \$7\.7M/)).not.toBeInTheDocument();
+  });
+
   it('AC-DEL-013 AC-DEL-017: renders delivery progress and budget used from the delivery summary', () => {
     renderPage();
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
     expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByText('$2.0M of $3.8M Active budget')).toBeInTheDocument();
+    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000.00 of $3,800,000.00 Active budget');
     expect(screen.getByText('53%')).toBeInTheDocument();
-    expect(screen.getByText('No phases yet')).toBeInTheDocument();
+    // PL-A: a project without phases shows a dash (its reason is the title), not prose.
+    expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
 
     // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
     // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and

@@ -1,0 +1,9 @@
+{
+  "coverage": {
+    "partial": "Actual is partial on {{partial}} of {{total}} projects.",
+    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
+  },
+  "actual": {
+    "restrictedTag": "Restricted excluded"
+  }
+}

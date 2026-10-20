@@ -67,8 +67,9 @@ describe('AC-CODE-003 active Projects identities', () => {
   it('AC-CODE-003: renders both identifiers as separately labelled values in the project table', () => {
     renderProjects('/projects?view=table');
     const row = screen.getByText('Active site').closest('tr');
-    expect(row).toHaveTextContent('PMO Project Number: PMO-26-7711');
-    expect(row).toHaveTextContent('Client Project Code: CLIENT-81');
+    // PL-A: one mono line carries both identifiers; the PMO number keeps its label for assistive technology.
+    expect(row).toHaveTextContent('PMO Project Number: PMO-26-7711 · CLIENT-81');
+    expect(row).not.toHaveTextContent('Client Project Code:');
   });
 
   it('renders both identities and searches by either without hiding a PMO number when Client Project Code is absent', async () => {
@@ -92,19 +93,13 @@ describe('AC-CODE-003 active Projects identities', () => {
     expect(cardFor('Active site')).not.toHaveTextContent('Client Project Code:');
   });
 
-  it('AC-CODE-003: keeps disclosed identifiers readable on a narrow project row', async () => {
+  it('AC-CODE-003: keeps the identifier line readable on a narrow project row', () => {
     mockMobileViewport();
     renderProjects('/projects?view=table');
-    await userEvent.click(screen.getAllByText('More project references')[0]);
-    const pmoNumber = screen.getByTitle('PMO-26-7711');
-    const clientCode = screen.getByTitle('CLIENT-81');
-
-    expect(pmoNumber).toHaveClass('break-words');
-    expect(pmoNumber).toHaveClass('md:truncate');
-    expect(pmoNumber).not.toHaveClass('truncate');
-    expect(clientCode).toHaveClass('break-words');
-    expect(clientCode).toHaveClass('md:truncate');
-    expect(clientCode).not.toHaveClass('truncate');
+    expect(screen.queryByText('More project references')).not.toBeInTheDocument();
+    const ids = screen.getAllByTitle('PMO-26-7711 · CLIENT-81')[0];
+    expect(ids).toHaveClass('font-mono');
+    expect(ids).toHaveTextContent('PMO-26-7711 · CLIENT-81');
   });
 
   it('AC-CODE-003: uses the AA primary text token for the search Clear all action', async () => {
