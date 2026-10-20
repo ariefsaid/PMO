@@ -13,6 +13,13 @@ describe('AtRiskProjectsLink', () => {
     expect(screen.queryByTestId('dashboard-at-risk-link')).not.toBeInTheDocument();
   });
 
+  it('AC-RD-RISK-001: explains when zero risk cannot be verified rather than hiding the state', () => {
+    render(<MemoryRouter><AtRiskProjectsLink count={0} checkable={false} /></MemoryRouter>);
+    expect(screen.getByTestId('dashboard-at-risk-unavailable')).toHaveTextContent("Can't be checked yet");
+    expect(screen.getByTestId('dashboard-at-risk-unavailable')).toHaveTextContent(/active budget/i);
+    expect(screen.queryByTestId('dashboard-at-risk-link')).not.toBeInTheDocument();
+  });
+
   it('gives a single risk a singular, risk-specific destination', () => {
     renderLink(1);
     const link = screen.getByRole('link', { name: 'Review 1 at-risk project' });

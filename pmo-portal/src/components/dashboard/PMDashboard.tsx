@@ -15,7 +15,7 @@ import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 
@@ -38,7 +38,7 @@ const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
  * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
   const { data: mine = [], isPending, isError, refetch } = usePMDashboardProjects();
   const orgCurrency = useOrgCurrency();
@@ -46,6 +46,14 @@ export const PMDashboard: React.FC = () => {
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
     ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
   const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
+  const riskCheckable = useMemo(() => {
+    const delivery = mine.filter((project) => ACTIVE_PROJECT_STATUSES.has(project.status));
+    const unchecked = delivery.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
+      && project.budget_currency === project.currency && project.actual_complete
+      && project.spent !== null && Number.isFinite(project.spent)
+      && (project.actual_currency ?? project.currency) === project.currency)).length;
+    return riskCheckableFor(delivery.length, unchecked);
+  }, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(
@@ -84,7 +92,9 @@ export const PMDashboard: React.FC = () => {
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
         <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
-          value={String(atRiskCount)} loading={isPending} error={isError} vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
+          value={riskCheckable || atRiskCount > 0 ? String(atRiskCount) : t('dashboard:risk.unavailable', "Can't be checked yet")}
+          loading={isPending} error={isError}
+          vs={riskCheckable || atRiskCount > 0 ? t('dashboard.pm.budgetUsage', 'budget usage > 90%') : t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}
           to="/projects?filter=at-risk"
           linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
           help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />

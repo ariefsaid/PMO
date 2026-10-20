@@ -6,6 +6,8 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import enCatalogue from '../../../../public/locales/en/common.json';
 import idCatalogue from '../../../../public/locales/id/common.json';
+import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
+import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
 import { MobileExecutiveDashboard } from '../MobileExecutiveDashboard';
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -38,13 +40,17 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
       lng: 'id',
       fallbackLng: 'en',
       defaultNS: 'common',
-      resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+      fallbackNS: 'common',
+      resources: {
+        en: { common: enCatalogue, dashboard: enDashboardCatalogue },
+        id: { common: idCatalogue, dashboard: idDashboardCatalogue },
+      },
     });
 
     render(
       <I18nextProvider i18n={i18n}>
         <MemoryRouter>
-          <MobileExecutiveDashboard data={data} approvalCount={0} belowFold={null} />
+          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
         </MemoryRouter>
       </I18nextProvider>,
     );

@@ -104,6 +104,16 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     // The server read model supplies assigned projects only; the display preserves the row currency.
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$9,000,000.00');
   });
+  it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
+    projState.data = [
+      { id: 'p-unknown', name: 'Unbudgeted project', contract_value: null, currency: 'USD', budget: null, spent: null, realized_margin_pct: null, contract_remaining: null, status: 'Ongoing Project', project_manager_id: 'pm-1', actual_complete: false, actual_currency: null, budget_currency: null },
+    ];
+    renderPane();
+    const tile = screen.getByTestId('kpi-at-risk');
+    expect(tile).toHaveTextContent("Can't be checked yet");
+    expect(tile).toHaveTextContent(/active budget/i);
+    expect(tile).not.toHaveTextContent(/\b0\b|all on track/i);
+  });
   it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();
     const atRiskTiles = screen.getAllByTestId('kpi-at-risk');

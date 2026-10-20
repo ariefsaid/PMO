@@ -8,6 +8,7 @@ import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -32,7 +33,7 @@ import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLin
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const ExecutiveDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const procurementStatusLabel = useProcurementStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
@@ -97,6 +98,7 @@ const ExecutiveDashboard: React.FC = () => {
         </div>
       );
     }
+    const riskCheckable = riskCheckableFor(data.active_delivery_projects ?? 0, data.risk_unchecked_projects ?? 0);
     const hasProjectEvidence = (data.projects_by_status ?? []).some((row) => row.count > 0);
     const hasProcurementEvidence = (data.procurements_by_status ?? []).some((row) => row.count > 0);
     const isEmpty = !hasProjectEvidence && !hasProcurementEvidence;
@@ -252,6 +254,7 @@ const ExecutiveDashboard: React.FC = () => {
           />
           <MobileExecutiveDashboard
             data={data}
+            riskCheckable={riskCheckable}
             headingAction={<BoardPackAction />}
             approvalCount={mobileApprovalCount}
             approvalError={mobileApprovalError}
@@ -274,7 +277,7 @@ const ExecutiveDashboard: React.FC = () => {
         />
 
         <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="space-y-2">
-          <AtRiskProjectsLink count={data.projects_at_risk}
+          <AtRiskProjectsLink count={data.projects_at_risk} checkable={riskCheckable}
             className="inline-flex min-h-8 items-center font-medium text-warning-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring" />
           <AwaitingApprovalTile includeTimesheets />
         </section>
@@ -378,11 +381,11 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-total-spend"
             tone="red"
             icon="cart"
-            label={t('dashboard.kpi.totalSpend.label', 'Total project spend')}
+            label={t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
             value={money(data.on_hand_actual_known)}
-            vs={t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
+            vs={`${data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
               known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
-            })}
+            })}`}
             to="/projects?filter=Ongoing"
             linkLabel={t(
               'dashboard.kpi.totalSpend.linkLabel',

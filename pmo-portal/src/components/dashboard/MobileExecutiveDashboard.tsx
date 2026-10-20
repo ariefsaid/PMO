@@ -33,6 +33,7 @@ import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
 export interface MobileExecutiveDashboardProps {
   data: ExecutiveDashboard;
+  riskCheckable: boolean;
   /** Approval items waiting on this user (proc + timesheets). */
   approvalCount: number;
   /**
@@ -79,6 +80,7 @@ const Overline: React.FC<{ children: React.ReactNode; className?: string }> = ({
 const AtRiskBlock: React.FC<{
   atRisk: number;
   activeProjects: number;
+  riskCheckable: boolean;
   totalSpend: number | null;
   actualProjectCount: number;
   actualProjectTotal: number;
@@ -89,18 +91,19 @@ const AtRiskBlock: React.FC<{
    *  A leaf that called the hook itself would work today and diverge the moment one is rendered for
    *  a different org. */
   currency: string;
-}> = ({ atRisk, activeProjects, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
-  const { t, i18n } = useTranslation();
+}> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
+  const { t, i18n } = useTranslation('dashboard');
   const spendText = formatDashboardMoney(totalSpend, currency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const isAtRisk = atRisk > 0;
+  const isUnknown = !riskCheckable && !isAtRisk;
 
   return (
     <div
       data-testid="dashboard-at-risk"
       aria-label={isAtRisk
         ? t('dashboard.mobile.atRiskCount', '{{count}} projects at risk', { count: atRisk })
-        : t('dashboard.mobile.atRiskZero', 'All projects on track')}
+        : isUnknown ? t('dashboard:risk.unavailable', "Can't be checked yet") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
       className="rounded-lg border border-border bg-card p-4"
     >
       {/* Icon + label row */}
@@ -129,12 +132,13 @@ const AtRiskBlock: React.FC<{
             isAtRisk ? 'text-warning-foreground' : 'text-foreground'
           )}
         >
-          {atRisk}
+          {isUnknown ? '—' : atRisk}
         </span>
         <span className="text-[12.5px] text-muted-foreground">
           {isAtRisk
             ? t('dashboard.mobile.riskSummary', 'of {{count}} active projects flagged over budget or behind schedule', { count: activeProjects })
-            : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
+            : isUnknown ? `${t('dashboard:risk.unavailable', "Can't be checked yet")}. ${t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}`
+              : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
         </span>
       </div>
 
@@ -171,11 +175,12 @@ const AtRiskBlock: React.FC<{
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-            {t('dashboard.kpi.totalSpend.label', 'Total project spend')}
+            {t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
           </span>
           <span className="tabular mt-[3px] block text-[17px] font-bold">
             {spendText}
           </span>
+          {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">
             {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: actualProjectCount ?? 0, total: actualProjectTotal ?? 0 })}
             {' · '}{t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: actualCoverageCount ?? 0, total: actualCoverageTotal ?? 0 })}
@@ -197,7 +202,7 @@ const AtRiskBlock: React.FC<{
  * The whole row is a link (no nested button inside link — single focusable element).
  */
 const MobileApprovalsBand: React.FC<{ count: number; error?: boolean }> = ({ count, error }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('dashboard');
   const label = error
     ? t('dashboard.mobile.approvalsLinkError', 'Awaiting your approval. Open approvals inbox.')
     : t('dashboard.mobile.approvalsLink', 'Awaiting your approval: {{count}} items. Open approvals inbox.', { count });
@@ -258,7 +263,7 @@ const ContractBook: React.FC<{
   activeContractValue: number | null;
   activeProjects: number;
 }> = ({ onHandValue, onHandValueByCurrency = [], onHandContractRemaining, realizedMargin, realizedMarginByCurrency = [], realizedMarginLabel, activeContractValue, activeProjects }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
   const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
@@ -332,12 +337,13 @@ const ContractBook: React.FC<{
  */
 export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> = ({
   data,
+  riskCheckable,
   approvalCount,
   approvalError,
   headingAction,
   belowFold,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
   const totalSpend = data.on_hand_actual_known;
   const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
@@ -355,6 +361,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         <AtRiskBlock
           atRisk={data.projects_at_risk}
           activeProjects={data.active_projects}
+          riskCheckable={riskCheckable}
           totalSpend={totalSpend}
           actualProjectCount={data.on_hand_actual_project_count ?? 0}
           actualProjectTotal={data.on_hand_actual_project_total ?? 0}

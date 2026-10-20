@@ -17,6 +17,8 @@ import React from 'react';
 
 const dash = {
   active_projects: 4,
+  active_delivery_projects: 4,
+  risk_unchecked_projects: 0,
   total_contract_value: 8_000_000, currency: 'USD',
   on_hand_margin: 0.25,
   on_hand_value: 6_000_000,
@@ -63,6 +65,7 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false }),
 }));
@@ -169,7 +172,7 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
-  it('AC-IXD-DASH-W5-C2A-FIN-2: "Total project spend" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" tile drills to /projects?filter=Ongoing', () => {
     renderFinance();
     const tile = screen.getByTestId('kpi-spend');
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
@@ -205,6 +208,7 @@ const mine = [
 ];
 
 
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));

@@ -58,6 +58,8 @@ export interface ExecutiveDashboard {
   pipeline_weighted_value: number | null;
   pipeline_projected_margin: number | null;
   projects_at_risk: number;
+  active_delivery_projects?: number;
+  risk_unchecked_projects?: number;
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
   top_projects: TopProject[];
