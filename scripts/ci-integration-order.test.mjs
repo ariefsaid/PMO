@@ -7,6 +7,20 @@ const packageJson = JSON.parse(
   readFileSync(new URL('../pmo-portal/package.json', import.meta.url), 'utf8'),
 );
 
+test('AC-BSH-003 integration owns a two-shard Chromium matrix and serial tail', () => {
+  const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration:'));
+  assert.match(browser, /shard: \[1, 2\]/);
+  assert.match(browser, /max-parallel: 2/);
+  assert.match(browser, /fail-fast: false/);
+  assert.match(browser, /--shard=\$\{\{ matrix\.shard \}\}\/2/);
+  assert.match(workflow, /needs: browser-chromium/);
+  assert.match(workflow, /--project=serial --workers=1/);
+  assert.match(workflow, /--project=consent/);
+  assert.match(workflow, /check-e2e-skips\.mjs[\s\S]*pw-chromium-1\.json[\s\S]*pw-chromium-2\.json[\s\S]*pw-serial\.json[\s\S]*pw-consent\.json/);
+  assert.match(workflow, /test "\$\{\{ needs\.browser-chromium\.result \}\}" = success/);
+  assert.match(workflow, /name: browser-chromium-\$\{\{ matrix\.shard \}\}/);
+});
+
 test('the ordinary e2e lane runs before the served-function smoke lane', () => {
   const e2eStep = workflow.indexOf('- name: E2E tests (Playwright / Chromium)');
   const servedFunctionStep = workflow.indexOf('- name: Serve adapter-dispatch (served-fn lane smoke)');
@@ -50,7 +64,7 @@ test('no Playwright retries anywhere: a failure runs once (with a trace) and a f
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
   assert.doesNotMatch(workflowCommands, /--reporter=list,json\s*>/);
-  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-chromium\.json/);
+  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-chromium-\$\{\{ matrix\.shard \}\}\.json/);
   assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-serial\.json/);
   assert.match(
     workflow,
@@ -280,18 +294,17 @@ test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the
 
   assert.match(ordinary, /id: ordinary_e2e/);
   const commands = [
-    'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --reporter=list,json',
     'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json',
     'PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json',
   ];
-  for (const command of commands) assert.equal(ordinary.split(command).length - 1, 1, `ordinary lane command must remain exactly once: ${command}`);
-  assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 3, 'timing work must not add a second Playwright invocation');
-  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  for (const command of commands) assert.equal(ordinary.split(command).length - 1, 1, `tail lane command must remain exactly once: ${command}`);
+  assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 2, 'Chromium runs only in the two-shard matrix');
+  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
   assert.ok(auditStart > skipStart && auditStart < servedStart, 'audit must follow skip validation and precede served-function cleanup');
 
   const condition = /if: \$\{\{\s*always\(\)\s*&&\s*!cancelled\(\)\s*&&\s*\(steps\.ordinary_e2e\.outcome == 'success' \|\| steps\.ordinary_e2e\.outcome == 'failure'\)\s*\}\}/;
   assert.match(auditStep, condition, 'audit must run after either success or failure of the ordinary E2E step');
-  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
   assert.doesNotMatch(auditStep, /npx playwright test/);
   assert.match(uploadStep, condition, 'summary upload must run when the audit or ordinary lane failed');
   assert.match(uploadStep, /uses: actions\/upload-artifact@[a-f0-9]{40}/);

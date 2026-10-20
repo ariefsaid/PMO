@@ -133,7 +133,7 @@ jobs:
       - name: CI integration-order test
         working-directory: .
         run: |
-          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs scripts/dispatch-result.test.mjs scripts/ci-e2e-coordination.test.mjs
+          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs scripts/dispatch-result.test.mjs scripts/ci-e2e-coordination.test.mjs scripts/browser-test-sharding.test.mjs
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
           node --test scripts/statement-metadata-readiness.test.mjs
           node --test scripts/verified-post-merge-cleanup.test.mjs
@@ -287,7 +287,75 @@ jobs:
       - name: pgTAP integration tests
         run: supabase test db
 
+  browser-chromium:
+    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [1, 2]
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.105.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pmo-portal/package-lock.json
+      - name: Install Node dependencies
+        working-directory: pmo-portal
+        run: npm ci
+      - name: Start local Supabase stack
+        run: supabase start -x studio,realtime,vector
+      - name: Reset DB (migrations + seed)
+        run: supabase db reset --yes
+      - name: Write .env.local for Vite / Playwright
+        run: |
+          eval "$(supabase status -o env)"
+          echo "VITE_SUPABASE_URL=${API_URL}" > pmo-portal/.env.local
+          echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}" >> pmo-portal/.env.local
+          echo "VITE_FEATURES_USERVIEWS=true" >> pmo-portal/.env.local
+          echo "VITE_FEATURES_AI_COMPOSER=true" >> pmo-portal/.env.local
+          echo "VITE_FEATURES_AGENT_ASSISTANT=true" >> pmo-portal/.env.local
+          echo "VITE_FEATURES_CRM=true" >> pmo-portal/.env.local
+          echo "::add-mask::${SERVICE_ROLE_KEY}"
+          {
+            echo "SUPABASE_URL=${API_URL}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}"
+          } >> "$GITHUB_ENV"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pmo-portal/package-lock.json') }}
+      - name: Install Playwright
+        working-directory: pmo-portal
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then npx playwright install-deps chromium; else npx playwright install --with-deps chromium; fi
+      - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
+        id: chromium
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/2 --reporter=list,json
+      - name: Upload Chromium shard evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-chromium-${{ matrix.shard }}
+          path: /tmp/pw-chromium-${{ matrix.shard }}.json
+          retention-days: 1
+          if-no-files-found: error
+
   integration:
+    needs: browser-chromium
+    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch') }}
     # The expensive job (Supabase stack + pgTAP + full Playwright e2e incl. visual-invariant
     # gate AC-VISUAL-ICON-001, ~6 min). Run it on PRs that TARGET main only — the authoritative
     # pre-merge gate. A squash-merge carries the PR-tested content; re-running on the main push
@@ -300,7 +368,6 @@ jobs:
     # fixes are done — not per fix round.
     # Trade-off: a dispatch runs branch code with the job's secrets without a PR audit trail;
     # only write-access collaborators can dispatch (fork PRs never receive secrets).
-    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # 45, not 30: the three lanes alone reached ~25 min by v0.20 and the served-fn smoke was cut off at the cap
     timeout-minutes: 45
@@ -320,6 +387,22 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
+      - name: Chromium shard dependency must succeed
+        run: test "${{ needs.browser-chromium.result }}" = success
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8b0a5b5461e7c # v8.0.1
+        with:
+          name: browser-chromium-1
+          path: /tmp/browser-shards/1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8b0a5b5461e7c # v8.0.1
+        with:
+          name: browser-chromium-2
+          path: /tmp/browser-shards/2
+      - name: Verify both Chromium shard reports exist
+        run: |
+          test -s /tmp/browser-shards/1/pw-chromium-1.json
+          test -s /tmp/browser-shards/2/pw-chromium-2.json
+          cp /tmp/browser-shards/1/pw-chromium-1.json /tmp/pw-chromium-1.json
+          cp /tmp/browser-shards/2/pw-chromium-2.json /tmp/pw-chromium-2.json
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
@@ -429,7 +512,6 @@ jobs:
           # failing test name at all.) The env var routes json to a file and leaves list on stdout.
           # No retries (playwright.config.ts `retries: 0`): a real failure fails once, with a trace
           # (`retain-on-failure`) — never re-run 3x, and no retry can mask a flake.
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --reporter=list,json
           PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
           PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
 
@@ -442,12 +524,12 @@ jobs:
         working-directory: .
         # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
         # entry looks stale in another lane's report and the gate fails itself.
-        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
 
       - name: E2E timing budget audit
         if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
         working-directory: .
-        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
+        run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
 
       - name: Upload E2E timing summary
         if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
