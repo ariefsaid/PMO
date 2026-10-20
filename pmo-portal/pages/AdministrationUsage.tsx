@@ -101,7 +101,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
 
   return (
     <div>
-      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} />
+      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
       {!hasMargin && (
         <p className="mt-2 text-[12.5px] text-muted-foreground">
           Pricing not yet configured — margin will appear here once a per-credit USD rate is set.

@@ -122,7 +122,10 @@ describe('ProjectProfitLossSection host binding', () => {
 
     expect(await screen.findByText('101.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
-    const captureWindow = screen.getByText(/Capture window:/).textContent;
+    // PD-B: the context line is currency + the period shown — no capture window, no prior range.
+    const captureWindow = screen.getByText(/Current period:/).textContent;
+    expect(captureWindow).toBe('IDR · Current period: Sep 1, 2026 – Sep 30, 2026');
+    expect(screen.queryByText(/Capture window/)).not.toBeInTheDocument();
     const readsBeforeRetry = readSpy.mock.calls.length;
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -143,5 +146,22 @@ describe('ProjectProfitLossSection host binding', () => {
       periodKind: 'month', periodStart: period.currentStart, statement: 'profit_and_loss', projectId, viewKind: 'project_totals',
     });
     expect(screen.queryByText('private refresh failure')).not.toBeInTheDocument();
+  });
+
+  it('PD-B: renders nothing when statements are unavailable, or the default period had no activity', async () => {
+    catalogueSpy.mockResolvedValueOnce({ ...catalogue, state: 'unavailable', periods: [], scopes: [] } as FinancialStatementCatalogue);
+    const unavailable = renderSection();
+    await waitFor(() => expect(catalogueSpy).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    expect(unavailable.container).toBeEmptyDOMElement();
+    expect(screen.queryByText('Statements are not available yet')).not.toBeInTheDocument();
+    unavailable.unmount();
+
+    const quiet = totalsRead();
+    readSpy.mockResolvedValueOnce({ ...quiet, result: { ...(quiet.result as NonNullable<typeof quiet.result>), hasActivity: false } } as FinancialStatementRead);
+    const noActivity = renderSection();
+    await waitFor(() => expect(readSpy).toHaveBeenCalled());
+    await waitFor(() => expect(noActivity.container).toBeEmptyDOMElement());
+    expect(screen.queryByText('No activity in this period')).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,66 @@
+{
+  "finance": {
+    "account": "Account",
+    "actualsError": "Couldn't load actuals",
+    "actualsTitle": "Actuals (ERP ledger)",
+    "allInvoicesPaid": "All vendor invoices have been paid or none are awaiting action.",
+    "apError": "Couldn't load vendor payables",
+    "apTitle": "Vendor payables (AP)",
+    "arError": "Couldn't load customer receivables",
+    "awaiting": "Purchase requests awaiting your decision",
+    "budgetReviewLoadError": "Couldn't load budget review",
+    "contractValue": "Contract value in progress",
+    "contractValueHelp": "Total contract value across active projects.",
+    "contractValueLink": "Open active projects to see contract value",
+    "costCenter": "Cost center",
+    "current": "Current",
+    "dashboardError": "Couldn't load the finance dashboard",
+    "days": "{{count}} days",
+    "fiscalYear": "Fiscal year",
+    "invoiced": "Invoiced",
+    "invoicedHelp": "Days since the vendor invoice was recorded; older records use their last update date.",
+    "kpiBand": "Finance KPIs",
+    "loadInvoicesError": "Couldn't load invoices",
+    "margin": "Margin to date",
+    "marginHelp": "Billed-work revenue less recorded spending; this is not cash received.",
+    "net": "Net",
+    "netUnavailableReason": "The source snapshot did not supply a Net value.",
+    "nothingAwaitingPayment": "Nothing awaiting payment",
+    "oneDay": "1 day",
+    "openRequest": "Open {{request}}",
+    "party": "Party",
+    "payables": "Vendor payables",
+    "payablesDetail": "Vendor-invoiced, awaiting payment",
+    "payablesHelp": "Procurement value owed to vendors in the Vendor Invoiced state.",
+    "payablesLink": "Open vendor invoices awaiting payment",
+    "project": "Project",
+    "projectUnavailableReason": "Project name is unavailable.",
+    "recordedSpending": "Recorded spending",
+    "request": "Request",
+    "spendingHelp": "Actual spending recorded across the delivery portfolio.",
+    "spendingLink": "Open active projects to see spending details",
+    "today": "Today",
+    "totalOutstanding": "Total outstanding",
+    "unattributed": "Not attributed to a project",
+    "value": "Value"
+  },
+  "pm": {
+    "myProjectsHelp": "Delivery projects where you are the assigned project manager.",
+    "noProjects": "No delivery projects assigned to you yet",
+    "noProjectsSub": "Projects in the delivery phase will appear here."
+  },
+  "pmRow": {
+    "delivery": "Delivery",
+    "margin": "Margin",
+    "marginAria": "{{name}} margin to date: {{pct}}%"
+  },
+  "risk": {
+    "uncheckedNote": "Risk can't be checked yet — no active budget."
+  },
+  "spend": {
+    "partial": "Partial"
+  },
+  "kpi": {
+    "activeProjectsCount": "{{count}} active projects"
+  }
+}

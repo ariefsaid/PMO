@@ -179,6 +179,7 @@ export interface ProjectRepository {
   list(
     params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
+  listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */

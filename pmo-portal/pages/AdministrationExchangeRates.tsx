@@ -281,7 +281,7 @@ const AdministrationExchangeRates: React.FC = () => {
                   ]
                 : undefined
             }
-          />
+          tableId="administrationexchangerates-table" />
           <div className="mt-3 flex justify-end gap-2">
             <Button
               variant="outline"

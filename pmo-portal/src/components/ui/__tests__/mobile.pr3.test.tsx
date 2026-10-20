@@ -357,10 +357,9 @@ describe('TimesheetGrid — scroll-fade affordance (AC-IXD-MOBILE-W4-PR3-C1b)', 
 
   it('at max-md the project column has narrowed (min-w-[160px]) class applied', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
-    const header = document.querySelector('[data-testid="tsgrid-project-header"]');
+    // T9: the DataTable column contract carries the narrow floor as the column's min width.
+    const header = screen.getByRole('columnheader', { name: 'Project' });
     expect(header).toBeInTheDocument();
-    // Must have the max-md narrow class
-    const cls = header?.className ?? '';
-    expect(cls).toMatch(/max-md:min-w-\[160px\]|min-w-\[160px\]/);
+    expect(header.style.minWidth).toBe('160px');
   });
 });

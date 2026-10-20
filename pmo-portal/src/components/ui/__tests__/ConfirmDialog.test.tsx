@@ -49,6 +49,12 @@ afterEach(() => {
 });
 
 describe('AC-CONFIRM-001: render gating', () => {
+  it('AC-CONFIRM-001: renders the mobile bottom-sheet drag handle on phone widths', () => {
+    mockMatchMedia(false);
+    render(<ConfirmDialog {...baseProps} />);
+    expect(document.querySelector('[aria-hidden].mx-auto.mb-3.h-1.w-10.rounded-full.bg-border')).toBeInTheDocument();
+  });
+
   it('AC-CONFIRM-001: renders title, description, confirm + default Cancel label when open', () => {
     render(<ConfirmDialog {...baseProps} />);
     expect(screen.getByText('Mark deal as lost')).toBeInTheDocument();
@@ -144,6 +150,7 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     expect(descId).toBeTruthy();
     expect(document.getElementById(labelId!)?.textContent).toContain('Mark deal as lost');
     expect(document.getElementById(descId!)?.textContent).toContain('terminal stage');
+    expect(document.getElementById(descId!)?.tagName).toBe('DIV');
   });
 
   it('AC-CONFIRM-005: on open, focus lands on Cancel (safe default, not the destructive confirm)', async () => {
@@ -463,6 +470,52 @@ describe('AC-A11Y-MODAL-001: ConfirmDialog makes the app shell inert while open'
     expect(shell).toHaveAttribute('inert'); // the outer dialog is still open
     outer.unmount();
     expect(shell).not.toHaveAttribute('inert');
+  });
+
+  it('LIB-001: Escape closes only a nested confirm and returns focus inside the legacy form', async () => {
+    const NestedConfirm = () => {
+      const [confirmOpen, setConfirmOpen] = React.useState(false);
+      const [formOpen, setFormOpen] = React.useState(true);
+      return (
+        <>
+          <EntityFormModal
+            open={formOpen}
+            title="Edit deal"
+            submitLabel="Save"
+            onSubmit={(e) => e.preventDefault()}
+            onClose={() => setFormOpen(false)}
+          >
+            <input aria-label="Deal name" />
+            <button type="button" onClick={() => setConfirmOpen(true)}>
+              Delete deal
+            </button>
+          </EntityFormModal>
+          <ConfirmDialog
+            {...baseProps}
+            open={confirmOpen}
+            title="Delete deal"
+            tone="destructive"
+            onCancel={() => setConfirmOpen(false)}
+          />
+        </>
+      );
+    };
+
+    render(<NestedConfirm />);
+    const formField = screen.getByRole('textbox', { name: 'Deal name' });
+    const opener = screen.getByRole('button', { name: 'Delete deal' });
+    opener.focus();
+    await userEvent.click(opener);
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Mark lost' })).toHaveLength(1);
+
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit deal' })).toBeInTheDocument();
+    expect(formField).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete deal' })).toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
 
   it('AC-A11Y-MODAL-001: a confirm stacked on an open EntityFormModal leaves the form background inert after it closes', () => {

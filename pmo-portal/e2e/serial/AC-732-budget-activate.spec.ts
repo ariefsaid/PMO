@@ -94,7 +94,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await draftCard.getByRole('button', { name: 'Save' }).click();
 
   // Wait for line-item row to appear (the cell in the table)
-  await expect(draftCard.getByRole('cell', { name: '$600,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftCard.locator('tbody').getByRole('cell', { name: '$600,000' })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 4: Add second line-item (400,000) ---
   await draftCard.getByRole('button', { name: '+ Add line item' }).click();
@@ -105,7 +105,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await draftCard.getByRole('button', { name: 'Save' }).click();
 
   // Wait for second line-item to appear
-  await expect(draftCard.getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftCard.locator('tbody').getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 5: the drafter cannot activate their own version (OD-BUDGET-6) ---
   await expect(draftCard.getByRole('button', { name: 'Activate' })).toHaveCount(0);

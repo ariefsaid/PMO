@@ -64,7 +64,7 @@ export default defineConfig({
       // AC-CON-003-*/AC-CON-012-*/AC-VISUAL-CHECKBOX-001-* specs run against their own dev
       // server (port 3100, see webServer below) and are excluded here too so they are never
       // also picked up against port 3000.
-      testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//, /AC-CON-003-/, /AC-CON-012-/, /AC-VISUAL-CHECKBOX-001-/],
+      testIgnore: [/auth\.setup\.ts/, /\.test\.mjs$/, /e2e\/serial\//, /AC-CON-003-/, /AC-CON-012-/, /AC-VISUAL-CHECKBOX-001-/],
     },
     {
       // @e2e-isolation: serial lane — org-global specs. Run in a SECOND invocation at --workers=1

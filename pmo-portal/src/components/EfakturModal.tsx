@@ -95,9 +95,6 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
       <div className="grid gap-4">
         <div className="min-w-0 space-y-2">
           <div className="min-w-0 break-words text-sm">{recordContext}</div>
-          <p className="break-words text-xs text-muted-foreground">
-            {t('efaktur.copyInstruction', 'Copy the number from the issued e-Faktur document.')}
-          </p>
         </div>
         <TextField
           label={t('efaktur.number', 'e-Faktur number')}

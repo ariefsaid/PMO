@@ -195,11 +195,11 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77' }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
-      const pmo = screen.getByTitle('PMO-26-0042');
-      expect(pmo).toHaveTextContent(/^PMO-26-0042$/);
-      await userEvent.click(screen.getByText('More project references'));
-      expect(screen.getByTitle('CLIENT-77')).toBeInTheDocument();
-      expect(within(pmo.parentElement as HTMLElement).getByText('PMO Project Number:')).toHaveClass('sr-only');
+      // PL-A: identifiers share ONE mono line (no per-row references disclosure); the label stays for AT.
+      const ids = screen.getByTitle('PMO-26-0042 · CLIENT-77');
+      expect(ids).toHaveTextContent(/^PMO-26-0042 · CLIENT-77$/);
+      expect(screen.queryByText('More project references')).not.toBeInTheDocument();
+      expect(within(ids.parentElement as HTMLElement).getByText('PMO Project Number:')).toHaveClass('sr-only');
     } finally {
       projectsState.data = prev;
     }
@@ -257,7 +257,7 @@ describe('Projects index — IA-3 (real data)', () => {
     // No NaN leaks anywhere on the rendered index.
     expect(document.body.textContent).not.toMatch(/NaN/);
     // The zero-budget rows fall back to a muted em-dash in the Budget used column.
-    expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 
   it('AC-NAV-006: navigates to the project detail route when a row is activated, carrying validated list-return context (no tab)', async () => {
@@ -405,7 +405,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage();
       expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
       expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
     } finally {
       Object.assign(deliverySummaryState, priorDelivery);
       projectMoneyState.data = priorMoney;
@@ -466,17 +466,15 @@ describe('Projects table — compact layout (#1)', () => {
     }
   });
 
-  it('UX-019: project identity leads with name and customer while secondary references are disclosed', async () => {
+  it('UX-019: project identity leads with name and customer; identifiers share one mono line with no disclosure', () => {
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-SYN-001', code: 'CLIENT-SYN-44', customer_contract_ref: 'CPO-SYN-9' }] as unknown as ProjectWithRefs[];
     renderPage();
     const row = document.querySelector('tbody tr') as HTMLElement;
     expect(within(row).getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(within(row).getByText('Innovate Corp')).toBeInTheDocument();
-    expect(within(row).getByText('PMO-SYN-001')).toBeInTheDocument();
-    expect(within(row).getByTitle('CLIENT-SYN-44')).not.toBeVisible();
-    await userEvent.click(within(row).getByLabelText('More project references for Innovate Corp HQ Fit-Out'));
-    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects');
-    expect(within(row).getByTitle('CLIENT-SYN-44')).toBeVisible();
+    expect(within(row).getByText('PMO-SYN-001 · CLIENT-SYN-44')).toBeVisible();
+    expect(within(row).queryByLabelText(/More project references/)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/CPO-SYN-9/)).not.toBeInTheDocument();
   });
 
   it('UX-018: secondary filters and transfer tools are grouped behind labelled disclosures', () => {
@@ -488,11 +486,11 @@ describe('Projects table — compact layout (#1)', () => {
     expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
   });
 
-  it('RF-013: status changes remain available from the project card while absent from the table action column', async () => {
+  it('RF-013: status changes are absent from both the table action column and the project card (PL-B)', async () => {
     renderPage();
     expect(screen.queryByRole('columnheader', { name: /^Action$/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
   });
 });
 
@@ -503,24 +501,24 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-1011 (UI): the table keeps project identity concise and status transitions available in the Cards view', async () => {
+  it('AC-1011 (UI): the table keeps project identity concise; the Cards view carries no status control (PL-B: transitions live on the record)', async () => {
     projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
     await userEvent.click(within(wonCard).getByText('More project references'));
     expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 
-  it('AC-1011 (UI): the Cards view also renders the status control + ref (win flow reachable from both views)', async () => {
+  it('AC-1011 (UI): the Cards view renders the contract ref on demand and no status control', async () => {
     projectsState.data = seedWithWon as unknown as ProjectWithRefs[];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId('project-status-control').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('[data-testid="project-card"]')!;
     await userEvent.click(within(wonCard).getByText('More project references'));
     expect(within(wonCard).getByTitle('CPO-2026-999')).toBeVisible();
@@ -650,33 +648,48 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
-    expect(within(body).getByText('ERP actual')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.textContent).toContain('$125,000.00');
+    // PL-A: the cell is the amount only — source and freshness are not repeated per row.
+    expect(actualCell.querySelector('[title]')).toBeNull();
+    expect(actualCell.textContent).not.toMatch(/ERP actual|Updated/);
     expect(within(body).queryByText('$2,100,000')).not.toBeInTheDocument();
-    expect(within(body).getByText(/Updated/)).toBeInTheDocument();
     expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
   });
 
-  it('AC-S02: labels committed PMO Actual separately from ERP ledger Actual', () => {
+  it('AC-S02: shows a committed PMO Actual as the plain amount, with no per-row source label', () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Committed POs')).toBeInTheDocument();
-    expect(within(body).queryByText('ERP actual')).not.toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+    expect(actualCell.querySelector('[title]')).toBeNull();
+    expect(actualCell.textContent).toBe('$125,000.00');
   });
 
   it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', async () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
+      // another project has an Active budget, so the Budget used column exists to show p1's missing one
+      p2: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '100.00', asOf: null, excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '100.00' }] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
+    projectsState.data = [{ ...seed[0], spent: 0 }, { ...seed[1], spent: 0 }] as unknown as ProjectWithRefs[];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Unavailable')).toBeInTheDocument();
-    expect(within(body).getByText('No active budget')).toBeInTheDocument();
-    expect(within(body).getByText('Incomplete source coverage')).toBeInTheDocument();
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    const row = body.querySelector('tr')!;
+    expect(row.cells[actualHeaderIndex].textContent).toContain('—');
+    expect(row.cells[actualHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'Incomplete source coverage');
+    expect(row.cells[budgetHeaderIndex].textContent).toContain('—');
+    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'No active budget');
+    // The coverage explanation is the one table note, not a per-row string.
+    expect(screen.getAllByText(/Actual is partial on 1 of 2 projects/)).toHaveLength(1);
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
@@ -722,18 +735,12 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
-      expect(within(body).getAllByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage').length).toBeGreaterThan(0);
+      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+      const actualTitle = body.querySelector('tr')!.cells[actualHeaderIndex].querySelector('[title]');
+      expect(actualTitle).toHaveAttribute('title', actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage');
+      expect(body.querySelector('tr')!.cells[actualHeaderIndex].textContent).not.toContain('$450,000');
       unmountAll();
     }
-  });
-
-  it('AC-S02: missing freshness is explicit when Actual is known', () => {
-    projectMoneyState.data = {
-      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] }, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-    };
-    renderPage();
-    const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('Update time unavailable')).toBeInTheDocument();
   });
 
   it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
@@ -754,7 +761,10 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const utilization = screen.getByLabelText(/90% of Active budget/);
     expect(utilization).toBeInTheDocument();
-    expect(utilization.parentElement?.parentElement).toHaveTextContent('At risk');
+    const row = utilization.closest('tr')!;
+    expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
+    expect(within(row).getByText(/^At risk$/i)).toBeInTheDocument();
+    expect(utilization.querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-destructive');
   });
 
   it('AC-S02: does not classify cross-currency Actual and Active budget as at risk', () => {
@@ -900,11 +910,11 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     companiesState.data = [];
   });
 
-  it('AC-EC-003: the table shows an End customer column with each project’s end customer', () => {
+  it('AC-EC-003: each project’s end customer shows once on its project cell, with no End customer column', () => {
     renderPage();
-    expect(screen.getByRole('columnheader', { name: /^End customer$/ })).toBeInTheDocument();
-    expect(screen.getAllByText('Asset Owner Alpha').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Site Owner Beta').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: /^End customer$/ })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Asset Owner Alpha')).toHaveLength(1);
+    expect(screen.getAllByText('Site Owner Beta')).toHaveLength(1);
   });
 
   it('RF-012: end-customer choices come from project associations, not unrelated companies', async () => {
@@ -919,33 +929,28 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     expect(within(scopedSelect).queryByRole('option', { name: 'Unrelated Supplier' })).not.toBeInTheDocument();
   });
 
-  it('RF-009: the optional-column restore control is absent when filters leave no table rows', async () => {
+  it('RF-009: no optional-columns control exists, with rows or when filters leave none', async () => {
     projectsState.data = seed as unknown as ProjectWithRefs[];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
-    expect(screen.getByRole('button', { name: /hide empty columns/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns|hide empty columns/i })).not.toBeInTheDocument();
     await userEvent.type(screen.getByRole('searchbox', { name: /search projects/i }), 'no matching project');
     expect(screen.getByText('No projects match these filters')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /hide empty columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns|hide empty columns/i })).not.toBeInTheDocument();
   });
 
-  it('RF-009: the optional-column restore control is absent when no projects exist', () => {
+  it('RF-009: no optional-columns control exists when no projects exist', () => {
     projectsState.data = [] as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.getByText('No projects yet')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /show optional columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 
-  it('UX-021: all-empty optional columns hide with a discoverable restore control', async () => {
+  it('UX-021: columns with no data are omitted, with no restore control to click', () => {
     projectsState.data = withEnd.map((project) => ({ ...project, end_client_id: null, end_client: null })) as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /^Budget used$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /show optional columns/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
-    expect(screen.getByRole('columnheader', { name: /end customer/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /^Budget used$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 
   it('AC-EC-003: ?endClient=<id> narrows the list to that end customer’s projects', () => {
@@ -972,7 +977,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
 it('AC-TAG-002 Projects intersects classification controls, preserves URL and clears the actual result', async () => {
   projectsState.data = seed.map((p, i) => ({ ...p, service_line: i === 0 ? 'Engineering' : 'Advisory', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'alone' })) as unknown as ProjectWithRefs[];
   const user = userEvent.setup(); renderPage('Project Manager', '/projects?view=table');
-  await user.click(screen.getByRole('button', { name: /^Classification$/ }));
+  await user.click(screen.getByRole('button', { name: /^Filters/ }));
   await user.selectOptions(screen.getAllByLabelText('Filter by service line')[0], 'Engineering');
   expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
   expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
@@ -984,7 +989,7 @@ it('AC-TAG-002 Projects intersects classification controls, preserves URL and cl
 it('AC-TAG-002 Engineer classification filters remain available without manager-only customer controls', async () => {
   projectsState.data = seed.map((p) => ({ ...p, service_line: 'Engineering' })) as unknown as ProjectWithRefs[];
   renderPage('Engineer', '/projects?filter=All&view=table');
-  await userEvent.click(screen.getByRole('button', { name: /^Classification$/ }));
+  await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
   expect(screen.getByLabelText('Filter by service line')).toBeInTheDocument();
   expect(screen.queryByLabelText('Filter by customer')).toBeNull();
 });

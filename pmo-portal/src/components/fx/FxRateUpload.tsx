@@ -353,7 +353,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                     rows={preview.rows}
                     columns={columns}
                     rowKey={(row) => row.rate_date}
-                  />
+                  tableId="components-fx-fxrateupload-table" />
                 </div>
               </div>
             )}

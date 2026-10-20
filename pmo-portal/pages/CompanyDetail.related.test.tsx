@@ -179,7 +179,7 @@ beforeEach(() => {
 describe('CompanyDetail — related objects (AC-IFW-COMPANY-01)', () => {
   it('AC-IFW-COMPANY-01: renders a "Related projects" card for a Client company', () => {
     renderPage('co-client-1');
-    // CardHead renders as a div; getAllByText returns multiple when the ul aria-label matches too
+    // The section title is a semantic CardHead heading; the list's accessible label may also match.
     const headings = screen.getAllByText(/related projects/i);
     expect(headings.length).toBeGreaterThan(0);
   });
@@ -281,9 +281,9 @@ describe('CompanyDetail — customer collections (AC-S36-003)', () => {
 
     expect(screen.getByRole('heading', { name: 'Customer collections' })).toBeInTheDocument();
     expect(screen.getByText('Customer:C-0001')).toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /Customer:C-0001/ })).toHaveTextContent(/\$250\s*USD/);
-    expect(screen.getByText('Report date: 2026-10-18')).toBeInTheDocument();
-    expect(screen.getByText('Ageing basis: Due Date')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Customer:C-0001/ })).toHaveTextContent('$250');
+    // SL-F: report date and ageing basis once per card.
+    expect(screen.getByText('Report date: 2026-10-18 · Ageing basis: Due Date')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
       'href', '/sales-invoices?customer=co-client-1',
     );

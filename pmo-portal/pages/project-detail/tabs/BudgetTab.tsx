@@ -1,8 +1,8 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import ProjectBudget from '../../ProjectBudget';
 import BudgetProjection from '../../BudgetProjection';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
+import { useBudgetVersions } from '@/src/hooks/useBudget';
 
 export interface BudgetTabProps {
   projectId: string;
@@ -30,26 +30,23 @@ export interface BudgetTabProps {
  * Posture B, PMO stays SoT). This mirrors the server-side `orgEmploysErpnext` predicate (an active
  * erpnext binding) and the `get_budget_push_status` gate; the FE gate is UX only and fails CLOSED.
  *
+ * SUB-D: the projection also needs an ACTIVE budget version to forecast against. Without one it has nothing
+ * to say, and there is no standing "forecast appears once…" box either — an absent panel needs no explanation.
+ *
  * Fails CLOSED — an unknown/loading/errored/absent/disconnected binding does NOT mount it, so there is no
  * flash of an empty ERP panel and no unfollowable advice on a failed read. `<ProjectBudget>` is
  * deliberately unconditional: it is PMO-SoT and has nothing to do with any external system.
  */
 const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
-  const bindingQuery = useErpnextBinding();
-  const { data: erpnextBinding } = bindingQuery;
+  const { data: erpnextBinding } = useErpnextBinding();
+  const { data: versions } = useBudgetVersions(projectId);
   const employsExternalBudget = erpnextBinding?.status === 'active';
+  const hasActiveVersion = (versions ?? []).some((v) => v.status === 'Active');
   return (
     // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
     // answers — and the version ledger/operations follow. Same two components, only the order changes.
     <div className="flex flex-col gap-5">
-      {employsExternalBudget ? (
-        <BudgetProjection projectId={projectId} />
-      ) : bindingQuery.isSuccess ? (
-        <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          {t('uxs04.forecastUnavailable', 'Forecast appears once your accounting ledger is connected.')}
-        </p>
-      ) : null}
+      {employsExternalBudget && hasActiveVersion && <BudgetProjection projectId={projectId} />}
       <ProjectBudget projectId={projectId} />
     </div>
   );

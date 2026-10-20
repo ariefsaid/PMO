@@ -1,73 +1,24 @@
 import React, { useState } from 'react';
 import {
-  Card,
-  CardHead,
-  CardPad,
-  Button,
-  Icon,
-  ConfirmDialog,
-  FieldError,
-  Combobox,
+  Card, CardHead, CardPad, Button, Icon, ConfirmDialog, FieldError, Combobox, DataTable,
   useMoneyInputMask,
+  type Column,
 } from '@/src/components/ui';
 import {
-  formatCurrency,
-  formatMoneyInputValue,
-  moneyInputErrorKind,
-  numberSymbols,
-  parseMoneyInputAtScale,
+  formatCurrencyAuto, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
-// ---------------------------------------------------------------------------
-// LineItemsSection — the editable line-items table (crud-components §9.4 /
-// crud-procurement-new-pr.html). Inline add-row at the foot; per-row edit +
-// delete; line totals (qty × rate) derived + tabular; footer total. Editing is
-// gated by the caller (requester + PM/Finance/Admin while Draft); when read-only
-// the table renders static value rows with no edit chrome.
-//
-// Token-pure: composes Card / Button / ConfirmDialog + the DESIGN.md `input`
-// shell + `tabular` numerals; no new colors or radii.
-// ---------------------------------------------------------------------------
-
-export interface ItemDraft {
-  name: string;
-  description?: string;
-  quantity: string;
-  rate: string;
-}
-
+export interface ItemDraft { name: string; description?: string; quantity: string; rate: string }
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
-
-/**
- * Parse a possibly-formatted quantity → number (0 on empty/invalid). Quantity is stored as
- * `numeric(14,2)` like the unit price (#684, #699), so it uses the SAME locale-aware scale-2 parse
- * `validateLineNum` accepted: a third decimal is refused rather than rounded by the column, which
- * keeps the previewed line total equal to the saved one.
- */
-function num(v: string): number {
-  return parseMoneyInputAtScale(v, 2) ?? 0;
-}
-
-/**
- * #684 AC-PLC-010/FR-PLC-010: a value that fails to parse AT ALL under the viewer's number
- * convention (wrong separators — e.g. `1,234.56` under `id-ID`) is a FORMAT mistake, not a
- * precision one, and gets a message naming the separators this screen expects, with an example in
- * the viewer's own convention — never the generic "no more than 2 decimal places", which is simply
- * wrong for a separator mistake.
- */
+function num(v: string): number { return parseMoneyInputAtScale(v, 2) ?? 0; }
 function describeFormatError(label: string, locale = getNumberLocale()): string {
   const { decimal, group } = numberSymbols(locale);
   const example = formatMoneyInputValue(1234.56, locale);
   return `${label} must use "${group}" to group thousands and "${decimal}" for decimals — for example ${example}.`;
 }
-
-/**
- * Validate a raw quantity string. Returns an error message string, or undefined when valid.
- * Must be non-empty and parse (via the SAME scale-2 parse used to persist) to a number > 0.
- */
 function validateLineNum(raw: string, label: string): string | undefined {
   if (!raw.trim()) return `${label} is required.`;
   const n = parseMoneyInputAtScale(raw, 2);
@@ -75,432 +26,111 @@ function validateLineNum(raw: string, label: string): string | undefined {
   if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
   return `${label} must be greater than 0 with no more than 2 decimal places.`;
 }
-
-/**
- * The unit price is money stored as `numeric(14,2)` (#684, AC-PLC-009): the same locale-aware
- * scale-2 parse validates it and produces the persisted number, so an amount the column would
- * have to round is refused here instead of silently saved.
- */
 function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
   return n !== null && n > 0 ? n : null;
 }
-
 function validateRate(raw: string): string | undefined {
   if (!raw.trim()) return 'Unit price is required.';
   if (parseRate(raw) !== null) return undefined;
   if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError('Unit price');
   return 'Unit price must be greater than 0 with no more than 2 decimal places.';
 }
-
-interface LineItemErrors {
-  quantity?: string;
-  rate?: string;
-}
-
+interface LineItemErrors { quantity?: string; rate?: string }
 export interface LineItemsSectionProps {
   items: ProcurementItemRow[];
-  /** When false, the table is read-only (no add/edit/delete chrome). */
   editable: boolean;
-  /** Persisters — each rejects with a code-bearing AppError on failure. */
   onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
   onUpdate: (id: string, patch: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
-  /** Connected orgs choose a current ERP item; standalone rows retain the free-text name. */
   erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
   onDelete: (id: string) => Promise<unknown>;
   onError: (err: unknown) => void;
-  /** Mutation in-flight flags from the hook (disables the relevant control). */
   busy?: boolean;
-  /** The owning procurement's ISO-4217 currency (FR-L10N-020) — line items carry no
-   *  currency of their own, so every rate/total here takes the parent's. */
   currency: string;
 }
-
-/** Cell input — the small 30px `li-inp` shell from the mockup. */
-const CellInput: React.FC<
-  React.ComponentPropsWithRef<'input'> & { numeric?: boolean }
-> = ({ numeric, className = '', ...rest }) => (
-  <input
-    {...rest}
-    type="text"
-    inputMode={numeric ? 'decimal' : undefined}
-    className={
-      'h-[30px] w-full rounded-md border border-input bg-background px-[9px] text-[13px] text-foreground ' +
-      'outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 ' +
-      'focus-visible:outline-offset-1 focus-visible:outline-ring ' +
-      (numeric ? 'tabular text-right ' : '') +
-      className
-    }
-  />
+const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boolean }> = ({ numeric, className = '', ...rest }) => (
+  <input {...rest} type="text" inputMode={numeric ? 'decimal' : undefined}
+    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
-export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
-  items,
-  editable,
-  onAdd,
-  onUpdate,
-  onDelete,
-  onError,
-  busy,
-  currency,
-  erpItems,
-}) => {
+export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
-  // The row currently being edited (id) + its working values.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [editErrors, setEditErrors] = useState<LineItemErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<ProcurementItemRow | null>(null);
-  // #684: unit-price drafts group in the viewer's number convention as the user types. Only one
-  // row is ever in edit mode, so one mask serves it.
-  const addRateMask = useMoneyInputMask(draft.rate, (rate) => {
-    setDraft((d) => ({ ...d, rate }));
-    setAddErrors((prev) => ({ ...prev, rate: undefined }));
-  });
-  const editRateMask = useMoneyInputMask(editDraft.rate, (rate) => {
-    setEditDraft((d) => ({ ...d, rate }));
-    setEditErrors((prev) => ({ ...prev, rate: undefined }));
-  });
-
+  const addRateMask = useMoneyInputMask(draft.rate, (rate) => { setDraft((d) => ({ ...d, rate })); setAddErrors((prev) => ({ ...prev, rate: undefined })); });
+  const editRateMask = useMoneyInputMask(editDraft.rate, (rate) => { setEditDraft((d) => ({ ...d, rate })); setEditErrors((prev) => ({ ...prev, rate: undefined })); });
   const total = items.reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
-    const qtyErr = validateLineNum(draft.quantity, 'Quantity');
-    const rateErr = validateRate(draft.rate);
+    const quantityError = validateLineNum(draft.quantity, 'Quantity');
+    const rateError = validateRate(draft.rate);
     const rate = parseRate(draft.rate);
-    if (qtyErr || rateErr || rate === null) {
-      setAddErrors({ quantity: qtyErr, rate: rateErr });
-      return;
-    }
+    if (quantityError || rateError || rate === null) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
     setAddErrors({});
     try {
       await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate, ...(erpItems ? { description: draft.description?.trim() ?? '' } : {}) });
       setDraft(EMPTY_DRAFT);
-    } catch (err) {
-      onError(err);
-    }
+    } catch (err) { onError(err); }
   };
-
   const startEdit = (it: ProcurementItemRow) => {
     setEditingId(it.id);
-    // Seed in the viewer's convention so an untouched value re-parses to the same number.
-    setEditDraft({
-      name: it.name,
-      description: it.description ?? '',
-      quantity: formatMoneyInputValue(Number(it.quantity)),
-      rate: formatMoneyInputValue(Number(it.rate)),
-    });
+    setEditDraft({ name: it.name, description: it.description ?? '', quantity: formatMoneyInputValue(Number(it.quantity)), rate: formatMoneyInputValue(Number(it.rate)) });
     setEditErrors({});
   };
-
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
-    const qtyErr = validateLineNum(editDraft.quantity, 'Quantity');
-    const rateErr = validateRate(editDraft.rate);
+    const quantityError = validateLineNum(editDraft.quantity, 'Quantity');
+    const rateError = validateRate(editDraft.rate);
     const rate = parseRate(editDraft.rate);
-    if (qtyErr || rateErr || rate === null) {
-      setEditErrors({ quantity: qtyErr, rate: rateErr });
-      return;
-    }
+    if (quantityError || rateError || rate === null) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
     try {
-      await onUpdate(id, {
-        name: editDraft.name.trim(),
-        quantity: num(editDraft.quantity),
-        rate,
-        ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}),
-      });
+      await onUpdate(id, { name: editDraft.name.trim(), quantity: num(editDraft.quantity), rate, ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}) });
       setEditingId(null);
-    } catch (err) {
-      onError(err);
-    }
+    } catch (err) { onError(err); }
   };
-
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    try {
-      await onDelete(target.id);
-      setDeleteTarget(null);
-    } catch (err) {
-      onError(err);
-      setDeleteTarget(null);
-    }
+    try { await onDelete(target.id); setDeleteTarget(null); }
+    catch (err) { onError(err); setDeleteTarget(null); }
   };
 
-  return (
-    <Card className="mb-4" data-testid="line-items-section">
-      <CardHead>
-        Line items
-        <span className="ml-2 text-[12.5px] font-normal text-muted-foreground">
-          qty × unit price → line total
-        </span>
-      </CardHead>
-      {/* position:relative makes this div the containing block for the
-          sr-only TH span (position:absolute). Without it the span's
-          containing block is the initial viewport, placing it at left≈400px
-          and leaking into document.scrollWidth even though clip:rect(0,0,0,0)
-          hides it visually. With relative, the span is contained here and the
-          overflow-x-auto scroll container clips it correctly (AC-MOBILE-OVERFLOW-001). */}
-      <div className="relative overflow-x-auto">
-        <table className="w-full border-collapse text-[13.5px]">
-          <thead>
-            <tr>
-              <th className="h-[38px] border-b border-border px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                {erpItems ? 'Item / description' : 'Description'}
-              </th>
-              <th className="w-[88px] border-b border-border px-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                Qty
-              </th>
-              <th className="w-[130px] border-b border-border px-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                Unit price
-              </th>
-              <th className="w-[130px] border-b border-border px-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                Line total
-              </th>
-              {editable && (
-                <th className="w-[84px] border-b border-border px-3 text-center">
-                  <span className="sr-only">Row actions</span>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr>
-                <td
-                  colSpan={editable ? 5 : 4}
-                  className="px-3 py-5 text-center text-[13px] text-muted-foreground"
-                >
-                  No line items yet.{editable ? ' Add one below.' : ''}
-                </td>
-              </tr>
-            )}
-
-            {items.map((it) => {
-              const isEditing = editingId === it.id;
-              if (editable && isEditing) {
-                return (
-                  <tr key={it.id} className="border-b border-border/70">
-                    <td className="px-3 py-2">
-                      {erpItems ? (
-                        <div className="min-w-[180px] space-y-2">
-                          <Combobox
-                            label="ERP item"
-                            value={editDraft.name || null}
-                            selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null}
-                            onChange={(name) => setEditDraft((d) => ({ ...d, name }))}
-                            loadOptions={erpItems.loadOptions}
-                            noun="ERP item"
-                            searchPlaceholder="Search item code or name…"
-                          />
-                          <CellInput
-                            aria-label={`Edit description for ${it.name}`}
-                            value={editDraft.description ?? ''}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
-                          />
-                        </div>
-                      ) : (
-                        <CellInput
-                          aria-label={`Edit description for ${it.name}`}
-                          value={editDraft.name}
-                          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-0.5">
-                        <CellInput
-                          numeric
-                          aria-label={`Edit quantity for ${it.name}`}
-                          value={editDraft.quantity}
-                          onChange={(e) => {
-                            setEditDraft((d) => ({ ...d, quantity: e.target.value }));
-                            setEditErrors((prev) => ({ ...prev, quantity: undefined }));
-                          }}
-                        />
-                        <FieldError>{editErrors.quantity}</FieldError>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-0.5">
-                        <CellInput
-                          numeric
-                          aria-label={`Edit unit price for ${it.name}`}
-                          ref={editRateMask.ref}
-                          value={editDraft.rate}
-                          onChange={editRateMask.onChange}
-                        />
-                        <FieldError>{editErrors.rate}</FieldError>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular font-medium">
-                      {formatCurrency(num(editDraft.quantity) * num(editDraft.rate), currency)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          loading={busy}
-                          onClick={() => void submitEdit(it.id)}
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              }
-              return (
-                <tr key={it.id} className="border-b border-border/70">
-                  <td className="px-3 py-2.5 font-medium">{it.name}{erpItems && it.description && <div className="mt-1 font-normal text-muted-foreground">{it.description}</div>}</td>
-                  <td className="px-3 py-2.5 text-right tabular">{Number(it.quantity)}</td>
-                  <td className="px-3 py-2.5 text-right tabular">{formatCurrency(Number(it.rate), currency)}</td>
-                  <td className="px-3 py-2.5 text-right tabular font-medium">
-                    {formatCurrency(Number(it.amount ?? 0), currency)}
-                  </td>
-                  {editable && (
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center justify-center gap-0.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Edit ${it.name}`}
-                          onClick={() => startEdit(it)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          iconOnly
-                          aria-label={`Remove ${it.name}`}
-                          onClick={() => setDeleteTarget(it)}
-                        >
-                          <Icon name="x" />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-
-            {/* Inline add-row */}
-            {editable && (
-              <tr className="bg-secondary/35" data-testid="line-item-add-row">
-                <td className="px-3 py-2">
-                  {erpItems ? (
-                    <div className="min-w-[180px] space-y-2">
-                      <Combobox
-                        label="ERP item"
-                        value={draft.name || null}
-                        selectedOption={draft.name ? { value: draft.name, label: draft.name } : null}
-                        onChange={(name) => setDraft((d) => ({ ...d, name }))}
-                        loadOptions={erpItems.loadOptions}
-                        noun="ERP item"
-                        placeholder="Select or search item…"
-                        searchPlaceholder="Search item code or name…"
-                        required
-                      />
-                      <CellInput
-                        aria-label="New item description"
-                        placeholder="Describe the work or goods…"
-                        value={draft.description ?? ''}
-                        onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                      />
-                    </div>
-                  ) : (
-                    <CellInput
-                      aria-label="New item description"
-                      placeholder="Add an item…"
-                      value={draft.name}
-                      onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                    />
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-col gap-0.5">
-                    <CellInput
-                      numeric
-                      aria-label="New item quantity"
-                      placeholder="0"
-                      value={draft.quantity}
-                      onChange={(e) => {
-                        setDraft((d) => ({ ...d, quantity: e.target.value }));
-                        setAddErrors((prev) => ({ ...prev, quantity: undefined }));
-                      }}
-                    />
-                    <FieldError>{addErrors.quantity}</FieldError>
-                  </div>
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-col gap-0.5">
-                    <CellInput
-                      numeric
-                      aria-label="New item unit price"
-                      placeholder={`0${numberSymbols().decimal}00`}
-                      ref={addRateMask.ref}
-                      value={draft.rate}
-                      onChange={addRateMask.onChange}
-                    />
-                    <FieldError>{addErrors.rate}</FieldError>
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {(() => {
-                    // #684: show "—" while either side fails to PARSE — not $0, which reads as a
-                    // real (zero) total rather than "not entered / not a number yet".
-                    const qty = parseMoneyInputAtScale(draft.quantity, 2);
-                    const rate = parseMoneyInputAtScale(draft.rate, 2);
-                    return qty !== null && rate !== null ? formatCurrency(qty * rate, currency) : '—';
-                  })()}
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    aria-label="Add line item"
-                    disabled={!draft.name.trim()}
-                    loading={busy}
-                    onClick={() => void submitAdd()}
-                  >
-                    <Icon name="plus" />
-                    Add
-                  </Button>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+  const columns: Column<ProcurementItemRow>[] = [
+    {
+      key: 'description', header: erpItems ? 'Item / description' : 'Description', kind: 'primary', size: 320, minSize: 200,
+      cell: (it) => {
+        if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
+          <Combobox label="ERP item" value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder="Search item code or name…" />
+          <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
+        </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />;
+        return <span className="font-medium">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
+      },
+    },
+    { key: 'quantity', header: 'Qty', kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
+    { key: 'rate', header: 'Unit price', kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatCurrencyAuto(Number(it.rate), currency) },
+    { key: 'amount', header: 'Line total', kind: 'money', align: 'num', size: 150, cell: (it) => <span className="font-medium">{formatCurrencyAuto(editable && editingId === it.id ? num(editDraft.quantity) * num(editDraft.rate) : Number(it.amount ?? 0), currency)}</span> },
+  ];
+  if (editable) columns.push({ key: 'actions', header: 'Row actions', kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>Save</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>Edit</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
+  const columnsTotal = { amount: formatCurrencyAuto(total, currency) };
+  return <Card className="mb-4" data-testid="line-items-section">
+    <CardHead>Line items<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">qty × unit price → line total</span></CardHead>
+    <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
+      state={items.length === 0 ? 'empty' : undefined} emptyTitle={`No line items yet.${editable ? ' Add one below.' : ''}`}
+      totals={[{ key: 'estimated', label: 'Estimated total', values: columnsTotal }]} />
+    {editable && <CardPad>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
+        <div>{erpItems ? <div className="space-y-2"><Combobox label="ERP item" value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => setDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder="Select or search item…" searchPlaceholder="Search item code or name…" required /><CellInput aria-label="New item description" placeholder="Describe the work or goods…" value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} /></div> : <CellInput aria-label="New item description" placeholder="Add an item…" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />}</div>
+        <div><CellInput numeric aria-label="New item quantity" placeholder="0" value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{addErrors.quantity}</FieldError></div>
+        <div><CellInput numeric aria-label="New item unit price" placeholder={`0${numberSymbols().decimal}00`} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>
+        <div className="flex items-center gap-3"><span aria-label="New line total" className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); return qty !== null && rate !== null ? formatCurrencyAuto(qty * rate, currency) : '—'; })()}</span><Button size="sm" variant="outline" aria-label="Add line item" disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />Add</Button></div>
       </div>
-
-      <CardPad className="flex items-center gap-3.5 border-t border-border bg-secondary/40">
-        <span className="flex-1" />
-        <span className="text-[12.5px] font-medium text-muted-foreground">Estimated total</span>
-        <span className="text-[16px] font-bold tabular tracking-[-0.01em]">
-          {formatCurrency(total, currency)}
-        </span>
-      </CardPad>
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        tone="destructive"
-        title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'}
-        description="This removes the line item from the request. You can add it again while the request is a draft."
-        confirmLabel="Remove item"
-        loading={busy}
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
-    </Card>
-  );
+    </CardPad>}
+    <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description="This removes the line item from the request. You can add it again while the request is a draft." confirmLabel="Remove item" loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
+  </Card>;
 };
-
 LineItemsSection.displayName = 'LineItemsSection';

@@ -1,0 +1,12 @@
+{
+  "finishSpendingSetup": "Finish spending setup",
+  "spendingAdminHandoff": "Ask an administrator to finish spending setup.",
+  "spendingSetupDetails": "Spending setup details",
+  "noSpendingReading": "Spending hasn't been updated yet.",
+  "categoryNeedsSetup": "Spending setup is not complete for this category.",
+  "invoiceBalanceUnavailable": "Invoice balance is not available yet",
+  "invoiceScope": "Only invoices linked to this project are included.",
+  "noLinkedInvoices": "No invoices linked to this project yet",
+  "billedWork": "Billed-work revenue",
+  "billedWorkQualifier": "Net of tax; advances excluded"
+}

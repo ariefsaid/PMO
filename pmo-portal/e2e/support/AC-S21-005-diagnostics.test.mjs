@@ -37,8 +37,6 @@ test('reload diagnostic snapshots retain only bounded endpoint status and allowl
     bindingErrorVisible: true,
     listDetailsLoadingVisible: false,
     savedListIdentityVisible: false,
-    initialSourceVisible: true,
-    pendingTransferNoticeVisible: true,
     token: secret,
     responseBody: secret,
     rawUrl: `${apiOrigin}/rest/v1/profiles?token=${secret}`,
@@ -57,8 +55,6 @@ test('reload diagnostic snapshots retain only bounded endpoint status and allowl
       listErrorVisible: false,
       listDetailsLoadingVisible: false,
       savedListIdentityVisible: false,
-      initialSourceVisible: true,
-      pendingTransferNoticeVisible: true,
     },
     endpoints: [
       { category: 'rest-project-bindings', status: 200, failed: false },

@@ -130,7 +130,7 @@ const MyViewsPage: React.FC = () => {
           rows={[]}
           rowKey={(r) => r.id}
           state="loading"
-        />
+        tableId="myviewspage-1-table" />
       ) : rows.length === 0 ? (
         <ListState
           variant="empty"
@@ -146,7 +146,7 @@ const MyViewsPage: React.FC = () => {
           rows={rows}
           rowKey={(r) => r.id}
           rowMenu={rowMenu}
-        />
+        tableId="myviewspage-2-table" />
       )}
 
       <ConfirmDialog

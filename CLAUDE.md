@@ -136,7 +136,7 @@ below and in older plans. Production additionally retains its separate per-insta
 
 
 **v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
-four unit shards, pgTAP and verify. Dispatch browser integration only on the PR closing a work lane
+two unit shards, pgTAP and verify. Dispatch browser integration only on the PR closing a work lane
 or a completed statement/money piece, rather than every slice. Up to **two** browser dispatches may
 run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
 Build the three approved UX lanes in parallel with statements and money fixes; statements take

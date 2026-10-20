@@ -17,6 +17,8 @@ import React from 'react';
 
 const dash = {
   active_projects: 4,
+  active_delivery_projects: 4,
+  risk_unchecked_projects: 0,
   total_contract_value: 8_000_000, currency: 'USD',
   on_hand_margin: 0.25,
   on_hand_value: 6_000_000,
@@ -63,6 +65,7 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false }),
 }));
@@ -95,9 +98,10 @@ const renderExec = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-EXEC-1: "Active projects" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-1: the active-projects count (on the contract tile, SL-B) drills to /projects?filter=Ongoing', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-active-projects');
+    const tile = screen.getByTestId('kpi-total-contract-value');
+    expect(tile).toHaveTextContent(/\d+ active projects/);
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
@@ -142,7 +146,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
 
   it('AC-IXD-DASH-W5-C2A-a11y: each drill tile has a non-empty aria-label (full sentence)', () => {
     renderExec();
-    for (const testId of ['kpi-active-projects', 'kpi-total-contract-value', 'kpi-total-spend', 'kpi-pipeline-weighted-value']) {
+    for (const testId of ['kpi-total-contract-value', 'kpi-total-spend', 'kpi-pipeline-weighted-value']) {
       const tile = screen.getByTestId(testId);
       const label = within(tile).getByRole('link').getAttribute('aria-label');
       expect(label, `${testId} should have aria-label`).toBeTruthy();
@@ -169,7 +173,7 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
-  it('AC-IXD-DASH-W5-C2A-FIN-2: "Total project spend" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" tile drills to /projects?filter=Ongoing', () => {
     renderFinance();
     const tile = screen.getByTestId('kpi-spend');
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
@@ -200,11 +204,12 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
 // ── PM dashboard ─────────────────────────────────────────────────────────────
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: null, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme' },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta' },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: null, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, realized_margin_pct: null, contract_remaining: 1_020_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client_name: 'Beta', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
 ];
 
 
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));

@@ -19,6 +19,7 @@ import {
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import {
   transitionProject,
@@ -32,7 +33,6 @@ import {
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
@@ -204,34 +204,43 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     });
   };
 
-  const stats: StatTile[] = [
+  const valueTile: StatTile = {
+    label: t('projectDetail.pipeline.stat.value', 'Value'),
+    value: formatCurrency(value, currency),
     // OD-TAX-1 §2: this is the figure that BECOMES the drawdown ceiling on win, so it states its
     // basis like every other money figure. The row carries it — OPPORTUNITY_COLUMNS includes
     // tax_treatment precisely for this (opportunity.ts). The pipeline LIST is a fair omission
     // (its RPC doesn't project the column, #578); this lens is not.
-    {
-      label: t('projectDetail.pipeline.stat.value', 'Value'),
-      value: formatCurrency(value, currency),
-      sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
-    },
-    { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-    { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
-    {
-      label: t('projectDetail.pipeline.stat.owner', 'Owner'),
-      value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
-    },
-    {
-      label: t('projectDetail.pipeline.stat.decision', 'Decision'),
-      // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
-      value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
-        ? formatDecisionDateNumeric(project)
-        : t('projectDetail.pipeline.pending', 'Pending'),
-    },
-  ];
+    sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
+  };
+  const ownerTile: StatTile = {
+    label: t('projectDetail.pipeline.stat.owner', 'Owner'),
+    value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
+  };
+  // SUB-I: an open deal shows what is still in play (probability, weighted value); a decided deal shows
+  // the decision instead — never a 0% win probability or a zero weighted value.
+  const stats: StatTile[] = isTerminal
+    ? [
+        valueTile,
+        ownerTile,
+        {
+          label: t('projectDetail.pipeline.stat.decision', 'Decision'),
+          // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
+          value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
+            ? formatDecisionDateNumeric(project)
+            : t('projectDetail.pipeline.pending', 'Pending'),
+        },
+      ]
+    : [
+        valueTile,
+        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
+        { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
+        ownerTile,
+      ];
 
   return (
     <div>
-      <StatTiles tiles={stats} columns={5} className="mb-4" />
+      <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
 
       {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
           min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
@@ -290,11 +299,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                   )}
                 </GateNotice>
               )
-            ) : (
-              <GateNotice variant="ready">
-                {t('projectDetail.pipeline.readyToAdvance', 'Ready to advance.')}
-              </GateNotice>
-            )}
+            ) : null}
 
             {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
                 / Mark lost are quiet outlines distinguished by a leading status dot

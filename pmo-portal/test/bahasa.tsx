@@ -12,6 +12,8 @@ import { join } from 'node:path';
 
 const EN = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'));
 const ID = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
+const EN_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/dashboard.json'), 'utf8'));
+const ID_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/dashboard.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -19,7 +21,11 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     lng: locale,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { id: { common: ID }, en: { common: EN } },
+    fallbackNS: 'common',
+    resources: {
+      id: { common: ID, dashboard: ID_DASHBOARD },
+      en: { common: EN, dashboard: EN_DASHBOARD },
+    },
     initImmediate: false,
     interpolation: { escapeValue: false },
   });

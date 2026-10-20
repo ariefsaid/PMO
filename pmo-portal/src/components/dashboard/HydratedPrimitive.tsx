@@ -91,7 +91,7 @@ export function HydratedPrimitive({
           rows={rows}
           columns={columns}
           rowKey={(row) => String(row.id ?? JSON.stringify(row))}
-        />
+        tableId={`dashboard-${panel.id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-table`} />
       );
     }
     case 'StatTiles': {

@@ -7,7 +7,7 @@ import { FormGrid } from '@/src/components/ui/FormFields';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
-import { formatDateOnly, formatDateTime } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
 
 export interface ProjectProfitLossSectionProps {
   projectId: string;
@@ -30,15 +30,13 @@ function isTotalsRead(value: FinancialStatementRead | undefined): value is Finan
     value.result?.viewKind === 'project_totals';
 }
 
-function totalsContext(read: FinancialStatementRead, currentLabel: string, priorLabel: string, captureWindowLabel: string): string {
+// PD-B: one context line — currency and the period shown. The prior range is already the
+// "Previous" column and the capture window is provenance nobody acts on.
+function totalsContext(read: FinancialStatementRead, currentLabel: string): string {
   if (!isTotalsRead(read)) return '';
-  const started = formatDateTime(new Date(read.generation.captureStartedAt));
-  const completed = formatDateTime(new Date(read.generation.captureCompletedAt));
   return [
     read.generation.currency,
     `${currentLabel}: ${formatDateOnly(read.result.period.currentStart)} – ${formatDateOnly(read.result.period.currentEnd)}`,
-    `${priorLabel}: ${formatDateOnly(read.result.period.priorStart)} – ${formatDateOnly(read.result.period.priorEnd)}`,
-    `${captureWindowLabel}: ${started} – ${completed}`,
   ].join(' · ');
 }
 
@@ -110,7 +108,6 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
   const priorLabel = t('financialStatements.prior', 'Previous period');
   const currentColumnLabel = t('financialStatements.currentColumn', 'Current');
   const priorColumnLabel = t('financialStatements.priorColumn', 'Previous');
-  const captureWindowLabel = t('financialStatements.captureWindow', 'Capture window');
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
     unavailableDescription: t('financialStatements.unavailableDescription', 'Saved statements will appear here when available.'),
@@ -124,8 +121,16 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
     refreshing: t('financialStatements.refreshing', 'Refreshing statements…'),
   };
 
+  // PD-B: statements that don't exist (or a default period with no activity) render nothing — and
+  // nothing while we don't yet know. Only a failed read keeps its error + Retry. Once the viewer
+  // picks a period themselves, the section stays so they can pick another.
+  const viewerChosePeriod = periodStart !== null || periodKind !== 'month';
+  if (sectionState.kind === 'unavailable') return null;
+  if (sectionState.kind === 'complete' && !sectionState.hasActivity && !viewerChosePeriod) return null;
+  if (sectionState.kind === 'loading' && !catalogue) return null;
+
   return (
-    <div className="mt-8 min-w-0">
+    <div className="min-w-0">
       {catalogue?.state === 'complete' && (
         <FormGrid className="mb-4 min-w-0">
           <StatementPeriodPicker
@@ -152,7 +157,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
       )}
       <FinancialStatementsSection
         title={t('financialStatements.projectProfitAndLoss', 'Project profit and loss')}
-        context={validRead && totalsRead ? totalsContext(totalsRead, currentLabel, priorLabel, captureWindowLabel) : ''}
+        context={validRead && totalsRead ? totalsContext(totalsRead, currentLabel) : ''}
         state={sectionState}
         labels={sectionLabels}
         onRetry={onRetry}

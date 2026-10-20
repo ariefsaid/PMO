@@ -329,7 +329,7 @@ const Meetings: React.FC = () => {
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptySub={t('meetings.table.emptySub', 'Try a different project or clear the search.')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        />
+        tableId="meetings-table" />
       )}
 
       {createOpen && (

@@ -248,7 +248,7 @@ describe('Companies create / edit form (AC-CO-003 / AC-CO-004)', () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New company/i }));
     await userEvent.type(screen.getByLabelText(/Company name/i), 'Westvale Logistics');
-    await userEvent.selectOptions(screen.getByLabelText(/^Type/i), 'Vendor');
+    await userEvent.selectOptions(screen.getByLabelText(/^Type/i, { selector: 'input, select, textarea' }), 'Vendor');
     await userEvent.click(screen.getByRole('button', { name: /^Create company$/i }));
     await waitFor(() =>
       expect(mutations.create.mutateAsync).toHaveBeenCalledWith({ name: 'Westvale Logistics', type: 'Vendor' }),
@@ -469,7 +469,7 @@ describe('company short names', () => {
     await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     expect(screen.getByLabelText(/Company name/i)).toBeDisabled();
-    expect(screen.getByLabelText(/^Type/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^Type/i, { selector: 'input, select, textarea' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText(/Short name/i), 'Example');
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: seed[0].id, input: { name: seed[0].name, type: 'Client', short_name: 'Example' } }));

@@ -300,3 +300,28 @@ describe('ApprovalRow', () => {
     expect(within(row as HTMLElement).getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
 });
+
+describe('TimesheetGrid T9 DataTable adoption', () => {
+  it('renders the desktop grid through the shared DataTable with a sticky-left project column', () => {
+    render(<TimesheetGrid days={days} rows={rows} />);
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Project' })).toHaveClass('sticky', 'left-0');
+    expect(screen.getByText('Eastfield Logistics Park').closest('td')).toHaveClass('sticky', 'left-0');
+  });
+
+  it('puts the daily and grand totals in the table <tfoot>, not beside it', () => {
+    render(<TimesheetGrid days={days} rows={rows} />);
+    expect(screen.getByTestId('tsgrid-grand-total').closest('tfoot')).not.toBeNull();
+    expect(screen.getByTestId('tsgrid-daily-total-0').closest('tfoot')).not.toBeNull();
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('40');
+  });
+
+  it('editable cells stay labelled inputs inside the DataTable and still report keystrokes', async () => {
+    const onCellChange = vi.fn();
+    render(<TimesheetGrid days={days} rows={[rows[0]]} editable onCellChange={onCellChange} />);
+    const input = screen.getByLabelText('Eastfield Logistics Park, Tue hours');
+    expect(input.closest('table')).not.toBeNull();
+    await userEvent.type(input, '1');
+    expect(onCellChange).toHaveBeenCalledWith('r1', 1, '81');
+  });
+});

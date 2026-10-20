@@ -182,11 +182,11 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
   // AC-ADMIA-006: the PERSONAL connect rail item is labelled "My integrations" (agreeing with the
   // breadcrumb + H1) — never the bare "Integrations", which would blur it with the ORGANIZATION
   // surface at /administration/integrations.
-  it('AC-ADMIA-006: the personal rail item is labelled "My integrations" when the m365 entitlement is on', () => {
+  it('AC-ADMIA-006 FIN-S9: the rail carries neither the personal "My integrations" item nor a bare "Integrations"', () => {
     effectiveRole = 'Executive';
     featureOverrides = { m365_integration: true };
     renderRail();
-    expect(screen.getByRole('link', { name: /my integrations/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /my integrations/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Integrations$/i })).not.toBeInTheDocument();
     featureOverrides = {};
   });

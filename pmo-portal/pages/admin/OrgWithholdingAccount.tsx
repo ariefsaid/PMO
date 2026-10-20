@@ -46,6 +46,7 @@ export default function OrgWithholdingAccount() {
   const candidates = catalogue.data ? taxSetupChoices(catalogue.data.accounts, 'receipt-withholding') : [];
   const candidate = candidates.find((account) => account.account === draft);
   const isStaleSavedChoice = Boolean(draft && !candidate && savedBaseline.current === draft && catalogue.isSuccess);
+  const isUnavailableDraftChoice = Boolean(draft && !candidate && savedBaseline.current !== draft && catalogue.isSuccess);
   const loadOptions = useCallback(async () =>
     taxSetupChoices(catalogue.data?.accounts ?? [], 'receipt-withholding').map((account) => accountOption(account)),
   [catalogue.data]);
@@ -132,6 +133,7 @@ export default function OrgWithholdingAccount() {
             onChange={(value) => { setDraft(value); setError(undefined); }}
             onClear={() => { setDraft(''); setError(undefined); }}
             clearable={Boolean(draft && !mutation.isPending)}
+            error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
             loadOptions={loadOptions}
             noun={t('uxs11.accountNoun', 'account')}
             placeholder={t('uxs11.withholdingPlaceholder', 'Choose an Asset account')}

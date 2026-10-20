@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
+import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
 type Analytics = typeof import('@/src/lib/analytics');
@@ -23,14 +24,16 @@ const populated = {
   active_projects: 2,
   total_contract_value: 8000000,
   on_hand_margin: 0.949375,
-  on_hand_value: 8000000,
-  on_hand_contract_remaining: 7_595_000,
-  on_hand_realized_margin: 1_200_000,
+  on_hand_value: 8000000 as number | null,
+  on_hand_contract_remaining: 7_595_000 as number | null,
+  on_hand_realized_margin: 1_200_000 as number | null,
   on_hand_actual_known: 4_000_000,
   on_hand_actual_project_count: 2,
   on_hand_actual_project_total: 2,
   on_hand_actual_coverage_count: 2,
   on_hand_actual_coverage_total: 2,
+  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 8000000, actual_known: 4000000, contract_remaining: 7595000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 1200000, unknown_projects: 0 }],
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1200000, unknown_projects: 0 }],
   pipeline_weighted_value: 800000,
   pipeline_projected_margin: 0.200 as number | null,
   pipeline_total_value: 2000000,
@@ -72,7 +75,7 @@ function resetWinRateRangeTracker(): void {
 }
 
 const dashState: {
-  data: typeof populated | null;
+  data: (typeof populated & Pick<ExecutiveDashboardData, 'on_hand_value_by_currency' | 'on_hand_realized_margin_by_currency'>) | null;
   isPending: boolean;
   isError: boolean;
   refetch: ReturnType<typeof vi.fn>;
@@ -94,14 +97,16 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false }),
 }));
+const approvalState = vi.hoisted(() => ({ timesheets: [{ id: 't1' }] as Array<{ id: string }> }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [] }),
+  useTimesheetsAwaitingApproval: () => ({ data: approvalState.timesheets }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
 // FR-L10N-020: exec-dashboard KPI aggregates are org-denominated (RPC rows carry no currency).
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+const orgState = vi.hoisted(() => ({ currency: 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => orgState.currency }));
 
 const renderPage = () =>
   render(
@@ -118,21 +123,101 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
-  it('labels contract value on hand distinctly from finance contract value in progress', () => {
+  it('AC-SL-B-001: no budgets → one risk note, no forecast-margin tile or headline, no Active projects tile', () => {
+    dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
     renderPage();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('Contract value on hand');
+    expect(screen.getAllByText(/Risk can't be checked yet/)).toHaveLength(1);
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+    const marginCard = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(marginCard).getByText('Pipeline (weighted)')).toBeInTheDocument();
+    expect(within(marginCard).queryByText('Pipeline forecast margin')).toBeNull();
+    expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
   });
 
-  it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
+  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
+    orgState.currency = 'IDR';
+    try {
+      dashState.data = {
+        ...populated,
+        on_hand_value: null as unknown as number,
+        on_hand_value_by_currency: [
+          { currency: 'IDR', contract_value: 373_500_000_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
+          { currency: 'USD', contract_value: 3_400_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
+        ],
+      };
+      renderPage();
+      const tile = screen.getByTestId('kpi-on-hand-margin');
+      expect(tile).toHaveTextContent('USD 3.4M');
+      expect(tile).not.toHaveTextContent(/\$3\.4M/);
+    } finally {
+      orgState.currency = 'USD';
+    }
+  });
+
+  it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_value: null as unknown as number,
+      on_hand_contract_remaining: null as unknown as number,
+      on_hand_realized_margin: null as unknown as number,
+      on_hand_value_by_currency: [
+        { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 144, actual_coverage_total: 150, realized_margin_known: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
+      ],
+      on_hand_actual_coverage_count: 144,
+      on_hand_actual_coverage_total: 150,
+    };
+    renderPage();
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    // OD-MONEY-FMT: each currency shows once, in the short form (amount plus currency, never "USD $...").
+    expect(tile).toHaveTextContent('IDR 2B');
+    expect(tile).toHaveTextContent('$1M');
+    expect(tile).not.toHaveTextContent(/USD\s*\$/);
+    expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
+    expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
+      .toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(tile).not.toHaveTextContent('Not available yet');
+  });
+
+  it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
+    dashState.data = {
+      ...populated,
+      pipeline_projected_margin: null as unknown as number,
+      pipeline_weighted_value: null as unknown as number,
+    };
+    renderPage();
+    // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
+    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
+  });
+
+  it('gives active contract value its own label distinct from contract value on hand', () => {
+    renderPage();
+    const onHand = screen.getByTestId('kpi-on-hand-margin');
+    const active = screen.getByTestId('kpi-total-contract-value');
+    expect(onHand).toHaveTextContent('Contract value on hand');
+    expect(active).toHaveTextContent('Active contract value');
+    expect(active).not.toHaveTextContent('Contract value on hand');
+  });
+
+  it('a null pipeline margin from zero gross value shows no margin tile and the weighted card title (SL-B)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('No pipeline value to calculate margin');
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).not.toHaveTextContent('No active budget');
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('dashboard-pipeline-margin')).getByText('Pipeline (weighted)')).toBeInTheDocument();
   });
 
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
     renderPage();
-    expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
 
@@ -141,6 +226,16 @@ describe('ExecutiveDashboard (real data)', () => {
     const approvals = screen.getByTestId('kpi-awaiting-approval');
     const kpis = container.querySelector('[aria-label="Portfolio KPIs"]')!;
     expect(approvals.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+  it('AC-SL-A-001: nothing waiting → no approvals tile and no Review button on the executive dashboard', () => {
+    approvalState.timesheets = [];
+    try {
+      renderPage();
+      expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+      expect(screen.queryByText('Review')).not.toBeInTheDocument();
+    } finally {
+      approvalState.timesheets = [{ id: 't1' }];
+    }
   });
   it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
     renderPage();
@@ -224,6 +319,7 @@ describe('ExecutiveDashboard states', () => {
       on_hand_margin: 0, on_hand_value: 0, on_hand_contract_remaining: 0, on_hand_realized_margin: 0,
       on_hand_actual_known: 0, on_hand_actual_project_count: 0, on_hand_actual_project_total: 0,
       on_hand_actual_coverage_count: 0, on_hand_actual_coverage_total: 0,
+      on_hand_value_by_currency: [], on_hand_realized_margin_by_currency: [],
       pipeline_weighted_value: 0, pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
       projects_by_status: [], procurements_by_status: [], top_projects: [],
     };
@@ -253,7 +349,10 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     renderPage();
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Margin on billed work');
     expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
-    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent('$800,000.00');
+    // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the title (goal oracle: right currency).
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(weighted).toHaveTextContent('$800K');
+    expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
     // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');

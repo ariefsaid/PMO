@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
+import { AuthContext } from '@/src/auth/AuthContext';
 
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
@@ -32,10 +34,22 @@ const ROW_MENU_SEAM_CLASS =
 
 export type ColAlign = 'num' | 'center';
 
+export type ColumnKind = 'primary' | 'text' | 'meta' | 'money' | 'number' | 'percent' | 'status' | 'date' | 'actions' | 'select';
+
 export interface Column<Row> {
   key: string;
   header: React.ReactNode;
   cell: (row: Row) => React.ReactNode;
+  /** Shared semantic presentation for common table column roles. */
+  kind?: ColumnKind;
+  /** Optional plain-text title for the `title` attribute when the primary cell is a React node. */
+  primaryTitle?: (row: Row) => string;
+  /** Render this cell as the row's accessible header rather than a data cell. */
+  rowHeader?: boolean;
+  /** Optional muted second line for a primary identity cell. */
+  secondaryCell?: (row: Row) => React.ReactNode;
+  /** One table-level explanation, referenced by a mark in this column header. */
+  caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
@@ -51,6 +65,16 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
+  stickyLeft?: boolean;
+  /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
+  exportOnly?: boolean;
+  /** Preferred width in CSS pixels for resizable desktop tables. */
+  size?: number;
+  /** Minimum width when resizing is enabled. */
+  minSize?: number;
+  /** Maximum width when resizing is enabled. */
+  maxSize?: number;
 }
 
 export interface SortState {
@@ -114,6 +138,12 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Stable identity for saved column widths. */
+  tableId?: string;
+  /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
+  groupBy?: (row: Row) => string;
+  /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
+  totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -188,6 +218,42 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
+function columnMinSize<Row>(column: Column<Row>): number | undefined {
+  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
+  return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
+}
+
+function columnMaxSize<Row>(column: Column<Row>): number | undefined {
+  const contractMax = column.kind === 'primary' ? 640 : column.kind === 'status' ? 220 : undefined;
+  const maximum = column.maxSize ?? contractMax;
+  const minimum = columnMinSize(column);
+  return maximum === undefined ? undefined : Math.max(maximum, minimum ?? 0);
+}
+
+function columnDefaultSize<Row>(column: Column<Row>): number | undefined {
+  return column.size ?? (column.kind === 'primary' ? 320 : column.kind === 'status' ? 140 : undefined);
+}
+
+function readColumnSizing(tableId: string | undefined, userId: string | undefined, columns: Column<unknown>[]): Record<string, number> {
+  if (!tableId || !userId || typeof window === 'undefined') return {};
+  try {
+    const saved = window.localStorage.getItem(`pmo.table.${tableId}.widths.v1:${userId}`);
+    if (!saved) return {};
+    const value: unknown = JSON.parse(saved);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const known = new Map(columns.map((column) => [column.key, column]));
+    return Object.fromEntries(Object.entries(value).flatMap(([key, width]) => {
+      const column = known.get(key);
+      if (!column || typeof width !== 'number' || !Number.isFinite(width)) return [];
+      const min = columnMinSize(column) ?? 20;
+      const max = columnMaxSize(column) ?? 900;
+      return [[key, Math.min(max, Math.max(min, width))]];
+    }));
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
  * when projecting a column into the card branch. Cards have vertical room that the
@@ -227,7 +293,7 @@ function stripHiddenClasses(colClassName?: string): string {
  */
 export function DataTable<Row>({
   rows,
-  columns,
+  columns: allColumns,
   rowKey,
   onActivate,
   rowLabel,
@@ -246,8 +312,26 @@ export function DataTable<Row>({
   className,
   cardBelow,
   accessibleName,
+  tableId,
+  groupBy,
+  totals,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
+  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
+  const userId = useContext(AuthContext)?.currentUser?.id;
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const widthIdentity = `${tableId ?? ''}:${userId ?? ''}`;
+  const previousWidthIdentity = useRef(widthIdentity);
+  useEffect(() => {
+    if (previousWidthIdentity.current === widthIdentity) return;
+    previousWidthIdentity.current = widthIdentity;
+    setColumnSizing(readColumnSizing(tableId, userId, columns as Column<unknown>[]));
+  }, [tableId, userId, widthIdentity, columns]);
+  const tableInstanceId = useId().replace(/:/g, '');
+  const caveatId = `datatable-caveat-${tableInstanceId}`;
+  const keyboardResizeStart = useRef<Record<string, number>>({});
+  const caveats = columns.flatMap((column) => column.caveat ? [column.caveat] : []);
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -261,6 +345,63 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
+  const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
+    return {
+      id: column.key,
+      accessorFn: (row) => row,
+      enableSorting: Boolean(column.sortKey),
+      header: () => column.header,
+      ...(columnDefaultSize(column) !== undefined ? { size: columnDefaultSize(column) } : {}),
+      ...(columnMinSize(column) !== undefined ? { minSize: columnMinSize(column) } : {}),
+      ...(columnMaxSize(column) !== undefined ? { maxSize: columnMaxSize(column) } : {}),
+    };
+  }), [columns]);
+  const table = useReactTable({
+    data: rows,
+    columns: tableColumns,
+    getRowId: (row, index) => rowKey(row) || String(index),
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    columnResizeMode: 'onChange',
+    enableColumnResizing: isDesktop,
+    state: {
+      sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
+      columnSizing,
+    },
+    onColumnSizingChange: (updater) => {
+      setColumnSizing((current) => {
+        const next = typeof updater === 'function' ? updater(current) : updater;
+        if (tableId && userId && typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(next));
+          } catch {
+            // Storage is an enhancement; live resizing remains available when it is denied.
+          }
+        }
+        return next;
+      });
+    },
+  });
+  const modelRows = table.getRowModel().rows;
+  const toggleGroup = (group: string) => setCollapsedGroups((current) => {
+    const next = new Set(current);
+    if (next.has(group)) next.delete(group);
+    else next.add(group);
+    return next;
+  });
+  const groupedRows = useMemo(() => {
+    if (!groupBy) return modelRows.map((modelRow) => ({ type: 'data' as const, modelRow, group: undefined }));
+    const groups = new Map<string, typeof modelRows>();
+    for (const modelRow of modelRows) {
+      const group = groupBy(modelRow.original);
+      const grouped = groups.get(group);
+      if (grouped) grouped.push(modelRow);
+      else groups.set(group, [modelRow]);
+    }
+    return Array.from(groups, ([label, groupRows]) => ({ type: 'group' as const, label, rows: groupRows }))
+      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
+  }, [groupBy, modelRows]);
+  const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
@@ -301,25 +442,35 @@ export function DataTable<Row>({
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
         className="relative overflow-x-auto"
       >
-        <table ref={tableRef} aria-label={accessibleName} className="w-full border-collapse text-[13.5px]">
+        <table
+          ref={tableRef}
+          aria-label={accessibleName}
+          style={{
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          }}
+          className="w-full border-collapse text-[13.5px]"
+        >
           <thead>
             <tr>
-              {columns.map((col) => {
-                const sortable = !!col.sortKey;
-                const ariaSort =
-                  sort && col.sortKey === sort.key
-                    ? sort.dir === 'asc'
-                      ? 'ascending'
-                      : 'descending'
-                    : sortable
-                      ? 'none'
-                      : undefined;
+              {modelHeaders.map((header, headerIndex) => {
+                const col = columns.find((column) => column.key === header.column.id)!;
+                const sortable = header.column.getCanSort();
+                const currentSort = header.column.getIsSorted();
+                const ariaSort = currentSort ? (currentSort === 'asc' ? 'ascending' : 'descending') : sortable ? 'none' : undefined;
                 return (
                   <th
-                    key={col.key}
+                    key={header.id}
+                    id={`datatable-header-${tableInstanceId}-${col.key}`}
+                    data-col-key={col.key}
                     aria-sort={ariaSort}
+                    aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
+                    aria-describedby={col.caveat ? caveatId : undefined}
+                    style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
+                      ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                      : undefined}
                     className={cn(
-                      'sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.colClassName
                     )}
@@ -330,14 +481,88 @@ export function DataTable<Row>({
                         onClick={() => onSort?.(col.sortKey!)}
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
-                        {col.header}
-                        {sort && sort.key === col.sortKey && (
-                          <Icon name={sort.dir === 'asc' ? 'up' : 'down'} />
-                        )}
+                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                        {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
+                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
                     ) : (
-                      col.header
+                      <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
+                    {(() => {
+                      const min = columnMinSize(col) ?? 20;
+                      const max = columnMaxSize(col) ?? 900;
+                      if (min === max) return null;
+                      return (
+                        <div
+                          role="separator"
+                          aria-label={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                          aria-controls={`datatable-header-${tableInstanceId}-${col.key}`}
+                          aria-orientation="vertical"
+                          aria-valuenow={header.getSize()}
+                          aria-valuemin={min}
+                          aria-valuemax={max}
+                          tabIndex={0}
+                          onFocus={() => { keyboardResizeStart.current[col.key] = header.getSize(); }}
+                          onBlur={() => { delete keyboardResizeStart.current[col.key]; }}
+                          onMouseDown={(event) => {
+                            const startX = event.clientX;
+                            const startWidth = header.getSize();
+                            const resize = (clientX: number) => table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
+                            const move = (moveEvent: MouseEvent) => resize(moveEvent.clientX);
+                            const stop = () => {
+                              window.removeEventListener('mousemove', move);
+                              window.removeEventListener('mouseup', stop);
+                            };
+                            window.addEventListener('mousemove', move);
+                            window.addEventListener('mouseup', stop, { once: true });
+                          }}
+                          onTouchStart={(event) => {
+                            const startX = event.touches[0]?.clientX;
+                            if (startX === undefined) return;
+                            const startWidth = header.getSize();
+                            const move = (moveEvent: TouchEvent) => {
+                              const clientX = moveEvent.touches[0]?.clientX;
+                              if (clientX !== undefined) table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
+                            };
+                            const stop = () => {
+                              window.removeEventListener('touchmove', move);
+                              window.removeEventListener('touchend', stop);
+                            };
+                            window.addEventListener('touchmove', move, { passive: true });
+                            window.addEventListener('touchend', stop, { once: true });
+                          }}
+                          onDoubleClick={() => header.column.resetSize()}
+                          onKeyDown={(event) => {
+                            const current = header.getSize();
+                            let next: number | undefined;
+                            if (event.key === 'ArrowLeft') next = current - (event.shiftKey ? 64 : 16);
+                            if (event.key === 'ArrowRight') next = current + (event.shiftKey ? 64 : 16);
+                            if (event.key === 'Home') next = min;
+                            if (event.key === 'End') next = max;
+                            if (next !== undefined) {
+                              event.preventDefault();
+                              table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                            } else if (event.key === 'Enter') {
+                              event.preventDefault();
+                              header.column.resetSize();
+                              keyboardResizeStart.current[col.key] = columnDefaultSize(col) ?? header.column.getSize();
+                            } else if (event.key === 'Escape') {
+                              const start = keyboardResizeStart.current[col.key];
+                              if (start !== undefined) {
+                                event.preventDefault();
+                                table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: start }));
+                                keyboardResizeStart.current[col.key] = start;
+                              }
+                            }
+                          }}
+                          // The last column's handle stays inside the table, or it widens the scroll box by 12px.
+                          style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 38 }}
+                          className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                        >
+                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-[11px] w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
+                        </div>
+                      );
+                    })()}
                   </th>
                 );
               })}
@@ -357,8 +582,18 @@ export function DataTable<Row>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
-                const key = rowKey(row);
+              groupedRows.map((entry, entryIndex) => {
+                if (entry.type === 'heading') return (
+                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
+                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
+                    {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
+                  </tr>
+                );
+                if (entry.group && collapsedGroups.has(entry.group)) return null;
+                const modelRow = entry.modelRow;
+                const row = modelRow.original;
+                const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
@@ -399,13 +634,21 @@ export function DataTable<Row>({
                       selected && 'bg-primary/[0.07]'
                     )}
                   >
-                    {columns.map((col, colIndex) => {
+                    {modelRow.getVisibleCells().map((cell, colIndex) => {
+                      const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
+                      const CellTag = col.rowHeader ? 'th' : 'td';
                       return (
-                        <td
+                        <CellTag
                           key={col.key}
+                          {...(col.rowHeader ? { scope: 'row' as const } : {})}
+                          style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
+                            ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                            : undefined}
                           className={cn(
-                            'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
+                            'h-[54px] px-3 py-2 align-middle',
+                            col.stickyLeft && 'sticky left-0 z-[1] bg-card',
+                            (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                             alignClass(col.align),
                             col.align === 'num' && 'tabular',
                             col.colClassName
@@ -423,12 +666,12 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
-                        </td>
+                        </CellTag>
                       );
                     })}
                     {rowMenu && (
@@ -445,6 +688,14 @@ export function DataTable<Row>({
               })
             )}
           </tbody>
+          {totals && totals.length > 0 && <tfoot>
+            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
+                {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
+              </td>)}
+              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
+            </tr>)}
+          </tfoot>}
         </table>
       </div>
       ) : (
@@ -474,8 +725,12 @@ export function DataTable<Row>({
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
-          rows.map((row) => {
-            const key = rowKey(row);
+          groupedRows.map((entry, entryIndex) => {
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.group && collapsedGroups.has(entry.group)) return null;
+            const modelRow = entry.modelRow;
+            const row = modelRow.original;
+            const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;
@@ -509,10 +764,10 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
@@ -535,7 +790,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -562,10 +817,31 @@ export function DataTable<Row>({
             );
           })
         )}
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+            {columns.map((column, index) => {
+              const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
+                ? total.values[column.key]
+                : index === 0 ? total.label : null;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+            })}
+          </dl>
+        </li>)}
       </ul>
       )}
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[12px] text-muted-foreground">
+        {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
+      </p>}
     </div>
   );
+}
+
+function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
+  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
+  return <span className="block min-w-0">
+    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
+    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
+  </span>;
 }
 
 /**

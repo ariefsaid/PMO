@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Combobox, ConfirmDialog } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
 import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
+import { employeeChoiceLabels } from './employeeChoiceLabels';
 
 export interface EmployeeProfileOption {
   value: string;
@@ -99,10 +100,11 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
   const [savingId, setSavingId] = useState<string | null>(null);
   const savingRef = useRef(false);
   const comboboxOptions = useMemo<ComboboxOption[]>(
-    () => (profileOptions ?? []).map(({ value, label }) => ({
-      value,
-      label,
-    })),
+    () => employeeChoiceLabels((profileOptions ?? []).map((option) => ({
+      value: option.value,
+      name: profileName(option),
+      email: option.email,
+    }))),
     [profileOptions],
   );
   const activeProfilesById = useMemo(
@@ -290,10 +292,35 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   : '',
               },
             )}</span>
-            {staleSelection && <div role="alert" className="mt-2 text-sm text-destructive">
-              {t('approvals.employeeLinks.uxs30.staleProfile', 'The selected PMO profile is no longer active. Choose an active profile before confirming.')}
-            </div>}
-            {saveError && <div role="alert" className="mt-2 text-sm text-destructive">
+            {staleSelection && <>
+              <div role="alert" className="mt-2 text-sm text-destructive">
+                {t('approvals.employeeLinks.uxs30.staleProfile', 'The selected employee is no longer available. Choose another active employee before confirming.')}
+              </div>
+              {(profileOptions?.length ?? 0) > 0 && <div className="mt-2 max-w-sm">
+                <Combobox
+                  label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
+                  value={pendingActiveProfile?.value ?? null}
+                  selectedOption={pendingActiveProfile
+                    ? { value: pendingActiveProfile.value, label: pendingActiveProfile.label }
+                    : null}
+                  onChange={(value) => {
+                    const selectedProfile = activeProfilesById.get(value) ?? null;
+                    setSaveError(false);
+                    setPending((current) => current ? {
+                      ...current,
+                      profileId: value,
+                      selectedProfile,
+                    } : current);
+                    setSelectedProfileIds((current) => ({ ...current, [pendingLink.id]: value }));
+                  }}
+                  loadOptions={loadProfileOptions}
+                  placeholder={t('approvals.employeeLinks.uxs30.profilePlaceholder', 'Select a PMO profile')}
+                  noun={t('approvals.employeeLinks.uxs30.profileNoun', 'PMO profile')}
+                  searchPlaceholder={t('approvals.employeeLinks.uxs30.searchProfiles', 'Search active profiles')}
+                />
+              </div>}
+            </>}
+            {saveError && !staleSelection && <div role="alert" className="mt-2 text-sm text-destructive">
               {t('approvals.employeeLinks.uxs30.saveFailure', "Couldn't confirm this employee link. The selected profile is still available; try again.")}
             </div>}
           </>}

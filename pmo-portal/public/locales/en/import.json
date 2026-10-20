@@ -1,0 +1,9 @@
+{
+  "preview": {
+    "row": "Row",
+    "status": "Status",
+    "valid": "Valid",
+    "skipped": "Skipped",
+    "tableName": "Import row preview"
+  }
+}

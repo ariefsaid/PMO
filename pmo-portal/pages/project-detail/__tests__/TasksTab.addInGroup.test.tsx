@@ -89,7 +89,7 @@ describe('TasksTab add task in group (AC-DEL-011)', () => {
     // The milestone combobox inside the dialog should show "Engineering design" as selected
     await waitFor(() => {
       // Scope to the dialog to avoid matching the group-heading text outside the modal
-      const milestoneCombobox = within(dialog).getByRole('combobox', { name: /milestone/i });
+      const milestoneCombobox = within(dialog).getByRole('combobox', { name: /phase/i });
       expect(milestoneCombobox).toHaveTextContent('Engineering design');
     });
   });

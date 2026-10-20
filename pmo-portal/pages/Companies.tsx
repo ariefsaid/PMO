@@ -408,7 +408,7 @@ const Companies: React.FC = () => {
           emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
           emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
           emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        />
+        tableId="companies-table" />
       )}
 
       {/* Create / edit modal */}

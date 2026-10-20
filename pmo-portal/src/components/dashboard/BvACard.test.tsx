@@ -22,7 +22,7 @@ describe('BvACard (Exec — real top_projects)', () => {
     renderCard();
     expect(screen.getByText('Innovate HQ')).toBeInTheDocument();
     expect(
-      screen.getByText('$2,100,000.00 / $5,000,000.00'),
+      screen.getByText('$2,100,000 / $5,000,000'),
     ).toBeInTheDocument();
   });
 
@@ -34,7 +34,7 @@ describe('BvACard (Exec — real top_projects)', () => {
 
   it('AC-RF-002: unknown Actual is not rendered as zero and has no fabricated bar', () => {
     renderCard([{ ...projects[0], spent: null }]);
-    expect(screen.getByText(/Not available yet \/ \$5,000,000\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet \/ \$5,000,000/)).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 

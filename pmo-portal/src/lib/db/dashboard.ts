@@ -58,6 +58,8 @@ export interface ExecutiveDashboard {
   pipeline_weighted_value: number | null;
   pipeline_projected_margin: number | null;
   projects_at_risk: number;
+  active_delivery_projects?: number;
+  risk_unchecked_projects?: number;
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];
   top_projects: TopProject[];
@@ -84,10 +86,16 @@ export interface WinRate {
   losses_count: number;
   /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
   declined_count?: number;
-  wins_value: number;
-  losses_value: number;
+  wins_value: number | null;
+  losses_value: number | null;
   win_rate_count: number;
-  win_rate_value: number;
+  win_rate_value: number | null;
+  value_by_currency?: Array<{
+    currency: string;
+    wins_value: number;
+    losses_value: number;
+    win_rate_value: number | null;
+  }>;
 }
 
 export interface PipelineStage {

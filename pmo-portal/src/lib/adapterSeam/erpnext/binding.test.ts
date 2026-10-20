@@ -12,7 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertErpReadPermissions, fetchErpVersionMajor, companyDefaultsFromDoc,
-  SUPPORTED_VERSION_MAJORS, activationReadPermScope, probeActivationReadPermissions, type ReadPermScope,
+  SUPPORTED_VERSION_MAJORS, ACTIVATION_STATEMENT_DOCTYPES, activationReadPermScope, probeActivationReadPermissions, type ReadPermScope,
   ACTIVATION_CALL_TIMEOUT_MS, ACTIVATION_PROBE_CONCURRENCY, ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   parseStatementVersionProfile, fetchStatementVersionProfile,
 } from './binding.ts';
@@ -218,8 +218,13 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
     expect(scope.doctypes.filter((d) => d === 'Payment Entry')).toHaveLength(1);
   });
 
-  it('an org that owns no domain yet still probes the ledgers (the sweep reads them for every activated org)', () => {
-    expect(activationReadPermScope([]).doctypes).toEqual(expect.arrayContaining(['GL Entry', 'Payment Ledger Entry', 'Account', 'Company', 'Fiscal Year', 'Accounts Settings', 'System Settings', 'Currency']));
+  it('pins the exact statement-related activation permission set', () => {
+    expect(ACTIVATION_STATEMENT_DOCTYPES).toEqual([
+      'Company', 'Accounts Settings', 'Currency', 'Finance Book', 'Fiscal Year',
+    ]);
+    const scope = activationReadPermScope([]).doctypes;
+    expect(scope).toEqual(expect.arrayContaining(['GL Entry', 'Payment Ledger Entry', 'Account', ...ACTIVATION_STATEMENT_DOCTYPES]));
+    expect(scope).not.toContain('System Settings');
   });
 
   it('probeActivationReadPermissions uses the handshake budget: a retryable 503 gets ONE attempt per probe', async () => {

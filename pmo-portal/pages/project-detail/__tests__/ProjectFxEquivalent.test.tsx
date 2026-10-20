@@ -164,11 +164,11 @@ describe('AC-FX-011 project contract equivalent', () => {
     expect(h.calls[0]).toEqual(['USD', 'IDR', '2026-10-10', true]);
   });
 
-  it('shows a missing contract-date state and never offers an IDR-to-IDR equivalent', () => {
+  it('shows nothing for a missing contract date (FIN-S4) and never offers an IDR-to-IDR equivalent', () => {
     renderSubject(
       <ProjectDetailHeader project={project({ contract_date: null })} committedSpend={10} />,
     );
-    expect(screen.getByText(/No publication date is available/i)).toBeInTheDocument();
+    expect(screen.queryByText(/JISDOR|publication date/i)).not.toBeInTheDocument();
     expect(h.calls.at(-1)?.[3]).toBe(false);
     cleanup();
     h.calls = [];

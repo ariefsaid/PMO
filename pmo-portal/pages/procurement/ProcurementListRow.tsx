@@ -91,7 +91,7 @@ const ExpandedPanel: React.FC<{
     <div
       id={panelId}
       role="region"
-      aria-label={`Preview for ${row.title}`}
+      aria-label={t('procurement.preview.region', 'Preview for {{title}}', { title: row.title })}
       className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3"
     >
       {detail.isPending ? (
@@ -210,7 +210,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           size="icon"
           aria-expanded={expanded}
           aria-controls={panelId}
-          aria-label={`Show preview for ${row.title}`}
+          aria-label={t('procurement.preview.toggle', 'Show preview for {{title}}', { title: row.title })}
           onClick={() => setExpanded((v) => !v)}
           className={
             expanded

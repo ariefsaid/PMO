@@ -167,10 +167,12 @@ describe('AC-IRUX-006 ClickUp binding map source states', () => {
     expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
   });
 
-  it('AC-IRUX-006 project-bindings loading shows a source notice', () => {
+  it('AC-IRUX-006 project-bindings loading shows a source notice and keeps project identities with Unknown values', () => {
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isBindingsPending: true }) as any);
     wrapWithRole('Admin', <IntegrationsView />);
     expect(screen.getByText(/Loading project bindings…/i)).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
+    expect(screen.queryByText(/PMO-native/i)).not.toBeInTheDocument();
   });
 
   it('AC-IRUX-006 projects unavailable shows a generic notice + Retry wired to projectsQuery.refetch', () => {
@@ -190,6 +192,7 @@ describe('AC-IRUX-006 ClickUp binding map source states', () => {
     }) as any);
     wrapWithRole('Admin', <IntegrationsView />);
     expect(screen.getByRole('row', { name: /Harbor Upgrade.*Harbor List.*Bound/i })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'Harbor Upgrade' })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Office Fitout.*PMO-native/i })).toBeInTheDocument();
   });
 

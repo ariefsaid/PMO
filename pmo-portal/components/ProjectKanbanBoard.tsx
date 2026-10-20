@@ -134,7 +134,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
         <div className="text-[12px] font-bold tabular">
           {formatCurrency(project.contract_value, project.currency)}{' '}
           {/* OD-TAX-1 §2 — the card's only number, so it is the one that must not be bare. */}
-          <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
+          <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
         </div>
       }
       foot={

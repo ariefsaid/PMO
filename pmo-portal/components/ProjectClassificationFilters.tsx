@@ -6,7 +6,7 @@ import type { AwardType, BiddingEntity, ProjectClassification, ProjectClassifica
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 const LOCATION_DEBOUNCE_MS = 300;
-export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, resetToken }: {
+export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, resetToken, panel }: {
   rows: readonly ProjectClassification[];
   value: FilterValues;
   onChange: (patch: FilterValues) => void;
@@ -19,6 +19,11 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   closeOnMobileSelect?: boolean;
   /** Bump when the page's Clear-filters action runs: cancels a pending location debounce and empties the box. */
   resetToken?: number;
+  /**
+   * Host the fields inside the caller's own disclosure (Projects: its one Filters panel) instead of
+   * this component's Classification trigger. State (debounced location) and the applied-chip list stay here.
+   */
+  panel?: (fields: React.ReactNode, disclosure: { open: boolean; onOpenChange: (open: boolean) => void }) => React.ReactNode;
 }) {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -98,35 +103,43 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     location: t('projectClassification.location', 'Location'),
   };
   const activeKeys = CLASSIFICATION_FILTER_KEYS.filter((key) => Boolean(value[key]));
+  const fields = (
+    <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
+        onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
+      <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
+        onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} />
+      <SelectField label={t('projectClassification.filterAwardType', 'Filter by award type')} value={value.awardType ?? ''}
+        onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
+      <SelectField label={t('projectClassification.filterBiddingEntity', 'Filter by bidding entity')} value={value.biddingEntity ?? ''}
+        onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
+      <TextField label={t('projectClassification.filterLocation', 'Filter by location')} value={locationText}
+        onChange={(location) => {
+          setLocationText(location);
+          clearTimeout(timer.current);
+          timer.current = setTimeout(() => {
+            // Our own emit: when the URL catches up to it, that is not an outside change.
+            lastLocation.current = location;
+            onChange({ location });
+          }, LOCATION_DEBOUNCE_MS);
+        }} />
+    </div>
+  );
+  // Outside dismissal is committed after the click completes (see the effect above), so a record row
+  // under the pointer is not moved by the panel collapsing before its click activates.
+  const requestOpen = (next: boolean) => {
+    if (!next && pointerGesture.current) closeAfterClick.current = true;
+    else commitOpen(next);
+  };
   return (
-    <div ref={rootRef} className={inlineTrigger ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
-      <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
-        count={activeClassificationCount(value)} open={isOpen} onOpenChange={(next) => {
-          if (!next && pointerGesture.current) closeAfterClick.current = true;
-          else commitOpen(next);
-        }}
-        className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
-        <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
-            onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
-          <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
-            onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} />
-          <SelectField label={t('projectClassification.filterAwardType', 'Filter by award type')} value={value.awardType ?? ''}
-            onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
-          <SelectField label={t('projectClassification.filterBiddingEntity', 'Filter by bidding entity')} value={value.biddingEntity ?? ''}
-            onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
-          <TextField label={t('projectClassification.filterLocation', 'Filter by location')} value={locationText}
-            onChange={(location) => {
-              setLocationText(location);
-              clearTimeout(timer.current);
-              timer.current = setTimeout(() => {
-                // Our own emit: when the URL catches up to it, that is not an outside change.
-                lastLocation.current = location;
-                onChange({ location });
-              }, LOCATION_DEBOUNCE_MS);
-            }} />
-        </div>
-      </MobileToolbarDisclosure>
+    <div ref={rootRef} className={panel ? 'min-w-0' : inlineTrigger ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
+      {panel ? panel(fields, { open: isOpen, onOpenChange: requestOpen }) : (
+        <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
+          count={activeClassificationCount(value)} open={isOpen} onOpenChange={requestOpen}
+          className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
+          {fields}
+        </MobileToolbarDisclosure>
+      )}
       {activeKeys.length > 0 && (
         <div className="mt-2 flex w-full min-w-0 flex-wrap items-center gap-2">
           <ul aria-label={t('projectClassification.applied', 'Applied classifications')} className="flex min-w-0 flex-wrap gap-2">

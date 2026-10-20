@@ -84,6 +84,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
     pmoProjectNumber && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${pmoProjectNumber}`,
     code && `${t('projects.identifiers.client', 'Client Project Code')}: ${code}`,
   ].filter(Boolean).join('. ');
+  const ids = [pmoProjectNumber, code].filter(Boolean).join(' · ');
   const iconSize = isKanban ? 'size-[26px] text-[12px]' : 'size-7 text-[11px]';
 
   const head = (
@@ -116,33 +117,35 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           </button>
         )}
         {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
-        <div
-          className={cn(
-            'mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground',
-            isKanban && 'mt-1',
-          )}
-        >
-          {/* PL-2: grid mode only — kanban card is role=button so nested Links are invalid. */}
-          {!isKanban && clientId ? (
-            <CompanyNameLink
-              companyId={clientId}
-              name={client ?? null}
-              className="text-[12px]"
-            />
-          ) : (
-            <span className="truncate">{client ?? '—'}</span>
-          )}
-          {pmoProjectNumber && (
-            <span className="break-all font-mono text-[11px]">
-              <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoProjectNumber}
-            </span>
-          )}
-          {code && (
-            <span className="break-all font-mono text-[11px]">
-              <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {code}
-            </span>
-          )}
-        </div>
+        {isKanban ? (
+          // Board: values only, one line — the labelled identities stay in the card's accessible name.
+          <div className="mt-1 flex min-w-0 items-baseline gap-1 text-[12px] text-muted-foreground">
+            <span className="min-w-0 shrink truncate">{client ?? '—'}</span>
+            {ids && <>
+              <span aria-hidden>·</span>
+              <span className="min-w-0 truncate font-mono text-[11px]" title={ids}>{ids}</span>
+            </>}
+          </div>
+        ) : (
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
+            {/* PL-2: grid mode only — kanban card is role=button so nested Links are invalid. */}
+            {clientId ? (
+              <CompanyNameLink companyId={clientId} name={client ?? null} className="text-[12px]" />
+            ) : (
+              <span className="truncate">{client ?? '—'}</span>
+            )}
+            {pmoProjectNumber && (
+              <span className="break-all font-mono text-[11px]">
+                <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {pmoProjectNumber}
+              </span>
+            )}
+            {code && (
+              <span className="break-all font-mono text-[11px]">
+                <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {code}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {!isKanban && status}
     </div>

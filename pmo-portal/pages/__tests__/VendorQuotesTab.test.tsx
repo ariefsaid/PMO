@@ -34,7 +34,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 
 // ── ProcurementFilesSubsection — needs QueryClient; stub for component tests
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
-  ProcurementFilesSubsection: () => null,
+  ProcurementFilesSubsection: ({ parentId }: { parentId: string }) => <div data-testid={`quote-files-${parentId}`}>Attachments</div>,
 }));
 
 import { VendorQuotesTab } from '../procurement/VendorQuotesTab';
@@ -134,6 +134,15 @@ describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
   it('AC-VQ-001: empty state still shows Add button when canAdd=true', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd />);
     expect(screen.getByRole('button', { name: /add quotation/i })).toBeInTheDocument();
+  });
+});
+
+describe('AC-RD-TBL-QUOTE-001: semantic quote comparison table', () => {
+  it('exposes quotation rows and selectable actions within a named table', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, unselectedQuote]} selectedId="q-lo" canSelect />);
+    expect(screen.getByRole('table', { name: /vendor bid comparison/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('row').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole('button', { name: /select quote/i })).toBeInTheDocument();
   });
 });
 
@@ -437,6 +446,32 @@ describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', ()
     );
     // VQ number shown as fallback primary text
     expect(screen.getAllByText('VQ-2026-0001').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('review fixes: bid comparison presentation', () => {
+  it('OD-MONEY-FMT: preserves non-zero cents in quote amounts', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ total_amount: 148000.5 })]} />);
+    expect(screen.getAllByText('$148,000.5').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('keeps each attachment section associated with its quote row', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, unselectedQuote]} selectedId="q-lo" />);
+    const files = screen.getByTestId('quote-files-q-lo');
+    expect(files.closest('tr')).toBeInTheDocument();
+  });
+
+  it('keeps the best-value indicator outside the clamped vendor identity', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ reference: 'A long reference value' })]} canSelect />);
+    const pill = screen.getByText('Best value');
+    expect(pill.closest('.line-clamp-2')).toBeNull();
+    const vendorCell = screen.getByText('Apex Supply').closest('td');
+    expect(pill.closest('td')).not.toBe(vendorCell);
+  });
+
+  it('exposes the full vendor title on the primary cell', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote]} />);
+    expect(screen.getAllByTitle('Apex Supply').length).toBeGreaterThanOrEqual(1);
   });
 });
 

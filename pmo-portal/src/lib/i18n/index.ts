@@ -12,7 +12,7 @@ import { FALLBACK_LOCALE } from '@/src/lib/locale/resolveLocale';
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common'] as const;
+export const NAMESPACES = ['common', 'import', 'sales', 'projectTabs', 'projects', 'finance', 'dashboard', 'project'] as const;
 export const DEFAULT_NS = 'common';
 
 /**
@@ -77,6 +77,7 @@ export function initI18n(): Promise<I18nInstance> {
       .init({
         lng: FALLBACK_LOCALE,
         fallbackLng: FALLBACK_LOCALE,
+        fallbackNS: DEFAULT_NS,
         ns: [...NAMESPACES],
         defaultNS: DEFAULT_NS,
         // An empty translation is a MISSING one, not a deliberate blank — otherwise an untranslated

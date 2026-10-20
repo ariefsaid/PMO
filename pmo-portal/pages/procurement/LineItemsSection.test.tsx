@@ -66,7 +66,13 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();
     // Line total + footer total both render the formatted amount (USD, no fraction digits).
     expect(screen.getAllByText(/\$2,064/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Estimated total')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Line items' });
+    expect(table).toHaveTextContent('Estimated total');
+  });
+
+  it('OD-MONEY-FMT: preserves non-zero cents in line-item amounts and estimated total', () => {
+    renderSection({ items: [{ ...items[0], rate: 86.25, amount: 2064.5 }] });
+    expect(screen.getAllByText('$2,064.5').length).toBeGreaterThanOrEqual(1);
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {

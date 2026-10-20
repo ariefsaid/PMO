@@ -179,7 +179,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         title={t('projectDetail.gantt.emptyTitle', 'No dated work yet')}
         sub={t(
           'projectDetail.gantt.emptySub',
-          'Add start/due dates to tasks or target dates to milestones to see the timeline.',
+          'Add start/due dates to tasks or target dates to phases to see the timeline.',
         )}
       />
     );
@@ -214,16 +214,16 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   // trims leading punctuation as a matter of course, and a trimmed ", " welds two clauses into
   // "1 milestone1 konektor" with every gate still green.
   const summaryClauses = [
-    t('projectDetail.gantt.summary.head', 'Task Gantt timeline: {{tasks}} across {{milestones}}', {
+    t('projectDetail.gantt.summary.head', 'Task Gantt timeline: {{tasks}} across {{phases}}', {
       tasks: t('projectDetail.gantt.summary.tasks', {
         count: tasksCount,
         defaultValue_one: '{{count}} task',
         defaultValue_other: '{{count}} tasks',
       }),
-      milestones: t('projectDetail.gantt.summary.milestones', {
+      phases: t('projectDetail.gantt.summary.milestones', {
         count: milestones.length,
-        defaultValue_one: '{{count}} milestone',
-        defaultValue_other: '{{count}} milestones',
+        defaultValue_one: '{{count}} phase',
+        defaultValue_other: '{{count}} phases',
       }),
     }),
     todayLeft != null
@@ -571,7 +571,7 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
     />
     {/* The diamond glyph (rotated square) — labelled, no role (keeps role="img" singular) */}
     <span
-      aria-label={`${name} ${t('projectDetail.gantt.milestoneWord', 'milestone')} — ${t(
+      aria-label={`${name} ${t('projectDetail.gantt.milestoneWord', 'phase')} — ${t(
         'projectDetail.gantt.targetWord',
         'target',
       )} ${targetIso}`}

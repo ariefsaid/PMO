@@ -55,20 +55,23 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
 
   return (
     <Card variant="bare" className="mb-4">
-      <CardHead>
-        <span>{t('expenses.receipts.title', 'Receipts')}</span>
-        {canWrite && (
-          <span className="ml-auto">
-            <input ref={inputRef} type="file" accept={RECEIPT_INPUT_ACCEPT} className="sr-only" tabIndex={-1}
-              aria-label={t('expenses.receipts.attachAria', 'Choose a receipt file')} onChange={onPick} />
-            <Button variant="outline" size="sm" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
-              <Icon name="upload" />
-              {progress !== null
-                ? t('expenses.receipts.uploading', 'Uploading {{percent}}%', { percent: progress })
-                : t('expenses.receipts.attach', 'Attach receipt')}
-            </Button>
-          </span>
-        )}
+      <CardHead
+        actions={
+          canWrite && (
+            <>
+              <input ref={inputRef} type="file" accept={RECEIPT_INPUT_ACCEPT} className="sr-only" tabIndex={-1}
+                aria-label={t('expenses.receipts.attachAria', 'Choose a receipt file')} onChange={onPick} />
+              <Button variant="outline" size="sm" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
+                <Icon name="upload" />
+                {progress !== null
+                  ? t('expenses.receipts.uploading', 'Uploading {{percent}}%', { percent: progress })
+                  : t('expenses.receipts.attach', 'Attach receipt')}
+              </Button>
+            </>
+          )
+        }
+      >
+        {t('expenses.receipts.title', 'Receipts')}
       </CardHead>
       <CardPad>
         {list.isPending ? (

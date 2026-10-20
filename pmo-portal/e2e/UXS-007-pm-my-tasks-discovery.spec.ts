@@ -57,11 +57,7 @@ test.describe('UXS-007: PM discovers assigned work without typing a URL', () => 
     const myTasksLink = rail.getByRole('link', { name: /my tasks/i });
     await expect(myTasksLink).toBeVisible({ timeout: 10_000 });
 
-    // The hint states the assignee-scoped meaning so the entry is not mistaken
-    // for org-wide or project oversight navigation.
-    await expect(page.locator('#rail-my-tasks-hint')).toHaveText(
-      'Your assigned work across projects',
-    );
+    // FIN-S9: the rail sub-line was removed; the list page itself carries the cross-project meaning.
 
     // Follow it: the assignee-scoped list renders the PM's own in-progress work.
     // (Two seed projects carry identically-named tasks assigned to the PM — the

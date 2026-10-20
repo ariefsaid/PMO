@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
+  role: 'Finance' as 'Finance' | 'Project Manager',
   toast: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -25,8 +26,11 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }) }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
+  if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
+  return true;
+} }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
   data: h.route === 'external' ? [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }] : [],
@@ -41,7 +45,7 @@ import IncomingPayments from '../IncomingPayments';
 import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 import { financeTestI18n } from './financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, instantToZonedDatetimeLocal } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 
 const TODAY = () => instantToZonedDatetimeLocal(new Date(), 'UTC').slice(0, 10);
@@ -81,6 +85,7 @@ const renderPage = () => render(
 afterEach(() => resetActiveLocale());
 
 beforeEach(async () => {
+  h.role = 'Finance';
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.createPaymentMutate.mockReset();
   h.createPaymentMutate.mockResolvedValue({ id: 'ip-new' });
@@ -108,6 +113,29 @@ async function setAmount(user: ReturnType<typeof userEvent.setup>, label: RegExp
 }
 
 describe('Incoming Payments while PMO owns revenue (#784)', () => {
+  it('UX-010/011 Finance gets one receive action and no duplicate empty-state CTA', () => {
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);
+    expect(screen.getByText(/Use Receive Payment when a client payment arrives/)).toBeInTheDocument();
+  });
+
+  it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
+    h.role = 'Project Manager';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
+    expect(screen.getByText(/Finance records client payments/)).toBeInTheDocument();
+    expect(screen.queryByText(/Record your first payment/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+  });
+
+  it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
+    h.role = 'Project Manager';
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText(/Finance mencatat pembayaran klien/)).toBeInTheDocument();
+    await financeTestI18n.changeLanguage('en');
+  });
+
   it('UXS-042 renders payment money with tabular UI numerals rather than the identifier typeface', () => {
     h.payments.data = [receipt()];
     renderPage();
@@ -428,28 +456,13 @@ describe('Incoming Payments list — what cash settled (S-06)', () => {
     expect(rowFor('ACC-PAY-0001')).toHaveTextContent('ACC-SINV-A +1 more');
   });
 
-  it('RF-032 tax withheld is None when known to be zero and Not reported when the source did not say', () => {
-    h.payments.data = [
-      erpReceipt({ allocation_details: twoInvoices, withheld_amount: 0 }),
-      erpReceipt({ id: 'ip-2', ip_number: 'ACC-PAY-0002', withheld_amount: null, allocation_details: twoInvoices }),
-    ];
+  it('RF-032 FIN-S5 the list no longer carries withheld, unapplied or cash-received columns (they stay in the download)', () => {
+    h.payments.data = [erpReceipt({ allocation_details: twoInvoices, withheld_amount: 0 })];
     renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('None');
-    expect(rowFor('ACC-PAY-0002')).toHaveTextContent('Not reported');
-  });
-
-  it('RF-031 cash the accounting system has not matched to an invoice is shown, apart from matched cash', () => {
-    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent(/40,000/);
-    expect(screen.getByRole('columnheader', { name: 'Not yet applied' })).toBeInTheDocument();
-  });
-
-  it('RF-031 unknown allocation coverage never shows a figure for unapplied cash', () => {
-    h.payments.data = [erpReceipt({ allocation_details: null })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).not.toHaveTextContent(/75,000.*75,000.*75,000/);
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('Not reported');
+    for (const gone of ['Tax withheld', 'Not yet applied', 'Cash received', 'Withholding slip']) {
+      expect(screen.queryByRole('columnheader', { name: gone })).toBeNull();
+    }
+    expect(rowFor('ACC-PAY-0001')).not.toHaveTextContent('Not reported');
   });
 
   it('RF-034 opening a row goes to its read-only receipt page', async () => {
@@ -470,10 +483,19 @@ describe('Receipt page — every allocation (S-06)', () => {
     const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
     expect(within(table).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
     expect(within(table).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
-    expect(within(table).getByText(/25,000/)).toBeInTheDocument();
-    expect(within(table).getByText(/30,000/)).toBeInTheDocument();
+    expect(within(table).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(table).getByText(formatCurrencyAuto(30_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
   });
 
+  it('keeps settled invoice allocations in cards on phones', () => {
+    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    renderAt('/incoming-payments/ip-erp');
+    const cards = screen.getByTestId('dt-card-branch');
+    expect(within(cards).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
+    expect(within(cards).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {
     h.payments.data = [erpReceipt({ allocation_details: [alloc('ACC-SINV-A', '25000.00', 'si-a', null)] })];
     renderAt('/incoming-payments/ip-erp');
@@ -488,16 +510,18 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent(/40,000/);
   });
 
-  it('RF-032 withheld tax reads Not reported when unknown, and None only when known to be zero', () => {
+  it('RF-032 unreported withheld tax collapses into the single "weren\'t reported" line, never a zero', () => {
     h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
-    expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('Not reported');
+    expect(screen.queryByTestId('receipt-withheld')).toBeNull();
+    expect(screen.getByText(/Some figures weren.t reported/)).toBeInTheDocument();
   });
 
-  it('shows None for known-zero unapplied cash in the list, matching the detail page', () => {
-    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, allocation_details: [] })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY')).toHaveTextContent('None');
+  it('a fully applied receipt shows neither a withheld nor an unapplied fact', () => {
+    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, withheld_amount: 0, allocation_details: [alloc('ACC-SINV-A', '50000.00', 'si-a', 'IDR')] })];
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
+    expect(screen.queryByTestId('receipt-withheld')).toBeNull();
   });
 
   it('RF-031 a receipt the source reports as unapplied to any invoice says so; unknown coverage says it is unknown', () => {
@@ -517,7 +541,7 @@ describe('Receipt page — every allocation (S-06)', () => {
     renderAt('/incoming-payments/ip-1');
     const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
     expect(within(table).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
-    expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('None');
+    expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
   });
 
   it('a receipt read error shows a retryable error instead of not found', () => {

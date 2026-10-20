@@ -93,7 +93,7 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
           required
           helper={
             deliveryPct != null
-              ? t('managementPack.progressModal.pctHelper', 'Milestone delivery: {{pct}}%', { pct: Math.round(deliveryPct) })
+              ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: Math.round(deliveryPct) })
               : undefined
           }
           {...form.fieldProps('pct')}

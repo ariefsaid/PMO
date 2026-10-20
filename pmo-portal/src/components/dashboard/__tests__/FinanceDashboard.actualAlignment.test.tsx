@@ -6,6 +6,8 @@ import i18next from 'i18next';
 import { MemoryRouter } from 'react-router';
 import enCatalogue from '../../../../public/locales/en/common.json';
 import idCatalogue from '../../../../public/locales/id/common.json';
+import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
+import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
 import { FinanceDashboard } from '../FinanceDashboard';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import { formatCurrency } from '@/src/lib/format';
@@ -38,6 +40,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProjectIdentity: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false }),
 }));
@@ -92,7 +95,11 @@ async function renderPane(rows: BudgetReviewRow[], locale: 'en' | 'id' = 'en') {
     lng: locale,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+    fallbackNS: 'common',
+    resources: {
+      en: { common: enCatalogue, dashboard: enDashboardCatalogue },
+      id: { common: idCatalogue, dashboard: idDashboardCatalogue },
+    },
   });
   return render(
     <I18nextProvider i18n={instance}>

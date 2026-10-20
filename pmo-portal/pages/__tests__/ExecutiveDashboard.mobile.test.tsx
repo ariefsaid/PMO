@@ -22,9 +22,20 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 // ── Data fixtures ─────────────────────────────────────────────────────────────
 const populated = {
   active_projects: 18,
+  active_delivery_projects: 18,
+  risk_unchecked_projects: 0,
   total_contract_value: 23050000, currency: 'USD',
   on_hand_margin: 0.224,
   on_hand_value: 26650000,
+  on_hand_contract_remaining: 22000000,
+  on_hand_realized_margin: 4650000,
+  on_hand_actual_known: 4_000_000,
+  on_hand_actual_project_count: 18,
+  on_hand_actual_project_total: 18,
+  on_hand_actual_coverage_count: 18,
+  on_hand_actual_coverage_total: 18,
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 4650000, unknown_projects: 0 }],
+  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 26650000, actual_known: 4650000, contract_remaining: 22000000, actual_coverage_count: 18, actual_coverage_total: 18, realized_margin_known: 4650000, unknown_projects: 0 }],
   pipeline_weighted_value: 8400000,
   pipeline_projected_margin: 0.315,
   pipeline_total_value: 19200000,
@@ -38,6 +49,7 @@ const populated = {
     {
       id: 'p1', name: 'Alpha Project', client_name: 'ACME',
       contract_value: 5000000, currency: 'USD', budget: 4700000, spent: 2100000, status: 'Ongoing Project',
+      actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
     },
   ],
 };
@@ -124,6 +136,22 @@ function domOrderCompare(el1: HTMLElement, el2: HTMLElement): number {
 
 // ────────────────────────────────────────────────────────────────────────────────
 describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
+  it('AC-RD-SPEND-001: labels partial actuals as recorded spending with a Partial marker', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_actual_project_count: 2,
+      on_hand_actual_project_total: 3,
+      on_hand_actual_coverage_count: 4,
+      on_hand_actual_coverage_total: 5,
+    };
+    mockIsDesktop = false;
+    renderPage();
+    const spend = screen.getByTestId('dashboard-at-risk');
+    expect(within(spend).getByText('Recorded spending')).toBeInTheDocument();
+    expect(within(spend).getByText('Partial')).toBeInTheDocument();
+    expect(within(spend).queryByText('Total project spend')).not.toBeInTheDocument();
+  });
+
   it('AC-MOBILE-1: at-risk block renders before charts section', () => {
     mockIsDesktop = false;
     renderPage();
@@ -196,6 +224,34 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     }
   });
 
+  it('shows mixed-currency on-hand values and contract remainder on the phone', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_value: null as unknown as number,
+      on_hand_contract_remaining: null as unknown as number,
+      on_hand_realized_margin: null as unknown as number,
+      on_hand_value_by_currency: [
+        { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 2, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
+        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+    const onHand = screen.getByTestId('mobile-kpi-on-hand');
+    expect(onHand).toHaveTextContent('IDR 2B');
+    expect(onHand).toHaveTextContent('$1M');
+    expect(onHand).not.toHaveTextContent(/USD\s*\$/);
+    expect(onHand).toHaveTextContent('2,000,000,000');
+    expect(onHand).toHaveTextContent('1,000,000');
+    // OD-MONEY-FMT: the running-text remainder/margin lines use the short form per currency.
+    expect(onHand).toHaveTextContent('IDR 800M');
+    expect(onHand).toHaveTextContent('IDR 100M');
+    expect(onHand).not.toHaveTextContent('Not available yet');
+  });
+
   it('AC-MOBILE-4: B-MIN-3 source-lines are present in the contract book', () => {
     mockIsDesktop = false;
     renderPage();
@@ -226,8 +282,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const desktopLabels = [
       'Contracted revenue',
       'Total contract value',
-      'Active projects',
-      'Total project spend',
+      'Recorded spending',
     ];
     mockIsDesktop = false;
     renderPage();
@@ -282,7 +337,7 @@ describe('AC-MOBILE-6: desktop layout unaffected', () => {
     expect(screen.getByTestId('kpi-on-hand-margin')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-active-projects')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument(); // SL-B: count rides on the contract tile
     expect(screen.getByTestId('kpi-total-contract-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-total-spend')).toBeInTheDocument();
     // Standard approvals tile (KPITile variant), not the mobile band
@@ -294,9 +349,33 @@ describe('AC-MOBILE-6: desktop layout unaffected', () => {
   });
 });
 
+describe('AC-RD-RISK-001: risk availability', () => {
+  it('does not claim all projects are on track when active projects have no budget basis', () => {
+    dashState.data = {
+      ...populated,
+      projects_at_risk: 0,
+      risk_unchecked_projects: 1,
+      top_projects: [{ ...populated.top_projects[0]!, budget: null as unknown as number, budget_currency: null as unknown as string, spent: null as unknown as number, actual_currency: null as unknown as string, actual_complete: false }],
+    };
+    mockIsDesktop = false;
+    renderPage();
+    const atRisk = screen.getByTestId('dashboard-at-risk');
+    expect(atRisk).toHaveTextContent("Risk can't be checked yet");
+    expect(atRisk).toHaveTextContent(/active budget/i);
+    expect(atRisk).not.toHaveTextContent(/\b0\b|all on track/i);
+  });
+});
+
 describe('AC-MOBILE edge: zero at-risk', () => {
-  it('at-risk block shows 0 with neutral/success tone, not warning', () => {
-    dashState.data = { ...populated, projects_at_risk: 0 };
+  it('at-risk block shows a confirmed zero only when budget and actuals are available', () => {
+    dashState.data = {
+      ...populated,
+      active_projects: 1,
+      active_delivery_projects: 1,
+      risk_unchecked_projects: 0,
+      projects_at_risk: 0,
+      top_projects: [{ ...populated.top_projects[0]!, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' }],
+    };
     mockIsDesktop = false;
     renderPage();
     const atRisk = screen.getByTestId('dashboard-at-risk');

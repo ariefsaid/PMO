@@ -12,12 +12,21 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { BvACard } from './BvACard';
+import { AtRiskProjectsLink } from './AtRiskProjectsLink';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
+import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+
+const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
+
+const statusVariant = (status: string) => {
+  const v = pillVariantForProjectStatus(status);
+  return v === 'progress' ? 'neutral' : v;
+};
 
 const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
   status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
@@ -38,14 +47,23 @@ const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
  * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
  */
 export const PMDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
-  const { data: mine = [], isPending, isError, refetch } = usePMDashboardProjects();
+  const { data: assigned, isPending, isError, refetch } = usePMDashboardProjects();
+  // D-019: count the canonical on-hand + internal delivery partition, not pipeline or lost bids.
+  const mine = useMemo(() => (assigned ?? []).filter((p) => DELIVERY_PROJECT_STATUSES.has(p.status)), [assigned]);
   const orgCurrency = useOrgCurrency();
   const contractCurrency = mine[0]?.currency;
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
     ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
   const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
+  const riskCheckable = useMemo(() => {
+    const unchecked = mine.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
+      && project.budget_currency === project.currency && project.actual_complete
+      && project.spent !== null && Number.isFinite(project.spent)
+      && (project.actual_currency ?? project.currency) === project.currency)).length;
+    return riskCheckableFor(mine.length, unchecked);
+  }, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
   const mineSorted = useMemo(
@@ -57,7 +75,7 @@ export const PMDashboard: React.FC = () => {
   );
 
   // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
-  const { data: delivery } = useProjectsDelivery(mine.map((p) => p.id));
+  const { data: deliveryPct } = useProjectsDelivery(mine.map((p) => p.id));
 
   const bvaProjects: PMDashboardProject[] = mine;
 
@@ -65,8 +83,10 @@ export const PMDashboard: React.FC = () => {
     <div className="space-y-4">
       <DashPageHead title={t('dashboard.pm.title', 'My Dashboard')} sub={t('dashboard.pm.subtitle', 'Your projects, budget health, and approvals queue.')} />
 
-      <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
+      <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets />
+        {/* SL-B: the one risk note, only when risk can't be checked (replaces the at-risk tile). */}
+        {!isPending && !isError && !riskCheckable && atRiskCount === 0 && <AtRiskProjectsLink count={0} checkable={false} />}
       </section>
 
       <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
@@ -75,19 +95,21 @@ export const PMDashboard: React.FC = () => {
           value={String(mine.length)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel={t('dashboard.pm.openMyProjects', 'Open my projects')}
-          help={t('dashboard.pm.myProjectsHelp', 'Projects where you are the assigned project manager.')} />
+          help={t('dashboard:pm.myProjectsHelp', 'Delivery projects where you are the assigned project manager.')} />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
-          value={contractValue === null ? t('uxs03.notAvailableYet', 'Not available yet') : formatDashboardMoney(contractValue, contractCurrency ?? orgCurrency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet')} loading={isPending} error={isError}
+          {...moneyFigure(contractValue, contractCurrency ?? orgCurrency, t('uxs03.notAvailableYet', 'Not available yet'))} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
         {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
-        <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
-          value={String(atRiskCount)} loading={isPending} error={isError} vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
+        {(riskCheckable || atRiskCount > 0 || isPending || isError) && <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
+          value={String(atRiskCount)}
+          loading={isPending} error={isError}
+          vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
           to="/projects?filter=at-risk"
           linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
-          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />
+          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />}
       </section>
 
       <DashGrid>
@@ -99,8 +121,8 @@ export const PMDashboard: React.FC = () => {
             ) : isPending ? (
               <ListState variant="loading" />
             ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title={t('dashboard.pm.noProjects', 'No projects assigned to you yet')}
-                sub={t('dashboard.pm.noProjectsSub', 'Projects you manage will appear here.')} />
+              <ListState variant="empty" icon="folder" title={t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}
+                sub={t('dashboard:pm.noProjectsSub', 'Projects in the delivery phase will appear here.')} />
             ) : (
               <BvACard projects={bvaProjects} currency={orgCurrency} />
             )}
@@ -128,22 +150,34 @@ export const PMDashboard: React.FC = () => {
                         : 'text-foreground';
                   const atRisk = projectAtRisk(p);
                   return (
-                    <li key={p.id} className="flex items-center gap-2.5 py-3">
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 py-3">
                       <Link
                         to={`/projects/${p.id}`}
-                        className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                        title={p.name}
+                        className="min-w-[8rem] flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                       >
                         {p.name}
                       </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
                       {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
-                      <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
-                      <StatusPill variant={pillVariantForProjectStatus(p.status)}>{statusLabel(p.status)}</StatusPill>
-                      <span
-                        className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
-                      >
-                        {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
+                      {deliveryPct?.[p.id] != null && (
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
+                          <DeliveryPctChip pct={deliveryPct[p.id]} />
+                        </span>
+                      )}
+                      {/* D-021: one dot marker for every status — the progress halo ring made Ongoing look different. */}
+                      <StatusPill variant={statusVariant(p.status)}>{statusLabel(p.status)}</StatusPill>
+                      <span className="flex shrink-0 items-baseline gap-1">
+                        <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
+                        <span
+                          role="img"
+                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
+                          className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
+                        >
+                          {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
+                        </span>
                       </span>
                     </li>
                   );

@@ -283,7 +283,7 @@ const Incidents: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle="No incidents match your filters"
           emptySub="Try a different status or clear the search."
-        />
+        tableId="incidents-table" />
       )}
 
       {/* File / edit incident modal */}

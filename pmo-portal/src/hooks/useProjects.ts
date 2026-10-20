@@ -14,6 +14,16 @@ import { useAuth } from '@/src/auth/useAuth';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 /** Org-scoped project list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-002). */
+export function useProjectIdentity() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['project-identity', orgId],
+    queryFn: () => repositories.project.listIdentity(),
+    enabled: Boolean(orgId),
+  });
+}
+
 export function useProjects(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;

@@ -453,7 +453,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
         emptyTitle={emptyTitle}
         emptySub={emptySub}
         className="rounded-t-none"
-      />
+      tableId="procurement-procurementledger-table" />
 
       {efakturTarget && onSetEfaktur && (
         <EfakturModal

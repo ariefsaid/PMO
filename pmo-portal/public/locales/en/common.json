@@ -43,8 +43,6 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "showOptionalColumns": "Show optional columns",
-    "hideEmptyColumns": "Hide empty columns",
     "projectReferences": "More project references",
     "projectReferencesFor": "More project references for {{name}}",
     "contractReference": "Customer contract reference"
@@ -206,13 +204,9 @@
     "activeBudget": "Active budget",
     "noActiveBudget": "No active budget",
     "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
-    "updated": "Updated {{date}}",
-    "freshnessUnavailable": "Update time unavailable",
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "incompleteCoverage": "Incomplete source coverage",
-    "erpActual": "ERP actual",
-    "pmoActual": "Committed POs",
     "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
@@ -265,12 +259,6 @@
     "previewRows": "Normalized rate preview",
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR — {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
-    "checkingOrgCurrency": "Checking organization currency…",
-    "checkingOrgDay": "Checking today’s JISDOR date…",
-    "checkingRate": "Checking JISDOR rate…",
-    "unsupportedPair": "JISDOR equivalents are available for USD contracts in IDR organizations only.",
-    "missingDate": "No document date — no JISDOR equivalent.",
-    "orgDayError": "Could not resolve the organization’s local date.",
     "rateError": "Could not load JISDOR rate.",
     "noRateForDate": "No JISDOR rate for {{date}}."
   },
@@ -285,7 +273,6 @@
     "column": "e-Faktur",
     "record": "Record e-Faktur",
     "subtitle": "Record the number and its date together, or leave both empty for a non-VAT document.",
-    "copyInstruction": "Copy the number from the issued e-Faktur document.",
     "issuedSalesInvoice": "Issued sales invoice number",
     "invalidNumber": "Use up to 32 digits, dots, or dashes.",
     "numberMissing": "Enter the e-Faktur number as well, or clear the date.",
@@ -733,7 +720,7 @@
         "profilePlaceholder": "Select a PMO profile",
         "saveFailure": "Couldn't confirm this employee link. The selected profile is still available; try again.",
         "searchProfiles": "Search active profiles",
-        "staleProfile": "The selected PMO profile is no longer active. Choose an active profile before confirming.",
+        "staleProfile": "The selected employee is no longer available. Choose another active employee before confirming.",
         "unknownEmployee": "this employee"
       },
       "title": "Employee links awaiting confirmation"
@@ -1264,17 +1251,17 @@
     "winRate": {
       "title": "Win rate", "basisCount": "By count", "basisValue": "By value", "basis": "Win-rate basis", "periodAll": "All time", "periodYtd": "YTD", "periodQuarter": "Last quarter", "periodTrailing": "Trailing 12 mo", "period": "Time frame",
       "errorTitle": "Couldn't load win rate", "errorSub": "Something went wrong. Try again.", "emptyTitle": "No closed projects in this window", "emptySub": "Try a wider time frame to see your win rate.",
-      "result": "{{wins}} won of {{total}} closed", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
+      "result": "{{wins}} won of {{total}} closed", "currencyResult": "{{currency}} {{percent}}% — {{wins}} won of {{total}} closed", "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": { "atRisk": "At risk" },
     "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
-      "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",
+      "myProjects": "My projects", "openMyProjects": "Open my projects",
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "loadError": "Couldn't load your projects", "noProjects": "No projects assigned to you yet", "noProjectsSub": "Projects you manage will appear here.",
+      "loadError": "Couldn't load your projects",
       "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet"
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },
@@ -1299,7 +1286,6 @@
     "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
     "uxs36ReportDate": "Report date",
     "uxs36AgeingBasis": "Ageing basis",
-    "uxs36ErpRanges": "ERP ranges",
     "uxs36Unavailable": "Unavailable",
     "uxs36CustomerFilterLabel": "Customer",
     "uxs36CustomerFilterUnavailable": "Selected customer is unavailable",
@@ -1340,15 +1326,9 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Awaiting your approval", "helpWithTimesheets": "Purchase requests and timesheets waiting on your decision. Open the approvals inbox.", "helpProcurementOnly": "Purchase requests waiting on your decision. Open the approvals inbox.",
-        "unavailable": "unavailable — check connection", "zero": "nothing waiting", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
+        "label": "Awaiting your approval",
+        "unavailable": "unavailable — check connection", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
-      },
-      "activeProjects": {
-        "help": "Projects currently in delivery.",
-        "label": "Active projects",
-        "linkLabel": "Open the active projects list",
-        "vs": "at-risk"
       },
       "pipelineMargin": {
         "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
@@ -1370,12 +1350,11 @@
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
         "linkLabel": "Open active projects to see total contract value",
-        "vs": "active projects",
         "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
         "help": "On-hand portfolio Actual recorded to date.",
-        "label": "Total project spend",
+        "label": "Recorded spending",
         "linkLabel": "Open active projects to see spend breakdown"
       }
     },
@@ -1383,9 +1362,7 @@
       "needsAttention": "Needs attention",
       "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
       "noRiskSummary": "of {{count}} active projects · all on track",
-      "activeProjectsLink": "Open active projects · {{count}} projects",
       "spendLink": "Open spend breakdown · {{amount}} spent to date",
-      "view": "View",
       "breakdown": "Breakdown",
       "approvals": "Approvals",
       "awaitingApproval": "Awaiting your approval",
@@ -1938,6 +1915,8 @@
       "status": "Status"
     },
     "preview": {
+      "region": "Preview for {{title}}",
+      "toggle": "Show preview for {{title}}",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
       "viewFullRequest": "View full request"
@@ -2348,7 +2327,6 @@
         "error": "Couldn't load billing",
         "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
-        "noAssessment": "No assessment yet",
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
@@ -2418,7 +2396,6 @@
       },
       "heading": "Document register",
       "newRevision": "New revision",
-      "newRevisionFor": "Create new revision for",
       "noSearchMatch": "No documents match your search",
       "noSearchMatchSub": "Try a different title, code, or category.",
       "ofWord": "of",
@@ -2430,7 +2407,6 @@
         "explanation": "Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.",
         "ownDocument": "You can't approve your own document"
       },
-      "subheading": "Drawings, specifications, and transmittals for this project. Upload files on Draft rows.",
       "supersededNotice": "Read-only — continue on Rev",
       "toast": {
         "added": "Document added",
@@ -2484,10 +2460,10 @@
     "gantt": {
       "boardView": "Board view",
       "dependsOn": "depends on",
-      "emptySub": "Add start/due dates to tasks or target dates to milestones to see the timeline.",
+      "emptySub": "Add start/due dates to tasks or target dates to phases to see the timeline.",
       "emptyTitle": "No dated work yet",
       "listView": "List view",
-      "milestoneWord": "milestone",
+      "milestoneWord": "phase",
       "mobileSub": "The timeline is best viewed on a wider screen. Switch to a view that fits your device:",
       "mobileTitle": "Open on a larger screen",
       "openTask": "Open",
@@ -2500,11 +2476,11 @@
       "summary": {
         "connectors_one": "{{count}} dependency connector drawn",
         "connectors_other": "{{count}} dependency connectors drawn",
-        "head": "Task Gantt timeline: {{tasks}} across {{milestones}}",
+        "head": "Task Gantt timeline: {{tasks}} across {{phases}}",
         "hidden_one": "{{count}} dependency hidden (endpoint undated)",
         "hidden_other": "{{count}} dependencies hidden (endpoint undated)",
-        "milestones_one": "{{count}} milestone",
-        "milestones_other": "{{count}} milestones",
+        "milestones_one": "{{count}} phase",
+        "milestones_other": "{{count}} phases",
         "scale": "scale: {{scale}}",
         "tasks_one": "{{count}} task",
         "tasks_other": "{{count}} tasks",
@@ -2563,9 +2539,6 @@
         "contractValueUpdated": "Contract value updated",
         "deleted": "Project deleted"
       },
-      "pmoNumber": "PMO Project Number",
-      "clientCode": "Client Project Code",
-      "notSet": "Not set",
       "subjectToVat": "Subject to VAT (PPN)",
       "vatChecking": "Checking whether PPN can be changed…",
       "vatUnavailable": "PPN editability could not be checked. Retry the check.",
@@ -2602,7 +2575,6 @@
       "progressCreateHelper": "Progress comes from this phase’s linked tasks. You can set an override after creating it."
     },
     "milestones": {
-      "addFirstPhase": "Add the first phase",
       "addMilestone": "Add phase",
       "cancel": "Cancel",
       "current": "Current",
@@ -2619,8 +2591,6 @@
       "editProgress": "Edit progress",
       "editProgressForName": "Edit progress for {{name}}",
       "emptyReadOnly": "No delivery phases yet",
-      "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted phases.",
-      "emptyTitle": "Plan this project's delivery phases",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load phases",
       "fallbackName": "Phase",
@@ -2655,39 +2625,23 @@
         "actualSpent": "Actual spent",
         "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
-        "empty": {
-          "sub": "Activate a budget version on the Budget tab to see a snapshot here."
-        },
         "error": "Couldn't load budget",
         "openBudgetTab": "Open Budget tab",
         "title": "Budget snapshot"
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "error": "Couldn't load budget",
-        "of": "of",
-        "ofBudget": "of budget",
-        "title": "Budget utilization"
+        "ofBudget": "of budget"
       },
       "finance": {
         "actual": "Actual",
         "contract": "Contract",
-        "contractValue": "Contract value",
-        "lockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
-        "readOnly": "Read-only",
         "spend": "Spend",
         "title": "Financial summary"
-      },
-      "invoicing": {
-        "scopeNote": "Counts invoices linked to this project. Invoices raised in the ERP without a project are not included."
       },
       "procSummary": {
         "closed": "Closed",
         "completed": "Completed",
-        "empty": {
-          "sub": "Requests raised against this project will appear here.",
-          "title": "No purchase requests for this project yet"
-        },
         "error": "Couldn't load procurement",
         "open": "Open",
         "requestOne": "request",
@@ -2697,8 +2651,8 @@
       }
     },
     "pipeline": {
-      "advanceTo": "Advance to",
       "backToSalesPipeline": "← Back to Sales Pipeline",
+      "advanceTo": "Advance to",
       "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
       "cancel": "Cancel",
       "confirmWon": "Confirm won",
@@ -2726,7 +2680,6 @@
       "notSet": "Not set",
       "pending": "Pending",
       "readOnlyNotice": "Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.",
-      "readyToAdvance": "Ready to advance.",
       "recordWonHeading": "Record the won project",
       "refRequired": "Customer contract reference is required",
       "stat": {
@@ -2758,7 +2711,6 @@
       },
       "newRequest": "New request",
       "openRow": "Open",
-      "subtitle": "Requests raised against this project, tracked through their lifecycle.",
       "title": "Purchase Requests"
     },
     "rail": {
@@ -2770,9 +2722,7 @@
       "notSet": "Not set",
       "projectManager": "Project manager",
       "recordHeading": "Record",
-      "recordHelp": "Move the project through its delivery stages from here. Edit stays in the header menu.",
       "start": "Start",
-      "status": "Status",
       "targetEnd": "Target end",
       "unassigned": "Unassigned",
       "endCustomer": "End customer",
@@ -2782,7 +2732,7 @@
     "scurve": {
       "backfillCaveat": "Completion dates before today are estimated; live tracking starts now.",
       "emptySub": "Add target dates to your delivery phases to see the planned-vs-actual curve.",
-      "emptyTitle": "No dated milestones yet",
+      "emptyTitle": "No dated phases yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load the progress curve",
       "heading": "Progress curve",
@@ -2844,7 +2794,7 @@
           "nameRequired": "Task name is required."
         },
         "loadingPeople": "Loading people…",
-        "milestone": "Milestone",
+        "milestone": "Phase",
         "name": "Task name",
         "namePlaceholder": "e.g. Survey the site",
         "newSubtitle": "Add a task to this project",
@@ -2855,7 +2805,7 @@
         "priority": "Priority",
         "removeDependency": "Remove dependency",
         "save": "Save task",
-        "searchMilestones": "Search milestones…",
+        "searchMilestones": "Search phases…",
         "searchPeople": "Search people…",
         "searchTasks": "Search tasks…",
         "selectTask": "Select a task…",
@@ -2865,12 +2815,12 @@
       "heading": "Tasks",
       "hideArchived": "Hide archived",
       "newTask": "New task",
-      "noMilestone": "No milestone",
+      "noMilestone": "No phase",
+      "phaseNoun": "phase",
       "noPriority": "No priority",
       "noTasksInGroup": "No tasks in this group.",
       "showArchived": "Show archived",
       "statusFor": "Status for",
-      "subheading": "Plan, assign, and track the work for this project.",
       "subtaskLevel": "Subtask, level",
       "toast": {
         "archived": "Task archived",
@@ -2996,13 +2946,10 @@
           "awaitingSubmission": "Awaiting submission"
         },
         "stillToInvoice": "Still to invoice",
-        "summaryNote": "Issued and closed work orders, less what has been invoiced or drafted against them.",
         "summaryTitle": "Billing against work orders",
         "toast": {
           "created": "Draft invoice created",
-          "createdSub": "{{number}} — submit it from Sales Invoices.",
-          "nativeCreated": "Draft invoice created in PMO",
-          "nativeCreatedSub": "{{wo}} — a second Finance/Admin person approves it from Sales Invoices."
+          "nativeCreated": "Draft invoice created in PMO"
         },
         "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",
@@ -3016,7 +2963,6 @@
       },
       "clientPo": "Client PO",
       "issueGate": {
-        "title": "Another reviewer must issue this order",
         "body": "You set its value. Ask another authorized reviewer to review and issue it.",
         "peerBody": "The value must be set by your supervisor or a more senior active reviewer before this order can be issued.",
         "unstampedBody": "The value must be set by an authorized reviewer before this order can be issued."
@@ -3167,19 +3113,17 @@
       "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
-      "customer": "Customer",
       "pm": "PM",
       "progress": "Progress",
       "project": "Project",
-      "status": "Status",
-      "endCustomer": "End customer"
+      "status": "Status"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
       "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
       "archiveTitle": "Archive project?"
     },
-    "description": "Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.",
+    "description": "Pre-win projects live in the Pipeline.",
     "empty": {
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",
@@ -3228,6 +3172,11 @@
       "table": "Table"
     },
     "calendar": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "goToday": "Go to today",
+      "today": "Today",
+      "noEventsTitle": "No events this month",
       "phaseEventLabel": "{{project}} · {{phase}}",
       "phaseEventAriaLabel": "{{project}} — Phase: {{phase}}",
       "noEventsSub": "No project or phase target dates fall in this month."
@@ -3242,8 +3191,6 @@
       "removeCustomer": "Remove customer filter",
       "removeManager": "Remove project manager filter",
       "clearAll": "Clear all",
-      "loading": "Loading options…",
-      "noOptions": "No options available",
       "error": "Couldn't load options",
       "retry": "Retry",
       "unavailable": "Unavailable selection",
@@ -3296,13 +3243,10 @@
     "accessDeniedDescription": "Company statements are available to Admin, Finance, and Executive roles.",
     "backToDashboard": "Back to dashboard",
     "balanceSheet": "Balance sheet",
-    "captureWindow": "Capture window",
-    "collected": "Collected",
     "companyScope": "Company",
     "current": "Current period",
     "currentColumn": "Current",
     "delayed": "Update delayed",
-    "description": "View saved Company statements and mapped project reports.",
     "error": "Couldn't load financial statements",
     "errorDescription": "The request failed. Check your connection and try again.",
     "expense": "Expense",
@@ -3319,20 +3263,16 @@
     "prior": "Previous period",
     "priorColumn": "Previous",
     "profitAndLoss": "Profit and loss",
-    "projectNamesLoading": "Loading mapped project names…",
-    "projectNamesUnavailable": "Some mapped project names are unavailable. Company reports remain usable.",
     "projectProfitAndLoss": "Project profit and loss",
     "quarter": "Quarter",
     "refreshing": "Refreshing statements…",
     "retry": "Retry",
-    "retryProjectNames": "Retry project names",
     "scope": "Scope",
     "statement": "Statement",
     "trialBalance": "Trial balance",
     "unavailable": "Statements are not available yet",
     "unavailableDescription": "Saved statements will appear here when available.",
     "updated": "Updated",
-    "values": "Values",
     "choosePeriod": "Choose a period",
     "chooseScope": "Choose a scope"
   },
@@ -3352,7 +3292,6 @@
       "winPct": "Win %",
       "endCustomer": "End customer"
     },
-    "description": "Track projects in the sales pipeline and forecast revenue.",
     "empty": {
       "sub": "Add a project to start tracking the pipeline.",
       "title": "No projects yet"
@@ -3421,8 +3360,7 @@
     "weightedForecast": "Weighted pipeline forecast",
     "winProbability": "Win probability",
     "board": {
-      "ariaLabel": "Sales pipeline board",
-      "weightedShort": "{{value}} wtd"
+      "ariaLabel": "Sales pipeline board"
     },
     "stage": {
       "leads": "Leads",
@@ -3551,6 +3489,7 @@
   "table": {
     "actions": "Actions",
     "openRow": "Open {{name}}",
+    "resizeColumn": "Resize {{column}} column",
     "rowActions": "Row actions"
   },
   "task": {
@@ -3900,8 +3839,6 @@
   },
   "uxs04": {
     "forecast": "Forecast",
-    "forecastUnavailable": "Forecast appears once your accounting ledger is connected.",
-    "forecastIntro": "Will this project finish within budget? Recorded spending plus your cost to finish.",
     "editCostToFinish": "Edit cost to finish",
     "budget": "Budget",
     "recordedSpending": "Recorded spending",
@@ -3915,8 +3852,6 @@
     "recordedAsOf": "Recorded spending as of",
     "incompleteBudget": "Not complete: budget unknown for {{categories}}",
     "incompleteRecorded": "Not complete: spending unavailable for {{categories}}",
-    "needsRecorded": "Needs recorded spending for every category",
-    "needsBudgetAndSpending": "Needs a budget and recorded spending for every category",
     "reasonBudgetedElsewhere": "Budgeted in {{years}}",
     "reasonBudgetYearUnclear": "Budget year unclear: phase its budget lines",
     "reasonNoBudgetLine": "No budget line",
@@ -3933,20 +3868,12 @@
     "noActiveBudget": "No active budget"
   },
   "uxs05": {
-    "project": "Project",
     "customerReference": "Customer reference",
-    "projectReferenceFallback": "Project reference: {{reference}}",
     "overdueDay": "{{count}} day overdue",
     "overdueDays": "{{count}} days overdue",
-    "filterProject": "Filter by project",
-    "allProjects": "All projects",
-    "overdueOnly": "Overdue only",
-    "sortOldestOverdue": "Oldest overdue first",
-    "overdueDateLoading": "Loading the organization date…",
-    "overdueDateUnavailable": "Overdue filtering is unavailable until the organization date is known."
+    "overdueOnly": "Overdue only"
   },
   "uxs37": {
-    "basisDescription": "Billed work excludes tax; open receivables include tax owed. Each amount stays in its invoice currency.",
     "billedWorkTaxBasis": "net of tax",
     "openReceivablesTaxBasis": "gross, tax included"
   },
@@ -3966,7 +3893,6 @@
     "customerNotRecorded": "Customer not recorded",
     "unnamedInvoice": "invoice",
     "continueToApprove": "Continue to approve",
-    "nativeSalesInvoicesDescription": "Client invoices raised, approved and settled in PMO.",
     "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
     "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
     "nativeSelectProject": "Select project…",
@@ -4065,7 +3991,6 @@
     "theRequestFailedCheckYourConnectionAndTryAgain": "The request failed. Check your connection and try again.",
     "noFiscalYearOnRecord": "No fiscal year on record",
     "activateABudgetVersionAndPushItToTheERPToRecordOneOrWaitForTheERPLedgerToSyncItsFirstPostingsForThisProject": "Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project.",
-    "budgetProjectionFiguresScrollableHorizontally": "Budget projection figures, scrollable horizontally",
     "waitingToReachERPNext": "Waiting to reach ERPNext",
     "budgetQueuedForERPNext": "This budget is queued for ERPNext and has not been sent yet.",
     "sendingToERPNext": "Sending to ERPNext",
@@ -4091,14 +4016,13 @@
     "dueDate": "Due Date",
     "submit": "Submit",
     "salesInvoices": "Sales Invoices",
-    "clientInvoicesIssuedThroughPMOMirroredFromERPNextOutstandingAmountsAreERPSourced": "Client invoices issued through PMO, mirrored from ERPNext. Outstanding amounts are ERP-sourced.",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
     "clearFilter": "Clear filter",
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No sales invoices yet",
-    "createYourFirstInvoiceToStartBillingClients": "Create your first invoice to start billing clients.",
+    "createYourFirstInvoiceToStartBillingClients": "No client invoices have been recorded yet. Use New Invoice to start billing.",
     "noInvoicesMatchYourFilters": "No invoices match your filters",
     "tryADifferentStatusOrClearTheSearch": "Try a different status or clear the search.",
     "thisCancelsTheInvoiceInERPNextDocstatus12TheInvoiceWillBeMarkedCancelledAndCanNoLongerBeSubmittedOutstandingAmountIsReleased": "This cancels the invoice in ERPNext (docstatus 1→2). The invoice will be marked Cancelled and can no longer be submitted. Outstanding amount is released.",
@@ -4124,7 +4048,7 @@
     "searchPayments": "Search payments…",
     "searchIncomingPayments": "Search incoming payments",
     "noIncomingPaymentsYet": "No incoming payments yet",
-    "recordYourFirstPaymentReceivedFromAClient": "Record your first payment received from a client.",
+    "recordYourFirstPaymentReceivedFromAClient": "No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.",
     "noPaymentsMatchYourFilters": "No payments match your filters",
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
@@ -4136,11 +4060,8 @@
     "openAR": "Open AR",
     "invoices": "Invoices",
     "revenueByProject": "Revenue by Project",
-    "browseProjects": "Browse Projects",
-    "totalInvoices": "Total Invoices",
-    "projects": "Projects",
     "noRevenueDataYet": "No revenue data yet",
-    "createSalesInvoicesToSeeRevenuePerProject": "Create sales invoices to see revenue per project.",
+    "createSalesInvoicesToSeeRevenuePerProject": "No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.",
     "noRevenueData": "No revenue data",
     "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
@@ -4234,8 +4155,6 @@
     "cancelPaymentQuestion": "Cancel payment?",
     "cancelPaymentDescription": "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.",
     "archiveViewDescription": "\"{{name}}\" will be archived and removed from your list.",
-    "budgetLineItemsScrollable": "Budget line items, scrollable horizontally",
-    "budgetVersionLineItemsScrollable": "Budget version line items, scrollable horizontally",
     "deleteBudgetLineItemNamed": "Delete line item {{category}}",
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "invoiceDetails": "Invoice details",
@@ -4410,8 +4329,6 @@
     "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
     "from": "From",
     "asAt": "As at",
-    "exportCsv": "Export CSV",
-    "exportXlsx": "Export XLSX",
     "noAccessTitle": "You don't have access to the management pack",
     "noAccessSub": "The management pack is available to Finance, Project Managers, Executives and Admins.",
     "errorTitle": "Couldn't load the management pack",
@@ -4454,7 +4371,7 @@
       "month": "Month",
       "monthInvalid": "Choose a month.",
       "pct": "Percent complete to date",
-      "pctHelper": "Milestone delivery: {{pct}}%",
+      "pctHelper": "Phase delivery: {{pct}}%",
       "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
       "note": "Note",
       "save": "Save progress",
@@ -4463,71 +4380,8 @@
   },
   "uxs34": {
     "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
-    "monthlyScope": "Monthly figures · selected period {{from}}–{{to}}",
-    "currencyScope": "Currencies with no activity, contract, or meaningful balance in this range are omitted.",
     "backlogUnavailable": "Unavailable",
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
-  },
-  "uxs35": {
-    "heading": "Current project position",
-    "scope": "Latest recorded position; separate from selected-period revenue.",
-    "loading": "Loading…",
-    "error": "Could not load this source.",
-    "partial": "Partial coverage",
-    "notRequested": "Expand a project to load details.",
-    "unavailable": "Unavailable",
-    "detailUnavailable": "Project detail is unavailable.",
-    "retry": "Retry source",
-    "noProjects": "No assigned projects have a current position.",
-    "currentPositionLabel": "current position",
-    "recordedCostToDate": "Recorded cost to date",
-    "basis": {
-      "pmo": "PMO ledger",
-      "erp": "ERP ledger",
-      "unavailable": "Unavailable"
-    },
-    "updated": "Updated",
-    "restrictedRowsExcluded": "Restricted rows are excluded from this reading.",
-    "actualsChanged": "ERP Actual readings changed between sources, so margin is unavailable.",
-    "cashReceived": "Cash received",
-    "cashScope": "Receipt-backed cash, separate from invoice settlement.",
-    "sourceTimeUnavailable": "Source update time not supplied",
-    "cashIncomplete": "Cash amount is incomplete in the saved receipt data.",
-    "billedWork": "Billed work to date",
-    "billedWorkScope": "Billed work to date · net of tax",
-    "missingWork_one": "{{count}} invoice row lacks a work amount.",
-    "missingWork_other": "{{count}} invoice rows lack a work amount.",
-    "billedWorkIncomplete": "Incomplete — invoice work amount missing",
-    "marginToDate": "Billed-work margin to date",
-    "marginReason": {
-      "different-currencies": "Invoice work and Actual use different currencies.",
-      "work-unavailable": "Complete billed-work revenue is unavailable.",
-      "actuals-unavailable": "Canonical Actual coverage is incomplete or unavailable.",
-      "restricted-rows": "Restricted rows are excluded from this Actual."
-    },
-    "projectOutstanding": "Project invoice outstanding",
-    "projectOutstandingScope": "Open invoices for this project only",
-    "missingOutstanding_one": "{{count}} invoice row lacks a known outstanding amount.",
-    "missingOutstanding_other": "{{count}} invoice rows lack a known outstanding amount.",
-    "taxBasis": {
-      "inclusive": "incl. tax",
-      "exclusive": "excl. tax",
-      "mixed": "mixed tax basis"
-    },
-    "customerBalance": "Customer balance — includes other projects",
-    "customerScope": "Customer-level ERP aging may include invoices from other projects.",
-    "customerAmbiguous": "Customer aging is mapped to multiple companies, so its amounts are hidden.",
-    "openCollections": "Open customer collections",
-    "openCustomerInvoices": "Open customer invoices",
-    "overdueInvoices": "Overdue invoices first",
-    "companyStatements": "Company statements",
-    "openProject": "Open project overview",
-    "hideDetails": "Hide details",
-    "positionDetails": "Position details",
-    "positionPages": "Current position pages",
-    "previous": "Previous projects",
-    "pageOf": "Page {{page}} of {{count}}",
-    "next": "Next projects"
   },
   "comments": {
     "title": "Comments",
@@ -4615,7 +4469,7 @@
       "invoice_id": "Invoice",
       "pay_number": "Payment number",
       "assignee_id": "Assignee",
-      "milestone_id": "Milestone",
+      "milestone_id": "Phase",
       "parent_task_id": "Parent task",
       "meeting_id": "Meeting",
       "priority": "Priority",
@@ -4729,43 +4583,32 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "title":"Project finances", "lifetime":"Lifetime to date",
+    "title":"Project finances",
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
     "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
-    "incomplete":"Incomplete — ERP outstanding missing",
-    "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
+    "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "mappingUnavailable":"Not available yet",
     "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
-    "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
+    "mixedTaxBases":"Mixed tax bases",
     "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "notTrackedInPmo": "Not tracked in PMO yet",
-    "actualSpending": "Actual spending",
     "actualUnavailable": "Unavailable",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete — see spending details",
-    "actualUsedAgainstBudget": "recorded spending against the active budget",
-    "budgetActualUnavailable": "Actual spending is incomplete, so it cannot be compared with this budget.",
     "completeCoverage": "Complete category coverage",
     "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
     "coverageUnavailable": "Spending coverage unavailable",
     "updated": "Updated {{date}}",
-    "setupHandoff": "Ask Finance or Admin to review spending setup.",
-    "reviewSetup": "Review spending setup",
     "showCategoryDetails": "Show category details",
     "categoryDetails": "Recorded spending by category",
     "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
     "contractRemainingAfterCost": "Contract remaining after cost",
-    "noActiveBudget": "No active budget",
-    "noBudget": "No budget",
-    "budgetLoading": "Loading budget…",
     "budgetPosition": "Budget position",
     "overBudgetBy": "Over budget by {{amount}}",
     "budgetRemaining": "Budget remaining {{amount}}",
@@ -4818,7 +4661,6 @@
     }
   },
   "uxs13": {
-    "moreProjectDetails": "More project details",
     "projectDetailsAndActions": "Project details and actions",
     "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
   },
@@ -4846,11 +4688,11 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "contractValueInProgress":"Contract value in progress", "noPipelineValue":"No pipeline value to calculate margin", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
-    "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
+    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
+    "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
-    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",
+    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",
     "activeBudget":"Active budget", "actual":"Actual", "variance":"Variance", "utilization":"Utilization", "atRisk":"At risk",
     "activeBudgetReviewEmpty":"No active budgets ready for review", "activeBudgetReviewEmptySub":"Active, positive-value budgets appear here.",
     "actualSourceCurrency":"Source currency: {{currency}}", "actualAsOf":"As of {{date}}",
@@ -4883,7 +4725,7 @@
     "receivedByClient": "Received by client",
     "readyToSend": "Ready to send",
     "receivedDateSummary": "Client receipt was recorded for {{date}}.",
-    "manualHandoffHelp": "Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.",
+    "manualHandoffHelp": "Download the PDF and send it to your client yourself.",
     "preparingPdf": "Preparing PDF…",
     "downloadApprovedPdf": "Download approved PDF",
     "collectionSummary": "Invoice collection details",
@@ -4892,7 +4734,6 @@
     "dateNotRecorded": "Not recorded",
     "dueDateUnavailable": "Due date not available",
     "status": "Status",
-    "collection": "Collection",
     "outstandingUnavailable": "Outstanding amount not available",
     "overdue": "Overdue",
     "daysOverdue": "{{count}} days overdue",
@@ -4902,17 +4743,13 @@
     "evidenceRetry": "Retry invoice evidence",
     "invoiceLines": "Invoice lines",
     "linesUnknown": "Line details are not available.",
-    "noLines": "No line details were returned.",
     "lineDescriptionUnavailable": "Description not available",
     "billingContact": "Billing contact",
-    "noBillingContact": "No billing contact details were returned.",
     "appliedReceipts": "Applied receipts",
-    "receiptsLoading": "Loading receipt allocations…",
     "receiptsUnavailable": "Applied receipt details are unavailable.",
     "receiptReferenceUnavailable": "Receipt reference not recorded",
     "allocationAmountUnavailable": "Applied amount not available",
-    "receiptsCoverageUnknown": "Receipt allocations have not all been reported.",
-    "noAppliedReceipts": "No applied receipts are recorded for this invoice."
+    "receiptsCoverageUnknown": "Receipt allocations have not all been reported."
   },
   "uxCorrectness": {
     "projectNumberPattern": {
@@ -4936,7 +4773,6 @@
     "coverageUnknown": "The accounting system has not reported which invoices this receipt settled.",
     "onAccount": "This receipt is not applied to any invoice. The cash is held on account.",
     "invoiceNotInPmo": "This invoice is not in PMO yet.",
-    "unappliedNote": "{{amount}} of this receipt is not yet applied to an invoice.",
     "receiptNotFound": "We couldn't find this receipt",
     "receiptNotFoundBody": "It may have been removed, or you may not have access to it."
   },
@@ -4953,7 +4789,6 @@
   "uxs27": {
     "amountSettled": "Amount settled",
     "cashReceived": "Cash received",
-    "amountSettledHelper": "Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.",
     "taxWithheldDisclosure": "Tax withheld",
     "withheldSummary": "Tax withheld: {{amount}}",
     "withholdingSlipSummary": "Withholding slip: {{slip}}",
@@ -4978,7 +4813,6 @@
     "stageLabel": "Pipeline stage",
     "allStages": "All stages",
     "phoneList": "Projects in selected pipeline stage",
-    "financialDetails": "Financial and project details",
     "stageEmptyTitle": "No projects in this stage",
     "stageEmptyBody": "Choose another stage or clear filters to see more projects."
   },
@@ -4987,15 +4821,11 @@
     "subtotal": "Subtotal",
     "tax": "Tax",
     "total": "Total",
-    "itemCodeOptionalHelp": "Optional. Use an item code when your project tracks one.",
     "invoiceLineQuantityValid": "Line {{line}}: Quantity must be positive with no more than 3 decimal places.",
-    "projectTaxBase": "Project tax base: {{numerator}}/{{denominator}}",
-    "selectProjectForReview": "Choose a project to review its invoice currency and tax.",
     "currencyUnavailable": "Currency is unavailable, so draft totals cannot be displayed.",
     "completeLinesForReview": "Enter valid line details, quantities, and rates to review totals.",
     "projectTaxUnavailable": "Project tax details are unavailable, so tax and final total cannot be previewed yet.",
-    "reviewProjectTax": "Review project tax settings",
-    "erpTotalsAfterDraft": "Tax and final total are available after the ERP draft is created."
+    "reviewProjectTax": "Review project tax settings"
   },
   "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"},
   "uxs19": {
@@ -5048,20 +4878,16 @@
     }
   },
   "uxs21": {
-    "askIntegrationAdmin": "Ask an integration administrator to connect ClickUp.",
-    "clickupNotConnected": "ClickUp is not connected for this organization.",
-    "setupClickUp": "Set up ClickUp",
     "listUnavailable": "List unavailable; saved list ID: {{listId}}",
     "listDetailsLoading": "Loading list details; saved list ID: {{listId}}",
-    "unknownInitialSource": "Initial source not recorded",
     "initialSourceLabel": "Initial source",
     "sourcePmo": "Start with PMO tasks",
     "sourceClickUp": "Start with existing list tasks",
-    "initialTransferPending": "Project linked. Initial task transfer is not confirmed. Ask your integration administrator to complete the initial transfer.",
     "listReadUnavailable": "List details could not be refreshed. The saved list link is retained.",
     "retryLists": "Retry list details",
     "bindingReadUnavailable": "Project link details could not be refreshed. The saved link is retained.",
     "retryBinding": "Retry project link",
+    "unlinkFailed": "Could not unlink from ClickUp. The project is still linked. Use Unlink from ClickUp to try again.",
     "reviewTitle": "Review ClickUp link",
     "reviewSubtitle": "Confirm which existing list belongs to this project.",
     "reviewAction": "Review link",
@@ -5088,5 +4914,13 @@
     "initialTransferPendingShort": "Initial transfer not confirmed",
     "savedListUnavailable": "List unavailable; saved list ID: {{listId}}",
     "reviewMatch": "Review list match"
+  },
+  "v024Polish": {
+    "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
+  },
+  "uxs26": {
+    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
+    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
   }
 }

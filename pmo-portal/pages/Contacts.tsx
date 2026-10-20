@@ -358,7 +358,7 @@ const Contacts: React.FC = () => {
           emptyTitle={t('contacts.table.emptyTitle', 'No contacts match your filters')}
           emptySub={t('contacts.table.emptySub', 'Try a different company or clear the search.')}
           emptyAction={{ label: t('contacts.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        />
+        tableId="contacts-table" />
       )}
 
       {formTarget && (

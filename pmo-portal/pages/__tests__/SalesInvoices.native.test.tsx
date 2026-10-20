@@ -140,9 +140,32 @@ beforeEach(async () => {
 });
 
 describe('Sales Invoices while PMO owns revenue (#784)', () => {
-  it('AC-NAR-001 the page says invoices are raised and settled in PMO', () => {
+  it('UX-010/011 Finance gets one create action and no duplicate empty-state CTA', () => {
     renderPage();
-    expect(screen.getByText('Client invoices raised, approved and settled in PMO.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New Invoice' })).toHaveLength(1);
+    expect(screen.getByText(/Use New Invoice to start billing/)).toBeInTheDocument();
+  });
+
+  it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {
+    h.role = 'Project Manager';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).toBeNull();
+    expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
+    expect(screen.queryByText(/Create your first invoice/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New Invoice' })).toBeNull();
+  });
+
+  it('UX-010 renders the Project Manager empty-state copy in Indonesian', async () => {
+    h.role = 'Project Manager';
+    await financeTestI18n.changeLanguage('id');
+    renderPage();
+    expect(screen.getByText(/Finance mengelola pembuatan faktur/)).toBeInTheDocument();
+    await financeTestI18n.changeLanguage('en');
+  });
+
+  it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
+    renderPage();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
   });
 
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
@@ -210,7 +233,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it.each([
     ['en', 'Line items are kept in ERPNext for this invoice.', 'Line items'],
     ['id', 'Rincian item untuk faktur ini disimpan di ERPNext.', 'Item faktur'],
-  ])('AC-991-001 ERP-owned invoice record explains where its line items live (%s)', async (language, note, sectionLabel) => {
+  ])('AC-991-001 FIN-S2 ERP-owned invoice record shows no empty line-items section and no standing note (%s)', async (language, note, sectionLabel) => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({
       id: 'si-erp-record', pmo_native: false, si_number: 'ACC-SINV-11', pmo_number: null, native_lines: null,
@@ -218,7 +241,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage(language);
     try {
       renderPage('/sales-invoices/si-erp-record');
-      expect(screen.getByText(note)).toBeInTheDocument();
+      expect(screen.queryByText(note)).toBeNull();
       expect(screen.queryByRole('heading', { name: sectionLabel })).toBeNull();
       expect(screen.queryByRole('list', { name: sectionLabel })).toBeNull();
     } finally {
@@ -358,7 +381,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    expect(screen.getByText(/mirrored from ERPNext/)).toBeInTheDocument();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
     await pick(user, 'Customer', 'Acme Energy');
     await user.type(screen.getByLabelText(/Item code/), 'SVC');
@@ -369,13 +392,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.ownershipLoaded = false;
     h.route = 'external';
     const { rerender } = renderPage();
-    expect(screen.queryByText('Client invoices raised, approved and settled in PMO.')).toBeNull();
-    expect(screen.queryByText(/mirrored from ERPNext/)).toBeNull();
     expect(screen.queryByRole('button', { name: /New Invoice/i })).toBeNull();
     h.ownershipLoaded = true;
     rerender(page());
-    expect(screen.getByText(/mirrored from ERPNext/)).toBeInTheDocument();
-    expect(screen.queryByText('Client invoices raised, approved and settled in PMO.')).toBeNull();
+    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
   });
 
   it('FR-NAR-002 (I-3) a PMO line needs an item code OR a description — a description alone is enough', async () => {

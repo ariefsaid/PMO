@@ -396,9 +396,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
             {t('projectDetail.tasks.heading', 'Tasks')}
           </h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t('projectDetail.tasks.subheading', 'Plan, assign, and track the work for this project.')}
-          </p>
         </div>
         {all.some((t) => t.archived_at != null) && (
           <Button
@@ -459,14 +456,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
             'projectDetail.tasks.emptySub',
             'Break the project into tasks, assign them to the team, and track each through to Done.',
           )}
-          action={
-            canCreate
-              ? {
-                  label: t('projectDetail.tasks.newTask', 'New task'),
-                  onClick: () => setFormTarget({ task: null }),
-                }
-              : undefined
-          }
         />
       )}
 
@@ -484,7 +473,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
                 : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
-          />
+          tableId="project-detail-tabs-taskstab-1-table" />
         ) : (
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
@@ -956,14 +945,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
           {milestones.length > 0 && (
             <Combobox
-              label={t('projectDetail.tasks.form.milestone', 'Milestone')}
+              label={t('projectDetail.tasks.form.milestone', 'Phase')}
               value={milestoneId}
               selectedOption={selectedMilestone}
               loadOptions={async () => milestoneOptions}
               onChange={(v) => setMilestoneId(v || null)}
               placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
-              searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search milestones…')}
-              noun="milestone"
+              searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search phases…')}
+              noun={t('projectDetail.tasks.phaseNoun', 'phase')}
             />
           )}
           {/* OD-INT-9 — the parent-task picker. Options already exclude the task itself and
@@ -1136,7 +1125,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           {isUngrouped ? (
             <span className="text-[12px] text-muted-foreground">
-              {t('projectDetail.tasks.noMilestone', 'No milestone')}
+              {t('projectDetail.tasks.noMilestone', 'No phase')}
             </span>
           ) : (
             <MilestonePhaseHeader
@@ -1166,7 +1155,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}
             rowLabel={rowLabel}
-          />
+          tableId="project-detail-tabs-taskstab-2-table" />
         ) : (
           <p className="py-2 text-center text-[12px] text-muted-foreground">
             {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}

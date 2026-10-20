@@ -184,7 +184,7 @@ describe('Contacts create form (AC-CRM-030)', () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New contact/i }));
     await userEvent.type(screen.getByLabelText(/Full name/i), 'Nina Park');
-    await userEvent.selectOptions(screen.getByLabelText(/^Company/i), '11111111-1111-4111-8111-111111111111');
+    await userEvent.selectOptions(screen.getByLabelText(/^Company/i, { selector: 'input, select, textarea' }), '11111111-1111-4111-8111-111111111111');
     await userEvent.click(screen.getByRole('button', { name: /^Create contact$/i }));
     await waitFor(() =>
       expect(mutations.create.mutateAsync).toHaveBeenCalledWith(

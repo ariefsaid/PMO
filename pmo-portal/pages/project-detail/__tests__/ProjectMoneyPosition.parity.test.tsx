@@ -286,10 +286,11 @@ describe('project money position consumer parity', () => {
     const cashField = screen.getByText(t('uxs01.cashReceived', 'Cash received'), { exact: true }).parentElement!;
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('0.00', 'USD', language)!));
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('7.50', 'IDR', language)!));
-    expect(screen.getByText(t(
+    // PD-C: the settlement explanation is the title of the "Settled" label, not a paragraph.
+    expect(screen.getAllByText(t('projectFinances.settled', 'Settled'))[0]).toHaveAttribute('title', t(
       'projectFinances.settlementNote',
       'Settled against invoices (cash, withholding and credits), not cash received.',
-    ))).toBeInTheDocument();
+    ));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
       actuals: financeReading(project.id, {
         actuals: actuals('10.10', [
@@ -314,7 +315,8 @@ describe('project money position consumer parity', () => {
       .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
     expect(aside).not.toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
     const financeSection = screen.getByTestId('project-finances');
-    expect(financeSection).toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
+    // PD-C: coverage is stated only when partial — full mapping is never reported as partial.
+    expect(financeSection).not.toHaveTextContent(/Partial coverage|Cakupan sebagian/);
     expect(financeSection).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalled();
   });
@@ -331,10 +333,9 @@ describe('project money position consumer parity', () => {
     const aside = screen.getByTestId('financial-summary');
     expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
       .getByText(formatExactMoney('10.10', 'EUR', 'en')!)).toBeInTheDocument();
-    expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
-      .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
-    expect(within(statTile(t('projectDetail.overview.finance.spend', 'Spend')))
-      .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
+    // PD-A: cross-currency ratios are withheld by omitting the tiles, not by prose.
+    expect(screen.queryByText(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'))).not.toBeInTheDocument();
+    expect(screen.queryByText(t('projectDetail.overview.finance.spend', 'Spend'))).not.toBeInTheDocument();
     expect(aside).toBeInTheDocument();
     expect(screen.getByText(/Recorded spending · EUR/)).toBeInTheDocument();
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
@@ -378,9 +379,9 @@ describe('project money position consumer parity', () => {
   });
 
   it.each([
-    { name: 'pending', data: undefined, isPending: true, isError: false, expected: 'Loading budget…' },
-    { name: 'failed', data: undefined, isPending: false, isError: true, expected: 'Unavailable' },
-    { name: 'without an Active budget', data: 0, isPending: false, isError: false, expected: 'No active budget' },
+    { name: 'pending', data: undefined, isPending: true, isError: false, expected: null },
+    { name: 'failed', data: undefined, isPending: false, isError: true, expected: null },
+    { name: 'without an Active budget', data: 0, isPending: false, isError: false, expected: null },
     { name: 'with an Active budget', data: 40, isPending: false, isError: false, expected: '25%' },
   ])('AC-PMP-003 keeps header budget precedence $name', async ({ data, isPending, isError, expected }) => {
     h.budget = { data, isPending, isError };
@@ -388,7 +389,9 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    expect(statTile(t('projectDetail.header.tile.spend', 'Spend'))).toHaveTextContent(expected);
+    // PD-A: no Active budget (or still loading) → no Spend tile at all, never "No active budget" prose.
+    if (expected === null) expect(screen.queryByText(t('projectDetail.header.tile.spend', 'Spend'))).not.toBeInTheDocument();
+    else expect(statTile(t('projectDetail.header.tile.spend', 'Spend'))).toHaveTextContent(expected);
   });
 
   it('AC-PMP-003 keeps finance-section loading and retry after a failed real repository read', async () => {

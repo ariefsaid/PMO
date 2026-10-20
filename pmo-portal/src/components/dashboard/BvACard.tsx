@@ -20,8 +20,8 @@ export interface BvACardProps {
  * Unknown Actual is never rendered as zero and never produces a progress bar.
  */
 export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
-  const { t, i18n } = useTranslation();
-  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency, i18n.language)
+  const { t } = useTranslation();
+  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   return (
   <div role="group" aria-label={t('uxs03.spendingContract', 'Spending vs contract')} className="flex flex-col">
@@ -31,9 +31,6 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
         coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
       const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
         ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
-      const currenciesMatch = (p.actual_currency ?? p.currency) === (p.budget_currency ?? p.currency)
-        && (p.actual_currency ?? p.currency) === p.currency;
-      const utilization = p.budget !== null && p.budget > 0 && actualComplete && currenciesMatch ? (p.spent ?? 0) / p.budget : null;
       const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
         spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
       const dot = chartTheme.categorical[i % chartTheme.categorical.length];
@@ -74,11 +71,6 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             className="w-full [&>span:first-child]:flex-1"
             aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
           />}
-          <span className="text-[12px] text-muted-foreground">
-            {t('uxs03.activeBudgetRisk', 'Active-budget risk')}: {p.budget !== null && p.budget > 0 && utilization !== null
-              ? `${Math.round(utilization * 100)}%` : p.budget !== null && p.budget > 0
-                ? t('uxs03.notAvailableYet', 'Not available yet') : t('uxs03.noActiveBudget', 'No active budget')}
-          </span>
           {p.actual_coverage_total != null && p.actual_coverage_total > (p.actual_coverage_count ?? 0) && (
             <span className="text-[12px] text-muted-foreground">
               {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {

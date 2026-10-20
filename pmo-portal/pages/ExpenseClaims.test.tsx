@@ -79,7 +79,7 @@ describe('ExpenseClaims page', () => {
 
   it('AC-EXP-060 the Special expenses filter queries by that category', async () => {
     renderPage();
-    await userEvent.selectOptions(screen.getByLabelText('Budget category'), 'Special expenses');
+    await userEvent.selectOptions(screen.getByLabelText('Budget category', { selector: 'input, select, textarea' }), 'Special expenses');
     expect(h.listSpy).toHaveBeenLastCalledWith({ budgetCategory: 'Special expenses' });
   });
 

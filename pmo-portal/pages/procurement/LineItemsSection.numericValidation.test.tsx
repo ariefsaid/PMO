@@ -330,9 +330,9 @@ describe('#684 minor: live line total and unit-price placeholder follow the numb
     const row = screen.getByTestId('line-item-add-row');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), 'abc');
-    const totalCell = row.querySelector('td:nth-child(4)')!;
-    expect(totalCell).toHaveTextContent('—');
-    expect(totalCell).not.toHaveTextContent('$0');
+    const total = within(row).getByLabelText('New line total');
+    expect(total).toHaveTextContent('—');
+    expect(total).not.toHaveTextContent('$0');
   });
 
   it('the unit-price placeholder uses the id-ID decimal separator', () => {

@@ -434,6 +434,13 @@ export async function openBudgetTab(page: Page, projectId: string): Promise<void
  */
 export async function selectVersion(page: Page, versionName: string): Promise<void> {
   const versionSelect = page.getByLabel('Version', { exact: true });
+  // SUB-D: the Version bar renders only when there is more than one version; with a single version the
+  // one card on screen already IS the requested version.
+  await expect(page.getByTestId('version-card')).toBeVisible({ timeout: 20_000 });
+  if ((await versionSelect.count()) === 0) {
+    await expect(page.getByTestId('version-card')).toContainText(versionName, { timeout: 20_000 });
+    return;
+  }
   await expect(versionSelect).toBeVisible({ timeout: 20_000 });
   const optionValue = async (): Promise<string | null> =>
     page.evaluate((name: string) => {

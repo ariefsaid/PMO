@@ -10,6 +10,7 @@ import {
   Icon,
   useToast,
   ProjectNameLink,
+  MobileToolbarDisclosure,
   type Column,
 } from '@/src/components/ui';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
@@ -175,7 +176,6 @@ const ProcurementPage: React.FC = () => {
   };
   const [showNew, setShowNew] = useState(false);
   const [showCycleImport, setShowCycleImport] = useState(false);
-  const [showMoreTools, setShowMoreTools] = useState(false);
 
   // B-2: "Needs approval" prepended for approver roles.
   // AC-IXD-DASH-W5-C2B: "Vendor Invoiced" is in ALL_FILTERS for approver roles — they process
@@ -399,45 +399,31 @@ const ProcurementPage: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <div data-testid="procurement-more" className="relative shrink-0">
-            <Button
-              aria-expanded={showMoreTools}
-              aria-controls="procurement-more-tools"
-              onClick={() => setShowMoreTools((open) => !open)}
-              className="inline-flex h-8 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t('uxs19.more', 'More')}
-              <Icon name="chev" aria-hidden className="ml-1 size-3 rotate-90" />
-            </Button>
-            {showMoreTools && (
-              <div
-                id="procurement-more-tools"
-                role="group"
-                aria-label={t('uxs19.more', 'More')}
-                className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col gap-1 rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-md"
-              >
-                <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="w-full justify-start" />
-                {userId && (
-                  <>
-                    {/* ADR-0027: import remains gated by ImportButton's create permission check. */}
-                    <ImportButton
-                      entity="procurement"
-                      descriptor={importDescriptor}
-                      onImported={() => void refetch()}
-                      className="w-full justify-start"
-                    />
-                    {/* ADR-0035: cycle import retains the page's existing create gate. */}
-                    {canCreate && (
-                      <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start">
-                        <Icon name="upload" />
-                        {t('procurement.importCycleData', 'Import cycle data')}
-                      </Button>
-                    )}
-                  </>
+          <MobileToolbarDisclosure
+            label={t('uxs19.more', 'More')}
+            className="relative shrink-0"
+            panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 bg-popover p-2 text-popover-foreground shadow-md"
+          >
+            <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="w-full justify-start" />
+            {userId && (
+              <>
+                {/* ADR-0027: import remains gated by ImportButton's create permission check. */}
+                <ImportButton
+                  entity="procurement"
+                  descriptor={importDescriptor}
+                  onImported={() => void refetch()}
+                  className="w-full justify-start"
+                />
+                {/* ADR-0035: cycle import retains the page's existing create gate. */}
+                {canCreate && (
+                  <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start">
+                    <Icon name="upload" />
+                    {t('procurement.importCycleData', 'Import cycle data')}
+                  </Button>
                 )}
-              </div>
+              </>
             )}
-          </div>
+          </MobileToolbarDisclosure>
         )
       }
       view={

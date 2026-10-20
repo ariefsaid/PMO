@@ -210,9 +210,10 @@ describe('AC-IXD-BUDGET-W5-C4: clone-to-revise auto-opens new draft', () => {
 
     const { rerender } = renderPage();
 
-    // Verify active is selected initially
-    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
-    expect(combobox.value).toBe('v-active');
+    // Verify active is selected initially (SUB-D: a lone version has no selector;
+    // the Active version's card is what is shown)
+    expect(screen.queryByRole('combobox', { name: /version/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Steel')).toBeInTheDocument();
 
     // Click "Clone to revise" — stages confirm
     await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
@@ -486,10 +487,11 @@ describe('AC-IXD-BUDGET-W5-C4: inline edit gate — Active / Archived (read-only
 
   it('Archived version line items have NO Edit button', async () => {
     budgetState.data = 0;
-    versionsState.data = [archivedVersionWithItems];
+    // SUB-D: the selector only exists with 2+ versions, so pair the archived one with an Active.
+    versionsState.data = [activeVersion, archivedVersionWithItems];
     renderPage();
 
-    // Select archived version
+    // Select archived version (default is Active)
     await userEvent.selectOptions(
       screen.getByRole('combobox', { name: /version/i }),
       'v-arch'

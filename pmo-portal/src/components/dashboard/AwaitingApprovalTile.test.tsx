@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { BahasaProvider } from '@/test/bahasa';
@@ -79,13 +79,8 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
       procState.data = []; procState.isPending = false; procState.isError = false;
       tsState.data = []; tsState.isError = false;
       renderTile(includeTimesheets, 'id');
-      tile = screen.getByTestId('kpi-awaiting-approval');
-      expect(tile).toHaveTextContent('Tidak ada yang menunggu');
-      expect(within(tile).getByRole('link', { name: 'Menunggu persetujuan Anda: 0 item menunggu' })).toHaveAttribute('href', '/approvals');
-      fireEvent.focus(within(tile).getByRole('button', { name: 'Bantuan: Menunggu persetujuan Anda' }));
-      expect(screen.getByRole('tooltip')).toHaveTextContent(includeTimesheets
-        ? 'Permintaan pengadaan dan timesheet menunggu keputusan Anda. Buka kotak masuk persetujuan.'
-        : 'Permintaan pengadaan menunggu keputusan Anda. Buka kotak masuk persetujuan.');
+      // SL-A: nothing waiting → no tile at all (the nav count still carries the inbox).
+      expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
 
       cleanup();
       procState.data = [{ id: 'one', status: 'Requested', requested_by_id: 'other' }];
@@ -160,17 +155,21 @@ describe('AC-IXD-PROC-W5-3: AwaitingApprovalTile honest role-scoped count', () =
     roleState.realRole = 'Engineer';
     tsState.data = [];
     renderTile(false);
-    // Engineer cannot transition procurement → 0
-    expect(screen.getByTestId('kpi-awaiting-approval')).toHaveTextContent('0');
+    // Engineer cannot transition procurement → 0 → no tile (SL-A)
+    expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
   });
 
-  it('zero-state shows 0 and "nothing waiting"', () => {
+  it('AC-SL-A-001: nothing waiting renders no tile, no Review button; one item renders it once without a help "?"', () => {
     procState.data = [];
     tsState.data = [];
+    const { unmount } = renderTile(true);
+    expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Review/i)).not.toBeInTheDocument();
+    unmount();
+    procState.data = [{ id: 'pr1', status: 'Requested', requested_by_id: 'other-1' }];
     renderTile(true);
-    const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(tile).toHaveTextContent('0');
-    expect(tile).toHaveTextContent(/nothing waiting/i);
+    expect(screen.getAllByTestId('kpi-awaiting-approval')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Help|About/i })).not.toBeInTheDocument();
   });
 
   it('pluralizes correctly: 1 item (singular), not 1 items', () => {

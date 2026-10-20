@@ -48,6 +48,7 @@ import {
   deleteProject,
   setProjectContractValue,
   getProjectVatEditability,
+  listProjectIdentity,
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
@@ -381,6 +382,7 @@ async function throwInvokeError(
 
 const project: ProjectRepository = {
   list: (params) => wrap(() => listProjects(params)),
+  listIdentity: () => wrap(() => listProjectIdentity()),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
   create: (input) => wrap(() => createProject(input)),

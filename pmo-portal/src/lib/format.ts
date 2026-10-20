@@ -79,15 +79,22 @@ export function formatCurrency(value: number, currency: string): string {
 }
 
 /** Format exact decimal money without converting its whole or fractional units through Number. */
-export function formatExactMoney(value: string | null, currency: string, locale: string): string | null {
+export function formatExactMoney(
+  value: string | null,
+  currency: string,
+  locale: string,
+  opts: { trimZeroFraction?: boolean } = {},
+): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
-    const parts = numberFormatterFor('exact-currency', locale, currency, {
-      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    const trim = opts.trimZeroFraction === true && cents === 0n;
+    const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
+      style: 'currency', currency,
+      minimumFractionDigits: trim ? 0 : 2, maximumFractionDigits: trim ? 0 : 2,
     }).formatToParts(whole);
     const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
     return negative ? `−${body}` : body;
@@ -532,6 +539,16 @@ export function formatRelativeTime(iso: string | null | undefined): string {
 export function formatCompactCurrency(value: number, currency: string): string {
   if (Math.abs(value) < 1_000) return formatCurrency(value, currency);
   return currencyFormatterFor('compact', currency, { notation: 'compact', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+}
+
+/** OD-MONEY-FMT short KPI money: "$56K", "$56.5K", "IDR 160.9B" — one decimal only when non-zero,
+ *  and the true minus (U+2212) that `formatExactMoney` uses, so a figure and its exact twin agree.
+ *  `code` names the currency by ISO code ("USD 3.4M") for a figure outside the org currency. */
+export function formatShortMoney(value: number, currency: string, opts: { code?: boolean } = {}): string {
+  return currencyFormatterFor(opts.code ? 'short-code' : 'short', currency, {
+    notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1,
+    ...(opts.code ? { currencyDisplay: 'code' } : {}),
+  }).format(value).replace('-', '\u2212');
 }
 
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is

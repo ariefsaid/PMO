@@ -201,18 +201,14 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
 
   const nav = (
     <div className="mb-3 flex items-center gap-2">
-      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
-      <Button variant="outline" size="icon" onClick={goPrev} aria-label="Previous month">
+      <Button variant="outline" size="icon" onClick={goPrev} aria-label={t('projects.calendar.previousMonth', 'Previous month')}>
         <Icon name="back" />
       </Button>
-      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
-      <Button variant="outline" size="icon" onClick={goNext} aria-label="Next month">
+      <Button variant="outline" size="icon" onClick={goNext} aria-label={t('projects.calendar.nextMonth', 'Next month')}>
         <Icon name="chev" />
       </Button>
-      {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
-      <Button variant="outline" size="sm" onClick={goToday} aria-label="Go to today">
-        {/* i18n-exempt: existing calendar navigation labels are outside this phase-copy scope. */}
-        Today
+      <Button variant="outline" size="sm" onClick={goToday} aria-label={t('projects.calendar.goToday', 'Go to today')}>
+        {t('projects.calendar.today', 'Today')}
       </Button>
       <h2 className="ml-1 text-[15px] font-semibold">{monthLabel(cursor.year, cursor.month)}</h2>
     </div>
@@ -221,8 +217,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   const emptyOverlay =
     monthEventCount === 0 ? (
       <div className="mt-3">
-        {/* i18n-exempt: generic calendar empty title is unchanged by this phase-copy scope. */}
-        <ListState variant="empty" icon="cal" title="No events this month"
+        <ListState variant="empty" icon="cal" title={t('projects.calendar.noEventsTitle', 'No events this month')}
           sub={t('projects.calendar.noEventsSub', 'No project or phase target dates fall in this month.')}
         />
       </div>

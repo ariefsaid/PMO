@@ -114,10 +114,10 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     h.existing.mockResolvedValueOnce([{ rate_date: '2026-10-12', rate: 16019 }]);
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'New rate' }));
-    fireEvent.change(screen.getByLabelText(/Publication date/), {
+    fireEvent.change(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' }), {
       target: { value: '2026-10-12' },
     });
-    fireEvent.change(screen.getByLabelText(/IDR per USD/), { target: { value: '17000' } });
+    fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
     expect(await screen.findByText(/Replace the rate for Oct 12, 2026/i)).toBeInTheDocument();
     expect(screen.getByText(/16,019 → 17,000 IDR per USD/)).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     expect(h.upsert).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('dialog', { name: 'New rate' })).toBeInTheDocument();
-    expect(screen.getByLabelText(/IDR per USD/)).toHaveValue('17,000');
+    expect(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' })).toHaveValue('17,000');
     expect(h.upsert).not.toHaveBeenCalled();
   });
 
@@ -134,10 +134,10 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     h.upsert.mockResolvedValueOnce({ new: 0, changed: 1, unchanged: 0 });
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'New rate' }));
-    fireEvent.change(screen.getByLabelText(/Publication date/), {
+    fireEvent.change(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' }), {
       target: { value: '2026-10-12' },
     });
-    fireEvent.change(screen.getByLabelText(/IDR per USD/), { target: { value: '17000' } });
+    fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
     await screen.findByText(/Replace the rate for Oct 12, 2026/i);
     fireEvent.click(screen.getByRole('button', { name: 'Save rates' }));
@@ -153,10 +153,10 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     h.upsert.mockResolvedValueOnce({ new: 0, changed: 0, unchanged: 1 });
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'New rate' }));
-    fireEvent.change(screen.getByLabelText(/Publication date/), {
+    fireEvent.change(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' }), {
       target: { value: '2026-10-12' },
     });
-    fireEvent.change(screen.getByLabelText(/IDR per USD/), { target: { value: '17000' } });
+    fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
     await waitFor(() =>
       expect(h.upsert).toHaveBeenCalledWith([{ rate_date: '2026-10-12', rate: 17000 }]),
@@ -172,14 +172,14 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     h.upsert.mockRejectedValueOnce(new Error('offline'));
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'New rate' }));
-    fireEvent.change(screen.getByLabelText(/Publication date/), {
+    fireEvent.change(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' }), {
       target: { value: '2026-10-12' },
     });
-    fireEvent.change(screen.getByLabelText(/IDR per USD/), { target: { value: '17000' } });
+    fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
     expect(await screen.findByText(/offline/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Publication date/)).toHaveValue('2026-10-12');
-    expect(screen.getByLabelText(/IDR per USD/)).toHaveValue('17,000');
+    expect(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' })).toHaveValue('2026-10-12');
+    expect(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' })).toHaveValue('17,000');
   });
 
   it('keeps one primary Upload action when Finance sees an empty list', async () => {

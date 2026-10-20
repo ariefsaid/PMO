@@ -156,21 +156,18 @@ beforeEach(() => {
 });
 
 describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
-  it('keeps the task register before the disconnected integration status', () => {
+  it('SUB-F: a disconnected, unlinked ClickUp renders no card or prompt — just the task register', () => {
     renderTab();
 
-    const task = screen.getByText('Survey the site');
-    const integration = screen.getByTestId('project-integrations-compact');
-
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
-    expect(task.compareDocumentPosition(integration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.queryByTestId('project-integrations-compact')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not connected')).not.toBeInTheDocument();
   });
 
-  it('gives an Admin a direct setup link without opening a blocking setup dialog', () => {
+  it('SUB-F: even an Admin sees no setup prompt on the Tasks tab (setup lives in Administration)', () => {
     renderTab('Admin');
 
-    const setupLink = screen.getByRole('link', { name: /set up ClickUp/i });
-    expect(setupLink).toHaveAttribute('href', '/administration/integrations');
+    expect(screen.queryByRole('link', { name: /set up ClickUp/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByText('Survey the site')).toBeInTheDocument();
   });
@@ -187,7 +184,7 @@ describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
     renderTab();
 
     const task = screen.getByText('Survey the site');
-    const linkedList = screen.getByText('Sprint Backlog');
+    const linkedList = screen.getByText(/Linked to ClickUp list Sprint Backlog/);
     expect(task.compareDocumentPosition(linkedList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -268,12 +265,12 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     expect(listState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-TASK-001: empty state teaches + offers a gated New task action', () => {
+  it('AC-TASK-001 (SUB-E): empty state shows one gated New task action (the header one) and no restating subtitle', () => {
     listState.data = [];
     renderTab('Project Manager');
     expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
-    // PM can create → the empty-state action is present
-    expect(screen.getAllByRole('button', { name: /new task/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /new task/i })).toHaveLength(1);
+    expect(screen.queryByText('Plan, assign, and track the work for this project.')).toBeNull();
   });
 
   it('AC-TASK-001: empty state for a read-only role shows no create action', () => {

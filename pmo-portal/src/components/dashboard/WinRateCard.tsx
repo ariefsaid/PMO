@@ -79,13 +79,19 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     </p>
   );
 
-  const wins = wr ? (mode === 'count' ? wr.wins_count : wr.wins_value) : 0;
-  const losses = wr ? (mode === 'count' ? wr.losses_count : wr.losses_value) : 0;
+  const valueRows = mode === 'value' ? wr?.value_by_currency : undefined;
+  const wins = wr ? (mode === 'count' ? wr.wins_count : wr.wins_value ?? 0) : 0;
+  const losses = wr ? (mode === 'count' ? wr.losses_count : wr.losses_value ?? 0) : 0;
   const total = wins + losses;
   const rate = wr ? (mode === 'count' ? wr.win_rate_count : wr.win_rate_value) : null;
+  const hasValueOutcomes = valueRows
+    ? valueRows.some((row) => row.wins_value + row.losses_value > 0)
+    : total > 0;
+  const hasOutcomes = mode === 'value' ? hasValueOutcomes : total > 0;
   const wonPct = total > 0 ? Math.round((wins / total) * 100) : 0;
 
-  const fmt = (n: number) => (mode === 'count' ? String(n) : formatCurrency(n, currency));
+  const fmt = (n: number, valueCurrency = currency) =>
+    mode === 'count' ? String(n) : formatCurrency(n, valueCurrency);
 
   return (
     <section aria-label={t('dashboard.winRate.title', 'Win rate')} className="rounded-lg border border-border bg-card p-4">
@@ -111,7 +117,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           sub={t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}
           onRetry={() => refetch()}
         />
-      ) : total === 0 ? (
+      ) : !hasOutcomes ? (
         <>
           <ListState
             variant="empty"
@@ -123,6 +129,23 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
         </>
       ) : (
         <>
+          {valueRows ? (
+            <div aria-live="polite" className="space-y-2" data-testid="win-rate-value-breakdown">
+              {valueRows.filter((row) => row.wins_value + row.losses_value > 0).map((row) => (
+                <p key={row.currency} data-testid={`win-rate-value-${row.currency}`} className="text-sm text-muted-foreground">
+                  {row.win_rate_value === null
+                    ? t('dashboard.winRate.noRecordedLosses', '{{currency}} — no recorded losses; {{wins}} won', { currency: row.currency, wins: fmt(row.wins_value, row.currency) })
+                    : t('dashboard.winRate.currencyResult', '{{currency}} {{percent}}% — {{wins}} won of {{total}} closed', {
+                      currency: row.currency,
+                      percent: (row.win_rate_value * 100).toFixed(1),
+                      wins: fmt(row.wins_value, row.currency),
+                      total: fmt(row.wins_value + row.losses_value, row.currency),
+                    })}
+                </p>
+              ))}
+            </div>
+          ) : (
+          <>
           <div className="mb-3 flex items-baseline gap-2.5">
             <span
               data-testid="kpi-win-rate"
@@ -146,6 +169,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           >
             <span className="block h-full rounded-full bg-success" style={{ width: `${wonPct}%` }} />
           </span>
+          </>
+          )}
 
           <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
