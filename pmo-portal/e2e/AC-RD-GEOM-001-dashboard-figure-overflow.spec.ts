@@ -82,7 +82,9 @@ async function figureViolations(page: Page): Promise<Violation[]> {
       return false;
     };
     for (const el of Array.from(document.querySelectorAll<HTMLElement>('.tabular'))) {
-      if (el.closest('table, [role="table"], [role="grid"]')) continue;
+      // Tables (incl. DataTable's phone card branch) show FULL amounts by ruling (OD-MONEY-FMT) and
+      // are gated by the table geometry lane, not this KPI-figure gate.
+      if (el.closest('table, [role="table"], [role="grid"], [data-testid="dt-card-branch"]')) continue;
       const box = el.getBoundingClientRect();
       if (box.width === 0 || box.height === 0) continue; // hidden / inline-with-no-box
       const text = (el.textContent ?? '').trim().slice(0, 40);

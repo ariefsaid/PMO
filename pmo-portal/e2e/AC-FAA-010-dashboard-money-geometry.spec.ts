@@ -15,7 +15,8 @@ async function pinBahasaLocale(page: import('@playwright/test').Page) {
 
 async function expectMoneyFits(locator: Locator, value: string) {
   await expect(locator).toContainText(value);
-  await expect(locator, 'the exact amount is the figure title').toHaveAttribute('title', value);
+  // A7 (RD-S1): the title rides on the aria-hidden short span inside the figure, so AT reads the amount once.
+  await expect(locator.locator('[title]').first(), 'the exact amount is the figure title').toHaveAttribute('title', value);
   const metrics = await locator.evaluate((element) => {
     const box = element.getBoundingClientRect();
     const container = element.closest('[data-testid="kpi-total-spend"]') ?? element.closest('a');
