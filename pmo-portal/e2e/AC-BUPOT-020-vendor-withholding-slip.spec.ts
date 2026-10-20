@@ -3,7 +3,10 @@
  * AC-BUPOT-020 — Finance records one issued slip across two cases, corrects it, then voids it.
  * Goal oracle: both source bills show the same persisted coverage, then both return to uncovered;
  * the issued facts and released link evidence remain, while bill money/status and outbox are unchanged.
+ * AC-EH-006: journey and cleanup failures are reported together.
  */
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../src/lib/supabase/database.types';
@@ -22,6 +25,8 @@ const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 const viA = `BUPOT-A-${suffix}`;
 const viB = `BUPOT-B-${suffix}`;
 const slipNumber = `BUPOT-${suffix}`;
+const lockScript = fileURLToPath(new URL('../../scripts/with-db-lock.sh', import.meta.url));
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function seed(admin: ReturnType<typeof createClient<Database>>) {
   const { error: vendorError } = await admin.from('companies').insert({ id: ids.vendor, org_id: ORG_ID, name: `BUPOT vendor ${suffix}`, type: 'Vendor' });
@@ -40,6 +45,69 @@ async function seed(admin: ReturnType<typeof createClient<Database>>) {
   if (billError) throw new Error(`bill fixtures failed: ${billError.message}`);
 }
 
+function cleanupFixture(): void {
+  const invoiceIds = [ids.billA, ids.billB];
+  const ownedIds = [ORG_ID, ids.vendor, ids.caseA, ids.caseB, ...invoiceIds];
+  if (ownedIds.some((id) => !UUID_PATTERN.test(id))) {
+    throw new Error('BUPOT cleanup refused a non-UUID fixture parameter');
+  }
+
+  const dockerArgs = [
+    'exec', '-i', 'supabase_db_pmo-portal', 'psql', '-U', 'postgres', '-d', 'postgres',
+    '-X', '-v', 'ON_ERROR_STOP=1',
+    '-v', `org_id=${ORG_ID}`,
+    '-v', `vendor_id=${ids.vendor}`,
+    '-v', `case_ids={${ids.caseA},${ids.caseB}}`,
+    '-v', `invoice_ids={${invoiceIds.join(',')}}`,
+    '-A', '-t', '-q', '-F', '|',
+  ];
+  const sql = `
+BEGIN;
+CREATE TEMP TABLE owned_bupot_slips AS
+ SELECT id FROM public.vendor_withholding_slips
+  WHERE org_id = :'org_id'::uuid AND vendor_id = :'vendor_id'::uuid;
+DELETE FROM public.vendor_withholding_slip_bills
+ WHERE org_id = :'org_id'::uuid
+   AND (
+     invoice_id = ANY(:'invoice_ids'::uuid[])
+     OR slip_id IN (
+       SELECT id FROM owned_bupot_slips
+     )
+   );
+DELETE FROM public.vendor_withholding_slips
+ WHERE org_id = :'org_id'::uuid AND vendor_id = :'vendor_id'::uuid;
+DELETE FROM public.procurement_invoices
+ WHERE org_id = :'org_id'::uuid AND id = ANY(:'invoice_ids'::uuid[]);
+DELETE FROM public.procurements
+ WHERE org_id = :'org_id'::uuid AND id = ANY(:'case_ids'::uuid[]);
+DELETE FROM public.companies
+ WHERE org_id = :'org_id'::uuid AND id = :'vendor_id'::uuid AND type = 'Vendor';
+COMMIT;
+SELECT
+  (SELECT count(*)::text FROM public.vendor_withholding_slip_bills
+    WHERE org_id = :'org_id'::uuid
+      AND (invoice_id = ANY(:'invoice_ids'::uuid[]) OR slip_id IN (
+        SELECT id FROM owned_bupot_slips
+      )))
+  || '|' || (SELECT count(*)::text FROM public.vendor_withholding_slips
+    WHERE org_id = :'org_id'::uuid AND vendor_id = :'vendor_id'::uuid)
+  || '|' || (SELECT count(*)::text FROM public.procurement_invoices
+    WHERE org_id = :'org_id'::uuid AND id = ANY(:'invoice_ids'::uuid[]))
+  || '|' || (SELECT count(*)::text FROM public.procurements
+    WHERE org_id = :'org_id'::uuid AND id = ANY(:'case_ids'::uuid[]))
+  || '|' || (SELECT count(*)::text FROM public.companies
+    WHERE org_id = :'org_id'::uuid AND id = :'vendor_id'::uuid AND type = 'Vendor');
+`;
+  const held = process.env.PMO_DB_LOCK_HELD === '1';
+  const output = execFileSync(
+    held ? 'docker' : lockScript,
+    held ? dockerArgs : ['docker', ...dockerArgs],
+    { input: sql, encoding: 'utf8' },
+  ).trim();
+  if (output !== '0|0|0|0|0') throw new Error(`BUPOT cleanup did not prove zero owned rows: ${output}`);
+  console.info('BUPOT atomic cleanup verified: links=0, slips=0, invoices=0, cases=0, vendors=0');
+}
+
 async function openDocuments(page: import('@playwright/test').Page, caseId: string) {
   await page.goto(`/procurement/${caseId}/documents`);
   await expect(page.getByTestId('procurement-loading')).toBeHidden({ timeout: 20_000 });
@@ -48,6 +116,10 @@ async function openDocuments(page: import('@playwright/test').Page, caseId: stri
 
 test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked bill in its destination case (record/correct/void journey)', async ({ page }) => {
   const admin = createClient<Database>(SUPABASE_URL, serviceKey!);
+  let journeyError: unknown;
+  let journeyFailed = false;
+  let cleanupError: unknown;
+  let cleanupFailed = false;
   const { count: outboxBefore, error: outboxBeforeError } = await admin.from('external_command_outbox').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID);
   if (outboxBeforeError) throw new Error(`outbox baseline read failed: ${outboxBeforeError.message}`);
   try {
@@ -140,13 +212,21 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     const destinationRow = page.locator(`#invoice-${ids.billB}`);
     await expect(destinationRow).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => destinationRow.evaluate((row) => row === document.activeElement), { timeout: 10_000 }).toBe(true);
-  } finally {
-    const { data: slipRows } = await admin.from('vendor_withholding_slips').select('id').eq('slip_number', slipNumber);
-    const slipIds = (slipRows ?? []).map((row) => row.id as string);
-    if (slipIds.length) await admin.from('vendor_withholding_slip_bills').delete().in('slip_id', slipIds);
-    if (slipIds.length) await admin.from('vendor_withholding_slips').delete().in('id', slipIds);
-    await admin.from('procurement_invoices').delete().in('id', [ids.billA, ids.billB]);
-    await admin.from('procurements').delete().in('id', [ids.caseA, ids.caseB]);
-    await admin.from('companies').delete().eq('id', ids.vendor);
+  } catch (error) {
+    journeyError = error;
+    journeyFailed = true;
   }
+
+  try {
+    cleanupFixture();
+  } catch (error) {
+    cleanupError = error;
+    cleanupFailed = true;
+  }
+
+  if (journeyFailed && cleanupFailed) {
+    throw new AggregateError([journeyError, cleanupError], 'BUPOT journey and fixture cleanup both failed');
+  }
+  if (journeyFailed) throw journeyError;
+  if (cleanupFailed) throw cleanupError;
 });
