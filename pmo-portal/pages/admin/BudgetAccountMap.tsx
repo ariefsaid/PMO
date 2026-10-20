@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListState,
+  DataTable,
+  type Column,
   ConfirmDialog,
   EntityFormModal,
   type SubmitError,
@@ -211,6 +213,94 @@ const BudgetAccountMap: React.FC = () => {
     );
   }
 
+  type CategoryRow = (typeof BUDGET_CATEGORIES)[number];
+  const columns: Column<CategoryRow>[] = [
+    {
+      key: 'category',
+      header: t('admin.budgetMap.columns.category', 'Category'),
+      kind: 'text',
+      size: 180,
+      cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
+    },
+    {
+      key: 'erpAccount',
+      header: t('admin.budgetMap.columns.erpAccount', 'ERP account'),
+      kind: 'text',
+      size: 360,
+      cell: (category) => {
+        const accounts = accountsByCategory.get(category) ?? [];
+        const hasPush = accounts.some((a) => a.isPushTarget);
+        if (accounts.length === 0) {
+          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>;
+        }
+        return (
+          <div className="space-y-2">
+            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
+            {accounts.filter((account) => account.isPushTarget).map((account) => (
+              <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="break-words">{account.erpAccount}</span>
+                <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
+              </div>
+            ))}
+            {accounts.some((account) => !account.isPushTarget) && (
+              <details className="text-[13px]">
+                <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+                  {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
+                </summary>
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {accounts.filter((account) => !account.isPushTarget).map((account) => <li key={account.id} className="break-words">{account.erpAccount}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      },
+    },
+    ...(canManage ? [{
+      key: 'actions',
+      header: t('admin.budgetMap.columns.actions', 'Actions'),
+      kind: 'text' as const,
+      align: 'num' as const,
+      size: 220,
+      cell: (category: CategoryRow) => {
+        const accounts = accountsByCategory.get(category) ?? [];
+        const hasPush = accounts.some((a) => a.isPushTarget);
+        return (
+          <details className="text-left">
+            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-[13px] text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+              {t('uxs10.rowOptions', 'Account options')}
+            </summary>
+            <div className="mt-2 flex flex-wrap justify-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setSaveError(null); setFormTarget({ mode: 'create', category, isPushTarget: !hasPush }); }}
+              >
+                {accounts.length === 0
+                  ? t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })
+                  : t('admin.budgetMap.addAccount', { defaultValue: 'Add account to {{category}}', category: categoryLabel(category) })}
+              </Button>
+              {accounts.map((account) => {
+                const removeBlocked = account.isPushTarget && accounts.length > 1;
+                return <React.Fragment key={account.id}>
+                  <Button variant="ghost" size="sm" onClick={() => { setSaveError(null); setFormTarget({ mode: 'edit', row: account }); }}>
+                    {t('admin.budgetMap.editAccount', { defaultValue: 'Edit {{account}}', account: account.erpAccount })}
+                  </Button>
+                  {!account.isPushTarget && <Button variant="ghost" size="sm" onClick={() => setPushTarget(account)}>
+                    {t('admin.budgetMap.usePush', { defaultValue: 'Use {{account}} for budget push', account: account.erpAccount })}
+                  </Button>}
+                  {removeBlocked
+                    ? <span className="self-center text-[12px] text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
+                    : <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(account)}>{t('admin.budgetMap.removeAccount', { defaultValue: 'Remove {{account}}', account: account.erpAccount })}</Button>}
+                </React.Fragment>;
+              })}
+            </div>
+          </details>
+        );
+      },
+    }] : []),
+  ];
+
   return (
     // ⚑ I-8 — the budget projection's banner LINKS here (`/administration/accounting#budget-account-map`).
     <section
@@ -254,97 +344,15 @@ const BudgetAccountMap: React.FC = () => {
         {catalogue && proposals.length === 0 && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
         {proposalError && <p className="mt-2 text-[13px] text-destructive-text" role="alert">{proposalError}</p>}
       </div>}
-      {/* ⚑ AC-MOBILE-OVERFLOW-001 — below `sm` each row is a stacked card; from `sm` up an ordinary table. The
-          account list wraps (`flex-wrap`, `break-words`), so long account names never push past 390px. */}
-      <table className="mt-3.5 w-full border-collapse">
-        <thead className="hidden sm:table-header-group">
-          <tr>
-            <th className="h-[38px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-              {t('admin.budgetMap.columns.category', 'Category')}
-            </th>
-            <th className="h-[38px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-              {t('admin.budgetMap.columns.erpAccount', 'ERP account')}
-            </th>
-            {canManage && (
-              <th className="h-[38px] border-b border-border bg-card px-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                {t('admin.budgetMap.columns.actions', 'Actions')}
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {BUDGET_CATEGORIES.map((category) => {
-            const accounts = accountsByCategory.get(category) ?? [];
-            const hasPush = accounts.some((a) => a.isPushTarget);
-            return (
-              <tr key={category} className="block border-b border-border py-2 sm:table-row sm:py-0">
-                <td className="block px-3 py-1 text-[13.5px] font-medium sm:table-cell sm:border-b sm:border-border sm:py-2 sm:align-top">
-                  {categoryLabel(category)}
-                </td>
-                <td className="block px-3 py-1 text-[13.5px] sm:table-cell sm:border-b sm:border-border sm:py-2">
-                  {accounts.length === 0 ? (
-                    <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>
-                  ) : (
-                    <div className="space-y-2">
-                      {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
-                      {accounts.filter((account) => account.isPushTarget).map((account) => (
-                        <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="break-words">{account.erpAccount}</span>
-                          <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
-                        </div>
-                      ))}
-                      {accounts.some((account) => !account.isPushTarget) && (
-                        <details className="text-[13px]">
-                          <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
-                            {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
-                          </summary>
-                          <ul className="mt-2 flex flex-col gap-1.5">
-                            {accounts.filter((account) => !account.isPushTarget).map((account) => <li key={account.id} className="break-words">{account.erpAccount}</li>)}
-                          </ul>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </td>
-                {canManage && (
-                  <td className="block px-3 py-1 sm:table-cell sm:border-b sm:border-border sm:py-2 sm:align-top">
-                    <details className="text-left">
-                      <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-[13px] text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
-                        {t('uxs10.rowOptions', 'Account options')}
-                      </summary>
-                      <div className="mt-2 flex flex-wrap justify-end gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setSaveError(null); setFormTarget({ mode: 'create', category, isPushTarget: !hasPush }); }}
-                        >
-                          {accounts.length === 0
-                            ? t('admin.budgetMap.map', { defaultValue: 'Map {{category}}', category: categoryLabel(category) })
-                            : t('admin.budgetMap.addAccount', { defaultValue: 'Add account to {{category}}', category: categoryLabel(category) })}
-                        </Button>
-                        {accounts.map((account) => {
-                          const removeBlocked = account.isPushTarget && accounts.length > 1;
-                          return <React.Fragment key={account.id}>
-                            <Button variant="ghost" size="sm" onClick={() => { setSaveError(null); setFormTarget({ mode: 'edit', row: account }); }}>
-                              {t('admin.budgetMap.editAccount', { defaultValue: 'Edit {{account}}', account: account.erpAccount })}
-                            </Button>
-                            {!account.isPushTarget && <Button variant="ghost" size="sm" onClick={() => setPushTarget(account)}>
-                              {t('admin.budgetMap.usePush', { defaultValue: 'Use {{account}} for budget push', account: account.erpAccount })}
-                            </Button>}
-                            {removeBlocked
-                              ? <span className="self-center text-[12px] text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
-                              : <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(account)}>{t('admin.budgetMap.removeAccount', { defaultValue: 'Remove {{account}}', account: account.erpAccount })}</Button>}
-                          </React.Fragment>;
-                        })}
-                      </div>
-                    </details>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="mt-3.5">
+        <DataTable
+          rows={[...BUDGET_CATEGORIES]}
+          columns={columns}
+          rowKey={(category) => category}
+          tableId="budget-account-map"
+          accessibleName={t('admin.budgetMap.title', 'Budget account map')}
+        />
+      </div>
 
       {formTarget && (
         <MapFormModal

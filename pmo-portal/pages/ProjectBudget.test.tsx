@@ -211,12 +211,12 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(within(header as HTMLElement).getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
   });
 
-  it('keeps the budget line-item scroll region keyboard-accessible', async () => {
+  it('T5: the budget line-item table is named, its column widths are keyboard-resizable, and axe is clean', async () => {
     budgetState.data = draftVersion.total;
     versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
     const { container } = renderPage();
-    const region = screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' });
-    expect(region).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('table', { name: 'Line items' })).toBeInTheDocument();
+    expect(screen.getAllByRole('separator')[0]).toHaveAttribute('tabindex', '0');
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -282,6 +282,57 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
 // ---------------------------------------------------------------------------
 // SUB-D — budget tab subtraction (owner 2026-10-20: simpler, net-negative)
 // ---------------------------------------------------------------------------
+describe('ProjectBudget T5 DataTable adoption', () => {
+  const priced = (amount: number, fiscal_year: string | null = 'FY26') => ({
+    id: 'li-p', budget_version_id: 'v-active', category: 'Labor', description: 'Priced', budgeted_amount: amount,
+    actual_amount: 0, org_id: 'org-1', fiscal_year,
+  });
+
+  it('read-only line items are a DataTable with the FULL amount (OD-MONEY-FMT), no phone-clipped table', () => {
+    budgetState.data = 1234.5;
+    versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
+    renderPage();
+    const table = within(screen.getByTestId('version-card')).getByRole('table');
+    expect(within(table).getByRole('cell', { name: '$1,234.5' })).toBeInTheDocument();
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+  });
+
+  it('the Draft editor total is a <tfoot> row inside the table, with the full amount', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, total: 200000.25, line_items: [{ ...draftVersion.line_items[0], budgeted_amount: 200000.25 }] }];
+    renderPage();
+    const total = screen.getByTestId('budget-edit-total');
+    expect(total).toHaveTextContent('$200,000.25');
+    expect(total.closest('tfoot')).not.toBeNull();
+  });
+
+  it('the Draft editor still edits a row inline and saves through the same write path', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    const amount = screen.getByLabelText('Amount');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '250000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockUpdateLineItem).toHaveBeenCalledWith({ id: 'li-1', patch: expect.objectContaining({ budgeted_amount: 250000 }) }));
+  });
+
+  it('on a phone the line items render as stacked cards, each still reachable', () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as typeof window.matchMedia;
+    try {
+      budgetState.data = 0;
+      versionsState.data = [draftVersion];
+      renderPage();
+      expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit line item Labor' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
+
 describe('ProjectBudget SUB-D subtraction', () => {
   const lines = (fiscalYears: Array<string | null>) =>
     fiscalYears.map((fiscal_year, i) => ({
@@ -313,7 +364,7 @@ describe('ProjectBudget SUB-D subtraction', () => {
     budgetState.data = 3000;
     versionsState.data = [{ ...activeVersion, total: 3000, line_items: lines(['FY26', 'FY26', null]) }];
     renderPage();
-    expect(screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Line items' })).toBeInTheDocument();
     expect(screen.getAllByText('$3,000')).toHaveLength(1);
   });
 

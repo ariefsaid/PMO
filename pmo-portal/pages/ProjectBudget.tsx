@@ -7,6 +7,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   formatCurrency,
+  formatCurrencyAuto,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -17,7 +18,8 @@ import {
   StatusPill,
   ListState,
   Toolbar,
-  TableFoot,
+  DataTable,
+  type Column,
   ConfirmDialog,
   useToast,
   NumberField,
@@ -53,16 +55,6 @@ const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) =
   );
 };
 
-const TH: React.FC<{ children: React.ReactNode; align?: 'right' }> = ({ children, align }) => (
-  <th
-    className={`h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground ${
-      align === 'right' ? 'text-right' : 'text-left'
-    }`}
-  >
-    {children}
-  </th>
-);
-
 // ---------------------------------------------------------------------------
 // Line-item editor (for Draft versions)
 // ---------------------------------------------------------------------------
@@ -83,6 +75,9 @@ interface LineItemEditorProps {
   /** B-0.6: called when a line-item write fails so the page-level toast fires. */
   onSaveError?: (err: unknown) => void;
 }
+
+/** One DataTable row of the editor: an existing line, or the single in-progress new line. */
+type EditorRow = { kind: 'item'; li: BudgetLineItemRow } | { kind: 'new' };
 
 /** Per-row inline edit state: `null` = reading, `string` = that row's id is open. */
 type EditingId = string | null;
@@ -198,263 +193,298 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   const fieldCls =
     'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
-  return (
-    <div
-      role="region"
-      aria-label={t('financeCopy.budgetLineItemsScrollable', 'Budget line items, scrollable horizontally')}
-      tabIndex={0}
-      className="relative mt-4 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+  const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
+  const rows: EditorRow[] = [
+    ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
+    ...(adding ? [{ kind: 'new' } as EditorRow] : []),
+  ];
+
+  const fiscalYearDatalist = (
+    // ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
+    // Year names, which this write path cannot read (FR-BFY-022). The years the project
+    // already uses are offered; a year it is only now moving into stays typeable.
+    <datalist id="budget-fiscal-year-options">
+      {knownFiscalYears.map((y) => (
+        <option key={y} value={y} />
+      ))}
+    </datalist>
+  );
+
+  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean }) => (
+    <select
+      id={props.id}
+      aria-label={props.label}
+      value={props.value}
+      onChange={(e) => props.onChange(e.target.value as Enums<'budget_category'>)}
+      className={fieldCls}
+      autoFocus={props.autoFocus}
     >
-      <table className="w-full border-collapse text-[13px]">
-        <thead>
-          <tr>
-            <TH>{t('financeCopy.category', "Category")}</TH>
-            <TH>{t('financeCopy.description', "Description")}</TH>
-            {/* ⚑ FR-BFY-060: which fiscal year this line belongs to. A multi-fiscal-year project cannot
-                reach ERPNext at all until every line names one (the gate refuses an un-phased line
-                rather than inventing a split), so the column is not an advanced option — it is the
-                control that makes the capability reachable. */}
-            <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
-            <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-            <th className="border-b border-border bg-card" />
-          </tr>
-        </thead>
-        <tbody>
-          {lineItems.map((li) =>
-            editingId === li.id ? (
-              // --- Inline edit row ---
-              <tr key={li.id} className="border-b border-border/70 bg-accent/30 last:border-b-0">
-                <td className="px-3 py-2">
-                  {/* Label is visually hidden but wired for a11y */}
-                  <label htmlFor={`edit-category-${li.id}`} className="sr-only">
-                    {t('financeCopy.category', "Category")}</label>
-                  <select
-                    id={`edit-category-${li.id}`}
-                    aria-label={t('financeCopy.category', "Category")}
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value as Enums<'budget_category'>)}
-                    className={fieldCls}
-                      autoFocus
-                  >
-                    {BUDGET_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {budgetCategoryLabel(c, t)}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    aria-label={t('financeCopy.description', "Description")}
-                    placeholder={t('financeCopy.description', "Description")}
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    className={`${fieldCls} w-full`}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
-                    {t('financeCopy.fiscalYear', "Fiscal year")}</label>
-                  <input
-                    id={`edit-fy-${li.id}`}
-                    type="text"
-                    aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
-                    placeholder={t('financeCopy.unPhased', "Un-phased")}
-                    list="budget-fiscal-year-options"
-                    value={editFiscalYear}
-                    onChange={(e) => setEditFiscalYear(e.target.value)}
-                    className={`${fieldCls} w-32`}
-                  />
-                {/* ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
-                    Year names, which this write path cannot read (FR-BFY-022). The years the project
-                    already uses are offered; a year it is only now moving into stays typeable. */}
-                <datalist id="budget-fiscal-year-options">
-                  {knownFiscalYears.map((y) => (
-                    <option key={y} value={y} />
-                  ))}
-                </datalist>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex flex-col items-end gap-0.5">
-                    {/* NumberField owns the (visually hidden) label — a second <label> here doubled
-                        the accessible name to "Amount Amount". */}
-                    <NumberField
-                      id={`edit-amount-${li.id}`}
-                      label={t('financeCopy.amount', "Amount")}
-                      hideLabel
-                      value={editAmount}
-                      onChange={(value) => {
-                        setEditAmount(value);
-                        setEditAmountError(null);
-                      }}
-                      error={editAmountError ?? undefined}
-                      localeAware
-                      className="w-28"
-                    />
-                  </div>
-                </td>
-                <td className="space-x-1 px-3 py-2 text-right">
-                  {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void handleSaveEdit(li)}
-                    className="text-primary-text"
-                    aria-label={t('financeCopy.save', "Save")}
-                    loading={updateIsPending}
-                    disabled={updateIsPending}
-                  >
-                    {t('financeCopy.save', "Save")}</Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={closeEdit}
-                    aria-label={t('financeCopy.cancel', "Cancel")}
-                    disabled={updateIsPending}
-                  >
-                    {t('financeCopy.cancel', "Cancel")}</Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDeleteLineItem(li.id)}
-                    className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
-                    disabled={updateIsPending}
-                  >
-                    {t('financeCopy.delete', "Delete")}</Button>
-                </td>
-              </tr>
-            ) : (
-              // --- Read row with Edit affordance ---
-              <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                <td className="px-3 py-2">{budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}</td>
-                <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
-                {/* ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
-                    real, deliberate state with a consequence (a multi-fiscal-year project cannot push
-                    until it is resolved), so it is stated rather than left empty. */}
-                <td className="px-3 py-2 text-muted-foreground">
-                  {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-                </td>
-                <td className="px-3 py-2 text-right font-medium tabular">
-                  {formatCurrency(Number(li.budgeted_amount), currency)}
-                </td>
-                <td className="space-x-1 px-3 py-2 text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEdit(li)}
-                    className="text-primary-text hover:bg-primary/10"
-                    aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
-                  >
-                    {t('financeCopy.edit', "Edit")}</Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDeleteLineItem(li.id)}
-                    className="text-destructive-text hover:bg-destructive/10"
-                    aria-label={t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
-                  >
-                    {t('financeCopy.delete', "Delete")}</Button>
-                </td>
-              </tr>
-            )
-          )}
-          {adding && (
-            <tr className="border-b border-border/70">
-              <td className="px-3 py-2">
-                <select
-                  aria-label={t('financeCopy.lineItemCategory', "Line item category")}
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value as Enums<'budget_category'>)}
-                  className={fieldCls}
-                >
-                  {BUDGET_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {budgetCategoryLabel(c, t)}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-3 py-2">
-                <input
-                  type="text"
-                  aria-label={t('financeCopy.lineItemDescription', "Line item description")}
-                  placeholder={t('financeCopy.description', "Description")}
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className={`${fieldCls} w-full`}
-                />
-              </td>
-              <td className="px-3 py-2">
-                <input
-                  type="text"
-                  aria-label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
-                  placeholder={t('financeCopy.unPhased', "Un-phased")}
-                  list="budget-fiscal-year-options"
-                  value={newFiscalYear}
-                  onChange={(e) => setNewFiscalYear(e.target.value)}
-                  className={`${fieldCls} w-32`}
-                />
-                {/* ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
-                    Year names, which this write path cannot read (FR-BFY-022). The years the project
-                    already uses are offered; a year it is only now moving into stays typeable. */}
-                <datalist id="budget-fiscal-year-options">
-                  {knownFiscalYears.map((y) => (
-                    <option key={y} value={y} />
-                  ))}
-                </datalist>
-              </td>
-              <td className="px-3 py-2 text-right">
-                <NumberField
-                  label={t('financeCopy.lineItemAmount', "Line item amount")}
-                  hideLabel
-                  placeholder={t('financeCopy.amount', "Amount")}
-                  value={newAmount}
-                  onChange={(value) => {
-                    setNewAmount(value);
-                    setNewAmountError(null);
-                  }}
-                  error={newAmountError ?? undefined}
-                  localeAware
-                  className="w-28"
-                />
-              </td>
-              <td className="space-x-1 px-3 py-2 text-right">
-                {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void handleAdd()}
-                  className="text-primary-text"
-                  loading={createIsPending}
-                  disabled={createIsPending}
-                >
-                  {t('financeCopy.save', "Save")}</Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setAdding(false);
-                    setNewAmountError(null);
-                  }}
-                  disabled={createIsPending}
-                >
-                  {t('financeCopy.cancel', "Cancel")}</Button>
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      <TableFoot className="mt-0 rounded-b-lg">
-        <span className="text-muted-foreground">{t('financeCopy.total', "Total")}</span>
-        <span data-testid="budget-edit-total" className="ml-auto font-bold tabular">
-          {formatCurrency(
-            lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
-            currency,
-          )}
-        </span>
-      </TableFoot>
+      {BUDGET_CATEGORIES.map((c) => (
+        <option key={c} value={c}>
+          {budgetCategoryLabel(c, t)}
+        </option>
+      ))}
+    </select>
+  );
+
+  const columns: Column<EditorRow>[] = [
+    {
+      key: 'category',
+      header: t('financeCopy.category', "Category"),
+      kind: 'text',
+      size: 170,
+      cell: (row) => {
+        if (row.kind === 'new') {
+          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory });
+        }
+        const li = row.li;
+        return editingId === li.id
+          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true })
+          : budgetCategoryLabel(li.category as Enums<'budget_category'>, t);
+      },
+    },
+    {
+      key: 'description',
+      header: t('financeCopy.description', "Description"),
+      kind: 'meta',
+      size: 260,
+      cell: (row) => {
+        if (row.kind === 'new') {
+          return (
+            <input
+              type="text"
+              aria-label={t('financeCopy.lineItemDescription', "Line item description")}
+              placeholder={t('financeCopy.description', "Description")}
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              className={`${fieldCls} w-full`}
+            />
+          );
+        }
+        const li = row.li;
+        return editingId === li.id ? (
+          <input
+            type="text"
+            aria-label={t('financeCopy.description', "Description")}
+            placeholder={t('financeCopy.description', "Description")}
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+            className={`${fieldCls} w-full`}
+          />
+        ) : (
+          <span className="text-muted-foreground">{li.description ?? '—'}</span>
+        );
+      },
+    },
+    // ⚑ FR-BFY-060: which fiscal year this line belongs to. A multi-fiscal-year project cannot
+    // reach ERPNext at all until every line names one (the gate refuses an un-phased line
+    // rather than inventing a split), so the column is not an advanced option — it is the
+    // control that makes the capability reachable.
+    {
+      key: 'fiscal_year',
+      header: t('financeCopy.fiscalYear', "Fiscal year"),
+      kind: 'text',
+      size: 150,
+      cell: (row) => {
+        if (row.kind === 'new') {
+          return (
+            <>
+              <input
+                type="text"
+                aria-label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
+                placeholder={t('financeCopy.unPhased', "Un-phased")}
+                list="budget-fiscal-year-options"
+                value={newFiscalYear}
+                onChange={(e) => setNewFiscalYear(e.target.value)}
+                className={`${fieldCls} w-32`}
+              />
+              {fiscalYearDatalist}
+            </>
+          );
+        }
+        const li = row.li;
+        // ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
+        // real, deliberate state with a consequence (a multi-fiscal-year project cannot push
+        // until it is resolved), so it is stated rather than left empty.
+        return editingId === li.id ? (
+          <>
+            <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
+              {t('financeCopy.fiscalYear', "Fiscal year")}</label>
+            <input
+              id={`edit-fy-${li.id}`}
+              type="text"
+              aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
+              placeholder={t('financeCopy.unPhased', "Un-phased")}
+              list="budget-fiscal-year-options"
+              value={editFiscalYear}
+              onChange={(e) => setEditFiscalYear(e.target.value)}
+              className={`${fieldCls} w-32`}
+            />
+            {fiscalYearDatalist}
+          </>
+        ) : (
+          <span className="text-muted-foreground">
+            {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'amount',
+      header: t('financeCopy.budgeted', "Budgeted"),
+      kind: 'money',
+      align: 'num',
+      size: 184,
+      cell: (row) => {
+        if (row.kind === 'new') {
+          return (
+            <NumberField
+              label={t('financeCopy.lineItemAmount', "Line item amount")}
+              hideLabel
+              placeholder={t('financeCopy.amount', "Amount")}
+              value={newAmount}
+              onChange={(value) => {
+                setNewAmount(value);
+                setNewAmountError(null);
+              }}
+              error={newAmountError ?? undefined}
+              localeAware
+              className="w-28"
+            />
+          );
+        }
+        const li = row.li;
+        return editingId === li.id ? (
+          <div className="flex flex-col items-end gap-0.5">
+            {/* NumberField owns the (visually hidden) label — a second <label> here doubled
+                the accessible name to "Amount Amount". */}
+            <NumberField
+              id={`edit-amount-${li.id}`}
+              label={t('financeCopy.amount', "Amount")}
+              hideLabel
+              value={editAmount}
+              onChange={(value) => {
+                setEditAmount(value);
+                setEditAmountError(null);
+              }}
+              error={editAmountError ?? undefined}
+              localeAware
+              className="w-28"
+            />
+          </div>
+        ) : (
+          <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), currency)}</span>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: <span className="sr-only">{t('table.actions', 'Actions')}</span>,
+      kind: 'actions',
+      align: 'num',
+      size: 230,
+      minSize: 230,
+      maxSize: 230,
+      cell: (row) => {
+        if (row.kind === 'new') {
+          return (
+            <div className="space-x-1">
+              {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleAdd()}
+                className="text-primary-text"
+                loading={createIsPending}
+                disabled={createIsPending}
+              >
+                {t('financeCopy.save', "Save")}</Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAdding(false);
+                  setNewAmountError(null);
+                }}
+                disabled={createIsPending}
+              >
+                {t('financeCopy.cancel', "Cancel")}</Button>
+            </div>
+          );
+        }
+        const li = row.li;
+        const deleteLabel = t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) });
+        return editingId === li.id ? (
+          <div className="space-x-1">
+            {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleSaveEdit(li)}
+              className="text-primary-text"
+              aria-label={t('financeCopy.save', "Save")}
+              loading={updateIsPending}
+              disabled={updateIsPending}
+            >
+              {t('financeCopy.save', "Save")}</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={closeEdit}
+              aria-label={t('financeCopy.cancel', "Cancel")}
+              disabled={updateIsPending}
+            >
+              {t('financeCopy.cancel', "Cancel")}</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeleteLineItem(li.id)}
+              className="text-destructive-text hover:bg-destructive/10"
+              aria-label={deleteLabel}
+              disabled={updateIsPending}
+            >
+              {t('financeCopy.delete', "Delete")}</Button>
+          </div>
+        ) : (
+          <div className="space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEdit(li)}
+              className="text-primary-text hover:bg-primary/10"
+              aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
+            >
+              {t('financeCopy.edit', "Edit")}</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeleteLineItem(li.id)}
+              className="text-destructive-text hover:bg-destructive/10"
+              aria-label={deleteLabel}
+            >
+              {t('financeCopy.delete', "Delete")}</Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="relative mt-4">
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
+        tableId="budget-line-items-editor"
+        accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
+        totals={[{
+          key: 'total',
+          label: t('financeCopy.total', "Total"),
+          values: {
+            amount: <span data-testid="budget-edit-total" className="font-bold">{formatCurrencyAuto(total, currency)}</span>,
+          },
+        }]}
+      />
       {!adding && (
         <Button
           variant="ghost"
@@ -517,6 +547,31 @@ const VersionCard: React.FC<VersionCardProps> = ({
   const { t } = useTranslation();
   // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
   const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
+  const readOnlyColumns: Column<BudgetLineItemRow>[] = [
+    {
+      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
+      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
+    },
+    {
+      key: 'description', header: t('financeCopy.description', "Description"), kind: 'meta', size: 260,
+      cell: (li) => <span className="text-muted-foreground">{li.description ?? '—'}</span>,
+    },
+    // FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
+    // `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
+    // clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse than none.
+    ...(showFiscalYear ? [{
+      key: 'fiscal_year', header: t('financeCopy.fiscalYear', "Fiscal year"), kind: 'text' as const, size: 150,
+      cell: (li: BudgetLineItemRow) => (
+        <span className="text-muted-foreground">
+          {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
+        </span>
+      ),
+    }] : []),
+    {
+      key: 'amount', header: t('financeCopy.budgeted', "Budgeted"), kind: 'money', align: 'num', size: 184,
+      cell: (li) => <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), version.currency)}</span>,
+    },
+  ];
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -606,42 +661,14 @@ const VersionCard: React.FC<VersionCardProps> = ({
         />
       ) : (
         version.line_items.length > 0 && (
-          <div
-            role="region"
-            aria-label={t('financeCopy.budgetVersionLineItemsScrollable', 'Budget version line items, scrollable horizontally')}
-            tabIndex={0}
-            className="relative mt-4 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <TH>{t('financeCopy.category', "Category")}</TH>
-                  <TH>{t('financeCopy.description', "Description")}</TH>
-                  {/* FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
-                      `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
-                      clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse
-                      than none. */}
-                  {showFiscalYear && <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>}
-                  <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {version.line_items.map((li) => (
-                  <tr key={li.id} className="border-b border-border/70 last:border-b-0">
-                    <td className="px-3 py-2">{budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
-                    {showFiscalYear && (
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-                      </td>
-                    )}
-                    <td className="px-3 py-2 text-right font-medium tabular">
-                      {formatCurrency(Number(li.budgeted_amount), version.currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="relative mt-4">
+            <DataTable
+              rows={version.line_items}
+              columns={readOnlyColumns}
+              rowKey={(li) => li.id}
+              tableId="budget-version-line-items"
+              accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
+            />
           </div>
         )
       )}

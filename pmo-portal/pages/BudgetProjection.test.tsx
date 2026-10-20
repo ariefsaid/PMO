@@ -1219,6 +1219,16 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     expect(summary.getByText('Forecast remaining').nextElementSibling).toHaveTextContent('$20,000');
   });
 
+  it('T5 the grid is a DataTable showing FULL amounts (zero fraction suppressed, non-zero kept)', async () => {
+    fetchMock.mockResolvedValue([{ ...LABOR, pmoBudgetAmount: 400000.5, actualsToDate: 180000 }]);
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+    const row = screen.getByText('Labor').closest('tr')!;
+    expect(within(row).getByText('$400,000.5')).toBeInTheDocument();
+    expect(within(row).getByText('$180,000')).toBeInTheDocument();
+  });
+
   it('UX-035 an overrun is named an overrun', async () => {
     fetchMock.mockResolvedValue([LABOR]);
     renderPage();

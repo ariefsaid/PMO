@@ -458,3 +458,32 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('m-all'));
   });
 });
+
+describe('BudgetAccountMap T5 DataTable adoption', () => {
+  it('lists every category in the shared DataTable with Category / ERP account / Actions headers for an Admin', async () => {
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account', 'Actions']);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('a non-Admin sees no Actions column', async () => {
+    renderPage('Finance');
+    await screen.findByText('Labor');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account']);
+  });
+
+  it('on a phone each category is a stacked card with its account still visible', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as typeof window.matchMedia;
+    try {
+      renderPage('Admin');
+      await screen.findByText('Labor');
+      expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+      expect(screen.getByText('5100 - Direct Costs')).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
