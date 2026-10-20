@@ -4882,7 +4882,7 @@
     "receivedByClient": "Received by client",
     "readyToSend": "Ready to send",
     "receivedDateSummary": "Client receipt was recorded for {{date}}.",
-    "manualHandoffHelp": "Download the approved PDF and send it to your client outside PMO. A download does not mean the invoice was sent.",
+    "manualHandoffHelp": "Download the PDF and send it to your client yourself.",
     "preparingPdf": "Preparing PDF…",
     "downloadApprovedPdf": "Download approved PDF",
     "collectionSummary": "Invoice collection details",
@@ -4891,7 +4891,6 @@
     "dateNotRecorded": "Not recorded",
     "dueDateUnavailable": "Due date not available",
     "status": "Status",
-    "collection": "Collection",
     "outstandingUnavailable": "Outstanding amount not available",
     "overdue": "Overdue",
     "daysOverdue": "{{count}} days overdue",
@@ -4901,17 +4900,13 @@
     "evidenceRetry": "Retry invoice evidence",
     "invoiceLines": "Invoice lines",
     "linesUnknown": "Line details are not available.",
-    "noLines": "No line details were returned.",
     "lineDescriptionUnavailable": "Description not available",
     "billingContact": "Billing contact",
-    "noBillingContact": "No billing contact details were returned.",
     "appliedReceipts": "Applied receipts",
-    "receiptsLoading": "Loading receipt allocations…",
     "receiptsUnavailable": "Applied receipt details are unavailable.",
     "receiptReferenceUnavailable": "Receipt reference not recorded",
     "allocationAmountUnavailable": "Applied amount not available",
-    "receiptsCoverageUnknown": "Receipt allocations have not all been reported.",
-    "noAppliedReceipts": "No applied receipts are recorded for this invoice."
+    "receiptsCoverageUnknown": "Receipt allocations have not all been reported."
   },
   "uxCorrectness": {
     "projectNumberPattern": {

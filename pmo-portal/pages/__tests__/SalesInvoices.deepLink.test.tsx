@@ -344,7 +344,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
-    expect(screen.getByText(/Download the approved PDF and send it to your client outside PMO/)).toBeInTheDocument();
+    expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();

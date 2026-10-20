@@ -233,7 +233,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it.each([
     ['en', 'Line items are kept in ERPNext for this invoice.', 'Line items'],
     ['id', 'Rincian item untuk faktur ini disimpan di ERPNext.', 'Item faktur'],
-  ])('AC-991-001 ERP-owned invoice record explains where its line items live (%s)', async (language, note, sectionLabel) => {
+  ])('AC-991-001 FIN-S2 ERP-owned invoice record shows no empty line-items section and no standing note (%s)', async (language, note, sectionLabel) => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({
       id: 'si-erp-record', pmo_native: false, si_number: 'ACC-SINV-11', pmo_number: null, native_lines: null,
@@ -241,7 +241,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage(language);
     try {
       renderPage('/sales-invoices/si-erp-record');
-      expect(screen.getByText(note)).toBeInTheDocument();
+      expect(screen.queryByText(note)).toBeNull();
       expect(screen.queryByRole('heading', { name: sectionLabel })).toBeNull();
       expect(screen.queryByRole('list', { name: sectionLabel })).toBeNull();
     } finally {
