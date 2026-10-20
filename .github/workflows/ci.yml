@@ -71,7 +71,7 @@ defaults:
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
-  # The Vitest suite split across 4 parallel runners (one runner took ~28 min). Each shard writes a
+  # The Vitest suite split across 2 parallel runners (one runner took ~28 min; 4 cost more runner-minutes per push — owner 2026-10-20). Each shard writes a
   # blob report with its coverage; `verify` merges them, so the required `verify` check still owns
   # every unit test and the changed-lines coverage gate.
   unit:
@@ -80,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -89,8 +89,8 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
-      - name: Unit tests (shard ${{ matrix.shard }}/4, + coverage)
-        run: npx vitest run --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob
+      - name: Unit tests (shard ${{ matrix.shard }}/2, + coverage)
+        run: npx vitest run --coverage --shard=${{ matrix.shard }}/2 --reporter=default --reporter=blob
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-blob-${{ matrix.shard }}
@@ -179,7 +179,7 @@ jobs:
           pattern: unit-blob-*
           path: pmo-portal/.vitest-reports/
           merge-multiple: true
-      - name: Unit tests (+ coverage) — merge the 4 shard reports
+      - name: Unit tests (+ coverage) — merge the 2 shard reports
         run: npx vitest run --merge-reports --coverage
       - name: Changed-lines coverage gate (≥80%)
         if: github.event_name == 'pull_request'
