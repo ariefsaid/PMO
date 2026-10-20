@@ -19,8 +19,7 @@ import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
-import ProjectDetailRail, { ProjectClassificationSummary } from './ProjectDetailRail';
-import { ProjectErpLink } from './ProjectErpLink';
+import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
 const OverviewTab = React.lazy(() => import('./tabs/OverviewTab'));
@@ -303,12 +302,10 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} locationState={location.state} />
+            <PipelineLens project={project} />
           </div>
-          <ProjectClassificationSummary project={project} />
-          <div className="mb-8">
-            <ProjectErpLink projectId={project.id} />
-          </div>
+          {/* Classification, codes and the ERP project link live in the one closed details disclosure. */}
+          <ProjectDetailRail project={project} showActionSection={false} />
 
           {/* Phase planning stays available in Overview at every stage. */}
           {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}

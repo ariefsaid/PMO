@@ -222,11 +222,9 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });
 
-  // list-working-set-return (#682, AC-LRC-004): ProjectDetail forwards its OWN router
-  // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
-  // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
-  // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
+  // SUB-I: the lens no longer carries its own "Back to Sales Pipeline" link — return wayfinding (incl. the
+  // captured narrowed-Sales context, AC-LRC-004) is owned by the shell breadcrumb/BackBar via useListReturn.
+  it('SUB-I: a project opened from a narrowed Sales Pipeline shows no second back link beside the lens', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],
@@ -236,7 +234,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
       pathname: '/projects/d1',
       state: { pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted' } },
     });
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales?status=Tender+Submitted');
+    expect(screen.queryByRole('link', { name: /back to sales pipeline/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
   });
 });

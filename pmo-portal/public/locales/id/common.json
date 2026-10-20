@@ -2694,7 +2694,6 @@
     },
     "pipeline": {
       "advanceTo": "Lanjutkan ke",
-      "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
       "bookingOnWin": "Mencatat <1>{{amount}}</1> <3></3> ke nilai kontrak saat menang",
       "cancel": "Batal",
       "confirmWon": "Konfirmasi menang",
@@ -2722,7 +2721,6 @@
       "notSet": "Belum diisi",
       "pending": "Menunggu",
       "readOnlyNotice": "Pipeline dikelola oleh pemilik proyek. Anda dapat meninjau tahap dan perjalanan proyek ini di sini; perubahan siklus dilakukan oleh manajer proyek.",
-      "readyToAdvance": "Siap dilanjutkan.",
       "recordWonHeading": "Catat proyek yang menang",
       "refRequired": "Referensi kontrak klien wajib diisi",
       "stat": {

@@ -193,7 +193,7 @@ describe('AC-PLC-005: the decision date follows the profile timezone', () => {
     expect(screen.getByText('8/31/2026')).toBeInTheDocument();
   });
 
-  it('#732: a lost deal revived to Negotiation shows Pending, not its old loss date', () => {
+  it('#732 / SUB-I: a lost deal revived to Negotiation shows no old loss date (an open deal has no Decision tile)', () => {
     // Loss Tender -> Negotiation keeps the loss's decided_at on the row; the deal is undecided again.
     const revived = {
       ...dealRow,
@@ -203,7 +203,7 @@ describe('AC-PLC-005: the decision date follows the profile timezone', () => {
     } as ProjectWithRefs;
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Etc/GMT+8' });
     renderLens(revived);
-    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.queryByText('Decision')).not.toBeInTheDocument();
     expect(screen.queryByText('8/15/2026')).not.toBeInTheDocument();
   });
 });

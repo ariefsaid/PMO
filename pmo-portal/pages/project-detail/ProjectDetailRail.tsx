@@ -39,22 +39,6 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
   );
 };
 
-/** Pre-win (pipeline/lost) records render no rail, so their classifications get this standalone list. */
-export const ProjectClassificationSummary: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t } = useTranslation();
-  if (!(project.service_line || project.sector || project.location || project.award_type || project.bidding_entity)) return null;
-  return (
-    <section aria-labelledby="project-classification-heading" className="mb-8 max-w-md">
-      <RailSectionLabel>
-        <span id="project-classification-heading">{t('projectClassification.title', 'Classification')}</span>
-      </RailSectionLabel>
-      <dl className="divide-y divide-border/70 border-y border-border/70">
-        <ProjectClassificationRows project={project} />
-      </dl>
-    </section>
-  );
-};
-
 const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
   const { t } = useTranslation();
   const notSet = t('projectDetail.rail.notSet', 'Not set');

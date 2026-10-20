@@ -32,7 +32,6 @@ import {
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
@@ -49,15 +48,6 @@ const NEXT_PIPELINE_LABEL: Record<string, string> = {
 export interface PipelineLensProps {
   /** The canonical project/opportunity row (the active detail record). */
   project: ProjectWithRefs;
-  /**
-   * The owning route's `location.state` (list-working-set-return, #682, FR-LRC-006). Read ONLY
-   * to resolve the quiet Sales Pipeline link's destination via `listReturnNavigation(…, 'sales')`
-   * — a captured Sales context (only a Sales Pipeline open stamps one; see `canCaptureFromList`)
-   * targets that same filtered Sales URL, otherwise the link falls back to bare `/sales`. Passed
-   * down rather than read via `useLocation()` here so this component keeps rendering standalone
-   * outside a Router (several tests mount it without one).
-   */
-  locationState?: unknown;
 }
 
 /**
@@ -70,7 +60,7 @@ export interface PipelineLensProps {
  * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
-const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
+const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -204,34 +194,43 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     });
   };
 
-  const stats: StatTile[] = [
+  const valueTile: StatTile = {
+    label: t('projectDetail.pipeline.stat.value', 'Value'),
+    value: formatCurrency(value, currency),
     // OD-TAX-1 §2: this is the figure that BECOMES the drawdown ceiling on win, so it states its
     // basis like every other money figure. The row carries it — OPPORTUNITY_COLUMNS includes
     // tax_treatment precisely for this (opportunity.ts). The pipeline LIST is a fair omission
     // (its RPC doesn't project the column, #578); this lens is not.
-    {
-      label: t('projectDetail.pipeline.stat.value', 'Value'),
-      value: formatCurrency(value, currency),
-      sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
-    },
-    { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-    { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
-    {
-      label: t('projectDetail.pipeline.stat.owner', 'Owner'),
-      value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
-    },
-    {
-      label: t('projectDetail.pipeline.stat.decision', 'Decision'),
-      // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
-      value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
-        ? formatDecisionDateNumeric(project)
-        : t('projectDetail.pipeline.pending', 'Pending'),
-    },
-  ];
+    sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
+  };
+  const ownerTile: StatTile = {
+    label: t('projectDetail.pipeline.stat.owner', 'Owner'),
+    value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
+  };
+  // SUB-I: an open deal shows what is still in play (probability, weighted value); a decided deal shows
+  // the decision instead — never a 0% win probability or a zero weighted value.
+  const stats: StatTile[] = isTerminal
+    ? [
+        valueTile,
+        ownerTile,
+        {
+          label: t('projectDetail.pipeline.stat.decision', 'Decision'),
+          // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
+          value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
+            ? formatDecisionDateNumeric(project)
+            : t('projectDetail.pipeline.pending', 'Pending'),
+        },
+      ]
+    : [
+        valueTile,
+        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
+        { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
+        ownerTile,
+      ];
 
   return (
     <div>
-      <StatTiles tiles={stats} columns={5} className="mb-4" />
+      <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
 
       {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
           min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
@@ -290,11 +289,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                   )}
                 </GateNotice>
               )
-            ) : (
-              <GateNotice variant="ready">
-                {t('projectDetail.pipeline.readyToAdvance', 'Ready to advance.')}
-              </GateNotice>
-            )}
+            ) : null}
 
             {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
                 / Mark lost are quiet outlines distinguished by a leading status dot
@@ -421,23 +416,6 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
               </>
             )}
 
-            {/* N10 (OD-W5-C3-B): persistent quiet "Back to Sales Pipeline" wayfinding link —
-                always present in the Next-actions card so after any Advance the user has an
-                obvious exit without it competing with the primary Advance CTA. On terminal
-                transitions (Lost) it is the primary remaining affordance. One-Blue-compliant:
-                a text link (not a solid button). Keyboard-reachable via standard focus order.
-                Uses a plain <a> (not react-router Link) so the component mounts outside a
-                Router context without breaking (the Sales route is a top-level navigation).
-                list-working-set-return (#682, FR-LRC-006): the href is the captured Sales list
-                URL when this project was opened FROM a narrowed Sales Pipeline, otherwise the
-                bare index — `listReturnNavigation` is the single validated resolver, same as
-                the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
-            <a
-              href={listReturnNavigation(locationState, 'sales').path}
-              className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-            >
-              {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
-            </a>
           </CardPad>
         </Card>
         </RecordActionZone>

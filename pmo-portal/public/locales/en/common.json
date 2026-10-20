@@ -2694,7 +2694,6 @@
     },
     "pipeline": {
       "advanceTo": "Advance to",
-      "backToSalesPipeline": "← Back to Sales Pipeline",
       "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
       "cancel": "Cancel",
       "confirmWon": "Confirm won",
@@ -2722,7 +2721,6 @@
       "notSet": "Not set",
       "pending": "Pending",
       "readOnlyNotice": "Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.",
-      "readyToAdvance": "Ready to advance.",
       "recordWonHeading": "Record the won project",
       "refRequired": "Customer contract reference is required",
       "stat": {

@@ -186,11 +186,11 @@ const renderHeader = (realRole: Role, project: ProjectWithRefs = onHandRow) =>
     </ImpersonationProvider>,
   );
 
-const renderLens = (project: ProjectWithRefs = pipelineRow, locationState?: unknown) =>
+const renderLens = (project: ProjectWithRefs = pipelineRow) =>
   render(
     <ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
-        <PipelineLens project={project} locationState={locationState} />
+        <PipelineLens project={project} />
       </ToastProvider>
     </ImpersonationProvider>,
   );
@@ -333,39 +333,12 @@ describe('AC-IXD-PROJ-W5-C3 D15: hasFinanceView predicate', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
-  it('AC-IXD-PROJ-W5-C3-13: "Back to Sales Pipeline" link is present in the Next-actions card at rest (before any transition)', () => {
+  it('SUB-I (was AC-IXD-PROJ-W5-C3-13..16,18 / AC-LRC-004,011): the Next-actions card has no "Back to Sales Pipeline" link — the breadcrumb/BackBar owns return wayfinding — at rest or after a transition', async () => {
     renderLens();
-    // A persistent quiet link must always be visible in the Next-actions card
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toBeInTheDocument();
-    // It must point to the Sales Pipeline route
-    expect(link).toHaveAttribute('href', '/sales');
-  });
-
-  it('AC-IXD-PROJ-W5-C3-14: "Back to Sales Pipeline" link is keyboard-reachable (tabIndex not negative)', () => {
-    renderLens();
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    // Should not have tabIndex=-1 (keyboard-reachable)
-    expect(link.getAttribute('tabIndex')).not.toBe('-1');
-  });
-
-  it('AC-IXD-PROJ-W5-C3-15: after Advance transition the "Back to Sales Pipeline" link remains present', async () => {
-    renderLens();
+    expect(screen.queryByRole('link', { name: /back to sales pipeline/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
-    // Wait for transition to settle (the link should still be present)
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: /back to sales pipeline/i })).toBeInTheDocument();
-    });
-  });
-
-  it('AC-IXD-PROJ-W5-C3-16: after Mark-lost transition, the "Back to Sales Pipeline" link is present', async () => {
-    renderLens();
-    await userEvent.click(screen.getByRole('button', { name: /Mark lost/i }));
-    const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Mark lost/i }));
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: /back to sales pipeline/i })).toBeInTheDocument();
-    });
+    await waitFor(() => expect(transitionProject).toHaveBeenCalled());
+    expect(screen.queryByRole('link', { name: /back to sales pipeline/i })).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-17: on a terminal/lost stage, the Next-actions card body has enriched copy naming the next step', () => {
@@ -373,45 +346,6 @@ describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
     renderLens(lostRow);
     // Terminal lost copy — the gate notice names the outcome
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
-  });
-
-  it('AC-IXD-PROJ-W5-C3-18: "Back to Sales Pipeline" link uses text-primary-text + hover:underline (One Blue, no solid fill)', () => {
-    renderLens();
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    // Token-compliant: AA-safe link text token, never a solid primary button.
-    expect(link.className).toMatch(/text-primary-text/);
-    // Must not be a solid primary button
-    expect(link.className).not.toMatch(/bg-primary\b/);
-  });
-
-  // list-working-set-return (#682): FR-LRC-006 — when the project was opened FROM a narrowed
-  // Sales Pipeline (captured in router state), the quiet Sales link targets that SAME filtered
-  // URL, not the bare index. The structural Projects breadcrumb/BackBar never read this context.
-  it('AC-LRC-004: "Back to Sales Pipeline" targets the captured Sales list URL when opened from a narrowed Sales Pipeline', () => {
-    renderLens(pipelineRow, {
-      pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted&view=table' },
-    });
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales?status=Tender+Submitted&view=table');
-  });
-
-  // AC-LRC-011: a direct project link (no captured list context) keeps the bare index — this is
-  // the SAME assertion as AC-IXD-PROJ-W5-C3-13 (renderLens with no locationState), restated here
-  // under its list-return AC id since it is that AC's owning proof of the direct-link fallback.
-  it('AC-LRC-011: a direct project link (no captured context) keeps "Back to Sales Pipeline" at bare /sales', () => {
-    renderLens();
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales');
-  });
-
-  // Capturing FROM a Projects list (not Sales) must never leak into this link — a project opened
-  // from Projects has no Sales context, so the fallback bare index applies exactly as a direct link.
-  it('AC-LRC-011: a Projects-list return context does not leak into the Sales link (bare /sales)', () => {
-    renderLens(pipelineRow, {
-      pmoListReturn: { list: 'projects', path: '/projects?filter=Ongoing' },
-    });
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales');
   });
 });
 
@@ -439,5 +373,27 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
     expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SUB-I — Opportunity lens: only what the deal state needs
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('SUB-I: opportunity lens figures and notices', () => {
+  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+
+  it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
+    renderLens();
+    expect(tileLabels()).toEqual(['Value', 'Win probability', 'Weighted', 'Owner']);
+    expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
+  });
+
+  it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
+    renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
+    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 });
