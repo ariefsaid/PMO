@@ -85,17 +85,15 @@ beforeEach(() => {
 describe('AC-JR-T13: ProcurementTab shows a gated "New request" button', () => {
   it('AC-JR-T13: header "New request" button is visible when user can create procurement', () => {
     renderTab('Project Manager');
-    // With empty data, there are two buttons: header button + emptyAction button
-    const buttons = screen.getAllByRole('button', { name: /new request/i });
-    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
   });
 
-  it('AC-JR-T13: empty state also shows a "New request" action when can create', () => {
+  it('AC-JR-T13 (SUB-E): the empty state does not repeat the header "New request" action', () => {
     procState.data = [];
     renderTab('Project Manager');
-    // Both the header button and/or the empty-state action link
-    const buttons = screen.getAllByRole('button', { name: /new request/i });
-    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
+    expect(screen.queryByText('Requests raised against this project, tracked through their lifecycle.')).toBeNull();
   });
 
   it('AC-JR-T13: "New request" button is visible for Engineer role too (create: allow(ALL))', () => {
@@ -129,7 +127,9 @@ describe('AC-S19-003: project procurement vocabulary', () => {
     renderTab('Project Manager');
 
     expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('Next: Request vendor quotes')).toBeInTheDocument();
+    // SUB-E: the per-row "Next:" line is gone from the project tab (the status pill carries the state).
+    expect(screen.queryByText(/Next:/)).toBeNull();
+    expect(screen.queryByTestId('procurement-next-step')).toBeNull();
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /New request/i })).toBeInTheDocument();
   });

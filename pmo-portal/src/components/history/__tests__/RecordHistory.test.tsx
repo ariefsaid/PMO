@@ -369,18 +369,20 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     const time = row.querySelector('time');
     expect(time).toBeVisible();
     expect(time).toHaveAttribute('datetime', createdAt);
-    expect(time).toHaveTextContent(formatDateTime(new Date(createdAt)));
+    expect(time).toHaveAttribute('title', formatDateTime(new Date(createdAt)));
     expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
   });
 
-  it('shows the absolute time to the minute, in the row and its tooltip', async () => {
+  it('SUB-G shows relative time only in the row; the exact minute lives in the tooltip', async () => {
     const at = '2026-10-06T09:41:00Z';
     repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt: at })], nextCursor: null });
     renderIt();
     await screen.findByText('Created');
     const time = screen.getByTestId('history-event').querySelector('time')!;
     const expected = formatDateTime(new Date(at));
-    expect(time).toHaveTextContent(expected);
+    expect(time).toHaveTextContent(/ago$/);
+    expect(time).not.toHaveTextContent(expected);
+    expect(time).not.toHaveTextContent('·');
     expect(time).toHaveAttribute('title', expected);
     expect(time).toHaveAttribute('dateTime', at);
   });
@@ -574,7 +576,7 @@ describe('RecordHistory — field labels reuse the forms\' own words (AC-CHG-015
   });
 
   it('id: Kode Proyek Klien, Pelanggan akhir, Ref PO klien, Jenis perolehan; the Work orders chip matches its tab', async () => {
-    repo.recordHistory.list.mockResolvedValue({ events: [labelEvent], nextCursor: null });
+    repo.recordHistory.list.mockResolvedValue({ events: [labelEvent, ev(2, { entityType: 'work_order', entityId: 'wo1', op: 'insert' })], nextCursor: null });
     renderIt({ includeChildren: true, kindFilters: true }, true);
     expect((await screen.findByText('A → B')).closest('li')).toHaveTextContent('Kode Proyek Klien');
     expect(screen.getByText('PO-1 → PO-2').closest('li')).toHaveTextContent('Ref PO klien');
@@ -641,10 +643,39 @@ describe('RecordHistory — states (AC-CHG-016)', () => {
 });
 
 describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
-  it('requests children and narrows by the chosen kind', async () => {
+  const TWO_KINDS = [ev(2, { op: 'insert' }), ev(1, { op: 'insert', entityType: 'task', entityId: 't1' })];
+
+  it('SUB-G chips are hidden when every event is of one kind and no filter is active', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [ev(2, { op: 'insert' }), ev(1, { op: 'insert' })], nextCursor: null });
+    renderIt({ includeChildren: true, kindFilters: true });
+    await screen.findAllByText('Created');
+    expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
+  });
+
+  it('SUB-G chips are hidden on an empty history', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [], nextCursor: null });
     renderIt({ includeChildren: true, kindFilters: true });
     await screen.findByText('No changes recorded yet');
+    expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
+  });
+
+  it('SUB-G chips show once the events span two kinds, and stay while a filter narrows them to one', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [TWO_KINDS[1]] : TWO_KINDS, nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true });
+    await userEvent.click(await screen.findByRole('button', { name: 'Tasks' }));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(expect.objectContaining({ entityTypes: ['task'] })));
+    expect(screen.getByRole('group', { name: 'Filter by record kind' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+  });
+
+  it('requests children and narrows by the chosen kind', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [] : TWO_KINDS, nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true });
+    await screen.findByRole('group', { name: 'Filter by record kind' });
     expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ includeChildren: true, entityTypes: null }),
     );
@@ -661,10 +692,10 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
 
   it('a kind with no events says so, not the "history begins" copy', async () => {
     repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) =>
-      q.entityTypes ? { events: [], nextCursor: null } : { events: [ev(1, { op: 'insert' })], nextCursor: null },
+      q.entityTypes ? { events: [], nextCursor: null } : { events: [ev(2, { op: 'insert' }), ev(1, { op: 'insert', entityType: 'task', entityId: 't1' })], nextCursor: null },
     );
     renderIt({ includeChildren: true, kindFilters: true });
-    await screen.findByText('Created');
+    await screen.findAllByText('Created');
     await userEvent.click(screen.getByRole('button', { name: 'Work orders' }));
     expect(await screen.findByText('No work order changes')).toBeInTheDocument();
     expect(screen.queryByText('No changes recorded yet')).toBeNull();
@@ -672,9 +703,9 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
   });
 
   it('chips use the list chip size and the active nav tokens', async () => {
-    repo.recordHistory.list.mockResolvedValue({ events: [], nextCursor: null });
+    repo.recordHistory.list.mockResolvedValue({ events: TWO_KINDS, nextCursor: null });
     renderIt({ includeChildren: true, kindFilters: true });
-    await screen.findByText('No changes recorded yet');
+    await screen.findByRole('group', { name: 'Filter by record kind' });
     const all = screen.getByRole('button', { name: 'All' });
     expect(all).toHaveClass('h-7', 'text-xs', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
     expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-xs', 'text-muted-foreground');

@@ -631,14 +631,6 @@ async function visibleAny(locator: Locator): Promise<boolean> {
   return false;
 }
 
-async function visibleLinkedFieldValue(card: Locator, label: string, value: string): Promise<boolean> {
-  const labelLocator = card.getByText(label, { exact: true });
-  if (await labelLocator.count() !== 1) return false;
-  const field = labelLocator.locator('..');
-  if (await field.count() !== 1 || !await field.isVisible()) return false;
-  return (await field.innerText()).replace(/\s+/g, ' ').trim() === `${label} ${value}`;
-}
-
 async function captureS21ReloadDom(page: Page, fixture: Fixture): Promise<Record<string, boolean>> {
   const compactCard = page.getByTestId('project-integrations-compact');
   const clickupCard = compactCard.locator('[data-tier="clickup"]');
@@ -652,9 +644,8 @@ async function captureS21ReloadDom(page: Page, fixture: Fixture): Promise<Record
     bindingErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load|Project link details could not be refreshed/)),
     listErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load lists|List details could not be refreshed/)),
     listDetailsLoadingVisible: await visibleAny(clickupCard.getByText(/Loading list details; saved list ID:/)),
-    savedListIdentityVisible: await visibleLinkedFieldValue(clickupCard, 'ClickUp List:', fixture.listName),
-    initialSourceVisible: await visibleLinkedFieldValue(clickupCard, 'Initial source:', 'Start with PMO tasks'),
-    pendingTransferNoticeVisible: await visibleAny(clickupCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)),
+    // SUB-F: the linked project is one line, "Linked to ClickUp list <name> · Unlink".
+    savedListIdentityVisible: await visibleAny(clickupCard.getByText(`Linked to ClickUp list ${fixture.listName}`)),
   };
 }
 
@@ -1009,8 +1000,8 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
 
       setJourneyStage('confirm-project-link-action');
       await page.getByRole('button', { name: 'Confirm ClickUp link' }).click();
-      setJourneyStage('link-success-and-pending-transfer-visible');
-      await expect(page.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
+      setJourneyStage('link-success-visible');
+      await expect(page.getByText(/Linked to ClickUp list/)).toBeVisible();
       setJourneyStage('initial-project-binding-readback');
       const firstBinding = await projectBindingReadback(initialAdmin, fixture);
       if (!firstBinding || firstBinding.external_container_id !== fixture.listId ||
@@ -1082,15 +1073,12 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
       });
       await page.reload();
       setJourneyStage('reloaded-list-name-visible');
-      const reloadedListField = integrationCard.getByText('ClickUp List:', { exact: true }).locator('..');
+      // SUB-F: the one-line link names the list; the initial source (push-seed) is proven by the DB readback below.
+      const reloadedListField = integrationCard.getByText(`Linked to ClickUp list ${fixture.listName}`);
       await expect(reloadedListField).toHaveCount(1);
-      await expect(reloadedListField).toHaveText(`ClickUp List: ${fixture.listName}`);
-      setJourneyStage('reloaded-transfer-direction-visible');
-      const reloadedSourceField = integrationCard.getByText('Initial source:', { exact: true }).locator('..');
-      await expect(reloadedSourceField).toHaveCount(1);
-      await expect(reloadedSourceField).toHaveText('Initial source: Start with PMO tasks');
+      await expect(reloadedListField).toBeVisible();
       setJourneyStage('reloaded-link-success-visible');
-      await expect(integrationCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
+      await expect(integrationCard.getByRole('button', { name: 'Unlink from ClickUp' })).toBeVisible();
       setJourneyStage('reloaded-empty-task-state-visible');
       await expect(page.getByText('No tasks yet', { exact: true })).toBeVisible();
       setJourneyStage('persisted-project-binding-readback');

@@ -2350,7 +2350,6 @@
         "error": "Couldn't load billing",
         "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
-        "noAssessment": "No assessment yet",
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
@@ -2420,7 +2419,6 @@
       },
       "heading": "Document register",
       "newRevision": "New revision",
-      "newRevisionFor": "Create new revision for",
       "noSearchMatch": "No documents match your search",
       "noSearchMatchSub": "Try a different title, code, or category.",
       "ofWord": "of",
@@ -2432,7 +2430,6 @@
         "explanation": "Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.",
         "ownDocument": "You can't approve your own document"
       },
-      "subheading": "Drawings, specifications, and transmittals for this project. Upload files on Draft rows.",
       "supersededNotice": "Read-only — continue on Rev",
       "toast": {
         "added": "Document added",
@@ -2760,7 +2757,6 @@
       },
       "newRequest": "New request",
       "openRow": "Open",
-      "subtitle": "Requests raised against this project, tracked through their lifecycle.",
       "title": "Purchase Requests"
     },
     "rail": {
@@ -2873,7 +2869,6 @@
       "noTasksInGroup": "No tasks in this group.",
       "showArchived": "Show archived",
       "statusFor": "Status for",
-      "subheading": "Plan, assign, and track the work for this project.",
       "subtaskLevel": "Subtask, level",
       "toast": {
         "archived": "Task archived",
@@ -2999,13 +2994,10 @@
           "awaitingSubmission": "Awaiting submission"
         },
         "stillToInvoice": "Still to invoice",
-        "summaryNote": "Issued and closed work orders, less what has been invoiced or drafted against them.",
         "summaryTitle": "Billing against work orders",
         "toast": {
           "created": "Draft invoice created",
-          "createdSub": "{{number}} — submit it from Sales Invoices.",
-          "nativeCreated": "Draft invoice created in PMO",
-          "nativeCreatedSub": "{{wo}} — a second Finance/Admin person approves it from Sales Invoices."
+          "nativeCreated": "Draft invoice created in PMO"
         },
         "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",
@@ -3019,7 +3011,6 @@
       },
       "clientPo": "Client PO",
       "issueGate": {
-        "title": "Another reviewer must issue this order",
         "body": "You set its value. Ask another authorized reviewer to review and issue it.",
         "peerBody": "The value must be set by your supervisor or a more senior active reviewer before this order can be issued.",
         "unstampedBody": "The value must be set by an authorized reviewer before this order can be issued."
@@ -5051,16 +5042,11 @@
     }
   },
   "uxs21": {
-    "askIntegrationAdmin": "Ask an integration administrator to connect ClickUp.",
-    "clickupNotConnected": "ClickUp is not connected for this organization.",
-    "setupClickUp": "Set up ClickUp",
     "listUnavailable": "List unavailable; saved list ID: {{listId}}",
     "listDetailsLoading": "Loading list details; saved list ID: {{listId}}",
-    "unknownInitialSource": "Initial source not recorded",
     "initialSourceLabel": "Initial source",
     "sourcePmo": "Start with PMO tasks",
     "sourceClickUp": "Start with existing list tasks",
-    "initialTransferPending": "Project linked. Initial task transfer is not confirmed. Ask your integration administrator to complete the initial transfer.",
     "listReadUnavailable": "List details could not be refreshed. The saved list link is retained.",
     "retryLists": "Retry list details",
     "bindingReadUnavailable": "Project link details could not be refreshed. The saved link is retained.",

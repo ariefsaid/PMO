@@ -279,27 +279,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       colClassName: 'w-[112px] min-w-[112px]',
       cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
-    {
-      key: 'revision_action',
-      header: '',
-      align: 'center',
-      size: 96, minSize: 96, maxSize: 96,
-      colClassName: 'w-[96px]',
-      cell: (d) =>
-        (d.status === 'Issued' || d.status === 'Approved') && canWriteDocs ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRevisionParent(d)}
-            aria-label={`${t(
-              'projectDetail.documents.newRevisionFor',
-              'Create new revision for',
-            )} ${d.title}`}
-          >
-            {t('projectDetail.documents.newRevision', 'New revision')}
-          </Button>
-        ) : null,
-    },
   ];
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */
@@ -339,6 +318,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
     if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
       items.push({ label: t('projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
+    }
+    // SUB-E: "New revision" is a row-menu item, not a column of its own on every row.
+    if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs) {
+      items.push({ label: t('projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
     }
     items.push(...statusActions(d));
     if (canDelete) items.push({ label: t('projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
@@ -487,12 +470,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
             {t('projectDetail.documents.heading', 'Document register')}
           </h2>
-          <p className="mt-0.5 max-w-[64ch] text-[13px] text-muted-foreground">
-            {t(
-              'projectDetail.documents.subheading',
-              'Drawings, specifications, and transmittals for this project. Upload files on Draft rows.',
-            )}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
@@ -528,13 +505,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
       {state !== 'loading' && all.length > 0 && (
         <Toolbar standalone>
-          {/* Left-aligned count anchors the toolbar (matches the Admin Users pattern,
-              polish #6) so the bar no longer reads as dead space beside the search. */}
-          {/* ⛔ NOT TRANSLATED — English plural selection is welded in and DD-I18N-1's
-              `Intl.PluralRules` helper does not exist yet. See the note in ProjectGantt. */}
-          <span data-testid="documents-count" className="text-[13px] font-semibold tabular">
-            {all.length} {all.length === 1 ? 'document' : 'documents'}
-          </span>
           <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
             aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
@@ -572,14 +542,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
             'projectDetail.documents.emptySub',
             "Add a drawing, specification, or transmittal to start the project's document register.",
           )}
-          action={
-            canCreate
-              ? {
-                  label: t('projectDetail.documents.addDocument', 'Add document'),
-                  onClick: () => setFormTarget({ doc: null }),
-                }
-              : undefined
-          }
         />
       )}
 

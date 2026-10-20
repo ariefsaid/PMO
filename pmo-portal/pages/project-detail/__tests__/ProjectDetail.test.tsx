@@ -321,9 +321,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     // The deferred "coming soon" placeholder is gone — this is now a real register.
     expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
     expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
-    // PM is a master-data write-role → the gated Add document affordance is present
-    // (header CTA + the empty-state teach action both carry the label).
-    expect(screen.getAllByRole('button', { name: /Add document/i }).length).toBeGreaterThan(0);
+    // PM is a master-data write-role → the gated Add document affordance is present (header CTA only).
+    expect(screen.getAllByRole('button', { name: /Add document/i })).toHaveLength(1);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', async () => {

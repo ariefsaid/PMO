@@ -35,17 +35,16 @@ export interface ProjectDrawdownProps {
  * identity across renders (a component redeclared inside a render body remounts every time, which
  * would throw away focus and any transition on these nodes).
  *
- * `basisText` is passed in already resolved: OD-TAX-1 wants the label ON the figure, and a figure
- * that could be rendered without one is a bare number waiting to happen.
+ * The tax basis is stated ONCE, on the card head (OD-TAX-1, one label per card — SUB-C), so a
+ * figure here is never a bare number: every one of them shares that head's basis.
  */
 const Figure: React.FC<{
   testId: string;
   label: string;
   value: number;
   currency: string;
-  basisText: string;
   tone?: string;
-}> = ({ testId, label, value, currency, basisText, tone }) => (
+}> = ({ testId, label, value, currency, tone }) => (
   <div data-testid={testId}>
     <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
       {label}
@@ -53,7 +52,6 @@ const Figure: React.FC<{
     <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>
       {formatCurrency(value, currency)}
     </dd>
-    <dd className="text-[11px] text-muted-foreground">{basisText}</dd>
   </div>
 );
 
@@ -62,9 +60,8 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
   const { data, isPending, isError, refetch } = useProjectDrawdown(projectId);
 
   /**
-   * OD-TAX-1: no bare number anywhere a treatment exists. Every figure on this card is stated on
-   * the basis the RPC returned, so the label travels with each of them rather than sitting once in
-   * a caption a reader can miss.
+   * OD-TAX-1: every figure on this card is stated on the basis the RPC returned; the label sits
+   * once on the card head rather than under each figure (SUB-C).
    */
   const basisLabel = (basis: string) =>
     basis === 'net'
@@ -75,9 +72,18 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
       // exactly what the spec review's "is the label derived?" question was probing for.
       : t('projectDetail.drawdown.basis.other', { defaultValue: 'basis: {{basis}}', basis });
 
+  // SUB-C: the card exists to manage work orders against the ceiling — with none issued or
+  // drafted there is nothing to manage and the card is noise. (An error still shows.)
+  if (data && !isError && data.committed <= 0 && data.draft <= 0) return null;
+
   return (
     <Card variant="bare" className={className} data-testid="project-drawdown">
-      <CardHead level={2} className="text-base">{t('projectDetail.drawdown.title', 'Contract drawdown')}</CardHead>
+      <CardHead level={2} className="text-base">
+        {t('projectDetail.drawdown.title', 'Contract drawdown')}
+        {data && !isError && (
+          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
+        )}
+      </CardHead>
       {isPending ? (
         <ListState variant="loading" rows={3} testId="drawdown-loading" />
       ) : isError || !data ? (
@@ -92,7 +98,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
         />
       ) : (
         (() => {
-          const { committed, draft, ceiling, currency, basis } = data;
+          const { committed, draft, ceiling, currency } = data;
           // ⚑ EPSILON, not bare float comparison (security review L4). `ceiling - committed` on JS
           // floats lands at ~-1e-13 at exact parity, which painted "Remaining headroom" in
           // destructive red over a formatted 0 — the card shouting over-commitment at a project
@@ -136,28 +142,24 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     label={t('projectDetail.drawdown.ceiling', 'Contract ceiling')}
                     value={ceiling}
                     currency={currency}
-                    basisText={basisLabel(basis)}
                   />
                   <Figure
                     testId="drawdown-committed"
                     label={t('projectDetail.drawdown.committed', 'Issued drawdown')}
                     value={committed}
                     currency={currency}
-                    basisText={basisLabel(basis)}
                   />
                   <Figure
                     testId="drawdown-draft"
                     label={t('projectDetail.drawdown.draft', 'Draft pipeline')}
                     value={draft}
                     currency={currency}
-                    basisText={basisLabel(basis)}
                   />
                   <Figure
                     testId="drawdown-headroom"
                     label={t('projectDetail.drawdown.headroom', 'Remaining headroom')}
                     value={headroom}
                     currency={currency}
-                    basisText={basisLabel(basis)}
                     tone={headroom < 0 ? 'text-destructive' : undefined}
                   />
                 </dl>
@@ -182,7 +184,6 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     >
                       {formatCurrency(overBy, currency)}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">{basisLabel(basis)}</span>
                   </div>
                   <p className="text-[12px] text-muted-foreground">
                     {t(
@@ -205,7 +206,6 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     >
                       {formatCurrency(overBy, currency)}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">{basisLabel(basis)}</span>
                   </div>
                   <p className="text-[12px] text-muted-foreground">
                     {t(

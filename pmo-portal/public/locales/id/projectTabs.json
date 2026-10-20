@@ -1,0 +1,10 @@
+{
+  "billing": {
+    "quantity": "Penagihan kuantitas"
+  },
+  "clickup": {
+    "linkedTo": "Tertaut ke daftar {{tier}} {{name}}",
+    "linkedSaved": "Tertaut ke {{tier}}. {{detail}}",
+    "unlink": "Putuskan"
+  }
+}
