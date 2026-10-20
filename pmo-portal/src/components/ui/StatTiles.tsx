@@ -1,7 +1,6 @@
 import React from 'react';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
-import { figureTitle } from './figureTitle';
 
 export interface StatTile {
   label: React.ReactNode;
@@ -106,7 +105,6 @@ export const StatTiles: React.FC<StatTilesProps> = ({
           >
             <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
             <div
-              title={figureTitle(t)}
               className={cn(
                 'min-w-0 break-words text-[17px] font-bold tracking-[-0.01em] tabular',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —

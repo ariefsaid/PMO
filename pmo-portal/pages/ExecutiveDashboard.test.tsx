@@ -104,7 +104,8 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
 // FR-L10N-020: exec-dashboard KPI aggregates are org-denominated (RPC rows carry no currency).
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+const orgState = vi.hoisted(() => ({ currency: 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => orgState.currency }));
 
 const renderPage = () =>
   render(
@@ -121,6 +122,26 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard (real data)', () => {
+  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
+    orgState.currency = 'IDR';
+    try {
+      dashState.data = {
+        ...populated,
+        on_hand_value: null as unknown as number,
+        on_hand_value_by_currency: [
+          { currency: 'IDR', contract_value: 373_500_000_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
+          { currency: 'USD', contract_value: 3_400_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
+        ],
+      };
+      renderPage();
+      const tile = screen.getByTestId('kpi-on-hand-margin');
+      expect(tile).toHaveTextContent('USD 3.4M');
+      expect(tile).not.toHaveTextContent(/\$3\.4M/);
+    } finally {
+      orgState.currency = 'USD';
+    }
+  });
+
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
     dashState.data = {
       ...populated,
@@ -141,8 +162,8 @@ describe('ExecutiveDashboard (real data)', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-on-hand-margin');
     // OD-MONEY-FMT: each currency shows once, in the short form (amount plus currency, never "USD $...").
-    expect(tile).toHaveTextContent('IDR 2.0B');
-    expect(tile).toHaveTextContent('$1.0M');
+    expect(tile).toHaveTextContent('IDR 2B');
+    expect(tile).toHaveTextContent('$1M');
     expect(tile).not.toHaveTextContent(/USD\s*\$/);
     expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
     expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
@@ -158,10 +179,9 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const margin = screen.getByTestId('kpi-pipeline-projected-margin');
-    expect(within(margin).getByText('—')).toBeInTheDocument();
-    expect(within(margin).getByText('No active budget', { selector: '.sr-only' })).toBeInTheDocument();
+    expect(within(margin).getByRole('button', { name: 'No active budget' })).toHaveTextContent('—');
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(within(weighted).getByText('—').closest('[title]')).toHaveAttribute('title', 'Not available yet');
+    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
     expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
   });
 
@@ -177,8 +197,9 @@ describe('ExecutiveDashboard (real data)', () => {
   it('explains a null pipeline margin caused by zero gross value, not missing budget', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('No pipeline value to calculate margin');
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).not.toHaveTextContent('No active budget');
+    const margin = screen.getByTestId('kpi-pipeline-projected-margin');
+    expect(within(margin).getByRole('button', { name: 'No pipeline value to calculate margin' })).toBeInTheDocument();
+    expect(within(margin).queryByRole('button', { name: 'No active budget' })).toBeNull();
   });
 
   it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
@@ -307,7 +328,7 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
     // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the title (goal oracle: right currency).
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(weighted).toHaveTextContent('$800.0K');
+    expect(weighted).toHaveTextContent('$800K');
     expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
     // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).

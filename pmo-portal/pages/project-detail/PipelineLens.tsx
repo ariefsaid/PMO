@@ -20,8 +20,6 @@ import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -213,11 +211,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     // (its RPC doesn't project the column, #578); this lens is not.
     {
       label: t('projectDetail.pipeline.stat.value', 'Value'),
-      ...moneyFigure(value, currency, getNumberLocale(), t('uxs03.notAvailableYet', 'Not available yet')),
+      value: formatCurrency(value, currency),
       sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
     },
     { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-    { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), ...moneyFigure(weighted, currency, getNumberLocale(), t('uxs03.notAvailableYet', 'Not available yet')) },
+    { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
     {
       label: t('projectDetail.pipeline.stat.owner', 'Owner'),
       value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),

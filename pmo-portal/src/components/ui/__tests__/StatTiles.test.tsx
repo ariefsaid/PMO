@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { StatTiles, type StatTile } from '../StatTiles';
 
 // ---------------------------------------------------------------------------
@@ -28,15 +28,17 @@ describe('StatTiles', () => {
     render(<StatTiles tiles={[{ label: 'Contract', value: '$1.2M', exactValue: '$1,200,000' }]} />);
     const figure = screen.getByText('$1.2M');
     expect(figure).toHaveAttribute('aria-hidden', 'true');
-    expect(figure.closest('[title]')).toHaveAttribute('title', '$1,200,000');
+    expect(figure).toHaveAttribute('title', '$1,200,000');
     expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unavailable stat shows a dash with the reason in title and sr-only text', () => {
+  it('AC-RD-UNAVAIL-001: unavailable stat shows a dash whose reason opens on focus, never as prose in the figure', () => {
     render(<StatTiles tiles={[{ label: 'Contract', value: 'Unavailable', unavailableReason: 'Budget not loaded' }]} />);
-    expect(screen.getByText('—').closest('[title]')).toHaveAttribute('title', 'Budget not loaded');
-    expect(screen.getByText('Budget not loaded', { selector: '.sr-only' })).toBeInTheDocument();
+    const dash = screen.getByRole('button', { name: 'Budget not loaded' });
+    expect(dash).toHaveTextContent('—');
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+    act(() => dash.focus());
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Budget not loaded');
   });
 
   it('renders every tile (label + value)', () => {

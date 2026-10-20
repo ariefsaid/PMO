@@ -71,8 +71,8 @@ function renderPanel(
 function tileValue(label: RegExp): HTMLElement {
   const labelEl = screen.getByText(label);
   const tile = labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-  // The figure box (short form + any sr-only exact twin) is the tile's `.tabular` div.
-  return tile.querySelector<HTMLElement>('.tabular')!;
+  // The value is the sibling div after the label div within the tile.
+  return within(tile).getByText(/\$/);
 }
 
 beforeEach(() => {
@@ -169,6 +169,15 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     const labels = screen.getAllByText(/this request/i);
     expect(labels.length).toBeGreaterThan(0);
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
+  });
+
+  it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {
+    budgetState.data = 1_240_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 56_000, projectName: null });
+    expect(screen.getByText('$56,000')).toBeInTheDocument();
+    expect(screen.getAllByText('$1,240,000,000').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\$\d+(\.\d)?[KMB]\b/)).not.toBeInTheDocument();
   });
 
   it('renders "Available" label (budget − committed − reserved; reserved=0 here)', () => {

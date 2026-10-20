@@ -17,7 +17,6 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { formatCurrencyCents, formatNumber } from '@/src/lib/format';
 import { moneyTotalsFigure } from '@/src/lib/dashboardMoney';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
 import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
 
@@ -37,7 +36,7 @@ const RevenueByProject: React.FC = () => {
   const openARTotals = useMemo(() => sumPerCurrency(all, (row) => row.open_ar), [all]);
   // OD-MONEY-FMT: KPI cards show the short form per currency; the exact amounts ride in title + sr text.
   const money = (totals: Array<{ currency: string; amount: number }>) =>
-    moneyTotalsFigure(totals, orgCurrency, getNumberLocale(), t('uxs03.notAvailableYet', 'Not available yet'));
+    moneyTotalsFigure(totals, orgCurrency, t('uxs03.notAvailableYet', 'Not available yet'));
   const totalInvoices = useMemo(
     () => all.reduce((sum, row) => sum + row.invoice_count, 0),
     [all]

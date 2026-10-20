@@ -35,9 +35,9 @@ export interface ProjectedMarginBarsProps {
  * excluded. Each bar direct-labels its weighted value and carries an aria label.
  */
 export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const money = (value: number) => formatCompactCurrency(value, currency);
-  const fullMoney = (value: number) => formatDashboardMoney(value, currency, i18n.language)
+  const fullMoney = (value: number) => formatDashboardMoney(value, currency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const noBudget = t('uxs03.noActiveBudget', 'No active budget');
   const statusLabel = useProjectStatusLabel();
@@ -51,7 +51,6 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
     <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')}>
       <div className="mb-3.5 flex items-baseline gap-2.5">
         <span
-          title={projectedMargin === null ? noBudget : undefined}
           className="min-w-0 break-words text-[30px] font-bold leading-none tracking-[-0.02em] tabular"
         >
           {projectedMargin === null

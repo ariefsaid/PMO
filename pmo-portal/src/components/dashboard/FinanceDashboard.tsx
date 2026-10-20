@@ -18,7 +18,6 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
@@ -256,7 +255,7 @@ export const FinanceDashboard: React.FC = () => {
   // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
   const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-  const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, notAvailable);
   const totalSpend = data?.on_hand_actual_known ?? null;
   const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
     known: data?.on_hand_actual_project_count ?? 0, total: data?.on_hand_actual_project_total ?? 0,

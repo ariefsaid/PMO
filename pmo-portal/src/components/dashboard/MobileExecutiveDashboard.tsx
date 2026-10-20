@@ -25,10 +25,9 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
-import { formatDashboardMoney, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -96,7 +95,7 @@ const AtRiskBlock: React.FC<{
 }> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
   const { t } = useTranslation('dashboard');
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
-  const spendFigure = moneyFigure(totalSpend, currency, getNumberLocale(), notAvailable);
+  const spendFigure = moneyFigure(totalSpend, currency, notAvailable);
   // The link's accessible name carries the exact amount (or the unavailable reason), never the short form.
   const spendText = spendFigure.unavailableReason ?? spendFigure.exactValue ?? spendFigure.value;
   const isAtRisk = atRisk > 0;
@@ -181,11 +180,8 @@ const AtRiskBlock: React.FC<{
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             {t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
           </span>
-          <span
-            title={spendFigure.unavailableReason ?? spendFigure.exactValue}
-            className="tabular mt-[3px] block min-w-0 break-words text-[17px] font-bold"
-          >
-            <FigureContent {...spendFigure} />
+          <span className="tabular mt-[3px] block min-w-0 break-words text-[17px] font-bold">
+            <FigureContent {...spendFigure} reveal={false} />
           </span>
           {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">
@@ -270,13 +266,13 @@ const ContractBook: React.FC<{
   activeContractValue: number | null;
   activeProjects: number;
 }> = ({ onHandValue, onHandValueByCurrency = [], onHandContractRemaining, realizedMargin, realizedMarginByCurrency = [], realizedMarginLabel, activeContractValue, activeProjects }) => {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
   // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
   const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-  const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
-  const currencyMoney = (value: number | null, currency: string) => shortMoney(value, currency, notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, notAvailable);
+  const currencyMoney = (value: number | null, currency: string) => shortMoney(value, currency, notAvailable, { code: currency !== orgCurrency });
   const remainingRows = onHandValueByCurrency
     .filter((row) => row.contract_remaining !== null)
     .map((row) => currencyMoney(row.contract_remaining, row.currency));
@@ -286,11 +282,8 @@ const ContractBook: React.FC<{
   const onHandValueDisplay = onHandValueByCurrency.length > 0 ? (
     <span className="flex flex-col gap-1">
       {onHandValueByCurrency.map((row) => (
-        <span key={row.currency} title={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}>
-          <FigureContent
-            value={currencyMoney(row.contract_value, row.currency)}
-            exactValue={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}
-          />
+        <span key={row.currency}>
+          <FigureContent {...moneyFigure(row.contract_value, row.currency, notAvailable, { code: row.currency !== orgCurrency })} />
         </span>
       ))}
     </span>

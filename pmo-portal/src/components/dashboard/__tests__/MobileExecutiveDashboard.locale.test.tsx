@@ -57,6 +57,27 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
     expect(screen.getByRole('link', { name: 'Open spend breakdown · $200 spent to date' })).toBeInTheDocument();
   });
 
+  it('AC-RD-UNAVAIL-002: the spend link announces a known 0 or 500, and the reason only when spend is unknown', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: enCatalogue } } });
+    const cases: Array<[number | null, RegExp]> = [[0, /\$0 spent/], [500, /\$500 spent/], [null, /Not available yet spent/]];
+    for (const [spend, name] of cases) {
+      const { unmount } = render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter>
+            <MobileExecutiveDashboard data={{ ...data, on_hand_actual_known: spend as number }} riskCheckable={true} approvalCount={0} belowFold={null} />
+          </MemoryRouter>
+        </I18nextProvider>,
+      );
+      const link = screen.getByRole('link', { name: /Open spend breakdown/ });
+      expect(link).toHaveAccessibleName(name);
+      if (spend !== null) expect(link).not.toHaveAccessibleName(/Not available yet/);
+      // No interactive dash nested inside the drill link.
+      expect(link.querySelector('button')).toBeNull();
+      unmount();
+    }
+  });
+
   it('formats the exact spend with the configured number locale, not the UI language', async () => {
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
     const i18n = i18next.createInstance();

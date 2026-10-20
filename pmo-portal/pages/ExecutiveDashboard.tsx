@@ -7,9 +7,8 @@ import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { formatDashboardMoney, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { riskCheckableFor } from '@/src/lib/dashboardConstants';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -35,7 +34,7 @@ import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLin
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const ExecutiveDashboard: React.FC = () => {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const procurementStatusLabel = useProcurementStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   // All hooks called unconditionally at the top (hooks rules) — the role switch
@@ -120,20 +119,17 @@ const ExecutiveDashboard: React.FC = () => {
     const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
     // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
     const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
-    const figure = (value: number | null) => moneyFigure(value, orgCurrency, getNumberLocale(), notAvailable);
+    const figure = (value: number | null) => moneyFigure(value, orgCurrency, notAvailable);
     // The short form already names its currency once ("$1.2M", "IDR 2.0B") - never prefix it again.
-    const currencyMoney = (value: number, currency: string) => shortMoney(value, currency, notAvailable);
+    const currencyMoney = (value: number, currency: string) => shortMoney(value, currency, notAvailable, { code: currency !== orgCurrency });
     const onHandCurrencies = data.on_hand_value_by_currency ?? [];
     const unmappedCategories = Math.max(0, data.on_hand_actual_coverage_total - data.on_hand_actual_coverage_count);
     const canOpenAccountingMap = can('edit', 'budgetLine', { realRole });
     const onHandValueDisplay = onHandCurrencies.length > 0 ? (
       <span className="flex flex-col gap-1">
         {onHandCurrencies.map((row) => (
-          <span key={row.currency} title={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}>
-            <FigureContent
-              value={currencyMoney(row.contract_value, row.currency)}
-              exactValue={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}
-            />
+          <span key={row.currency}>
+            <FigureContent {...moneyFigure(row.contract_value, row.currency, notAvailable, { code: row.currency !== orgCurrency })} />
           </span>
         ))}
         {unmappedCategories > 0 && canOpenAccountingMap && (

@@ -541,6 +541,16 @@ export function formatCompactCurrency(value: number, currency: string): string {
   return currencyFormatterFor('compact', currency, { notation: 'compact', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
 }
 
+/** OD-MONEY-FMT short KPI money: "$56K", "$56.5K", "IDR 160.9B" — one decimal only when non-zero,
+ *  and the true minus (U+2212) that `formatExactMoney` uses, so a figure and its exact twin agree.
+ *  `code` names the currency by ISO code ("USD 3.4M") for a figure outside the org currency. */
+export function formatShortMoney(value: number, currency: string, opts: { code?: boolean } = {}): string {
+  return currencyFormatterFor(opts.code ? 'short-code' : 'short', currency, {
+    notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1,
+    ...(opts.code ? { currencyDisplay: 'code' } : {}),
+  }).format(value).replace('-', '\u2212');
+}
+
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
  *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
 export function currencySymbol(currency: string): string {

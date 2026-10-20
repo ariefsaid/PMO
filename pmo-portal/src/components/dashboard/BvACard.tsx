@@ -20,8 +20,8 @@ export interface BvACardProps {
  * Unknown Actual is never rendered as zero and never produces a progress bar.
  */
 export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
-  const { t, i18n } = useTranslation();
-  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency, i18n.language)
+  const { t } = useTranslation();
+  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   return (
   <div role="group" aria-label={t('uxs03.spendingContract', 'Spending vs contract')} className="flex flex-col">

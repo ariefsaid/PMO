@@ -15,7 +15,7 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // contract-remaining measure stays distinct from billed-work margin.
   const onHandMarginTile = page.getByTestId('kpi-on-hand-margin');
   await expect(onHandMarginTile).toBeVisible();
-  await expect(onHandMarginTile).toContainText('Known margin on billed work: $500.0K');
+  await expect(onHandMarginTile).toContainText('Known margin on billed work: $500K');
   await expect(onHandMarginTile).toContainText('Contract remaining after known Actual: $4.1M');
 
   // ── Exec Dashboard: pipeline weighted value tile ──────────────────────────────

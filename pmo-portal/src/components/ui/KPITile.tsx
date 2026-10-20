@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
-import { figureTitle } from './figureTitle';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
 import { ViewToggle, type ViewOption } from './ViewToggle';
@@ -154,7 +153,6 @@ export function KPITile<L extends string = string>({
             </span>
           ) : (
             <div
-              title={figureTitle({ exactValue, unavailableReason })}
               className={cn(
                 'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
                 negative && 'text-destructive'
@@ -194,7 +192,6 @@ export function KPITile<L extends string = string>({
         </span>
       ) : (
         <div
-          title={figureTitle({ exactValue, unavailableReason })}
           className={cn(
             'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
             negative && 'text-destructive'

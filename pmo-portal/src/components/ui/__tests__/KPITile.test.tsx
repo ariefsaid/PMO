@@ -21,26 +21,38 @@ describe('KPITile', () => {
     expect(screen.getByTestId('kpi-x').className).not.toContain('hover:shadow-');
   });
 
-  it('AC-RD-MONEY-001: shows the short figure; exact amount is the title and screen-reader text', () => {
+  it('AC-RD-MONEY-001: shows the short figure; the exact amount is the hover title and the screen-reader text, read once', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
     const figure = screen.getByText('$1.2M');
     expect(figure).toHaveAttribute('aria-hidden', 'true');
-    expect(figure.closest('[title]')).toHaveAttribute('title', '$1,200,000');
+    // A7: the title sits on the aria-hidden span, so assistive tech never reads the exact amount twice.
+    expect(figure).toHaveAttribute('title', '$1,200,000');
+    expect(document.querySelectorAll('[title]')).toHaveLength(1);
     expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unavailable figure is a dash; the reason is the title and sr-only text, never the figure', () => {
-    render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="Not available yet" unavailableReason="Not available yet" />);
-    const dash = screen.getByText('—');
-    expect(dash).toHaveAttribute('aria-hidden', 'true');
-    expect(dash.closest('[title]')).toHaveAttribute('title', 'Not available yet');
-    expect(screen.getByText('Not available yet', { selector: '.sr-only' })).toBeInTheDocument();
-    expect(screen.queryByText('Not available yet', { selector: ':not(.sr-only)' })).not.toBeInTheDocument();
+  it('AC-RD-UNAVAIL-001: unavailable figure is a dash whose reason opens on keyboard focus, with no always-visible reason text', async () => {
+    render(
+      <MemoryRouter>
+        <KPITile icon="dollar" tone="blue" label="Pipeline" value="Not available yet" unavailableReason="No active budget" to="/x" linkLabel="Open x" />
+      </MemoryRouter>,
+    );
+    const dash = screen.getByRole('button', { name: 'No active budget' });
+    expect(dash).toHaveTextContent('—');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
+    // Never nested inside the tile's drill link (no interactive-in-interactive).
+    expect(dash.closest('a')).toBeNull();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(dash).toHaveFocus();
+    expect(screen.getByRole('tooltip')).toHaveTextContent('No active budget');
   });
 
   it('AC-RD-GEOM-001 (unit): the figure can shrink and wrap instead of crossing the card edge', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline" value="$1.2M" exactValue="$1,200,000" />);
-    const box = screen.getByText('$1.2M').closest('[title]')!;
+    const box = screen.getByText('$1.2M').parentElement!;
     expect(box.className).toContain('min-w-0');
     expect(box.className).toContain('break-words');
   });
