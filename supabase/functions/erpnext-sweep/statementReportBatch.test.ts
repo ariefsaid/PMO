@@ -2,7 +2,8 @@
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const originalFetch = globalThis.fetch;
 const { listEmployingOrgsLive, runErpSweepCycle } = await import('./index.ts');
-const { refreshStatementReportBatch } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts');
+const { refreshStatementReportBatch, STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts');
+const { SWEEP_TICK_TIME_BUDGET_MS } = await import('./index.ts');
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -25,6 +26,13 @@ const quietPasses = {
   feedOrgLedgers: () => Promise.resolve({ gl: 0, ple: 0, glCaughtUp: true, pleCaughtUp: true }),
   refreshOrgAccounting: () => Promise.resolve({}),
 };
+
+Deno.test('AC-1202: statement request, stage, and invocation budgets admit a slow native report', () => {
+  assert(STATEMENT_READ_REQUEST_TIMEOUT_MS === 25_000, `statement requests must allow 25s, got ${STATEMENT_READ_REQUEST_TIMEOUT_MS}`);
+  assert(STATEMENT_READ_STAGE_TIMEOUT_MS === 75_000, `statement stage must allow 75s, got ${STATEMENT_READ_STAGE_TIMEOUT_MS}`);
+  assert(SWEEP_TICK_TIME_BUDGET_MS >= STATEMENT_READ_STAGE_TIMEOUT_MS, 'the sweep tick must leave room for the statement stage');
+  assert(SWEEP_TICK_TIME_BUDGET_MS <= 120_000, 'the sweep tick must remain bounded well below edge wall-clock limits');
+});
 
 Deno.test('AC-006: live binding enumeration carries the actual binding id without substituting org identity', async () => {
   const selected: Record<string, string> = {};
@@ -223,7 +231,7 @@ Deno.test('AC-006: the shipped sweep publishes native reports when both System S
     rpc(name: string, args: Record<string, unknown>) {
       rpcNames.push(name);
       assert(args.p_org_id === org.orgId && args.p_holder === '33333333-3333-4333-8333-333333333333', 'native RPC lost its org/lease fence');
-      if (name === 'mark_erp_statement_report_refresh_attempt') return Promise.resolve({ data: null, error: null });
+      if (name === 'mark_erp_statement_report_refresh_attempt' || name === 'mark_erp_statement_report_attempt') return Promise.resolve({ data: null, error: null });
       if (name === 'open_erp_statement_report_batch') {
         const request = requests[openCount] ?? null;
         openCount += 1;

@@ -35,7 +35,7 @@ select is((select array_agg(attname::text order by attnum)::text from pg_attribu
   'AC-005 private header pins context, revision cutoff, and date basis once per organization');
 select is((select array_agg(attname::text order by attnum)::text from pg_attribute
   where attrelid='public.erp_financial_statement_report_pending'::regclass and attnum>0 and not attisdropped),
-  '{org_id,batch_id,statement,project_id,period_kind,current_start,current_end,prior_start,prior_end,side,ordinal,normalized_report,raw_response_text,raw_sha256,acquired_at,retained_source_snapshot_id}',
+  '{org_id,batch_id,statement,project_id,period_kind,current_start,current_end,prior_start,prior_end,side,ordinal,normalized_report,raw_response_text,raw_sha256,acquired_at,retained_source_snapshot_id,attempts,last_attempt_at}',
   'AC-005 pending table stores typed selections, source bytes, and exact retained-source identity');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class
   where oid='public.erp_financial_statement_report_batch'::regclass)
@@ -253,17 +253,34 @@ reset role;
 select is((select array_agg(key order by key)::text from jsonb_object_keys((select result from native_first)) key),
   '{batchId,complete,nextRequest,startedAt}','AC-005 open returns exactly the fixed progress envelope');
 select is((select count(*)::int from public.erp_financial_statement_report_pending
-  where org_id='03190000-0000-0000-0000-000000000001'),248,
-  'AC-005 SQL materializes one complete two-sided company and mapped-project plan');
+  where org_id='03190000-0000-0000-0000-000000000001'),
+  (select count(*)::int from public._erp_statement_report_plan((select context from native_context)) plan
+    join public.erp_financial_statement_report_batch b on b.org_id='03190000-0000-0000-0000-000000000001'
+   where plan.current_start<=b.effective_date),
+  'AC-1202 future-start report periods are excluded from pending publication work');
+select is((select count(*)::int from public.erp_financial_statement_report_pending p
+  join public.erp_financial_statement_report_batch b using(org_id,batch_id)
+  where p.org_id='03190000-0000-0000-0000-000000000001' and p.current_start>b.effective_date),0,
+  'AC-1202 first publication does not wait for future-start native reports');
 select is((select result->'nextRequest'->>'statement' from native_first),'trial_balance',
   'AC-005 plan order begins with company Trial Balance');
 select is((select result->'nextRequest'->>'side' from native_first),'current',
   'AC-005 each canonical report orders current before prior');
+set local role service_role;
+select public.mark_erp_statement_report_attempt(
+  '03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',
+  (select (result->>'batchId')::uuid from native_first),(select result->'nextRequest' from native_first));
+select is((select (result->'nextRequest')=(select result->'nextRequest' from native_first) from (
+  select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+    '03190000-0000-0000-0000-000000000101',context) result from native_context) opened),false,
+  'AC-1202 a perpetually failing first report rotates behind never-attempted work');
+reset role;
 select is((select array_agg(key order by key)::text from jsonb_object_keys((select result->'nextRequest' from native_first)) key),
   '{currentEnd,currentStart,periodKind,priorEnd,priorStart,projectId,side,statement}',
   'AC-005 nextRequest contains only the exact canonical selection');
 select is((select count(*)::int from public.erp_financial_statement_report_pending
-  where org_id='03190000-0000-0000-0000-000000000001' and normalized_report is null and raw_response_text is null and raw_sha256 is null and acquired_at is null),248,
+  where org_id='03190000-0000-0000-0000-000000000001' and normalized_report is null and raw_response_text is null and raw_sha256 is null and acquired_at is null),
+  (select count(*)::int from public.erp_financial_statement_report_pending where org_id='03190000-0000-0000-0000-000000000001'),
   'AC-005 every planned row begins with all capture fields NULL');
 select ok((select context=(select context from native_context) from public.erp_financial_statement_report_batch
   where org_id='03190000-0000-0000-0000-000000000001')
@@ -850,6 +867,31 @@ select ok(exists(select 1 from public.erp_financial_statement_report_pending
       and batch_id=(select (result->>'batchId')::uuid from native_dirty_batch)
       and current_end>'2026-06-30' and normalized_report is null),
   'AC-005 project P&L refresh is interval-scoped and future or other-company dates add no catalogue work');
+
+set local role service_role;
+create temporary table native_backoff as
+  select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+    '03190000-0000-0000-0000-000000000101',context) result from native_context;
+update public.erp_financial_statement_report_pending
+   set attempts=1,last_attempt_at=clock_timestamp()
+ where org_id='03190000-0000-0000-0000-000000000001'
+   and batch_id=(select (result->>'batchId')::uuid from native_backoff)
+   and normalized_report is null;
+create temporary table native_backoff_wait as
+  select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+    '03190000-0000-0000-0000-000000000101',context) result from native_context;
+select ok((select result->>'complete'='false' and result->'nextRequest'='null'::jsonb from native_backoff_wait),
+  'AC-1202 a report in bounded backoff yields a progress-only tick without marking the batch complete');
+update public.erp_financial_statement_report_pending
+   set last_attempt_at=clock_timestamp()-interval '1 hour'
+ where org_id='03190000-0000-0000-0000-000000000001'
+   and batch_id=(select (result->>'batchId')::uuid from native_backoff)
+   and normalized_report is null;
+select ok((select result->>'complete'='false' and result->'nextRequest'<>'null'::jsonb from
+  (select public.open_erp_statement_report_batch('03190000-0000-0000-0000-000000000001',
+    '03190000-0000-0000-0000-000000000101',context) result from native_context) ready),
+  'AC-1202 failed native reports become eligible again after bounded backoff');
+reset role;
 
 select * from finish();
 rollback;

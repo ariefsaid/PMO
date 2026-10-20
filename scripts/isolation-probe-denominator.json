@@ -198,6 +198,7 @@
     "m365_set_connection_status(uuid,uuid,uuid,text,timestamp with time zone)",
     "m365_upsert_connection(uuid,uuid,text,text,text[],bytea,bytea,timestamp with time zone,text,timestamp with time zone,timestamp with time zone)",
     "mark_erp_statement_replay_for_missing_accounts(uuid,text)",
+    "mark_erp_statement_report_attempt(uuid,uuid,uuid,jsonb)",
     "mark_outbox_held(uuid,integer,text)",
     "may_approve_work_of(uuid,uuid)",
     "merge_external_org_binding_config(uuid,text,jsonb)",
