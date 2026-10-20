@@ -63,6 +63,8 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
+  stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
@@ -482,6 +484,7 @@ export function DataTable<Row>({
                       : undefined}
                     className={cn(
                       'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.colClassName
                     )}
@@ -582,6 +585,7 @@ export function DataTable<Row>({
                             : undefined}
                           className={cn(
                             'h-[54px] px-3 py-2 align-middle',
+                            col.stickyLeft && 'sticky left-0 z-[1] bg-card',
                             (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                             alignClass(col.align),
                             col.align === 'num' && 'tabular',
@@ -624,7 +628,7 @@ export function DataTable<Row>({
           </tbody>
           {totals && totals.length > 0 && <tfoot>
             {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
-              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', alignClass(column.align), column.align === 'num' && 'tabular')}>
+              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
               {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
