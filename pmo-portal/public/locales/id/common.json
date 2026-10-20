@@ -2665,9 +2665,6 @@
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
-      "invoicing": {
-        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk."
-      },
       "procSummary": {
         "closed": "Ditutup",
         "completed": "Selesai",
@@ -4637,7 +4634,6 @@
     "work":"Pendapatan pekerjaan ditagihkan (neto pajak, tanpa uang muka)", "margin":"Margin",
     "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
     "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
-    "mappingUnavailable":"Belum tersedia",
     "category":"Kategori", "unavailable":"Tidak tersedia",
     "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
     "noInvoices":"Belum ada tagihan yang diajukan", "mixedTaxBases":"Dasar pajak berbeda",
@@ -4657,8 +4653,6 @@
     "partialCoverage": "Cakupan sebagian · {{mapped}} dari {{total}} kategori tercatat",
     "coverageUnavailable": "Cakupan pengeluaran tidak tersedia",
     "updated": "Diperbarui {{date}}",
-    "setupHandoff": "Minta Tim Keuangan atau Admin meninjau pengaturan pengeluaran.",
-    "reviewSetup": "Tinjau pengaturan pengeluaran",
     "showCategoryDetails": "Tampilkan rincian kategori",
     "categoryDetails": "Pengeluaran tercatat menurut kategori",
     "totalRequestValueAcross": "Nilai total permintaan: <amount>{{amount}}</amount> untuk {{n}} {{unit}}",

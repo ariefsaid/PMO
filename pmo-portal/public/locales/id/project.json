@@ -1,0 +1,9 @@
+{
+  "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
+  "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
+  "spendingSetupDetails": "Detail penyiapan pengeluaran",
+  "noSpendingReading": "Pengeluaran belum diperbarui.",
+  "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
+  "invoiceBalanceUnavailable": "Saldo faktur belum tersedia",
+  "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan."
+}

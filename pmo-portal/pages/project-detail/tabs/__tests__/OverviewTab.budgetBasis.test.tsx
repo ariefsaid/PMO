@@ -31,6 +31,7 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => projectFinancesState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
