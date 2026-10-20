@@ -137,6 +137,15 @@ describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
   });
 });
 
+describe('AC-RD-TBL-QUOTE-001: semantic quote comparison table', () => {
+  it('exposes quotation rows and selectable actions within a named table', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, unselectedQuote]} selectedId="q-lo" canSelect />);
+    expect(screen.getByRole('table', { name: /vendor bid comparison/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('row').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole('button', { name: /select quote/i })).toBeInTheDocument();
+  });
+});
+
 describe('AC-VQ-002: VendorQuotesTab — bid comparison rows', () => {
   beforeEach(() => {
     defaultProps.onAdd.mockClear();

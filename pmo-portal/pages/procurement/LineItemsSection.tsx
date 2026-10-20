@@ -245,7 +245,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           hides it visually. With relative, the span is contained here and the
           overflow-x-auto scroll container clips it correctly (AC-MOBILE-OVERFLOW-001). */}
       <div className="relative overflow-x-auto">
-        <table className="w-full border-collapse text-[13.5px]">
+        <table aria-label="Line items" className="w-full border-collapse text-[13.5px]">
           <thead>
             <tr>
               <th className="h-[38px] border-b border-border px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
