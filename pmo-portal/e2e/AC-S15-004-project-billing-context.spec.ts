@@ -6,6 +6,9 @@ import path from 'node:path';
 import { requireServiceRoleKey, signIn, waitForFonts } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
+// Create the invoice from the work order, save it, reload and re-check: one journey, longer than the 30s default.
+test.setTimeout(60_000);
+
 const localized = (en: string, id: string) => new RegExp('(?:' + en + '|' + id + ')', 'i');
 type DiscoverLocale = 'en' | 'id';
 type DiscoverTheme = 'light' | 'dark';
