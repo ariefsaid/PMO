@@ -95,6 +95,8 @@ import {
   type StatementReportBatchService,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementReportRefresh.ts';
 export { STATEMENT_READ_REQUEST_TIMEOUT_MS, STATEMENT_READ_STAGE_TIMEOUT_MS };
+export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
+export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -932,6 +934,7 @@ function sameTimestampInstant(left: unknown, right: string): boolean {
 const STATEMENT_FIRST_PUBLICATION_BACKFILL_MS = 6 * 60 * 60 * 1000;
 
 type StatementReportBatchReadinessRow = { org_id?: unknown; started_at?: unknown; context?: unknown };
+type StatementReportProgressRow = { org_id?: unknown; acquired_at?: unknown };
 
 function statementReportBatchMatchesBinding(
   batchContext: unknown,
@@ -949,9 +952,9 @@ function statementReportBatchMatchesBinding(
  * The ordinary cron has a five-minute window for the whole sweep. Between those windows it may
  * return early once each active binding accepted by the native collector's binding guard has a
  * publication for that same company, binding activation, version, and project map. A binding without
- * its first publication can keep the five-minute cadence for six hours after activation; an older
- * binding can do so only while an exact-identity native report batch started within the last six
- * hours remains open. Other bindings stay on the hourly cadence. The publication context is written
+ * its first publication can keep the five-minute cadence while its matching native report batch
+ * started within six hours or recorded a report acquisition within the last six hours. Other bindings
+ * stay on the hourly cadence. The publication context is written
  * only by the native snapshot trigger for a committed generation; attempts and legacy status fields
  * do not establish publication.
  */
@@ -979,43 +982,53 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
   });
 
   const readinessNowMs = Date.now();
-  const oldEligibleOrgIds = [...new Set(eligibleBindings
-    .filter(({ context }) => readinessNowMs - Date.parse(context.activatedAt) >= STATEMENT_FIRST_PUBLICATION_BACKFILL_MS)
-    .map(({ context }) => context.orgId))];
+  const eligibleOrgIds = [...new Set(eligibleBindings.map(({ context }) => context.orgId))];
   const recentBatches: StatementReportBatchReadinessRow[] = [];
+  const recentProgressOrgIds = new Set<string>();
   const batchWindowStart = new Date(readinessNowMs - STATEMENT_FIRST_PUBLICATION_BACKFILL_MS).toISOString();
   const batchWindowEnd = new Date(readinessNowMs).toISOString();
-  // The report-batch table has one row per org. Read only orgs with old, otherwise eligible
-  // bindings, and chunk the primary-key filter to keep each REST request bounded.
-  for (let offset = 0; offset < oldEligibleOrgIds.length; offset += 100) {
-    const orgIds = oldEligibleOrgIds.slice(offset, offset + 100);
+  // The report-batch table has one row per org. Read eligible orgs in bounded primary-key chunks;
+  // cadence qualification below is based on exact batch identity and acquisition recency, not age since activation.
+  for (let offset = 0; offset < eligibleOrgIds.length; offset += 100) {
+    const orgIds = eligibleOrgIds.slice(offset, offset + 100);
     const { data: batches, error: batchError } = await serviceClient.from('erp_financial_statement_report_batch')
       .select('org_id, started_at, context')
-      .in('org_id', orgIds)
-      .gte('started_at', batchWindowStart)
-      .lte('started_at', batchWindowEnd);
+      .in('org_id', orgIds);
     if (batchError || !Array.isArray(batches)) {
       console.error(`[erpnext-sweep] statement batch readiness read failed: code=${batchError?.code ?? 'unknown'} message=${batchError?.message ?? 'invalid response'}`);
       continue;
     }
     recentBatches.push(...batches as StatementReportBatchReadinessRow[]);
+    const pageSize = 250;
+    for (let from = 0; ; from += pageSize) {
+      const { data: progress, error: progressError } = await serviceClient.from('erp_financial_statement_report_pending')
+        .select('org_id, acquired_at')
+        .in('org_id', orgIds)
+        .gte('acquired_at', batchWindowStart)
+        .lte('acquired_at', batchWindowEnd)
+        .range(from, from + pageSize - 1);
+      if (progressError || !Array.isArray(progress)) {
+        console.error(`[erpnext-sweep] statement progress readiness read failed: code=${progressError?.code ?? 'unknown'} message=${progressError?.message ?? 'invalid response'}`);
+        break;
+      }
+      for (const row of progress as StatementReportProgressRow[]) {
+        if (typeof row.org_id !== 'string' || typeof row.acquired_at !== 'string') continue;
+        const acquiredAtMs = Date.parse(row.acquired_at);
+        if (acquiredAtMs < readinessNowMs - STATEMENT_FIRST_PUBLICATION_BACKFILL_MS || acquiredAtMs > readinessNowMs) continue;
+        const eligible = eligibleBindings.find(({ context }) => context.orgId === row.org_id);
+        if (eligible && recentBatches.some((batch) => batch.org_id === row.org_id &&
+          statementReportBatchMatchesBinding(batch.context, eligible.context))) recentProgressOrgIds.add(row.org_id);
+      }
+      if (progress.length < pageSize) break;
+    }
   }
 
   for (const { binding, context } of eligibleBindings) {
     const activationAgeMs = readinessNowMs - Date.parse(context.activatedAt);
-    // Give newly activated bindings a bounded fast retry window for their first native publication.
-    // A future activation timestamp is not allowed to extend that exception.
     if (activationAgeMs < 0) continue;
-    const activationBackfillActive = activationAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS;
-    const recentBatchActive = !activationBackfillActive && recentBatches.some((batch) => {
-      if (batch.org_id !== context.orgId || typeof batch.started_at !== 'string') return false;
-      const batchAgeMs = readinessNowMs - Date.parse(batch.started_at);
-      return batchAgeMs >= 0 && batchAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS &&
-        statementReportBatchMatchesBinding(batch.context, context);
-    });
-    if (!activationBackfillActive && !recentBatchActive) continue;
 
     const { company, projectMap } = context;
+    let foundCurrentPublication: boolean | undefined;
 
     // `activatedAt` is jsonb text, so compare instants in JavaScript: the same PostgreSQL timestamp
     // can be serialized as either a `Z` suffix or an explicit UTC offset across runtime versions.
@@ -1034,7 +1047,7 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
         return false;
       }
 
-      const foundCurrentPublication = contexts.some((row: { context?: unknown }) => {
+      foundCurrentPublication = contexts.some((row: { context?: unknown }) => {
         if (!isJsonRecord(row.context)) return false;
         const publishedContext = row.context;
         const contextBinding = publishedContext.binding;
@@ -1043,9 +1056,18 @@ async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: 
           contextBinding.versionMajor === context.versionMajor &&
           sameTimestampInstant(contextBinding.activatedAt, context.activatedAt);
       });
-      if (foundCurrentPublication) break;
-      if (contexts.length < pageSize) return false;
+      if (foundCurrentPublication || contexts.length < pageSize) break;
     }
+    if (foundCurrentPublication === true) continue;
+
+    const recentAcquisitionActive = recentProgressOrgIds.has(context.orgId);
+    const recentBatchActive = recentBatches.some((batch) => {
+      if (batch.org_id !== context.orgId || typeof batch.started_at !== 'string') return false;
+      const batchAgeMs = readinessNowMs - Date.parse(batch.started_at);
+      return batchAgeMs >= 0 && batchAgeMs < STATEMENT_FIRST_PUBLICATION_BACKFILL_MS &&
+        statementReportBatchMatchesBinding(batch.context, context);
+    });
+    if (recentAcquisitionActive || recentBatchActive) return false;
   }
   return true;
 }
@@ -1116,7 +1138,9 @@ export const SWEEP_TICK_MAX_DOCS = 1_000;
  *  start the serve handler stamps, so every org's walk in the tick shares one clock. Wall clock is a
  *  PROXY here — the hard constraint is CPU time, which the doc budgets bound directly; this stops a
  *  slow/unreachable ERP from holding the worker while staying far under any CPU limit. */
-export const SWEEP_TICK_TIME_BUDGET_MS = 20_000;
+// Leaves 25 seconds beyond the native statement stage for context, admission and teardown. The
+// 100-second invocation budget remains below the conservative 150-second Edge wall-clock ceiling.
+export const SWEEP_TICK_TIME_BUDGET_MS = 100_000;
 
 /**
  * #916 fix round (starvation): ONE org's doctypes ordered LEAST-RECENTLY-ATTEMPTED first.
@@ -1661,7 +1685,7 @@ async function readStatementSourcesBounded(client: ErpClientDeps, company: strin
   const controller = new AbortController();
   const boundedClient: ErpClientDeps = {
     ...client,
-    timeoutMs: STATEMENT_READ_REQUEST_TIMEOUT_MS,
+    timeoutMs: STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS,
     maxRetries: 0,
     fetchImpl: (input, init) => {
       const requestInit = init as RequestInit | undefined;
@@ -1680,9 +1704,9 @@ async function readStatementSourcesBounded(client: ErpClientDeps, company: strin
   const deadline = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => {
       timedOut = true;
-      controller.abort(new Error(`Statement source reads exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`));
+      controller.abort(new Error(`Statement source reads exceeded ${STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS}ms`));
       resolve(false);
-    }, STATEMENT_READ_STAGE_TIMEOUT_MS);
+    }, STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS);
   });
   try {
     await Promise.race([accountRead.then(() => true), deadline]);
@@ -1724,7 +1748,7 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
   } catch (err) {
     statementErrors.push(`statement source reads unavailable: ${errorMessage(err)}`);
   }
-  if (reads.timedOut) statementErrors.push(`statement source read stage exceeded ${STATEMENT_READ_STAGE_TIMEOUT_MS}ms`);
+  if (reads.timedOut) statementErrors.push(`statement source read stage exceeded ${STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS}ms`);
   let chartReady = false;
   if (reads.accounts?.ok) {
     try {
