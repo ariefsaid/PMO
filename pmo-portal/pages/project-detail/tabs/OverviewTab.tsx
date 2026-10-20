@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { cn } from '@/src/components/ui/cn';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, StatTiles, TaxBasisLabel, type StatTile } from '@/src/components/ui';
@@ -197,7 +198,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
 
       {/* PD-B: each card renders only when it has something to show (or failed to load). */}
       {(showProc || showSnapshot) && (
-        <div data-testid="overview-row2" className={`grid gap-6 [&>*]:min-w-0${showProc && showSnapshot ? ' lg:grid-cols-2' : ''}`}>
+        <div data-testid="overview-row2" className={cn('grid gap-6 [&>*]:min-w-0', showProc && showSnapshot && 'lg:grid-cols-2')}>
         {/* T14/T15 — Procurement summary card */}
         {showProc && <Card variant="bare">
           <CardHead>{t('projectDetail.overview.procSummary.title', 'Procurement summary')}</CardHead>

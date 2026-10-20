@@ -452,7 +452,7 @@ export function DataTable<Row>({
         >
           <thead>
             <tr>
-              {modelHeaders.map((header) => {
+              {modelHeaders.map((header, headerIndex) => {
                 const col = columns.find((column) => column.key === header.column.id)!;
                 const sortable = header.column.getCanSort();
                 const currentSort = header.column.getIsSorted();
@@ -555,7 +555,8 @@ export function DataTable<Row>({
                               }
                             }
                           }}
-                          style={{ right: -12, width: 24, height: 38 }}
+                          // The last column's handle stays inside the table, or it widens the scroll box by 12px.
+                          style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 38 }}
                           className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                         >
                           <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-[11px] w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />

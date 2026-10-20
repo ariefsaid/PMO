@@ -69,8 +69,8 @@ test(
     // Pick a company. `selectOption` (not ArrowDown) because a native <select> on macOS/
     // headless Chromium opens a native popup ArrowDown cannot drive — and this journey's
     // oracle is the FOCUS ORDER, not the platform's select widget: focus stays on the select.
-    await page.getByLabel(/^Company/).selectOption({ index: 1 });
-    await expect(page.getByLabel(/^Company/)).not.toHaveValue('');
+    await dialog.getByLabel(/^Company/).selectOption({ index: 1 });
+    await expect(dialog.getByLabel(/^Company/)).not.toHaveValue('');
     await expect.poll(() => activeId(page)).toBe('contact-form-company_id');
 
     // ── 3. Tab forward to the submit, which is now ENABLED ──────────────────
