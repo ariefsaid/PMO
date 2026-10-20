@@ -515,6 +515,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
   onLineItemSaveError,
 }) => {
   const { t } = useTranslation();
+  // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
+  const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
   return (
     <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -619,7 +621,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                       `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
                       clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse
                       than none. */}
-                  <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>
+                  {showFiscalYear && <TH>{t('financeCopy.fiscalYear', "Fiscal year")}</TH>}
                   <TH align="right">{t('financeCopy.budgeted', "Budgeted")}</TH>
                 </tr>
               </thead>
@@ -628,9 +630,11 @@ const VersionCard: React.FC<VersionCardProps> = ({
                   <tr key={li.id} className="border-b border-border/70 last:border-b-0">
                     <td className="px-3 py-2">{budgetCategoryLabel(li.category as Enums<'budget_category'>, t)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-                    </td>
+                    {showFiscalYear && (
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right font-medium tabular">
                       {formatCurrency(Number(li.budgeted_amount), version.currency)}
                     </td>
@@ -638,10 +642,6 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 ))}
               </tbody>
             </table>
-            <TableFoot className="mt-0 rounded-b-lg">
-              <span className="text-muted-foreground">{t('financeCopy.total', "Total")}</span>
-              <span className="ml-auto font-bold">{formatCurrency(version.total, version.currency)}</span>
-            </TableFoot>
           </div>
         )
       )}
@@ -922,7 +922,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         {/* UX-033: the Active amount is announced ONCE, in the version header below. This line exists only
             to keep it in view while another version is open — and DD-MONEY-4: with no Active version it says
             so, instead of presenting a Draft or $0 as the budget. */}
-        {!hasActive ? (
+        {versions.length === 0 ? null : !hasActive ? (
           <p className="text-sm text-muted-foreground">{t('uxs04.noActiveBudget', 'No active budget')}</p>
         ) : selected?.status !== 'Active' ? (
           <p className="text-sm text-muted-foreground">
@@ -983,34 +983,36 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         />
       )}
 
-      {/* AC-BD-01: Version selector bar */}
-      <Toolbar
-        standalone
-        className="flex flex-wrap items-center gap-2 py-2"
-        data-testid="version-selector"
-      >
-        {/* A1: visible label wired to select */}
-        <label
-          htmlFor="budget-version-select"
-          className="text-[12px] font-semibold text-muted-foreground"
+      {/* AC-BD-01: Version selector bar — SUB-D: only when there is a version to switch to. */}
+      {versions.length > 1 && (
+        <Toolbar
+          standalone
+          className="flex flex-wrap items-center gap-2 py-2"
+          data-testid="version-selector"
         >
-          {t('financeCopy.version', "Version")}</label>
-        {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
-        <select
-          id="budget-version-select"
-          aria-label={t('financeCopy.version', "Version")}
-          value={selected?.id ?? ''}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className={`${selectFieldCls} min-w-[200px] max-w-xs`}
-        >
-          {versions.map((v) => (
-            // A4/N1/N2: status in text (not color only), no em-dash, no emoji
-            <option key={v.id} value={v.id}>
-              {`v${v.version} · ${v.name}`}
-            </option>
-          ))}
-        </select>
-      </Toolbar>
+          {/* A1: visible label wired to select */}
+          <label
+            htmlFor="budget-version-select"
+            className="text-[12px] font-semibold text-muted-foreground"
+          >
+            {t('financeCopy.version', "Version")}</label>
+          {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
+          <select
+            id="budget-version-select"
+            aria-label={t('financeCopy.version', "Version")}
+            value={selected?.id ?? ''}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className={`${selectFieldCls} min-w-[200px] max-w-xs`}
+          >
+            {versions.map((v) => (
+              // A4/N1/N2: status in text (not color only), no em-dash, no emoji
+              <option key={v.id} value={v.id}>
+                {`v${v.version} · ${v.name}`}
+              </option>
+            ))}
+          </select>
+        </Toolbar>
+      )}
 
       {/* AC-BD-05: exactly ONE VersionCard */}
       <div className="flex flex-col gap-4">

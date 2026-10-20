@@ -531,16 +531,16 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
   const missingNames = (cs: readonly string[]) => cs.map(translatedCategory).join(', ');
   const overrun = summary.remaining !== null && summary.remaining < 0;
+  // SUB-D: what is missing is said ONCE under the strip; each unknown figure is just a dash.
+  const incompleteNotes = [
+    summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null,
+    summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null,
+  ].filter((note): note is string => note !== null);
 
   return (
     <section aria-label={t('uxs04.forecast', 'Forecast')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            {t('uxs04.forecastIntro', 'Will this project finish within budget? Recorded spending plus your cost to finish.')}
-          </p>
-        </div>
+        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
         <div className="flex flex-wrap items-center gap-3">
           {fiscalYears.length > 0 ? (
             <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -616,31 +616,32 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               label={t('uxs04.budget', 'Budget')}
               value={summary.budget}
               currency={orgCurrency}
-              reason={summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null}
             />
             <SummaryFigure
               label={t('uxs04.recordedSpending', 'Recorded spending')}
               value={summary.recorded}
               currency={orgCurrency}
-              reason={summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null}
             />
-            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} reason={null} />
+            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} />
             <SummaryFigure
               label={t('uxs04.forecastFinalCost', 'Forecast final cost')}
               value={summary.finalCost}
               currency={orgCurrency}
-              reason={summary.finalCost === null ? t('uxs04.needsRecorded', 'Needs recorded spending for every category') : null}
               strong
             />
             <SummaryFigure
               label={overrun ? t('uxs04.forecastOverrun', 'Forecast overrun') : t('uxs04.forecastRemaining', 'Forecast remaining')}
               value={summary.remaining === null ? null : Math.abs(summary.remaining)}
               currency={orgCurrency}
-              reason={summary.remaining === null ? t('uxs04.needsBudgetAndSpending', 'Needs a budget and recorded spending for every category') : null}
               strong
               alert={overrun}
             />
           </dl>
+          {incompleteNotes.length > 0 && (
+            <p id="forecast-incomplete" data-testid="forecast-incomplete" className="mt-2 text-[12px] text-muted-foreground">
+              {incompleteNotes.join(' ')}
+            </p>
+          )}
 
           {actualsAsOf && (
             <p className="mt-2 text-[12px] text-muted-foreground">{t('uxs04.recordedAsOf', 'Recorded spending as of')}{' '}{formatInstantDate(actualsAsOf)}</p>
@@ -741,35 +742,36 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       )}
 
       {/* UX-037: where the numbers come from, and the ERP's enforcement state and document, on demand. */}
-      <details className="mt-3 text-[13px]">
-        <summary className="cursor-pointer text-muted-foreground">{t('uxs04.sourcesAndStatus', 'Sources and budget enforcement')}</summary>
-        {rows.length > 0 && (
+      {rows.length > 0 && (
+        <details className="mt-3 text-[13px]">
+          <summary className="cursor-pointer text-muted-foreground">{t('uxs04.sourcesAndStatus', 'Sources and budget enforcement')}</summary>
           <p className="mt-2 text-[12px] text-muted-foreground">
             {t('uxs04.sourcesNote', 'Recorded spending is what the accounting ledger has posted. The budget is your active version; cost to finish is your own estimate and is never sent to the ERP.')}
           </p>
-        )}
-        {quietRows.map((row) => (
-          <QuietPushStatus key={`quiet-${row.fiscalYear ?? 'no-year'}`} row={row} />
-        ))}
-      </details>
+          {quietRows.map((row) => (
+            <QuietPushStatus key={`quiet-${row.fiscalYear ?? 'no-year'}`} row={row} />
+          ))}
+        </details>
+      )}
     </section>
   );
 };
 
-/** One headline figure. `null` is a dash that SAYS why — never a bare dash, never 0. */
+/** One headline figure. `null` is a dash; the one line under the strip says what is missing. */
 const SummaryFigure: React.FC<{
   label: string;
   value: number | null;
   currency: string;
-  reason: string | null;
   strong?: boolean;
   alert?: boolean;
-}> = ({ label, value, currency, reason, strong, alert }) => (
+}> = ({ label, value, currency, strong, alert }) => (
   <div className="min-w-0">
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}>
-      {value === null ? (reason ? <span aria-hidden>—</span> : <Unavailable reason="" />) : formatCurrency(value, currency)}
-      {reason && <span className="block text-[12px] font-normal text-muted-foreground">{reason}</span>}
+    <dd
+      aria-describedby={value === null ? 'forecast-incomplete' : undefined}
+      className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}
+    >
+      {value === null ? <span>—</span> : formatCurrency(value, currency)}
     </dd>
   </div>
 );

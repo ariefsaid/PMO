@@ -3909,8 +3909,6 @@
   },
   "uxs04": {
     "forecast": "Forecast",
-    "forecastUnavailable": "Forecast appears once your accounting ledger is connected.",
-    "forecastIntro": "Will this project finish within budget? Recorded spending plus your cost to finish.",
     "editCostToFinish": "Edit cost to finish",
     "budget": "Budget",
     "recordedSpending": "Recorded spending",
@@ -3924,8 +3922,6 @@
     "recordedAsOf": "Recorded spending as of",
     "incompleteBudget": "Not complete: budget unknown for {{categories}}",
     "incompleteRecorded": "Not complete: spending unavailable for {{categories}}",
-    "needsRecorded": "Needs recorded spending for every category",
-    "needsBudgetAndSpending": "Needs a budget and recorded spending for every category",
     "reasonBudgetedElsewhere": "Budgeted in {{years}}",
     "reasonBudgetYearUnclear": "Budget year unclear: phase its budget lines",
     "reasonNoBudgetLine": "No budget line",

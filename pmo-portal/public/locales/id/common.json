@@ -3909,8 +3909,6 @@
   },
   "uxs04": {
     "forecast": "Perkiraan",
-    "forecastUnavailable": "Perkiraan akan tersedia setelah buku besar akuntansi Anda terhubung.",
-    "forecastIntro": "Apakah proyek ini selesai sesuai anggaran? Pengeluaran tercatat ditambah biaya hingga selesai dari Anda.",
     "editCostToFinish": "Ubah biaya hingga selesai",
     "budget": "Anggaran",
     "recordedSpending": "Pengeluaran tercatat",
@@ -3924,8 +3922,6 @@
     "recordedAsOf": "Pengeluaran tercatat per",
     "incompleteBudget": "Belum lengkap: anggaran tidak diketahui untuk {{categories}}",
     "incompleteRecorded": "Belum lengkap: pengeluaran tidak tersedia untuk {{categories}}",
-    "needsRecorded": "Perlu pengeluaran tercatat untuk setiap kategori",
-    "needsBudgetAndSpending": "Perlu anggaran dan pengeluaran tercatat untuk setiap kategori",
     "reasonBudgetedElsewhere": "Dianggarkan pada {{years}}",
     "reasonBudgetYearUnclear": "Tahun anggaran belum jelas: tentukan tahun pada baris anggaran",
     "reasonNoBudgetLine": "Tidak ada baris anggaran",

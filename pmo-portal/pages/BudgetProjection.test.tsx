@@ -1253,7 +1253,24 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     const summary = within(screen.getByTestId('forecast-summary'));
     expect(summary.getByText('Recorded spending').nextElementSibling).not.toHaveTextContent('$');
     expect(summary.getByText('Forecast final cost').nextElementSibling).not.toHaveTextContent('$');
-    expect(summary.getByText(/spending unavailable for Travel/i)).toBeVisible();
+    // SUB-D: said ONCE under the strip, not repeated inside each figure.
+    expect(screen.getAllByText(/spending unavailable for Travel/i)).toHaveLength(1);
+    expect(summary.queryByText(/spending unavailable for Travel/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('forecast-incomplete')).toHaveTextContent(/spending unavailable for Travel/i);
+  });
+
+  it('SUB-D the Forecast head carries no standing intro sentence', async () => {
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.queryByText(/Will this project finish within budget/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('forecast-incomplete')).not.toBeInTheDocument();
+  });
+
+  it('SUB-D "Sources and budget enforcement" exists only when there are projection rows', async () => {
+    fetchMock.mockResolvedValue([]);
+    renderPage();
+    await screen.findByText(/No (projection data|fiscal year on record) yet/);
+    expect(screen.queryByText('Sources and budget enforcement')).not.toBeInTheDocument();
   });
 
   it('UX-037 ERP enforcement + document name sit behind a disclosure, not in the way', async () => {
