@@ -265,12 +265,6 @@
     "previewRows": "Normalized rate preview",
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR — {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
-    "checkingOrgCurrency": "Checking organization currency…",
-    "checkingOrgDay": "Checking today’s JISDOR date…",
-    "checkingRate": "Checking JISDOR rate…",
-    "unsupportedPair": "JISDOR equivalents are available for USD contracts in IDR organizations only.",
-    "missingDate": "No document date — no JISDOR equivalent.",
-    "orgDayError": "Could not resolve the organization’s local date.",
     "rateError": "Could not load JISDOR rate.",
     "noRateForDate": "No JISDOR rate for {{date}}."
   },

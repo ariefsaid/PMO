@@ -226,7 +226,7 @@ describe('AC-FX-012 sales invoice equivalents', () => {
     const nullMoney = within(table).getByText('SI-NULL').closest('tr') as HTMLElement;
     expect(idr).not.toHaveTextContent('JISDOR');
     expect(eur).not.toHaveTextContent('≈ Rp');
-    expect(eur).toHaveTextContent(/USD contracts in IDR organizations only/);
+    expect(eur).not.toHaveTextContent(/JISDOR/); // FIN-S4: an unsupported pair is silent
     expect(nullMoney).not.toHaveTextContent('≈ Rp');
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-12', true]);
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-10', true]);

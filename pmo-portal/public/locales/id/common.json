@@ -265,12 +265,6 @@
     "previewRows": "Pratinjau kurs yang dinormalisasi",
     "confirmUpload": "Simpan kurs JISDOR ini?",
     "confirmUploadDescription": "USD → IDR · JISDOR — {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
-    "checkingOrgCurrency": "Memeriksa mata uang organisasi…",
-    "checkingOrgDay": "Memeriksa tanggal JISDOR hari ini…",
-    "checkingRate": "Memeriksa kurs JISDOR…",
-    "unsupportedPair": "Ekuivalen JISDOR hanya tersedia untuk kontrak USD di organisasi IDR.",
-    "missingDate": "Tidak ada tanggal dokumen — tidak ada ekuivalen JISDOR.",
-    "orgDayError": "Tanggal lokal organisasi tidak dapat ditentukan.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
     "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
   },
