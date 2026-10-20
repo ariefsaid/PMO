@@ -130,6 +130,10 @@ jobs:
       - name: PMO CLI tests
         working-directory: .
         run: node --test scripts/pmo.test.mjs scripts/pmo-load.test.mjs scripts/register-oauth-client.test.mjs
+      # These contract tests spawn the checked-in Playwright/Vitest CLIs; install the app deps first.
+      - name: Install Node dependencies for repository contract tests
+        working-directory: pmo-portal
+        run: npm ci
       - name: CI integration-order test
         working-directory: .
         run: |
@@ -144,7 +148,6 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
-      - run: npm ci
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
       # typecheck/tests so a guard failure surfaces first.
@@ -304,6 +307,11 @@ jobs:
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.105.0
+      # AC-S21-005 starts its local edge-function handler with `deno run`; each matrix runner is
+      # isolated and cannot inherit the deno binary that the old unsharded integration job installed.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: '2.7.11'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -362,6 +370,16 @@ jobs:
             /tmp/browser-shard-${{ matrix.shard }}.json
           retention-days: 1
           if-no-files-found: error
+      - name: Upload Chromium shard Playwright diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-chromium-playwright-${{ matrix.shard }}
+          path: |
+            pmo-portal/playwright-report/
+            /tmp/pmo-portal-test-results/
+          retention-days: 1
+          if-no-files-found: ignore
 
   integration:
     needs: browser-chromium

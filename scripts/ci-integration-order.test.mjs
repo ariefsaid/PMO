@@ -26,6 +26,22 @@ test('AC-BSH-003 integration owns two Chromium artifacts with run/attempt/revisi
   assert.match(workflow, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
   assert.match(workflow, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
   assert.match(workflow, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
+  const gateStart = workflow.indexOf('- name: Required integration result requires all browser evidence and audits');
+  const gateEnd = workflow.indexOf('\n      - name:', gateStart + 1);
+  assert.ok(gateStart !== -1 && gateEnd > gateStart, 'required integration gate bounds are invalid');
+  const gate = workflow.slice(gateStart, gateEnd);
+  for (const step of ['chromium_inventory', 'chromium_evidence', 'serial_e2e', 'consent_e2e', 'e2e_skip_audit', 'e2e_timing_audit', 'serve_adapter_dispatch']) {
+    assert.ok(gate.includes(`steps.${step}.outcome`), `gate must require ${step} to succeed`);
+    assert.ok(gate.includes(`test "\${{ steps.${step}.outcome }}" = success`), `gate must fail closed when ${step} is red`);
+  }
+  assert.match(browser, /denoland\/setup-deno@[a-f0-9]+[\s\S]*deno-version: ['\"]2\.7\.11['\"]/);
+  const diagnosticsStart = browser.indexOf('- name: Upload Chromium shard Playwright diagnostics');
+  const diagnosticsEnd = browser.indexOf('  integration:', diagnosticsStart);
+  const diagnostics = browser.slice(diagnosticsStart, diagnosticsEnd);
+  assert.ok(diagnostics.includes('if: ${{ failure() }}'));
+  assert.ok(diagnostics.includes('pmo-portal/playwright-report/'));
+  assert.ok(diagnostics.includes('/tmp/pmo-portal-test-results/'));
+  assert.ok(diagnostics.includes('name: browser-chromium-playwright-${{ matrix.shard }}'));
 });
 
 test('AC-BSH-001 inventory guard self-test rejects incomplete shard coverage', () => {
@@ -208,6 +224,7 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
     .join('\n');
   const at = (s) => verifyJob.indexOf(s);
   assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
+  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
   assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
   assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
   // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
