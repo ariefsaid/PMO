@@ -43,8 +43,6 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "showOptionalColumns": "Show optional columns",
-    "hideEmptyColumns": "Hide empty columns",
     "projectReferences": "More project references",
     "projectReferencesFor": "More project references for {{name}}",
     "contractReference": "Customer contract reference"
@@ -211,8 +209,6 @@
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "incompleteCoverage": "Incomplete source coverage",
-    "erpActual": "ERP actual",
-    "pmoActual": "Committed POs",
     "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
@@ -3173,15 +3169,14 @@
       "pm": "PM",
       "progress": "Progress",
       "project": "Project",
-      "status": "Status",
-      "endCustomer": "End customer"
+      "status": "Status"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
       "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
       "archiveTitle": "Archive project?"
     },
-    "description": "Track your active and completed projects. Open one to drill into its budget, procurement, and detail. Pre-win projects live in the Pipeline.",
+    "description": "Pre-win projects live in the Pipeline.",
     "empty": {
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",
@@ -3249,8 +3244,6 @@
       "removeCustomer": "Remove customer filter",
       "removeManager": "Remove project manager filter",
       "clearAll": "Clear all",
-      "loading": "Loading options…",
-      "noOptions": "No options available",
       "error": "Couldn't load options",
       "retry": "Retry",
       "unavailable": "Unavailable selection",

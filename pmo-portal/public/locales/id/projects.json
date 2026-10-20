@@ -1,0 +1,9 @@
+{
+  "coverage": {
+    "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
+    "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
+  },
+  "actual": {
+    "restrictedTag": "Dikecualikan (terbatas)"
+  }
+}

@@ -66,7 +66,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
-    await page.getByRole('button', { name: /^Classification$/ }).click();
+    await page.getByRole('button', { name: /^Filters/ }).click();
     await page.getByLabel('Filter by service line').last().selectOption(serviceLine);
     await expect(page.getByText(internal, { exact: true })).toBeVisible();
     await page.getByLabel('Filter by location').last().fill('Bali');

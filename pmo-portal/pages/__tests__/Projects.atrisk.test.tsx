@@ -141,7 +141,9 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     // Use aria-label on the progressbar to find the budget-used cell (robust to column-count changes)
     const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget');
-    expect(within(row).getByText('$95,000.00 of $100,000.00 Active budget')).toBeInTheDocument();
+    // PL-A: the "x of y" detail is the bar's title, not a second line of text.
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$95,000.00 of $100,000.00 Active budget');
+    expect(within(row).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
@@ -171,7 +173,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const card = screen.getByText('At Risk Project').closest('li')!;
     expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(card).getByText('$95,000.00 of $100,000.00 Active budget')).toBeInTheDocument();
+    expect(within(card).getByRole('progressbar', { name: '95% of Active budget' }).closest('[title]')).toHaveAttribute('title', '$95,000.00 of $100,000.00 Active budget');
   });
 
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
@@ -180,7 +182,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     // Seek by aria-label — robust to column count (a rowMenu column was added)
     const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget');
-    expect(within(row).getByText('$40,000.00 of $80,000.00 Active budget')).toBeInTheDocument();
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$40,000.00 of $80,000.00 Active budget');
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {

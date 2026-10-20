@@ -126,7 +126,6 @@ describe('AC-EC-005 — end-customer i18n catalogue', () => {
       'projectForm.endCustomer.placeholder',
       'projectForm.endCustomer.search',
       'projectForm.endCustomer.noun',
-      'projects.columns.endCustomer',
       'projects.filters.allEndCustomers',
       'projects.filters.endCustomerLabel',
       'projects.mobile.endCustomer',

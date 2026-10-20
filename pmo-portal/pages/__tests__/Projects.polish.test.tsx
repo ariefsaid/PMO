@@ -38,18 +38,18 @@ describe('UIP-003 project recognition', () => {
     expect(screen.getByRole('columnheader', { name: 'Project' })).toHaveStyle({ minWidth: '240px' });
     expect(screen.queryByRole('columnheader', { name: 'Customer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'End customer' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /show optional columns/i }));
-    expect(screen.getByRole('columnheader', { name: 'End customer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Contract' })).toHaveClass('text-right');
-    expect(screen.getByText('CLIENT-001')).toBeInTheDocument();
+    expect(screen.getByText(/CLIENT-001/)).toBeInTheDocument();
   });
 });
 
-it.each([true, false])('UIP-004 Projects has a separate collapsed Classification disclosure (desktop=%s) with URL-owned summary, count and clear', async (desktop) => {
+it.each([true, false])('UIP-004 Projects folds classification into its one collapsed Filters disclosure (desktop=%s) with URL-owned summary, count and clear', async (desktop) => {
   viewport(desktop);
   page('/projects?view=table&serviceLine=Engineering&sector=Energy');
   const user = userEvent.setup();
-  const trigger = screen.getByRole('button', { name: /^Classification\s*2/ });
+  expect(screen.queryByRole('button', { name: /^Classification/ })).not.toBeInTheDocument();
+  const trigger = screen.getByRole('button', { name: /^Filters\s*2/ });
   expect(trigger).toHaveAttribute('aria-expanded', 'false');
   expect(screen.queryByLabelText('Filter by service line')).not.toBeInTheDocument();
   expect(screen.getByText('Service line: Engineering')).toBeVisible();
@@ -61,7 +61,7 @@ it.each([true, false])('UIP-004 Projects has a separate collapsed Classification
   expect(trigger).toHaveFocus();
   await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
   expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
-  expect(screen.getByRole('button', { name: /^Classification$/ })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
 });
 
 it('UIP-004 shared classifications summarize all five selections, retain missing options, remove individually and clear a pending location', async () => {
