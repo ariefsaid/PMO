@@ -423,7 +423,6 @@ const Projects: React.FC = () => {
       size: 244,
       minSize: 190,
       maxSize: 420,
-      colClassName: 'min-[1280px]:w-[244px] min-[1280px]:max-w-[244px]',
       exportValue: (p) => p.name,
       cell: (p) => {
         const atRisk = isAtRiskActual(p);
@@ -436,7 +435,7 @@ const Projects: React.FC = () => {
             >
               {(p.name.trim().charAt(0) || '•').toUpperCase()}
             </span>
-            <div className="min-w-0 md:w-[190px] md:min-w-[190px]">
+            <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-col items-start gap-1">
                 <button
                   type="button"
