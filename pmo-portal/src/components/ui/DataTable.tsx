@@ -44,6 +44,8 @@ export interface Column<Row> {
   kind?: ColumnKind;
   /** Optional plain-text title for the `title` attribute when the primary cell is a React node. */
   primaryTitle?: (row: Row) => string;
+  /** Render this cell as the row's accessible header rather than a data cell. */
+  rowHeader?: boolean;
   /** Optional muted second line for a primary identity cell. */
   secondaryCell?: (row: Row) => React.ReactNode;
   /** One table-level explanation, referenced by a mark in this column header. */
@@ -571,9 +573,11 @@ export function DataTable<Row>({
                     {modelRow.getVisibleCells().map((cell, colIndex) => {
                       const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
+                      const CellTag = col.rowHeader ? 'th' : 'td';
                       return (
-                        <td
+                        <CellTag
                           key={col.key}
+                          {...(col.rowHeader ? { scope: 'row' as const } : {})}
                           style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
                             ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                             : undefined}
@@ -602,7 +606,7 @@ export function DataTable<Row>({
                           ) : (
                             col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
-                        </td>
+                        </CellTag>
                       );
                     })}
                     {rowMenu && (

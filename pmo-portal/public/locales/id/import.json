@@ -1,0 +1,9 @@
+{
+  "preview": {
+    "row": "Baris",
+    "status": "Status",
+    "valid": "Valid",
+    "skipped": "Dilewati",
+    "tableName": "Pratinjau baris impor"
+  }
+}
