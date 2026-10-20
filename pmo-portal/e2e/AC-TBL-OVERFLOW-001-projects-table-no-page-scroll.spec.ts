@@ -32,8 +32,12 @@ test.describe('AC-TBL-OVERFLOW-001 + AC-TBL-001 Projects table width at 1440', (
       const customerName = (await customer.textContent())?.trim() ?? '';
       if (customerName.length < 12 || !(await customer.isVisible())) continue;
       const fitsWithoutEllipsis = await customer.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return style.textOverflow !== 'ellipsis' && element.scrollWidth <= element.clientWidth;
+        // The customer name sits on the project cell's second line: it must end inside the cell (not clipped).
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const text = range.getBoundingClientRect();
+        const cell = element.closest('td')!.getBoundingClientRect();
+        return text.right <= cell.right && element.scrollWidth <= element.clientWidth + 1;
       });
       expect(fitsWithoutEllipsis, `customer name "${customerName}" should be visible without truncation`).toBe(true);
       verifiedCustomer = true;

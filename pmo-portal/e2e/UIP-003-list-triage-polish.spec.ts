@@ -54,8 +54,12 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
         }
         const scroller = page.getByTestId('dt-table-branch');
         await scroller.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
-        for (const column of ['Contract', 'Actual', 'Progress', 'Budget used']) {
+        for (const column of ['Contract', 'Actual']) {
           await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();
+        }
+        // These synthetic rows have no delivery or budget data: PL-A omits those columns, with no restore control.
+        for (const column of ['Progress', 'Budget used', 'End customer']) {
+          await expect(table.getByRole('columnheader', { name: column, exact: true })).toHaveCount(0);
         }
         await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
         await scroller.evaluate((el) => { el.scrollLeft = 0; });

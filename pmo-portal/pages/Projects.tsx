@@ -327,6 +327,11 @@ const Projects: React.FC = () => {
     rows: all,
     value: workingSet,
     resetToken: classificationResetToken,
+    open: filtersOpen,
+    onOpenChange: (next: boolean) => {
+      setFiltersOpen(next);
+      if (next) setMoreOpen(false);
+    },
     onChange: (patch: ClassificationFilterValues) => setWorkingSet((ws) => ({ ...ws, ...patch })),
   };
   const filtersActive =
@@ -874,16 +879,13 @@ const Projects: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         <ProjectClassificationFilters
           {...classificationFilterProps}
-          panel={(fields) => (
+          panel={(fields, disclosure) => (
             <MobileToolbarDisclosure
               label={t('uxs14.filters', 'Filters')}
               count={filtersCount}
-              open={filtersOpen}
+              open={disclosure.open}
               closeOnSelectChange
-              onOpenChange={(next) => {
-                setFiltersOpen(next);
-                if (next) setMoreOpen(false);
-              }}
+              onOpenChange={disclosure.onOpenChange}
             >
               <div className="w-full min-w-0 space-y-3">
                 {!isEngineer && (
@@ -1060,12 +1062,12 @@ const Projects: React.FC = () => {
         */
         <ProjectClassificationFilters
           {...classificationFilterProps}
-          panel={(fields) => (
+          panel={(fields, disclosure) => (
             <MobileToolbarDisclosure
               label={t('uxs14.filters', 'Filters')}
               count={filtersCount}
-              open={filtersOpen}
-              onOpenChange={setFiltersOpen}
+              open={disclosure.open}
+              onOpenChange={disclosure.onOpenChange}
             >
               <div className="flex min-w-0 flex-col gap-3">
                 {!isEngineer && (

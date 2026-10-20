@@ -23,7 +23,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
    * Host the fields inside the caller's own disclosure (Projects: its one Filters panel) instead of
    * this component's Classification trigger. State (debounced location) and the applied-chip list stay here.
    */
-  panel?: (fields: React.ReactNode) => React.ReactNode;
+  panel?: (fields: React.ReactNode, disclosure: { open: boolean; onOpenChange: (open: boolean) => void }) => React.ReactNode;
 }) {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -125,14 +125,17 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
         }} />
     </div>
   );
+  // Outside dismissal is committed after the click completes (see the effect above), so a record row
+  // under the pointer is not moved by the panel collapsing before its click activates.
+  const requestOpen = (next: boolean) => {
+    if (!next && pointerGesture.current) closeAfterClick.current = true;
+    else commitOpen(next);
+  };
   return (
-    <div ref={rootRef} className={inlineTrigger || panel ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
-      {panel ? panel(fields) : (
+    <div ref={rootRef} className={panel ? 'min-w-0' : inlineTrigger ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
+      {panel ? panel(fields, { open: isOpen, onOpenChange: requestOpen }) : (
         <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
-          count={activeClassificationCount(value)} open={isOpen} onOpenChange={(next) => {
-            if (!next && pointerGesture.current) closeAfterClick.current = true;
-            else commitOpen(next);
-          }}
+          count={activeClassificationCount(value)} open={isOpen} onOpenChange={requestOpen}
           className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
           {fields}
         </MobileToolbarDisclosure>
