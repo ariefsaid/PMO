@@ -229,11 +229,8 @@ for (const locale of ['en', 'id'] as const) {
       await phoneList.screenshot({ path: phoneShot, animations: 'disabled' });
       await testInfo.attach(`S24 phone list ${locale} ${theme} 390`, { path: phoneShot, contentType: 'image/png' });
 
-      const details = firstCard.locator('details');
-      await details.locator('summary').click();
-      await expect(details).toContainText(/125[.,]000[.,]000[.,]000/);
-      await expect(details).toContainText('PMO-26-0042');
-      await expect(details).toContainText('CLIENT-77');
+      // SUB-H: no per-card details disclosure; the value and win % sit on the card itself.
+      await expect(firstCard.locator('details')).toHaveCount(0);
 
       await firstCard.getByRole('button', { name: LONG_NAME, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/projects/${OPEN_PROJECTS[0].id}$`));

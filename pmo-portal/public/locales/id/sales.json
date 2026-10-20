@@ -1,0 +1,6 @@
+{
+  "pipeline": {
+    "endCustomerLine": "untuk {{name}}",
+    "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal"
+  }
+}

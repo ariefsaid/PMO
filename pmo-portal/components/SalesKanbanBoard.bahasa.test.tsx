@@ -45,10 +45,10 @@ describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {
     expect(within(card).queryByText('Quotation Submitted')).toBeNull();
   });
 
-  it('#693: the weighted-value suffix and the empty-column message are Bahasa', () => {
+  it('#693: the empty-column message is Bahasa and cards carry no weighted suffix', () => {
     render(<BahasaProvider><SalesKanbanBoard projects={projects} onOpen={vi.fn()} /></BahasaProvider>);
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByText(/tertimbang$/)).toBeInTheDocument();
+    expect(within(card).queryByText(/tertimbang$/)).toBeNull();
     expect(within(card).queryByText(/wtd/)).toBeNull();
     expect(screen.getByText('Tidak ada proyek pada tahap Prospek')).toBeInTheDocument();
   });
