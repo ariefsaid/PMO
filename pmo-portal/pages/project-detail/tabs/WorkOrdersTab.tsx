@@ -557,7 +557,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           )}
           {rows.length > 0 && (
             <Card variant="bare" data-testid="wo-billing-summary">
-              <CardHead><h2 className="text-base font-semibold">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</h2></CardHead>
+              <CardHead level={2} className="text-base">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
               <CardPad>
             {billing.isPending ? (
               <ListState variant="loading" rows={1} testId="wo-billing-loading" />
@@ -605,8 +605,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       )}
 
       <Card variant="bare">
-        <CardHead className="justify-between">
-          <h2 className="text-base font-semibold">{t('projectDetail.workOrders.title', 'Work orders')}</h2>
+        <CardHead level={2} className="justify-between text-base">
+          {t('projectDetail.workOrders.title', 'Work orders')}
           {may('create', 'workOrder') && (
             <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
               {t('projectDetail.workOrders.action.new', 'New work order')}
@@ -636,7 +636,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               'The client’s purchase orders for this project could not be read. Retry, or reopen the project.',
             )}
             onRetry={() => refetch()}
-          />
+          tableId="project-detail-tabs-workorderstab-table" />
         </CardPad>
       </Card>
 

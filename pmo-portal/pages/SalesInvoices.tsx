@@ -1128,7 +1128,7 @@ const SalesInvoices: React.FC = () => {
           state={sortedInvoices.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
-        />
+        tableId="salesinvoices-table" />
       )}
 
       {/* Create / edit modal */}

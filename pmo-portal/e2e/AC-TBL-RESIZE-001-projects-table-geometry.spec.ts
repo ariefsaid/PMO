@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 
-test('AC-TBL-RESIZE-001: Projects columns resize without page-level horizontal overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
+test('AC-TBL-RESIZE-001 AC-TBL-GEOM-001: Projects columns resize and remain in-scroller without page-level horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'admin@acme.test');
   await page.goto('/projects?view=table');
   const scroller = page.getByTestId('dt-table-branch');
@@ -11,6 +11,22 @@ test('AC-TBL-RESIZE-001: Projects columns resize without page-level horizontal o
   await expect(scroller.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
   await waitForFonts(page);
+
+  const scrollerBox = await scroller.boundingBox();
+  expect(scrollerBox).not.toBeNull();
+  const projectHeader = scroller.getByRole('columnheader', { name: 'Project', exact: true });
+  const projectCell = scroller.locator('tbody tr').first().locator('td').first();
+  for (const element of [projectHeader, projectCell]) {
+    const box = await element.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(scrollerBox!.x - 1);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(scrollerBox!.x + scrollerBox!.width + 1);
+  }
+  const rowActions = page.getByRole('button', { name: 'Row actions' }).first();
+  await expect(rowActions).toBeVisible();
+  const actionsBox = await rowActions.boundingBox();
+  expect(actionsBox).not.toBeNull();
+  expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(scrollerBox!.x + scrollerBox!.width + 1);
 
   const handle = page.getByRole('separator', { name: 'Resize Project column' });
   await expect(handle).toBeVisible();

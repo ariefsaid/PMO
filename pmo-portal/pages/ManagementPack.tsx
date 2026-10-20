@@ -309,7 +309,7 @@ const ManagementPack: React.FC = () => {
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
           <Card className="overflow-hidden mb-6">
-            <DataTable rows={pack.rows} columns={columns} rowKey={(row) => row.key} />
+            <DataTable rows={pack.rows} columns={columns} rowKey={(row) => row.key} tableId="managementpack-1-table" />
           </Card>
           <h2 className="mb-1 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
           <p className="mb-2 text-sm text-muted-foreground">
@@ -321,7 +321,7 @@ const ManagementPack: React.FC = () => {
             {t('uxs34.currencyScope', 'Currencies with no activity, contract, or meaningful balance in this range are omitted.')}
           </p>
           <Card className="overflow-hidden">
-            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} />
+            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" />
           </Card>
           {pack.undatedInvoiceCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">

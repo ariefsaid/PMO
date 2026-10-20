@@ -117,6 +117,12 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(scroll).not.toHaveBeenCalled();
   });
 
+  it('AC-BUPOT-020: the loaded detail exposes exactly one element named "Bukti potong details" (e2e getByLabel stays strict-safe)', () => {
+    render(<VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} />);
+    expect(screen.getAllByLabelText('Bukti potong details')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Bukti potong details', level: 2 })).toBeInTheDocument();
+  });
+
   it('#961 F20 retains detail title and Close while loading', () => {
     const onClose = vi.fn();
     state.detail.isLoading = true;

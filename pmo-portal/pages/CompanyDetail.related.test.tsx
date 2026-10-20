@@ -179,7 +179,7 @@ beforeEach(() => {
 describe('CompanyDetail — related objects (AC-IFW-COMPANY-01)', () => {
   it('AC-IFW-COMPANY-01: renders a "Related projects" card for a Client company', () => {
     renderPage('co-client-1');
-    // CardHead renders as a div; getAllByText returns multiple when the ul aria-label matches too
+    // The section title is a semantic CardHead heading; the list's accessible label may also match.
     const headings = screen.getAllByText(/related projects/i);
     expect(headings.length).toBeGreaterThan(0);
   });

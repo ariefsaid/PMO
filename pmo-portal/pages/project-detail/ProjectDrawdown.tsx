@@ -77,7 +77,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
 
   return (
     <Card variant="bare" className={className} data-testid="project-drawdown">
-      <CardHead><h2 className="text-base font-semibold">{t('projectDetail.drawdown.title', 'Contract drawdown')}</h2></CardHead>
+      <CardHead level={2} className="text-base">{t('projectDetail.drawdown.title', 'Contract drawdown')}</CardHead>
       {isPending ? (
         <ListState variant="loading" rows={3} testId="drawdown-loading" />
       ) : isError || !data ? (

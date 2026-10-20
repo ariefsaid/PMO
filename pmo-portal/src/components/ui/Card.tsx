@@ -50,21 +50,30 @@ export const Card: React.FC<CardProps> = ({
   </div>
 );
 
-export const CardHead: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+export type CardHeadingLevel = 2 | 3 | 4 | 5 | 6;
+type CardHeadProps = Omit<React.HTMLAttributes<HTMLHeadingElement>, 'aria-level'> & { level?: CardHeadingLevel };
+
+export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
+  level = 2,
   className,
   children,
   ...rest
-}) => (
-  <div
-    className={cn(
-      'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
-      className
-    )}
-    {...rest}
-  >
-    {children}
-  </div>
-);
+}, ref) => {
+  const Heading = `h${level}` as const;
+  return (
+    <Heading
+      ref={ref}
+      className={cn(
+        'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
+        className
+      )}
+      {...rest}
+    >
+      {children}
+    </Heading>
+  );
+});
+CardHead.displayName = 'CardHead';
 
 export const CardPad: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   className,

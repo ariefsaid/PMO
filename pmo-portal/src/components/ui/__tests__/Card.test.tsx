@@ -21,10 +21,16 @@ describe('Card', () => {
     expect(screen.getByText('body').className).toContain('rounded-b-none');
   });
 
-  it('CardHead renders a titled header with a bottom border', () => {
+  it('CardHead renders a titled header with a bottom border and a navigable heading level', () => {
     render(<CardHead>Pipeline</CardHead>);
-    const head = screen.getByText('Pipeline');
-    expect(head.className).toContain('border-b');
+    // Default sits one level under the page h1 (no h1 -> h3 skip); explicit level for nested cards.
+    const heading = screen.getByRole('heading', { name: 'Pipeline', level: 2 });
+    expect(heading.className).toContain('border-b');
+  });
+
+  it('CardHead accepts an explicit heading level', () => {
+    render(<CardHead level={3}>Delivery overview</CardHead>);
+    expect(screen.getByRole('heading', { name: 'Delivery overview', level: 3 })).toBeInTheDocument();
   });
 
   it('CardPad applies 16px padding', () => {
