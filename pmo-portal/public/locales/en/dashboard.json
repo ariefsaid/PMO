@@ -44,6 +44,11 @@
     "unattributed": "Not attributed to a project",
     "value": "Value"
   },
+  "pm": {
+    "myProjectsHelp": "Delivery projects where you are the assigned project manager.",
+    "noProjects": "No delivery projects assigned to you yet",
+    "noProjectsSub": "Projects in the delivery phase will appear here."
+  },
   "pmRow": {
     "delivery": "Delivery",
     "margin": "Margin",

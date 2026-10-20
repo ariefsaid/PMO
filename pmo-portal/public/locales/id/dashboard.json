@@ -44,6 +44,11 @@
     "unattributed": "Tidak terkait dengan proyek",
     "value": "Nilai"
   },
+  "pm": {
+    "myProjectsHelp": "Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.",
+    "noProjects": "Belum ada proyek pengiriman yang ditetapkan kepada Anda",
+    "noProjectsSub": "Proyek dalam tahap pengiriman akan muncul di sini."
+  },
   "pmRow": {
     "delivery": "Pengiriman",
     "margin": "Margin",

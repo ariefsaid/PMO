@@ -15,9 +15,12 @@ import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
-import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
+import { isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
+import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+
+const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
 
 const statusVariant = (status: string) => {
   const v = pillVariantForProjectStatus(status);
@@ -46,8 +49,8 @@ export const PMDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
   const { data: assigned, isPending, isError, refetch } = usePMDashboardProjects();
-  // D-019: pre-win work (leads, tenders, lost bids) belongs to the Pipeline, not "my" delivery numbers.
-  const mine = useMemo(() => (assigned ?? []).filter((p) => ACTIVE_PROJECT_STATUSES.has(p.status)), [assigned]);
+  // D-019: count the canonical on-hand + internal delivery partition, not pipeline or lost bids.
+  const mine = useMemo(() => (assigned ?? []).filter((p) => DELIVERY_PROJECT_STATUSES.has(p.status)), [assigned]);
   const orgCurrency = useOrgCurrency();
   const contractCurrency = mine[0]?.currency;
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
@@ -89,7 +92,7 @@ export const PMDashboard: React.FC = () => {
           value={String(mine.length)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel={t('dashboard.pm.openMyProjects', 'Open my projects')}
-          help={t('dashboard.pm.myProjectsHelp', 'Projects where you are the assigned project manager.')} />
+          help={t('dashboard:pm.myProjectsHelp', 'Delivery projects where you are the assigned project manager.')} />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
           value={contractValue === null ? t('uxs03.notAvailableYet', 'Not available yet') : formatDashboardMoney(contractValue, contractCurrency ?? orgCurrency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet')} loading={isPending} error={isError}
@@ -115,8 +118,8 @@ export const PMDashboard: React.FC = () => {
             ) : isPending ? (
               <ListState variant="loading" />
             ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title={t('dashboard.pm.noProjects', 'No projects assigned to you yet')}
-                sub={t('dashboard.pm.noProjectsSub', 'Projects you manage will appear here.')} />
+              <ListState variant="empty" icon="folder" title={t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}
+                sub={t('dashboard:pm.noProjectsSub', 'Projects in the delivery phase will appear here.')} />
             ) : (
               <BvACard projects={bvaProjects} currency={orgCurrency} />
             )}
@@ -166,6 +169,7 @@ export const PMDashboard: React.FC = () => {
                       <span className="flex shrink-0 items-baseline gap-1">
                         <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
                         <span
+                          role="img"
                           aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
                           className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
                         >
