@@ -17,7 +17,7 @@ import {
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -230,20 +230,13 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           {
             key: 'vendor', header: 'Vendor / Quote #', kind: 'primary', size: 320, minSize: 240,
             primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
-            cell: (q) => {
-              const selected = isRowSelected(q, selectedId);
-              const best = bestId === q.id;
-              return <span className="block min-w-0">
-                <span className="block font-semibold text-foreground">{vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote'}</span>
-                {q.reference && <span className="block text-[12px] text-muted-foreground">{q.reference}</span>}
-                {selected && <StatusPill variant="won">Selected · best value</StatusPill>}
-                {!selected && best && <StatusPill variant="won">Best value</StatusPill>}
-              </span>;
-            },
-            secondaryCell: (q) => q.vq_number,
+            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
+            secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
+          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">Selected · best value</StatusPill> : bestId === q.id ? <StatusPill variant="won">Best value</StatusPill> : null },
+          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
           { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
+          { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
           { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
             return selectable ? <Button size="sm" variant="outline" onClick={() => setSelectTarget(q)} aria-label={`Select quote ${vendorMap[q.vendor_id] ?? q.vq_number ?? ''}`.trim()}>Select</Button> : null;
@@ -251,9 +244,6 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         ];
         return <>
           <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName="Vendor bid comparison" selectedKey={selectedId ?? undefined} />
-          {sorted.map((q) => <div key={`files-${q.id}`} className="border-b border-border/70 px-3 pb-2">
-            <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} />
-          </div>)}
         </>;
       })()}
 
