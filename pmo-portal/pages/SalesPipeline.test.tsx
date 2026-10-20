@@ -748,3 +748,27 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
   });
 });
+
+describe('SalesPipeline table on the shared contract (T4)', () => {
+  it('T4 the project column is the primary cell: name wraps to two lines with the full name in its title', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const name = screen.getByText('Northwind ERP Rollout');
+    expect(name.closest('.line-clamp-2')).toHaveAttribute('title', 'Northwind ERP Rollout');
+    expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
+  });
+
+  it('T4 a deal with no numbers or codes has no empty second line', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
+    expect(row.querySelector('.font-mono')).toBeNull();
+  });
+
+  it('T4 amounts are full figures, never compacted', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
+    expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
+  });
+});
