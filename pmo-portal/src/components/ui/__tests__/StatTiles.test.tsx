@@ -24,6 +24,21 @@ const tiles: StatTile[] = [
 ];
 
 describe('StatTiles', () => {
+  it('AC-RD-MONEY-001: short figure visible; exact amount is the title and screen-reader text', () => {
+    render(<StatTiles tiles={[{ label: 'Contract', value: '$1.2M', exactValue: '$1,200,000' }]} />);
+    const figure = screen.getByText('$1.2M');
+    expect(figure).toHaveAttribute('aria-hidden', 'true');
+    expect(figure.closest('[title]')).toHaveAttribute('title', '$1,200,000');
+    expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
+  });
+
+  it('AC-RD-UNAVAIL-001: unavailable stat shows a dash with the reason in title and sr-only text', () => {
+    render(<StatTiles tiles={[{ label: 'Contract', value: 'Unavailable', unavailableReason: 'Budget not loaded' }]} />);
+    expect(screen.getByText('—').closest('[title]')).toHaveAttribute('title', 'Budget not loaded');
+    expect(screen.getByText('Budget not loaded', { selector: '.sr-only' })).toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
   it('renders every tile (label + value)', () => {
     render(<StatTiles tiles={tiles} columns={5} />);
     expect(screen.getByText('Contract')).toBeInTheDocument();

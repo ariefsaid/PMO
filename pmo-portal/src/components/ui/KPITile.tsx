@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { cn } from './cn';
+import { FigureContent } from './FigureContent';
+import { figureTitle } from './figureTitle';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
 import { ViewToggle, type ViewOption } from './ViewToggle';
@@ -36,6 +38,10 @@ export interface KPITileProps<L extends string = string> {
   tone: KPITone;
   label: string;
   value: React.ReactNode;
+  /** Exact amount metadata for compact money figures. */
+  exactValue?: string;
+  /** Why the metric is unavailable; the figure remains an em dash. */
+  unavailableReason?: string;
   /** Negative values turn destructive (DESIGN.md). */
   negative?: boolean;
   /** Help tooltip — exposed as a keyboard-focusable `?`. */
@@ -76,6 +82,8 @@ export function KPITile<L extends string = string>({
   tone,
   label,
   value,
+  exactValue,
+  unavailableReason,
   negative = false,
   help,
   helpLabel,
@@ -117,7 +125,7 @@ export function KPITile<L extends string = string>({
           <button
             type="button"
             aria-label={helpLabel ? `${helpLabel}: ${label}` : t('dashboard.kpi.helpLabel', 'Help: {{label}}', { label })}
-            className="touch-target pointer-events-auto relative z-10 ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground opacity-55 hover:opacity-100 [&_svg]:size-3.5"
+            className="touch-target pointer-events-auto relative z-10 ml-auto grid size-[15px] cursor-help place-items-center text-muted-foreground [&_svg]:size-3.5"
           >
             <Icon name="help" />
           </button>
@@ -146,12 +154,13 @@ export function KPITile<L extends string = string>({
             </span>
           ) : (
             <div
+              title={figureTitle({ exactValue, unavailableReason })}
               className={cn(
-                'text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+                'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
                 negative && 'text-destructive'
               )}
             >
-              {value}
+              <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
             </div>
           )}
           {(vs || ctaLabel) && (
@@ -185,12 +194,13 @@ export function KPITile<L extends string = string>({
         </span>
       ) : (
         <div
+          title={figureTitle({ exactValue, unavailableReason })}
           className={cn(
-            'text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
+            'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
             negative && 'text-destructive'
           )}
         >
-          {value}
+          <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
         </div>
       )}
 
