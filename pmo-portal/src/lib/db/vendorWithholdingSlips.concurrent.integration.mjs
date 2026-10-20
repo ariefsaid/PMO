@@ -36,6 +36,14 @@ const waitForAdvisory = async () => {
   throw new Error('B did not observably wait on the organization advisory lock');
 };
 
+const controlOrg = '00000000-0000-0000-0000-000000000001';
+const controlCountBefore = await run(`select count(*) from public.companies where org_id='${controlOrg}';`);
+let journeyError;
+let journeyFailed = false;
+let cleanupError;
+let cleanupFailed = false;
+
+try {
 await run(`
 insert into public.organizations(id,name,default_currency,default_timezone) values ('${ids.org}','Synthetic Bupot Race','IDR','UTC');
 insert into auth.users(id,email) values ('${ids.user}','${ids.user}@example.test');
@@ -46,7 +54,6 @@ insert into public.procurement_invoices(id,org_id,procurement_id,status,invoice_
 values ('${ids.bill}','${ids.org}','${ids.case}','Paid',current_date,1000,'IDR','exclusive',0,100,'pph23','SYNTHETIC-RACE');
 `);
 
-try {
   // Duplicate reservation: A commits the first record while B is blocked in the real RPC.
   const a = session(`begin; ${role(ids.user)} ${recordSql(ids.slipA,'RACE-A')} select pg_sleep(1.5); commit;`, appA);
   await new Promise((resolve) => setTimeout(resolve, 150));
@@ -68,6 +75,21 @@ try {
   counts = await run(`select (select count(*) from public.vendor_withholding_slip_bills where org_id='${ids.org}' and released_at is not null)||':'||(select count(*) from public.vendor_withholding_slip_bills where org_id='${ids.org}' and released_at is null);`);
   if (counts !== '1:1') throw new Error(`void/re-record interleave did not retain/re-reserve exactly once: ${counts}`);
   console.log('PASS void/re-record interleave: B waited; old snapshot retained/released and one replacement reservation committed.');
-} finally {
-  await run(`begin; alter table public.vendor_withholding_slip_bills disable trigger vendor_withholding_slip_bills_integrity; alter table public.vendor_withholding_slips disable trigger vendor_withholding_slips_integrity; delete from public.record_changes where org_id='${ids.org}'; delete from public.audit_events where org_id='${ids.org}'; delete from public.vendor_withholding_slip_bills where org_id='${ids.org}'; delete from public.vendor_withholding_slips where org_id='${ids.org}'; alter table public.vendor_withholding_slip_bills enable trigger vendor_withholding_slip_bills_integrity; alter table public.vendor_withholding_slips enable trigger vendor_withholding_slips_integrity; delete from public.procurement_invoices where org_id='${ids.org}'; delete from public.procurements where org_id='${ids.org}'; delete from public.companies where org_id='${ids.org}'; delete from public.profiles where org_id='${ids.org}'; delete from auth.users where id='${ids.user}'; delete from public.organizations where id='${ids.org}'; commit;`);
+} catch (error) {
+  journeyError = error;
+  journeyFailed = true;
 }
+
+try {
+  const remaining = await run(`begin; delete from public.record_changes where org_id='${ids.org}'; delete from public.audit_events where org_id='${ids.org}'; delete from public.vendor_withholding_slip_bills where org_id='${ids.org}'; delete from public.vendor_withholding_slips where org_id='${ids.org}'; delete from public.procurement_invoices where org_id='${ids.org}'; delete from public.procurements where org_id='${ids.org}'; delete from public.companies where org_id='${ids.org}'; delete from public.profiles where org_id='${ids.org}'; delete from auth.users where id='${ids.user}'; delete from public.organizations where id='${ids.org}'; commit; select (select count(*) from public.vendor_withholding_slip_bills where org_id='${ids.org}')||':'||(select count(*) from public.vendor_withholding_slips where org_id='${ids.org}')||':'||(select count(*) from public.procurement_invoices where org_id='${ids.org}')||':'||(select count(*) from public.procurements where org_id='${ids.org}')||':'||(select count(*) from public.companies where org_id='${ids.org}');`);
+  if (remaining !== '0:0:0:0:0') throw new Error(`Concurrency fixture cleanup did not prove zero owned rows: ${remaining}`);
+  const controlCountAfter = await run(`select count(*) from public.companies where org_id='${controlOrg}';`);
+  if (controlCountAfter !== controlCountBefore) throw new Error(`Concurrency cleanup changed unrelated control rows: ${controlCountBefore} -> ${controlCountAfter}`);
+} catch (error) {
+  cleanupError = error;
+  cleanupFailed = true;
+}
+
+if (journeyFailed && cleanupFailed) throw new AggregateError([journeyError, cleanupError], 'Concurrency journey and fixture cleanup both failed');
+if (journeyFailed) throw journeyError;
+if (cleanupFailed) throw cleanupError;

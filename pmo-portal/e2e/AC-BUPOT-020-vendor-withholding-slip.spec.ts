@@ -3,6 +3,7 @@
  * AC-BUPOT-020 — Finance records one issued slip across two cases, corrects it, then voids it.
  * Goal oracle: both source bills show the same persisted coverage, then both return to uncovered;
  * the issued facts and released link evidence remain, while bill money/status and outbox are unchanged.
+ * AC-EH-006: journey and cleanup failures are reported together.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +116,10 @@ async function openDocuments(page: import('@playwright/test').Page, caseId: stri
 
 test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked bill in its destination case (record/correct/void journey)', async ({ page }) => {
   const admin = createClient<Database>(SUPABASE_URL, serviceKey!);
+  let journeyError: unknown;
+  let journeyFailed = false;
+  let cleanupError: unknown;
+  let cleanupFailed = false;
   const { count: outboxBefore, error: outboxBeforeError } = await admin.from('external_command_outbox').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID);
   if (outboxBeforeError) throw new Error(`outbox baseline read failed: ${outboxBeforeError.message}`);
   try {
@@ -207,7 +212,21 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     const destinationRow = page.locator(`#invoice-${ids.billB}`);
     await expect(destinationRow).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => destinationRow.evaluate((row) => row === document.activeElement), { timeout: 10_000 }).toBe(true);
-  } finally {
-    cleanupFixture();
+  } catch (error) {
+    journeyError = error;
+    journeyFailed = true;
   }
+
+  try {
+    cleanupFixture();
+  } catch (error) {
+    cleanupError = error;
+    cleanupFailed = true;
+  }
+
+  if (journeyFailed && cleanupFailed) {
+    throw new AggregateError([journeyError, cleanupError], 'BUPOT journey and fixture cleanup both failed');
+  }
+  if (journeyFailed) throw journeyError;
+  if (cleanupFailed) throw cleanupError;
 });
