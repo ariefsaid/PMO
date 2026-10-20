@@ -265,9 +265,9 @@ test("AC-OPS-1113-1: checks, exact squash merge, and proof-bound cleanup run in 
   assert.equal(state.remoteOid, null);
 });
 
-test("AC-OPS-1113-2: the six current gates must pass once; skipped extras are allowed", (t) => {
+test("AC-OPS-1113-2: the current gates must pass once; skipped extras are allowed", (t) => {
   const cases = [
-    ["missing", { checks: [...GATE_PASSES.slice(0, 5), { name: "extra-green", bucket: "pass", state: "SUCCESS" }] }],
+    ["missing", { checks: [...GATE_PASSES.slice(0, -1), { name: "extra-green", bucket: "pass", state: "SUCCESS" }] }],
     ["malformed", { malformedChecks: true }],
     ["duplicate", { checks: [...GATE_PASSES, { name: "verify", bucket: "pass", state: "SUCCESS" }] }],
     ["failed expected", { checks: [...GATE_PASSES.map((check) => check.name === "pgtap" ? { ...check, bucket: "fail", state: "FAILURE" } : check), { name: "integration", bucket: "skipping", state: "SKIPPED" }] }],
