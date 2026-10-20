@@ -122,22 +122,20 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
   };
 
   if (summary) {
+    // PD-A: the compact line renders only with phases (or a load error); loading and empty say nothing.
+    if (isPending || (!isError && all.length === 0)) return null;
     const current = all.find(milestone => milestone.id === currentMilestoneId);
     const overdueElsewhere = all.find(milestone => milestone.id !== current?.id && isOverdueMilestone(milestone));
     const hasOverdue = all.some(isOverdueMilestone);
     return (
       <div data-testid="milestone-summary" className="mb-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {isPending ? (
-          <span role="status">{t('projectDetail.milestones.heading', 'Delivery phases')}…</span>
-        ) : isError ? (
+        {isError ? (
           <>
             <span role="alert">{t('projectDetail.milestones.errorTitle', "Couldn't load phases")}</span>
             <Button variant="ghost" size="sm" onClick={() => refetch()}>
               {t('projectDetail.loadError.retry', 'Retry')}
             </Button>
           </>
-        ) : all.length === 0 ? (
-          <span>{t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}</span>
         ) : (
           <>
             <span className="tabular">
@@ -159,9 +157,6 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
             ) : null}
           </>
         )}
-        <Link to={`/projects/${projectId}/overview`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
-          {t('projectDetail.tabs.overview', 'Overview')}
-        </Link>
         {!isPending && !isError && hasOverdue && !location.pathname.endsWith('/tasks') && (
           <Link to={`/projects/${projectId}/tasks`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
             {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}

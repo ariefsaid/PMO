@@ -2562,9 +2562,6 @@
         "contractValueUpdated": "Contract value updated",
         "deleted": "Project deleted"
       },
-      "pmoNumber": "PMO Project Number",
-      "clientCode": "Client Project Code",
-      "notSet": "Not set",
       "subjectToVat": "Subject to VAT (PPN)",
       "vatChecking": "Checking whether PPN can be changed…",
       "vatUnavailable": "PPN editability could not be checked. Retry the check.",
@@ -2671,9 +2668,6 @@
       "finance": {
         "actual": "Actual",
         "contract": "Contract",
-        "contractValue": "Contract value",
-        "lockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
-        "readOnly": "Read-only",
         "spend": "Spend",
         "title": "Financial summary"
       },
@@ -2696,8 +2690,8 @@
       }
     },
     "pipeline": {
-      "advanceTo": "Advance to",
       "backToSalesPipeline": "← Back to Sales Pipeline",
+      "advanceTo": "Advance to",
       "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
       "cancel": "Cancel",
       "confirmWon": "Confirm won",
@@ -2725,7 +2719,6 @@
       "notSet": "Not set",
       "pending": "Pending",
       "readOnlyNotice": "Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.",
-      "readyToAdvance": "Ready to advance.",
       "recordWonHeading": "Record the won project",
       "refRequired": "Customer contract reference is required",
       "stat": {
@@ -2768,9 +2761,7 @@
       "notSet": "Not set",
       "projectManager": "Project manager",
       "recordHeading": "Record",
-      "recordHelp": "Move the project through its delivery stages from here. Edit stays in the header menu.",
       "start": "Start",
-      "status": "Status",
       "targetEnd": "Target end",
       "unassigned": "Unassigned",
       "endCustomer": "End customer",
@@ -4741,7 +4732,6 @@
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "notTrackedInPmo": "Not tracked in PMO yet",
     "actualSpending": "Actual spending",
     "actualUnavailable": "Unavailable",
     "actualLoading": "Loading Actual…",
@@ -4760,7 +4750,6 @@
     "contractRemainingAfterCost": "Contract remaining after cost",
     "noActiveBudget": "No active budget",
     "noBudget": "No budget",
-    "budgetLoading": "Loading budget…",
     "budgetPosition": "Budget position",
     "overBudgetBy": "Over budget by {{amount}}",
     "budgetRemaining": "Budget remaining {{amount}}",
@@ -4813,7 +4802,6 @@
     }
   },
   "uxs13": {
-    "moreProjectDetails": "More project details",
     "projectDetailsAndActions": "Project details and actions",
     "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
   },

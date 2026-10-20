@@ -2562,9 +2562,6 @@
         "contractValueUpdated": "Nilai kontrak diperbarui",
         "deleted": "Proyek dihapus"
       },
-      "pmoNumber": "Nomor Proyek PMO",
-      "clientCode": "Kode Proyek Klien",
-      "notSet": "Belum diatur",
       "subjectToVat": "Kena PPN",
       "vatChecking": "Memeriksa apakah PPN dapat diubah…",
       "vatUnavailable": "Status perubahan PPN tidak dapat diperiksa. Coba periksa kembali.",
@@ -2671,9 +2668,6 @@
       "finance": {
         "actual": "Realisasi",
         "contract": "Kontrak",
-        "contractValue": "Nilai kontrak",
-        "lockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
-        "readOnly": "Hanya lihat",
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
@@ -2696,8 +2690,8 @@
       }
     },
     "pipeline": {
-      "advanceTo": "Lanjutkan ke",
       "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
+      "advanceTo": "Lanjutkan ke",
       "bookingOnWin": "Mencatat <1>{{amount}}</1> <3></3> ke nilai kontrak saat menang",
       "cancel": "Batal",
       "confirmWon": "Konfirmasi menang",
@@ -2725,7 +2719,6 @@
       "notSet": "Belum diisi",
       "pending": "Menunggu",
       "readOnlyNotice": "Pipeline dikelola oleh pemilik proyek. Anda dapat meninjau tahap dan perjalanan proyek ini di sini; perubahan siklus dilakukan oleh manajer proyek.",
-      "readyToAdvance": "Siap dilanjutkan.",
       "recordWonHeading": "Catat proyek yang menang",
       "refRequired": "Referensi kontrak klien wajib diisi",
       "stat": {
@@ -2768,9 +2761,7 @@
       "notSet": "Belum diisi",
       "projectManager": "Manajer proyek",
       "recordHeading": "Data",
-      "recordHelp": "Pindahkan proyek melalui tahap pelaksanaannya dari sini. Edit tetap di menu header.",
       "start": "Mulai",
-      "status": "Status",
       "targetEnd": "Target selesai",
       "unassigned": "Belum ditugaskan",
       "endCustomer": "Pelanggan akhir",
@@ -4741,7 +4732,6 @@
     "recordedSpending": "Pengeluaran tercatat",
     "pmoPurchaseOrders": "Pesanan pembelian PMO",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
-    "notTrackedInPmo": "Belum dilacak di PMO",
     "actualSpending": "Pengeluaran aktual",
     "actualUnavailable": "Tidak tersedia",
     "actualLoading": "Memuat Aktual…",
@@ -4760,7 +4750,6 @@
     "contractRemainingAfterCost": "Sisa kontrak setelah biaya",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "noBudget": "Tidak ada anggaran",
-    "budgetLoading": "Memuat anggaran…",
     "budgetPosition": "Posisi anggaran",
     "overBudgetBy": "Melebihi anggaran sebesar {{amount}}",
     "budgetRemaining": "Sisa anggaran {{amount}}",
@@ -4813,7 +4802,6 @@
     }
   },
   "uxs13": {
-    "moreProjectDetails": "Detail proyek lainnya",
     "projectDetailsAndActions": "Detail dan tindakan proyek",
     "overdueTargetDateWithYear": "Target tanggal {{date}} {{year}}"
   },

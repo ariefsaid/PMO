@@ -7,7 +7,7 @@
  * heading. The empty S-curve is not rendered at all for pre-win records.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -36,6 +36,7 @@ const oppRecord = vi.hoisted(() => ({
     id: 'opp1',
     name: 'Alpha Solar Bid',
     code: 'OPP-0001',
+    service_line: 'Engineering',
     status: 'Tender Submitted',
     client_id: 'c1',
     project_manager_id: 'u-pm',
@@ -208,6 +209,17 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
 
     // The S-curve heading must not be present for a pre-win record
     expect(screen.queryByText('Progress curve')).toBeNull();
+  });
+
+  it('SUB-I: pre-win classification lives in the closed rail disclosure with the codes — no standalone Classification block', async () => {
+    await renderAt('/projects/opp1');
+    expect(screen.queryByText('Classification')).not.toBeInTheDocument();
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(rail.querySelector('details')).not.toHaveAttribute('open');
+    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
+    expect(within(rail).getByText('Engineering')).toBeInTheDocument();
+    // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
+    expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {

@@ -211,8 +211,7 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
     renderHeader('Project Manager');
     // The 5-tile strip remains in the header for finance-forward roles.
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     // The contract-value SoD row is also in the header (not demoted).
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
@@ -220,21 +219,21 @@ describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
   it('AC-IXD-PROJ-W5-C3-02: Finance (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Finance');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-03: Executive (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Executive');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-04: Admin (finance-forward) sees the finance StatTiles in the header', () => {
     renderHeader('Admin');
     expect(screen.getByText('Contract')).toBeInTheDocument();
-    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
   });
 
@@ -440,5 +439,27 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
     expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SUB-I — Opportunity lens: only what the deal state needs
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('SUB-I: opportunity lens figures and notices', () => {
+  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+
+  it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
+    renderLens();
+    expect(tileLabels()).toEqual(['Value', 'Win probability', 'Weighted', 'Owner']);
+    expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
+  });
+
+  it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
+    renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
+    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 });

@@ -55,10 +55,10 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     mockRole = 'Project Manager';
   });
 
-  it('UIP-005: compact phase context states loading, error + retry, and empty without a full-height panel', () => {
+  it('UIP-005 / PD-A: compact phase context renders only error + retry or real phases — loading and empty render nothing', () => {
     milestoneState.isPending = true;
     const pending = render$(true);
-    expect(within(screen.getByTestId('milestone-summary')).getByRole('status')).toHaveTextContent(/Delivery phases/);
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
     expect(screen.queryByTestId('milestone-strip-skeleton')).not.toBeInTheDocument();
     pending.unmount();
     milestoneState.isPending = false;
@@ -70,8 +70,9 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     failed.unmount();
     milestoneState.isError = false;
     render$(true);
-    expect(screen.getByText('No delivery phases yet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Add the first phase/ })).not.toBeInTheDocument();
   });
 
@@ -83,6 +84,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     const active = render$(true);
     expect(screen.getByTestId('milestone-summary')).toHaveTextContent('Installation');
     expect(screen.getByTestId('milestone-summary')).toHaveTextContent('70%');
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View blocking tasks' })).toHaveAttribute('href', '/projects/p1/tasks');
     expect(screen.queryByRole('button', { name: /Edit progress/ })).not.toBeInTheDocument();
     active.unmount();
