@@ -162,6 +162,7 @@ const renderAt = async (path: string) => {
         <ToastProvider>
           <Routes>
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
+            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
           </Routes>
         </ToastProvider>
       </MemoryRouter>
@@ -239,6 +240,20 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
 
     // A compact affordance (one-liner) must be present instead
+    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
+  });
+
+  it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
+    await renderAt('/projects/opp1');
+    const tabs = within(screen.getByRole('tablist', { name: /Project sections/i })).getAllByRole('tab').map((tab) => tab.textContent);
+    expect(tabs).not.toContain('Work orders');
+    expect(tabs).not.toContain('Billing');
+    expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents']));
+  });
+
+  it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
+    await renderAt('/projects/opp1/work-orders');
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
     expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
   });
 });

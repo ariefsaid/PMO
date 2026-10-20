@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, ProgressBar, StatusPill, ListState, HoursBar, StatTiles, TaxBasisLabel, type StatTile } from '@/src/components/ui';
+import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, StatTiles, TaxBasisLabel, type StatTile } from '@/src/components/ui';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -41,8 +41,8 @@ export interface OverviewTabProps {
 
 /**
  * Phase 5 (T14-T18): densified Overview tab.
- * Row 1: Budget utilization (unchanged).
- * Row 2 (NEW): Procurement summary card + Budget snapshot card.
+ * PD-B: every block renders only when it has data (or failed to load) — the Budget snapshot
+ * carries budget use % + At risk; Procurement summary needs ≥1 request; Drawdown needs a work order.
  * Both new cards use real data only — no fabricated content (plan §1).
  * setTab prop enables footer links to switch tabs without router navigation.
  *
@@ -62,7 +62,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
   // B-0.4: budget state remains distinct from a missing or unavailable Actual reading.
-  const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError, refetch: budgetUtilRefetch } = useProjectBudget(project.id);
+  const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
   const { data: projectFinances } = useProjectFinances(project.id);
   const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
@@ -71,13 +71,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
     contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
   const actualSpend = moneyPosition.comparableActual;
-  const actualSpendLabel = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? t('uxs01.actualUnavailable', 'Unavailable')
-    : moneyPosition.headlineState === 'loading'
-      ? t('uxs01.actualLoading', 'Loading Actual…')
-      : moneyPosition.headlineState === 'partial'
-        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
-        : t('uxs01.actualUnavailable', 'Unavailable');
   const actualCoverage = moneyPosition.coverage.kind === 'pmo'
     ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
     : moneyPosition.coverage.kind === 'complete'
@@ -170,75 +163,27 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
 
   // T16/T17 — Budget snapshot
   const { data: budgetVersions, isPending: budgetPending, isError: budgetError, refetch: budgetRefetch } = useBudgetVersions(project.id);
-  const hasActiveBudget = budgetVersions?.some((version) => version.status === 'Active') ?? false;
   const snapshot = useMemo(
     () => actualSpend === null ? null : activeSnapshot(budgetVersions ?? [], actualSpend),
     [budgetVersions, actualSpend],
   );
 
-  return (
-    <div className="space-y-8">
-      {/* Row 1. `[&>*]:min-w-0`: grid items default to min-width:auto, which lets a card
-          whose min-content (a long title / unbroken number) exceeds the track refuse to
-          shrink → the card bleeds ~14px past the viewport at 390px (AC-MOBILE-OVERFLOW-001). */}
-      <div className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-2">
-        {showFinanceSummary && isDelivery && (
-          <aside
-            data-testid="financial-summary"
-            aria-label={t('projectDetail.overview.finance.title', 'Financial summary')}
-          >
-            <h2 className="mb-3 text-[14px] font-semibold text-foreground">
-              {t('projectDetail.overview.finance.title', 'Financial summary')}
-            </h2>
-            <StatTiles tiles={financeTiles} columns={Math.min(financeTiles.length, 5)} variant="bare" />
-          </aside>
-        )}
+  const showProc = procError || (!procPending && projectProc.length > 0);
+  const showSnapshot = budgetError || (!budgetPending && snapshot !== null);
 
-        <Card variant="bare">
-          <CardHead>{t('projectDetail.overview.budgetUtil.title', 'Budget utilization')}</CardHead>
-          {/* B-0.4: gate on useProjectBudget loading/error — mirror Budget-snapshot card.
-              Pending/error must not collapse to "$0 of $0" (false-zero). */}
-          {budgetUtilPending ? (
-            <ListState variant="loading" rows={2} />
-          ) : budgetUtilError ? (
-            <ListState
-              variant="error"
-              title={t('projectDetail.overview.budgetUtil.error', "Couldn't load budget")}
-              onRetry={() => budgetUtilRefetch()}
-            />
-          ) : (
-            <CardPad className="flex flex-col gap-3">
-              {activeBudget <= 0 ? <p className="text-sm text-muted-foreground">{t('uxs01.noActiveBudget', 'No active budget')}</p>
-                : budgetUtilPctValue === null ? <p className="text-sm text-muted-foreground">{t('uxs01.actualUnavailable', 'Unavailable')}</p>
-                  : <>
-                <div className="text-[12px] text-muted-foreground">
-                  <span className="font-semibold tabular text-foreground">{actualSpendLabel}</span>{' '}
-                  {t('projectDetail.overview.budgetUtil.of', 'of')}{' '}
-                  <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget, project.currency)}</span>{' '}
-                  {t('uxs01.actualUsedAgainstBudget', 'recorded spending against the active budget')}
-                </div>
-                <ProgressBar
-                  value={budgetUtilPctValue}
-                  showValue
-                  aria-label={`${t('uxs01.actualSpending', 'Actual spending')}: ${budgetUtilPctValue}% ${t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}`}
-                />
-              </>}
-              {/* AC-W6-IXD-ATRISK (B-1): co-locate the budget-basis with the contract bar.
-                  When at-risk, show the spent/budget figure + the "At risk" flag below the
-                  contract bar (the I3 two-metric split: contract bar above, budget below).
-                  The bar itself is NOT recolored — text-not-color per DESIGN.md. */}
-              {budgetUtil !== null && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill variant="warn">{t('projectDetail.overview.budgetUtil.atRisk', 'At risk')}</StatusPill>
-                  <span className="text-[12px] font-semibold tabular text-warning-foreground">
-                    {budgetUtil}% {t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}
-                  </span>
-                </div>
-              )}
-            </CardPad>
-          )}
-        </Card>
-      </div>
+  return (
+    <div className="flex min-w-0 flex-col gap-8">
+      {showFinanceSummary && isDelivery && (
+        <aside
+          data-testid="financial-summary"
+          aria-label={t('projectDetail.overview.finance.title', 'Financial summary')}
+        >
+          <h2 className="mb-3 text-[14px] font-semibold text-foreground">
+            {t('projectDetail.overview.finance.title', 'Financial summary')}
+          </h2>
+          <StatTiles tiles={financeTiles} columns={Math.min(financeTiles.length, 5)} variant="bare" />
+        </aside>
+      )}
 
       {/* T18: Row 2 — Procurement summary + Budget snapshot */}
       {/* #566 / OD-CR-13: the contract drawdown, full width and above the procurement/budget
@@ -250,30 +195,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
           surface rather than pushing the PM's primary delivery actions below the fold. */}
       {may('view', 'salesInvoice') && <ProjectFinancesSection project={project} />}
 
-      <div data-testid="overview-row2" className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+      {/* PD-B: each card renders only when it has something to show (or failed to load). */}
+      {(showProc || showSnapshot) && (
+        <div data-testid="overview-row2" className={`grid gap-6 [&>*]:min-w-0${showProc && showSnapshot ? ' lg:grid-cols-2' : ''}`}>
         {/* T14/T15 — Procurement summary card */}
-        <Card variant="bare">
+        {showProc && <Card variant="bare">
           <CardHead>{t('projectDetail.overview.procSummary.title', 'Procurement summary')}</CardHead>
-          {procPending ? (
-            <ListState variant="loading" rows={3} />
-          ) : procError ? (
+          {procError ? (
             <ListState
               variant="error"
               title={t('projectDetail.overview.procSummary.error', "Couldn't load procurement")}
               onRetry={() => procRefetch()}
-            />
-          ) : projectProc.length === 0 ? (
-            <ListState
-              variant="empty"
-              icon="inbox"
-              title={t(
-                'projectDetail.overview.procSummary.empty.title',
-                'No purchase requests for this project yet',
-              )}
-              sub={t(
-                'projectDetail.overview.procSummary.empty.sub',
-                'Requests raised against this project will appear here.',
-              )}
             />
           ) : (
             <CardPad className="flex flex-col gap-4">
@@ -361,27 +293,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
               )}
             </CardPad>
           )}
-        </Card>
+        </Card>}
 
         {/* T16/T17 — Budget snapshot card */}
-        <Card variant="bare">
+        {showSnapshot && <Card variant="bare">
           <CardHead>{t('projectDetail.overview.budgetSnapshot.title', 'Budget snapshot')}</CardHead>
-          {budgetPending ? (
-            <ListState variant="loading" rows={3} />
-          ) : budgetError ? (
+          {budgetError || !snapshot ? (
             <ListState
               variant="error"
               title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")}
               onRetry={() => budgetRefetch()}
-            />
-          ) : !snapshot ? (
-            <ListState
-              variant="empty"
-              icon="inbox"
-              title={hasActiveBudget ? t('uxs01.actualUnavailable', 'Unavailable') : t('uxs01.noActiveBudget', 'No active budget')}
-              sub={hasActiveBudget
-                ? t('uxs01.budgetActualUnavailable', 'Actual spending is incomplete, so it cannot be compared with this budget.')
-                : t('projectDetail.overview.budgetSnapshot.empty.sub', 'Activate a budget version on the Budget tab to see a snapshot here.')}
             />
           ) : (
             <CardPad className="flex flex-col gap-3">
@@ -413,6 +334,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
                         ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: formatCurrency(Math.abs(snapshot.variance), project.currency) })
                         : t('uxs01.onBudget', 'On budget')}
                   </dd>
+                  {/* PD-B: the deleted Budget utilization card's % + At-risk flag live here now.
+                      Text-not-color per DESIGN.md: the pill carries the meaning. */}
+                  {budgetUtilPctValue !== null && (
+                    <dd data-testid="budget-used" className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                      <span className="tabular">{budgetUtilPctValue}% {t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}</span>
+                      {budgetUtil !== null && (
+                        <StatusPill variant="warn">{t('projectDetail.overview.budgetUtil.atRisk', 'At risk')}</StatusPill>
+                      )}
+                    </dd>
+                  )}
                 </div>
               </dl>
 
@@ -453,8 +384,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
               )}
             </CardPad>
           )}
-        </Card>
-      </div>
+        </Card>}
+        </div>
+      )}
     </div>
   );
 };

@@ -20,9 +20,8 @@ import MilestoneFormModal from './MilestoneFormModal';
 export interface MilestoneStripProps {
   projectId: string;
   /**
-   * M2: When true and the planner is empty, render a single-line affordance
-   * instead of the full `EmptyPlanningPrompt` band. Intended for pre-win records
-   * where delivery planning is possible but secondary to the sales levers.
+   * M2: When true and the planner is empty, the one-line empty affordance says planning
+   * starts once the deal is won (pre-win records, where the sales levers come first).
    */
   compactWhenEmpty?: boolean;
   /** UIP-005: common context only; the full planner belongs to Overview. */
@@ -191,36 +190,27 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
   return (
     <>
       {all.length === 0 ? (
-        compactWhenEmpty ? (
-          /* M2: pre-win compact affordance — one-liner so the sales levers stay above the fold. */
-          <div
-            data-testid="prewin-compact-planner"
-            className="flex items-center gap-2 py-1"
-          >
-            <span className="flex-1 text-[13px] text-muted-foreground">
-              {t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')}
-            </span>
-            {canCreate && (
-              <button
-                type="button"
-                className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-                onClick={() => setFormTarget({ milestone: null })}
-              >
-                {t('projectDetail.milestones.planPhases', 'Plan delivery phases')}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div data-testid="milestone-strip-empty">
-            {canCreate ? (
-              <EmptyPlanningPrompt onCreate={() => setFormTarget({ milestone: null })} />
-            ) : (
-              <p className="text-[13px] text-muted-foreground">
-                {t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
-              </p>
-            )}
-          </div>
-        )
+        /* PD-B / M2: an empty planner is ONE line, never a hero with placeholder bars. Pre-win
+           records say planning starts on win; delivery records say there are no phases yet. */
+        <div
+          data-testid={compactWhenEmpty ? 'prewin-compact-planner' : 'milestone-strip-empty'}
+          className="flex items-center gap-2 py-1"
+        >
+          <span className="flex-1 text-[13px] text-muted-foreground">
+            {compactWhenEmpty
+              ? t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')
+              : t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
+          </span>
+          {canCreate && (
+            <button
+              type="button"
+              className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              onClick={() => setFormTarget({ milestone: null })}
+            >
+              {t('projectDetail.milestones.planPhases', 'Plan delivery phases')}
+            </button>
+          )}
+        </div>
       ) : (
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -447,37 +437,6 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
         )}
       </div>
     </div>
-  );
-};
-
-const EmptyPlanningPrompt: React.FC<{ onCreate: () => void }> = ({ onCreate }) => {
-  const { t } = useTranslation();
-  return (
-  <div className="flex flex-col gap-4">
-    <div className="flex items-end gap-1.5" aria-hidden="true">
-      {[100, 72, 36, 0].map((width, index) => (
-        <span key={index} className="flex-1 rounded-full bg-secondary">
-          <span className="block h-3 rounded-full bg-primary/20" style={{ width: `${width}%` }} />
-        </span>
-      ))}
-    </div>
-    <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold">
-        {t('projectDetail.milestones.emptyTitle', "Plan this project's delivery phases")}
-      </h3>
-      <p className="max-w-[52ch] text-[13px] text-muted-foreground">
-        {t(
-          'projectDetail.milestones.emptySub',
-          'Add the key phases for this project so delivery progress can roll up from weighted phases.',
-        )}
-      </p>
-    </div>
-    <div>
-      <Button variant="primary" size="sm" onClick={onCreate}>
-        {t('projectDetail.milestones.addFirstPhase', 'Add the first phase')}
-      </Button>
-    </div>
-  </div>
   );
 };
 

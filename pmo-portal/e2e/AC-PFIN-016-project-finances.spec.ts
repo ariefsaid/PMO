@@ -140,7 +140,8 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(usd).toContainText('$75.00');  // Settled (100 − 25 outstanding)
   await expect(usd).toContainText('$25.00');  // Outstanding
   await expect(usd).not.toContainText('$0.00'); // no zero-masking of unknowns
-  await expect(section).toContainText('No budget');
+  // PD-C: the budget gap is no longer restated in Project finances (Overview shows no budget card).
+  await expect(section).not.toContainText('No budget');
 
   // ── Step 5: the same goal survives a reload ─────────────────────────────────────────────────
   await page.reload();
@@ -149,7 +150,7 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(page.getByTestId('project-finances-USD')).toContainText('$100.00');
   await expect(page.getByTestId('project-finances-USD')).toContainText('$75.00');
   await expect(page.getByTestId('project-finances-USD')).toContainText('$25.00');
-  await expect(page.getByTestId('project-finances')).toContainText('No budget');
+  await expect(page.getByTestId('project-finances')).not.toContainText('No budget');
 
   // ── Step 6: no adapter command was ever dispatched ──────────────────────────────────────────
   expect(adapterCommands).toEqual([]);

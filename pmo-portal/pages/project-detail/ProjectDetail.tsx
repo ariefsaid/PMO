@@ -78,6 +78,8 @@ const ProjectDetail: React.FC = () => {
     refetch: refetchProject,
   } = useProject(projectId);
   const { updateHeader } = useProjectMutations();
+  const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
+  const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
 
@@ -89,12 +91,13 @@ const ProjectDetail: React.FC = () => {
       { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
       { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
       { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
-      { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
-      ...(canSeeBilling ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
+      ...(isPipelineRecord ? [] : [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }]),
+      // SUB-A: a pre-win deal has no work orders or billing yet, so those tabs only appear once won.
+      ...(canSeeBilling && !isPipelineRecord ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
       { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
       { value: 'history', label: t('projectDetail.tabs.history', 'History') },
     ],
-    [t, canSeeBilling],
+    [t, canSeeBilling, isPipelineRecord],
   );
 
   const committedSpendQuery = useProjectCommittedSpend(projectId || null, true);
@@ -114,7 +117,9 @@ const ProjectDetail: React.FC = () => {
 
   // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
   // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
-  const tab = tabFromParam(tabParam);
+  const requestedTab = tabFromParam(tabParam);
+  // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
+  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
   // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
   // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
   // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
@@ -201,8 +206,7 @@ const ProjectDetail: React.FC = () => {
   // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
   // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
-  const group = projectStatusGroup(project.status as never);
-  const isPipeline = group === 'pipeline' || group === 'lost';
+  const isPipeline = isPipelineRecord;
   const tabPanel = (
     <div
       role="tabpanel"
@@ -211,11 +215,11 @@ const ProjectDetail: React.FC = () => {
     >
       <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
         {tab === 'overview' && (
-          <>
+          // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
+          // nothing, so it leaves no empty slot or stray margin behind.
+          <div className="flex min-w-0 flex-col gap-8">
             {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-            <div className="mb-6">
-              <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
-            </div>
+            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -228,26 +232,21 @@ const ProjectDetail: React.FC = () => {
               // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
               showFinanceSummary={isDeliveryForward && !isPipeline}
             />
-            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+            <React.Suspense fallback={null}>
               <ProjectProfitLossSection projectId={project.id} />
             </React.Suspense>
-            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget — it renders only when
-                the Overview tab is active, and is hidden for pre-win records (no real progress
-                data). Scoping it here (not at shell level) prevents it bleeding into
-                Budget / Procurement / Tasks / Documents. */}
+            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget, hidden for pre-win records
+                (no real progress data). Scoped here, not at shell level, so it never bleeds into
+                the other tabs. */}
             {!isPipeline && (
-              <div className="mt-8">
-                <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-80" />}>
-                  <ProjectSCurve projectId={project.id} />
-                </React.Suspense>
-              </div>
-            )}
-            <div className="mt-8">
-              <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
-                <CommentsSection entityType="project" entityId={project.id} />
+              <React.Suspense fallback={null}>
+                <ProjectSCurve projectId={project.id} />
               </React.Suspense>
-            </div>
-          </>
+            )}
+            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
+              <CommentsSection entityType="project" entityId={project.id} />
+            </React.Suspense>
+          </div>
         )}
         {tab === 'budget' && <BudgetTab projectId={project.id} />}
         {tab === 'procurement' && <ProcurementTab projectId={project.id} />}

@@ -245,7 +245,8 @@ describe('project invoicing summary', () => {
     expect(financeQuery.calls).toHaveBeenCalledTimes(1);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
     expect(screen.getByText(/Procurement summary/i)).toBeInTheDocument();
-    expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
+    // PD-B: without a comparable Actual there is no budget snapshot to show, so no card at all.
+    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
   });
   it('UX-022/AC-PFIN-020 keeps contract value out of the finance drill-down headline', () => {
     const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs);
@@ -317,17 +318,25 @@ describe('OverviewTab T14: Procurement summary card', () => {
     expect(screen.getByText('Request r4')).toBeInTheDocument();
   });
 
-  it('T14: loading state while procurements are pending', () => {
+  it('T14 / PD-B: no card (and no skeleton) while procurements are pending', () => {
     procState.isPending = true;
     procState.data = undefined;
     renderTab();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText(/Procurement summary/i)).not.toBeInTheDocument();
   });
 
-  it('T14: empty state when no procurement rows exist for this project', () => {
+  it('T14 / PD-B: no card when no procurement rows exist for this project', () => {
     procState.data = [];
     renderTab();
-    expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Procurement summary/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No purchase requests for this project yet/i)).not.toBeInTheDocument();
+  });
+
+  it('T14: a failed procurement read keeps its error + Retry', () => {
+    procState.isError = true;
+    procState.data = undefined;
+    renderTab();
+    expect(screen.getByText("Couldn't load procurement")).toBeInTheDocument();
   });
 });
 
@@ -349,24 +358,25 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     // Actual is $320k even when the separate committed-spend prop says $450k.
     renderTab(project, vi.fn(), 450_000);
     expect(screen.getAllByText(/\$320,000/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByLabelText('Actual spending: 36% of budget')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Budget committed: 50% of budget')).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-used')).toHaveTextContent('36% of budget');
+    expect(screen.queryByText(/50% of budget/)).not.toBeInTheDocument();
   });
 
   it('DD-MONEY-4 shows no-active-budget instead of a zero utilization denominator', () => {
     budgetState.data = [];
     derivedBudgetState.value = undefined;
     renderTab(project, vi.fn(), 450_000);
-    expect(screen.getAllByText('No active budget')).toHaveLength(2);
+    // PD-B: no budget → no budget card at all; never a 0% / $0 denominator.
+    expect(screen.queryByText(/Budget snapshot|Budget utilization/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/% of budget/)).not.toBeInTheDocument();
     expect(screen.queryByText(/budget committed/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget committed/i)).not.toBeInTheDocument();
   });
 
   it('DD-MONEY-4: budget utilization uses Actual over the active budget, not committed spend or contract', () => {
     renderTab(project, vi.fn(), 450_000);
-    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
-    expect(screen.getByLabelText('Actual spending: 36% of budget')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Spend: 40% of contract/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('budget-used')).toHaveTextContent('36% of budget');
+    expect(screen.queryByText(/40% of contract/i)).not.toBeInTheDocument();
   });
 
   it('T16: shows over-budget variance in destructive color when committed spend > activeTotal (AC-W2-9-02)', () => {
@@ -405,18 +415,24 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.queryByText(/\b\d+h\b/)).not.toBeInTheDocument();
   });
 
-  it('T16: empty state when no Active budget version exists', () => {
+  it('T16 / PD-B: no card when no Active budget version exists', () => {
     budgetState.data = [];
     renderTab();
-    expect(screen.getAllByText(/No active budget/i)).toHaveLength(1);
+    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No active budget/i)).not.toBeInTheDocument();
   });
 
-  it('T16: loading state while budget versions are pending', () => {
+  it('T16 / PD-B: no card (and no skeleton) while budget versions are pending; a failed read keeps error + Retry', () => {
     budgetState.isPending = true;
     budgetState.data = undefined;
+    const view = renderTab();
+    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
+    view.unmount();
+    budgetState.isPending = false;
+    budgetState.isError = true;
     renderTab();
-    // At least one loading skeleton
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
 

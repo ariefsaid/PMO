@@ -5,6 +5,7 @@ import { Button, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -15,17 +16,16 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
-  const canReviewSetup = may('manage', 'integration');
+  const { realRole } = useEffectiveRole();
+  const canInspectAccounting = realRole === 'Finance' || realRole === 'Admin';
+  const canManageAccounting = may('manage', 'orgAccounting');
   const query = useProjectFinances(project.id);
   const commitments = useProjectCommittedSpend(project.id, true);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
   const money = (value: string | null, currency: string | null) => currency
     ? formatExactMoney(value, currency, i18n.language) ?? unknown
     : unknown;
-  const title = <>
-    <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>
-    <p className="text-xs text-muted-foreground">{t('projectFinances.lifetime', 'Lifetime to date')}</p>
-  </>;
+  const title = <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>;
 
   if (query.isPending) return (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
@@ -51,11 +51,20 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
   const completeCoverage = moneyPosition.coverage.kind === 'complete';
+  const needsCategorySetup = actualPosition.basis === 'erp' && actuals.categories.some((row) => !row.mapped);
+  const knownCategories: typeof actuals.categories = [];
+  const unavailableCategories: typeof actuals.categories = [];
+  for (const row of actuals.categories) {
+    const known = row.mapped && actuals.currency !== null &&
+      formatExactMoney(row.amount, actuals.currency, i18n.language) !== null;
+    (known ? knownCategories : unavailableCategories).push(row);
+  }
   const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
   const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
   const cashInvalid = t('uxs01.cashReceivedInvalid', 'Unavailable — receipt-backed cash data could not be verified');
   const cashReading = data.cash_received ?? { state: 'unavailable' as const, buckets: [], reason: 'not-reported' as const };
+  const cashKnown = cashReading.state === 'known';
   const cashValue = cashReading.state === 'known'
     ? cashReading.buckets.length === 0
       ? money('0.00', project.currency)
@@ -67,13 +76,25 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       ? t('uxs01.cashReceivedIncomplete', 'Incomplete — receipt allocation cannot establish cash')
       : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
-  const field = (label: string, value: string, basis?: React.ReactNode) => (
+  const settlementNote = t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.');
+  const field = (label: string, value: string, basis?: React.ReactNode, labelTitle?: string) => (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground" title={labelTitle}>{label}</dt>
       <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
       {basis && <dd>{basis}</dd>}
     </div>
   );
+  // PD-C: an unknown cash reading is a dash; the reason sits in the title (and for screen readers).
+  const cashField = (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{t('uxs01.cashReceived', 'Cash received')}</dt>
+      <dd className="break-words text-sm font-semibold tabular-nums" title={cashKnown ? undefined : cashValue}>
+        {cashKnown ? cashValue : <><span aria-hidden="true">—</span><span className="sr-only">{cashValue}</span></>}
+      </dd>
+      <dd><span className="text-xs text-muted-foreground">{cashScope}</span></dd>
+    </div>
+  );
+  const hasInvoices = data.invoices.length > 0;
 
   return (
     <section
@@ -82,18 +103,21 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       aria-label={t('projectFinances.title', 'Project finances')}
     >
       {title}
-      <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {field(t('uxs01.cashReceived', 'Cash received'), cashValue, <span className="text-xs text-muted-foreground">{cashScope}</span>)}
+      {/* PD-C: with no invoices, one line replaces Cash received, Invoiced 0, Remaining = contract
+          and the scope note. */}
+      {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
+        {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
+      </p>}
+      {hasInvoices && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
+        {cashField}
         {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
         {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-remaining-basis" />)}
-      </dl>
-      {data.invoices.length === 0 && <p role="status">{t('projectFinances.noInvoices', 'No submitted invoices')}</p>}
-      {!data.budget && <p role="status">{t('uxs01.noBudget', 'No budget')}</p>}
+      </dl>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals);
-        const incomplete = t('projectFinances.incomplete', 'Incomplete — ERP outstanding missing');
+        const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
         const reasons = {
           'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
           'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
@@ -108,9 +132,11 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             </div>
             <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.settled, bucket.currency))}
+              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.settled, bucket.currency),
+                undefined, hasSettlement ? settlementNote : undefined)}
               {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.outstanding, bucket.currency))}
-              {field(t('projectFinances.work', 'Billed-work revenue (net of tax, advances excluded)'), money(bucket.work_revenue, bucket.currency))}
+              {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency),
+                undefined, t('project:billedWorkQualifier', 'Net of tax; advances excluded'))}
               {field(t('projectFinances.margin', 'Margin'), margin.reason ? reasons[margin.reason] : money(margin.amount, bucket.currency))}
             </dl>
             <div className="text-xs text-muted-foreground">
@@ -121,30 +147,37 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         );
       })}
-      {hasSettlement && <p className="text-xs text-muted-foreground">
-        {t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.')}
-      </p>}
       <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
           {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
         </h3>
-        <p className="break-words font-semibold tabular-nums">{money(actualPosition.amount, actualPosition.currency)}</p>
+        {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
+            its freshness is one inline "Updated" beside the amount. */}
+        <p className="break-words font-semibold tabular-nums">
+          {money(actualPosition.amount, actualPosition.currency)}
+          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
+            {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
+          </span>}
+        </p>
         {actualPosition.basis === 'pmo'
-          ? <p className="text-xs text-muted-foreground" role="status">{t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}</p>
-          : hasCoverage && <p className="text-xs text-muted-foreground" role="status">
-          {completeCoverage
-            ? t('uxs01.completeCoverage', 'Complete category coverage')
-            : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
-        </p>}
-        {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground" role="status">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
-        {actualPosition.basis === 'erp' && (actualPosition.asOf
-          ? <p className="text-xs text-muted-foreground">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</p>
-          : <p className="text-xs text-muted-foreground">{t('projectFinances.actualsUnavailable', 'Not available yet')}</p>)}
-        {actualPosition.basis === 'erp' && !completeCoverage && (canReviewSetup
-          ? <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('uxs01.reviewSetup', 'Review spending setup')}</Link>
-          : <p className="text-xs text-muted-foreground">{t('uxs01.setupHandoff', 'Ask Finance or Admin to review spending setup.')}</p>)}
+          ? <p className="text-xs text-muted-foreground">{t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}</p>
+          : hasCoverage && !completeCoverage && <p className="text-xs text-muted-foreground">
+            {t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
+          </p>}
+        {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
+        {actualPosition.basis === 'erp' && !actualPosition.asOf &&
+          <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
+        {needsCategorySetup && canInspectAccounting && (
+          <p className="text-xs text-muted-foreground" data-testid="spending-setup-prompt">
+            {canManageAccounting
+              ? <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+                  {t('project:finishSpendingSetup', 'Finish spending setup')}
+                </Link>
+              : t('project:spendingAdminHandoff', 'Ask an administrator to finish spending setup.')}
+          </p>
+        )}
         {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
-        {actualPosition.basis === 'erp' && <details className="min-w-0">
+        {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -156,13 +189,13 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               </tr>
             </thead>
             <tbody>
-              {actuals.categories.map((row) => (
+              {knownCategories.map((row) => (
                 <tr key={row.category}>
                   <th scope="row" className="break-words text-left font-normal">
                     {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
                   </th>
                   <td className="break-words text-right tabular-nums">
-                    {row.mapped ? money(row.amount, actuals.currency) : t('projectFinances.mappingUnavailable', 'Not available yet')}
+                    {money(row.amount, actuals.currency)}
                   </td>
                 </tr>
               ))}
@@ -170,10 +203,23 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </table>
           </div>
         </details>}
+        {actualPosition.basis === 'erp' && canInspectAccounting && unavailableCategories.length > 0 && (
+          <details className="min-w-0">
+            <summary className="cursor-pointer text-sm font-medium">{t('project:spendingSetupDetails', 'Spending setup details')}</summary>
+            <ul className="mt-2 list-disc pl-5 text-sm">
+              {unavailableCategories.map((row) => <li key={row.category}>
+                {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
+                {' — '}{row.mapped
+                  ? t('project:noSpendingReading', "Spending hasn't been updated yet.")
+                  : t('project:categoryNeedsSetup', 'Spending setup is not complete for this category.')}
+              </li>)}
+            </ul>
+          </details>
+        )}
       </div>
-      <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
-        {t('projectDetail.overview.invoicing.scopeNote', 'Counts invoices linked to this project. Invoices raised in the ERP without a project are not included.')}
-      </p>
+      {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
+        {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
+      </p>}
     </section>
   );
 }

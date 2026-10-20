@@ -2575,7 +2575,6 @@
       "progressCreateHelper": "Progress comes from this phase’s linked tasks. You can set an override after creating it."
     },
     "milestones": {
-      "addFirstPhase": "Add the first phase",
       "addMilestone": "Add phase",
       "cancel": "Cancel",
       "current": "Current",
@@ -2592,8 +2591,6 @@
       "editProgress": "Edit progress",
       "editProgressForName": "Edit progress for {{name}}",
       "emptyReadOnly": "No delivery phases yet",
-      "emptySub": "Add the key phases for this project so delivery progress can roll up from weighted phases.",
-      "emptyTitle": "Plan this project's delivery phases",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load phases",
       "fallbackName": "Phase",
@@ -2628,19 +2625,13 @@
         "actualSpent": "Actual spent",
         "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
-        "empty": {
-          "sub": "Activate a budget version on the Budget tab to see a snapshot here."
-        },
         "error": "Couldn't load budget",
         "openBudgetTab": "Open Budget tab",
         "title": "Budget snapshot"
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "error": "Couldn't load budget",
-        "of": "of",
-        "ofBudget": "of budget",
-        "title": "Budget utilization"
+        "ofBudget": "of budget"
       },
       "finance": {
         "actual": "Actual",
@@ -2648,16 +2639,9 @@
         "spend": "Spend",
         "title": "Financial summary"
       },
-      "invoicing": {
-        "scopeNote": "Counts invoices linked to this project. Invoices raised in the ERP without a project are not included."
-      },
       "procSummary": {
         "closed": "Closed",
         "completed": "Completed",
-        "empty": {
-          "sub": "Requests raised against this project will appear here.",
-          "title": "No purchase requests for this project yet"
-        },
         "error": "Couldn't load procurement",
         "open": "Open",
         "requestOne": "request",
@@ -3262,7 +3246,6 @@
     "accessDeniedDescription": "Company statements are available to Admin, Finance, and Executive roles.",
     "backToDashboard": "Back to dashboard",
     "balanceSheet": "Balance sheet",
-    "captureWindow": "Capture window",
     "companyScope": "Company",
     "current": "Current period",
     "currentColumn": "Current",
@@ -4603,41 +4586,32 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "title":"Project finances", "lifetime":"Lifetime to date",
+    "title":"Project finances",
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
     "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
-    "incomplete":"Incomplete — ERP outstanding missing",
-    "work":"Billed-work revenue (net of tax, advances excluded)", "margin":"Margin",
+    "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "mappingUnavailable":"Not available yet",
     "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
-    "noInvoices":"No submitted invoices", "mixedTaxBases":"Mixed tax bases",
+    "mixedTaxBases":"Mixed tax bases",
     "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "actualSpending": "Actual spending",
     "actualUnavailable": "Unavailable",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete — see spending details",
-    "actualUsedAgainstBudget": "recorded spending against the active budget",
-    "budgetActualUnavailable": "Actual spending is incomplete, so it cannot be compared with this budget.",
     "completeCoverage": "Complete category coverage",
     "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
     "coverageUnavailable": "Spending coverage unavailable",
     "updated": "Updated {{date}}",
-    "setupHandoff": "Ask Finance or Admin to review spending setup.",
-    "reviewSetup": "Review spending setup",
     "showCategoryDetails": "Show category details",
     "categoryDetails": "Recorded spending by category",
     "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
     "contractRemainingAfterCost": "Contract remaining after cost",
-    "noActiveBudget": "No active budget",
-    "noBudget": "No budget",
     "budgetPosition": "Budget position",
     "overBudgetBy": "Over budget by {{amount}}",
     "budgetRemaining": "Budget remaining {{amount}}",

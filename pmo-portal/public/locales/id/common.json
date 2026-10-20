@@ -2575,7 +2575,6 @@
       "progressCreateHelper": "Progres diambil dari tugas terkait fase ini. Anda dapat menetapkan nilai pengganti setelah fase dibuat."
     },
     "milestones": {
-      "addFirstPhase": "Tambah fase pertama",
       "addMilestone": "Tambah fase",
       "cancel": "Batal",
       "current": "Saat ini",
@@ -2592,8 +2591,6 @@
       "editProgress": "Ubah progres",
       "editProgressForName": "Ubah progres untuk {{name}}",
       "emptyReadOnly": "Belum ada fase pelaksanaan",
-      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari fase berbobot.",
-      "emptyTitle": "Rencanakan fase pelaksanaan proyek ini",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat fase",
       "fallbackName": "Fase",
@@ -2628,19 +2625,13 @@
         "actualSpent": "Realisasi pengeluaran",
         "byCategory": "Per kategori",
         "byCategoryLabel": "Anggaran per kategori",
-        "empty": {
-          "sub": "Aktifkan versi anggaran di tab Anggaran untuk melihat ringkasan di sini."
-        },
         "error": "Gagal memuat anggaran",
         "openBudgetTab": "Buka tab Anggaran",
         "title": "Ringkasan anggaran"
       },
       "budgetUtil": {
         "atRisk": "Berisiko",
-        "error": "Gagal memuat anggaran",
-        "of": "dari",
-        "ofBudget": "dari anggaran",
-        "title": "Pemakaian anggaran"
+        "ofBudget": "dari anggaran"
       },
       "finance": {
         "actual": "Realisasi",
@@ -2648,16 +2639,9 @@
         "spend": "Pengeluaran",
         "title": "Ringkasan keuangan"
       },
-      "invoicing": {
-        "scopeNote": "Menghitung invoice yang terhubung ke proyek ini. Invoice yang dibuat di ERP tanpa proyek tidak termasuk."
-      },
       "procSummary": {
         "closed": "Ditutup",
         "completed": "Selesai",
-        "empty": {
-          "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini.",
-          "title": "Belum ada permintaan pembelian untuk proyek ini"
-        },
         "error": "Gagal memuat pengadaan",
         "open": "Aktif",
         "requestOne": "permintaan",
@@ -3262,7 +3246,6 @@
     "accessDeniedDescription": "Laporan perusahaan tersedia bagi role Admin, Finance, dan Executive.",
     "backToDashboard": "Kembali ke dashboard",
     "balanceSheet": "Neraca",
-    "captureWindow": "Rentang pengambilan",
     "companyScope": "Perusahaan",
     "current": "Periode berjalan",
     "currentColumn": "Kini",
@@ -4603,41 +4586,32 @@
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
   },
   "projectFinances": {
-    "title":"Keuangan proyek", "lifetime":"Sejak awal hingga kini",
+    "title":"Keuangan proyek",
     "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
     "settlementNote":"Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
-    "incomplete":"Belum lengkap — saldo belum dibayar dari ERP belum tersedia",
-    "work":"Pendapatan pekerjaan ditagihkan (neto pajak, tanpa uang muka)", "margin":"Margin",
+    "margin":"Margin",
     "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
     "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
-    "mappingUnavailable":"Belum tersedia",
     "category":"Kategori", "unavailable":"Tidak tersedia",
     "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
-    "noInvoices":"Belum ada tagihan yang diajukan", "mixedTaxBases":"Dasar pajak berbeda",
+    "mixedTaxBases":"Dasar pajak berbeda",
     "contractInvoiced":"Ditagihkan terhadap kontrak", "remaining":"Sisa untuk ditagihkan"
   },
   "uxs01": {
     "recordedSpending": "Pengeluaran tercatat",
     "pmoPurchaseOrders": "Pesanan pembelian PMO",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
-    "actualSpending": "Pengeluaran aktual",
     "actualUnavailable": "Tidak tersedia",
     "actualLoading": "Memuat Aktual…",
     "actualPartial": "Belum lengkap — lihat rincian pengeluaran",
-    "actualUsedAgainstBudget": "pengeluaran tercatat dibandingkan dengan anggaran aktif",
-    "budgetActualUnavailable": "Pengeluaran aktual belum lengkap, sehingga tidak dapat dibandingkan dengan anggaran ini.",
     "completeCoverage": "Cakupan kategori lengkap",
     "partialCoverage": "Cakupan sebagian · {{mapped}} dari {{total}} kategori tercatat",
     "coverageUnavailable": "Cakupan pengeluaran tidak tersedia",
     "updated": "Diperbarui {{date}}",
-    "setupHandoff": "Minta Tim Keuangan atau Admin meninjau pengaturan pengeluaran.",
-    "reviewSetup": "Tinjau pengaturan pengeluaran",
     "showCategoryDetails": "Tampilkan rincian kategori",
     "categoryDetails": "Pengeluaran tercatat menurut kategori",
     "totalRequestValueAcross": "Nilai total permintaan: <amount>{{amount}}</amount> untuk {{n}} {{unit}}",
     "contractRemainingAfterCost": "Sisa kontrak setelah biaya",
-    "noActiveBudget": "Tidak ada anggaran aktif",
-    "noBudget": "Tidak ada anggaran",
     "budgetPosition": "Posisi anggaran",
     "overBudgetBy": "Melebihi anggaran sebesar {{amount}}",
     "budgetRemaining": "Sisa anggaran {{amount}}",
