@@ -53,8 +53,9 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(dealRow).toBeVisible();
     await dealRow.click();
     await expect(page.getByTestId('record-header')).toContainText(deal);
-    // Pre-win records have no rail: the classification list is a named region.
-    const rail = page.getByRole('region', { name: 'Classification' });
+    // SUB-I: pre-win classification lives in the rail's closed details disclosure, with the codes.
+    const rail = page.getByTestId('project-detail-rail');
+    await rail.locator('summary').click();
     for (const value of [serviceLine, sector, 'West Java', 'Tender', 'Consortium']) await expect(rail.getByText(value, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Edit$/ }).click();
     const edit = page.getByRole('dialog');
@@ -63,6 +64,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await edit.getByRole('button', { name: 'Save project' }).click();
     await expect(edit).not.toBeVisible();
     await page.reload();
+    await rail.locator('summary').click();
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
