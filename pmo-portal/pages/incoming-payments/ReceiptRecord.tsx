@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, StatusPill } from '@/src/components/ui';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { Button, DataTable, Icon, StatusPill, type Column } from '@/src/components/ui';
+import { formatCurrencyAuto, formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -36,6 +36,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
     },
   ];
   const slip = receipt.withholding_slip_number;
+  const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
+    { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
+      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="font-mono text-[13px] text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
+      : <span className="font-mono text-[13px]" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
+    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyAuto(Number(allocation.amount), allocation.currency) : notReported },
+  ], [notReported, t]);
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
@@ -83,30 +89,13 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
           {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table aria-label={t('uxs06.settledTitle', 'Invoices this receipt settled')} className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('financeCopy.invoice', 'Invoice #')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('uxs06.applied', 'Applied')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allocations.map((a, i) => (
-                <tr key={`${a.invoice_number}-${i}`} className="border-b border-border last:border-b-0">
-                  <td className="px-3 py-2">
-                    {a.invoice_id
-                      ? <Link to={`/sales-invoices/${encodeURIComponent(a.invoice_id)}`} className="font-mono text-[13px] text-primary-text hover:underline focus-visible:underline">{a.invoice_number}</Link>
-                      : <span className="font-mono text-[13px]" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{a.invoice_number}</span>}
-                  </td>
-                  <td className="tabular px-3 py-2 text-right">
-                    {a.amount != null && a.currency != null ? formatCurrencyCents(Number(a.amount), a.currency) : notReported}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={allocations.map((allocation, index) => ({ ...allocation, rowKey: `${allocation.invoice_number}-${index}` }))}
+          columns={allocationColumns}
+          rowKey={(allocation) => allocation.rowKey}
+          tableId="receipt-settled-invoices"
+          accessibleName={t('uxs06.settledTitle', 'Invoices this receipt settled')}
+        />
       )}
       {unapplied !== null && unapplied > 0 && (
         <p className="mt-3 text-sm">
