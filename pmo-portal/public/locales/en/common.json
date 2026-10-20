@@ -1271,10 +1271,10 @@
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
-      "myProjects": "My projects", "openMyProjects": "Open my projects", "myProjectsHelp": "Projects where you are the assigned project manager.",
+      "myProjects": "My projects", "openMyProjects": "Open my projects",
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "loadError": "Couldn't load your projects", "noProjects": "No projects assigned to you yet", "noProjectsSub": "Projects you manage will appear here.",
+      "loadError": "Couldn't load your projects",
       "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet"
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },

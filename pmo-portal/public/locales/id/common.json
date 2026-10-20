@@ -1271,10 +1271,10 @@
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
     "pm": {
       "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
-      "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya", "myProjectsHelp": "Proyek yang ditetapkan kepada Anda sebagai manajer proyek.",
+      "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya",
       "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
       "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
-      "loadError": "Gagal memuat proyek Anda", "noProjects": "Belum ada proyek yang ditetapkan kepada Anda", "noProjectsSub": "Proyek yang Anda kelola akan muncul di sini.",
+      "loadError": "Gagal memuat proyek Anda",
       "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan"
     },
     "delivery": { "percent": "Progres {{rounded}}%" },

@@ -44,6 +44,16 @@
     "unattributed": "Not attributed to a project",
     "value": "Value"
   },
+  "pm": {
+    "myProjectsHelp": "Delivery projects where you are the assigned project manager.",
+    "noProjects": "No delivery projects assigned to you yet",
+    "noProjectsSub": "Projects in the delivery phase will appear here."
+  },
+  "pmRow": {
+    "delivery": "Delivery",
+    "margin": "Margin",
+    "marginAria": "{{name}} margin to date: {{pct}}%"
+  },
   "risk": {
     "noBudgetBasis": "An active budget and complete actuals are needed to check risk.",
     "unavailable": "Can't be checked yet"
