@@ -127,24 +127,19 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByRole('button', { name: /^Unlink/i })).not.toBeInTheDocument();
     });
 
-    it('renders Not connected status when org binding does not exist (no Link button)', async () => {
+    it('SUB-F renders nothing at all when ClickUp is neither connected nor linked', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
         getBinding: vi.fn(() => undefined),
         projectBindings: [],
       } as any);
 
-      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      // ERPNext tier should NOT be rendered
-      expect(screen.queryByText('ERPNext')).not.toBeInTheDocument();
-
-      // ClickUp shows Not connected status
-      expect(screen.getByText('Not connected')).toBeInTheDocument();
-      // No Link button because org not connected
-      expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /^Unlink/i })).not.toBeInTheDocument();
+      expect(container).toBeEmptyDOMElement();
+      expect(screen.queryByText('ClickUp')).not.toBeInTheDocument();
+      expect(screen.queryByText('Not connected')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Set up ClickUp|Ask an integration administrator/)).not.toBeInTheDocument();
     });
 
     it('keeps link review unavailable while the list choices are loading', async () => {
@@ -170,14 +165,16 @@ describe('ProjectIntegrationsCard', () => {
 
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      // The ClickUp tier card header shows 'Linked' status pill
-      const clickupCardElement = screen.getByTestId('project-integrations-cards').querySelector<HTMLElement>('[data-tier="clickup"]')!;
-      const clickupCard = within(clickupCardElement);
-      expect(clickupCard.getByText('Linked to ClickUp')).toBeInTheDocument();
-      expect(screen.getByText(/Sprint Backlog/)).toBeInTheDocument();
-      expect(clickupCardElement).toHaveTextContent(/Initial source:\s*Start with PMO tasks/i);
-      expect(screen.getByText(/Project linked\. Initial task transfer is not confirmed\./i)).toBeInTheDocument();
+      // SUB-F: a linked project is ONE line — the list and an Unlink — with no card chrome around it.
+      const clickupCardElement = await waitFor(() => {
+        const el = screen.getByTestId('project-integrations-cards').querySelector<HTMLElement>('[data-tier="clickup"]');
+        expect(el).not.toBeNull();
+        return el!;
+      });
+      expect(clickupCardElement).toHaveTextContent('Linked to ClickUp list Sprint Backlog');
+      expect(screen.queryByText('Linked')).not.toBeInTheDocument();
+      expect(clickupCardElement).not.toHaveTextContent(/Initial source/i);
+      expect(screen.queryByText(/Initial task transfer is not confirmed/i)).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^Unlink from ClickUp$/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
     });
@@ -285,7 +282,7 @@ describe('ProjectIntegrationsCard', () => {
       });
     });
 
-    it('AC-S21-003 preserves a saved list ID and labels initial transfer pending when its list is unavailable', async () => {
+    it('AC-S21-003 preserves a saved list ID in the one-line link when its list is unavailable', async () => {
       const unavailableBinding: ProjectBinding = {
         ...mockProjectClickUpBinding,
         external_container_id: 'list-archived-17',
@@ -299,8 +296,8 @@ describe('ProjectIntegrationsCard', () => {
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" projectName="Delivery Alpha" />);
 
       expect(await screen.findByText(/List unavailable.*list-archived-17/i)).toBeInTheDocument();
-      expect(screen.getByTestId('project-integrations-cards')).toHaveTextContent(/Initial source:\s*Start with existing list tasks/i);
-      expect(screen.getByText(/Project linked\. Initial task transfer is not confirmed\./i)).toBeInTheDocument();
+      expect(screen.getByTestId('project-integrations-cards')).not.toHaveTextContent(/Initial source|Start with existing list tasks/i);
+      expect(screen.queryByText(/Initial task transfer is not confirmed/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/^Direction:/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Synced/i)).not.toBeInTheDocument();
     });
@@ -320,12 +317,12 @@ describe('ProjectIntegrationsCard', () => {
       const card = screen.getByTestId('project-integrations-cards');
       expect(card).toHaveTextContent('Linked to ClickUp');
       expect(card).toHaveTextContent(/saved list ID: list-1/i);
-      expect(card).toHaveTextContent(/Initial task transfer is not confirmed/i);
+      expect(card).not.toHaveTextContent(/Initial task transfer is not confirmed/i);
       await userEvent.setup().click(within(card).getByRole('button', { name: 'Retry list details' }));
       expect(refetchLists).toHaveBeenCalledTimes(1);
     });
 
-    it('AC-S21-003 leaves an unrecorded initial source unknown instead of assuming PMO tasks', async () => {
+    it('SUB-F never assumes or shows an initial source — an unrecorded one renders the same one-line link', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
         projectBindings: [{ ...mockProjectClickUpBinding, config: {} }],
@@ -334,9 +331,8 @@ describe('ProjectIntegrationsCard', () => {
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
       const card = screen.getByTestId('project-integrations-cards');
-      expect(card).toHaveTextContent(/Initial source:\s*Initial source not recorded/i);
-      expect(card).toHaveTextContent(/Initial task transfer is not confirmed/i);
-      expect(card).not.toHaveTextContent('Start with PMO tasks');
+      expect(card).toHaveTextContent('Linked to ClickUp list Sprint Backlog');
+      expect(card).not.toHaveTextContent(/Initial source|Initial task transfer|Start with PMO tasks/i);
     });
 
     it('calls linkProject mutation on modal submit with ClickUp input', async () => {
@@ -462,7 +458,7 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       // ... and the accepted link is still shown as linked, with a deliberate way to retry.
-      expect(screen.getByText('Linked to ClickUp')).toBeInTheDocument();
+      expect(screen.getByText(/Linked to ClickUp list/)).toBeInTheDocument();
       expect(mockUnlinkProject).toHaveBeenCalledTimes(1);
 
       await user.click(screen.getByRole('button', { name: /^Unlink from ClickUp$/i }));
@@ -516,15 +512,15 @@ describe('ProjectIntegrationsCard', () => {
       });
     });
 
-    it('shows loading skeleton while bindings load', async () => {
+    it('SUB-F shows nothing while bindings load (no skeleton for a card that may not exist)', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
         isBindingsPending: true,
       } as any);
 
-      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
 
-      expect(screen.getByTestId('project-integrations-loading')).toBeInTheDocument();
+      expect(container).toBeEmptyDOMElement();
     });
   });
 
@@ -555,9 +551,8 @@ describe('ProjectIntegrationsCard', () => {
 
       wrapWithRole('Project Manager', <ProjectIntegrationsCard projectId="proj-1" />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      const clickupCard = within(screen.getByTestId('project-integrations-cards').querySelector('[data-tier="clickup"]')!);
-      expect(clickupCard.getByText('Linked to ClickUp')).toBeInTheDocument();
+      const clickupCard = within(await screen.findByTestId('project-integrations-cards').then((c) => c.querySelector<HTMLElement>('[data-tier="clickup"]')!));
+      expect(clickupCard.getByText(/Linked to ClickUp list/)).toBeInTheDocument();
 
       // PM sees Unlink button (org-wide DELIVERY hint)
       expect(screen.getByRole('button', { name: /^Unlink from ClickUp$/i })).toBeInTheDocument();
@@ -574,9 +569,8 @@ describe('ProjectIntegrationsCard', () => {
 
       wrapWithRole('Engineer', <ProjectIntegrationsCard projectId="proj-1" />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-      const clickupCard = within(screen.getByTestId('project-integrations-cards').querySelector('[data-tier="clickup"]')!);
-      expect(clickupCard.getByText('Linked to ClickUp')).toBeInTheDocument();
+      const clickupCard = within(await screen.findByTestId('project-integrations-cards').then((c) => c.querySelector<HTMLElement>('[data-tier="clickup"]')!));
+      expect(clickupCard.getByText(/Linked to ClickUp list/)).toBeInTheDocument();
 
       expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
@@ -586,7 +580,7 @@ describe('ProjectIntegrationsCard', () => {
     it('renders tier cards WITHOUT Link/Unlink buttons for Finance', async () => {
       wrapWithRole('Finance', <ProjectIntegrationsCard projectId="proj-1" />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('Connected (org)')).toBeInTheDocument());
 
       expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
@@ -665,7 +659,7 @@ describe('ProjectIntegrationsCard', () => {
   describe('Issue #449: disconnected org never shows an integration error; transport text never reaches the DOM', () => {
     const transportError = new Error('Failed to send a request to the Edge Function: fetch failed');
 
-    it("AC-449-2: unlinked project + disconnected org + stale lists error renders the quiet Not connected state, never an error card", async () => {
+    it("AC-449-2: unlinked project + disconnected org + stale lists error renders nothing, never an error card", async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
         getBinding: vi.fn(() => undefined), // org ClickUp NOT active
@@ -675,12 +669,10 @@ describe('ProjectIntegrationsCard', () => {
         refetchLists: vi.fn(),
       } as any);
 
-      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
 
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-
-      // Quiet state
-      expect(screen.getByText('Not connected')).toBeInTheDocument();
+      // Quiet state: nothing at all
+      expect(container).toBeEmptyDOMElement();
       // No integration-error UI of any kind
       expect(screen.queryByText('Failed to load lists')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Retry/i })).not.toBeInTheDocument();
