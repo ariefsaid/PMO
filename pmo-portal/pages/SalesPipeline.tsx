@@ -22,7 +22,7 @@ import {
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
@@ -66,8 +66,9 @@ const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
   const isDesktop = useIsDesktop();
   const stageLabel = useSalesStageLabel();
-  // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
-  // deals and so carry no record currency — the org default is the honest denomination for those.
+  const projectStatusLabel = useProjectStatusLabel();
+  // FR-L10N-020: STAGE/FUNNEL AGGREGATES sum across deals. They render in the deals' one shared
+  // currency; with none the org default is used for a true zero; with several there is no total.
   // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
   // (get_sales_pipeline now projects it, migration 0201) — never the org default.
   const orgCurrency = useOrgCurrency();
@@ -103,7 +104,9 @@ const SalesPipeline: React.FC = () => {
   const { openRecord } = useListReturn({ list: 'sales', contentReady: !isPending && !isError });
 
   const scope = workingSet.scope;
-  const view = workingSet.view;
+  // The phone has one presentation — the stage list — so a stored `table` view is not honoured
+  // there and no Board/Table toggle is offered.
+  const view: PipelineView = isDesktop ? workingSet.view : 'kanban';
   const onViewChange = (v: PipelineView) => {
     writePipelineView(v);
     setWorkingSet((ws) => ({ ...ws, view: v }));
@@ -173,6 +176,18 @@ const SalesPipeline: React.FC = () => {
     () => new Map(stages.map((s) => [s.status as string, s])),
     [stages],
   );
+  // Money of unlike currencies is never added: a stage that holds deals in more than one currency
+  // (and a pipeline that does) has no honest total, so it renders "—" with the reason (RD-017).
+  const currenciesOf = (statuses: readonly string[]) =>
+    new Set(openProjects.filter((p) => statuses.includes(p.status)).map((p) => p.currency));
+  const pipelineCurrencies = currenciesOf(OPEN_COLUMNS.flatMap((c) => c.statuses));
+  const mixedPipeline = pipelineCurrencies.size > 1;
+  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies, so no single total');
+  const unknownTotal = (
+    <span title={mixedReason}>
+      —<span className="sr-only"> {mixedReason}</span>
+    </span>
+  );
   const totalWeighted = OPEN_COLUMNS.reduce(
     (sum, c) => sum + (stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
     0,
@@ -185,16 +200,20 @@ const SalesPipeline: React.FC = () => {
   const funnelStages: FunnelStage[] = OPEN_COLUMNS.map((col) => {
     const s = stageByStatus.get(col.statuses[0]);
     const weighted = s?.weighted_value ?? 0;
+    const stageCurrencies = currenciesOf(col.statuses);
+    // One currency: show it in that currency (not the org default). None: a true zero in the org's.
+    const stageCurrency = stageCurrencies.size === 1 ? [...stageCurrencies][0] : orgCurrency;
+    const mixedStage = stageCurrencies.size > 1;
     return {
       name: stageLabel(col),
       dotColor: col.dotColor,
       prob: s ? formatPercent(s.win_probability) : undefined,
-      // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
-      value: formatCurrency(s?.total_value ?? 0, orgCurrency),
-      weighted: t('sales.funnel.weighted', '{{value}} weighted', {
-        value: formatCurrency(weighted, orgCurrency),
-      }),
-      barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
+      value: mixedStage ? unknownTotal : formatCurrency(s?.total_value ?? 0, stageCurrency),
+      weighted: mixedStage
+        ? undefined
+        : t('sales.funnel.weighted', '{{value}} weighted', { value: formatCurrency(weighted, stageCurrency) }),
+      // Bars compare magnitudes, which is only meaningful in one currency.
+      barPct: mixedPipeline ? undefined : maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });
 
@@ -214,61 +233,69 @@ const SalesPipeline: React.FC = () => {
       ...ws,
       scope: nextScope,
       ...(nextScope === 'Lost' ? { status: '' } : {}),
-      ...(view === 'kanban' && nextScope !== 'Open' ? { view: 'table' } : {}),
+      // The URL codec only allows a non-Open scope on the table view; the phone still shows its list.
+      ...(nextScope !== 'Open' ? { view: 'table' as const } : {}),
     }));
+
+  const identifiers = (r: PipelineProject) =>
+    [r.pmo_project_number, r.code].filter((v): v is string => Boolean(v));
+  const identifierLabels = (r: PipelineProject) =>
+    [
+      r.pmo_project_number && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${r.pmo_project_number}`,
+      r.code && `${t('projects.identifiers.client', 'Client Project Code')}: ${r.code}`,
+    ].filter(Boolean).join(' · ');
+  /** Board title for the stage (Pre-Qual, not "PQ Submitted"); other statuses use their own label. */
+  const stageName = (status: PipelineProject['status']) => {
+    const col = status === 'Declined' ? undefined : SALES_COLUMNS.find((c) => c.statuses.includes(status));
+    return col ? stageLabel(col) : projectStatusLabel(status);
+  };
 
   const tableColumns: Column<PipelineProject>[] = [
     {
       key: 'opp',
       header: t('sales.column.project', 'Project'),
-      cell: (r) => (
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="grid size-7 shrink-0 place-items-center rounded-md text-[12px] font-bold text-white"
-            style={{ background: stageDot(r.status) }}
-          >
-            {(r.client_name ?? r.name).trim().charAt(0).toUpperCase() || '•'}
-          </span>
-          <div className="min-w-0">
-            <div className="truncate font-semibold" title={r.name}>
-              {r.name}
-            </div>
-            <div className="truncate font-mono text-[11px] text-muted-foreground">
-              {t('projects.identifiers.pmo', 'PMO Project Number')}: {r.pmo_project_number ?? '—'}
-            </div>
-            {r.code && (
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
-                {t('projects.identifiers.client', 'Client Project Code')}: {r.code}
-              </div>
-            )}
-          </div>
-        </div>
-      ),
+      kind: 'primary',
+      size: 280,
+      cell: (r) => r.name,
+      primaryTitle: (r) => r.name,
+      // One mono line: the PMO number and the client's code; the labels ride in the title.
+      secondaryCell: (r) =>
+        identifiers(r).length > 0 ? (
+          <span className="font-mono" title={identifierLabels(r)}>{identifiers(r).join(' · ')}</span>
+        ) : undefined,
       exportValue: (r) => r.name,
     },
     {
       key: 'customer',
       header: t('sales.column.customer', 'Customer'),
-      cell: (r) => r.client_name ?? '—',
+      kind: 'text',
+      size: 160,
+      // #758: the end customer (who the work is ultimately for) is a second line, not a column.
+      cell: (r) => (
+        <span className="block min-w-0">
+          <span className="block truncate" title={r.client_name ?? undefined}>{r.client_name ?? '—'}</span>
+          {r.end_client_name && (
+            <span className="block truncate text-[12px] text-muted-foreground" title={r.end_client_name}>
+              {t('sales:pipeline.endCustomerLine', 'for {{name}}', { name: r.end_client_name })}
+            </span>
+          )}
+        </span>
+      ),
       exportValue: (r) => r.client_name ?? '',
-    },
-    {
-      // #758: the end customer (who the work is ultimately for), projected by the RPC, nullable.
-      key: 'end-customer',
-      header: t('sales.column.endCustomer', 'End customer'),
-      cell: (r) => r.end_client_name ?? '—',
-      exportValue: (r) => r.end_client_name ?? '',
     },
     {
       key: 'stage',
       header: t('sales.column.stage', 'Stage'),
-      cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{r.status}</StatusPill>,
+      kind: 'status',
+      size: 132,
+      cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>,
       exportValue: (r) => r.status,
     },
     {
       key: 'value',
       header: t('sales.column.value', 'Value'),
+      kind: 'money',
+      size: 184,
       align: 'num',
       // Per-ROW here, unlike the stage totals above — each deal renders in its OWN currency
       // (migration 0201), so a mixed-currency list stays honest row by row. `exportValue` stays a
@@ -278,7 +305,7 @@ const SalesPipeline: React.FC = () => {
       cell: (r) => (
         <span className="inline-flex items-baseline gap-1.5">
           {formatCurrency(r.contract_value, r.currency)}
-          <TaxBasisLabel treatment={r.tax_treatment} taxRate={r.tax_rate} taxBaseNumerator={r.tax_base_numerator} taxBaseDenominator={r.tax_base_denominator} />
+          <TaxBasisLabel treatment={r.tax_treatment} taxRate={r.tax_rate} taxBaseNumerator={r.tax_base_numerator} taxBaseDenominator={r.tax_base_denominator} showDetails={false} />
         </span>
       ),
       exportValue: (r) => r.contract_value,
@@ -286,6 +313,8 @@ const SalesPipeline: React.FC = () => {
     {
       key: 'weighted',
       header: t('sales.column.weighted', 'Weighted'),
+      kind: 'money',
+      size: 152,
       align: 'num',
       cell: (r) => (
         <span className="text-muted-foreground">{formatCurrency(weightedValue(r), r.currency)}</span>
@@ -295,6 +324,8 @@ const SalesPipeline: React.FC = () => {
     {
       key: 'win',
       header: t('sales.column.winPct', 'Win %'),
+      kind: 'percent',
+      size: 96,
       align: 'num',
       cell: (r) => {
         const pct = Math.round(r.win_probability * 100);
@@ -319,6 +350,8 @@ const SalesPipeline: React.FC = () => {
        */
       key: 'owner',
       header: t('sales.column.owner', 'Owner'),
+      kind: 'meta',
+      size: 128,
       cell: (r) => {
         if (!r.pm_name) {
           return <span className="text-muted-foreground" aria-label={t('sales.ownerUnavailable', 'Owner not available')}>
@@ -350,6 +383,7 @@ const SalesPipeline: React.FC = () => {
        */
       key: 'last_touch',
       header: t('sales.column.lastTouch', 'Last touch'),
+      size: 104,
       align: 'num',
       cell: (r) => {
         const days = daysSince(r.last_update);
@@ -398,6 +432,15 @@ const SalesPipeline: React.FC = () => {
   const exportColumns: Column<PipelineProject>[] = [];
   for (const col of tableColumns) {
     exportColumns.push(col);
+    if (col.key === 'customer') {
+      exportColumns.push({
+        key: 'end-customer',
+        // #758 — the end customer is a second line on screen but stays its own column in the download.
+        header: t('sales.column.endCustomer', 'End customer'),
+        cell: (r) => r.end_client_name ?? '—',
+        exportValue: (r) => r.end_client_name ?? '',
+      });
+    }
     if (col.key === 'value') {
       exportColumns.push({
         key: 'currency',
@@ -432,6 +475,10 @@ const SalesPipeline: React.FC = () => {
   // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
   // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
   const classificationsActive = activeClassificationCount(workingSet) > 0;
+  // The Classification disclosure earns its place only when some deal carries a tag (or a filter is
+  // already active, so it can be cleared).
+  const hasClassification = classificationsActive || kanbanProjects.some((p) =>
+    p.service_line || p.sector || p.location || p.award_type || p.bidding_entity);
   const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
   // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
@@ -479,10 +526,6 @@ const SalesPipeline: React.FC = () => {
   return (
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
-      description={t(
-        'sales.description',
-        'Track projects in the sales pipeline and forecast revenue.',
-      )}
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Reuses the same create modal +
          mutation as Projects.tsx (no new create path). Gated on can('create','project')
@@ -535,7 +578,9 @@ const SalesPipeline: React.FC = () => {
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-                  {formatCurrency(totalWeighted, orgCurrency)}
+                  {mixedPipeline
+                    ? unknownTotal
+                    : formatCurrency(totalWeighted, pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency)}
                 </span>
               </div>
             </section>
@@ -565,32 +610,24 @@ const SalesPipeline: React.FC = () => {
               </select>
             </label>
           )}
-          {(view === 'table' || (view === 'kanban' && !isDesktop)) && (
-            <div className="max-w-full overflow-x-auto scroll-fade-x">
-              <ViewToggle<DealScope>
-                options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
-                value={scope} onChange={onPhoneScopeChange}
-                ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
-              />
-            </div>
-          )}
+          <div className="max-w-full overflow-x-auto scroll-fade-x">
+            <ViewToggle<DealScope>
+              options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
+              value={scope} onChange={onPhoneScopeChange}
+              ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
+            />
+          </div>
           <div className="flex min-w-0 items-center gap-2">
             <SearchMini placeholder={t('sales.search.placeholder', 'Search projects…')}
               aria-label={t('sales.search.label', 'Search projects')} value={search}
               onChange={(e) => setSearch(e.target.value)} containerClassName="min-w-0! flex-1" className="min-w-0" />
-            <ViewToggle
-              options={[
-                { value: 'kanban', label: t('sales.view.board', 'Board'), icon: 'cards' },
-                { value: 'table', label: t('sales.view.table', 'Table'), icon: 'table' },
-              ]}
-              value={view} onChange={onViewChange} ariaLabel={t('sales.viewToggleLabel', 'Pipeline view')}
-            />
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <ProjectClassificationFilters rows={kanbanProjects} value={workingSet}
-              onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
-            <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
-          </div>
+          {hasClassification && (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <ProjectClassificationFilters rows={kanbanProjects} value={workingSet}
+                onChange={(patch) => setWorkingSet((ws) => ({ ...ws, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
+            </div>
+          )}
         </div>
       )}
       filters={
@@ -605,7 +642,7 @@ const SalesPipeline: React.FC = () => {
           />
         )
       }
-      secondaryFilter={state !== 'loading' && (
+      secondaryFilter={state !== 'loading' && hasClassification && (
         <ProjectClassificationFilters
           rows={kanbanProjects}
           value={workingSet}
@@ -768,11 +805,5 @@ const SalesPipeline: React.FC = () => {
     </ListPage>
   );
 };
-
-/** Stage dot color for a status (table icon tile + funnel parity). */
-function stageDot(status: PipelineProject['status']): string {
-  const col = SALES_COLUMNS.find((c) => c.statuses.includes(status));
-  return col?.dotColor ?? 'hsl(var(--muted-foreground))';
-}
 
 export default SalesPipeline;

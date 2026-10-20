@@ -2,14 +2,12 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
 import {
   SALES_COLUMNS,
-  weightedValue,
   pillVariantForStatus,
   formatPercent,
   type SalesColumn,
@@ -44,7 +42,6 @@ const DealCard: React.FC<{
   selected: boolean;
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
-  const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
@@ -54,14 +51,14 @@ const DealCard: React.FC<{
       initial={initial}
       name={project.name}
       client={project.client_name}
-      pmoProjectNumber={project.pmo_project_number}
-      code={project.code}
+      pmoProjectNumber={null}
+      code={null}
       status={
         <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
       }
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
-        // amounts + the PPN label) amount, basis, weighted figure and the probability pill do not
+        // amounts + the PPN label) amount, basis and the probability pill do not
         // fit on one line — non-wrapping, they overran the card and gave every column's card list
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
         // the pill whole when it drops to its own line.
@@ -71,16 +68,9 @@ const DealCard: React.FC<{
               {formatCurrency(project.contract_value, project.currency)}
             </span>
             {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
-                It sits IMMEDIATELY after the contract value and before the weighted figure — a
-                label whose job is to remove ambiguity must not sit where it could be read as
-                qualifying the number next to it instead. */}
-            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
-            <span className="text-[11px] text-muted-foreground tabular">
-              {t('sales.board.weightedShort', {
-                defaultValue: '{{value}} wtd',
-                value: formatCurrency(weightedValue(project), project.currency),
-              })}
-            </span>
+                It sits IMMEDIATELY after the contract value — a label whose job is to remove
+                ambiguity must not sit where it could be read as qualifying another number. */}
+            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
           </div>
           <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
         </div>
@@ -92,15 +82,13 @@ const DealCard: React.FC<{
 
 /**
  * Compact deal row for the phone pipeline. The existing project shell keeps the
- * record activation target canonical; the list adds only the pipeline lens and
- * a native disclosure for secondary financial/reference details.
+ * record activation target canonical; the list adds only value, basis and win %.
  */
 const CompactDealCard: React.FC<{
   project: PipelineProject;
   onActivate: () => void;
   hideStatus: boolean;
 }> = ({ project, onActivate, hideStatus }) => {
-  const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
 
@@ -119,7 +107,7 @@ const CompactDealCard: React.FC<{
       )}
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
-        <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="break-words text-[15px] font-bold tabular">
               {formatCurrency(project.contract_value, project.currency)}
@@ -129,29 +117,10 @@ const CompactDealCard: React.FC<{
               taxRate={project.tax_rate}
               taxBaseNumerator={project.tax_base_numerator}
               taxBaseDenominator={project.tax_base_denominator}
+              showDetails={false}
             />
           </div>
-          <details className="group border-t border-border/70 pt-2 text-[12px]">
-            <summary className="min-h-8 cursor-pointer py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              {t('uxs24.financialDetails', 'Financial and project details')}
-            </summary>
-            <div className="grid min-w-0 gap-1 pt-2 text-muted-foreground">
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
-                <span>{t('sales.board.weightedShort', { defaultValue: '{{value}} wtd', value: formatCurrency(weightedValue(project), project.currency) })}</span>
-                <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
-              </div>
-              {project.pmo_project_number && (
-                <div className="break-words font-mono text-[11px]">
-                  <span className="font-sans">{t('projects.identifiers.pmo', 'PMO Project Number')}:</span> {project.pmo_project_number}
-                </div>
-              )}
-              {project.code && (
-                <div className="break-words font-mono text-[11px]">
-                  <span className="font-sans">{t('projects.identifiers.client', 'Client Project Code')}:</span> {project.code}
-                </div>
-              )}
-            </div>
-          </details>
+          <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
         </div>
       }
       onOpen={onActivate}
@@ -184,23 +153,6 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
   );
 };
 
-/** Two-figure column totals node (gross + weighted), tabular.
- *  ⚑ FR-L10N-020: a COLUMN TOTAL sums across projects, so it has no single record currency of its
- *  own — it is denominated in the org default, threaded from the board rather than read here.
- *  A total that mixed currencies would be arithmetic nobody can defend and it would still render;
- *  that is a separate multi-currency problem (OD-CR-5), and this prop is where it will surface. */
-const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string }> = ({ gross, weighted, currency }) => {
-  const { t } = useTranslation();
-  return (
-    <>
-      <span className="text-[13px] font-bold tabular">{formatCurrency(gross, currency)}</span>
-      <span className="text-[11px] text-muted-foreground tabular">
-        {t('sales.board.weightedShort', { defaultValue: '{{value}} wtd', value: formatCurrency(weighted, currency) })}
-      </span>
-    </>
-  );
-};
-
 /**
  * The IA-3 sales pipeline board: six fixed columns (five open stages + one
  * terminal Won/Lost), reusing the Foundation Kanban shell. Cards are
@@ -226,10 +178,8 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
   selectedStageIndex = null,
 }) => {
   const { t } = useTranslation();
-  // FR-L10N-020: the per-CARD figures use each project's OWN currency (get_sales_pipeline now
-  // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
-  // take the org default.
-  const orgCurrency = useOrgCurrency();
+  // Cards use each project's OWN currency (migration 0201). Open columns show a count only: the
+  // stage value lives once, in the funnel above, where mixed currencies are handled.
   const stageLabel = useSalesStageLabel();
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
@@ -264,8 +214,6 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
       <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
-          const gross = colProjects.reduce((s, p) => s + p.contract_value, 0);
-          const weighted = colProjects.reduce((s, p) => s + weightedValue(p), 0);
           const colTitle = stageLabel(col);
           // #774: the Lost column also holds Declined deals; show the two counts separately.
           const declinedCount = colProjects.filter((p) => p.status === 'Declined').length;
@@ -289,7 +237,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                 title={colTitle}
                 dotColor={col.dotColor}
                 count={colProjects.length}
-                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : lostCountsLine}
+                totals={col.terminal ? lostCountsLine : undefined}
                 emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
                 selected={colIdx === selectedStageIndex}
               >

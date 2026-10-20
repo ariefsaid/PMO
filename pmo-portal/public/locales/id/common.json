@@ -3360,7 +3360,6 @@
       "winPct": "% menang",
       "endCustomer": "Pelanggan akhir"
     },
-    "description": "Pantau proyek di pipeline penjualan dan proyeksikan pendapatan.",
     "empty": {
       "sub": "Tambahkan proyek untuk mulai memantau pipeline.",
       "title": "Belum ada proyek"
@@ -3429,8 +3428,7 @@
     "weightedForecast": "Proyeksi pipeline tertimbang",
     "winProbability": "Peluang menang",
     "board": {
-      "ariaLabel": "Papan pipeline penjualan",
-      "weightedShort": "{{value}} tertimbang"
+      "ariaLabel": "Papan pipeline penjualan"
     },
     "stage": {
       "leads": "Prospek",
@@ -4987,7 +4985,6 @@
     "stageLabel": "Tahap pipeline",
     "allStages": "Semua tahap",
     "phoneList": "Proyek pada tahap pipeline yang dipilih",
-    "financialDetails": "Rincian keuangan dan proyek",
     "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
     "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
   },

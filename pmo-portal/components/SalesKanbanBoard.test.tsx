@@ -29,7 +29,7 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
-  it('keeps full identity and source-currency basis visible while secondary metrics open on demand', async () => {
+  it('SUB-H keeps full identity, value, basis and win % visible with no details disclosure', async () => {
     const longProject: PipelineProject = {
       ...projects[4],
       id: 'compact-long-id',
@@ -53,13 +53,9 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     expect(within(card).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
     expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
 
-    const details = within(card).getByText('Financial and project details');
-    expect(details.tagName).toBe('SUMMARY');
-    expect(within(card).getByText('40%')).not.toBeVisible();
-    await userEvent.click(details);
+    expect(card.querySelector('details')).toBeNull();
     expect(within(card).getByText('40%')).toBeVisible();
-    expect(within(card).getByText('PMO-26-0042')).toBeVisible();
-    expect(within(card).getByText('CLIENT-77')).toBeVisible();
+    expect(within(card).queryByText(/wtd/)).toBeNull();
 
     await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.name) }));
     expect(onOpen).toHaveBeenCalledWith(longProject);
@@ -107,14 +103,13 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(within(lostCol).getByTestId('lost-column-counts')).toHaveTextContent('Lost 1 · Declined 1');
   });
 
-  it('AC-SP-204: a Quotation deal renders name, customer, value, weighted chip and win%', () => {
+  it('AC-SP-204: a Quotation deal renders name, customer, value and win% (no weighted chip, SUB-H)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;
     const c = within(card as HTMLElement);
     expect(c.getByText('Acme')).toBeInTheDocument();
     expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
-    // weighted = 500000 * 0.4 = 200000 (rendered "$200,000 wtd")
-    expect(c.getByText((t) => t.includes(formatCurrency(200_000, 'USD')))).toBeInTheDocument();
+    expect(c.queryByText(/wtd/)).toBeNull();
     // win% from the RPC (40%), not a hard-coded legacy value
     expect(c.getByText('40%')).toBeInTheDocument();
   });
@@ -159,14 +154,11 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(backgrounds.some((b) => b.includes('hsl(25 95'))).toBe(false); // no orange
   });
 
-  it('AC-1117: the Tender column totals expose a weighted currency value (test id preserved)', () => {
+  it('AC-1117 / SUB-H: an open column header keeps its count; the stage value lives once, in the funnel', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const tender = screen.getByTestId('stage-Tender Submitted');
-    // weighted for Tender = 1,200,000 * 0.5 = 600,000 — surfaced both in the
-    // column totals AND the single card's weighted chip.
-    expect(
-      within(tender).getAllByText((t) => t.includes(formatCurrency(600_000, 'USD'))).length,
-    ).toBeGreaterThan(0);
+    expect(within(tender).queryByText(/wtd/)).toBeNull();
+    expect(within(tender).getByText('1')).toBeInTheDocument();
   });
 
   it('#530 / AC-L10N-020: cards render each deal in its own currency, not the USD org default', () => {

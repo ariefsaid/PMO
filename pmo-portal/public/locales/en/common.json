@@ -3360,7 +3360,6 @@
       "winPct": "Win %",
       "endCustomer": "End customer"
     },
-    "description": "Track projects in the sales pipeline and forecast revenue.",
     "empty": {
       "sub": "Add a project to start tracking the pipeline.",
       "title": "No projects yet"
@@ -3429,8 +3428,7 @@
     "weightedForecast": "Weighted pipeline forecast",
     "winProbability": "Win probability",
     "board": {
-      "ariaLabel": "Sales pipeline board",
-      "weightedShort": "{{value}} wtd"
+      "ariaLabel": "Sales pipeline board"
     },
     "stage": {
       "leads": "Leads",
@@ -4987,7 +4985,6 @@
     "stageLabel": "Pipeline stage",
     "allStages": "All stages",
     "phoneList": "Projects in selected pipeline stage",
-    "financialDetails": "Financial and project details",
     "stageEmptyTitle": "No projects in this stage",
     "stageEmptyBody": "Choose another stage or clear filters to see more projects."
   },

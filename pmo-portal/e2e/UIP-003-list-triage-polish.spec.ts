@@ -90,8 +90,9 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
       const toolbar = page.getByTestId('list-page-toolbar');
       const toolbarBox = await toolbar.boundingBox();
-      const tableViewBox = await toolbar.getByRole('tab', { name: 'Table', exact: true }).boundingBox();
-      expect(tableViewBox!.x + tableViewBox!.width).toBeLessThanOrEqual(toolbarBox!.x + toolbarBox!.width);
+      // SUB-H: the phone has one presentation (the stage list), so there is no Board/Table toggle.
+      await expect(toolbar.getByRole('tab', { name: 'Table', exact: true })).toHaveCount(0);
+      expect(toolbarBox!.x + toolbarBox!.width).toBeLessThanOrEqual(390);
       await page.screenshot({ path: testInfo.outputPath(`UIP-004-pipeline-390-${theme}.png`) });
     }
   } finally {
