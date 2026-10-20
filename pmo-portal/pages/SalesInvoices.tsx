@@ -903,7 +903,8 @@ const SalesInvoices: React.FC = () => {
     // the ERP's history; `set_sales_invoice_received_date` refuses it server-side too.
     if (canRecordReceipt && !frozen && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('financeCopy.recordReceivedDate', "Record received date"), onClick: () => setReceiptTarget(inv) });
-    if (canRecordEfaktur && inv.status !== 'Cancelled')
+    // FIN-S3: a Draft has no issued tax invoice yet, so there is nothing to record.
+    if (canRecordEfaktur && inv.status !== 'Cancelled' && inv.status !== 'Draft')
       items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(inv) });
     // A Paid PMO invoice is not cancellable (FR-NAR-009); an ERP one follows the ERP.
     if (canCancel && !frozen && inv.status !== 'Cancelled' && !(inv.pmo_native && inv.status === 'Paid'))
@@ -1537,7 +1538,6 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   label={t('financeCopy.itemCode', "Item code")}
                   value={item.item_code}
                   onChange={(v) => updateLineItem(index, 'item_code', v)}
-                  helper={native ? t('uxs16.itemCodeOptionalHelp', 'Optional. Use an item code when your project tracks one.') : undefined}
                   // FR-NAR-002 (I-3): a PMO line needs an item code OR a description.
                   required={!native}
                   maxLength={native ? 140 : undefined}
@@ -1599,6 +1599,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           {t('financeCopy.addLineItem', "Add line item")}</Button>
       </FormSection>
 
+      {(draftReviewCurrency || !native || selectedProject) && (
       <section
         className="mt-4 border-t border-border pt-4"
         aria-label={t('uxs16.invoiceDraftReview', 'Invoice draft review')}
@@ -1611,9 +1612,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         </h3>
         {!draftReviewCurrency ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            {native && !selectedProject
-              ? t('uxs16.selectProjectForReview', 'Choose a project to review its invoice currency and tax.')
-              : t('uxs16.currencyUnavailable', 'Currency is unavailable, so draft totals cannot be displayed.')}
+            {t('uxs16.currencyUnavailable', 'Currency is unavailable, so draft totals cannot be displayed.')}
           </p>
         ) : (
           <>
@@ -1624,17 +1623,11 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   {draftPreview.subtotal === null ? '—' : formatCurrencyCents(draftPreview.subtotal, draftReviewCurrency)}
                 </dd>
               </div>
+              {native && (
+              <>
               <div className="flex min-w-0 items-baseline justify-between gap-4">
                 <dt className="min-w-0 text-muted-foreground">
                   <span>{t('uxs16.tax', 'Tax')}</span>
-                  {native && selectedProject?.subjectToVat && hasKnownTaxBaseFraction && (
-                    <span className="mt-0.5 block text-xs">
-                      {t('uxs16.projectTaxBase', 'Project tax base: {{numerator}}/{{denominator}}', {
-                        numerator: taxBaseNumerator,
-                        denominator: taxBaseDenominator,
-                      })}
-                    </span>
-                  )}
                 </dt>
                 <dd className="shrink-0 text-right tabular-nums">
                   {draftPreview.tax === null ? '—' : formatCurrencyCents(draftPreview.tax, draftReviewCurrency)}
@@ -1646,29 +1639,28 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   {draftPreview.total === null ? '—' : formatCurrencyCents(draftPreview.total, draftReviewCurrency)}
                 </dd>
               </div>
+              </>
+              )}
             </dl>
             {draftPreview.reason === 'invalid-lines' && (
               <p className="mt-3 text-sm text-muted-foreground">
                 {t('uxs16.completeLinesForReview', 'Enter valid line details, quantities, and rates to review totals.')}
               </p>
             )}
-            {draftPreview.reason === 'tax-unavailable' && (
+            {native && draftPreview.reason === 'tax-unavailable' && (
               <p className="mt-3 text-sm text-muted-foreground">
-                {native ? (
-                  <>
-                    {t('uxs16.projectTaxUnavailable', 'Project tax details are unavailable, so tax and final total cannot be previewed yet.')}{' '}
-                    {selectedProject && (
-                      <Link to={`/projects/${selectedProject.value}`} className="font-medium text-primary-text underline underline-offset-2">
-                        {t('uxs16.reviewProjectTax', 'Review project tax settings')}
-                      </Link>
-                    )}
-                  </>
-                ) : t('uxs16.erpTotalsAfterDraft', 'Tax and final total are available after the ERP draft is created.')}
+                {t('uxs16.projectTaxUnavailable', 'Project tax details are unavailable, so tax and final total cannot be previewed yet.')}{' '}
+                {selectedProject && (
+                  <Link to={`/projects/${selectedProject.value}`} className="font-medium text-primary-text underline underline-offset-2">
+                    {t('uxs16.reviewProjectTax', 'Review project tax settings')}
+                  </Link>
+                )}
               </p>
             )}
           </>
         )}
       </section>
+      )}
     </EntityFormModal>
   );
 };

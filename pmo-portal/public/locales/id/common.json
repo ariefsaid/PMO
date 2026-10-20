@@ -285,7 +285,6 @@
     "column": "e-Faktur",
     "record": "Catat e-Faktur",
     "subtitle": "Catat nomor beserta tanggalnya, atau biarkan keduanya kosong untuk dokumen non-PPN.",
-    "copyInstruction": "Salin nomor dari dokumen e-Faktur yang diterbitkan.",
     "issuedSalesInvoice": "Nomor faktur penjualan terbit",
     "invalidNumber": "Gunakan maksimal 32 angka, titik, atau tanda hubung.",
     "numberMissing": "Isi juga nomor e-Faktur, atau kosongkan tanggalnya.",
@@ -4981,15 +4980,11 @@
     "subtotal": "Subtotal",
     "tax": "Pajak",
     "total": "Total",
-    "itemCodeOptionalHelp": "Opsional. Isi kode item jika proyek Anda menggunakannya.",
     "invoiceLineQuantityValid": "Baris {{line}}: Kuantitas harus positif dengan maksimal 3 angka desimal.",
-    "projectTaxBase": "Dasar pengenaan pajak proyek: {{numerator}}/{{denominator}}",
-    "selectProjectForReview": "Pilih proyek untuk meninjau mata uang dan pajaknya.",
     "currencyUnavailable": "Mata uang tidak tersedia, sehingga total draf tidak dapat ditampilkan.",
     "completeLinesForReview": "Lengkapi detail baris, kuantitas, dan harga yang valid untuk meninjau total.",
     "projectTaxUnavailable": "Informasi pajak proyek tidak tersedia, sehingga pajak dan total akhir belum dapat dipratinjau.",
-    "reviewProjectTax": "Tinjau pengaturan pajak proyek",
-    "erpTotalsAfterDraft": "Pajak dan total akhir tersedia setelah draf ERP dibuat."
+    "reviewProjectTax": "Tinjau pengaturan pajak proyek"
   },
   "uxs39": {"showTaxDetails": "Tampilkan rincian pajak", "hideTaxDetails": "Sembunyikan rincian pajak"},
   "uxs19": {

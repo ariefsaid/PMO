@@ -285,7 +285,6 @@
     "column": "e-Faktur",
     "record": "Record e-Faktur",
     "subtitle": "Record the number and its date together, or leave both empty for a non-VAT document.",
-    "copyInstruction": "Copy the number from the issued e-Faktur document.",
     "issuedSalesInvoice": "Issued sales invoice number",
     "invalidNumber": "Use up to 32 digits, dots, or dashes.",
     "numberMissing": "Enter the e-Faktur number as well, or clear the date.",
@@ -4981,15 +4980,11 @@
     "subtotal": "Subtotal",
     "tax": "Tax",
     "total": "Total",
-    "itemCodeOptionalHelp": "Optional. Use an item code when your project tracks one.",
     "invoiceLineQuantityValid": "Line {{line}}: Quantity must be positive with no more than 3 decimal places.",
-    "projectTaxBase": "Project tax base: {{numerator}}/{{denominator}}",
-    "selectProjectForReview": "Choose a project to review its invoice currency and tax.",
     "currencyUnavailable": "Currency is unavailable, so draft totals cannot be displayed.",
     "completeLinesForReview": "Enter valid line details, quantities, and rates to review totals.",
     "projectTaxUnavailable": "Project tax details are unavailable, so tax and final total cannot be previewed yet.",
-    "reviewProjectTax": "Review project tax settings",
-    "erpTotalsAfterDraft": "Tax and final total are available after the ERP draft is created."
+    "reviewProjectTax": "Review project tax settings"
   },
   "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"},
   "uxs19": {
