@@ -2,6 +2,7 @@
  * AC-W2-7-02: the account-menu trigger has ≥44px touch target (touch-target class).
  */
 import { describe, it, expect, vi } from 'vitest';
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 

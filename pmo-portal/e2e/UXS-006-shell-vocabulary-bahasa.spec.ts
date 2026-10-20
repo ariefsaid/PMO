@@ -73,10 +73,8 @@ test.describe('UXS-006: shell speaks the saved language', () => {
     // label itself is localized, hence the alternation).
     const rail = page.getByRole('navigation', { name: /primary navigation|navigasi utama/i });
     await expect(rail.getByRole('link', { name: /^Tugas Saya/ })).toBeVisible({ timeout: 10_000 });
-    await expect(rail.getByRole('link', { name: 'Vendor' })).toBeVisible();
-    await expect(page.locator('#rail-my-tasks-hint')).toHaveText(
-      'Tugas Anda di seluruh proyek',
-    );
+    await expect(rail.getByRole('link', { name: 'Vendor' })).toHaveCount(0);
+    await expect(page.locator('#rail-my-tasks-hint')).toHaveCount(0);
 
     // A localized word finds its destination; the breadcrumb agrees with it.
     // Records whose type label matches rank first, so click the exact module

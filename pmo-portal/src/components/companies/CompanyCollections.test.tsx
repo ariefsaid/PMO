@@ -47,7 +47,7 @@ describe('CompanyCollections doorway', () => {
     expect(screen.getByText('Accounts Receivable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute('href', '/sales-invoices?customer=company-1');
     expect(screen.getByRole('link', { name: 'Overdue invoices first' })).toHaveAttribute(
-      'href', '/sales-invoices?customer=company-1&overdue=true&sort=oldest-overdue',
+      'href', '/sales-invoices?customer=company-1&overdue=true',
     );
     expect(screen.queryByText('Actuals (ERP ledger)')).not.toBeInTheDocument();
     expect(screen.queryByText('AP aging')).not.toBeInTheDocument();

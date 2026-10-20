@@ -1,15 +1,8 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { I18nextProvider } from 'react-i18next';
-import i18next from 'i18next';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { FxRateMatch } from '@/src/lib/repositories/types';
-
-const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'));
-const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
 
 const h = vi.hoisted(() => ({
   user: { currentUser: { org_id: 'org-1' } },
@@ -86,10 +79,10 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expectRateEnabled(false);
   });
 
-  it('does not use the unresolved USD placeholder to decide currency eligibility', () => {
+  it('does not use the unresolved USD placeholder to decide currency eligibility, and shows nothing while it loads (FIN-S4)', () => {
     h.currency = { currency: 'USD', isResolved: false, isError: false };
-    renderEquivalent();
-    expect(screen.getByRole('status')).toHaveTextContent(/organization currency/i);
+    const { container } = renderEquivalent();
+    expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
     expect(h.dayArgs).toHaveBeenLastCalledWith(false);
   });
@@ -111,36 +104,23 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(screen.getByText(clipped.textContent ?? '', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it.each(['EUR', 'IDR'])('does not offer JISDOR for unsupported currency %s', (currency) => {
+  it.each(['EUR', 'IDR'])('renders nothing for unsupported currency %s (FIN-S4)', (currency) => {
     h.currency = { currency: 'IDR', isResolved: true, isError: false };
-    renderEquivalent({ currency });
-    if (currency === 'IDR') expect(screen.queryByText(/JISDOR/)).not.toBeInTheDocument();
-    else expect(screen.getByText(/USD contracts in IDR organizations only/i)).toBeInTheDocument();
+    const { container } = renderEquivalent({ currency });
+    expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
   });
 
-  it('does not offer USD to a non-IDR organization', () => {
+  it('renders nothing for USD in a non-IDR organization (FIN-S4)', () => {
     h.currency = { currency: 'EUR', isResolved: true, isError: false };
-    renderEquivalent();
-    expect(screen.getByText(/USD contracts in IDR organizations only/i)).toBeInTheDocument();
+    const { container } = renderEquivalent();
+    expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
   });
 
-  it.each([
-    ['en', 'No document date — no JISDOR equivalent.'],
-    ['id', 'Tidak ada tanggal dokumen — tidak ada ekuivalen JISDOR.'],
-  ])('explains the missing document date in %s', (language, message) => {
-    const i18n = i18next.createInstance();
-    void i18n.init({ lng: language, fallbackLng: false, defaultNS: 'common', resources: { en: { common: enCatalogue }, id: { common: idCatalogue } }, initImmediate: false });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <I18nextProvider i18n={i18n}>
-        <QueryClientProvider client={client}>
-          <FxEquivalent amount={100} currency="USD" date={null} />
-        </QueryClientProvider>
-      </I18nextProvider>,
-    );
-    expect(screen.getByText(message)).toBeInTheDocument();
+  it('renders nothing when the amount has no document date (FIN-S4)', () => {
+    const { container } = renderEquivalent({ date: null });
+    expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
   });
 
@@ -151,19 +131,17 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expectRateEnabled(true);
   });
 
-  it('shows organization-day pending and failure states with retry only for failure', () => {
+  it('renders nothing while the organization day loads; a failure is one short line with no Retry (FIN-S4)', () => {
     h.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
-    renderEquivalent({ date: 'latest' });
-    expect(screen.getByRole('status')).toHaveTextContent(/Checking today’s JISDOR date/i);
+    const { container } = renderEquivalent({ date: 'latest' });
+    expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
-    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
 
     cleanup();
     h.orgDay = { day: null, isPending: false, isError: true, retry: vi.fn() };
     renderEquivalent({ date: 'latest' });
-    expect(screen.getByRole('alert')).toHaveTextContent(/organization’s local date/i);
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(h.orgDay.retry).toHaveBeenCalledOnce();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Could not load JISDOR/i);
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
   it('uses organization day for latest lookup and reports that day when absent', () => {
@@ -174,17 +152,22 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(h.rateArgs).toHaveBeenLastCalledWith('USD', 'IDR', '2026-10-12', true);
   });
 
-  it('keeps pending and error states distinct and offers retry only for failures', () => {
+  it('renders nothing while the rate loads; a failure is one short line with no Retry (FIN-S4)', () => {
     h.rate = { data: null, isPending: true, isError: false, refetch: vi.fn() };
-    renderEquivalent();
-    expect(screen.getByRole('status')).toHaveTextContent(/checking JISDOR/i);
-    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    const { container } = renderEquivalent();
+    expect(container).toBeEmptyDOMElement();
     cleanup();
     h.rate = { data: null, isPending: false, isError: true, refetch: vi.fn() };
     renderEquivalent();
     expect(screen.getByRole('alert')).toHaveTextContent(/Could not load JISDOR/i);
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(h.rate.refetch).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  it('an org-currency failure is the same one short line', () => {
+    h.currency = { currency: 'IDR', isResolved: false, isError: true };
+    renderEquivalent();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Could not load JISDOR/i);
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
   it('treats zero as a real amount and null as no equivalent lookup', () => {

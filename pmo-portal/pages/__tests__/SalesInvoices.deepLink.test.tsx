@@ -193,18 +193,17 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(table).toContain('77 days overdue');
   });
 
-  it('project picker filters the invoice collection', async () => {
+  it('FIN-S1 search finds an invoice by its project label', async () => {
     const user = userEvent.setup();
     salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], project_id: 'project-1' };
     renderAt('/sales-invoices');
-    await user.click(screen.getByRole('combobox', { name: 'Filter by project' }));
-    await user.click(await screen.findByRole('option', { name: /Northwind Build/ }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search sales invoices' }), 'northwind build');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
   });
 
-  it('AC-S05-M1 sorts overdue unpaid invoices by age and keeps all other rows stable below', async () => {
+  it('AC-S05-M1 Overdue only lists the overdue unpaid invoices, oldest first', async () => {
     const user = userEvent.setup();
     salesInvoicesState.data = [
       { ...SEED_INVOICES[0], status: 'Paid', invoice_date: '2020-01-01', erp_outstanding_amount: 0 },
@@ -213,23 +212,22 @@ describe('SalesInvoices — deep link (#787)', () => {
       { ...SEED_INVOICES[1], id: 'inv-cancelled', si_number: 'ACC-SINV-CANCELLED', status: 'Cancelled', invoice_date: '2020-01-01', erp_due_date: '2020-02-01', erp_outstanding_amount: 0 },
     ];
     renderAt('/sales-invoices');
-    await user.click(screen.getByRole('button', { name: 'Oldest overdue first' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     const rows = screen.getAllByRole('row');
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining('Invoice #'),
       expect.stringContaining('ACC-SINV-2024-OLD'),
       expect.stringContaining('ACC-SINV-2026-00002'),
-      expect.stringContaining('ACC-SINV-2026-00001'),
-      expect.stringContaining('ACC-SINV-CANCELLED'),
     ]);
   });
 
-  it('shows project attribution and uses its reference only when the invoice has none', () => {
+  it('FIN-S1 shows project attribution under the customer and never a project-reference fallback', () => {
     salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], project_id: 'project-1', reference_number: null };
     renderAt('/sales-invoices?project=project-1');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('Northwind Build');
-    expect(table).toContain('Project reference: CLIENT-PO-1');
+    expect(table).not.toContain('Project reference');
+    expect(table).not.toContain('CLIENT-PO-1');
     expect(table).not.toContain('ACC-SINV-2026-00002');
   });
 
@@ -346,7 +344,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
-    expect(screen.getByText(/Download the approved PDF and send it to your client outside PMO/)).toBeInTheDocument();
+    expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();

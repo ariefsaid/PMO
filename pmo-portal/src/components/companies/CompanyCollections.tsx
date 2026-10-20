@@ -17,7 +17,7 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
 
   const position = collections.byCompany.get(companyId) ?? { state: 'unavailable' as const, positions: [] };
   const invoiceUrl = `/sales-invoices?customer=${encodeURIComponent(companyId)}`;
-  const overdueUrl = `${invoiceUrl}&overdue=true&sort=oldest-overdue`;
+  const overdueUrl = `${invoiceUrl}&overdue=true`;
 
   return (
     <section id="collections" aria-labelledby="company-collections-heading" className="min-w-0 space-y-3">
