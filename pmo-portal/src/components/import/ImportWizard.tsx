@@ -319,8 +319,18 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       cell: (v) => {
         const col = wiz.mapping[field.key];
         const raw = col == null ? '' : (rows[v.index]?.[col] ?? '');
+        if (field.key === descriptor.fields[0]?.key) return raw || <span className="text-muted-foreground">—</span>;
         return <>{raw || <span className="text-muted-foreground">—</span>}{v.errors[field.key] && <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[field.key]}</span>}</>;
       },
+      ...(field.key === descriptor.fields[0]?.key ? {
+        primaryTitle: (v: (typeof wiz.validation)[number]) => {
+          const col = wiz.mapping[field.key];
+          return col == null ? '' : (rows[v.index]?.[col] ?? '');
+        },
+        secondaryCell: (v: (typeof wiz.validation)[number]) => v.errors[field.key]
+          ? <span className="mt-0.5 block text-[11px] text-destructive">{v.errors[field.key]}</span>
+          : null,
+      } : {}),
     })),
     { key: 'status', header: t('import:preview.status', 'Status'), kind: 'status', cell: (v) => v.valid ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill> : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill> },
   ];
@@ -334,7 +344,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         columns={columns}
         rowKey={(v) => String(v.index)}
         accessibleName={t('import:preview.tableName', 'Import row preview')}
-        tableId="components-import-importwizard-preview-table"
+        tableId={`components-import-importwizard-preview-${descriptor.entity.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
         className="text-[12.5px]"
       />
     </div>

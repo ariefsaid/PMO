@@ -342,7 +342,7 @@ export const IntegrationsView: React.FC = () => {
     projectsPending ||
     projectsError;
   const bindingMapColumns: Column<(typeof activeProjects)[number]>[] = [
-    { key: 'project', header: t('integrations.organization.readiness.map.projectColumn', 'PMO project'), kind: 'primary', cell: (project) => project.name, primaryTitle: (project) => project.name },
+    { key: 'project', header: t('integrations.organization.readiness.map.projectColumn', 'PMO project'), kind: 'primary', rowHeader: true, cell: (project) => project.name, primaryTitle: (project) => project.name },
     { key: 'list', header: t('integrations.organization.readiness.map.listColumn', 'ClickUp List'), kind: 'text', cell: (project) => {
       const binding = bindingByProjectId.get(project.id);
       const proposal = matchProposalByProjectId.get(project.id);
@@ -664,7 +664,7 @@ export const IntegrationsView: React.FC = () => {
             rowKey={(project) => project.id}
             accessibleName={t('integrations.organization.readiness.map.caption', 'PMO projects and their ClickUp List bindings')}
             tableId="components-integrations-integrationsview-clickup-bindings-table"
-            state={isBindingsPending || projectsPending ? 'loading' : undefined}
+            state={projectsPending ? 'loading' : undefined}
             className="text-sm"
           />
           {taskListReview && (

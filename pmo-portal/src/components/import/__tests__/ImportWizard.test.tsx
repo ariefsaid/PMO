@@ -20,7 +20,7 @@ const create = vi.fn().mockResolvedValue({ id: '1' });
 const descriptor: ImportDescriptor<Co> = {
   entity: 'Companies',
   fields: [
-    { key: 'name', label: 'Company name', required: true, validate: (r) => (r.trim() ? null : 'Company name is required.') },
+    { key: 'name', label: 'Company name', required: true, validate: (r) => (r.trim() ? (r.startsWith('Unmatched') ? 'Project was not found.' : null) : 'Company name is required.') },
     { key: 'type', label: 'Type', required: true, validate: (r) => (['Client', 'Vendor'].includes(r.trim()) ? null : 'Type must be Client or Vendor.') },
   ],
   toInput: (c) => ({ name: c.name.trim(), type: c.type.trim() }),
@@ -36,7 +36,7 @@ describe('ImportWizard', () => {
       headers: ['Company name', 'Type'],
       rows: [
         ['Acme', 'Client'], // valid
-        ['', 'Partner'], // invalid: blank name + bad enum
+        ['Unmatched project with a deliberately long name that exceeds the cell clamp', 'Partner'], // invalid: unmatched name + bad enum
       ],
     });
   });
@@ -85,7 +85,10 @@ describe('ImportWizard', () => {
     expect(summary).toHaveTextContent('2 total');
     // a per-row error chip is shown (the invalid row's "Skipped" + a field error)
     expect(screen.getAllByText(/skipped/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/company name is required/i)).toBeInTheDocument();
+    expect(screen.getByText(/project was not found/i)).toBeInTheDocument();
+    const nameValue = screen.getByText('Unmatched project with a deliberately long name that exceeds the cell clamp');
+    expect(nameValue.closest('[title]')).toHaveAttribute('title', 'Unmatched project with a deliberately long name that exceeds the cell clamp');
+    expect(nameValue.closest('[title]')).not.toContainElement(screen.getByText('Project was not found.'));
     // NO write occurred reaching preview (dry-run).
     expect(create).not.toHaveBeenCalled();
   });
