@@ -45,9 +45,10 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   // Author creates the new revision from the Approved parent.
   await login(page, 'pm@acme.test');
   await openDocumentsTab(page);
-  const newRevisionButton = documentRow(page, title).getByRole('button', { name: `Create new revision for ${title}` });
-  await expect(newRevisionButton).toBeVisible();
-  await newRevisionButton.click();
+  await documentRow(page, title).getByRole('button', { name: /Row actions/i }).click();
+  const newRevisionItem = page.getByRole('menuitem', { name: 'New revision' });
+  await expect(newRevisionItem).toBeVisible();
+  await newRevisionItem.click();
 
   const revisionDialog = page.getByRole('dialog', { name: 'New revision' });
   await expect(revisionDialog).toBeVisible();
@@ -87,7 +88,11 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
     .filter({ has: page.getByRole('button', { name: new RegExp(`View revision B of ${title}`) }) });
   await expect(supersededParentRow).toHaveCount(1, { timeout: 15_000 });
   await expect(supersededParentRow.getByText('Superseded')).toBeVisible({ timeout: 15_000 });
-  await expect(supersededParentRow.getByRole('button', { name: `Create new revision for ${title}` })).toHaveCount(0);
+  // A superseded row offers no revision (it may have no row menu at all).
+  const supersededMenu = supersededParentRow.getByRole('button', { name: /Row actions/i });
+  if (await supersededMenu.count()) await supersededMenu.click();
+  await expect(page.getByRole('menuitem', { name: 'New revision' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await expect(supersededParentRow.getByLabel(`Upload file for ${title}`)).toHaveCount(0);
   await expect(supersededParentRow.getByLabel(`Replace file for ${title}`)).toHaveCount(0);
 
