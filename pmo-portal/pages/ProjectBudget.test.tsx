@@ -211,12 +211,12 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(within(header as HTMLElement).getByText('$4,700,000')).toHaveClass('ml-auto', 'shrink-0', 'whitespace-nowrap');
   });
 
-  it('keeps the budget line-item scroll region keyboard-accessible', async () => {
+  it('T5: the budget line-item table is named, its column widths are keyboard-resizable, and axe is clean', async () => {
     budgetState.data = draftVersion.total;
     versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
     const { container } = renderPage();
-    const region = screen.getByRole('region', { name: 'Budget version line items, scrollable horizontally' });
-    expect(region).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('table', { name: 'Line items' })).toBeInTheDocument();
+    expect(screen.getAllByRole('separator')[0]).toHaveAttribute('tabindex', '0');
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -276,6 +276,116 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const matches = screen.getAllByText('$4,700,000');
     expect(matches.length).toBeGreaterThanOrEqual(1);
     resetState();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SUB-D — budget tab subtraction (owner 2026-10-20: simpler, net-negative)
+// ---------------------------------------------------------------------------
+describe('ProjectBudget T5 DataTable adoption', () => {
+  const priced = (amount: number, fiscal_year: string | null = 'FY26') => ({
+    id: 'li-p', budget_version_id: 'v-active', category: 'Labor', description: 'Priced', budgeted_amount: amount,
+    actual_amount: 0, org_id: 'org-1', fiscal_year,
+  });
+
+  it('read-only line items are a DataTable with the FULL amount (OD-MONEY-FMT), no phone-clipped table', () => {
+    budgetState.data = 1234.5;
+    versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
+    renderPage();
+    const table = within(screen.getByTestId('version-card')).getByRole('table');
+    expect(within(table).getByRole('cell', { name: '$1,234.5' })).toBeInTheDocument();
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+  });
+
+  it('the Draft editor total is a <tfoot> row inside the table, with the full amount', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, total: 200000.25, line_items: [{ ...draftVersion.line_items[0], budgeted_amount: 200000.25 }] }];
+    renderPage();
+    const total = screen.getByTestId('budget-edit-total');
+    expect(total).toHaveTextContent('$200,000.25');
+    expect(total.closest('tfoot')).not.toBeNull();
+  });
+
+  it('the Draft editor still edits a row inline and saves through the same write path', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    const amount = screen.getByLabelText('Amount');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '250000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockUpdateLineItem).toHaveBeenCalledWith({ id: 'li-1', patch: expect.objectContaining({ budgeted_amount: 250000 }) }));
+  });
+
+  it('on a phone the line items render as stacked cards, each still reachable', () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as typeof window.matchMedia;
+    try {
+      budgetState.data = 0;
+      versionsState.data = [draftVersion];
+      renderPage();
+      expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit line item Labor' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
+
+describe('ProjectBudget SUB-D subtraction', () => {
+  const lines = (fiscalYears: Array<string | null>) =>
+    fiscalYears.map((fiscal_year, i) => ({
+      id: `li-fy-${i}`, budget_version_id: 'v-active', category: 'Labor', description: `Line ${i}`,
+      budgeted_amount: 1000, actual_amount: 0, org_id: 'org-1', fiscal_year,
+    }));
+
+  it('shows the Version bar only when there is more than one version', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    const one = renderPage();
+    expect(screen.queryByTestId('version-selector')).not.toBeInTheDocument();
+    one.unmount();
+
+    versionsState.data = [activeVersion, archivedVersion];
+    renderPage();
+    expect(screen.getByTestId('version-selector')).toBeInTheDocument();
+  });
+
+  it('zero versions: no "No active budget" head text, "+ New version" kept', () => {
+    budgetState.data = 0;
+    versionsState.data = [];
+    renderPage();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ New version' })).toBeInTheDocument();
+  });
+
+  it('a read-only version prints its total once (card head) — no footer total', () => {
+    budgetState.data = 3000;
+    versionsState.data = [{ ...activeVersion, total: 3000, line_items: lines(['FY26', 'FY26', null]) }];
+    renderPage();
+    expect(screen.getByRole('table', { name: 'Line items' })).toBeInTheDocument();
+    expect(screen.getAllByText('$3,000')).toHaveLength(1);
+  });
+
+  it('read-only table hides a Fiscal year column when every line is Un-phased', () => {
+    budgetState.data = 2000;
+    versionsState.data = [{ ...activeVersion, total: 2000, line_items: lines([null, null]) }];
+    const unphased = renderPage();
+    expect(screen.queryByRole('columnheader', { name: 'Fiscal year' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Un-phased')).not.toBeInTheDocument();
+    unphased.unmount();
+
+    versionsState.data = [{ ...activeVersion, total: 2000, line_items: lines(['FY26', null]) }];
+    renderPage();
+    expect(screen.getByRole('columnheader', { name: 'Fiscal year' })).toBeInTheDocument();
+  });
+
+  it('the Draft editor keeps the Fiscal year column even when every line is Un-phased', () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }];
+    renderPage();
+    expect(screen.getByRole('columnheader', { name: 'Fiscal year' })).toBeInTheDocument();
   });
 });
 
@@ -828,12 +938,12 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     resetState();
   });
 
-  // T7: AC-BD-06 — single-version still shows the selector
-  it('AC-BD-06: selector is still present when only one version exists', () => {
+  // T7: AC-BD-06 — SUB-D (owner 2026-10-20): a single version has nothing to switch to, so no selector
+  it('AC-BD-06: with only one version there is no selector, just its card', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    expect(screen.getByRole('combobox', { name: /version/i })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /version/i })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('version-card')).toHaveLength(1);
     resetState();
   });
@@ -867,9 +977,9 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
         </ToastProvider>
       </MemoryRouter>
     );
-    // Should fall back to active, no crash
-    const combobox = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
-    expect(combobox.value).toBe(activeVersion.id);
+    // Should fall back to active, no crash (SUB-D: one version left, so no selector — its card is shown)
+    expect(screen.queryByRole('combobox', { name: /version/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('version-card')).toHaveTextContent(activeVersion.name);
     expect(screen.queryByText('Developers')).not.toBeInTheDocument();
     resetState();
   });
@@ -877,10 +987,10 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
   // UX-034: status is already visible in the version card's badge, so the option stays concise.
   it('UX-034: option text omits the status already shown in the version badge', () => {
     budgetState.data = 0;
-    versionsState.data = [draftVersion];
+    versionsState.data = [draftVersion, archivedVersion];
     renderPage();
     const combobox = screen.getByRole('combobox', { name: /version/i });
-    expect(combobox.textContent).toBe(`v${draftVersion.version} · ${draftVersion.name}`);
+    expect(combobox.textContent).toContain(`v${draftVersion.version} · ${draftVersion.name}`);
     resetState();
   });
 

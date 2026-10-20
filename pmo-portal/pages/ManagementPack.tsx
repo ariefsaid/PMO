@@ -10,13 +10,12 @@ import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
-import { ManagementPositionSection } from '@/src/components/reports/ManagementPositionSection';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatCurrencyCents, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -26,8 +25,9 @@ type TotalsRow = PackTotalsMonth & { currency: string };
 const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'];
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
+// OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
 const money = (cents: number | null, currency: string) =>
-  cents === null ? '—' : formatCurrencyCents(fromCents(cents), currency);
+  cents === null ? '—' : formatCurrencyAuto(fromCents(cents), currency);
 
 const ManagementPack: React.FC = () => {
   const { t } = useTranslation();
@@ -112,8 +112,9 @@ const ManagementPack: React.FC = () => {
     basisInvoiced: t('managementPack.basis.invoiced', 'Invoiced'),
     basisProgress: t('managementPack.basis.progressShort', 'Progress'),
   };
-  const onExport = (format: 'csv' | 'xlsx') => {
-    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), format);
+  // One Export (long-format CSV, one row per project × month with its currency and tax basis).
+  const onExport = () => {
+    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), 'csv');
   };
 
   const canRecord = (row: PackRow) =>
@@ -137,45 +138,50 @@ const ManagementPack: React.FC = () => {
     );
   };
 
+  const backlogUnavailable = (
+    <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+  );
+
   const columns: Column<PackRow>[] = [
     {
       key: 'project',
       header: t('managementPack.col.project', 'Project'),
+      kind: 'primary',
+      size: 260,
+      primaryTitle: (row) => row.kind === 'unassigned' ? t('managementPack.unassigned', 'Unassigned') : row.projectName ?? '',
       cell: (row) =>
         row.kind === 'unassigned' ? (
           <StatusPill variant="neutral">{t('managementPack.unassigned', 'Unassigned')}</StatusPill>
         ) : (
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold">{row.projectName}</span>
-            {row.kind === 'otherCurrency' ? (
-              <span className="text-xs text-muted-foreground">
-                {t('managementPack.otherCurrency', 'Invoiced in {{currency}}, not the contract currency', { currency: row.currency })}
-              </span>
-            ) : (
-              row.projectNumber && <span className="text-xs text-muted-foreground font-mono">{row.projectNumber}</span>
-            )}
-          </div>
+          row.projectName
         ),
-    },
-    {
-      key: 'currency',
-      header: t('managementPack.col.currency', 'Currency'),
-      cell: (row) => <span className="font-mono text-[13px]">{row.currency}</span>,
+      secondaryCell: (row) =>
+        row.kind === 'unassigned'
+          ? undefined
+          : row.kind === 'otherCurrency'
+            ? t('managementPack.otherCurrency', 'Invoiced in {{currency}}, not the contract currency', { currency: row.currency })
+            : row.projectNumber
+              ? <span className="font-mono">{row.projectNumber}</span>
+              : undefined,
     },
     {
       key: 'contract',
       header: t('managementPack.col.contract', 'Contract'),
+      kind: 'money',
       align: 'num',
+      size: 140,
       cell: (row) => (
         <span data-testid="pack-cell-contract" className="tabular text-right text-[13px]">
           {money(row.contractNet, row.currency)}
         </span>
       ),
     },
-    ...KPI_MEASURES.map((k): Column<PackRow> => ({ key: k, header: label[k], align: 'num', cell: measureCell(k) })),
+    ...KPI_MEASURES.map((k): Column<PackRow> => ({ key: k, header: label[k], kind: 'money', align: 'num', size: 140, cell: measureCell(k) })),
     {
       key: 'basis',
       header: t('managementPack.col.basis', 'Basis'),
+      kind: 'meta',
+      size: 110,
       cell: (row) =>
         row.latestProgress
           ? t('managementPack.basis.progress', '{{pct}}% complete', { pct: row.latestProgress.pctComplete })
@@ -184,6 +190,8 @@ const ManagementPack: React.FC = () => {
     {
       key: 'actions',
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
+      kind: 'actions',
+      size: 150,
       cell: (row) =>
         canRecord(row) ? (
           <Button variant="outline" onClick={() => setProgressFor(row)}>
@@ -193,20 +201,43 @@ const ManagementPack: React.FC = () => {
     },
   ];
 
+  // T10: one total row per currency (never summed across currencies) — cumulative figures at the as-at
+  // month from the pack's own per-currency totals; the contract total adds only rows that carry a contract.
+  const projectTotals = (pack?.totals ?? []).map((tot) => {
+    const m = tot.months[tot.months.length - 1];
+    const contracts = (pack?.rows ?? []).filter((r) => r.currency === tot.currency && r.contractNet !== null);
+    const contractTotal = contracts.reduce((sum, r) => sum + (r.contractNet ?? 0), 0);
+    return {
+      key: tot.currency,
+      label: `${t('managementPack.total', 'Total')} · ${tot.currency}`,
+      values: {
+        contract: contracts.length > 0 ? money(contractTotal, tot.currency) : null,
+        recognisedToDate: money(m.recognisedToDate, tot.currency),
+        invoicedToDate: money(m.invoicedToDate, tot.currency),
+        unbilled: money(m.unbilled, tot.currency),
+        backlog: m.backlog === null ? backlogUnavailable : money(m.backlog, tot.currency),
+      } as Record<string, React.ReactNode>,
+    };
+  });
+
   const totalsRows: TotalsRow[] = (pack?.totals ?? []).flatMap((tot) =>
     tot.months.map((m) => ({ ...m, currency: tot.currency })),
   );
   const totalsColumns: Column<TotalsRow>[] = [
-    { key: 'month', header: t('managementPack.col.month', 'Month'), cell: (r) => monthLabel(r.month) },
+    { key: 'month', header: t('managementPack.col.month', 'Month'), kind: 'date', size: 120, cell: (r) => monthLabel(r.month) },
     {
       key: 'currency',
       header: t('managementPack.col.currency', 'Currency'),
-      cell: (r) => <span className="font-mono text-[13px]">{r.currency}</span>,
+      kind: 'text',
+      size: 100,
+      cell: (r) => r.currency,
     },
     ...TOTALS_MEASURES.map((k): Column<TotalsRow> => ({
       key: k,
       header: label[k],
+      kind: 'money',
       align: 'num',
+      size: 140,
       cell: (r) => (
         <span className="tabular text-right text-[13px]">
           {k === 'backlog' && r.backlog === null
@@ -222,16 +253,10 @@ const ManagementPack: React.FC = () => {
       title={t('managementPack.title', 'Monthly management pack')}
       description={t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
       primaryAction={
-        <div className="flex gap-2">
-          <Button variant="outline" disabled={!pack || busy} onClick={() => onExport('csv')}>
-            <Icon name="export" className="size-4 mr-2" />
-            {t('managementPack.exportCsv', 'Export CSV')}
-          </Button>
-          <Button variant="outline" disabled={!pack || busy} onClick={() => onExport('xlsx')}>
-            <Icon name="export" className="size-4 mr-2" />
-            {t('managementPack.exportXlsx', 'Export XLSX')}
-          </Button>
-        </div>
+        <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
+          <Icon name="export" className="size-4 mr-2" />
+          {t('projects.export', 'Export')}
+        </Button>
       }
     >
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -304,24 +329,22 @@ const ManagementPack: React.FC = () => {
 
       {pack && state === undefined && (
         <>
-          <ManagementPositionSection pack={pack} />
           <h2 className="mb-2 text-[15px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
           <Card className="overflow-hidden mb-6">
-            <DataTable rows={pack.rows} columns={columns} rowKey={(row) => row.key} tableId="managementpack-1-table" />
+            <DataTable
+              rows={pack.rows}
+              columns={columns}
+              rowKey={(row) => row.key}
+              tableId="managementpack-1-table"
+              accessibleName={t('managementPack.col.project', 'Project')}
+              totals={projectTotals}
+            />
           </Card>
-          <h2 className="mb-1 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
-          <p className="mb-2 text-sm text-muted-foreground">
-            {t('uxs34.monthlyScope', 'Monthly figures · selected period {{from}}–{{to}}', {
-              from: monthLabel(pack.from), to: monthLabel(pack.to),
-            })}
-          </p>
-          <p className="mb-2 text-xs text-muted-foreground">
-            {t('uxs34.currencyScope', 'Currencies with no activity, contract, or meaningful balance in this range are omitted.')}
-          </p>
+          <h2 className="mb-2 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
           <Card className="overflow-hidden">
-            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" />
+            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('managementPack.monthlyTotals', 'Monthly totals')} />
           </Card>
           {pack.undatedInvoiceCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">

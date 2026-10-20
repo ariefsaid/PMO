@@ -65,7 +65,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     await expect(row.getByTestId('pack-cell-unbilled')).toHaveText(/250[.,]000/);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Export CSV' }).click();
+    await page.getByRole('button', { name: 'Export' }).click();
     const download = await downloadPromise;
     const csv = readFileSync(await download.path(), 'utf-8');
     const line = csv.split('\r\n').find((l) => l.startsWith(ym) && l.includes(name));

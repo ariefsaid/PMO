@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
+import { ListState, GateNotice, Button, StatusPill, NumberField, DataTable, useToast, type Column } from '@/src/components/ui';
 import { summarizeProjection } from '@/src/lib/budget/budgetProjection';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -11,6 +11,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import {
   formatCurrency,
+  formatCurrencyAuto,
   formatInstantDate,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
@@ -131,7 +132,7 @@ const BUDGET_ATTRIBUTION_PARTIAL =
   'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
 const money = (v: number | null, reason: string, currency: string): React.ReactNode =>
-  v === null ? <Unavailable reason={reason} /> : formatCurrency(v, currency);
+  v === null ? <Unavailable reason={reason} /> : formatCurrencyAuto(v, currency);
 
 // ── C-5: every push state gets its own statement. A state that renders nothing is a defect, not a
 // default — silence is indistinguishable from absence (DESIGN.md §Data & States).
@@ -531,16 +532,89 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
   const missingNames = (cs: readonly string[]) => cs.map(translatedCategory).join(', ');
   const overrun = summary.remaining !== null && summary.remaining < 0;
+  // SUB-D: what is missing is said ONCE under the strip; each unknown figure is just a dash.
+  const incompleteNotes = [
+    summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null,
+    summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null,
+  ].filter((note): note is string => note !== null);
+
+  // ⚑ THE MONEY-HONESTY INVARIANT: a figure whose INPUTS are unknown is never rendered as a number, and
+  // the cell names WHICH input is missing (three different remedies).
+  const reasonsFor = (row: BudgetProjectionCellRow) => {
+    const actualsReason = row.actualsAsOf === null ? NO_LEDGER_READING : NO_ERP_ACCOUNT;
+    const budgetReason = budgetReasonFor(row);
+    return { actualsReason, budgetReason, derivedReason: row.actualsToDate === null ? actualsReason : budgetReason };
+  };
+  const columns: Column<BudgetProjectionCellRow>[] = [
+    {
+      key: 'category',
+      header: t('financeCopy.category', "Category"),
+      kind: 'text',
+      size: 200,
+      cell: (row) => {
+        const visibleReason = visibleReasonFor(row);
+        return (
+          <span className="font-medium">
+            {translatedCategory(row.category)}
+            {visibleReason && (
+              <span data-testid={`reason-${row.category}`} className="block text-[12px] font-normal text-muted-foreground">
+                {visibleReason}
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
+    { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 160,
+      cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency) },
+    { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 160,
+      cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency) },
+    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 180,
+      cell: (row) => row.projectedVariance !== null && row.projectedVariance < 0
+        ? <span className="text-destructive-text">{formatCurrencyAuto(row.projectedVariance, orgCurrency)}</span>
+        : money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency) },
+    { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 160,
+      cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency) },
+    {
+      key: 'costToFinish',
+      header: t('uxs04.costToFinish', 'Cost to finish'),
+      kind: 'money',
+      align: 'num',
+      size: 160,
+      cell: (row) => editing ? (
+        <div className="flex flex-col items-end gap-1">
+          {/* ⚑ I-4 — `NumberField` owns the aria-invalid / describedby wiring, tabular
+              right-aligned figures and inputMode=decimal. */}
+          <NumberField
+            id={`etc-${row.category}`}
+            label={t('uxs04.costToFinishFor', 'Cost to finish: {{category}}', { category: translatedCategory(row.category) })}
+            hideLabel
+            autoFocus={row === rows[0]}
+            value={etcInputs[row.category] ?? ''}
+            onChange={(v) => {
+              setEtcInputs((cur) => ({ ...cur, [row.category]: v }));
+              setEtcErrors((cur) => {
+                const { [row.category]: _drop, ...rest } = cur;
+                return rest;
+              });
+            }}
+            error={etcErrors[row.category] ?? null}
+            localeAware
+            className="w-[110px]"
+          />
+        </div>
+      ) : formatCurrencyAuto(row.pmoEtc, orgCurrency),
+    },
+    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 120,
+      cell: (row) => row.projectedUtilization === null
+        ? <Unavailable reason={reasonsFor(row).derivedReason} />
+        : pct(row.projectedUtilization * 100) },
+  ];
 
   return (
     <section aria-label={t('uxs04.forecast', 'Forecast')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            {t('uxs04.forecastIntro', 'Will this project finish within budget? Recorded spending plus your cost to finish.')}
-          </p>
-        </div>
+        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
         <div className="flex flex-wrap items-center gap-3">
           {fiscalYears.length > 0 ? (
             <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -616,160 +690,79 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               label={t('uxs04.budget', 'Budget')}
               value={summary.budget}
               currency={orgCurrency}
-              reason={summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null}
             />
             <SummaryFigure
               label={t('uxs04.recordedSpending', 'Recorded spending')}
               value={summary.recorded}
               currency={orgCurrency}
-              reason={summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null}
             />
-            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} reason={null} />
+            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} />
             <SummaryFigure
               label={t('uxs04.forecastFinalCost', 'Forecast final cost')}
               value={summary.finalCost}
               currency={orgCurrency}
-              reason={summary.finalCost === null ? t('uxs04.needsRecorded', 'Needs recorded spending for every category') : null}
               strong
             />
             <SummaryFigure
               label={overrun ? t('uxs04.forecastOverrun', 'Forecast overrun') : t('uxs04.forecastRemaining', 'Forecast remaining')}
               value={summary.remaining === null ? null : Math.abs(summary.remaining)}
               currency={orgCurrency}
-              reason={summary.remaining === null ? t('uxs04.needsBudgetAndSpending', 'Needs a budget and recorded spending for every category') : null}
               strong
               alert={overrun}
             />
           </dl>
+          {incompleteNotes.length > 0 && (
+            <p id="forecast-incomplete" data-testid="forecast-incomplete" className="mt-2 text-[12px] text-muted-foreground">
+              {incompleteNotes.join(' ')}
+            </p>
+          )}
 
           {actualsAsOf && (
             <p className="mt-2 text-[12px] text-muted-foreground">{t('uxs04.recordedAsOf', 'Recorded spending as of')}{' '}{formatInstantDate(actualsAsOf)}</p>
           )}
-          {/* ⚑ NEW-1 — below `sm` each row becomes a stacked label/value card (nothing to pan); from `sm`
-              up it is the table. One markup tree, one render. */}
-          <div
-            role="group"
-            aria-label={t('financeCopy.budgetProjectionFiguresScrollableHorizontally', "Budget projection figures, scrollable horizontally")}
-            tabIndex={0}
-            className="mt-2 sm:overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <table className="w-full border-collapse text-[13.5px]">
-              <thead className="hidden sm:table-header-group">
-                <tr>
-                  <TH>{t('financeCopy.category', "Category")}</TH>
-                  <TH align="right">{t('uxs04.budget', 'Budget')}</TH>
-                  <TH align="right">{t('uxs04.forecastFinalCost', 'Forecast final cost')}</TH>
-                  <TH align="right">{t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)')}</TH>
-                  <TH align="right">{t('uxs04.recordedSpending', 'Recorded spending')}</TH>
-                  <TH align="right">{t('uxs04.costToFinish', 'Cost to finish')}</TH>
-                  <TH align="right">{t('uxs04.forecastBudgetUsed', 'Forecast budget used')}</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  // ⚑ THE MONEY-HONESTY INVARIANT: a figure whose INPUTS are unknown is never rendered as
-                  // a number, and the cell names WHICH input is missing (three different remedies).
-                  const actualsReason = row.actualsAsOf === null ? NO_LEDGER_READING : NO_ERP_ACCOUNT;
-                  const budgetReason = budgetReasonFor(row);
-                  const derivedReason = row.actualsToDate === null ? actualsReason : budgetReason;
-                  const visibleReason = visibleReasonFor(row);
-                  return (
-                    <tr
-                      key={row.category}
-                      className="block border-b border-border/70 py-2 last:border-b-0 sm:table-row sm:py-0"
-                    >
-                      <td className="block px-3 pb-1 pt-1 font-medium sm:table-cell sm:py-2">
-                        {translatedCategory(row.category)}
-                        {visibleReason && (
-                          <span data-testid={`reason-${row.category}`} className="block text-[12px] font-normal text-muted-foreground">
-                            {visibleReason}
-                          </span>
-                        )}
-                      </td>
-                      {/* I-1: `tabular-nums` on every comparable figure (DESIGN.md §3, mandatory). */}
-                      <Cell label={t('uxs04.budget', 'Budget')}>{money(row.pmoBudgetAmount, budgetReason, orgCurrency)}</Cell>
-                      <Cell label={t('uxs04.forecastFinalCost', 'Forecast final cost')}>{money(row.projectedFinalCost, derivedReason, orgCurrency)}</Cell>
-                      <Cell label={t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)')}>
-                        {row.projectedVariance !== null && row.projectedVariance < 0 ? (
-                          <span className="text-destructive-text">{formatCurrency(row.projectedVariance, orgCurrency)}</span>
-                        ) : (
-                          money(row.projectedVariance, derivedReason, orgCurrency)
-                        )}
-                      </Cell>
-                      <Cell label={t('uxs04.recordedSpending', 'Recorded spending')}>{money(row.actualsToDate, actualsReason, orgCurrency)}</Cell>
-                      <Cell label={t('uxs04.costToFinish', 'Cost to finish')}>
-                        {editing ? (
-                          <div className="flex flex-col items-end gap-1">
-                            {/* ⚑ I-4 — `NumberField` owns the aria-invalid / describedby wiring, tabular
-                                right-aligned figures and inputMode=decimal. */}
-                            <NumberField
-                              id={`etc-${row.category}`}
-                              label={t('uxs04.costToFinishFor', 'Cost to finish: {{category}}', { category: translatedCategory(row.category) })}
-                              hideLabel
-                              autoFocus={row === rows[0]}
-                              value={etcInputs[row.category] ?? ''}
-                              onChange={(v) => {
-                                setEtcInputs((cur) => ({ ...cur, [row.category]: v }));
-                                setEtcErrors((cur) => {
-                                  const { [row.category]: _drop, ...rest } = cur;
-                                  return rest;
-                                });
-                              }}
-                              error={etcErrors[row.category] ?? null}
-                              localeAware
-                              className="w-[110px]"
-                            />
-                          </div>
-                        ) : (
-                          formatCurrency(row.pmoEtc, orgCurrency)
-                        )}
-                      </Cell>
-                      <Cell label={t('uxs04.forecastBudgetUsed', 'Forecast budget used')}>
-                        {row.projectedUtilization === null ? (
-                          <Unavailable reason={derivedReason} />
-                        ) : (
-                          pct(row.projectedUtilization * 100)
-                        )}
-                      </Cell>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mt-2">
+            <DataTable
+              rows={rows}
+              columns={columns}
+              rowKey={(row) => row.category}
+              tableId="budget-projection"
+              accessibleName={t('uxs04.forecast', 'Forecast')}
+            />
           </div>
         </>
       )}
 
       {/* UX-037: where the numbers come from, and the ERP's enforcement state and document, on demand. */}
-      <details className="mt-3 text-[13px]">
-        <summary className="cursor-pointer text-muted-foreground">{t('uxs04.sourcesAndStatus', 'Sources and budget enforcement')}</summary>
-        {rows.length > 0 && (
+      {rows.length > 0 && (
+        <details className="mt-3 text-[13px]">
+          <summary className="cursor-pointer text-muted-foreground">{t('uxs04.sourcesAndStatus', 'Sources and budget enforcement')}</summary>
           <p className="mt-2 text-[12px] text-muted-foreground">
             {t('uxs04.sourcesNote', 'Recorded spending is what the accounting ledger has posted. The budget is your active version; cost to finish is your own estimate and is never sent to the ERP.')}
           </p>
-        )}
-        {quietRows.map((row) => (
-          <QuietPushStatus key={`quiet-${row.fiscalYear ?? 'no-year'}`} row={row} />
-        ))}
-      </details>
+          {quietRows.map((row) => (
+            <QuietPushStatus key={`quiet-${row.fiscalYear ?? 'no-year'}`} row={row} />
+          ))}
+        </details>
+      )}
     </section>
   );
 };
 
-/** One headline figure. `null` is a dash that SAYS why — never a bare dash, never 0. */
+/** One headline figure. `null` is a dash; the one line under the strip says what is missing. */
 const SummaryFigure: React.FC<{
   label: string;
   value: number | null;
   currency: string;
-  reason: string | null;
   strong?: boolean;
   alert?: boolean;
-}> = ({ label, value, currency, reason, strong, alert }) => (
+}> = ({ label, value, currency, strong, alert }) => (
   <div className="min-w-0">
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}>
-      {value === null ? (reason ? <span aria-hidden>—</span> : <Unavailable reason="" />) : formatCurrency(value, currency)}
-      {reason && <span className="block text-[12px] font-normal text-muted-foreground">{reason}</span>}
+    <dd
+      aria-describedby={value === null ? 'forecast-incomplete' : undefined}
+      className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}
+    >
+      {value === null ? <span>—</span> : formatCurrency(value, currency)}
     </dd>
   </div>
 );
@@ -922,35 +915,5 @@ const BlockedPushStatus: React.FC<{
     </GateNotice>
   );
 };
-
-/**
- * ⚑ NEW-1 — one money cell, two shapes, ONE markup tree.
- *
- * Below `sm` the table's header row is hidden and each cell becomes its own label/value line, so a
- * figure is never clipped mid-way ("$120" for $120,000) and nothing is wide enough to make the page
- * pan. From `sm` up it is an ordinary right-aligned table cell. Rendering the label in both shapes
- * (visually hidden on desktop, where the column header carries it) keeps a single DOM for both — no
- * media-query hook, no double render, and the a11y name of the value is the same either way.
- */
-const Cell: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <td className="flex items-baseline justify-between gap-4 px-3 py-1 text-right tabular sm:table-cell sm:h-[54px] sm:py-2">
-    {/* NOT `aria-hidden`: below `sm` the <thead> is `display:none`, so the column header is out of the
-        accessibility tree too — this label is then the ONLY thing naming the figure for a screen
-        reader. From `sm` up it is `display:none` itself, so the <th> does that job and nothing is
-        announced twice. */}
-    <span className="text-[12px] font-normal text-muted-foreground sm:hidden">{label}</span>
-    {children}
-  </td>
-);
-
-const TH: React.FC<{ children: React.ReactNode; align?: 'right' }> = ({ children, align }) => (
-  <th
-    className={`h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground ${
-      align === 'right' ? 'text-right' : 'text-left'
-    }`}
-  >
-    {children}
-  </th>
-);
 
 export default BudgetProjection;

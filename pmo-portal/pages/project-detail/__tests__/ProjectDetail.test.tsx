@@ -346,8 +346,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     // the goal (the Budget section is shown on the deep-link) stays honest; we no
     // longer assert the duplicate heading the change removed.
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    // S-04 / DD-MONEY-4: with no Active version the lead says so — never "$0" as a budget.
-    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+    // SUB-D: with no versions at all the tab says nothing extra — "+ New version" and the empty state remain,
+    // and "$0" is never presented as a budget.
+    expect(await screen.findByText('No budget versions yet')).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', async () => {
