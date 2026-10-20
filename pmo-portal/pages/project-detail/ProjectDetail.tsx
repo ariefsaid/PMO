@@ -78,6 +78,8 @@ const ProjectDetail: React.FC = () => {
     refetch: refetchProject,
   } = useProject(projectId);
   const { updateHeader } = useProjectMutations();
+  const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
+  const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
 
@@ -89,12 +91,13 @@ const ProjectDetail: React.FC = () => {
       { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
       { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
       { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
-      { value: 'work-orders', label: t('projectDetail.tabs.workOrders', 'Work orders') },
-      ...(canSeeBilling ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
+      ...(isPipelineRecord ? [] : [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }]),
+      // SUB-A: a pre-win deal has no work orders or billing yet, so those tabs only appear once won.
+      ...(canSeeBilling && !isPipelineRecord ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
       { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
       { value: 'history', label: t('projectDetail.tabs.history', 'History') },
     ],
-    [t, canSeeBilling],
+    [t, canSeeBilling, isPipelineRecord],
   );
 
   const committedSpendQuery = useProjectCommittedSpend(projectId || null, true);
@@ -114,7 +117,9 @@ const ProjectDetail: React.FC = () => {
 
   // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
   // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
-  const tab = tabFromParam(tabParam);
+  const requestedTab = tabFromParam(tabParam);
+  // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
+  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
   // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
   // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
   // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
@@ -201,8 +206,7 @@ const ProjectDetail: React.FC = () => {
   // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
   // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
-  const group = projectStatusGroup(project.status as never);
-  const isPipeline = group === 'pipeline' || group === 'lost';
+  const isPipeline = isPipelineRecord;
   const tabPanel = (
     <div
       role="tabpanel"

@@ -69,6 +69,7 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(milestoneState.refetch).toHaveBeenCalledTimes(1);
     failed.unmount();
     milestoneState.isError = false;
+    // SUB-A: no phases → the summary line renders nothing (no empty text, no stray link).
     render$(true);
     expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
     expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
