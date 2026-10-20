@@ -4929,7 +4929,6 @@
     "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi penerimaan ini.",
     "onAccount": "Penerimaan ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
     "invoiceNotInPmo": "Faktur ini belum ada di PMO.",
-    "unappliedNote": "{{amount}} dari penerimaan ini belum dialokasikan ke faktur.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
   },
@@ -4946,7 +4945,6 @@
   "uxs27": {
     "amountSettled": "Jumlah yang dilunasi",
     "cashReceived": "Kas diterima",
-    "amountSettledHelper": "Jumlah yang dilunasi adalah saldo faktur yang ditutup oleh penerimaan ini. Jumlah ini mencakup kas yang diterima dan pajak yang dipotong oleh klien.",
     "taxWithheldDisclosure": "Pajak dipotong",
     "withheldSummary": "Pajak dipotong: {{amount}}",
     "withholdingSlipSummary": "Bukti potong: {{slip}}",

@@ -291,7 +291,7 @@ const IncomingPayments: React.FC = () => {
   }
 
   const notReported = t('uxs06.notReported', 'Not reported');
-  const columns: Column<IncomingPaymentRow>[] = [
+  const allColumns: Column<IncomingPaymentRow>[] = [
     {
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
@@ -397,8 +397,12 @@ const IncomingPayments: React.FC = () => {
     },
   ];
 
+  // FIN-S5: cash received, tax withheld, not-yet-applied and the slip live on the receipt record; the list keeps
+  // seven columns and the download keeps all eleven.
+  const EXPORT_ONLY = new Set(['received_amount', 'withheld_amount', 'unapplied', 'withholding_slip_number']);
+  const columns = allColumns.filter((column) => !EXPORT_ONLY.has(column.key));
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only).
-  const exportColumns = withCurrencyColumn(columns, 'amount', (r) => r.currency);
+  const exportColumns = withCurrencyColumn(allColumns, 'amount', (r) => r.currency);
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -644,6 +648,22 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
     hasWithholdingSummary || slipField.value.trim().length > 0
   );
 
+  const cashReceivedField = (
+    <NumberField
+      id={receivedAmountField.id}
+      label={t('uxs27.cashReceived', 'Cash received')}
+      value={String(receivedAmountField.value)}
+      onChange={(v) => receivedAmountField.onChange(v)}
+      required
+      min={0}
+      step={0.01}
+      prefix={moneyPrefix}
+      error={receivedAmountField.error}
+      helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
+      localeAware
+    />
+  );
+
   const errorSummary = form.errors.customerId || form.errors.salesInvoiceId || form.errors.paidAmount || form.errors.receivedAmount || form.errors.date || form.errors.withheldAmount || form.errors.withholdingSlipNumber
     ? [
         ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
@@ -770,35 +790,14 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             step={0.01}
             prefix={moneyPrefix}
             error={paidAmountField.error}
-            helper={(
-              <>
-                <span className="block">
-                  {t('uxs27.amountSettledHelper', 'Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.')}
-                </span>
-                {chosenInvoice?.erp_outstanding_amount != null && (
-                  <span className="mt-1 block">
-                    {t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
-                      amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
-                    })}
-                  </span>
-                )}
-              </>
-            )}
+            helper={chosenInvoice?.erp_outstanding_amount != null
+              ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
+                amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+              })
+              : undefined}
             localeAware
           />
-          <NumberField
-            id={receivedAmountField.id}
-            label={t('uxs27.cashReceived', 'Cash received')}
-            value={String(receivedAmountField.value)}
-            onChange={(v) => receivedAmountField.onChange(v)}
-            required
-            min={0}
-            step={0.01}
-            prefix={moneyPrefix}
-            error={receivedAmountField.error}
-            helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
-            localeAware
-          />
+          {cashReceivedField}
           <div className="sm:col-span-2">
             <Button
               variant="outline"

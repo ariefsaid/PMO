@@ -155,7 +155,8 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
 
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-NATIVE');
-    expect(screen.getByText('Amount settled is the invoice balance covered by this receipt. It includes cash received and any tax withheld by the client.')).toBeInTheDocument();
+    expect(screen.queryByText(/Amount settled is the invoice balance covered/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Starts at the .*111,000.* outstanding/)).toBeInTheDocument();
     expect(settled).toHaveValue('111,000');
     expect(cash).toHaveValue('111,000');
 

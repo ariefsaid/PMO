@@ -456,28 +456,13 @@ describe('Incoming Payments list — what cash settled (S-06)', () => {
     expect(rowFor('ACC-PAY-0001')).toHaveTextContent('ACC-SINV-A +1 more');
   });
 
-  it('RF-032 tax withheld is None when known to be zero and Not reported when the source did not say', () => {
-    h.payments.data = [
-      erpReceipt({ allocation_details: twoInvoices, withheld_amount: 0 }),
-      erpReceipt({ id: 'ip-2', ip_number: 'ACC-PAY-0002', withheld_amount: null, allocation_details: twoInvoices }),
-    ];
+  it('RF-032 FIN-S5 the list no longer carries withheld, unapplied or cash-received columns (they stay in the download)', () => {
+    h.payments.data = [erpReceipt({ allocation_details: twoInvoices, withheld_amount: 0 })];
     renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('None');
-    expect(rowFor('ACC-PAY-0002')).toHaveTextContent('Not reported');
-  });
-
-  it('RF-031 cash the accounting system has not matched to an invoice is shown, apart from matched cash', () => {
-    h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent(/40,000/);
-    expect(screen.getByRole('columnheader', { name: 'Not yet applied' })).toBeInTheDocument();
-  });
-
-  it('RF-031 unknown allocation coverage never shows a figure for unapplied cash', () => {
-    h.payments.data = [erpReceipt({ allocation_details: null })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY-0001')).not.toHaveTextContent(/75,000.*75,000.*75,000/);
-    expect(rowFor('ACC-PAY-0001')).toHaveTextContent('Not reported');
+    for (const gone of ['Tax withheld', 'Not yet applied', 'Cash received', 'Withholding slip']) {
+      expect(screen.queryByRole('columnheader', { name: gone })).toBeNull();
+    }
+    expect(rowFor('ACC-PAY-0001')).not.toHaveTextContent('Not reported');
   });
 
   it('RF-034 opening a row goes to its read-only receipt page', async () => {
@@ -525,16 +510,18 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent(/40,000/);
   });
 
-  it('RF-032 withheld tax reads Not reported when unknown, and None only when known to be zero', () => {
+  it('RF-032 unreported withheld tax collapses into the single "weren\'t reported" line, never a zero', () => {
     h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
-    expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('Not reported');
+    expect(screen.queryByTestId('receipt-withheld')).toBeNull();
+    expect(screen.getByText(/Some figures weren.t reported/)).toBeInTheDocument();
   });
 
-  it('shows None for known-zero unapplied cash in the list, matching the detail page', () => {
-    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, allocation_details: [] })];
-    renderAt('/incoming-payments');
-    expect(rowFor('ACC-PAY')).toHaveTextContent('None');
+  it('a fully applied receipt shows neither a withheld nor an unapplied fact', () => {
+    h.payments.data = [erpReceipt({ sales_invoice_id: null, amount: 50_000, received_amount: 50_000, withheld_amount: 0, allocation_details: [alloc('ACC-SINV-A', '50000.00', 'si-a', 'IDR')] })];
+    renderAt('/incoming-payments/ip-erp');
+    expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
+    expect(screen.queryByTestId('receipt-withheld')).toBeNull();
   });
 
   it('RF-031 a receipt the source reports as unapplied to any invoice says so; unknown coverage says it is unknown', () => {
@@ -554,7 +541,7 @@ describe('Receipt page — every allocation (S-06)', () => {
     renderAt('/incoming-payments/ip-1');
     const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
     expect(within(table).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
-    expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('None');
+    expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
   });
 
   it('a receipt read error shows a retryable error instead of not found', () => {

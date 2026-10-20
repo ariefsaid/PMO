@@ -2,5 +2,8 @@
   "invoices": {
     "description": "Faktur klien.",
     "clearProject": "Hapus filter proyek"
+  },
+  "receipts": {
+    "someUnreported": "Beberapa angka tidak dilaporkan."
   }
 }
