@@ -275,7 +275,7 @@ const RevenueByProject: React.FC = () => {
             state={all.length === 0 ? 'empty' : undefined}
             emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
             emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}
-          />
+          tableId="revenuebyproject-table" />
         </Card>
       )}
     </ListPage>

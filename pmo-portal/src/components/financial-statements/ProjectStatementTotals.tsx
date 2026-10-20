@@ -95,6 +95,6 @@ export function ProjectStatementTotals({ current, prior, periods, labels }: Proj
       columns={columns}
       rowKey={(row) => row.key}
       accessibleName={labels.amounts}
-    />
+    tableId="components-financial-statements-projectstatementtotals-table" />
   );
 }

@@ -260,8 +260,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       <Card variant="bare">
-        <CardHead className="justify-between">
-          <h2 className="text-base font-semibold">{t('projectDetail.billing.summary.title', 'Billing summary')}</h2>
+        <CardHead level={2} className="justify-between text-base">
+          {t('projectDetail.billing.summary.title', 'Billing summary')}
           {canStartInvoice && (
             <ProjectBillingStart
               projectId={projectId}
@@ -298,8 +298,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </Card>
 
       <Card variant="bare">
-        <CardHead className="justify-between">
-          <h2 className="text-base font-semibold">{t('projectDetail.billing.boq.title', 'Bill of quantities')}</h2>
+        <CardHead level={2} className="justify-between text-base">
+          {t('projectDetail.billing.boq.title', 'Bill of quantities')}
           <div className="flex gap-1.5">
             {canAssess && boqRows.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
@@ -322,13 +322,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
             errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
             onRetry={() => boq.refetch()}
-          />
+          tableId="project-detail-tabs-billingtab-1-table" />
         </CardPad>
       </Card>
 
       <Card variant="bare">
-        <CardHead className="justify-between">
-          <h2 className="text-base font-semibold">{t('projectDetail.billing.claims.title', 'Billing claims')}</h2>
+        <CardHead level={2} className="justify-between text-base">
+          {t('projectDetail.billing.claims.title', 'Billing claims')}
           {canBill && (
             <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )}
@@ -344,7 +344,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
             errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
             onRetry={() => claims.refetch()}
-          />
+          tableId="project-detail-tabs-billingtab-2-table" />
         </CardPad>
       </Card>
 

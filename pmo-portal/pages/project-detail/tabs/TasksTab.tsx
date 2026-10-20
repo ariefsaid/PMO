@@ -484,7 +484,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
                 : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
-          />
+          tableId="project-detail-tabs-taskstab-1-table" />
         ) : (
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
@@ -1166,7 +1166,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}
             rowLabel={rowLabel}
-          />
+          tableId="project-detail-tabs-taskstab-2-table" />
         ) : (
           <p className="py-2 text-center text-[12px] text-muted-foreground">
             {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}

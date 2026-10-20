@@ -144,7 +144,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       errorTitle="Couldn't load invoices"
       onRetry={onRetry}
       className="rounded-t-none border-t-0"
-    />
+    tableId="components-dashboard-financedashboard-1-table" />
   );
 };
 
@@ -497,7 +497,7 @@ export const FinanceDashboard: React.FC = () => {
               emptyTitle={t('uxs03.activeBudgetReviewEmpty', 'No active budgets ready for review')}
               emptySub={t('uxs03.activeBudgetReviewEmptySub', 'Active, positive-value budgets appear here.')}
               className="rounded-t-none border-t-0"
-            />
+            tableId="components-dashboard-financedashboard-2-table" />
           )}
         </Card>
       </section>

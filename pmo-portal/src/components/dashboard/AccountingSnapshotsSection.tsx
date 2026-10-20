@@ -208,7 +208,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
         ) : rows.length === 0 ? (
           <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
-          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" />
+          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId="components-dashboard-accountingsnapshotssection-table" />
         )}
       </div>
     </Card>

@@ -519,7 +519,7 @@ const IncomingPayments: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
-        />
+        tableId="incomingpayments-table" />
       )}
 
       {/* Create modal */}

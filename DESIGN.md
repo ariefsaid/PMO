@@ -389,6 +389,7 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Border:** always a 1px `border` — the primary depth cue. **Drop the wrapper where whitespace/dividers
   suffice** (content-over-containers).
 - **Padding:** 16px standard; compact cards (kanban) ~11px.
+- **CardHead:** a real heading element (default `h3`); set `level` to match the page outline and keep card titles in heading navigation.
 - **KPI Tile** (signature): white card, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
   12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
   "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.
@@ -440,9 +441,12 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
+- **Column kinds:** `primary` is a two-line-clamped, wrapping identity title with an optional muted secondary line; its full title remains in `title`. `text`/`meta` wrap. `status` keeps the 12px StatusPill readable (112–220px, default 140px); money/date/status stay nowrap. No blanket body-cell nowrap.
 - **Body cells:** **13.5px**, `h-[54px]` MINIMUM (a taller in-cell composition — e.g. the 2-line
   project cell — legitimately grows the row to ~68px; airier target ~56–64px), 12px padding, divider =
   `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
+- **Sort / grouping / caveats:** sortable headers show a quiet two-direction cue before activation; `aria-sort` remains authoritative. Group headers and per-currency subtotal/total rows stay aligned inside the table, with totals in `<tfoot>` and never summed across currencies. A caveated column marks its header and points to one table-level footnote/remedy.
+- **Saved widths:** every production `DataTable` has a stable, unique, page-scoped kebab-case `tableId`; widths persist by table and authenticated user on that device, with unknown columns ignored and restored sizes clamped.
 - **Money cells:** `tabular` is **mandatory** on every figure and on the `—` that stands in its place
   (§3) — a column that loses it stops aligning against the table above it.
 - **Responsive statement totals:** on narrow card stacks, place short Current/Previous labels above

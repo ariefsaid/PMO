@@ -136,12 +136,12 @@ describe('DataTable', () => {
     expect(onSort).toHaveBeenCalledWith('name');
   });
 
-  it('sortable header with no `sort` prop renders without a sort icon and without throwing (null-safety guard)', () => {
-    // No `sort` prop at all — a sortable column must not deref `sort.dir` on an undefined `sort`.
+  it('sortable header without a sort prop still shows a quiet cue and keeps the inactive aria-sort state', () => {
+    // The visible cue replaces the previous undiscoverable-before-activation behavior; the goal is still sortable, announced headers.
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onSort={vi.fn()} />);
     const nameTh = screen.getByRole('columnheader', { name: /Name/ });
     expect(nameTh).toHaveAttribute('aria-sort', 'none');
-    expect(nameTh.querySelector('svg')).not.toBeInTheDocument();
+    expect(within(nameTh).getByTestId('sort-cue')).toBeVisible();
   });
 
   it('a11y: activatable body rows keep their implicit role="row" (NOT role="link"), so getByRole("row") finds them', () => {

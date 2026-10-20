@@ -158,7 +158,7 @@ const ExpenseClaims: React.FC = () => {
             state={(rows ?? []).length === 0 ? 'empty' : undefined}
             emptyTitle={t('expenses.table.emptyTitle', 'No expenses here yet')}
             emptySub={t('expenses.table.emptySub', 'File a claim after the work, or request an advance before it.')}
-          />
+          tableId="expenseclaims-table" />
         </>
       )}
       {formKind && (

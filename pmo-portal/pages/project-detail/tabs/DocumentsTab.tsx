@@ -597,7 +597,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
             'projectDetail.documents.noSearchMatchSub',
             'Try a different title, code, or category.',
           )}
-        />
+        tableId="project-detail-tabs-documentstab-table" />
       )}
 
       {/* D12: read-first quick-view drawer with the status workflow promoted out

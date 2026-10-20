@@ -478,7 +478,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             state={filtered.length === 0 ? 'empty' : undefined}
             emptyTitle={t('admin.users.noMatch.title', 'No users match your search')}
             emptySub={t('admin.users.noMatch.sub', 'Try a different name or email.')}
-          />
+          tableId="adminusers-table" />
         </div>
       )}
 

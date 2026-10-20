@@ -106,9 +106,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
   return (
     // The same shell as the Receipts card beside it; the title is a real heading for screen-reader navigation.
     <Card variant="bare" className="mb-4" aria-labelledby="expense-postings-heading" role="region">
-      <CardHead>
-        <h2 id="expense-postings-heading" className="text-sm font-semibold">{t('expenses.postings.title', 'Ledger postings')}</h2>
-      </CardHead>
+      <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
       <CardPad>
         <ul className="flex flex-col gap-2">
           {data.map((row) => (

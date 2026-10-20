@@ -15,6 +15,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import type { DataTableWidget as DataTableWidgetPayload } from '@/src/lib/agent/widgets/schema';
 
+function tableIdForWidget(widget: DataTableWidgetPayload): string {
+  const identity = `${widget.caption ?? ''}:${widget.columns.map((column) => column.key).join(',')}`;
+  let hash = 2166136261;
+  for (let index = 0; index < identity.length; index += 1) hash = Math.imul(hash ^ identity.charCodeAt(index), 16777619);
+  const slug = (widget.caption ?? 'table').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'table';
+  return `agent-widget-${slug}-${(hash >>> 0).toString(36)}-table`;
+}
+
 export function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -52,7 +60,7 @@ export function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }):
           rows={widget.rows}
           columns={columns}
           rowKey={(row) => String(row.id ?? JSON.stringify(row))}
-        />
+        tableId={tableIdForWidget(widget)} />
         {isOverflowing && (
           <div
             data-testid="data-table-widget-scroll-mask"

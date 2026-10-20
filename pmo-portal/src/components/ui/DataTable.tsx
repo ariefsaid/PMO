@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
@@ -34,10 +34,20 @@ const ROW_MENU_SEAM_CLASS =
 
 export type ColAlign = 'num' | 'center';
 
+export type ColumnKind = 'primary' | 'text' | 'meta' | 'money' | 'number' | 'percent' | 'status' | 'date' | 'actions' | 'select';
+
 export interface Column<Row> {
   key: string;
   header: React.ReactNode;
   cell: (row: Row) => React.ReactNode;
+  /** Shared semantic presentation for common table column roles. */
+  kind?: ColumnKind;
+  /** Optional plain-text title for the `title` attribute when the primary cell is a React node. */
+  primaryTitle?: (row: Row) => string;
+  /** Optional muted second line for a primary identity cell. */
+  secondaryCell?: (row: Row) => React.ReactNode;
+  /** One table-level explanation, referenced by a mark in this column header. */
+  caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
@@ -124,6 +134,10 @@ export interface DataTableProps<Row> {
   cardBelow?: number;
   /** Stable identity for saved column widths. */
   tableId?: string;
+  /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
+  groupBy?: (row: Row) => string;
+  /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
+  totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -198,14 +212,37 @@ function alignClass(align?: ColAlign) {
   return 'text-left';
 }
 
-function readColumnSizing(tableId: string | undefined, userId: string | undefined): Record<string, number> {
+function columnMinSize<Row>(column: Column<Row>): number | undefined {
+  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
+  return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
+}
+
+function columnMaxSize<Row>(column: Column<Row>): number | undefined {
+  const contractMax = column.kind === 'primary' ? 640 : column.kind === 'status' ? 220 : undefined;
+  const maximum = column.maxSize ?? contractMax;
+  const minimum = columnMinSize(column);
+  return maximum === undefined ? undefined : Math.max(maximum, minimum ?? 0);
+}
+
+function columnDefaultSize<Row>(column: Column<Row>): number | undefined {
+  return column.size ?? (column.kind === 'primary' ? 320 : column.kind === 'status' ? 140 : undefined);
+}
+
+function readColumnSizing(tableId: string | undefined, userId: string | undefined, columns: Column<unknown>[]): Record<string, number> {
   if (!tableId || !userId || typeof window === 'undefined') return {};
   try {
-    const saved = window.localStorage.getItem(`pmo:datatable:${userId}:${tableId}:columnSizing`);
+    const saved = window.localStorage.getItem(`pmo.table.${tableId}.widths.v1:${userId}`);
     if (!saved) return {};
     const value: unknown = JSON.parse(saved);
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value).filter(([, width]) => typeof width === 'number' && Number.isFinite(width)));
+    const known = new Map(columns.map((column) => [column.key, column]));
+    return Object.fromEntries(Object.entries(value).flatMap(([key, width]) => {
+      const column = known.get(key);
+      if (!column || typeof width !== 'number' || !Number.isFinite(width)) return [];
+      const min = columnMinSize(column) ?? 20;
+      const max = columnMaxSize(column) ?? 900;
+      return [[key, Math.min(max, Math.max(min, width))]];
+    }));
   } catch {
     return {};
   }
@@ -270,10 +307,22 @@ export function DataTable<Row>({
   cardBelow,
   accessibleName,
   tableId,
+  groupBy,
+  totals,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
   const userId = useContext(AuthContext)?.currentUser?.id;
-  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId));
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const widthIdentity = `${tableId ?? ''}:${userId ?? ''}`;
+  const previousWidthIdentity = useRef(widthIdentity);
+  useEffect(() => {
+    if (previousWidthIdentity.current === widthIdentity) return;
+    previousWidthIdentity.current = widthIdentity;
+    setColumnSizing(readColumnSizing(tableId, userId, columns as Column<unknown>[]));
+  }, [tableId, userId, widthIdentity, columns]);
+  const caveatId = `datatable-caveat-${useId().replace(/:/g, '')}`;
+  const caveats = columns.flatMap((column) => column.caveat ? [column.caveat] : []);
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -293,9 +342,9 @@ export function DataTable<Row>({
       accessorFn: (row) => row,
       enableSorting: Boolean(column.sortKey),
       header: () => column.header,
-      ...(column.size !== undefined ? { size: column.size } : {}),
-      ...(column.minSize !== undefined ? { minSize: column.minSize } : {}),
-      ...(column.maxSize !== undefined ? { maxSize: column.maxSize } : {}),
+      ...(columnDefaultSize(column) !== undefined ? { size: columnDefaultSize(column) } : {}),
+      ...(columnMinSize(column) !== undefined ? { minSize: columnMinSize(column) } : {}),
+      ...(columnMaxSize(column) !== undefined ? { maxSize: columnMaxSize(column) } : {}),
     };
   }), [columns]);
   const table = useReactTable({
@@ -315,7 +364,7 @@ export function DataTable<Row>({
         const next = typeof updater === 'function' ? updater(current) : updater;
         if (tableId && userId && typeof window !== 'undefined') {
           try {
-            window.localStorage.setItem(`pmo:datatable:${userId}:${tableId}:columnSizing`, JSON.stringify(next));
+            window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(next));
           } catch {
             // Storage is an enhancement; live resizing remains available when it is denied.
           }
@@ -325,6 +374,24 @@ export function DataTable<Row>({
     },
   });
   const modelRows = table.getRowModel().rows;
+  const toggleGroup = (group: string) => setCollapsedGroups((current) => {
+    const next = new Set(current);
+    if (next.has(group)) next.delete(group);
+    else next.add(group);
+    return next;
+  });
+  const groupedRows = useMemo(() => {
+    if (!groupBy) return modelRows.map((modelRow) => ({ type: 'data' as const, modelRow, group: undefined }));
+    const groups = new Map<string, typeof modelRows>();
+    for (const modelRow of modelRows) {
+      const group = groupBy(modelRow.original);
+      const grouped = groups.get(group);
+      if (grouped) grouped.push(modelRow);
+      else groups.set(group, [modelRow]);
+    }
+    return Array.from(groups, ([label, groupRows]) => ({ type: 'group' as const, label, rows: groupRows }))
+      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
+  }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   // Resize handles sit outside the header cells (so they are not part of a header's name);
   // place them on the RENDERED column edges, not TanStack's notional sizes.
@@ -390,7 +457,7 @@ export function DataTable<Row>({
           ref={tableRef}
           aria-label={accessibleName}
           style={{
-            ...(columns.some((column) => column.size !== undefined) ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
           className="w-full border-collapse text-[13.5px]"
         >
@@ -406,8 +473,9 @@ export function DataTable<Row>({
                     key={header.id}
                     data-col-key={col.key}
                     aria-sort={ariaSort}
-                    style={columnSizing[col.key] !== undefined || col.size !== undefined
-                      ? { width: header.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                    aria-describedby={col.caveat ? caveatId : undefined}
+                    style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
+                      ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
                       'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
@@ -422,10 +490,11 @@ export function DataTable<Row>({
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
                         {col.header}
-                        {currentSort && <Icon name={currentSort === 'asc' ? 'up' : 'down'} />}
+                        {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
+                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-2"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
                     ) : (
-                      col.header
+                      <>{col.header}{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
 
                   </th>
@@ -447,7 +516,16 @@ export function DataTable<Row>({
                 </td>
               </tr>
             ) : (
-              modelRows.map((modelRow) => {
+              groupedRows.map((entry, entryIndex) => {
+                if (entry.type === 'heading') return (
+                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
+                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
+                    {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
+                  </tr>
+                );
+                if (entry.group && collapsedGroups.has(entry.group)) return null;
+                const modelRow = entry.modelRow;
                 const row = modelRow.original;
                 const key = modelRow.id;
                 const targetId = rowTarget?.(row);
@@ -496,11 +574,12 @@ export function DataTable<Row>({
                       return (
                         <td
                           key={col.key}
-                          style={columnSizing[col.key] !== undefined || col.size !== undefined
-                            ? { width: cell.column.getSize(), ...(col.minSize !== undefined ? { minWidth: col.minSize } : {}), ...(col.maxSize !== undefined ? { maxWidth: col.maxSize } : {}) }
+                          style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
+                            ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                             : undefined}
                           className={cn(
-                            'h-[54px] px-3 py-2 align-middle whitespace-nowrap',
+                            'h-[54px] px-3 py-2 align-middle',
+                            (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                             alignClass(col.align),
                             col.align === 'num' && 'tabular',
                             col.colClassName
@@ -518,10 +597,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
                         </td>
                       );
@@ -540,6 +619,14 @@ export function DataTable<Row>({
               })
             )}
           </tbody>
+          {totals && totals.length > 0 && <tfoot>
+            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', alignClass(column.align), column.align === 'num' && 'tabular')}>
+                {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
+              </td>)}
+              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
+            </tr>)}
+          </tfoot>}
         </table>
         {isDesktop && (
           <div className="pointer-events-none absolute left-0 top-0 z-[4] h-[38px]" onFocusCapture={measureColumnEdges}>
@@ -613,7 +700,10 @@ export function DataTable<Row>({
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
-          modelRows.map((modelRow) => {
+          groupedRows.map((entry, entryIndex) => {
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.group && collapsedGroups.has(entry.group)) return null;
+            const modelRow = entry.modelRow;
             const row = modelRow.original;
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
@@ -649,10 +739,10 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
@@ -702,10 +792,29 @@ export function DataTable<Row>({
             );
           })
         )}
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+            {columns.map((column, index) => {
+              const value = total.values?.[column.key] ?? (index === 0 ? total.label : null);
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+            })}
+          </dl>
+        </li>)}
       </ul>
       )}
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[12px] text-muted-foreground">
+        {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
+      </p>}
     </div>
   );
+}
+
+function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
+  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
+  return <span className="block min-w-0">
+    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
+    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
+  </span>;
 }
 
 /**

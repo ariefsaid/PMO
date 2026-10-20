@@ -21,10 +21,15 @@ describe('Card', () => {
     expect(screen.getByText('body').className).toContain('rounded-b-none');
   });
 
-  it('CardHead renders a titled header with a bottom border', () => {
+  it('CardHead renders a titled header with a bottom border and a navigable heading level', () => {
     render(<CardHead>Pipeline</CardHead>);
-    const head = screen.getByText('Pipeline');
-    expect(head.className).toContain('border-b');
+    const heading = screen.getByRole('heading', { name: 'Pipeline', level: 3 });
+    expect(heading.className).toContain('border-b');
+  });
+
+  it('CardHead accepts an explicit heading level', () => {
+    render(<CardHead level={2}>Delivery overview</CardHead>);
+    expect(screen.getByRole('heading', { name: 'Delivery overview', level: 2 })).toBeInTheDocument();
   });
 
   it('CardPad applies 16px padding', () => {

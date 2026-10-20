@@ -114,10 +114,8 @@ export function FinancialStatementsSection({
   return (
     <section aria-labelledby={headingId} className="min-w-0">
       <Card className="min-w-0">
-        <CardHead className="min-w-0 flex-wrap">
-          <h2 id={headingId} className="min-w-0 break-words">
-            {title}
-          </h2>
+        <CardHead level={2} id={headingId} className="min-w-0 flex-wrap break-words">
+          {title}
         </CardHead>
         <CardPad className="flex min-w-0 flex-col gap-4">
           {context !== undefined && context !== '' && (

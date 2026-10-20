@@ -198,15 +198,15 @@ function NativeReportPanel({
           rowKey={(row) => `${side.side}-${row.ordinal}`}
           accessibleName={`${sideLabel} ${range} ${labels.values}`}
           className="min-w-0 rounded-lg"
-        />
+        tableId="components-financial-statements-nativestatementpair-table" />
       );
     });
 
   return (
     <section aria-labelledby={headingId} className="min-w-0">
       <Card className="min-w-0">
-        <CardHead className="min-w-0 flex-wrap">
-          <h3 id={headingId} className="min-w-0 break-words">{reportTitle} — {sideLabel}</h3>
+        <CardHead level={3} id={headingId} className="min-w-0 flex-wrap break-words">
+          {reportTitle} — {sideLabel}
         </CardHead>
         <CardPad className="flex min-w-0 flex-col gap-3">
           {isBalanceSheet ? (

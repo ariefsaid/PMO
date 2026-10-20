@@ -763,7 +763,7 @@ const SalesPipeline: React.FC = () => {
               ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
               : undefined
           }
-        />
+        tableId="salespipeline-table" />
       )}
     </ListPage>
   );

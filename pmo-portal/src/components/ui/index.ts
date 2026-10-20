@@ -10,7 +10,7 @@ export { buttonClasses } from './buttonClasses';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
-export { Card, CardHead, CardPad, type CardProps } from './Card';
+export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from './Card';
 export { KPITile, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
 export {
   DataTable,
@@ -18,6 +18,7 @@ export {
   SearchMini,
   TableFoot,
   type Column,
+  type ColumnKind,
   type ColAlign,
   type SortState,
   type RowMenuItem,

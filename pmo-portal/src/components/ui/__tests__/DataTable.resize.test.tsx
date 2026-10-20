@@ -10,9 +10,9 @@ const columns: Column<Row>[] = [
   { key: 'amount', header: 'Amount', cell: (row) => row.amount, align: 'num', size: 100, minSize: 80, maxSize: 140 },
 ];
 
-function renderTable(props: React.ComponentProps<typeof DataTable<Row>>) {
+function renderTable(props: React.ComponentProps<typeof DataTable<Row>>, userId = 'synthetic-user') {
   return render(
-    <AuthContext.Provider value={{ currentUser: { id: 'synthetic-user' } } as never}>
+    <AuthContext.Provider value={{ currentUser: { id: userId } } as never}>
       <DataTable {...props} />
     </AuthContext.Provider>,
   );
@@ -82,10 +82,26 @@ describe('DataTable column resizing', () => {
     const view = renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'persist-test' });
     const separator = screen.getByRole('separator', { name: /Project/i });
     fireEvent.keyDown(separator, { key: 'ArrowRight' });
-    expect(localStorage.getItem('pmo:datatable:synthetic-user:persist-test:columnSizing')).toContain('196');
+    expect(localStorage.getItem('pmo.table.persist-test.widths.v1:synthetic-user')).toContain('196');
     view.unmount();
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'persist-test' });
     expect(screen.getByRole('separator', { name: /Project/i })).toHaveAttribute('aria-valuenow', '196');
+  });
+
+  it('AC-TBL-RESIZE-002 isolates saved widths by user as well as table', () => {
+    desktop();
+    localStorage.setItem('pmo.table.shared.widths.v1:other-user', JSON.stringify({ name: 224 }));
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'shared' }, 'synthetic-user');
+    expect(screen.getByRole('separator', { name: /Project/i })).toHaveAttribute('aria-valuenow', '180');
+  });
+
+  it('AC-TBL-RESIZE-002 clamps restored widths and ignores unknown column keys', () => {
+    desktop();
+    localStorage.setItem('pmo.table.clamped.widths.v1:synthetic-user', JSON.stringify({ name: 999, amount: 1, removedColumn: 200 }));
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'clamped' });
+    expect(screen.getByRole('separator', { name: /Project/i })).toHaveAttribute('aria-valuenow', '240');
+    expect(screen.getByRole('separator', { name: /Amount/i })).toHaveAttribute('aria-valuenow', '80');
+    expect(screen.queryByRole('separator', { name: /removedColumn/i })).not.toBeInTheDocument();
   });
 
   it('renders and remains resizable when localStorage reads or writes throw', () => {

@@ -163,7 +163,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
               }
             : undefined
         }
-      />
+      tableId="project-detail-tabs-procurementtab-table" />
 
       {/* New request modal — pre-selects this project (T13). */}
       {showNewModal && (
