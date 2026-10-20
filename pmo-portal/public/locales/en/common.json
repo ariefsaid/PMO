@@ -3237,9 +3237,6 @@
     "subtitle": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
   },
   "financialStatements": {
-    "amountsIn": "Amounts in",
-    "forThePeriod": "For the period",
-    "periodShown": "Period shown",
     "amounts": "Amounts",
     "asAt": "As at",
     "accessDenied": "You don't have access to financial statements",

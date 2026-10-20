@@ -5,5 +5,10 @@
   },
   "receipts": {
     "someUnreported": "Beberapa angka tidak dilaporkan."
+  },
+  "statements": {
+    "amountsIn": "Jumlah dalam",
+    "forThePeriod": "Untuk periode",
+    "periodShown": "Periode yang ditampilkan"
   }
 }

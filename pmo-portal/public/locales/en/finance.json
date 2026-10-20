@@ -5,5 +5,10 @@
   },
   "receipts": {
     "someUnreported": "Some figures weren't reported."
+  },
+  "statements": {
+    "amountsIn": "Amounts in",
+    "forThePeriod": "For the period",
+    "periodShown": "Period shown"
   }
 }

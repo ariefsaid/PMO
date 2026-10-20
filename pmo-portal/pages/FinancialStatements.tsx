@@ -51,6 +51,7 @@ function completeDetailRead(value: FinancialStatementRead | undefined): value is
 
 const FinancialStatements: React.FC = () => {
   const { t } = useTranslation();
+  const { t: tf } = useTranslation('finance');
   const navigate = useNavigate();
   const { session, currentUser, loading, profileError } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -214,9 +215,9 @@ const FinancialStatements: React.FC = () => {
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     notProvided: t('financialStatements.notProvided', 'Not provided'),
     asAt: t('financialStatements.asAt', 'As at'),
-    forThePeriod: t('financialStatements.forThePeriod', 'For the period'),
-    amountsIn: t('financialStatements.amountsIn', 'Amounts in'),
-    periodShown: t('financialStatements.periodShown', 'Period shown'),
+    forThePeriod: tf('statements.forThePeriod', 'For the period'),
+    amountsIn: tf('statements.amountsIn', 'Amounts in'),
+    periodShown: tf('statements.periodShown', 'Period shown'),
   };
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),

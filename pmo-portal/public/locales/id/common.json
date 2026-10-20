@@ -3237,9 +3237,6 @@
     "subtitle": "Pendapatan per proyek, tidak termasuk pajak, dalam mata uang masing-masing invoice, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
   },
   "financialStatements": {
-    "amountsIn": "Jumlah dalam",
-    "forThePeriod": "Untuk periode",
-    "periodShown": "Periode yang ditampilkan",
     "amounts": "Jumlah",
     "asAt": "Per tanggal",
     "accessDenied": "Anda tidak memiliki akses ke laporan keuangan",
