@@ -96,13 +96,41 @@ describe('ProjectFinancesSection reading states', () => {
     await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
   });
 
-  it('AC-PFIN-015 treats empty submitted invoices and unavailable GL as honest successful readings', () => {
+  it('AC-PFIN-015 / PD-C: no invoices reads as ONE line, with no zero invoiced, no remaining = contract, no budget line', () => {
     h.query.data = payload();
     render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('No submitted invoices')).toBeInTheDocument();
+    expect(screen.getByTestId('project-no-invoices')).toHaveTextContent('No invoices linked to this project yet');
+    for (const gone of ['No submitted invoices', 'No budget', 'Lifetime to date', 'Cash received', 'Invoiced against contract',
+      'Remaining to invoice', 'Only invoices linked to this project are included.', 'No active budget']) {
+      expect(screen.queryByText(gone)).not.toBeInTheDocument();
+    }
     expect(screen.getByText("Spending hasn't been updated yet.")).toBeInTheDocument();
-    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('PD-C: with invoices, unknown cash is a dash with its reason in the title, settlement and billed-work qualifiers move into titles', () => {
+    h.query.data = payload({ invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '90.00', missing_work: 0 }] });
+    render(<ProjectFinancesSection project={project} />);
+    const cash = screen.getByText('Cash received', { exact: true }).parentElement!;
+    const cashValue = cash.querySelector('dd')!;
+    expect(cashValue).toHaveTextContent('—');
+    expect(cashValue).toHaveAttribute('title', 'Unavailable — receipt-backed cash data is not available yet');
+    expect(screen.getByText('Settled')).toHaveAttribute('title', 'Settled against invoices (cash, withholding and credits), not cash received.');
+    expect(screen.getByText('Billed-work revenue')).toHaveAttribute('title', 'Net of tax; advances excluded');
+    expect(screen.queryByText(/Billed-work revenue \(net of tax/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-invoicing-scope')).toBeInTheDocument();
+  });
+
+  it('PD-C: coverage shows only when partial; freshness is one inline "Updated"', () => {
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] } });
+    const { rerender } = render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('Complete category coverage')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Updated Oct 14, 2026/)).toHaveLength(1);
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '50.00' }, { category: 'Materials', mapped: false, amount: null }] } });
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.getByText('Partial coverage · 1 of 2 categories recorded')).toBeInTheDocument();
   });
 
   it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {
@@ -152,7 +180,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(idr.getAllByText('Invoice balance is not available yet')).toHaveLength(2);
     expect(idr.getByText('Mixed tax bases')).toBeInTheDocument();
     expect(eur.getAllByText('Unavailable')).toHaveLength(2);
-    expect(screen.getByText('Settled against invoices (cash, withholding and credits), not cash received.')).toBeInTheDocument();
+    expect(screen.getAllByText('Settled')[0]).toHaveAttribute('title', 'Settled against invoices (cash, withholding and credits), not cash received.');
     expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
   });
 
@@ -231,7 +259,7 @@ describe('ProjectFinancesSection reading states', () => {
         interpolation: { escapeValue: false }, react: { useSuspense: false } });
     }
     h.role = 'Finance';
-    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: null,
+    h.query.data = payload({ invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '90.00', missing_work: 0 }], actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: null,
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
       ['en', 'Ask an administrator to finish spending setup.', 'Only invoices linked to this project are included.'],
@@ -335,7 +363,8 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.getByText('Recorded spending')).toBeInTheDocument();
     expect(screen.getByText('Partial coverage · 1 of 3 categories recorded')).toBeInTheDocument();
     expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
-    expect(screen.getByText('Cash received', { exact: true }).closest('div')).toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
+    // PD-C: no invoices → one line instead of cash/invoiced/remaining.
+    expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
     expect(screen.getByText('Ask an administrator to finish spending setup.')).toBeInTheDocument();
     expect(screen.queryByText('GL actuals')).not.toBeInTheDocument();
     expect(screen.getByText('Show category details')).toBeInTheDocument();
@@ -357,15 +386,17 @@ describe('ProjectFinancesSection reading states', () => {
   });
 
   it('UX-032 explains settlement only when at least one settlement is known', () => {
-    h.query.data = payload();
+    h.query.data = payload({ invoices: [
+      { currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 },
+    ] });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(screen.queryByText(/Settled against invoices/)).not.toBeInTheDocument();
+    expect(screen.getByText('Settled')).not.toHaveAttribute('title');
 
     h.query.data = payload({ invoices: [
       { currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 },
     ] });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText(/Settled against invoices/)).toBeInTheDocument();
+    expect(screen.getByText('Settled')).toHaveAttribute('title', expect.stringMatching(/Settled against invoices/));
     expect(screen.getByText('Cash received')).toBeInTheDocument();
   });
 
@@ -401,9 +432,9 @@ describe('ProjectFinancesSection reading states', () => {
         const cashField = screen.getByText(cashLabel, { exact: true }).parentElement!;
         expect(cashField).not.toBeNull();
         expect(cashField).toHaveTextContent(scope);
-        expect(screen.getByText(language === 'en'
+        expect(screen.getByText(language === 'en' ? 'Settled' : localeI18n.t('projectFinances.settled'))).toHaveAttribute('title', language === 'en'
           ? 'Settled against invoices (cash, withholding and credits), not cash received.'
-          : 'Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.')).toBeInTheDocument();
+          : 'Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.');
         expect(screen.getAllByText(formatExactMoney('120.00', 'USD', language)!)).not.toHaveLength(0);
 
         if (reading.kind === 'zero') {

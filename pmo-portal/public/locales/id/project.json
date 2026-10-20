@@ -5,5 +5,8 @@
   "noSpendingReading": "Pengeluaran belum diperbarui.",
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
   "invoiceBalanceUnavailable": "Saldo faktur belum tersedia",
-  "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan."
+  "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
+  "billedWork": "Pendapatan pekerjaan tertagih",
+  "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka"
 }

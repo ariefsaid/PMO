@@ -286,10 +286,11 @@ describe('project money position consumer parity', () => {
     const cashField = screen.getByText(t('uxs01.cashReceived', 'Cash received'), { exact: true }).parentElement!;
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('0.00', 'USD', language)!));
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('7.50', 'IDR', language)!));
-    expect(screen.getByText(t(
+    // PD-C: the settlement explanation is the title of the "Settled" label, not a paragraph.
+    expect(screen.getAllByText(t('projectFinances.settled', 'Settled'))[0]).toHaveAttribute('title', t(
       'projectFinances.settlementNote',
       'Settled against invoices (cash, withholding and credits), not cash received.',
-    ))).toBeInTheDocument();
+    ));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
       actuals: financeReading(project.id, {
         actuals: actuals('10.10', [
@@ -314,7 +315,8 @@ describe('project money position consumer parity', () => {
       .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
     expect(aside).not.toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
     const financeSection = screen.getByTestId('project-finances');
-    expect(financeSection).toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
+    // PD-C: coverage is stated only when partial — full mapping is never reported as partial.
+    expect(financeSection).not.toHaveTextContent(/Partial coverage|Cakupan sebagian/);
     expect(financeSection).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalled();
   });
