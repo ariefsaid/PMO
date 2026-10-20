@@ -44,6 +44,11 @@
     "unattributed": "Tidak terkait dengan proyek",
     "value": "Nilai"
   },
+  "pmRow": {
+    "delivery": "Pengiriman",
+    "margin": "Margin",
+    "marginAria": "Margin sampai saat ini {{name}}: {{pct}}%"
+  },
   "risk": {
     "noBudgetBasis": "Anggaran aktif dan aktual lengkap diperlukan untuk memeriksa risiko.",
     "unavailable": "Belum dapat diperiksa"

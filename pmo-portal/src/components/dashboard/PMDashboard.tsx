@@ -19,6 +19,11 @@ import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk, riskCheckableFor } from '@/src/
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 
+const statusVariant = (status: string) => {
+  const v = pillVariantForProjectStatus(status);
+  return v === 'progress' ? 'neutral' : v;
+};
+
 const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
   status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
   spent: p.spent, actualCurrency: p.actual_currency ?? p.currency,
@@ -40,19 +45,20 @@ const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
 export const PMDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
-  const { data: mine = [], isPending, isError, refetch } = usePMDashboardProjects();
+  const { data: assigned, isPending, isError, refetch } = usePMDashboardProjects();
+  // D-019: pre-win work (leads, tenders, lost bids) belongs to the Pipeline, not "my" delivery numbers.
+  const mine = useMemo(() => (assigned ?? []).filter((p) => ACTIVE_PROJECT_STATUSES.has(p.status)), [assigned]);
   const orgCurrency = useOrgCurrency();
   const contractCurrency = mine[0]?.currency;
   const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
     ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
   const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
   const riskCheckable = useMemo(() => {
-    const delivery = mine.filter((project) => ACTIVE_PROJECT_STATUSES.has(project.status));
-    const unchecked = delivery.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
+    const unchecked = mine.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
       && project.budget_currency === project.currency && project.actual_complete
       && project.spent !== null && Number.isFinite(project.spent)
       && (project.actual_currency ?? project.currency) === project.currency)).length;
-    return riskCheckableFor(delivery.length, unchecked);
+    return riskCheckableFor(mine.length, unchecked);
   }, [mine]);
 
   // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
@@ -65,7 +71,7 @@ export const PMDashboard: React.FC = () => {
   );
 
   // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
-  const { data: delivery } = useProjectsDelivery(mine.map((p) => p.id));
+  const { data: deliveryPct } = useProjectsDelivery(mine.map((p) => p.id));
 
   const bvaProjects: PMDashboardProject[] = mine;
 
@@ -138,22 +144,33 @@ export const PMDashboard: React.FC = () => {
                         : 'text-foreground';
                   const atRisk = projectAtRisk(p);
                   return (
-                    <li key={p.id} className="flex items-center gap-2.5 py-3">
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 py-3">
                       <Link
                         to={`/projects/${p.id}`}
-                        className="min-w-0 flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                        title={p.name}
+                        className="min-w-[8rem] flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                       >
                         {p.name}
                       </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
                       {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
                       {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
-                      <DeliveryPctChip pct={delivery?.[p.id] ?? null} />
-                      <StatusPill variant={pillVariantForProjectStatus(p.status)}>{statusLabel(p.status)}</StatusPill>
-                      <span
-                        className={`w-16 shrink-0 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
-                      >
-                        {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
+                      {deliveryPct?.[p.id] != null && (
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
+                          <DeliveryPctChip pct={deliveryPct[p.id]} />
+                        </span>
+                      )}
+                      {/* D-021: one dot marker for every status — the progress halo ring made Ongoing look different. */}
+                      <StatusPill variant={statusVariant(p.status)}>{statusLabel(p.status)}</StatusPill>
+                      <span className="flex shrink-0 items-baseline gap-1">
+                        <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
+                        <span
+                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
+                          className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
+                        >
+                          {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
+                        </span>
                       </span>
                     </li>
                   );
