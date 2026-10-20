@@ -72,7 +72,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
     expect(screen.getByText('Status Proyek')).toBeInTheDocument();
     expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10.600.000,00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10,6 jt');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="US$10.600.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
     expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
@@ -103,7 +104,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   it('sums my delivery contract value including Close Out, not the whole org', () => {
     renderPane();
     // The server read model supplies assigned projects only; the display preserves the row currency.
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10,600,000.00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
   });
   it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
     projState.data = [

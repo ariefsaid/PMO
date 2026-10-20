@@ -16,7 +16,7 @@ import { DashPageHead, DashGrid } from './layout';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
@@ -95,7 +95,7 @@ export const PMDashboard: React.FC = () => {
           help={t('dashboard:pm.myProjectsHelp', 'Delivery projects where you are the assigned project manager.')} />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
-          value={contractValue === null ? t('uxs03.notAvailableYet', 'Not available yet') : formatDashboardMoney(contractValue, contractCurrency ?? orgCurrency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet')} loading={isPending} error={isError}
+          {...moneyFigure(contractValue, contractCurrency ?? orgCurrency, i18n.language, t('uxs03.notAvailableYet', 'Not available yet'))} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
           help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />

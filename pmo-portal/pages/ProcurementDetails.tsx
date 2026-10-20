@@ -37,6 +37,8 @@ import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procuremen
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
@@ -758,11 +760,14 @@ const ProcurementDetails: React.FC = () => {
   // I2: on terminal states (Paid / Cancelled) never show "awaiting delivery" —
   //     derive the sub-text from actual record state; omit the tile if no receipt
   //     exists rather than asserting a falsehood.
+  // OD-MONEY-FMT: stat tiles show the short figure; the exact amount rides in title + sr text.
+  const tileMoney = (amount: number, currency: string) =>
+    moneyFigure(amount, currency, getNumberLocale(), t('uxs03.notAvailableYet', 'Not available yet'));
   const statTilesRaw: (StatTile | null)[] = [
     // PR value — always shown (every procurement has a total_value)
     {
       label: t('procurementDetail.tile.prValue', 'PR value'),
-      value: formatCurrency(Number(p.total_value), p.currency),
+      ...tileMoney(Number(p.total_value), p.currency),
       sub: p.project?.name ?? undefined,
     },
     // Selected quote — only when a quote is committed (Quote Selected onward).
@@ -771,7 +776,7 @@ const ProcurementDetails: React.FC = () => {
     selectedQuote
       ? {
           label: t('procurementDetail.tile.selectedQuote', 'Selected quote'),
-          value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
+          ...tileMoney(Number(selectedQuote.total_amount), selectedQuote.currency),
           sub: (
             <CompanyNameLink
               companyId={p.vendor_id}
@@ -789,7 +794,7 @@ const ProcurementDetails: React.FC = () => {
           label: t('procurementDetail.tile.poCommitted', 'PO committed'),
           // Use the PO record's amount if available, else fall back to total_value —
           // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
-          value: formatCurrency(
+          ...tileMoney(
             Number(
               (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).amount ??
                 p.total_value,

@@ -35,10 +35,25 @@ export function moneyFigure(
   if (exact === null || numeric === null || !Number.isFinite(numeric)) {
     return { value: '—', unavailableReason };
   }
-  return { value: formatCompactCurrency(numeric, currency), exactValue: exact };
+  const short = formatCompactCurrency(numeric, currency);
+  // A small amount is already exact: no redundant title / sr-only twin.
+  return short === exact ? { value: short } : { value: short, exactValue: exact };
 }
 
 /** Short form for running text (a tile's `vs` line); unknown reads as the supplied prose. */
 export function shortMoney(amount: number | null, currency: string, unavailable: string): string {
   return amount === null || !Number.isFinite(amount) ? unavailable : formatCompactCurrency(amount, currency);
+}
+
+/** Per-currency totals as ONE figure: each currency short + exact, joined, never summed across currencies. */
+export function moneyTotalsFigure(
+  totals: ReadonlyArray<{ currency: string; amount: number }>,
+  emptyCurrency: string,
+  locale: string,
+): MoneyFigure {
+  const rows = totals.length === 0 ? [{ currency: emptyCurrency, amount: 0 }] : totals;
+  const figures = rows.map((row) => moneyFigure(row.amount, row.currency, locale, ''));
+  const value = figures.map((fig) => fig.value).join(' · ');
+  const exactValue = figures.map((fig) => fig.exactValue ?? fig.value).join(' · ');
+  return exactValue === value ? { value } : { value, exactValue };
 }

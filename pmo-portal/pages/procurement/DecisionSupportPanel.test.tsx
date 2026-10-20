@@ -71,8 +71,8 @@ function renderPanel(
 function tileValue(label: RegExp): HTMLElement {
   const labelEl = screen.getByText(label);
   const tile = labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-  // The value is the sibling div after the label div within the tile.
-  return within(tile).getByText(/\$/);
+  // The figure box (short form + any sr-only exact twin) is the tile's `.tabular` div.
+  return tile.querySelector<HTMLElement>('.tabular')!;
 }
 
 beforeEach(() => {

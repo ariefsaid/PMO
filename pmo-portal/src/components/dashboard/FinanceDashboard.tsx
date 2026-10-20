@@ -17,7 +17,7 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
@@ -252,8 +252,10 @@ export const FinanceDashboard: React.FC = () => {
     dir: 'desc',
   });
 
-  const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
-    ?? t('uxs03.notAvailableYet', 'Not available yet');
+  // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
+  const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
+  const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, i18n.language, notAvailable);
   const totalSpend = data?.on_hand_actual_known ?? null;
   const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
     known: data?.on_hand_actual_project_count ?? 0, total: data?.on_hand_actual_project_total ?? 0,
@@ -421,25 +423,25 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
-          value={money(data?.total_contract_value ?? null)} loading={isPending}
+          {...figure(data?.total_contract_value ?? null)} loading={isPending}
           to="/projects?filter=Ongoing"
           linkLabel={t('dashboard:finance.contractValueLink', 'Open active projects to see contract value')}
           help={t('dashboard:finance.contractValueHelp', 'Total contract value across active projects.')} />
         {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label={t('dashboard:finance.recordedSpending', 'Recorded spending')}
-          value={money(totalSpend)} loading={isPending} vs={`${data && (data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total) ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${actualCoverage}`}
+          {...figure(totalSpend)} loading={isPending} vs={`${data && (data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total) ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${actualCoverage}`}
           to="/projects?filter=Ongoing"
           linkLabel={t('dashboard:finance.spendingLink', 'Open active projects to see spending details')}
           help={t('dashboard:finance.spendingHelp', 'Actual spending recorded across the delivery portfolio.')} />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
         <KPITile testId="kpi-margin" tone="blue" icon="up" label={t('dashboard:finance.margin', 'Margin to date')}
-          value={money(data?.on_hand_realized_margin ?? null)} loading={isPending}
+          {...figure(data?.on_hand_realized_margin ?? null)} loading={isPending}
           vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data?.on_hand_contract_remaining ?? null)
             + ' · ' + marginLabel + ': ' + money(data?.on_hand_realized_margin ?? null) + ' · ' + actualCoverage}
           help={t('dashboard:finance.marginHelp', 'Billed-work revenue less recorded spending; this is not cash received.')} />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
         <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Vendor payables')}
-          value={outstanding === null ? t('uxs03.notAvailableYet', 'Not available yet') : money(outstanding)} loading={procPending}
+          {...figure(outstanding)} loading={procPending}
           vs={t('dashboard:finance.payablesDetail', 'Vendor-invoiced, awaiting payment')}
           to="/procurement?status=Vendor+Invoiced"
           linkLabel={t('dashboard:finance.payablesLink', 'Open vendor invoices awaiting payment')}

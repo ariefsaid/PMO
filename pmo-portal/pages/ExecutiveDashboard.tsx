@@ -7,8 +7,9 @@ import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatDashboardMoney, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { riskCheckableFor } from '@/src/lib/dashboardConstants';
+import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
@@ -115,17 +116,24 @@ const ExecutiveDashboard: React.FC = () => {
       );
     }
 
-    const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
-      ?? t('uxs03.notAvailableYet', 'Not available yet');
-    const currencyMoney = (value: number, currency: string) =>
-      formatDashboardMoney(value, currency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet');
+    const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
+    // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
+    const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
+    const figure = (value: number | null) => moneyFigure(value, orgCurrency, i18n.language, notAvailable);
+    // The short form already names its currency once ("$1.2M", "IDR 2.0B") - never prefix it again.
+    const currencyMoney = (value: number, currency: string) => shortMoney(value, currency, notAvailable);
     const onHandCurrencies = data.on_hand_value_by_currency ?? [];
     const unmappedCategories = Math.max(0, data.on_hand_actual_coverage_total - data.on_hand_actual_coverage_count);
     const canOpenAccountingMap = can('edit', 'budgetLine', { realRole });
     const onHandValueDisplay = onHandCurrencies.length > 0 ? (
-      <span className="flex flex-col gap-0.5 text-base leading-snug">
+      <span className="flex flex-col gap-1">
         {onHandCurrencies.map((row) => (
-          <span key={row.currency}>{row.currency} {currencyMoney(row.contract_value, row.currency)}</span>
+          <span key={row.currency} title={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}>
+            <FigureContent
+              value={currencyMoney(row.contract_value, row.currency)}
+              exactValue={formatDashboardMoney(row.contract_value, row.currency, i18n.language) ?? undefined}
+            />
+          </span>
         ))}
         {unmappedCategories > 0 && canOpenAccountingMap && (
           <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
@@ -133,13 +141,13 @@ const ExecutiveDashboard: React.FC = () => {
           </Link>
         )}
       </span>
-    ) : money(data.on_hand_value);
+    ) : null;
     const remainingByCurrency = onHandCurrencies
       .filter((row) => row.contract_remaining !== null)
-      .map((row) => `${row.currency} ${currencyMoney(row.contract_remaining!, row.currency)}`);
+      .map((row) => currencyMoney(row.contract_remaining!, row.currency));
     const marginByCurrency = (data.on_hand_realized_margin_by_currency ?? [])
       .filter((row) => row.known_amount !== null)
-      .map((row) => `${row.currency} ${currencyMoney(row.known_amount!, row.currency)}`);
+      .map((row) => currencyMoney(row.known_amount!, row.currency));
     const mixedPipelineCurrencies = (data.pipeline_total_value_by_currency ?? []).length > 1;
     const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
       .reduce((sum, item) => sum + item.unknown_projects, 0);
@@ -151,12 +159,15 @@ const ExecutiveDashboard: React.FC = () => {
     }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
       known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
     });
-    const weightedPct = data.pipeline_projected_margin === null
+    const weightedPctReason = data.pipeline_projected_margin === null
       ? mixedPipelineCurrencies
         ? t('uxs03.mixedCurrencyTotalUnavailable', 'Unavailable for mixed currencies')
         : data.pipeline_total_value === 0
           ? t('uxs03.noPipelineValue', 'No pipeline value to calculate margin')
           : t('uxs03.noActiveBudget', 'No active budget')
+      : undefined;
+    const weightedPct = data.pipeline_projected_margin === null
+      ? '—'
       : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
 
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
@@ -295,7 +306,7 @@ const ExecutiveDashboard: React.FC = () => {
             tone="green"
             icon="dollar"
             label={t('uxs03.contractValueOnHand', 'Contract value on hand')}
-            value={onHandValueDisplay}
+            {...(onHandValueDisplay ? { value: onHandValueDisplay } : figure(data.on_hand_value))}
             vs={onHandCurrencies.length > 0
               ? [
                   remainingByCurrency.length > 0 ? `${t('uxs03.contractRemaining', 'Contract remaining after known Actual')}: ${remainingByCurrency.join(' · ')}` : null,
@@ -316,7 +327,7 @@ const ExecutiveDashboard: React.FC = () => {
             tone="violet"
             icon="pipe"
             label={t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')}
-            value={money(data.pipeline_weighted_value)}
+            {...figure(data.pipeline_weighted_value)}
             vs={t('dashboard.kpi.pipelineWeighted.vs', 'of {{gross}} gross', {
               gross: money(data.pipeline_total_value),
             })}
@@ -336,6 +347,7 @@ const ExecutiveDashboard: React.FC = () => {
             icon="up"
             label={t('dashboard.kpi.pipelineMargin.label', 'Pipeline forecast margin')}
             value={weightedPct}
+            unavailableReason={weightedPctReason}
             vs={t('dashboard.kpi.pipelineMargin.vs', 'probability-weighted')}
             help={t(
               'dashboard.kpi.pipelineMargin.help',
@@ -364,7 +376,7 @@ const ExecutiveDashboard: React.FC = () => {
             tone="amber"
             icon="grid"
             label={t('uxs03.activeContractValue', 'Active contract value')}
-            value={money(data.total_contract_value)}
+            {...figure(data.total_contract_value)}
             vs={t('dashboard.kpi.totalContractValue.vs', 'active projects')}
             to="/projects?filter=Ongoing"
             linkLabel={t(
@@ -382,7 +394,7 @@ const ExecutiveDashboard: React.FC = () => {
             tone="red"
             icon="cart"
             label={t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
-            value={money(data.on_hand_actual_known)}
+            {...figure(data.on_hand_actual_known)}
             vs={`${data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
               known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
             })}`}

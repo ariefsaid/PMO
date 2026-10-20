@@ -158,7 +158,9 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4,000,000.00');
+    // OD-MONEY-FMT: short figure on the card, exact amount in title + sr text.
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4.0M');
+    expect(screen.getByTestId('kpi-spend').querySelector('[title="$4,000,000"]')).not.toBeNull();
   });
   it('does not treat a missing vendor invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
@@ -182,9 +184,10 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('shows billed-work margin separately from contract remaining', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1,500,000.00');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1.5M');
+    expect(screen.getByTestId('kpi-margin').querySelector('[title="$1,500,000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Margin to date');
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4,500,000.00');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4.5M');
   });
   it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();
