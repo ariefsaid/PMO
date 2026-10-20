@@ -1099,7 +1099,7 @@ const SalesInvoices: React.FC = () => {
           title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
           sub={canCreate
             ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'No client invoices have been recorded yet. Use New Invoice to start billing.')
-            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation. Browse projects to review project work.')}
+            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation.')}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"

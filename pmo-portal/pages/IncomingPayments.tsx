@@ -501,7 +501,7 @@ const IncomingPayments: React.FC = () => {
           title={t('financeCopy.noIncomingPaymentsYet', "No incoming payments yet")}
           sub={canCreate
             ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.')
-            : t('uxs26.receiptsEmptyProjectManager', 'No client receipts have been recorded yet. Finance records client payments. Browse projects to review project work.')}
+            : t('uxs26.receiptsEmptyProjectManager', 'No client receipts have been recorded yet. Finance records client payments.')}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"

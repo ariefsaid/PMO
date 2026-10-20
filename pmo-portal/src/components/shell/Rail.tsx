@@ -46,6 +46,8 @@ interface NavItem {
    * (projects/dashboard/approvals/administration) are NEVER gated and stay ungated here.
    */
   feature?: OrgFeatureKey;
+  /** Show only when this entitlement is OFF (the item's job is done elsewhere when it is on). */
+  unlessFeature?: OrgFeatureKey;
   /** This destination uses the real authorization role while other legacy items keep preview-role behavior. */
   realRoleOnly?: boolean;
 }
@@ -70,6 +72,8 @@ const ALL_ITEMS: NavItem[] = [
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
+  // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
+  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
@@ -160,7 +164,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const items = ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRoleValue !== null && i.roles.includes(realRoleValue)
-      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)),
+      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)),
   );
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
@@ -240,7 +244,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     const isCompanyDirectoryLink = item.to === '/companies';
 
     if (isCompanyDirectoryLink) {
-      const active = location.pathname === '/companies' && location.search !== '?type=Vendor';
+      const active = location.pathname === '/companies';
       return (
         <Link
           key={item.to}

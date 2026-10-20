@@ -210,7 +210,7 @@ const RevenueByProject: React.FC = () => {
           title={t('financeCopy.noRevenueDataYet', "No revenue data yet")}
           sub={canCreateInvoice
             ? t('financeCopy.createSalesInvoicesToSeeRevenuePerProject', 'No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.')
-            : t('uxs26.revenueEmptyProjectManager', 'No invoice revenue has been recorded yet. Finance manages invoice creation. Browse projects to review project work.')}
+            : t('uxs26.revenueEmptyProjectManager', 'No invoice revenue has been recorded yet. Finance manages invoice creation.')}
         />
       )}
 

@@ -4919,8 +4919,8 @@
     "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
   },
   "uxs26": {
-    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation. Browse projects to review project work.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments. Browse projects to review project work.",
-    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation. Browse projects to review project work."
+    "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
+    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
   }
 }
