@@ -69,7 +69,7 @@ beforeEach(async () => {
 });
 
 describe('ProcurementLedger vendor e-Faktur recognition', () => {
-  it.each(['en', 'id'] as const)('AC-UXT-005 identifies numbered and unnumbered vendor bills and explains issued-document entry in %s', async (locale) => {
+  it.each(['en', 'id'] as const)('AC-UXT-005 identifies numbered and unnumbered vendor bills and carries no copy-instruction sentence in %s', async (locale) => {
     await financeTestI18n.changeLanguage(locale);
     renderLedger([numbered, unnumbered]);
 
@@ -79,7 +79,8 @@ describe('ProcurementLedger vendor e-Faktur recognition', () => {
     expect(screen.getByText(locale === 'en' ? 'Case: Harbor bridge' : 'Kasus: Harbor bridge')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Project: North pier' : 'Proyek: North pier')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'PMO project number: PMO-26-0042' : 'Nomor proyek PMO: PMO-26-0042')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Copy the number from the issued e-Faktur document.' : 'Salin nomor dari dokumen e-Faktur yang diterbitkan.')).toBeInTheDocument();
+    // FIN-S3: the shared e-Faktur modal no longer renders a helper sentence; identification comes from the context lines above.
+    expect(screen.queryByText(locale === 'en' ? 'Copy the number from the issued e-Faktur document.' : 'Salin nomor dari dokumen e-Faktur yang diterbitkan.')).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText(financeTestI18n.t('efaktur.number')), '010.001-26.12345678');
     expect(screen.getByText(financeTestI18n.t('efaktur.dateMissing'))).toBeInTheDocument();

@@ -41,9 +41,8 @@ describe('CompanyCollections doorway', () => {
     expect(section).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Customer collections' })).toHaveAttribute('tabindex', '-1');
     expect(screen.getByText('Customer:C-0001')).toBeInTheDocument();
-    expect(screen.getByText('Report date: 2026-10-18')).toBeInTheDocument();
-    expect(screen.getByText('Ageing basis: Due Date')).toBeInTheDocument();
-    expect(screen.getByText('ERP ranges: b_0_30: 0–30 days')).toBeInTheDocument();
+    // SL-F: report date and ageing basis once per card; the raw ERP range keys are no longer shown.
+    expect(screen.getByText('Report date: 2026-10-18 · Ageing basis: Due Date')).toBeInTheDocument();
     expect(screen.getByText('Accounts Receivable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute('href', '/sales-invoices?customer=company-1');
     expect(screen.getByRole('link', { name: 'Overdue invoices first' })).toHaveAttribute(

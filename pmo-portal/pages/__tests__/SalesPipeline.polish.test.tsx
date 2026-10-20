@@ -52,14 +52,17 @@ it('UIP-004 URL-owned classification stays visible collapsed on arrival and zero
   await waitFor(() => expect(screen.getByText(state.data.projects[0].name)).toBeVisible());
 });
 
-it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/view/core scope and expands classification in flow', async (view) => {
+it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope, one presentation, and expands classification in flow', async (view) => {
   vi.stubGlobal('matchMedia', vi.fn((media: string) => ({ matches: false, media, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   page(`/sales?view=${view}`);
   const user = userEvent.setup();
   expect(screen.getAllByRole('searchbox', { name: 'Search projects' })).toHaveLength(1);
-  expect(screen.getAllByRole('tablist', { name: 'Pipeline view' })).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Export' })).toBeVisible();
-  if (view === 'table') expect(screen.getByRole('tablist', { name: 'Project scope' })).toBeVisible();
+  // SUB-H: the phone has one presentation (the stage list), so a stored/URL `table` view is not
+  // honoured and no Board/Table switcher or Export is offered; the core scope control stays.
+  expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
+  expect(screen.getByTestId('sales-phone-stage-list')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByRole('region', { name: /^Classification$/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Filter by sector'), 'Energy');

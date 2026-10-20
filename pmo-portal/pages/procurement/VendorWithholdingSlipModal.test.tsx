@@ -182,7 +182,7 @@ describe('AC-BUPOT-017 capture form', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /select bill.*SUP-B/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: /confirm as PPh 23 from issued slip/i }));
     expect(screen.getByRole('checkbox', { name: /confirm as PPh 23 from issued slip/i })).toHaveAttribute('aria-checked', 'true');
-    fireEvent.change(screen.getByLabelText('PPh type'), { target: { value: 'pph4_2' } });
+    fireEvent.change(screen.getByLabelText('PPh type', { selector: 'input, select, textarea' }), { target: { value: 'pph4_2' } });
     expect(screen.getByRole('checkbox', { name: /select bill.*SUP-C/i })).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByRole('checkbox', { name: /confirm as PPh 4\(2\) from issued slip/i })).toHaveAttribute('aria-checked', 'false');
     expect(screen.queryByText(/Selected total: IDR 40000/)).not.toBeInTheDocument();

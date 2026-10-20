@@ -291,8 +291,8 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'New rate' }));
     await screen.findByRole('dialog', { name: 'New rate' });
-    expect(screen.getByLabelText(/Publication date/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/IDR per USD/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' })).toBeInTheDocument();
     await expectNoBlockingViolations(document.body);
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New rate' })).not.toBeInTheDocument());

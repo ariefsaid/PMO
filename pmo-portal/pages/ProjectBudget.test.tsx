@@ -1082,7 +1082,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     versionsState.data = [phasedDraft];
     renderPage();
     await user.click(await screen.findByRole('button', { name: /edit line item Labor/i }));
-    const field = screen.getByLabelText(/^fiscal year$/i);
+    const field = screen.getByLabelText(/^fiscal year$/i, { selector: 'input, select, textarea' });
     await user.clear(field);
     await user.type(field, '2027');
     await user.click(screen.getByRole('button', { name: /^save$/i }));
@@ -1118,6 +1118,6 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     ];
     renderPage();
     expect(await screen.findByText('2026')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/fiscal year/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/fiscal year/i, { selector: 'input, select, textarea' })).not.toBeInTheDocument();
   });
 });

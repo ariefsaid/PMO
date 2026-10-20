@@ -267,7 +267,7 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
   it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    const when = screen.getByLabelText(/When/i, { selector: 'input, select, textarea' }) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
@@ -285,7 +285,7 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
     await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
-    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
+    const when = screen.getByLabelText(/When/i, { selector: 'input, select, textarea' }) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);
     await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
