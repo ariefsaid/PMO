@@ -86,7 +86,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const claimRows = claims.data ?? [];
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
-  const money = (value: number) => `${formatCurrencyCents(value, currency)} ${excl}`;
+  const money = (value: number) => formatCurrencyCents(value, currency);
   const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
@@ -255,7 +255,75 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     } },
   ];
 
+  // No BoQ and no claims (both loaded): quantity billing is not in use — fold it away (SUB-B).
+  const quantityEmpty = !boq.isPending && !boq.isError && boqRows.length === 0
+    && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
+
+  const boqCard = (
+    <Card variant="bare">
+      <CardHead
+        level={2}
+        className="text-base"
+        actions={
+          <>
+            {canAssess && boqRows.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
+                {t('projectDetail.billing.assessment.record', 'Record progress')}
+              </Button>
+            )}
+            {may('create', 'boqItem') && (
+              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+            )}
+          </>
+        }
+      >
+        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
+      </CardHead>
+      <CardPad>
+        <DataTable<BoqItemRow>
+          rows={boqRows}
+          columns={boqColumns}
+          rowKey={(row) => row.id}
+          state={boq.isPending ? 'loading' : boq.isError ? 'error' : boqRows.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('projectDetail.billing.boq.empty', 'No bill of quantities yet')}
+          emptySub={t('projectDetail.billing.boq.emptySub', "Add the contract's priced lines to assess progress and bill by quantity.")}
+          errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
+          errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
+          onRetry={() => boq.refetch()}
+        tableId="project-detail-tabs-billingtab-1-table" />
+      </CardPad>
+    </Card>
+  );
+
+  const claimsCard = (
+    <Card variant="bare">
+      <CardHead
+        level={2}
+        className="text-base"
+        actions={
+          canBill && !canStartInvoice && (
+            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+          )
+        }
+      >
+        {t('projectDetail.billing.claims.title', 'Billing claims')}
+      </CardHead>
+      <CardPad>
+        <DataTable<ProgressClaimWithInvoice>
+          rows={claimRows}
+          columns={claimColumns}
+          rowKey={(row) => row.id}
+          state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
+          emptySub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
+          errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
+          errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
+          onRetry={() => claims.refetch()}
+        tableId="project-detail-tabs-billingtab-2-table" />
+      </CardPad>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
@@ -277,6 +345,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           }
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
+          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{excl}</span>
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -287,81 +356,42 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Figure testId="billing-contract" label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} />
               <Figure testId="billing-billed" label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} />
-              <Figure testId="billing-assessed" label={t('projectDetail.billing.summary.assessed', 'Assessed to date')}
-                value={summary.assessedToDate === null ? t('projectDetail.billing.summary.noAssessment', 'No assessment yet') : money(summary.assessedToDate)}
-                note={summary.assessment ? t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete',
-                  { month: monthLabel(summary.assessment.month), pct: formatNumberExact(summary.assessment.pctComplete) }) : undefined} />
-              {summary.unbilledWork !== null && (
+              {summary.assessedToDate !== null && summary.assessedToDate !== 0 && summary.assessment && (
+                <Figure testId="billing-assessed" label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={money(summary.assessedToDate)}
+                  note={t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete',
+                    { month: monthLabel(summary.assessment.month), pct: formatNumberExact(summary.assessment.pctComplete) })} />
+              )}
+              {summary.unbilledWork !== null && summary.unbilledWork !== 0 && (
                 <Figure testId="billing-gap" label={t('projectDetail.billing.summary.gap', 'Work done, not yet billed')} value={money(summary.unbilledWork)} />
               )}
-              <Figure testId="billing-dp-held" label={t('projectDetail.billing.summary.dpHeld', 'Down payment held')} value={money(summary.dpHeld)} />
+              {summary.dpHeld !== 0 && (
+                <Figure testId="billing-dp-held" label={t('projectDetail.billing.summary.dpHeld', 'Down payment held')} value={money(summary.dpHeld)} />
+              )}
               <Figure testId="billing-remaining" label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} />
-              <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
+              {summary.notSubmitted !== 0 && (
+                <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
+              )}
             </dl>
           )}
         </CardPad>
       </Card>
 
-      <Card variant="bare">
-        <CardHead
-          level={2}
-          className="text-base"
-          actions={
-            <>
-              {canAssess && boqRows.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                  {t('projectDetail.billing.assessment.record', 'Record progress')}
-                </Button>
-              )}
-              {may('create', 'boqItem') && (
-                <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
-              )}
-            </>
-          }
-        >
-          {t('projectDetail.billing.boq.title', 'Bill of quantities')}
-        </CardHead>
-        <CardPad>
-          <DataTable<BoqItemRow>
-            rows={boqRows}
-            columns={boqColumns}
-            rowKey={(row) => row.id}
-            state={boq.isPending ? 'loading' : boq.isError ? 'error' : boqRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('projectDetail.billing.boq.empty', 'No bill of quantities yet')}
-            emptySub={t('projectDetail.billing.boq.emptySub', "Add the contract's priced lines to assess progress and bill by quantity.")}
-            errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
-            errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
-            onRetry={() => boq.refetch()}
-          tableId="project-detail-tabs-billingtab-1-table" />
-        </CardPad>
-      </Card>
-
-      <Card variant="bare">
-        <CardHead
-          level={2}
-          className="text-base"
-          actions={
-            canBill && (
-              <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
-            )
-          }
-        >
-          {t('projectDetail.billing.claims.title', 'Billing claims')}
-        </CardHead>
-        <CardPad>
-          <DataTable<ProgressClaimWithInvoice>
-            rows={claimRows}
-            columns={claimColumns}
-            rowKey={(row) => row.id}
-            state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-            emptySub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
-            errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
-            errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
-            onRetry={() => claims.refetch()}
-          tableId="project-detail-tabs-billingtab-2-table" />
-        </CardPad>
-      </Card>
+      {quantityEmpty ? (
+        <details className="group">
+          <summary className="cursor-pointer rounded text-base font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('projectTabs:billing.quantity', 'Quantity billing')}
+          </summary>
+          <div className="mt-3 space-y-6">
+            {boqCard}
+            {claimsCard}
+          </div>
+        </details>
+      ) : (
+        <>
+          {boqCard}
+          {claimsCard}
+        </>
+      )}
 
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} workOrders={workOrders.data ?? []} currencySymbolPrefix={currencySymbol(currency)}

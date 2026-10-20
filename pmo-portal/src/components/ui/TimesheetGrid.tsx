@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from './cn';
 import { Button } from './Button';
 import { Icon } from './icons';
+import { DataTable, type Column } from './DataTable';
 import { computeTotals, type EditRow } from '@/src/lib/timesheet-edit';
 import { useIsDesktop } from './useIsDesktop';
 import { ProjectNameLink } from './ProjectNameLink';
@@ -132,218 +133,191 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     );
   }
 
+  const rowTotals = new Map(rows.map((r, i) => [r.id, editTotals ? editTotals.perRow[i] : r.hours.reduce((a, b) => a + b, 0)]));
+
+  // Weekend tint lives INSIDE the cell (cn does not merge classes, so a column class cannot reliably
+  // override the table's own header/cell backgrounds).
+  const tint = (weekend: boolean | undefined) => cn('-mx-3 -my-2 flex flex-col items-center justify-center px-1', weekend && 'bg-secondary/60');
+
+  const columns: Column<TimesheetGridRow>[] = [
+    {
+      key: 'project',
+      header: t('timesheets.projectColumn', 'Project'),
+      kind: 'text',
+      stickyLeft: true,
+      size: 240,
+      minSize: 160,
+      cell: (r) => editable ? (
+        // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
+        // (always-visible) cell — so the delete stays reachable at 375px without the
+        // horizontal scroll that pushes a trailing column off-screen on a phone.
+        // One delete control, one accessible name.
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium" title={r.project}>
+              {r.project}
+            </div>
+            {r.code && (
+              <div className="truncate font-mono text-[11px] text-muted-foreground">
+                {r.code}
+              </div>
+            )}
+            {/* AC-W6-IXD-NOTE (B-4): demote the per-row note. Collapse-on-demand —
+                an empty note is a quiet "+ Note" button; existing content renders
+                expanded so content is never hidden. */}
+            <NoteCell
+              rowId={r.id}
+              project={r.project}
+              value={notes?.[r.id] ?? ''}
+              onNoteChange={onNoteChange}
+            />
+          </div>
+          <Button
+            className="touch-target shrink-0"
+            variant="ghost"
+            size="icon"
+            aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
+            onClick={() => onDeleteRow?.(r.id)}
+          >
+            <Icon name="x" />
+          </Button>
+        </div>
+      ) : (
+        // Read-only branch — project name links to /projects/:id when projectId present
+        // (AC-JR-W1-08); editable branch above stays plain text while in edit mode.
+        <div className="min-w-0">
+          <ProjectNameLink
+            projectId={r.projectId}
+            name={r.project}
+            className="truncate text-sm font-medium"
+          />
+          {r.code && (
+            <div className="truncate font-mono text-[11px] text-muted-foreground">
+              {r.code}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    ...days.map((d, i): Column<TimesheetGridRow> => ({
+      key: `day-${i}`,
+      header: (
+        <span className={tint(d.weekend)} style={{ height: 38 }}>
+          {d.label}
+          <span className="mt-0.5 block text-[11px] font-normal tabular text-muted-foreground">{d.dateNum}</span>
+        </span>
+      ),
+      kind: 'number',
+      align: 'center',
+      size: 72,
+      minSize: 64,
+      // `weekend` is the marker class on header + cells; the visible tint is drawn inside the cell (see `tint`).
+      colClassName: d.weekend ? 'weekend' : undefined,
+      cell: (r) => {
+        const h = r.hours[i] ?? 0;
+        if (editable) {
+          const invalid = invalidCells?.has(`${r.id}:${i}`) ?? false;
+          // Prefer the raw as-typed string so in-progress values survive;
+          // fall back to the numeric (blank for 0) when no raw map is given.
+          const raw = rawHours?.[r.id]?.[i];
+          const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+          return (
+            <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+                aria-invalid={invalid || undefined}
+                value={value}
+                onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
+                className={cn(
+                  'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
+                  invalid ? 'border-destructive' : 'border-border'
+                )}
+              />
+              {invalid && (
+                <span
+                  role="alert"
+                  // Darkened destructive text variant (the system's error-text value,
+                  // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
+                  style={{ color: 'hsl(0 72% 42%)' }}
+                  className="mt-0.5 block text-center text-[11px] leading-tight"
+                >
+                  {t('timesheets.invalidHours', '0–24 only')}
+                </span>
+              )}
+            </div>
+          );
+        }
+        const filled = h > 0;
+        return (
+          <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
+            <div
+              aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+              className={cn(
+                'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-[13.5px] tabular',
+                filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
+              )}
+            >
+              {filled ? fmt(h) : '·'}
+            </div>
+          </div>
+        );
+      },
+    })),
+    {
+      key: 'total',
+      header: t('timesheets.totalColumn', 'Total'),
+      kind: 'number',
+      align: 'center',
+      size: 80,
+      minSize: 64,
+      cell: (r) => {
+        const rowTotal = rowTotals.get(r.id) ?? 0;
+        return (
+          <span data-testid={`tsgrid-row-total-${r.id}`} className="text-sm font-semibold tabular">
+            {rowTotal > 0 ? fmt(rowTotal) : '·'}
+          </span>
+        );
+      },
+    },
+  ];
+
+  const totals = [{
+    key: 'daily',
+    label: <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
+    values: {
+      ...Object.fromEntries(dailyTotals.map((total, i) => [
+        `day-${i}`,
+        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? fmt(total) : '·'}</span>,
+      ])),
+      total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{fmt(grandTotal)}</span>,
+    } as Record<string, React.ReactNode>,
+  }];
+
   return (
-    // Scroll container: overflow-x-auto (contained scroll, not page scroll).
-    // scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
-    // signals "more to scroll" so it's clear the grid extends beyond the viewport.
-    // The fade is CSS-only (mask-image, compositor), no extra DOM node needed here.
-    // A sibling fade overlay element is added for the testid + aria-hidden signal.
+    // Scroll container: scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
+    // signals "more to scroll". CSS-only (mask-image, compositor); the sibling overlay carries the testid.
     <div className={cn('relative', className)} data-testid="tsgrid-table">
       <div
         data-testid="tsgrid-scroll"
         className={cn(
           'overflow-x-auto',
-          // Right-edge fade: same mask-image pattern as StatTiles and Tabs strip.
-          // `[mask-image:…]` is a Tailwind arbitrary value — compositor-only, no repaint.
           '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
         )}
       >
-      <table className="w-full border-collapse text-[13.5px]">
-        <thead>
-          <tr>
-            <th
-              data-testid="tsgrid-project-header"
-              scope="col"
-              className="sticky left-0 z-[1] h-[38px] min-w-[220px] max-md:min-w-[160px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
-            >
-              {t('timesheets.projectColumn', 'Project')}
-            </th>
-            {days.map((d, i) => (
-              <th
-                key={i}
-                scope="col"
-                className={cn(
-                  'h-[38px] min-w-[64px] border-b border-border px-2 text-center text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground',
-                  d.weekend && 'weekend bg-secondary/60'
-                )}
-              >
-                {d.label}
-                <span className="mt-0.5 block text-[11px] font-normal tabular text-muted-foreground">
-                  {d.dateNum}
-                </span>
-              </th>
-            ))}
-            <th
-              scope="col"
-              className="h-[38px] min-w-[64px] border-b border-border bg-secondary/40 px-2 text-center text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground"
-            >
-              {t('timesheets.totalColumn', 'Total')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, rowIdx) => {
-            const rowTotal = editTotals
-              ? editTotals.perRow[rowIdx]
-              : r.hours.reduce((a, b) => a + b, 0);
-            return (
-              <tr key={r.id} className="border-b border-border/70">
-                <td className="sticky left-0 z-[1] bg-card px-3 py-2.5 align-middle">
-                  {editable ? (
-                    // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
-                    // (always-visible) cell — so the delete stays reachable at 375px without the
-                    // horizontal scroll that pushes a trailing column off-screen on a phone.
-                    // One delete control, one accessible name.
-                    <div className="flex min-w-0 items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium" title={r.project}>
-                          {r.project}
-                        </div>
-                        {r.code && (
-                          <div className="truncate font-mono text-[11px] text-muted-foreground">
-                            {r.code}
-                          </div>
-                        )}
-                        {/* AC-W6-IXD-NOTE (B-4): demote the per-row note. Collapse-on-demand —
-                            an empty note is a quiet "+ Note" button; existing content renders
-                            expanded so content is never hidden. The expanded input is a single
-                            bottom hairline (quieter than the bordered hour cells). */}
-                        <NoteCell
-                          rowId={r.id}
-                          project={r.project}
-                          value={notes?.[r.id] ?? ''}
-                          onNoteChange={onNoteChange}
-                        />
-                      </div>
-                      <Button
-                        className="touch-target shrink-0"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
-                        onClick={() => onDeleteRow?.(r.id)}
-                      >
-                        <Icon name="x" />
-                      </Button>
-                    </div>
-                  ) : (
-                    // Read-only branch — project name links to /projects/:id when projectId present
-                    // (AC-JR-W1-08); editable branch above stays plain text while in edit mode.
-                    <div className="min-w-0">
-                      <ProjectNameLink
-                        projectId={r.projectId}
-                        name={r.project}
-                        className="truncate text-sm font-medium"
-                      />
-                      {r.code && (
-                        <div className="truncate font-mono text-[11px] text-muted-foreground">
-                          {r.code}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </td>
-                {r.hours.map((h, i) => {
-                  const weekend = days[i]?.weekend;
-                  if (editable) {
-                    const invalid = invalidCells?.has(`${r.id}:${i}`) ?? false;
-                    // Prefer the raw as-typed string so in-progress values survive;
-                    // fall back to the numeric (blank for 0) when no raw map is given.
-                    const raw = rawHours?.[r.id]?.[i];
-                    const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
-                    return (
-                      <td
-                        key={i}
-                        className={cn('p-1 align-middle', weekend && 'bg-secondary/60')}
-                      >
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: days[i]?.label })}
-                          aria-invalid={invalid || undefined}
-                          value={value}
-                          onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
-                          className={cn(
-                            'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
-                            invalid ? 'border-destructive' : 'border-border'
-                          )}
-                        />
-                        {invalid && (
-                          <span
-                            role="alert"
-                            // Darkened destructive text variant (the system's error-text value,
-                            // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
-                            // Base `text-destructive` (60.2% L) is only ~3.76:1 and fails for text.
-                            style={{ color: 'hsl(0 72% 42%)' }}
-                            className="mt-0.5 block text-center text-[11px] leading-tight"
-                          >
-                            {t('timesheets.invalidHours', '0–24 only')}
-                          </span>
-                        )}
-                      </td>
-                    );
-                  }
-                  const filled = h > 0;
-                  return (
-                    <td
-                      key={i}
-                      className={cn('p-1 text-center align-middle', weekend && 'bg-secondary/60')}
-                    >
-                      <div
-                        aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: days[i]?.label })}
-                        className={cn(
-                          'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-[13.5px] tabular',
-                          filled
-                            ? 'bg-primary/[0.07] font-semibold text-foreground'
-                            : 'text-muted-foreground/45'
-                        )}
-                      >
-                        {filled ? fmt(h) : '·'}
-                      </div>
-                    </td>
-                  );
-                })}
-                <td
-                  data-testid={`tsgrid-row-total-${r.id}`}
-                  className="bg-secondary/30 px-2 py-2.5 text-center align-middle text-sm font-semibold tabular"
-                >
-                  {rowTotal > 0 ? fmt(rowTotal) : '·'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-[1.5px] border-border bg-secondary/40">
-            <td className="sticky left-0 z-[1] bg-card px-3 py-3 text-right text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-              {t('timesheets.dailyTotal', 'Daily total')}
-            </td>
-            {dailyTotals.map((t, i) => (
-              <td
-                key={i}
-                data-testid={`tsgrid-daily-total-${i}`}
-                className={cn(
-                  'px-2 py-3 text-center text-sm font-semibold tabular',
-                  days[i]?.weekend && 'bg-secondary/60'
-                )}
-              >
-                {t > 0 ? fmt(t) : '·'}
-              </td>
-            ))}
-            <td
-              data-testid="tsgrid-grand-total"
-              className="bg-secondary/60 px-2 py-3 text-center text-sm font-bold tabular"
-            >
-              {fmt(grandTotal)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(r) => r.id}
+          tableId="timesheet-grid"
+          accessibleName={t('timesheets.title', 'Timesheets')}
+          totals={totals}
+          className="rounded-none! border-0!"
+        />
       </div>
-      {/* Decorative scroll-fade overlay (aria-hidden + pointer-events-none).
-          Provides a testid for the test assertion confirming the fade is present.
-          The visual fade is already on the parent via mask-image; this element
-          exists solely for the aria-hidden assertion and does not double the effect. */}
+      {/* Decorative scroll-fade overlay (aria-hidden + pointer-events-none). */}
       <div
         data-testid="tsgrid-fade"
         aria-hidden="true"

@@ -77,16 +77,25 @@ describe('the figures', () => {
     expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('$400,000');
   });
 
-  it('OD-TAX-1: every figure carries its tax basis — no bare number', () => {
+  it('OD-TAX-1 (SUB-C): the tax basis is stated once on the card head, not repeated under each figure', () => {
     render(<ProjectDrawdown projectId="p1" />);
-    for (const id of [
-      'drawdown-ceiling',
-      'drawdown-committed',
-      'drawdown-draft',
-      'drawdown-headroom',
-    ]) {
-      expect(screen.getByTestId(id)).toHaveTextContent('net of tax');
+    expect(screen.getByRole('heading', { name: /Contract drawdown/ })).toHaveTextContent('net of tax');
+    expect(screen.getAllByText(/net of tax/)).toHaveLength(1);
+    for (const id of ['drawdown-ceiling', 'drawdown-committed', 'drawdown-draft', 'drawdown-headroom']) {
+      expect(screen.getByTestId(id)).not.toHaveTextContent('net of tax');
     }
+  });
+
+  it('SUB-C: a project with no work orders (nothing issued or drafted) shows no drawdown card at all', () => {
+    state.data = drawdown({ committed: 0, draft: 0 });
+    const { container } = render(<ProjectDrawdown projectId="p1" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('SUB-C: a project with only draft work orders still shows the card', () => {
+    state.data = drawdown({ committed: 0, draft: 100_000 });
+    render(<ProjectDrawdown projectId="p1" />);
+    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('$100,000');
   });
 
   // ⚑ DERIVED, not decorative (spec review Critical). The assertion above passes even if the label
@@ -97,12 +106,12 @@ describe('the figures', () => {
   it('OD-TAX-1: the basis label is DERIVED from the RPC, not hardcoded', () => {
     state.data = drawdown({ basis: 'gross' });
     render(<ProjectDrawdown projectId="p1" />);
-    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('gross');
-    expect(screen.getByTestId('drawdown-committed')).not.toHaveTextContent('net of tax');
+    expect(screen.getByRole('heading', { name: /Contract drawdown/ })).toHaveTextContent('basis: gross');
+    expect(screen.queryByText(/net of tax/)).not.toBeInTheDocument();
   });
 
   it('says so when there is no ceiling yet, instead of drawing a bar against zero', () => {
-    state.data = drawdown({ ceiling: 0, committed: 0, draft: 0 });
+    state.data = drawdown({ ceiling: 0, committed: 10, draft: 0 });
     render(<ProjectDrawdown projectId="p1" />);
     expect(screen.getByTestId('drawdown-no-ceiling')).toBeInTheDocument();
   });

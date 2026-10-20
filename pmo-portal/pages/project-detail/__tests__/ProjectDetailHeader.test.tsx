@@ -182,16 +182,14 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
   });
-  it('UX-007/RF-057: leads with customer and order context, with codes available on demand', async () => {
+  it('UX-007/RF-057: leads with customer and order context; codes live in the rail, not a second header disclosure (PD-A)', async () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
     expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
-    expect(screen.getByText(/PMO Project Number: PMO-26-7711/)).not.toBeVisible();
-    await userEvent.click(screen.getByText('More project details'));
-    expect(screen.getByText('PMO Project Number: PMO-26-7711')).toBeInTheDocument();
-    expect(screen.getByText('Client Project Code: CLIENT-81')).toBeInTheDocument();
+    expect(screen.queryByText('More project details')).not.toBeInTheDocument();
+    expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
 
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
@@ -222,13 +220,14 @@ describe('ProjectDetailHeader — content', () => {
     budgetBox.isPending = true;
     renderHeader('Project Manager', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
     expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('Unavailable');
-    expect(screen.getByText('Loading budget…')).toBeInTheDocument();
+    expect(screen.queryByText('Loading budget…')).not.toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
   });
 
   it('DD-MONEY-3 does not show zero PMO commitments when procurement is ERP-owned', () => {
     renderHeader('Project Manager', onHand, 0, 'not-tracked');
-    expect(screen.getByText('Not tracked in PMO yet')).toBeInTheDocument();
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not tracked in PMO yet')).not.toBeInTheDocument();
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
@@ -237,7 +236,8 @@ describe('ProjectDetailHeader — content', () => {
     renderHeader('Project Manager', onHand, 0);
     expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
-    expect(screen.getByText('No active budget')).toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spend')).not.toBeInTheDocument();
   });
 
   it('shows a negative contract-after-cost figure with a true minus glyph and destructive tone (edge)', () => {
@@ -574,8 +574,8 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
     const actual = tiles.find((tile) => tile.textContent?.includes('Actual'));
     expect(actual?.textContent).toContain('IDR');
     expect(actual?.textContent).toContain('Complete category coverage');
-    expect(screen.getByText('Contract remaining after cost').parentElement).toHaveTextContent('Unavailable');
-    expect(screen.getByText('Spend').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spend')).not.toBeInTheDocument();
   });
 
   it('DD-MONEY-1: incomplete Actuals are never shown as a complete headline amount', () => {
@@ -768,5 +768,81 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
     await openEditor('Finance');
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
+  });
+});
+
+// ── AC-RD-HDR-001 (PD-A): compact strip, no prose in figure slots ─────────────────────
+describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
+  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+  const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
+
+  it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {
+    for (const source of ['not-tracked', 'unavailable'] as const) {
+      const { unmount } = renderHeader('Finance', onHand, 0, source);
+      expect(tileLabels()).not.toContain('PMO purchase orders');
+      expect(screen.queryByText(/Not tracked in PMO/i)).not.toBeInTheDocument();
+      unmount();
+    }
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileLabels()).toContain('PMO purchase orders');
+  });
+
+  it('AC-RD-HDR-001: an incomplete Actual is "—" plus "Partial" — no prose, no coverage line in the figure slot', () => {
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader('Finance');
+    const tile = tileFor('Actual');
+    const value = tile.children[1];
+    expect(value.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
+    expect(value.querySelector('.sr-only')).toHaveTextContent('Incomplete — see spending details');
+    expect(value).not.toHaveTextContent('$');
+    expect(tile.children[2]).toHaveTextContent(/^Partial$/);
+    expect(tile).not.toHaveTextContent(/coverage|Updated/i);
+  });
+
+  it('AC-RD-HDR-001: an unknown contract value is "—" with its reason, never "$0"', () => {
+    renderHeader('Finance', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
+    const amount = screen.getByTestId('contract-value-amount');
+    expect(amount.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
+    expect(amount.querySelector('.sr-only')).toHaveTextContent('Unavailable');
+    expect(amount).not.toHaveTextContent('$');
+  });
+
+  it('AC-RD-HDR-001: contract-remaining and spend appear only when they have a value — no "No active budget" prose', () => {
+    budgetBox.data = undefined;
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader('Finance');
+    expect(tileLabels()).toEqual(['Contract', 'Actual']);
+    expect(screen.queryByText(/No active budget/)).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001: a budget still loading shows no Spend tile (not a claim of no budget)', () => {
+    budgetBox.data = undefined;
+    budgetBox.isPending = true;
+    renderHeader('Finance');
+    expect(tileLabels()).not.toContain('Spend');
+    expect(screen.queryByText(/Loading budget/)).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001: with a budget and complete Actual the strip carries every known figure', () => {
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Spend']);
+  });
+
+  it('AC-RD-HDR-001: "excl. PPN" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {
+    const { unmount } = renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 } as unknown as ProjectWithRefs);
+    expect(within(tileFor('Contract')).getByTestId('contract-tile-tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(screen.queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
+    unmount();
+    renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 } as unknown as ProjectWithRefs);
+    expect(within(tileFor('Contract')).getByRole('button', { name: /show tax details/i })).toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001 / RD-059: PMO number and client code are not duplicated in the header — the rail owns them', () => {
+    renderHeader('Finance');
+    expect(screen.queryByText('More project details')).not.toBeInTheDocument();
+    expect(screen.queryByText(/PMO Project Number/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
+    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
   });
 });

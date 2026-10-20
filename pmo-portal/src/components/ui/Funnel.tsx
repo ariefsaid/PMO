@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { chartTheme } from './chartTheme';
 
 export interface FunnelStage {
   name: string;
@@ -137,7 +138,8 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                       className="block h-full rounded-full"
                       style={{
                         width: `${Math.max(0, Math.min(100, s.barPct))}%`,
-                        background: s.barColor ?? 'hsl(var(--primary))',
+                        // One-Blue: bars are neutral; the action blue marks only the selected stage.
+                        background: s.barColor ?? (selected ? chartTheme.series.primary : chartTheme.axis),
                       }}
                     />
                   </div>

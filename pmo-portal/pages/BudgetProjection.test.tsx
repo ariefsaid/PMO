@@ -1219,6 +1219,16 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     expect(summary.getByText('Forecast remaining').nextElementSibling).toHaveTextContent('$20,000');
   });
 
+  it('T5 the grid is a DataTable showing FULL amounts (zero fraction suppressed, non-zero kept)', async () => {
+    fetchMock.mockResolvedValue([{ ...LABOR, pmoBudgetAmount: 400000.5, actualsToDate: 180000 }]);
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+    const row = screen.getByText('Labor').closest('tr')!;
+    expect(within(row).getByText('$400,000.5')).toBeInTheDocument();
+    expect(within(row).getByText('$180,000')).toBeInTheDocument();
+  });
+
   it('UX-035 an overrun is named an overrun', async () => {
     fetchMock.mockResolvedValue([LABOR]);
     renderPage();
@@ -1253,7 +1263,24 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     const summary = within(screen.getByTestId('forecast-summary'));
     expect(summary.getByText('Recorded spending').nextElementSibling).not.toHaveTextContent('$');
     expect(summary.getByText('Forecast final cost').nextElementSibling).not.toHaveTextContent('$');
-    expect(summary.getByText(/spending unavailable for Travel/i)).toBeVisible();
+    // SUB-D: said ONCE under the strip, not repeated inside each figure.
+    expect(screen.getAllByText(/spending unavailable for Travel/i)).toHaveLength(1);
+    expect(summary.queryByText(/spending unavailable for Travel/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('forecast-incomplete')).toHaveTextContent(/spending unavailable for Travel/i);
+  });
+
+  it('SUB-D the Forecast head carries no standing intro sentence', async () => {
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.queryByText(/Will this project finish within budget/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('forecast-incomplete')).not.toBeInTheDocument();
+  });
+
+  it('SUB-D "Sources and budget enforcement" exists only when there are projection rows', async () => {
+    fetchMock.mockResolvedValue([]);
+    renderPage();
+    await screen.findByText(/No (projection data|fiscal year on record) yet/);
+    expect(screen.queryByText('Sources and budget enforcement')).not.toBeInTheDocument();
   });
 
   it('UX-037 ERP enforcement + document name sit behind a disclosure, not in the way', async () => {

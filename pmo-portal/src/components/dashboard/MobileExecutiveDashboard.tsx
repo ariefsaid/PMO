@@ -25,7 +25,8 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
@@ -92,9 +93,11 @@ const AtRiskBlock: React.FC<{
    *  a different org. */
   currency: string;
 }> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
-  const { t, i18n } = useTranslation('dashboard');
-  const spendText = formatDashboardMoney(totalSpend, currency, i18n.language)
-    ?? t('uxs03.notAvailableYet', 'Not available yet');
+  const { t } = useTranslation('dashboard');
+  const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
+  const spendFigure = moneyFigure(totalSpend, currency, notAvailable);
+  // The link's accessible name carries the exact amount (or the unavailable reason), never the short form.
+  const spendText = spendFigure.unavailableReason ?? spendFigure.exactValue ?? spendFigure.value;
   const isAtRisk = atRisk > 0;
   const isUnknown = !riskCheckable && !isAtRisk;
 
@@ -103,7 +106,7 @@ const AtRiskBlock: React.FC<{
       data-testid="dashboard-at-risk"
       aria-label={isAtRisk
         ? t('dashboard.mobile.atRiskCount', '{{count}} projects at risk', { count: atRisk })
-        : isUnknown ? t('dashboard:risk.unavailable', "Can't be checked yet") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
+        : isUnknown ? t('dashboard:risk.uncheckedNote', "Risk can't be checked yet — no active budget.") : t('dashboard.mobile.atRiskZero', 'All projects on track')}
       className="rounded-lg border border-border bg-card p-4"
     >
       {/* Icon + label row */}
@@ -137,7 +140,7 @@ const AtRiskBlock: React.FC<{
         <span className="text-[12.5px] text-muted-foreground">
           {isAtRisk
             ? t('dashboard.mobile.riskSummary', 'of {{count}} active projects flagged over budget or behind schedule', { count: activeProjects })
-            : isUnknown ? `${t('dashboard:risk.unavailable', "Can't be checked yet")}. ${t('dashboard:risk.noBudgetBasis', 'An active budget and complete actuals are needed to check risk.')}`
+            : isUnknown ? t('dashboard:risk.uncheckedNote', "Risk can't be checked yet — no active budget.")
               : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
         </span>
       </div>
@@ -155,30 +158,14 @@ const AtRiskBlock: React.FC<{
       <div className="mt-3 flex gap-[10px]">
         <Link
           to="/projects?filter=Ongoing"
-          aria-label={t('dashboard.mobile.activeProjectsLink', 'Open active projects · {{count}} projects', { count: activeProjects })}
-          className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-            {t('dashboard.kpi.activeProjects.label', 'Active projects')}
-          </span>
-          <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {activeProjects}
-          </span>
-          <span className="mt-1 block text-[11px] font-semibold text-primary-text">
-            {t('dashboard.mobile.view', 'View')} →
-          </span>
-        </Link>
-
-        <Link
-          to="/projects?filter=Ongoing"
           aria-label={t('dashboard.mobile.spendLink', 'Open spend breakdown · {{amount}} spent to date', { amount: spendText })}
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             {t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
           </span>
-          <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {spendText}
+          <span className="tabular mt-[3px] block min-w-0 break-words text-[17px] font-bold">
+            <FigureContent {...spendFigure} reveal={false} />
           </span>
           {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">
@@ -263,25 +250,28 @@ const ContractBook: React.FC<{
   activeContractValue: number | null;
   activeProjects: number;
 }> = ({ onHandValue, onHandValueByCurrency = [], onHandContractRemaining, realizedMargin, realizedMarginByCurrency = [], realizedMarginLabel, activeContractValue, activeProjects }) => {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const orgCurrency = useOrgCurrency();
-  const money = (value: number | null) => formatDashboardMoney(value, orgCurrency, i18n.language)
-    ?? t('uxs03.notAvailableYet', 'Not available yet');
-  const currencyMoney = (value: number | null, currency: string) =>
-    formatDashboardMoney(value, currency, i18n.language) ?? t('uxs03.notAvailableYet', 'Not available yet');
+  const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
+  // OD-MONEY-FMT: KPI cards show the short form; the exact amount rides in title + sr text.
+  const money = (value: number | null) => shortMoney(value, orgCurrency, notAvailable);
+  const figure = (value: number | null) => moneyFigure(value, orgCurrency, notAvailable);
+  const currencyMoney = (value: number | null, currency: string) => shortMoney(value, currency, notAvailable, { code: currency !== orgCurrency });
   const remainingRows = onHandValueByCurrency
     .filter((row) => row.contract_remaining !== null)
-    .map((row) => `${row.currency} ${currencyMoney(row.contract_remaining, row.currency)}`);
+    .map((row) => currencyMoney(row.contract_remaining, row.currency));
   const marginRows = realizedMarginByCurrency
     .filter((row) => row.known_amount !== null)
-    .map((row) => `${row.currency} ${currencyMoney(row.known_amount, row.currency)}`);
+    .map((row) => currencyMoney(row.known_amount, row.currency));
   const onHandValueDisplay = onHandValueByCurrency.length > 0 ? (
-    <span className="flex flex-col gap-0.5 text-base leading-snug">
+    <span className="flex flex-col gap-1">
       {onHandValueByCurrency.map((row) => (
-        <span key={row.currency}>{row.currency} {currencyMoney(row.contract_value, row.currency)}</span>
+        <span key={row.currency}>
+          <FigureContent {...moneyFigure(row.contract_value, row.currency, notAvailable, { code: row.currency !== orgCurrency })} />
+        </span>
       ))}
     </span>
-  ) : money(onHandValue);
+  ) : null;
   const detail = onHandValueByCurrency.length > 0
     ? [
         remainingRows.length > 0 ? `${t('uxs03.contractRemaining', 'Contract remaining after known Actual')}: ${remainingRows.join(' · ')}` : null,
@@ -303,7 +293,7 @@ const ContractBook: React.FC<{
         tone="green"
         icon="dollar"
         label={t('uxs03.contractedRevenue', 'Contracted revenue')}
-        value={onHandValueDisplay}
+        {...(onHandValueDisplay ? { value: onHandValueDisplay } : figure(onHandValue))}
         vs={detail}
         helpLabel={t('dashboard.kpi.aboutMetric', 'About this metric')}
         help={t('dashboard.kpi.revenueOnHand.help', 'Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received.')}
@@ -319,7 +309,7 @@ const ContractBook: React.FC<{
         tone="amber"
         icon="grid"
         label={t('dashboard.kpi.totalContractValue.label', 'Total contract value')}
-        value={money(activeContractValue)}
+        {...figure(activeContractValue)}
         vs={t('dashboard.kpi.totalContractValue.mobileVs', 'Signed value of the {{count}} projects still in delivery', { count: activeProjects })}
       />
     </div>
@@ -371,10 +361,12 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         />
       </section>
 
-      {/* Section 2: Awaiting approval — primary action band */}
-      <section aria-label={t('dashboard.mobile.approvals', 'Approvals')}>
-        <MobileApprovalsBand count={approvalCount} error={approvalError} />
-      </section>
+      {/* Section 2: Awaiting approval — primary action band, only while something waits (SL-A) */}
+      {(approvalError || approvalCount > 0) && (
+        <section aria-label={t('dashboard.mobile.approvals', 'Approvals')}>
+          <MobileApprovalsBand count={approvalCount} error={approvalError} />
+        </section>
+      )}
 
       {/* Section 3: Contract book — B-MIN-3 grouped money pair */}
       <section aria-label={t('dashboard.mobile.contractBook', 'Contract book')}>

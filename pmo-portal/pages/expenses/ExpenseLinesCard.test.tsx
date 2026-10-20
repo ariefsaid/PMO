@@ -64,10 +64,10 @@ describe('ExpenseLinesCard', () => {
     expect(total.closest('dl')).not.toHaveTextContent('Date');
     vi.unstubAllGlobals();
   });
-  it('labels the fixed actions-column resize handle', () => {
+  it('a fixed-width actions column has no resize handle (min = max is inert, #1239)', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('min-width: 768px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     renderCard(true, [LINE]);
-    expect(screen.getByRole('separator', { name: /Resize Actions column/ })).toBeInTheDocument();
+    expect(screen.queryByRole('separator', { name: /Resize Actions column/ })).not.toBeInTheDocument();
     vi.unstubAllGlobals();
   });
   it('AC-EXP-062 read-only shows lines and no add/edit/remove', () => {

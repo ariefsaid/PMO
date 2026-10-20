@@ -64,8 +64,8 @@ async function checkTabWork(
     await page.goto(`${projectPath}/${tab}`);
     const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
       : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
-      : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Contract drawdown', exact: true })
-      : tab === 'billing' ? panel.getByRole('heading', { name: 'Billing summary', exact: true })
+      : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Work orders', exact: true })
+      : tab === 'billing' ? panel.getByRole('heading', { name: /^Billing summary/ })
       : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
       : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
       : panel.getByText('ENG — Detail Design Package', { exact: true });
@@ -117,7 +117,9 @@ async function runTabWorkCase(
     await aboveFold(page, initialPanel.getByRole('heading', { name: 'Tasks', exact: true }));
     await aboveFold(page, initialPanel.getByText('ENG — Detail Design Package', { exact: true }));
     await expect(page.getByRole('heading', { name: 'Delivery phases', exact: true })).toHaveCount(0);
-    await expect(page.getByTestId('milestone-summary').getByRole('link', { name: 'Overview' })).toBeVisible();
+    // PD-A: the compact phase line states progress only; Overview is one tab click away, not a second link.
+    await expect(page.getByTestId('milestone-summary')).toBeVisible();
+    await expect(page.getByTestId('milestone-summary').getByRole('link', { name: 'Overview' })).toHaveCount(0);
     if (viewport.width === 390) {
       const financialSummary = page.locator('summary').filter({ hasText: 'Financial summary' });
       await financialSummary.focus();

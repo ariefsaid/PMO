@@ -307,6 +307,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     const user = userEvent.setup();
     renderPage();
     await openForm(user);
+    // FIN-S3: the draft review appears once a project is chosen.
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
     await financeTestI18n.changeLanguage('id');
     expect(await screen.findByText('Detail faktur')).toBeInTheDocument();
     expect(screen.getByText('Item faktur')).toBeInTheDocument();
@@ -332,7 +335,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     const itemCode = within(dialog).getByLabelText(/Item code/);
     expect(description.compareDocumentPosition(itemCode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(itemCode).toHaveAccessibleName('Item code');
-    expect(within(dialog).getByText('Optional. Use an item code when your project tracks one.')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Optional. Use an item code/)).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Qty/)).toHaveAttribute('step', '0.001');
 
     await pick(user, 'Customer', 'Acme Energy');
@@ -350,7 +353,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await user.type(within(dialog).getAllByLabelText(/Rate/)[1], '50');
 
     const review = within(dialog).getByRole('region', { name: 'Invoice draft review' });
-    expect(review).toHaveTextContent('Project tax base: 11/12');
+    expect(review).not.toHaveTextContent('Project tax base');
     expect(review).toHaveTextContent('€250.00');
     expect(review).toHaveTextContent('€27.50');
     expect(review).toHaveTextContent('€277.50');
@@ -372,8 +375,22 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const review = screen.getByRole('region', { name: 'Invoice draft review' });
     expect(review).toHaveTextContent('Subtotal');
-    expect(review).toHaveTextContent('Tax and final total are available after the ERP draft is created.');
+    expect(review).not.toHaveTextContent('Tax');
+    expect(review).not.toHaveTextContent('Total');
+    expect(review).not.toHaveTextContent('Tax and final total are available after the ERP draft is created.');
     expect(review).not.toHaveTextContent('$0.00');
+  });
+
+  it('FIN-S3 native form shows no review prompt, and no review block at all, before a project is chosen', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    const dialog = screen.getByRole('dialog', { name: 'New invoice' });
+    expect(within(dialog).queryByText(/Choose a project to review/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: 'Invoice draft review' })).not.toBeInTheDocument();
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, 'Project', 'Alpha Platform');
+    expect(within(dialog).getByRole('region', { name: 'Invoice draft review' })).toBeInTheDocument();
   });
 
   it('AC-S16-003 refuses a native quantity with more precision than the saved line', async () => {

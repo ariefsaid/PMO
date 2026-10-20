@@ -23,7 +23,8 @@ const committedSpendState = { data: 2_350_000 };
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, desktopBox, projectMutations, projectTransition } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox } = vi.hoisted(() => ({
+  budgetVersionsBox: { value: [] as unknown[] },
   roleBox: { value: 'Project Manager' as string },
   desktopBox: { value: true },
   projectMutations: {
@@ -68,7 +69,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // AC-W2-1-FE-01: budget utilization reads from useProjectBudget (derived from Active version
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
-  useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetVersions: () => ({ data: budgetVersionsBox.value, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
@@ -172,6 +173,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     oppState.isError = false;
     oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
+    budgetVersionsBox.value = [];
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
     navigate.mockClear();
@@ -186,16 +188,15 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1');
     const panel = screen.getByRole('tabpanel');
     expect(within(panel).getByTestId('milestone-strip-empty')).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: /Add the first phase/i })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('UIP-005: Tasks keeps compact phase context with an adjacent Overview link, not the full planner', async () => {
+  it('UIP-005 / PD-A: Tasks with no phases shows no phase line at all and not the full planner', async () => {
     await renderAt('/projects/p1/tasks');
     expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
-    const summary = screen.getByTestId('milestone-summary');
-    expect(within(summary).getByText('No delivery phases yet')).toBeInTheDocument();
-    expect(within(summary).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Tasks');
   });
 
@@ -215,6 +216,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
     expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
+    // PD-A: the header status pill is the one status display; the rail has no Status row or help paragraph.
+    expect(within(rail).queryByText('Status')).not.toBeInTheDocument();
+    expect(within(rail).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
@@ -276,20 +280,27 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(rail).getByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
-  it('passes committed PO spend through to the header and Overview budget utilization', async () => {
+  it('passes committed PO spend through to the header and Overview budget use', async () => {
     committedSpendState.data = 2_350_000;
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000, line_items: [] }];
     await renderAt('/projects/p1');
 
     expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
     expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/recorded spending against the active budget/i)).toBeInTheDocument();
-    expect(screen.getByLabelText('Actual spending: 50% of budget')).toBeInTheDocument();
+    // PD-B: budget use lives in the Budget snapshot's Budget position.
+    expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {
-    await renderAt('/projects/p1');
+    const view = await renderAt('/projects/p1');
+    // `navigate` is mocked here, so the click proves the route change and the Procurement route
+    // proves the panel. (PD-B: Overview no longer carries an empty procurement card that used to
+    // satisfy this assertion without the tab ever changing.)
     await userEvent.click(screen.getByRole('tab', { name: 'Procurement' }));
-    expect(await screen.findByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', expect.anything());
+    view.unmount();
+    await renderAt('/projects/p1/procurement');
+    expect(await within(screen.getByRole('tabpanel')).findByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
   });
 
   it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {
@@ -321,9 +332,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     // The deferred "coming soon" placeholder is gone — this is now a real register.
     expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
     expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
-    // PM is a master-data write-role → the gated Add document affordance is present
-    // (header CTA + the empty-state teach action both carry the label).
-    expect(screen.getAllByRole('button', { name: /Add document/i }).length).toBeGreaterThan(0);
+    // PM is a master-data write-role → the gated Add document affordance is present (header CTA only).
+    expect(screen.getAllByRole('button', { name: /Add document/i })).toHaveLength(1);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', async () => {
@@ -345,8 +355,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     // the goal (the Budget section is shown on the deep-link) stays honest; we no
     // longer assert the duplicate heading the change removed.
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    // S-04 / DD-MONEY-4: with no Active version the lead says so — never "$0" as a budget.
-    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+    // SUB-D: with no versions at all the tab says nothing extra — "+ New version" and the empty state remain,
+    // and "$0" is never presented as a budget.
+    expect(await screen.findByText('No budget versions yet')).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', async () => {

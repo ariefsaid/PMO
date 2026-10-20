@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -34,7 +33,6 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
   const { t } = useTranslation();
   const may = usePermission();
   const canEditProject = may('edit', 'project');
-  const canManageIntegrations = may('manage', 'integration');
   const {
     clickupLists,
     isListsPending,
@@ -119,58 +117,60 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
     }
   };
 
+  /**
+   * SUB-F: a linked project is ONE line — "Linked to ClickUp list X · Unlink". The list name, the
+   * link/read failures and a failed unlink stay (they are abnormal and actionable); the card
+   * chrome, the "Linked" pill, the initial-source line and the "transfer not confirmed" paragraph
+   * are gone.
+   */
   const renderLinkStatus = (binding: ProjectBinding) => {
-    const direction = binding.config?.direction;
     const listId = binding.external_container_id;
     const list = clickupLists.find((l) => l.id === listId);
-    const listName = list?.name ?? (isListsPending && !isListsError
+    const saved = isListsPending && !isListsError
       ? t('uxs21.listDetailsLoading', 'Loading list details; saved list ID: {{listId}}', { listId })
-      : t('uxs21.listUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId }));
-    const initialSource = direction === 'push-seed'
-      ? t('uxs21.sourcePmo', 'Start with PMO tasks')
-      : direction === 'pull-adopt'
-        ? t('uxs21.sourceClickUp', 'Start with existing list tasks')
-        : t('uxs21.unknownInitialSource', 'Initial source not recorded');
+      : t('uxs21.listUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId });
 
     return (
-      <div className="space-y-2.5">
-        <div className="flex items-center gap-2">
-          <Icon name="plug" className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Linked to {tierLabel('clickup')}</span>
-          <StatusPill variant="won">Linked</StatusPill>
-        </div>
-        <div className="ml-6 flex flex-col gap-1.5 text-sm text-muted-foreground">
+      <div className="space-y-2" data-tier="clickup">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground">
+          <Icon name="plug" className="size-4 text-muted-foreground" aria-hidden="true" />
           <span>
-            <span className="font-medium text-foreground">{tierLabel('clickup')} List:</span>{' '}
-            {listName}
+            {list
+              ? t('projectTabs:clickup.linkedTo', 'Linked to {{tier}} list {{name}}', { tier: tierLabel('clickup'), name: list.name })
+              : t('projectTabs:clickup.linkedSaved', 'Linked to {{tier}}. {{detail}}', { tier: tierLabel('clickup'), detail: saved })}
           </span>
-          <span>
-            <span className="font-medium text-foreground">{t('uxs21.initialSourceLabel', 'Initial source')}:</span>{' '}
-            {initialSource}
-          </span>
-          <p role="status" className="max-w-[65ch] text-foreground">
-            {t('uxs21.initialTransferPending', 'Project linked. Initial task transfer is not confirmed. Ask your integration administrator to complete the initial transfer.')}
-          </p>
-          {isListsError && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span>{t('uxs21.listReadUnavailable', 'List details could not be refreshed. The saved list link is retained.')}</span>
-              <Button variant="outline" size="sm" onClick={() => refetchLists()}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />
-                {t('uxs21.retryLists', 'Retry list details')}
-              </Button>
-            </div>
-          )}
-          {isBindingsError && (
-            <div className="flex flex-wrap items-center gap-2" role="status">
-              <span>{t('uxs21.bindingReadUnavailable', 'Project link details could not be refreshed. The saved link is retained.')}</span>
-              <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />
-                {t('uxs21.retryBinding', 'Retry project link')}
-              </Button>
-            </div>
-          )}
-        </div>
-
+          <CanWrite entity="project" action="edit">
+            <span aria-hidden="true" className="text-muted-foreground">·</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+              aria-label={`Unlink from ${tierLabel('clickup')}`}
+              onClick={() => handleUnlinkClick(binding.id)}
+              disabled={unlinkProject.isPending}
+            >
+              {t('projectTabs:clickup.unlink', 'Unlink')}
+            </Button>
+          </CanWrite>
+        </p>
+        {isListsError && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>{t('uxs21.listReadUnavailable', 'List details could not be refreshed. The saved list link is retained.')}</span>
+            <Button variant="outline" size="sm" onClick={() => refetchLists()}>
+              <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+              {t('uxs21.retryLists', 'Retry list details')}
+            </Button>
+          </div>
+        )}
+        {isBindingsError && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role="status">
+            <span>{t('uxs21.bindingReadUnavailable', 'Project link details could not be refreshed. The saved link is retained.')}</span>
+            <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
+              <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+              {t('uxs21.retryBinding', 'Retry project link')}
+            </Button>
+          </div>
+        )}
         {unlinkError && (
           <div
             role="alert"
@@ -185,54 +185,18 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
             </div>
           </div>
         )}
-
-        <CanWrite entity="project" action="edit">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => handleUnlinkClick(binding.id)}
-            disabled={unlinkProject.isPending}
-          >
-            <Icon name="x" className="size-3.55" aria-hidden="true" />
-            Unlink from {tierLabel('clickup')}
-          </Button>
-        </CanWrite>
       </div>
     );
   };
 
-  const renderNotLinked = () => {
-    if (!clickupConnected) {
-      return (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            {t('uxs21.clickupNotConnected', 'ClickUp is not connected for this organization.')}
-          </p>
-          {canManageIntegrations ? (
-            <Link
-              to="/administration/integrations"
-              className="inline-flex min-h-8 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-            >
-              {t('uxs21.setupClickUp', 'Set up ClickUp')}
-            </Link>
-          ) : (
-            <span className="text-sm text-muted-foreground">
-              {t('uxs21.askIntegrationAdmin', 'Ask an integration administrator to connect ClickUp.')}
-            </span>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <CanWrite entity="project" action="edit">
-        <Button variant="outline" size="sm" onClick={handleLinkClick} disabled={isListsPending || linkProject.isPending}>
-          <Icon name="plus" className="size-3.55" aria-hidden="true" />
-          Link to {tierLabel('clickup')}
-        </Button>
-      </CanWrite>
-    );
-  };
+  const renderNotLinked = () => (
+    <CanWrite entity="project" action="edit">
+      <Button variant="outline" size="sm" onClick={handleLinkClick} disabled={isListsPending || linkProject.isPending}>
+        <Icon name="plus" className="size-3.55" aria-hidden="true" />
+        Link to {tierLabel('clickup')}
+      </Button>
+    </CanWrite>
+  );
 
   const renderClickUpCard = () => {
     // Error state for lists query — ONLY while the org binding is ACTIVE (issue #449). A
@@ -286,41 +250,27 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string; projectName?
       );
     }
 
+    if (projectClickUpBinding) return renderLinkStatus(projectClickUpBinding);
+
     return (
       <Card key="clickup" className={cardClass} data-tier="clickup">
         <div className="flex items-center gap-2">
           <Icon name="plug" />
           <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
-          <StatusPill
-            variant={projectClickUpBinding ? 'won' : 'neutral'}
-            className={projectClickUpBinding ? '' : 'bg-secondary'}
-          >
-            {projectClickUpBinding ? 'Linked' : clickupConnected ? 'Connected (org)' : 'Not connected'}
-          </StatusPill>
+          <StatusPill variant="neutral" className="bg-secondary">Connected (org)</StatusPill>
         </div>
 
-        {projectClickUpBinding ? (
-          renderLinkStatus(projectClickUpBinding)
-        ) : (
-          renderNotLinked()
-        )}
+        <div className="mt-3">{renderNotLinked()}</div>
 
-        {clickupConnected && !projectClickUpBinding && isListsPending && (
-          <ListState variant="loading" rows={1} />
-        )}
+        {isListsPending && <ListState variant="loading" rows={1} />}
       </Card>
     );
   };
 
-  // Loading state for the whole card. Distinct testId so it doesn't collide with a host page's own
-  // ListState loading skeleton (e.g. the TasksTab task list) when both render at once.
-  if (isBindingsPending) {
-    return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={3} testId="project-integrations-loading" />
-      </div>
-    );
-  }
+  // SUB-F: nothing to show — and no skeleton for a card that may not exist — until ClickUp is
+  // connected for the org or this project is linked. A failed bindings read still shows its alert.
+  if (isBindingsPending) return null;
+  if (!clickupConnected && !projectClickUpBinding && !isBindingsError) return null;
 
   return (
     <div className={compact ? 'mt-5 max-w-3xl' : 'space-y-3.5'} data-testid={compact ? 'project-integrations-compact' : undefined}>

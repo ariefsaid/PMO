@@ -313,10 +313,8 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   await expect(linkDialog).toContainText(/Saving this link does not confirm that the initial task transfer has completed/i);
   await linkDialog.getByRole('button', { name: /Confirm ClickUp link/i }).click();
   await expect(linkDialog).toBeHidden({ timeout: 15_000 });
-  await expect(projClickupCard.getByText(/Linked/i).first()).toBeVisible({ timeout: 15_000 });
-  const initialSourceRow = projClickupCard.getByText(/Initial source:/i).locator('..');
-  await expect(initialSourceRow).toContainText(/Initial source:\s*Start with PMO tasks/i);
-  await expect(projClickupCard.getByText(/Project linked\. Initial task transfer is not confirmed\./)).toBeVisible();
+  // SUB-F: a linked project is one line naming the list; the initial source is a DB-side fact now.
+  await expect(projClickupCard.getByText(new RegExp(`Linked to ClickUp list ${LIST_NAME}`))).toBeVisible({ timeout: 15_000 });
 
   // ===========================================================================
   // WHEN-c: the Admin edits a PMO task status (the push-direction trigger).

@@ -26,7 +26,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
     { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
-    { label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' },
+    // The record page (showFx) already headlines the customer; the approval card still names it.
+    ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
     ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
   ];
@@ -63,7 +64,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             ))}
           </ul>
         </section>
-      ) : (
+      ) : showFx ? null : (
         <p className="text-sm text-muted-foreground">
           {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
         </p>
@@ -91,15 +92,6 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-        {showFx && (
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}</dt>
-            <dd className="tabular">
-              {money(inv.erp_outstanding_amount)}
-              <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />
-            </dd>
-          </div>
-        )}
       </dl>
     </div>
   );

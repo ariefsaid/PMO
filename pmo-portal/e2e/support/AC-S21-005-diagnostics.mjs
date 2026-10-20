@@ -19,8 +19,6 @@ const DOM_BOOLEAN_FIELDS = [
   'listErrorVisible',
   'listDetailsLoadingVisible',
   'savedListIdentityVisible',
-  'initialSourceVisible',
-  'pendingTransferNoticeVisible',
 ];
 
 const MAX_ENDPOINT_EVENTS = 48;

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { PMDashboard } from './PMDashboard';
 import { BahasaProvider } from '@/test/bahasa';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const mine = [
   { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client_name: 'Acme', actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
@@ -48,11 +49,14 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));
 
-const renderPane = (locale: 'en' | 'id' = 'en') => render(
+const renderPane = (locale: 'en' | 'id' = 'en') => {
+  setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
+  return render(
   <BahasaProvider locale={locale}>
     <MemoryRouter><PMDashboard /></MemoryRouter>
   </BahasaProvider>,
-);
+  );
+};
 
 beforeEach(() => {
   projState.data = mine;
@@ -72,7 +76,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
     expect(screen.getByText('Status Proyek')).toBeInTheDocument();
     expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10.600.000,00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10,6 jt');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="US$10.600.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
     expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
@@ -103,17 +108,18 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   it('sums my delivery contract value including Close Out, not the whole org', () => {
     renderPane();
     // The server read model supplies assigned projects only; the display preserves the row currency.
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10,600,000.00');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
   });
   it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
     projState.data = [
       { id: 'p-unknown', name: 'Unbudgeted project', contract_value: null, currency: 'USD', budget: null, spent: null, realized_margin_pct: null, contract_remaining: null, status: 'Ongoing Project', project_manager_id: 'pm-1', actual_complete: false, actual_currency: null, budget_currency: null },
     ];
     renderPane();
-    const tile = screen.getByTestId('kpi-at-risk');
-    expect(tile).toHaveTextContent("Can't be checked yet");
-    expect(tile).toHaveTextContent(/active budget/i);
-    expect(tile).not.toHaveTextContent(/\b0\b|all on track/i);
+    // SL-B: no at-risk tile (no false 0); the one page note says why.
+    expect(screen.queryByTestId('kpi-at-risk')).not.toBeInTheDocument();
+    expect(screen.getAllByText("Risk can't be checked yet — no active budget.")).toHaveLength(1);
+    expect(screen.queryByText(/all on track/i)).not.toBeInTheDocument();
   });
   it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();
@@ -281,7 +287,9 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
     renderPane();
     // Ongoing 4M + Won Pending KoM 2M + On Hold 1M + Close Out 3.6M; Loss Tender + Leads stay excluded.
     expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('4');
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10,600,000.00');
+    // OD-MONEY-FMT: short on the KPI card, the exact sum rides in the figure title.
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
     const spending = screen.getByRole('group', { name: 'Spending vs contract' });
     expect(within(spending).queryByText('My Project C')).toBeNull();
     expect(within(spending).queryByText('My Project E')).toBeNull();
@@ -298,7 +306,7 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
       { ...mine[1], currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR' },
     ];
     renderPane();
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('Not available yet');
+    expect(within(screen.getByTestId('kpi-my-contract-value')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
   });
 });
 

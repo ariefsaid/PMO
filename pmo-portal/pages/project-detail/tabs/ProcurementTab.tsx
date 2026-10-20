@@ -15,7 +15,7 @@ import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
-import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import {
@@ -40,7 +40,6 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const navigate = useNavigate();
   const may = usePermission();
   const statusLabel = useProcurementStatusLabel();
-  const nextStepLabel = useProcurementNextStepLabel();
   const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
   const create = useCreateProcurement();
   const { toast } = useToast();
@@ -78,20 +77,11 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     {
       key: 'status',
       header: t('projectDetail.procurement.column.status', 'Status'),
-      cell: (r) => {
-        const status = r.status as ProcurementStatus;
-        const nextStep = nextStepLabel(status);
-        return (
-          <div className="min-w-0 space-y-1.5">
-            <StatusPill variant={pillVariantForStatus(status)}>{statusLabel(status)}</StatusPill>
-            {nextStep && (
-              <p data-testid="procurement-next-step" className="break-words text-xs text-muted-foreground">
-                {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
-              </p>
-            )}
-          </div>
-        );
-      },
+      cell: (r) => (
+        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
+          {statusLabel(r.status as ProcurementStatus)}
+        </StatusPill>
+      ),
     },
   ];
 
@@ -125,12 +115,6 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
             {t('projectDetail.procurement.title', 'Purchase Requests')}
           </h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t(
-              'projectDetail.procurement.subtitle',
-              'Requests raised against this project, tracked through their lifecycle.',
-            )}
-          </p>
         </div>
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setShowNewModal(true)}>
@@ -155,14 +139,6 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           'uxs19.projectEmptyScope',
           'This list covers PMO requests. ERP-native purchases stay in the ERP.',
         )}
-        emptyAction={
-          canCreate
-            ? {
-                label: t('projectDetail.procurement.newRequest', 'New request'),
-                onClick: () => setShowNewModal(true),
-              }
-            : undefined
-        }
       tableId="project-detail-tabs-procurementtab-table" />
 
       {/* New request modal — pre-selects this project (T13). */}

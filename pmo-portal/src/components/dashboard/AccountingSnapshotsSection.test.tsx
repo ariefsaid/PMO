@@ -182,8 +182,23 @@ describe('AccountingSnapshotsSection — populated state', () => {
     expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
     expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
     expect(within(arCard).getByText(/Posting Date/)).toBeInTheDocument();
-    expect(within(arCard).getByText(/range1: ERP Current/)).toBeInTheDocument();
     expect(within(arCard).getByText(/Accounts Receivable/)).toBeInTheDocument();
+    // SL-F: the per-row ERP range labels are gone (owner 2026-10-20, simpler aging cards).
+    expect(within(arCard).queryByText(/range1: ERP Current/)).not.toBeInTheDocument();
+  });
+
+  it('AC-SL-F-001: report date and ageing basis show once per aging card, not on every party row', () => {
+    const rows: ErpAgingSnapshotRow[] = ['C-1', 'C-2', 'C-3'].map((party) => ({
+      ...arRows[0]!, party, reportDate: '2026-07-11', ageingBasedOn: 'Posting Date',
+    }));
+    render(<AccountingSnapshotsSection {...emptyProps} arAging={rows} />);
+    const arCard = screen.getByText('C-1').closest('.rounded-lg.border') as HTMLElement;
+    expect(within(arCard).getAllByText(/2026-07-11/)).toHaveLength(1);
+    expect(within(arCard).getAllByText(/Posting Date/)).toHaveLength(1);
+    expect(within(arCard).queryByText(/ERP ranges/)).not.toBeInTheDocument();
+    for (const party of ['C-1', 'C-2', 'C-3']) {
+      expect(screen.getByText(party).closest('td, li')).not.toHaveTextContent(/Report date|Ageing basis/);
+    }
   });
 
   it('keeps same-party positions in distinct source currencies without combining the rows', () => {

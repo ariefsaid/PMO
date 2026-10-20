@@ -149,6 +149,8 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
   });
 
   it('AC-1117: the weighted total test id is preserved and sums only the open stages', () => {
+    // Single-currency open pipeline (the shared fixture's IDR deal would make it a mixed one).
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD' && p.id !== 'usd1') };
     renderPage();
     // 200000 + 600000 = 800000
     expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
@@ -185,7 +187,6 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
       const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
       expect(params.get('scope')).toBe('Lost');
       expect(params.get('status')).toBeNull();
-      expect(params.get('view')).toBe('table');
       expect(screen.getByText('Lost Deal Delta')).toBeInTheDocument();
     });
     expect(screen.getByText('Declined Deal Echo')).toBeInTheDocument();
@@ -221,10 +222,11 @@ describe('SalesPipeline states (AC-SP-203)', () => {
 });
 
 describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', () => {
-  it('AC-SP-204: defaults to the Kanban view with the Tender stage column + its weighted total', () => {
+  it('AC-SP-204: defaults to the Kanban view with the Tender stage column and its card count', () => {
     renderPage();
     const tender = screen.getByTestId('stage-Tender Submitted');
-    expect(within(tender).getAllByText((t) => t.includes(formatCurrency(600000, 'USD'))).length).toBeGreaterThan(0);
+    expect(within(tender).getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(within(tender).getByText('3')).toBeInTheDocument();
   });
 
   it('AC-SP-206: the view toggle is a tablist with Board selected by default', () => {
@@ -586,5 +588,187 @@ describe('#830 location filter debounce', () => {
       expect(probeSearch()).not.toContain('location=');
       expect((screen.getByLabelText('Filter by location') as HTMLInputElement).value).toBe('');
     } finally { vi.useRealTimers(); }
+  });
+});
+
+// SUB-H (owner 2026-10-20 simplification): fewer elements on the Sales pipeline, same facts.
+describe('SalesPipeline subtraction (SUB-H)', () => {
+  const taxed = (p: (typeof seedProjects)[number]) => ({
+    ...p, tax_treatment: 'exclusive', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
+  });
+
+  it('SUB-H deletes the page description that restates the title', () => {
+    renderPage();
+    expect(screen.queryByText('Track projects in the sales pipeline and forecast revenue.')).toBeNull();
+  });
+
+  it('SUB-H shows the Classification disclosure only when a row carries a tag or a filter is active', () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Classification/ })).toBeNull();
+  });
+
+  it('SUB-H shows the Classification disclosure when some row has a tag', () => {
+    pipelineState.data = { stages: seedStages, projects: seedProjects.map((p, i) => ({ ...p, sector: i === 0 ? 'Energy' : null })) } as never;
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Classification/ })).toBeInTheDocument();
+  });
+
+  it('SUB-H shows the Classification disclosure when a filter is active even if no row has a tag', () => {
+    renderPage('/sales?sector=Energy');
+    expect(screen.getByRole('button', { name: /^Classification/ })).toBeInTheDocument();
+  });
+
+  it('SUB-H open board columns show the count only, and cards carry no weighted figure', () => {
+    renderPage();
+    const tender = screen.getByTestId('stage-Tender Submitted');
+    expect(within(tender).queryByText(/wtd/)).toBeNull();
+    expect(within(tender).getByText('3')).toBeInTheDocument();
+  });
+
+  it('SUB-H board cards carry no PMO number / client code lines (the table keeps them)', () => {
+    renderPage();
+    const tender = screen.getByTestId('stage-Tender Submitted');
+    expect(within(tender).queryByText(/PMO-26-7712/)).toBeNull();
+    expect(within(tender).queryByText(/CLIENT-82/)).toBeNull();
+  });
+
+  it('SUB-H table name cell is one mono line "PMO number · client code" with the labels in its title', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
+    const ids = within(row as HTMLElement).getByText('PMO-26-7712 · CLIENT-82');
+    expect(ids).toHaveClass('font-mono');
+    expect(ids).toHaveAttribute('title', 'PMO Project Number: PMO-26-7712 · Client Project Code: CLIENT-82');
+    expect(within(row as HTMLElement).queryByText(/PMO Project Number:/)).toBeNull();
+  });
+
+  it('SUB-H folds the End customer column into a "for X" second line (export keeps the column)', async () => {
+    pipelineState.data = { stages: seedStages, projects: seedProjects.map((p) => p.id === 'p2' ? { ...p, end_client_name: 'Contoso' } : p) } as never;
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.queryByRole('columnheader', { name: /End customer/i })).toBeNull();
+    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
+    expect(within(row as HTMLElement).getByText('for Contoso')).toBeInTheDocument();
+    const other = screen.getByText('Regional Services').closest('tr')!;
+    expect(within(other as HTMLElement).queryByText(/^for /)).toBeNull();
+  });
+
+  it('SUB-H table value shows the PPN basis without the rate or DPP', async () => {
+    pipelineState.data = { stages: seedStages, projects: seedProjects.map(taxed) } as never;
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
+    const r = within(row as HTMLElement);
+    expect(r.getByText(/excl\. PPN/i)).toBeInTheDocument();
+    expect(r.queryByText(/11%/)).toBeNull();
+  });
+
+  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, win % beside the value', () => {
+    viewport.isDesktop = false;
+    renderPage('/sales?view=kanban');
+    expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Export/i })).toBeNull();
+    const list = screen.getByTestId('sales-phone-stage-list');
+    expect(within(list).queryByText('Financial and project details')).toBeNull();
+    const card = within(list).getByText('Northwind ERP Rollout').closest('li')!;
+    expect(within(card as HTMLElement).getByText('50%')).toBeVisible();
+  });
+
+  it('SUB-H phone: a table-view URL still shows the card list (no toggle to get stuck behind)', () => {
+    viewport.isDesktop = false;
+    renderPage('/sales?view=table');
+    expect(screen.getByTestId('sales-phone-stage-list')).toBeInTheDocument();
+  });
+
+  it('SUB-H phone: the Lost scope lists lost deals as cards, still with no view toggle', async () => {
+    lostState.data = [{ id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700000, currency: 'USD', win_probability: 0 }];
+    viewport.isDesktop = false;
+    renderPage('/sales?view=kanban');
+    await userEvent.click(screen.getByRole('tab', { name: /Lost/ }));
+    expect(await screen.findByText('Lost Deal Delta')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
+  });
+});
+
+describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
+  const stageCell = (name: string) => {
+    const funnel = screen.getByLabelText('Pipeline summary');
+    return within(funnel).getByText(name, { exact: true }).closest('[data-funnel-stage]') as HTMLElement;
+  };
+
+  it('AC-RD-SALES-002 a stage holding two currencies shows "—" with the reason, never a sum', () => {
+    renderPage(); // Tender holds USD + IDR deals
+    const tender = stageCell('Tender');
+    const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    expect(amount).toHaveTextContent('—');
+    expect(amount.textContent).not.toContain('1,200,000');
+    expect(within(amount).getByText('Mixed currencies, so no single total')).toHaveClass('sr-only');
+    expect(amount.querySelector('[title="Mixed currencies, so no single total"]')).not.toBeNull();
+  });
+
+  it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
+    renderPage();
+    const preQual = stageCell('Pre-Qual');
+    expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
+  });
+
+  it('AC-RD-SALES-002 the weighted forecast total is "—" while the open pipeline mixes currencies', () => {
+    renderPage();
+    const total = screen.getByTestId('pipeline-weighted-total');
+    expect(total).toHaveTextContent('—');
+    expect(total.textContent).not.toMatch(/\d/);
+  });
+
+  it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: seedProjects.filter((p) => p.id === 'idr1').map((p) => ({ ...p, status: 'PQ Submitted' })),
+    };
+    renderPage();
+    const amount = stageCell('Pre-Qual').querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    expect(amount.textContent).toContain('IDR');
+    expect(amount.textContent).not.toContain('$');
+  });
+
+  it('AC-RD-SALES-001 the table Stage column uses the board titles (Pre-Qual, not "PQ Submitted")', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
+    expect(within(row).getByText('Pre-Qual')).toBeInTheDocument();
+    expect(within(row).queryByText('PQ Submitted')).toBeNull();
+    const tenderRow = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
+    expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
+  });
+
+  it('AC-RD-SALES-001 funnel bars are neutral except the selected stage', () => {
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage('/sales?status=Tender%20Submitted');
+    const funnel = screen.getByLabelText('Pipeline summary');
+    const fills = Array.from(funnel.querySelectorAll('[data-funnel-stage-bar]')).map((b) => (b.firstElementChild as HTMLElement).style.background);
+    expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
+  });
+});
+
+describe('SalesPipeline table on the shared contract (T4)', () => {
+  it('T4 the project column is the primary cell: name wraps to two lines with the full name in its title', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const name = screen.getByText('Northwind ERP Rollout');
+    expect(name.closest('.line-clamp-2')).toHaveAttribute('title', 'Northwind ERP Rollout');
+    expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
+  });
+
+  it('T4 a deal with no numbers or codes has no empty second line', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
+    expect(row.querySelector('.font-mono')).toBeNull();
+  });
+
+  it('T4 amounts are full figures, never compacted', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const row = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
+    expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
   });
 });

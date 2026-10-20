@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -172,11 +172,12 @@ describe('AC-W6-IXD-BUDHEAD: Budget tab double-header removed', () => {
     expect(screen.getByRole('button', { name: /\+ New version/i })).toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading and says there is no active budget', () => {
+  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading; SUB-D: the empty state says it once (no head text)', () => {
     versionsState.data = [];
     renderPage();
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No active budget/i)).not.toBeInTheDocument();
+    expect(screen.getByText('No budget versions yet')).toBeInTheDocument();
   });
 
   it('UX-033: the Active amount is announced ONCE when the Active version is open', () => {
@@ -186,7 +187,7 @@ describe('AC-W6-IXD-BUDHEAD: Budget tab double-header removed', () => {
     // one amount in the header; no "Active budget:" lead, no pill/amount repeated in the selector bar
     expect(screen.getByTestId('derived-budget')).toHaveTextContent('$4,700,000');
     expect(screen.queryByText(/Active budget:/i)).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('version-selector')).queryByText('$4,700,000')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('version-selector')).not.toBeInTheDocument(); // SUB-D: one version, no switcher
     expect(container.querySelectorAll('[data-testid="version-status-active"]')).toHaveLength(1);
   });
 

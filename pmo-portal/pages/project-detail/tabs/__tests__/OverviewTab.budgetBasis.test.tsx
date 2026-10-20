@@ -17,7 +17,8 @@ import React from 'react';
 // ---------------------------------------------------------------------------
 const { projectBudgetState, budgetVersionsState, procurementsState, projectFinancesState } = vi.hoisted(() => ({
   projectBudgetState: { data: 100000 as number | undefined, isPending: false, isError: false },
-  budgetVersionsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  // PD-B: budget use + At risk render in the Budget snapshot, which needs an Active version.
+  budgetVersionsState: { data: [{ id: 'bv1', status: 'Active', total: 100000, line_items: [] }] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   procurementsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   projectFinancesState: { data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '95000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] } }, isPending: false, isError: false },
 }));
@@ -31,6 +32,7 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => projectFinancesState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
@@ -92,7 +94,7 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
     projectBudgetState.isError = false;
   });
 
-  it('shows derived budget (100,000) not stored column (0) in Budget utilization card', () => {
+  it('shows budget use against the derived budget (100,000), not the stored column (0)', () => {
     render(
       <OverviewTab
         project={makeProject()}
@@ -102,8 +104,8 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
       />,
     );
 
-    // The utilization text compares Actual with the DERIVED budget, not stored 0.
-    expect(screen.getByText(/\$100,000/)).toBeInTheDocument();
+    // Budget use compares Actual with the DERIVED budget (95k / 100k), not stored 0.
+    expect(screen.getByTestId('budget-used')).toHaveTextContent('95% of budget');
     expect(screen.queryByText(/of \$0 budget/i)).not.toBeInTheDocument();
   });
 

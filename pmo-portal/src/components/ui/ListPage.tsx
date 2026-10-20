@@ -40,6 +40,8 @@ export interface ListPageProps {
    * Projects is the only adopter.
    */
   mobileToolbar?: React.ReactNode;
+  /** Page-specific desktop toolbar layout refinements. */
+  desktopToolbarClassName?: string;
 
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
@@ -73,6 +75,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   importAction,
   view,
   mobileToolbar,
+  desktopToolbarClassName,
   banner,
   children,
   className,
@@ -124,7 +127,7 @@ export const ListPage: React.FC<ListPageProps> = ({
             {mobileToolbar}
           </Toolbar>
         ) : (
-          <Toolbar standalone data-testid="list-page-toolbar">
+          <Toolbar standalone data-testid="list-page-toolbar" className={desktopToolbarClassName}>
             {filters}
             {search}
             {secondaryFilter}

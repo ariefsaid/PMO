@@ -102,9 +102,9 @@ describe('ExecutiveDashboard — AC-IFW-DASH-02: at-risk indicator links to /pro
     expect(atRiskLink).toHaveTextContent('2');
   });
 
-  it('AC-IFW-DASH-02: the at-risk link is NOT nested inside the Active-projects tile link (no nested interactives)', () => {
+  it('AC-IFW-DASH-02: the at-risk link is NOT nested inside the active-projects (contract value) tile link (no nested interactives)', () => {
     renderPage();
-    const activeProjectsTile = screen.getByTestId('kpi-active-projects');
+    const activeProjectsTile = screen.getByTestId('kpi-total-contract-value');
     const atRiskLink = screen.getByRole('link', { name: /at.risk/i });
     // The at-risk link must NOT be a descendant of the Active-projects tile link element
     const tileLink = activeProjectsTile.querySelector('a');

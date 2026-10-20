@@ -19,7 +19,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
-const { bindingMock } = vi.hoisted(() => ({ bindingMock: vi.fn() }));
+const { bindingMock, versionsMock } = vi.hoisted(() => ({ bindingMock: vi.fn(), versionsMock: vi.fn() }));
+
+vi.mock('@/src/hooks/useBudget', () => ({
+  useBudgetVersions: versionsMock,
+}));
 
 vi.mock('@/src/hooks/useErpnextBinding', () => ({
   useErpnextBinding: bindingMock,
@@ -46,8 +50,14 @@ const binding = (status: 'active' | 'disconnected') => ({
   config: {},
 });
 
+const withVersions = (...statuses: string[]) => ({
+  data: statuses.map((status, i) => ({ id: `v${i}`, status })),
+  isSuccess: true,
+});
+
 beforeEach(() => {
   bindingMock.mockReset();
+  versionsMock.mockReset().mockReturnValue(withVersions('Active'));
 });
 
 describe('BudgetTab mounts the ERP projection only where it can mean something', () => {
@@ -79,7 +89,20 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     // PMO's own budget is never gated — it is PMO-SoT and has nothing to do with any external system.
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel'), 'no permanently-empty ERP panel').not.toBeInTheDocument();
-    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
+    // SUB-D: no standing "Forecast appears once…" box either — an absent panel needs no explanation.
+    expect(screen.queryByText(/Forecast appears once/)).not.toBeInTheDocument();
+  });
+
+  it('SUB-D the projection mounts only with an ACTIVE budget version — no active version, no panel', async () => {
+    bindingMock.mockReturnValue({ data: binding('active'), isSuccess: true });
+
+    for (const statuses of [[], ['Draft'], ['Draft', 'Archived']]) {
+      versionsMock.mockReturnValue(withVersions(...statuses));
+      const { unmount } = render(<BudgetTab projectId="proj-1" />);
+      expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
+      expect(screen.queryByTestId('erp-projection-panel'), statuses.join(',') || 'no versions').not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('LOW-2 a DISCONNECTED erpnext binding is not an active employ — the panel stays unmounted', async () => {
@@ -89,7 +112,8 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
 
     expect(await screen.findByTestId('pmo-budget-grid')).toBeInTheDocument();
     expect(screen.queryByTestId('erp-projection-panel')).not.toBeInTheDocument();
-    expect(screen.getByText('Forecast appears once your accounting ledger is connected.')).toBeInTheDocument();
+    // SUB-D: no standing "Forecast appears once…" box either — an absent panel needs no explanation.
+    expect(screen.queryByText(/Forecast appears once/)).not.toBeInTheDocument();
   });
 
   it('LOW-2 while the binding is still unknown the panel stays unmounted — never a flash of an empty ERP panel', async () => {

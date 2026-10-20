@@ -117,7 +117,7 @@ describe('SalesInvoices e-Faktur details', () => {
     expect(cellOf('SI-two', 'e-Faktur').textContent?.trim()).toBe('—');
   });
 
-  it('AC-EFK-004 offers Record e-Faktur to Finance/Admin across Draft, Submitted, and Paid but not PM/Executive', async () => {
+  it('AC-EFK-004 FIN-S3 offers Record e-Faktur to Finance/Admin on issued invoices only (not Draft), never PM/Executive', async () => {
     h.invoices = [invoice('draft', 'Draft', null, null), invoice('issued', 'Submitted', null, null), invoice('paid', 'Paid', null, null)];
     for (const role of ['Finance', 'Admin'] as const) {
       const { unmount } = renderAs(role);
@@ -125,7 +125,8 @@ describe('SalesInvoices e-Faktur details', () => {
         const row = screen.getByText(`SI-${id}`).closest('tr');
         if (!row) throw new Error(`no table row for SI-${id}`);
         fireEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
-        expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
+        if (id === 'draft') expect(screen.queryByRole('menuitem', { name: 'Record e-Faktur' })).not.toBeInTheDocument();
+        else expect(screen.getByRole('menuitem', { name: 'Record e-Faktur' })).toBeInTheDocument();
         fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
       }
@@ -159,19 +160,19 @@ describe('SalesInvoices e-Faktur details', () => {
         options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.issued],
       },
       {
-        row: { ...invoice('resolved', 'Draft', null, null), si_number: null, project_id: 'project-1' },
+        row: { ...invoice('resolved', 'Unpaid', null, null), si_number: null, project_id: 'project-1' },
         options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.draft, copy.project, copy.customerResolved],
       },
       {
-        row: { ...invoice('pending-project', 'Draft', null, null), si_number: null, project_id: 'project-pending' },
+        row: { ...invoice('pending-project', 'Unpaid', null, null), si_number: null, project_id: 'project-pending' },
         options: [], pending: true, error: false, expected: [copy.draft, copy.pending],
       },
       {
-        row: { ...invoice('missing-project', 'Draft', null, null), si_number: null, project_id: 'project-missing', customer_name: 'Acme customer' },
+        row: { ...invoice('missing-project', 'Unpaid', null, null), si_number: null, project_id: 'project-missing', customer_name: 'Acme customer' },
         options: [], pending: false, error: false, expected: [copy.draft, copy.unavailable, copy.customer],
       },
       {
-        row: { ...invoice('no-context', 'Draft', null, null), si_number: null, project_id: null, customer_name: null },
+        row: { ...invoice('no-context', 'Unpaid', null, null), si_number: null, project_id: null, customer_name: null },
         options: [], pending: false, error: false, expected: [copy.draft, copy.notRecorded, copy.customerMissing],
       },
     ];
@@ -188,7 +189,7 @@ describe('SalesInvoices e-Faktur details', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: financeTestI18n.t('efaktur.record') }));
       const dialog = screen.getByRole('dialog');
       for (const text of scenario.expected) expect(dialog).toHaveTextContent(text);
-      expect(dialog).toHaveTextContent(copy.instruction);
+      expect(dialog).not.toHaveTextContent(copy.instruction);
       expect(dialog).not.toHaveTextContent(scenario.row.id);
       rendered.unmount();
     }

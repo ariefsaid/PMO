@@ -123,12 +123,10 @@ describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', (
 });
 
 describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
-  it('renders an approvals tile linking to /approvals (Finance has no timesheet approval)', () => {
+  it('AC-SL-A-001: no approvals tile when nothing awaits Finance (fixture has no Requested rows)', () => {
     renderPane();
-    const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
-    // procurements fixture has NO Requested rows → 0 awaiting (Finance can approve but none pending)
-    expect(tile).toHaveTextContent('0');
+    expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review')).not.toBeInTheDocument();
   });
 });
 
@@ -158,12 +156,14 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4,000,000.00');
+    // OD-MONEY-FMT: short figure on the card, exact amount in title + sr text.
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4M');
+    expect(screen.getByTestId('kpi-spend').querySelector('[title="$4,000,000"]')).not.toBeNull();
   });
   it('does not treat a missing vendor invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
     renderPane();
-    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Not available yet');
+    expect(within(screen.getByTestId('kpi-outstanding')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
     expect(screen.getByTestId('kpi-outstanding')).not.toHaveTextContent('$150,000');
   });
   it('AC-RD-FIN-003: localizes finance money labels and names vendor balances as payables in Bahasa', () => {
@@ -182,9 +182,10 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('shows billed-work margin separately from contract remaining', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1,500,000.00');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1.5M');
+    expect(screen.getByTestId('kpi-margin').querySelector('[title="$1,500,000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Margin to date');
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4,500,000.00');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4.5M');
   });
   it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();

@@ -191,18 +191,19 @@ describe('ProjectSCurve', () => {
     expect(screen.getByText('Actual to date')).toBeInTheDocument();
   });
 
-  it('AC-SC-006: ready with no dated milestones shows the empty state, not a chart', () => {
+  it('AC-SC-006 / PD-B: ready with no dated milestones renders nothing — no chart, no empty card', () => {
     milestoneState.data = undated;
-    render$();
+    const { container } = render$();
 
-    expect(screen.getByText('No dated phases yet')).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('No dated phases yet')).not.toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
-  it('AC-SC-007: pending read shows the loading skeleton', () => {
+  it('AC-SC-007 / PD-B: a pending read renders nothing rather than a skeleton that may vanish', () => {
     milestoneState.isPending = true;
-    render$();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    const { container } = render$();
+    expect(container).toBeEmptyDOMElement();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
@@ -296,16 +297,24 @@ describe('ProjectSCurve', () => {
     expect(solidLine!.dataKey).toBe('actual');
   });
 
-  it('AC-SCA-013: with at least one actual data point, renders the backfill caveat text', () => {
-    // AC-SCA-013: When ProjectSCurve renders with at least one actual data point,
-    // Then the DOM contains "Completion dates before today are estimated".
+  it('AC-SCA-013 / PD-B: the backfill caveat appears only when a completion date is estimated', () => {
+    // Real completion stamps → nothing is estimated, so no caveat.
     milestoneState.data = datedTaskTracked;
     taskState.data = [
       makeTask({ id: 't1', milestone_id: 'ms1', status: 'Done', completed_at: '2026-01-15T10:00:00Z' }),
       makeTask({ id: 't2', milestone_id: 'ms1', status: 'Done', completed_at: '2026-02-20T10:00:00Z' }),
     ];
-    render$();
+    const view = render$();
+    expect(screen.getByRole('img')).toBeInTheDocument();
+    expect(screen.queryByText(/Completion dates before today are estimated/i)).not.toBeInTheDocument();
+    view.unmount();
 
+    // A Done task without a stamp is placed at its scheduled end date (a proxy) → caveat.
+    taskState.data = [
+      makeTask({ id: 't1', milestone_id: 'ms1', status: 'Done', completed_at: '2026-01-15T10:00:00Z' }),
+      makeTask({ id: 't2', milestone_id: 'ms1', status: 'Done', completed_at: null, end_date: '2026-02-20' }),
+    ];
+    render$();
     expect(screen.getByText(/Completion dates before today are estimated/i)).toBeInTheDocument();
   });
 });

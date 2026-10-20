@@ -10,7 +10,7 @@ const get = (obj: Record<string, unknown>, path: string): unknown =>
 const KEYS = [
   'shell.nav.managementPack',
   'managementPack.title', 'managementPack.description', 'managementPack.from', 'managementPack.asAt',
-  'managementPack.exportCsv', 'managementPack.exportXlsx', 'managementPack.noAccessTitle', 'managementPack.noAccessSub',
+  'managementPack.noAccessTitle', 'managementPack.noAccessSub',
   'managementPack.errorTitle', 'managementPack.errorSub', 'managementPack.invalidRange', 'managementPack.emptyTitle',
   'managementPack.emptySub', 'managementPack.projectsAsAt', 'managementPack.monthlyTotals', 'managementPack.unassigned',
   'managementPack.otherCurrency', 'managementPack.recordProgress', 'managementPack.billedAhead', 'managementPack.undated',

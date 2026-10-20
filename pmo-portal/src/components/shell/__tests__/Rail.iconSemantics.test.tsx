@@ -21,7 +21,7 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
     renderRail();
     const rail = screen.getByRole('complementary');
     const expected = [
-      ['Dashboard', 'dashboard'], ['My integrations', 'plug'], ['Projects', 'projects'],
+      ['Dashboard', 'dashboard'], ['Projects', 'projects'],
       ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'cal'],
       ['Incidents', 'alert'], ['Sales Invoices', 'invoices'], ['Incoming Payments', 'payments'],
       ['Revenue by Project', 'table'], ['Management pack', 'reports'], ['Timesheets', 'clock'],

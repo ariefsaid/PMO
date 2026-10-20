@@ -137,7 +137,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
-          {formatRelativeTime(ev.createdAt)} · {absolute}
+          {formatRelativeTime(ev.createdAt)}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
@@ -249,13 +249,23 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     }
     return ids;
   }, [events]);
+  // SUB-G: kind chips only earn their place when the loaded events span two kinds, or a filter is on
+  // (a filtered list is one kind by construction, and the chips are the way back to "All").
+  const kindsPresent = useMemo(() => {
+    const present = new Set<string>();
+    for (const event of events) {
+      present.add(KIND_FILTERS.find((k) => k.types?.includes(event.entityType))?.key ?? event.entityType);
+    }
+    return present.size;
+  }, [events]);
+  const showKindChips = kindFilters && (kind !== 'all' || kindsPresent >= 2);
   const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 
   return (
     <div className="min-w-0" data-testid="record-history">
-      {kindFilters && (
+      {showKindChips && (
         <div role="group" aria-label={t('history.filterLabel', 'Filter by record kind')} className="mb-3 flex flex-wrap gap-1.5">
           {KIND_FILTERS.map((k) => (
             <button

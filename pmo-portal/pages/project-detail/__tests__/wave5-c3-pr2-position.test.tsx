@@ -268,8 +268,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     const tabpanel = container.querySelector('[role="tabpanel"]');
     expect(tabpanel).not.toBeNull();
 
-    // The explicit contract-after-cost measure belongs to the finance StatTiles strip.
-    const marginLabels = screen.getAllByText('Contract remaining after cost');
+    // The Actual figure belongs to the finance StatTiles strip (the optional measures need data).
+    const marginLabels = screen.getAllByText('Actual');
     for (const el of marginLabels) {
       expect(tabpanel!.contains(el)).toBe(true);
     }
@@ -280,10 +280,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
       expect(tabpanel!.contains(el)).toBe(true);
     }
 
-    // The SoD row must also be inside the tabpanel.
-    const sodRow = container.querySelector('[data-testid="contract-value-sod"]');
-    expect(sodRow).not.toBeNull();
-    expect(tabpanel!.contains(sodRow!)).toBe(true);
+    // PD-A: the Engineer's read-only contract row/paragraph is gone — the Contract tile states it once.
+    expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
   });
 
   it('AC-IXD-PROJ-W5-C3-D15-POS-04: Engineer — the tablist comes BEFORE the tabpanel in DOM order', async () => {
@@ -345,8 +343,8 @@ describe('AC-IXD-PROJ-W5-C3 D15: rendered DOM position in full ProjectDetail pag
     expect(tablist).not.toBeNull();
 
     // For PM the StatTile labels come from the header, which renders BEFORE the tabs.
-    // At least one contract-after-cost label must precede the tablist.
-    const marginLabels = screen.getAllByText('Contract remaining after cost');
+    // At least one Actual label must precede the tablist.
+    const marginLabels = screen.getAllByText('Actual');
     const anyPrecedesTablist = marginLabels.some((el) => {
       const position = tablist!.compareDocumentPosition(el);
       return Boolean(position & Node.DOCUMENT_POSITION_PRECEDING);

@@ -226,7 +226,7 @@ describe('AC-FX-012 sales invoice equivalents', () => {
     const nullMoney = within(table).getByText('SI-NULL').closest('tr') as HTMLElement;
     expect(idr).not.toHaveTextContent('JISDOR');
     expect(eur).not.toHaveTextContent('≈ Rp');
-    expect(eur).toHaveTextContent(/USD contracts in IDR organizations only/);
+    expect(eur).not.toHaveTextContent(/JISDOR/); // FIN-S4: an unsupported pair is silent
     expect(nullMoney).not.toHaveTextContent('≈ Rp');
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-12', true]);
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
@@ -235,16 +235,17 @@ describe('AC-FX-012 sales invoice equivalents', () => {
 
   it('AC-S05-M2 exports invoice rows in the same active overdue sort order as the table', () => {
     h.invoices.data = [
-      invoice({ id: 'recent', si_number: 'SI-RECENT', invoice_date: '2026-10-10', status: 'Unpaid', erp_outstanding_amount: 1 }),
+      invoice({ id: 'recent', si_number: 'SI-RECENT', invoice_date: '2024-01-01', erp_due_date: '2024-01-02', status: 'Unpaid', erp_outstanding_amount: 1 }),
       invoice({ id: 'oldest', si_number: 'SI-OLDEST', invoice_date: '2020-01-01', erp_due_date: '2020-01-02', status: 'Unpaid', erp_outstanding_amount: 1 }),
       invoice({ id: 'paid', si_number: 'SI-PAID', invoice_date: '2019-01-01', erp_due_date: '2019-01-02', status: 'Paid', erp_outstanding_amount: 0 }),
     ];
-    renderAt('/sales-invoices?sort=oldest-overdue');
-    expect(h.exportRows.map((row) => row.id)).toEqual(['oldest', 'recent', 'paid']);
+    // FIN-S1: "Overdue only" is the oldest-overdue-first view; the paid invoice is filtered out.
+    renderAt('/sales-invoices?overdue=true');
+    expect(h.exportRows.map((row) => row.id)).toEqual(['oldest', 'recent']);
     const visibleRows = screen.getAllByRole('row').slice(1).map((row) => row.textContent);
+    expect(visibleRows).toHaveLength(2);
     expect(visibleRows[0]).toContain('SI-OLDEST');
     expect(visibleRows[1]).toContain('SI-RECENT');
-    expect(visibleRows[2]).toContain('SI-PAID');
   });
 
   it('keeps export columns on original invoice values and shows date-based equivalents on the routable detail preview', () => {

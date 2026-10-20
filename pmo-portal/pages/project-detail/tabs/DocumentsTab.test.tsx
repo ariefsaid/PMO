@@ -147,19 +147,12 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getByText('Steel Spec')).toBeInTheDocument();
   });
 
-  // Polish #6 — the toolbar gains a left-aligned "N documents" count (matching the
-  // Admin Users toolbar pattern) so the previously-empty left side reads as anchored.
-  it('polish#6: the toolbar shows a left-aligned document count (6 documents)', () => {
+  // SUB-E: the "N documents" count restated what the table already shows — removed.
+  it('SUB-E: the toolbar shows search but no "N documents" count', () => {
     renderTab();
-    const count = screen.getByTestId('documents-count');
-    expect(count).toBeInTheDocument();
-    expect(count).toHaveTextContent(/^6 documents$/);
-  });
-
-  it('polish#6: the count uses the singular noun for a single document', () => {
-    listState.data = [seed[0]];
-    renderTab();
-    expect(screen.getByTestId('documents-count')).toHaveTextContent(/^1 document$/);
+    expect(screen.getByLabelText(/Search documents/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('documents-count')).toBeNull();
+    expect(screen.queryByText(/^\d+ documents?$/)).toBeNull();
   });
 });
 
@@ -178,20 +171,19 @@ describe('DocumentsTab — states', () => {
     expect(listState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-DOC-001: empty state teaches with a gated Add document action', () => {
+  it('AC-DOC-001 (SUB-E): empty state shows the header Add document action once, not a second one', () => {
     listState.data = [];
     renderTab('Admin');
     expect(screen.getByText(/No documents yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add document/i })).toHaveLength(1);
   });
 });
 
 describe('DocumentsTab — file upload integration copy (AC-DOC-085)', () => {
-  it('AC-DOC-085: subtitle teaches upload-on-draft behavior and keeps fake attach buttons absent', () => {
+  it('AC-DOC-085 (SUB-E): the restating subtitle is gone and fake attach buttons stay absent', () => {
     renderTab('Admin');
     expect(screen.queryByRole('button', { name: /Attach file/i })).toBeNull();
-    expect(
-      screen.getByText(/Drawings, specifications, and transmittals for this project\. Upload files on Draft rows\./i),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Drawings, specifications, and transmittals for this project/i)).toBeNull();
   });
 });
 
@@ -390,20 +382,34 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(drawer).getByText('Rev B')).toBeInTheDocument();
   });
 
-  it('AC-DOC-050: New revision is visible on Issued/Approved rows only', () => {
+  it('AC-DOC-050 (SUB-E): New revision is a row-menu item on Issued/Approved rows only — never a column of buttons', async () => {
     renderTab('Admin', 'admin-1');
-    expect(within(screen.getByText('Steel Spec').closest('tr')!).getByRole('button', { name: /Create new revision for Steel Spec/i })).toBeInTheDocument();
-    expect(within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Create new revision for Survey Report/i })).toBeInTheDocument();
-    expect(within(screen.getByText('Site Plan').closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
-    expect(within(screen.getByText('Cover Note').closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
-    expect(within(screen.getAllByText('Structural calculation report')[0].closest('tr')!).queryByRole('button', { name: /Create new revision/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create new revision/i })).toBeNull();
+    const menuOf = async (title: string, index = 0) => {
+      await userEvent.click(within(screen.getAllByText(title)[index].closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    };
+    await menuOf('Steel Spec');
+    expect(screen.getByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await menuOf('Survey Report');
+    expect(screen.getByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await menuOf('Site Plan');
+    expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await menuOf('Cover Note');
+    expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await menuOf('Structural calculation report');
+    expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
   });
 
   it('AC-DOC-050 C1: New revision persists edited modal fields instead of silently copying the parent', async () => {
     renderTab('Admin', 'admin-1');
     await userEvent.click(
-      within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Create new revision for Survey Report/i }),
+      within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: /New revision/i })).toBeInTheDocument();
     await userEvent.clear(within(dialog).getByLabelText(/Title/i));

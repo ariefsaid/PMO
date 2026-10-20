@@ -10,7 +10,7 @@ import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 // on failure. Touches NO org-global singleton (no ownership toggle, no feature flag, no budget).
 //
 // Journey (spec §AC-PFIN-016):
-//  1. Finance opens Revenue by Project; the Unassigned group offers "Assign project".
+//  1. Finance opens Revenue by Project; the Unassigned row opens the unassigned invoices.
 //  2. It navigates to the filtered invoice list (/sales-invoices?attribution=unassigned).
 //  3. Finance opens the invoice's row menu → "Assign project" → picks the project → Save.
 //  4. The attribution persists: DB link + the invoice leaves the unassigned filter + the project
@@ -96,11 +96,12 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   await signIn(page, 'finance@acme.test');
 
-  // ── Step 1: Revenue by Project → the Unassigned (USD) group offers "Assign project" ────────
+  // ── Step 1: Revenue by Project → the Unassigned (USD) row opens the unassigned list ────────
   await page.goto('/revenue-by-project');
-  const unassignedUsdRow = page.locator('tbody tr', { hasText: 'Unassigned' }).filter({ hasText: 'USD' });
-  await expect(unassignedUsdRow).toBeVisible({ timeout: 20_000 });
-  await unassignedUsdRow.getByRole('button', { name: 'Assign project' }).click();
+  // FIN-S6: the Unassigned row is one clickable row (no separate "Assign project" button); currency rides on the amounts.
+  const unassignedUsd = page.getByRole('button', { name: 'Open Unassigned (USD)' });
+  await expect(unassignedUsd).toBeVisible({ timeout: 20_000 });
+  await unassignedUsd.click();
 
   // ── Step 2: the filtered invoice list ───────────────────────────────────────────────────────
   await expect(page).toHaveURL(/\/sales-invoices\?attribution=unassigned/);
@@ -139,7 +140,8 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(usd).toContainText('$75.00');  // Settled (100 − 25 outstanding)
   await expect(usd).toContainText('$25.00');  // Outstanding
   await expect(usd).not.toContainText('$0.00'); // no zero-masking of unknowns
-  await expect(section).toContainText('No budget');
+  // PD-C: the budget gap is no longer restated in Project finances (Overview shows no budget card).
+  await expect(section).not.toContainText('No budget');
 
   // ── Step 5: the same goal survives a reload ─────────────────────────────────────────────────
   await page.reload();
@@ -148,7 +150,7 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(page.getByTestId('project-finances-USD')).toContainText('$100.00');
   await expect(page.getByTestId('project-finances-USD')).toContainText('$75.00');
   await expect(page.getByTestId('project-finances-USD')).toContainText('$25.00');
-  await expect(page.getByTestId('project-finances')).toContainText('No budget');
+  await expect(page.getByTestId('project-finances')).not.toContainText('No budget');
 
   // ── Step 6: no adapter command was ever dispatched ──────────────────────────────────────────
   expect(adapterCommands).toEqual([]);

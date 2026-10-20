@@ -68,6 +68,52 @@ describe('DataTable column resizing', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '112');
   });
 
+  it('AC-TBL-RESIZE-001: Shift+Arrow adjusts by 64px, Enter resets, and Escape restores the pre-adjustment width', () => {
+    desktop();
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-keyboard' });
+    const separator = screen.getByRole('separator', { name: 'Resize Project column' });
+    expect(separator).toHaveAttribute('aria-valuenow', '180');
+    expect(separator).toHaveAttribute('aria-controls', screen.getByRole('columnheader', { name: 'Project' }).id);
+    separator.focus();
+    fireEvent.keyDown(separator, { key: 'ArrowRight', shiftKey: true });
+    expect(separator).toHaveAttribute('aria-valuenow', '240');
+    fireEvent.keyDown(separator, { key: 'Escape' });
+    expect(separator).toHaveAttribute('aria-valuenow', '180');
+    fireEvent.keyDown(separator, { key: 'ArrowLeft', shiftKey: true });
+    expect(separator).toHaveAttribute('aria-valuenow', '120');
+    fireEvent.keyDown(separator, { key: 'Enter' });
+    expect(separator).toHaveAttribute('aria-valuenow', '180');
+  });
+
+  it('AC-TBL-RESIZE-001: omits fixed-width handles and clamps pointer drag to the column maximum', () => {
+    desktop();
+    const fixedColumns: Column<Row>[] = [
+      ...columns,
+      { key: 'fixed', header: 'Fixed', cell: (row) => row.id, size: 40, minSize: 40, maxSize: 40 },
+    ];
+    renderTable({ rows, columns: fixedColumns, rowKey: (row) => row.id, tableId: 'resize-pointer-clamp' });
+    expect(screen.queryByRole('separator', { name: 'Resize Fixed column' })).not.toBeInTheDocument();
+    const amountHandle = screen.getByRole('separator', { name: 'Resize Amount column' });
+    amountHandle.getBoundingClientRect = () => ({ x: 100, y: 0, width: 24, height: 38, top: 0, right: 124, bottom: 38, left: 100, toJSON: () => ({}) });
+    fireEvent.mouseDown(amountHandle, { clientX: 112, clientY: 19 });
+    fireEvent.mouseMove(window, { clientX: 612, clientY: 19 });
+    fireEvent.mouseUp(window);
+    expect(amountHandle).toHaveAttribute('aria-valuenow', '140');
+    expect(JSON.parse(localStorage.getItem('pmo.table.resize-pointer-clamp.widths.v1:synthetic-user') ?? '{}').amount).toBe(140);
+  });
+
+  it('AC-TBL-RESIZE-001: places resize separators in header order before the table rows', () => {
+    desktop();
+    renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-tab-order' });
+    const headers = screen.getAllByRole('columnheader');
+    const handles = screen.getAllByRole('separator');
+    expect(headers.map((header) => header.contains(handles[headers.indexOf(header)]))).toEqual([true, true]);
+    expect(handles.map((handle) => handle.getAttribute('aria-label'))).toEqual(['Resize Project column', 'Resize Amount column']);
+    const line = handles[0].querySelector('.datatable-resize-indicator');
+    expect(line).toHaveClass('w-[2px]', 'bg-[hsl(var(--input))]', 'group-hover:bg-muted-foreground/60');
+    expect(handles[0]).toHaveClass('group-hover:opacity-100', 'focus-visible:opacity-100');
+  });
+
   it('resizes by keyboard in 16px increments, clamps at min/max, and resets on double click', () => {
     desktop();
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-test' });
@@ -84,6 +130,8 @@ describe('DataTable column resizing', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '240');
     fireEvent.keyDown(separator, { key: 'ArrowRight' });
     expect(separator).toHaveAttribute('aria-valuenow', '240');
+    fireEvent.keyDown(separator, { key: 'Enter' });
+    expect(separator).toHaveAttribute('aria-valuenow', '180');
     fireEvent.doubleClick(separator);
     expect(separator).toHaveAttribute('aria-valuenow', '180');
   });

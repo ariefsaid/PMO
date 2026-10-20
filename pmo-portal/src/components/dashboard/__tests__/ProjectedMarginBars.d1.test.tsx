@@ -53,6 +53,6 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
     );
     // The weighted value remains compact for layout, with its exact amount available on hover.
     expect(screen.getByText('$600.0K')).toBeInTheDocument();
-    expect(screen.getByTitle('$600,000.00')).toBeInTheDocument();
+    expect(screen.getByTitle('$600,000')).toBeInTheDocument();
   });
 });

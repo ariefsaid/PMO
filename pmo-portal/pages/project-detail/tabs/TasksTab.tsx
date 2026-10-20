@@ -396,9 +396,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
             {t('projectDetail.tasks.heading', 'Tasks')}
           </h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t('projectDetail.tasks.subheading', 'Plan, assign, and track the work for this project.')}
-          </p>
         </div>
         {all.some((t) => t.archived_at != null) && (
           <Button
@@ -459,14 +456,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
             'projectDetail.tasks.emptySub',
             'Break the project into tasks, assign them to the team, and track each through to Done.',
           )}
-          action={
-            canCreate
-              ? {
-                  label: t('projectDetail.tasks.newTask', 'New task'),
-                  onClick: () => setFormTarget({ task: null }),
-                }
-              : undefined
-          }
         />
       )}
 

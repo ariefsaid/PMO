@@ -81,7 +81,7 @@ export function ViewToggle<V extends string = string>({
       role={isToggle ? 'group' : 'tablist'}
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
-      className={cn('inline-flex h-8 items-center gap-0.5 rounded-lg bg-secondary p-0.5', className)}
+      className={cn('inline-flex min-h-8 items-center gap-0.5 rounded-lg bg-secondary p-0.5', className)}
     >
       {options.map((opt) => {
         const on = opt.value === value;

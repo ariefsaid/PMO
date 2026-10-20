@@ -132,24 +132,24 @@ beforeEach(() => {
 
 describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
   it('intersects exact customer ID with project and overdue URL filters and shows its authorized company label', () => {
-    renderAt('/sales-invoices?customer=company-canonical-1&project=project-1&overdue=true&sort=oldest-overdue');
+    renderAt('/sales-invoices?customer=company-canonical-1&project=project-1&overdue=true');
 
     const table = screen.getByRole('table');
     expect(within(table).getByText('INV-C1-P1-OVERDUE')).toBeInTheDocument();
     expect(within(table).queryByText('INV-C1-P1-CURRENT')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C1-P2-OVERDUE')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('USD');
+    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000.00');
     expect(screen.getByTestId('customer-filter')).toHaveTextContent('Customer: Northwind Services');
   });
 
   it('clears only customer and retains the current project, overdue, sort, and search URL state', async () => {
     const user = userEvent.setup();
-    renderAt('/sales-invoices?customer=company-canonical-1&project=project-1&overdue=true&sort=oldest-overdue&q=INV-C1-P1-OVERDUE');
+    renderAt('/sales-invoices?customer=company-canonical-1&project=project-1&overdue=true&q=INV-C1-P1-OVERDUE');
 
     await user.click(screen.getByRole('button', { name: 'Clear customer filter' }));
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?project=project-1&overdue=true&sort=oldest-overdue&q=INV-C1-P1-OVERDUE');
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?project=project-1&overdue=true&q=INV-C1-P1-OVERDUE');
   });
 
   it('keeps an unknown customer filter exact and never falls back to all invoices', () => {

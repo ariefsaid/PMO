@@ -64,7 +64,7 @@ const agingRowKey = (row: ErpAgingSnapshotRow) => [
 ].join('\u0000');
 
 const agingColumns = (
-  labels: { party: string; current: string; total: string; unavailable: string; reportDate: string; ageingBasis: string; ranges: string },
+  labels: { party: string; current: string; total: string; unavailable: string },
   customerLinks?: ReadonlyMap<string, string>,
 ): Column<ErpAgingSnapshotRow>[] => [
   {
@@ -72,9 +72,6 @@ const agingColumns = (
     header: labels.party,
     cell: (r) => {
       const companyId = r.partyType === 'Customer' && r.party ? customerLinks?.get(r.party) : undefined;
-      const ranges = r.rangeLabels && Object.keys(r.rangeLabels).length > 0
-        ? Object.entries(r.rangeLabels).map(([key, value]) => `${key}: ${value}`).join(', ')
-        : labels.unavailable;
       return (
         <div className="whitespace-normal">
           {companyId && r.party ? (
@@ -84,11 +81,6 @@ const agingColumns = (
           ) : (
             <span className="font-medium">{r.party ?? labels.unavailable}</span>
           )}
-          <dl className="mt-1 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
-            <div><dt className="sr-only">{labels.reportDate}</dt><dd>{labels.reportDate}: {r.reportDate ?? labels.unavailable}</dd></div>
-            <div><dt className="sr-only">{labels.ageingBasis}</dt><dd>{labels.ageingBasis}: {r.ageingBasedOn ?? labels.unavailable}</dd></div>
-            <div><dt className="sr-only">{labels.ranges}</dt><dd>{labels.ranges}: {ranges}</dd></div>
-          </dl>
         </div>
       );
     },
@@ -184,6 +176,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   reportVersion,
   tableId,
   errorLabel,
+  detail,
 }: {
   title: string;
   emptyLabel: string;
@@ -198,6 +191,8 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   /** Saved-width identity: blocks sharing a column shape may share an id; different shapes must not. */
   tableId: string;
   errorLabel: string;
+  /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
+  detail?: string;
 }) {
   const first = rows[0];
   return (
@@ -209,9 +204,10 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
             asOf={first.asOf}
             sourceReport={first.sourceReport}
             reportVersion={reportVersion}
-            className="mb-2.5"
+            className={detail ? 'mb-1' : 'mb-2.5'}
           />
         )}
+        {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
         {isError ? (
           <ListState variant="error" title={errorLabel} onRetry={onRetry} />
         ) : pending ? (
@@ -251,12 +247,14 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   const unavailable = t('dashboard.uxs36Unavailable', 'Unavailable');
   const reportDateLabel = t('dashboard.uxs36ReportDate', 'Report date');
   const ageingBasisLabel = t('dashboard.uxs36AgeingBasis', 'Ageing basis');
-  const rangeLabelsLabel = t('dashboard.uxs36ErpRanges', 'ERP ranges');
   const agingLabels = {
     party: t('dashboard:finance.party', 'Party'), current: t('dashboard:finance.current', 'Current'),
     total: t('dashboard:finance.totalOutstanding', 'Total outstanding'), unavailable,
-    reportDate: reportDateLabel, ageingBasis: ageingBasisLabel, ranges: rangeLabelsLabel,
   };
+  // SL-F: one report date + ageing basis per aging card (the snapshot shares them), beside its provenance.
+  const agingDetail = (rows: ErpAgingSnapshotRow[]) => rows[0]
+    ? `${reportDateLabel}: ${rows[0].reportDate ?? unavailable} · ${ageingBasisLabel}: ${rows[0].ageingBasedOn ?? unavailable}`
+    : undefined;
   return (
   <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
     {showActuals && (
@@ -293,6 +291,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
+      detail={agingDetail(apAging)}
     />
     )}
     <SnapshotBlock<ErpAgingSnapshotRow>
@@ -308,6 +307,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
+      detail={agingDetail(arAging)}
     />
   </section>
   );

@@ -7,7 +7,7 @@
  * heading. The empty S-curve is not rendered at all for pre-win records.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -36,6 +36,7 @@ const oppRecord = vi.hoisted(() => ({
     id: 'opp1',
     name: 'Alpha Solar Bid',
     code: 'OPP-0001',
+    service_line: 'Engineering',
     status: 'Tender Submitted',
     client_id: 'c1',
     project_manager_id: 'u-pm',
@@ -161,6 +162,7 @@ const renderAt = async (path: string) => {
         <ToastProvider>
           <Routes>
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
+            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
           </Routes>
         </ToastProvider>
       </MemoryRouter>
@@ -210,6 +212,17 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText('Progress curve')).toBeNull();
   });
 
+  it('SUB-I: pre-win classification lives in the closed rail disclosure with the codes — no standalone Classification block', async () => {
+    await renderAt('/projects/opp1');
+    expect(screen.queryByText('Classification')).not.toBeInTheDocument();
+    const rail = screen.getByTestId('project-detail-rail');
+    expect(rail.querySelector('details')).not.toHaveAttribute('open');
+    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
+    expect(within(rail).getByText('Engineering')).toBeInTheDocument();
+    // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
+    expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
+  });
+
   it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {
     await renderAt('/projects/opp1');
 
@@ -227,6 +240,20 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
 
     // A compact affordance (one-liner) must be present instead
+    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
+  });
+
+  it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
+    await renderAt('/projects/opp1');
+    const tabs = within(screen.getByRole('tablist', { name: /Project sections/i })).getAllByRole('tab').map((tab) => tab.textContent);
+    expect(tabs).not.toContain('Work orders');
+    expect(tabs).not.toContain('Billing');
+    expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents']));
+  });
+
+  it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
+    await renderAt('/projects/opp1/work-orders');
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
     expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
   });
 });

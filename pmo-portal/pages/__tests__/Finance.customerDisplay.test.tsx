@@ -224,8 +224,9 @@ describe('AC-FIN-003 — Finance dates render through the shared locale formatte
     hoisted.invoices = [{ ...invoice, id: 'inv-1', invoice_date: '2025-11-30' }];
     const invView = renderPage(<SalesInvoices />);
     let table = screen.getByRole('table').textContent ?? '';
-    expect(table).toContain(expected);
+    // FIN-S1: the invoice date column is download-only; the on-screen date is the derived due date.
     expect(table).toContain(formatDateOnly('2025-12-30')); // derived due date (2025-11-30 + 30d)
+    expect(table).not.toContain('12/30/2025');
     expect(table).not.toContain('11/30/2025');
     invView.unmount();
 

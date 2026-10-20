@@ -34,9 +34,9 @@ export interface ProjectedMarginBarsProps {
  * excluded. Each bar direct-labels its weighted value and carries an aria label.
  */
 export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const money = (value: number) => formatCompactCurrency(value, currency);
-  const fullMoney = (value: number) => formatDashboardMoney(value, currency, i18n.language)
+  const fullMoney = (value: number) => formatDashboardMoney(value, currency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const statusLabel = useProjectStatusLabel();
   const open = useMemo(
@@ -47,18 +47,16 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
 
   return (
     <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')}>
-      <div className="mb-3.5 flex items-baseline gap-2.5">
-        <span className="text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
-          {projectedMargin === null
-            ? t('dashboard.projectedMargin.weightedPipelineValue', 'Weighted pipeline value')
-            : `${(projectedMargin * 100).toFixed(1)}%`}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {projectedMargin === null
-            ? t('uxs03.noActiveBudget', 'No active budget')
-            : t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
-        </span>
-      </div>
+      {projectedMargin !== null && (
+        <div className="mb-3.5 flex items-baseline gap-2.5">
+          <span className="min-w-0 break-words text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
+            {`${(projectedMargin * 100).toFixed(1)}%`}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
+          </span>
+        </div>
+      )}
 
       {/* D-1 (AC-JR-W3B-05): each stage row is a Link to /sales?status=<encoded> so
           the exec can drill into that stage's deals directly from the margin card. */}
@@ -86,7 +84,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
                   style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
-              <span title={fullMoney(s.weighted_value)} className="w-[68px] min-w-0 shrink-0 truncate text-right text-xs font-semibold tabular">
+              <span title={fullMoney(s.weighted_value)} className="min-w-[68px] shrink-0 whitespace-nowrap text-right text-xs font-semibold tabular">
                 {money(s.weighted_value)}
               </span>
             </Link>

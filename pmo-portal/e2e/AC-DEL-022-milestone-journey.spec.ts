@@ -12,7 +12,7 @@ import { login, requireServiceRoleKey } from './helpers';
 //
 // Journey (FR-DEL-001 through FR-DEL-017, end-to-end):
 //  1. PM navigates directly to P013 detail page.
-//  2. Phase strip is empty → PM clicks "Add the first phase", fills the phase name + weight, saves.
+//  2. Phase strip is empty (one line) → PM clicks "Plan delivery phases", fills the phase name + weight, saves.
 //  3. PM navigates to Tasks tab → within "Engineering design" group clicks "Add task",
 //     creates "Detail drawings" (milestone pre-populated), saves.
 //  4. PM marks "Detail drawings" Done via the status select.
@@ -64,12 +64,12 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 
   // ── Step 2: phase strip is empty — add a phase ───────────────────────────────
-  // The strip shows the empty state with an "Add the first phase" CTA.
+  // The strip shows the one-line empty state with a "Plan delivery phases" CTA (PD-B).
   await expect(page.getByTestId('milestone-strip-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('milestone-strip-empty')).toBeVisible({ timeout: 15_000 });
 
   // The empty strip teaches the PM to plan phases; the primary doorway opens the same modal.
-  await page.getByRole('button', { name: /Add the first phase/i }).click();
+  await page.getByTestId('milestone-strip-empty').getByRole('button', { name: /Plan delivery phases/i }).click();
 
   // The phase form opens (EntityFormModal renders a dialog).
   const dialog = page.getByRole('dialog');

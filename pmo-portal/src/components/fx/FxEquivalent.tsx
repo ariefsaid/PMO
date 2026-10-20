@@ -1,12 +1,10 @@
 import React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useFxRate } from '@/src/hooks/useFxRates';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { formatFxEquivalent } from '@/src/lib/fxEquivalent';
-import { Button } from '@/src/components/ui';
 
 export type FxEquivalentDate = string | 'latest' | null;
 
@@ -20,7 +18,6 @@ export interface FxEquivalentProps {
 const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, compact = false }) => {
   const { t } = useTranslation();
   const auth = useAuth();
-  const queryClient = useQueryClient();
   const orgCurrency = useOrgCurrencyState();
   const hasAmount = amount !== null && Number.isFinite(amount);
   const orgResolved = orgCurrency.isResolved && Boolean(auth.currentUser?.org_id);
@@ -37,103 +34,23 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   const rate = useFxRate('USD', 'IDR', requestedDay, Boolean(eligible && requestedDay));
 
   if (!hasAmount) return null;
+  // FIN-S4: a quiet component. Not applicable (other currency pair, no date) or still loading renders nothing;
+  // a failure is one short line with no retry control.
+  const failure = (
+    <span role="alert" className="block min-w-0 break-words text-xs font-normal text-destructive-text">
+      {t('fx.rateError', 'Could not load JISDOR rate.')}
+    </span>
+  );
   if (!orgResolved) {
-    if (orgCurrency.isError || (!auth.loading && !auth.currentUser?.org_id)) {
-      return (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-1.5 text-xs font-normal text-destructive-text"
-        >
-          <span>{t('fx.orgCurrencyError', 'Could not resolve the organization currency.')}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (auth.currentUser?.org_id) {
-                void queryClient.invalidateQueries({
-                  queryKey: ['org-currency', auth.currentUser.org_id],
-                });
-              }
-            }}
-          >
-            {t('fx.retry', 'Retry')}
-          </Button>
-        </div>
-      );
-    }
-    return (
-      <span
-        role="status"
-        className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground"
-      >
-        {t('fx.checkingOrgCurrency', 'Checking organization currency…')}
-      </span>
-    );
+    return orgCurrency.isError || (!auth.loading && !auth.currentUser?.org_id) ? failure : null;
   }
   if (sameCurrency) return null;
-  if (currency !== 'USD' || orgCurrency.currency !== 'IDR') {
-    return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
-        {t(
-          'fx.unsupportedPair',
-          'JISDOR equivalents are available for USD contracts in IDR organizations only.',
-        )}
-      </span>
-    );
-  }
-  if (date === null) {
-    return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
-        {t('fx.missingDate', 'No publication date is available for this amount.')}
-      </span>
-    );
-  }
-  if (date === 'latest' && orgDay.isError) {
-    return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center gap-1.5 text-xs font-normal text-destructive-text"
-      >
-        <span>{t('fx.orgDayError', 'Could not resolve the organization’s local date.')}</span>
-        <Button variant="outline" size="sm" onClick={orgDay.retry}>
-          {t('fx.retry', 'Retry')}
-        </Button>
-      </div>
-    );
-  }
-  if (date === 'latest' && (orgDay.isPending || !orgDay.day)) {
-    return (
-      <span
-        role="status"
-        className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground"
-      >
-        {t('fx.checkingOrgDay', 'Checking today’s JISDOR date…')}
-      </span>
-    );
-  }
-  if (rate.isError) {
-    return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center gap-1.5 text-xs font-normal text-destructive-text"
-      >
-        <span>{t('fx.rateError', 'Could not load JISDOR rate.')}</span>
-        <Button variant="outline" size="sm" onClick={() => void rate.refetch()}>
-          {t('fx.retry', 'Retry')}
-        </Button>
-      </div>
-    );
-  }
-  if (rate.isPending) {
-    return (
-      <span
-        role="status"
-        className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground"
-      >
-        {t('fx.checkingRate', 'Checking JISDOR rate…')}
-      </span>
-    );
-  }
+  if (currency !== 'USD' || orgCurrency.currency !== 'IDR') return null;
+  if (date === null) return null;
+  if (date === 'latest' && orgDay.isError) return failure;
+  if (date === 'latest' && (orgDay.isPending || !orgDay.day)) return null;
+  if (rate.isError) return failure;
+  if (rate.isPending) return null;
   if (!rate.data) {
     return (
       <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
@@ -159,14 +76,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
       </span>
     );
   } catch {
-    return (
-      <span
-        role="alert"
-        className="block min-w-0 break-words text-xs font-normal text-destructive-text"
-      >
-        {t('fx.rateError', 'Could not load JISDOR rate.')}
-      </span>
-    );
+    return failure;
   }
 };
 

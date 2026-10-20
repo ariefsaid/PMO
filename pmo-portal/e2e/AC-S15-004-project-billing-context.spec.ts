@@ -6,6 +6,9 @@ import path from 'node:path';
 import { requireServiceRoleKey, signIn, waitForFonts } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
+// Create the invoice from the work order, save it, reload and re-check: one journey, longer than the 30s default.
+test.setTimeout(60_000);
+
 const localized = (en: string, id: string) => new RegExp('(?:' + en + '|' + id + ')', 'i');
 type DiscoverLocale = 'en' | 'id';
 type DiscoverTheme = 'light' | 'dark';
@@ -275,7 +278,8 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     await page.reload();
     await expect(page.getByRole('heading', { name: /draft invoice|draf faktur/i })).toBeVisible();
     await expect(page.getByText(projectName, { exact: true })).toBeVisible();
-    await expect(page.getByRole('definition').filter({ hasText: companyName })).toBeVisible();
+    // FIN-S2: the client is the record's subtitle, no longer a separate Customer field.
+    await expect(page.getByText(companyName).first()).toBeVisible();
   } catch (error) {
     testFailed = true;
     testFailure = error;

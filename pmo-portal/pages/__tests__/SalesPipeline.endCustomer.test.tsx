@@ -64,10 +64,10 @@ const renderPipeline = () =>
   );
 
 describe('AC-EC-003 — pipeline end customer', () => {
-  it('AC-EC-003: the table shows the End customer column with the deal end-customer name', () => {
+  it('AC-EC-003: the table shows the deal end-customer name (a second line on screen, its own column in the download)', () => {
     renderPipeline();
-    expect(screen.getByText('End customer')).toBeInTheDocument();
-    expect(screen.getByText('Asset Owner PT')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'End customer' })).not.toBeInTheDocument();
+    expect(screen.getByText('for Asset Owner PT')).toBeInTheDocument();
   });
 
   it('AC-EC-003: pipeline search matches the end-customer name (like it matches the client)', async () => {

@@ -1,0 +1,6 @@
+{
+  "pipeline": {
+    "endCustomerLine": "for {{name}}",
+    "mixedCurrency": "Mixed currencies, so no single total"
+  }
+}

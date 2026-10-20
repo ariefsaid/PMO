@@ -55,10 +55,12 @@
     "marginAria": "Margin sampai saat ini {{name}}: {{pct}}%"
   },
   "risk": {
-    "noBudgetBasis": "Anggaran aktif dan aktual lengkap diperlukan untuk memeriksa risiko.",
-    "unavailable": "Belum dapat diperiksa"
+    "uncheckedNote": "Risiko belum dapat diperiksa — belum ada anggaran aktif."
   },
   "spend": {
     "partial": "Parsial"
+  },
+  "kpi": {
+    "activeProjectsCount": "{{count}} proyek aktif"
   }
 }

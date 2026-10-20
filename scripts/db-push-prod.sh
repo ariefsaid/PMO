@@ -6,6 +6,8 @@
 # script never touches the token file). Plaintext supabase/.env.prod is a fallback.
 #
 #   scripts/db-push-prod.sh           push migrations (after a typed 'prod' confirm)
+#   INCLUDE_ALL=1 scripts/db-push-prod.sh   also apply local migrations numbered below prod's latest
+#                                     (after a hotfix migration jumped ahead of an unshipped one)
 #   scripts/db-push-prod.sh --check   resolve the secret + run `select 1` (NO push, NO confirm)
 #                                     → the one-command "is PROD usable?" check
 #
@@ -35,12 +37,14 @@ elif [ -f supabase/.env.prod ]; then
 fi
 : "${SUPABASE_PROD_DB_URL:?No PROD secret — set up 1Password (op-get.sh / vault $OP_PROD_VAULT) or supabase/.env.prod. See docs/environments.md}"
 
+ALL=(); [ "${INCLUDE_ALL:-}" = 1 ] && ALL=(--include-all)
+
 if [ "${1:-}" = "--pending" ]; then
   # Read-only: show exactly WHICH migrations a push would apply, and stop. Added 2026-07-25 before a
   # large promote — "68 files differ between branches" is NOT the same as "68 pending on the cloud DB",
   # and the difference decides whether a prod push is routine or a big deal. Applies nothing.
   echo "→ PROD: migrations a push WOULD apply (dry-run, nothing is applied):"
-  supabase db push --db-url "$SUPABASE_PROD_DB_URL" --dry-run 2>&1 | grep -viE "postgres(ql)?://"
+  supabase db push --db-url "$SUPABASE_PROD_DB_URL" --dry-run ${ALL[@]+"${ALL[@]}"} 2>&1 | grep -viE "postgres(ql)?://"
   exit 0
 fi
 
@@ -65,5 +69,5 @@ if [ "$ans" != "prod" ]; then
   exit 1
 fi
 
-supabase db push --db-url "$SUPABASE_PROD_DB_URL"
+supabase db push --db-url "$SUPABASE_PROD_DB_URL" ${ALL[@]+"${ALL[@]}"}
 echo "✓ PROD migrations applied."

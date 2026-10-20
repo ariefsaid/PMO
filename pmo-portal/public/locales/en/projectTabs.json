@@ -1,0 +1,10 @@
+{
+  "billing": {
+    "quantity": "Quantity billing"
+  },
+  "clickup": {
+    "linkedTo": "Linked to {{tier}} list {{name}}",
+    "linkedSaved": "Linked to {{tier}}. {{detail}}",
+    "unlink": "Unlink"
+  }
+}

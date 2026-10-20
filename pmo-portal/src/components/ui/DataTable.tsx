@@ -65,6 +65,10 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
+  stickyLeft?: boolean;
+  /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
+  exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -289,7 +293,7 @@ function stripHiddenClasses(colClassName?: string): string {
  */
 export function DataTable<Row>({
   rows,
-  columns,
+  columns: allColumns,
   rowKey,
   onActivate,
   rowLabel,
@@ -313,6 +317,7 @@ export function DataTable<Row>({
   totals,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
+  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
@@ -323,7 +328,9 @@ export function DataTable<Row>({
     previousWidthIdentity.current = widthIdentity;
     setColumnSizing(readColumnSizing(tableId, userId, columns as Column<unknown>[]));
   }, [tableId, userId, widthIdentity, columns]);
-  const caveatId = `datatable-caveat-${useId().replace(/:/g, '')}`;
+  const tableInstanceId = useId().replace(/:/g, '');
+  const caveatId = `datatable-caveat-${tableInstanceId}`;
+  const keyboardResizeStart = useRef<Record<string, number>>({});
   const caveats = columns.flatMap((column) => column.caveat ? [column.caveat] : []);
   const rootRef = useRef<HTMLDivElement>(null);
   const tableBranchRef = useRef<HTMLDivElement>(null);
@@ -395,26 +402,6 @@ export function DataTable<Row>({
       .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
   }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
-  // Resize handles sit outside the header cells (so they are not part of a header's name);
-  // place them on the RENDERED column edges, not TanStack's notional sizes.
-  const [columnEdges, setColumnEdges] = useState<{ edges: Record<string, number>; width: number }>({ edges: {}, width: 0 });
-  const measureColumnEdges = useCallback(() => {
-    const tableEl = tableRef.current;
-    if (!tableEl) return;
-    const edges: Record<string, number> = {};
-    tableEl.querySelectorAll<HTMLTableCellElement>('thead th[data-col-key]').forEach((th) => {
-      if (th.offsetWidth > 0) edges[th.dataset.colKey!] = th.offsetLeft + th.offsetWidth;
-    });
-    setColumnEdges({ edges, width: tableEl.offsetWidth });
-  }, []);
-  // ponytail: re-measure on render, window resize and header hover/focus; a container-only resize
-  // is caught on the next hover/focus (handles are invisible until then and clamped inside the table).
-  useLayoutEffect(() => {
-    if (!isDesktop) return;
-    measureColumnEdges();
-    window.addEventListener('resize', measureColumnEdges);
-    return () => window.removeEventListener('resize', measureColumnEdges);
-  }, [isDesktop, columns, columnSizing, rows.length, measureColumnEdges]);
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0);
 
@@ -463,9 +450,9 @@ export function DataTable<Row>({
           }}
           className="w-full border-collapse text-[13.5px]"
         >
-          <thead onMouseEnter={isDesktop ? measureColumnEdges : undefined}>
+          <thead>
             <tr>
-              {modelHeaders.map((header) => {
+              {modelHeaders.map((header, headerIndex) => {
                 const col = columns.find((column) => column.key === header.column.id)!;
                 const sortable = header.column.getCanSort();
                 const currentSort = header.column.getIsSorted();
@@ -473,14 +460,17 @@ export function DataTable<Row>({
                 return (
                   <th
                     key={header.id}
+                    id={`datatable-header-${tableInstanceId}-${col.key}`}
                     data-col-key={col.key}
                     aria-sort={ariaSort}
+                    aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
                     aria-describedby={col.caveat ? caveatId : undefined}
                     style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.colClassName
                     )}
@@ -491,14 +481,88 @@ export function DataTable<Row>({
                         onClick={() => onSort?.(col.sortKey!)}
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
-                        {col.header}
+                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                         {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
                     ) : (
-                      <>{col.header}{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                      <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
-
+                    {(() => {
+                      const min = columnMinSize(col) ?? 20;
+                      const max = columnMaxSize(col) ?? 900;
+                      if (min === max) return null;
+                      return (
+                        <div
+                          role="separator"
+                          aria-label={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                          aria-controls={`datatable-header-${tableInstanceId}-${col.key}`}
+                          aria-orientation="vertical"
+                          aria-valuenow={header.getSize()}
+                          aria-valuemin={min}
+                          aria-valuemax={max}
+                          tabIndex={0}
+                          onFocus={() => { keyboardResizeStart.current[col.key] = header.getSize(); }}
+                          onBlur={() => { delete keyboardResizeStart.current[col.key]; }}
+                          onMouseDown={(event) => {
+                            const startX = event.clientX;
+                            const startWidth = header.getSize();
+                            const resize = (clientX: number) => table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
+                            const move = (moveEvent: MouseEvent) => resize(moveEvent.clientX);
+                            const stop = () => {
+                              window.removeEventListener('mousemove', move);
+                              window.removeEventListener('mouseup', stop);
+                            };
+                            window.addEventListener('mousemove', move);
+                            window.addEventListener('mouseup', stop, { once: true });
+                          }}
+                          onTouchStart={(event) => {
+                            const startX = event.touches[0]?.clientX;
+                            if (startX === undefined) return;
+                            const startWidth = header.getSize();
+                            const move = (moveEvent: TouchEvent) => {
+                              const clientX = moveEvent.touches[0]?.clientX;
+                              if (clientX !== undefined) table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, startWidth + clientX - startX)) }));
+                            };
+                            const stop = () => {
+                              window.removeEventListener('touchmove', move);
+                              window.removeEventListener('touchend', stop);
+                            };
+                            window.addEventListener('touchmove', move, { passive: true });
+                            window.addEventListener('touchend', stop, { once: true });
+                          }}
+                          onDoubleClick={() => header.column.resetSize()}
+                          onKeyDown={(event) => {
+                            const current = header.getSize();
+                            let next: number | undefined;
+                            if (event.key === 'ArrowLeft') next = current - (event.shiftKey ? 64 : 16);
+                            if (event.key === 'ArrowRight') next = current + (event.shiftKey ? 64 : 16);
+                            if (event.key === 'Home') next = min;
+                            if (event.key === 'End') next = max;
+                            if (next !== undefined) {
+                              event.preventDefault();
+                              table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
+                            } else if (event.key === 'Enter') {
+                              event.preventDefault();
+                              header.column.resetSize();
+                              keyboardResizeStart.current[col.key] = columnDefaultSize(col) ?? header.column.getSize();
+                            } else if (event.key === 'Escape') {
+                              const start = keyboardResizeStart.current[col.key];
+                              if (start !== undefined) {
+                                event.preventDefault();
+                                table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: start }));
+                                keyboardResizeStart.current[col.key] = start;
+                              }
+                            }
+                          }}
+                          // The last column's handle stays inside the table, or it widens the scroll box by 12px.
+                          style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 38 }}
+                          className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                        >
+                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-[11px] w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
+                        </div>
+                      );
+                    })()}
                   </th>
                 );
               })}
@@ -583,6 +647,7 @@ export function DataTable<Row>({
                             : undefined}
                           className={cn(
                             'h-[54px] px-3 py-2 align-middle',
+                            col.stickyLeft && 'sticky left-0 z-[1] bg-card',
                             (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                             alignClass(col.align),
                             col.align === 'num' && 'tabular',
@@ -625,58 +690,13 @@ export function DataTable<Row>({
           </tbody>
           {totals && totals.length > 0 && <tfoot>
             {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
-              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', alignClass(column.align), column.align === 'num' && 'tabular')}>
+              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
               {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
             </tr>)}
           </tfoot>}
         </table>
-        {isDesktop && (
-          <div className="pointer-events-none absolute left-0 top-0 z-[4] h-[38px]" onFocusCapture={measureColumnEdges}>
-            {modelHeaders.map((header) => {
-              const col = columns.find((column) => column.key === header.column.id)!;
-              const measured = Object.keys(columnEdges.edges).length > 0;
-              const edge = measured ? columnEdges.edges[col.key] : header.getStart() + header.getSize();
-              if (edge === undefined) return null; // column hidden at this width
-              const left = measured ? Math.max(0, Math.min(edge - 12, columnEdges.width - 24)) : edge - 12;
-              // Same kind-contract bounds as the column def, cell styles and the pointer drag.
-              const min = columnMinSize(col) ?? 20;
-              const max = columnMaxSize(col) ?? 900;
-              return (
-                <div
-                  key={header.id}
-                  role="separator"
-                  title={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
-                  aria-orientation="vertical"
-                  aria-valuenow={header.getSize()}
-                  aria-valuemin={min}
-                  aria-valuemax={max}
-                  tabIndex={0}
-                  onMouseDown={header.getResizeHandler()}
-                  onTouchStart={header.getResizeHandler()}
-                  onDoubleClick={() => header.column.resetSize()}
-                  onKeyDown={(event) => {
-                    const current = header.getSize();
-                    let next: number | undefined;
-                    if (event.key === 'ArrowLeft') next = current - 16;
-                    if (event.key === 'ArrowRight') next = current + 16;
-                    if (event.key === 'Home') next = min;
-                    if (event.key === 'End') next = max;
-                    if (next !== undefined) {
-                      event.preventDefault();
-                      table.setColumnSizing((sizing) => ({ ...sizing, [header.column.id]: Math.min(max, Math.max(min, next!)) }));
-                    }
-                  }}
-                  style={{ left, width: 24, height: 38 }}
-                  className="pointer-events-auto absolute top-0 cursor-col-resize opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
-                >
-                  <span aria-hidden className="pointer-events-none absolute inset-y-2 right-0 w-px bg-border" />
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
       ) : (
       /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -770,7 +790,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-center',
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
