@@ -202,18 +202,20 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   return (
     <Card data-testid="vendor-quotes">
-      <CardHead>
+      <CardHead
+        actions={
+          canAdd && !adding && (
+            <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-quotation">
+              <Icon name="plus" width="1em" height="1em" />
+              Add quotation
+            </Button>
+          )
+        }
+      >
         Bid comparison
         <span className="ml-2 text-[13px] font-normal text-muted-foreground">
           Compare and select a vendor quote
         </span>
-        <span className="flex-1" />
-        {canAdd && !adding && (
-          <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-quotation">
-            <Icon name="plus" width="1em" height="1em" />
-            Add quotation
-          </Button>
-        )}
       </CardHead>
 
       {/* ── Empty state ─────────────────────────────────────────────────── */}

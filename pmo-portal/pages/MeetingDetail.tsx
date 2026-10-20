@@ -373,10 +373,9 @@ const MeetingDetail: React.FC = () => {
 
       {/* ── Minutes ─────────────────────────────────────────────────────────── */}
       <Card variant="bare" className="mb-4">
-        <CardHead>
-          <span>{t('meetingDetail.minutes.title', 'Minutes')}</span>
-          {canEdit && (
-            <span className="ml-auto">
+        <CardHead
+          actions={
+            canEdit && (
               <Button
                 variant="primary"
                 size="sm"
@@ -386,8 +385,10 @@ const MeetingDetail: React.FC = () => {
               >
                 {t('meetingDetail.minutes.save', 'Save minutes')}
               </Button>
-            </span>
-          )}
+            )
+          }
+        >
+          {t('meetingDetail.minutes.title', 'Minutes')}
         </CardHead>
         <CardPad>
           {tasksExternal && canEdit && (

@@ -295,18 +295,21 @@ const CompanyDetail: React.FC = () => {
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
           T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
       <Card variant="bare">
-        <CardHead className="flex items-center justify-between">
-          <span>{t('companyDetail.contacts.title', 'Contacts')}</span>
-          {canCreateContact && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddContactOpen(true)}
-            >
-              <Icon name="plus" />
-              {t('companyDetail.contacts.addContact', 'Add contact')}
-            </Button>
-          )}
+        <CardHead
+          actions={
+            canCreateContact && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddContactOpen(true)}
+              >
+                <Icon name="plus" />
+                {t('companyDetail.contacts.addContact', 'Add contact')}
+              </Button>
+            )
+          }
+        >
+          {t('companyDetail.contacts.title', 'Contacts')}
         </CardHead>
         <CardPad>
           <CompanyContactsList companyId={company.id} />
