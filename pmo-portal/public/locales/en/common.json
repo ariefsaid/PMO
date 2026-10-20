@@ -1261,7 +1261,7 @@
       "result": "{{wins}} won of {{total}} closed", "currencyResult": "{{currency}} {{percent}}% — {{wins}} won of {{total}} closed", "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won", "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": { "atRisk": "At risk" },
-    "projectedMargin": { "group": "Pipeline projected margin", "weightedPipelineValue": "Weighted pipeline value", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
+    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
@@ -1293,7 +1293,6 @@
     "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
     "uxs36ReportDate": "Report date",
     "uxs36AgeingBasis": "Ageing basis",
-    "uxs36ErpRanges": "ERP ranges",
     "uxs36Unavailable": "Unavailable",
     "uxs36CustomerFilterLabel": "Customer",
     "uxs36CustomerFilterUnavailable": "Selected customer is unavailable",
@@ -1334,15 +1333,9 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Awaiting your approval", "helpWithTimesheets": "Purchase requests and timesheets waiting on your decision. Open the approvals inbox.", "helpProcurementOnly": "Purchase requests waiting on your decision. Open the approvals inbox.",
-        "unavailable": "unavailable — check connection", "zero": "nothing waiting", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
+        "label": "Awaiting your approval",
+        "unavailable": "unavailable — check connection", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
-      },
-      "activeProjects": {
-        "help": "Projects currently in delivery.",
-        "label": "Active projects",
-        "linkLabel": "Open the active projects list",
-        "vs": "at-risk"
       },
       "pipelineMargin": {
         "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
@@ -1364,7 +1357,6 @@
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
         "linkLabel": "Open active projects to see total contract value",
-        "vs": "active projects",
         "mobileVs": "Signed value of the {{count}} projects still in delivery"
       },
       "totalSpend": {
@@ -1377,9 +1369,7 @@
       "needsAttention": "Needs attention",
       "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
       "noRiskSummary": "of {{count}} active projects · all on track",
-      "activeProjectsLink": "Open active projects · {{count}} projects",
       "spendLink": "Open spend breakdown · {{amount}} spent to date",
-      "view": "View",
       "breakdown": "Breakdown",
       "approvals": "Approvals",
       "awaitingApproval": "Awaiting your approval",
@@ -4744,8 +4734,8 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "noPipelineValue":"No pipeline value to calculate margin", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
-    "activeBudgetRisk":"Active-budget risk", "noActiveBudget":"No active budget", "notAvailableYet":"Not available yet",
+    "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
+    "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
     "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",

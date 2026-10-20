@@ -5,6 +5,7 @@ import React from 'react';
 import ExecutiveDashboard from '../ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { BahasaProvider } from '@/test/bahasa';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const desktop = vi.hoisted(() => ({ value: true }));
 const state = vi.hoisted(() => ({
@@ -53,11 +54,12 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false }) }));
-vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useTimesheetsAwaitingApproval: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useTimesheetsAwaitingApproval: () => ({ data: [{ id: 't1' }], isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: 'Executive' }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 function renderDashboard(locale: 'en' | 'id' = 'id') {
+  setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   return render(<BahasaProvider locale={locale}><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
 }
 
@@ -72,8 +74,10 @@ describe('Executive dashboard Bahasa', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { name: 'Dashboard Eksekutif' })).toBeInTheDocument();
     expect(screen.getByText('Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-active-projects')).toHaveTextContent('2');
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8.000.000,00');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 proyek aktif');
+    // OD-MONEY-FMT: short figure visible; the exact amount stays in the Bahasa format (title + sr text).
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8 jt');
+    expect(screen.getByTestId('kpi-on-hand-margin').querySelector('[title="US$8.000.000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Nilai kontrak dalam portofolio saat ini');
     expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(screen.getByText('Menunggu persetujuan Anda')).toBeInTheDocument();

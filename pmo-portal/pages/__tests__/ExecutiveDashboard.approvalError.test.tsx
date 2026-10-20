@@ -119,16 +119,23 @@ describe('ExecutiveDashboard — mobile approval count on error (AC-W2-4-06)', (
     expect(band).not.toHaveTextContent('0');
   });
 
-  it('shows numeric count when no error', () => {
+  it('AC-SL-A-001: hides the mobile approvals band when nothing is waiting (no error)', () => {
     procState.isError = false;
     procState.data = [];
     tsState.isError = false;
     tsState.data = [];
     renderPage();
+    expect(screen.queryByTestId('mobile-approvals-band')).not.toBeInTheDocument();
+  });
 
+  it('shows numeric count when items wait and no error', () => {
+    procState.isError = false;
+    procState.data = [];
+    tsState.isError = false;
+    tsState.data = [{ id: 't1' }];
+    renderPage();
     const band = screen.getByTestId('mobile-approvals-band');
-    // With no procurements or timesheets, shows "0" not "—"
-    expect(band).toHaveTextContent('0');
+    expect(band).toHaveTextContent('1');
     expect(band).not.toHaveTextContent('—');
   });
 });

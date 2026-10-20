@@ -241,12 +241,14 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     };
     renderPage();
     const onHand = screen.getByTestId('mobile-kpi-on-hand');
-    expect(onHand).toHaveTextContent('IDR');
-    expect(onHand).toHaveTextContent('USD');
+    expect(onHand).toHaveTextContent('IDR 2B');
+    expect(onHand).toHaveTextContent('$1M');
+    expect(onHand).not.toHaveTextContent(/USD\s*\$/);
     expect(onHand).toHaveTextContent('2,000,000,000');
     expect(onHand).toHaveTextContent('1,000,000');
-    expect(onHand).toHaveTextContent('800,000,000');
-    expect(onHand).toHaveTextContent('100,000,000');
+    // OD-MONEY-FMT: the running-text remainder/margin lines use the short form per currency.
+    expect(onHand).toHaveTextContent('IDR 800M');
+    expect(onHand).toHaveTextContent('IDR 100M');
     expect(onHand).not.toHaveTextContent('Not available yet');
   });
 
@@ -280,7 +282,6 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const desktopLabels = [
       'Contracted revenue',
       'Total contract value',
-      'Active projects',
       'Recorded spending',
     ];
     mockIsDesktop = false;
@@ -336,7 +337,7 @@ describe('AC-MOBILE-6: desktop layout unaffected', () => {
     expect(screen.getByTestId('kpi-on-hand-margin')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-active-projects')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument(); // SL-B: count rides on the contract tile
     expect(screen.getByTestId('kpi-total-contract-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-total-spend')).toBeInTheDocument();
     // Standard approvals tile (KPITile variant), not the mobile band
@@ -359,7 +360,7 @@ describe('AC-RD-RISK-001: risk availability', () => {
     mockIsDesktop = false;
     renderPage();
     const atRisk = screen.getByTestId('dashboard-at-risk');
-    expect(atRisk).toHaveTextContent("Can't be checked yet");
+    expect(atRisk).toHaveTextContent("Risk can't be checked yet");
     expect(atRisk).toHaveTextContent(/active budget/i);
     expect(atRisk).not.toHaveTextContent(/\b0\b|all on track/i);
   });

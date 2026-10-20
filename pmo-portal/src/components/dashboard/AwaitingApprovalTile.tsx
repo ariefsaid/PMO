@@ -4,6 +4,8 @@
  * A KPITile-as-link shortcut to the unified `/approvals` inbox. Now that `/approvals`
  * hosts both procurement PRs and timesheets (Surface C), this tile is honest.
  *
+ * Rendered only while something waits (or the count failed) — SL-A.
+ *
  * Honest, role-scoped count (never sum a real count with a placeholder):
  *   procurement = useProcurements() filtered to
  *     status === 'Requested' AND can('transition','procurement', realRole) AND not-self (SoD-a)
@@ -65,15 +67,13 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   const tsCount = includeTimesheets ? (timesheets?.length ?? 0) : 0;
   const total = procCount + tsCount;
 
-  const help = includeTimesheets
-    ? t('dashboard.kpi.awaitingApproval.helpWithTimesheets', 'Purchase requests and timesheets waiting on your decision. Open the approvals inbox.')
-    : t('dashboard.kpi.awaitingApproval.helpProcurementOnly', 'Purchase requests waiting on your decision. Open the approvals inbox.');
+  // SL-A (owner 2026-10-20, simpler dashboards): nothing waiting → no tile; the nav count still
+  // carries the inbox. An error keeps the red "—" so a failure never reads as "nothing waiting".
+  if (!loading && !hasError && total === 0) return null;
 
   const vs = hasError
     ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable — check connection')
-    : total === 0
-      ? t('dashboard.kpi.awaitingApproval.zero', 'nothing waiting')
-      : total === 1
+    : total === 1
         ? t('dashboard.kpi.awaitingApproval.one', '{{count}} item waiting', { count: total })
         : t('dashboard.kpi.awaitingApproval.many', '{{count}} items waiting', { count: total });
 
@@ -91,7 +91,6 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
       label={resolvedLabel}
       value={hasError ? '—' : String(total)}
       vs={vs}
-      help={help}
       loading={loading}
       to="/approvals"
       linkLabel={linkLabel}

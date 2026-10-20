@@ -171,6 +171,15 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
   });
 
+  it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {
+    budgetState.data = 1_240_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 56_000, projectName: null });
+    expect(screen.getByText('$56,000')).toBeInTheDocument();
+    expect(screen.getAllByText('$1,240,000,000').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\$\d+(\.\d)?[KMB]\b/)).not.toBeInTheDocument();
+  });
+
   it('renders "Available" label (budget − committed − reserved; reserved=0 here)', () => {
     // budget=1,200,000; committed=986,600; reserved=0 → available=213,400
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });

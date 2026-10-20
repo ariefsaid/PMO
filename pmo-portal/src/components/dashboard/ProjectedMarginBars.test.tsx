@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
@@ -23,13 +23,27 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     expect(screen.getByText('14.1%')).toBeInTheDocument();
   });
 
-  it('renders compact full-value amounts and describes the bars when margin is unavailable', () => {
+  it('AC-RD-UNAVAIL-001 / SL-B: unknown margin drops the headline row entirely, never prose or a lone dash', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    expect(screen.getByText('Weighted pipeline value')).toBeInTheDocument();
-    expect(screen.getByText('No active budget')).toBeInTheDocument();
-    const amount = document.querySelector<HTMLElement>('[title]')!;
+    const group = screen.getByRole('group', { name: /Pipeline projected margin/i });
+    expect(within(group).queryByText('—')).toBeNull();
+    expect(within(group).queryByText(/probability-adjusted/)).toBeNull();
+    expect(within(group).queryByText('Weighted pipeline value')).toBeNull();
+  });
+
+  it('AC-RD-MONEY-001: bar values are short with the exact amount as title', () => {
+    wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
+    const amount = document.querySelector<HTMLElement>('span[title]')!;
     expect(amount.title).toContain('600,000');
+    expect(amount.title).not.toContain('.00');
     expect(amount.textContent).toMatch(/600\.0K/);
+  });
+
+  it('AC-RD-GEOM-001 (unit): a stage amount is never truncated, so a long Bahasa amount cannot clip', () => {
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
+    const amount = screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!);
+    expect(amount.className).not.toMatch(/truncate|(^|\s)w-\[68px\]/);
+    expect(amount.className).toContain('whitespace-nowrap');
   });
 
   it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {

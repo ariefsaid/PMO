@@ -16,6 +16,13 @@ describe('ViewToggle (segmented control)', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(3);
   });
 
+  it('AC-RD-GEOM-001 (unit): the track grows when options wrap instead of having a fixed 32px height', () => {
+    render(<ViewToggle options={opts} value="table" onChange={() => {}} ariaLabel="View" className="flex-wrap" />);
+    const track = screen.getByRole('tablist', { name: 'View' });
+    expect(track.className).toContain('min-h-8');
+    expect(track.className.split(' ')).not.toContain('h-8');
+  });
+
   it('marks the active option aria-selected + on-classes', () => {
     render(<ViewToggle options={opts} value="kanban" onChange={() => {}} ariaLabel="View" />);
     const active = screen.getByRole('tab', { name: 'Board' });
