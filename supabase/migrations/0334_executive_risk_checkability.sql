@@ -1,4 +1,4 @@
--- 0333 exposes risk-basis completeness for the full active-delivery population.
+-- 0334 exposes risk-basis completeness for the full active-delivery population.
 begin;
 create or replace function public.get_executive_dashboard()
   returns json
