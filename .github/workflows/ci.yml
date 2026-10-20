@@ -138,6 +138,7 @@ jobs:
           node --test scripts/statement-metadata-readiness.test.mjs
           node --test scripts/verified-post-merge-cleanup.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
+          node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
@@ -343,13 +344,22 @@ jobs:
       - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
         id: chromium
         working-directory: pmo-portal
-        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/2 --reporter=list,json
+        run: |
+          set +e
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium-${{ matrix.shard }}.json npx playwright test --project=chromium --shard=${{ matrix.shard }}/2 --reporter=list,json
+          outcome=$?
+          printf '{"schemaVersion":1,"runId":"%s","attempt":"%s","revision":"%s","shard":%s,"processOutcome":"%s"}\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "${{ matrix.shard }}" \
+            "$([ "$outcome" -eq 0 ] && echo success || echo failure)" > /tmp/browser-shard-${{ matrix.shard }}.json
+          exit "$outcome"
       - name: Upload Chromium shard evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: browser-chromium-${{ matrix.shard }}
-          path: /tmp/pw-chromium-${{ matrix.shard }}.json
+          path: |
+            /tmp/pw-chromium-${{ matrix.shard }}.json
+            /tmp/browser-shard-${{ matrix.shard }}.json
           retention-days: 1
           if-no-files-found: error
 
@@ -388,21 +398,52 @@ jobs:
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
       - name: Chromium shard dependency must succeed
+        continue-on-error: true
         run: test "${{ needs.browser-chromium.result }}" = success
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8b0a5b5461e7c # v8.0.1
+        if: ${{ always() }}
         with:
           name: browser-chromium-1
           path: /tmp/browser-shards/1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8b0a5b5461e7c # v8.0.1
+        if: ${{ always() }}
         with:
           name: browser-chromium-2
           path: /tmp/browser-shards/2
-      - name: Verify both Chromium shard reports exist
+      - name: Stage available Chromium shard reports
+        if: ${{ always() }}
+        continue-on-error: true
         run: |
-          test -s /tmp/browser-shards/1/pw-chromium-1.json
-          test -s /tmp/browser-shards/2/pw-chromium-2.json
-          cp /tmp/browser-shards/1/pw-chromium-1.json /tmp/pw-chromium-1.json
-          cp /tmp/browser-shards/2/pw-chromium-2.json /tmp/pw-chromium-2.json
+          for shard in 1 2; do
+            report="/tmp/browser-shards/$shard/pw-chromium-$shard.json"
+            test -s "$report" && cp "$report" "/tmp/pw-chromium-$shard.json" || true
+          done
+
+      - name: Verify Chromium shard provenance and completeness
+        id: chromium_evidence
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_ATTEMPT: ${{ github.run_attempt }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const expected = { runId: process.env.EXPECTED_RUN_ID, attempt: process.env.EXPECTED_ATTEMPT, revision: process.env.EXPECTED_REVISION };
+          let failed = false;
+          for (const shard of [1, 2]) {
+            try {
+              const evidence = JSON.parse(readFileSync(`/tmp/browser-shards/${shard}/browser-shard-${shard}.json`, 'utf8'));
+              if (evidence.schemaVersion !== 1 || evidence.runId !== expected.runId || evidence.attempt !== expected.attempt || evidence.revision !== expected.revision || evidence.shard !== shard || evidence.processOutcome !== 'success') throw new Error('evidence mismatch');
+              if (!readFileSync(`/tmp/browser-shards/${shard}/pw-chromium-${shard}.json`, 'utf8').trim()) throw new Error('empty report');
+            } catch {
+              console.error(`browser shard ${shard}: missing, stale, or unsuccessful evidence`);
+              failed = true;
+            }
+          }
+          if (failed) process.exitCode = 1;
+          NODE
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
@@ -496,24 +537,37 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
+      - name: Chromium inventory partition audit
+        id: chromium_inventory
+        continue-on-error: true
+        working-directory: pmo-portal
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          export PLAYWRIGHT_CONFIG_PROVENANCE="$(node --input-type=module -e 'import { createHash } from "node:crypto"; import { readFileSync } from "node:fs"; const lock=JSON.parse(readFileSync("package-lock.json","utf8")); console.log(JSON.stringify({sha256:createHash("sha256").update(readFileSync("playwright.config.ts")).digest("hex"),lockedPlaywrightVersion:lock.packages["node_modules/@playwright/test"].version}))')"
+          npx playwright test --project=chromium --list --reporter=json > /tmp/pw-chromium-full-list.json
+          npx playwright test --project=chromium --shard=1/2 --list --reporter=json > /tmp/pw-chromium-1-list.json
+          npx playwright test --project=chromium --shard=2/2 --list --reporter=json > /tmp/pw-chromium-2-list.json
+          node ../scripts/check-browser-shard-inventory.mjs --full /tmp/pw-chromium-full-list.json /tmp/pw-chromium-1-list.json /tmp/pw-chromium-2-list.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json
+
       # playwright.config.ts's `webServer` is now an ARRAY of two Vite dev servers: the ordinary
       # one (`npm run dev`, :3000, analytics disabled) and a second, analytics-ENABLED one (:3100,
       # the `consent` project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a
       # dev server with a real key was the only way to make AC-CON-003 non-vacuous). Both are
       # started for every project invocation below since `webServer` is a top-level config, not
       # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
-      - name: E2E tests (Playwright / Chromium)
-        id: ordinary_e2e
+      - name: E2E tests (Playwright / serial)
+        id: serial_e2e
+        continue-on-error: true
         working-directory: pmo-portal
-        run: |
-          # ⚑ PLAYWRIGHT_JSON_OUTPUT_NAME, never a shell redirect. `--reporter=list,json > file` sends BOTH
-          # reporters to the file: the human-readable output vanishes from the CI log AND the list text
-          # corrupts the JSON the skip gate parses. (Self-inflicted 2026-07-25 — a failing run showed no
-          # failing test name at all.) The env var routes json to a file and leaves list on stdout.
-          # No retries (playwright.config.ts `retries: 0`): a real failure fails once, with a trace
-          # (`retain-on-failure`) — never re-run 3x, and no retry can mask a flake.
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
-          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+
+      - name: E2E tests (Playwright / consent)
+        id: consent_e2e
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        working-directory: pmo-portal
+        run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json
 
       # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
       # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
@@ -521,18 +575,23 @@ jobs:
       # Every skip must be an explicit, justified allowlist entry with a path back; a STALE entry
       # fails too, so the list cannot quietly grow to cover everything.
       - name: E2E skip audit — every skip is explained
+        id: e2e_skip_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
         working-directory: .
         # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
         # entry looks stale in another lane's report and the gate fails itself.
         run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
 
       - name: E2E timing budget audit
-        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        id: e2e_timing_audit
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
         working-directory: .
         run: node scripts/check-e2e-time-budget.mjs --summary /tmp/pw-time-budget-summary.json /tmp/pw-chromium-1.json /tmp/pw-chromium-2.json /tmp/pw-serial.json /tmp/pw-consent.json
 
       - name: Upload E2E timing summary
-        if: ${{ always() && !cancelled() && (steps.ordinary_e2e.outcome == 'success' || steps.ordinary_e2e.outcome == 'failure') }}
+        if: ${{ always() && !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-time-budget-summary
@@ -556,6 +615,9 @@ jobs:
       # exported (the script sets the former; "Write .env.local for Vite / Playwright" above set
       # the latter in $GITHUB_ENV) — served-fn-smoke.spec.ts now REQUIRES the latter (finding 7).
       - name: Serve adapter-dispatch (served-fn lane smoke)
+        id: serve_adapter_dispatch
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
         env:
           SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
         run: |
@@ -569,6 +631,18 @@ jobs:
           name: playwright-report
           path: pmo-portal/playwright-report/
           retention-days: 7
+
+      - name: Required integration result requires all browser evidence and audits
+        if: ${{ always() }}
+        run: |
+          test "${{ needs.browser-chromium.result }}" = success
+          test "${{ steps.chromium_evidence.outcome }}" = success
+          test "${{ steps.chromium_inventory.outcome }}" = success
+          test "${{ steps.serial_e2e.outcome }}" = success
+          test "${{ steps.consent_e2e.outcome }}" = success
+          test "${{ steps.e2e_skip_audit.outcome }}" = success
+          test "${{ steps.e2e_timing_audit.outcome }}" = success
+          test "${{ steps.serve_adapter_dispatch.outcome }}" = success
 
       # playwright.config.ts redirects `outputDir` to `os.tmpdir()/pmo-portal-test-results` (see
       # its comment) so local `supabase functions serve`'s file watcher doesn't restart on writes
