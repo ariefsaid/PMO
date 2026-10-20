@@ -12,23 +12,12 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   userId: 'u-fin',
   query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
-  position: {
-    identityReady: true,
-    rows: [{
-      projectId: 'p1', projectName: 'Alpha', projectNumber: null,
-      actual: { state: 'known', amount: '75.00', currency: 'IDR', asOf: '2026-10-18T08:00:00Z', basis: 'pmo', complete: true, categories: [], excludesRestrictedRows: false },
-    }],
-    pageIndex: 0, pageCount: 1, expandedProjectId: null, detail: null,
-    actualState: 'known', projectState: 'not-requested', financeState: 'not-requested', collectionsState: 'not-requested',
-    retryActual: vi.fn(), retryProject: vi.fn(), retryFinances: vi.fn(), retryCollections: vi.fn(),
-  } as unknown,
   exportTable: vi.fn(),
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => h.query,
-  useManagementPosition: () => h.position,
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
@@ -139,23 +128,47 @@ describe('AC-MMP-013 honest states', () => {
 });
 
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
-  it('RF-035: separates cumulative through-date figures from selected-period rows', () => {
+  it('RF-035: states the cumulative scope once; the monthly-scope lines are gone (FIN-S8)', () => {
     renderPage();
     expect(screen.getByText('Cumulative amounts · since project start through Apr 26')).toBeInTheDocument();
-    expect(screen.getByText('Monthly figures · selected period Mar 26–Apr 26')).toBeInTheDocument();
+    expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
   });
 
-  it('AC-S35-005/007: current source position stays separate from the selected-period pack and its table remains intact', () => {
+  it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {
     renderPage();
-    const positionHeading = screen.getByRole('heading', { name: 'Current project position' });
-    const periodHeading = screen.getByRole('heading', { name: 'Projects as at Apr 26' });
-    expect(positionHeading.compareDocumentPosition(periodHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText('Latest recorded position; separate from selected-period revenue.')).toBeInTheDocument();
-    expect(within(positionHeading.closest('section')!).getByText((_content, element) =>
-      element !== null && element.classList.contains('tabular-nums') && (element.textContent ?? '').includes('75.00'),
-    )).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Current project position' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Projects as at Apr 26' })).toBeInTheDocument();
     expect(within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
-    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+  });
+
+  it('FIN-S8: exactly one Export control replaces the CSV and XLSX pair', () => {
+    renderPage();
+    expect(screen.getAllByRole('button', { name: /^Export/ })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled();
+  });
+
+  it('T10: project amounts are full and exact — zero fraction suppressed, tabular, never monospace', () => {
+    renderPage();
+    const cell = within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate');
+    expect(cell).toHaveTextContent(/250/);
+    expect(cell.textContent).not.toMatch(/[.,]00(?!\d)/);
+    expect(cell).toHaveClass('tabular');
+    expect(cell.className).not.toContain('font-mono');
+  });
+
+  it('T10: the project table closes with a per-currency total row inside its <tfoot>, never summing currencies', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    renderPage();
+    const projectTable = screen.getByRole('table', { name: 'Projects as at Apr 26' });
+    const footRows = within(projectTable).getAllByRole('row').filter((row) => row.closest('tfoot'));
+    expect(footRows.length).toBeGreaterThanOrEqual(2);
+    expect(footRows.map((row) => row.textContent).join(' ')).toMatch(/Total/);
+    expect(footRows.some((row) => /IDR|Rp/.test(row.textContent ?? ''))).toBe(true);
+    expect(footRows.some((row) => /\$|USD/.test(row.textContent ?? ''))).toBe(true);
   });
 
   it('RF-036: labels contract-currency backlog and subtotal unavailable pending reconciliation', () => {
@@ -256,11 +269,11 @@ describe('Management pack design polish', () => {
 });
 
 describe('AC-MMP-011 export wiring', () => {
-  it('AC-MMP-011: Export CSV hands the long-format table and the as-at stem to the exporter', async () => {
+  it('AC-MMP-011: Export hands the long-format table and the as-at stem to the exporter', async () => {
     renderPage();
     const row = within(screen.getByText('Alpha').closest('tr')!);
     expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Export CSV' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
     const [table, stem, format] = h.exportTable.mock.calls[0];
     expect(stem).toBe('Management-pack_2026-04');
     expect(format).toBe('csv');
