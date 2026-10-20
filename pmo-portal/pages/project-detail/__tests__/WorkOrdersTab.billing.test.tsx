@@ -104,14 +104,33 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(cell).getByText('Partly invoiced')).toBeInTheDocument();
     expect(cell).toHaveTextContent('Invoiced $330,000.00 · paid $100,000.00');
     expect(cell).toHaveTextContent('Still to invoice $80,000.00');
-    expect(within(cell).getByTestId('wo-billing-basis')).toHaveTextContent('excl. PPN');
   });
 
-  it('AC-BWO-004 one "excl. PPN" qualifies the whole billing cell — not one per figure — and it never wraps', () => {
+  it('AC-BWO-004 (SUB-C) "excl. PPN" is said once on the billing summary head — never per row or per total', () => {
     renderTab();
-    const basis = within(screen.getByTestId('wo-billing-wo-1')).getAllByTestId('wo-billing-basis');
+    const basis = screen.getAllByTestId('wo-billing-basis');
     expect(basis).toHaveLength(1);
     expect(basis[0]).toHaveClass('whitespace-nowrap');
+    expect(screen.getByTestId('wo-billing-summary').querySelector('h2')).toContainElement(basis[0]);
+    expect(within(screen.getByTestId('wo-billing-wo-1')).queryByTestId('wo-billing-basis')).toBeNull();
+  });
+
+  it('SUB-C the per-row "Invoiced · paid" line appears only once something has been invoiced', () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 0, paid: 0, remaining: 500_000, lineCount: 0, unpaidCount: 0 })];
+    renderTab();
+    const cell = screen.getByTestId('wo-billing-wo-1');
+    expect(cell).toHaveTextContent('Still to invoice $500,000.00');
+    expect(cell).not.toHaveTextContent('Invoiced');
+    expect(cell).not.toHaveTextContent('paid');
+  });
+
+  it('SUB-C the always-on summary note is gone, but the incomplete-totals note stays', () => {
+    const { unmount } = renderTab();
+    expect(screen.queryByText(/Issued and closed work orders, less what has been invoiced/)).toBeNull();
+    unmount();
+    h.billing.data = [bill({ figuresComplete: false, problems: [{ recordId: 'si-9', number: 'ACC-SINV-9', cause: 'no-amount', currency: 'USD' }] })];
+    renderTab();
+    expect(screen.getByText(/has no amount or is in another currency/)).toBeInTheDocument();
   });
 
   it('AC-BWO-004 what is still to invoice leads the billing cell, ahead of invoiced and paid', () => {
@@ -177,7 +196,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(cell).getByText('Awaiting submission')).toBeInTheDocument();
     expect(within(cell).queryByText('Fully invoiced')).toBeNull();
     expect(cell).toHaveTextContent('Not yet submitted $500,000.00');
-    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('Not yet submitted$500,000.00excl. PPN');
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('Not yet submitted$500,000.00');
   });
 
   it('AC-BWO-003 the awaiting-submission pill reads in Bahasa', async () => {
@@ -263,7 +282,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
     const toast = await findToastAnnouncement('status', 'Draft invoice created');
-    expect(toast).toHaveTextContent('ACC-SINV-1 — submit it from Sales Invoices.');
+    expect(toast).not.toHaveTextContent('submit it from Sales Invoices');
     expect(screen.getByRole('link', { name: 'Open draft' })).toHaveAttribute('href', '/sales-invoices/si-erp-returned');
     expect(screen.getByText('Draft created. A different Finance or Admin user must submit it.')).toBeInTheDocument();
   });
@@ -293,8 +312,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Invoice' }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-unnamed' }));
     const toast = await findToastAnnouncement('status', 'Draft invoice created in PMO');
-    expect(toast).toHaveTextContent('WO-1 — a second Finance/Admin person approves it from Sales Invoices.');
-    expect(toast).not.toHaveTextContent('ERPNext');
+    expect(toast).not.toHaveTextContent('approves it from Sales Invoices');
     expect(screen.getByRole('link', { name: 'Open draft' })).toHaveAttribute('href', '/sales-invoices/si-native-returned');
     expect(screen.getByText('Draft created. A different Finance or Admin user must approve it.')).toBeInTheDocument();
   });
@@ -307,9 +325,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
       bill({ workOrderId: 'wo-3', status: 'Draft', invoiced: 0, pending: 0, paid: 0, remaining: 900_000, lineCount: 0, unpaidCount: 0 }),
     ];
     renderTab();
-    expect(screen.getByTestId('wo-billing-total-invoiced')).toHaveTextContent('$435,000.00excl. PPN');
-    expect(screen.getByTestId('wo-billing-total-paid')).toHaveTextContent('$100,000.00excl. PPN');
-    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000.00excl. PPN');
+    expect(screen.getByTestId('wo-billing-total-invoiced')).toHaveTextContent('$435,000.00');
+    expect(screen.getByTestId('wo-billing-total-paid')).toHaveTextContent('$100,000.00');
+    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000.00');
   });
 
   it('AC-UNB-002 one untotallable work order makes the project totals Unavailable, never a sum', () => {

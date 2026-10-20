@@ -160,6 +160,18 @@ describe('the rows', () => {
     expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('$111,000 incl. PPN');
   });
 
+  it('SUB-C: rate and DPP are shown only when DPP is not 1/1 or the rate is missing', () => {
+    listState.data = [
+      row({ id: 'wo-1', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
+      row({ id: 'wo-2', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
+      row({ id: 'wo-3', tax_rate: null }),
+    ];
+    renderTab();
+    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^\$250,000\s*excl\. PPN$/);
+    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
+    expect(screen.getByTestId('wo-value-wo-3')).toHaveTextContent('rate not recorded');
+  });
+
   it('says a draft has no WO number yet rather than showing an empty cell', () => {
     listState.data = [row({ wo_number: null })];
     renderTab();
@@ -174,8 +186,9 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
-    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
-    expect(issueGate).toHaveTextContent('Another reviewer must issue this order');
+    // SUB-C: the blocked-draft notice is the sentence alone — no bold restating title.
+    expect(screen.queryByText('Another reviewer must issue this order')).toBeNull();
+    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('You set its value'));
     expect(issueGate).toHaveTextContent('You set its value. Ask another authorized reviewer to review and issue it.');
     expect(screen.queryByText('Issue this work order?')).not.toBeInTheDocument();
   });
@@ -193,7 +206,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
       listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
       renderTab(role);
       expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
-      expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/You set its value|must be set by/)).not.toBeInTheDocument();
     },
   );
 
@@ -201,7 +214,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row({ order_value: 0, order_value_set_by: 'u-1' })];
     renderTab('Project Manager');
     expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
-    expect(screen.queryByText(/Another reviewer must issue this order/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/You set its value|must be set by/)).not.toBeInTheDocument();
   });
 
   it('blocks a PM when a peer author does not outrank them per the server predicate', () => {
@@ -211,7 +224,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
-    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('Another reviewer must issue this order'));
+    const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('your supervisor'));
     expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
   });
 

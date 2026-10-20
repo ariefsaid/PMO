@@ -195,7 +195,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <StatusPill variant={BILLING_VARIANT[state]} className={BILLING_CHIP}>{billingLabel(state)}</StatusPill>
-            {state !== 'incomplete' && excl}
           </span>
           {state === 'incomplete' ? (
             // DD-BWO-3: say which invoice stops the total, when the cause could be read.
@@ -230,14 +229,16 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       interpolation: { escapeValue: false },
                     })}
               </span>
-              <span className={line}>
-                {t('projectDetail.workOrders.billing.lineInvoiced', {
-                  defaultValue: 'Invoiced {{invoiced}} · paid {{paid}}',
-                  invoiced: money(f.invoiced),
-                  paid: money(f.paid),
-                  interpolation: { escapeValue: false },
-                })}
-              </span>
+              {Math.round(f.invoiced * 100) > 0 && (
+                <span className={line}>
+                  {t('projectDetail.workOrders.billing.lineInvoiced', {
+                    defaultValue: 'Invoiced {{invoiced}} · paid {{paid}}',
+                    invoiced: money(f.invoiced),
+                    paid: money(f.paid),
+                    interpolation: { escapeValue: false },
+                  })}
+                </span>
+              )}
               {/* Drafts and unraised claims use up the work order before they are invoiced: shown, so a work order
                   that is "full" only because of a draft never reads as invoiced (AC-BWO-003, DD-BWO-1). */}
               {Math.round(f.pending * 100) > 0 && (
@@ -288,8 +289,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       ? t('projectDetail.workOrders.tax.inclusive', 'incl. PPN')
       : t('projectDetail.workOrders.tax.exclusive', 'excl. PPN');
 
-  const basisNote = (row: WorkOrderRow): string =>
-    `${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? `\u00a0${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP\u00a0${row.tax_base_numerator ?? 1}/${row.tax_base_denominator ?? 1}`;
+  // SUB-C: the rate and DPP are detail — shown only when they change the reading (rate missing, or DPP is not 1/1).
+  const basisNote = (row: WorkOrderRow): string => {
+    const numerator = row.tax_base_numerator ?? 1;
+    const denominator = row.tax_base_denominator ?? 1;
+    if (row.tax_rate != null && numerator === denominator) return treatmentLabel(row.tax_treatment);
+    return `${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? `\u00a0${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP\u00a0${numerator}/${denominator}`;
+  };
   const valueWithBasis = (row: WorkOrderRow): string => `${formatCurrency(row.order_value, row.currency)} ${basisNote(row)}`;
 
   const fail = (err: unknown) => {
@@ -461,7 +467,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             )}
             {isDraft && canTransition && issueBlockedByValueAuthor ? (
               <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">
-                <strong>{t('projectDetail.workOrders.issueGate.title', 'Another reviewer must issue this order')}</strong>{' '}
                 {issueGateBody}
               </GateNotice>
             ) : isDraft && canTransition ? (
@@ -557,7 +562,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           )}
           {rows.length > 0 && (
             <Card variant="bare" data-testid="wo-billing-summary">
-              <CardHead level={2} className="text-base">{t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}</CardHead>
+              <CardHead level={2} className="gap-2 text-base">
+                {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
+                {billing.data && totals.complete && excl}
+              </CardHead>
               <CardPad>
             {billing.isPending ? (
               <ListState variant="loading" rows={1} testId="wo-billing-loading" />
@@ -587,15 +595,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           ? formatCurrencyCents(value, currency)
                           : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
                       </dd>
-                      {totals.complete && <dd>{excl}</dd>}
                     </div>
                   ))}
                 </dl>
-                <p className="mt-2 text-[12px] text-muted-foreground">
-                  {totals.complete
-                    ? t('projectDetail.workOrders.billing.summaryNote', 'Issued and closed work orders, less what has been invoiced or drafted against them.')
-                    : t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
-                </p>
+                {!totals.complete && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
+                  </p>
+                )}
               </>
             )}
               </CardPad>
@@ -675,26 +682,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           onCreated={(invoice) => {
             setCreatedInvoice({ id: invoice.id, native: revenueMode === 'native' });
             if (revenueMode === 'native') {
-              // #913: a PMO Draft has no number yet (DD-NAR-9 mints it on approval) — name it by its work order.
-              toast(
-                t('projectDetail.workOrders.billing.toast.nativeCreated', 'Draft invoice created in PMO'),
-                t('projectDetail.workOrders.billing.toast.nativeCreatedSub', {
-                  defaultValue: '{{wo}} — a second Finance/Admin person approves it from Sales Invoices.',
-                  wo: invoiceFor.row.wo_number ?? invoiceFor.row.title,
-                  interpolation: { escapeValue: false },
-                }),
-                'success',
-              );
+              toast(t('projectDetail.workOrders.billing.toast.nativeCreated', 'Draft invoice created in PMO'), undefined, 'success');
             } else {
-              toast(
-                t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'),
-                t('projectDetail.workOrders.billing.toast.createdSub', {
-                  defaultValue: '{{number}} — submit it from Sales Invoices.',
-                  number: invoice.si_number ?? '',
-                  interpolation: { escapeValue: false },
-                }),
-                'success',
-              );
+              toast(t('projectDetail.workOrders.billing.toast.created', 'Draft invoice created'), undefined, 'success');
             }
             setInvoiceFor(null);
           }}
