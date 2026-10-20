@@ -9,6 +9,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
 
@@ -20,6 +21,23 @@ function initials(name?: string | null): string {
     .map((p) => p[0]?.toUpperCase() ?? '')
     .join('');
 }
+
+/**
+ * FIN-S9: the personal M365 connect doorway (/integrations), moved here from the rail. Shown only to an entitled
+ * org (the `m365_integration` entitlement defaults OFF), so a non-entitled org sees no dead link. Mounted only while
+ * the menu is open, so the entitlement read costs nothing until then.
+ */
+const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> = ({ className, onSelect }) => {
+  const { t } = useTranslation();
+  const { data: orgFeatures } = useOrgFeatures();
+  if (orgFeatures?.m365_integration !== true) return null;
+  return (
+    <Link to="/integrations" role="menuitem" onClick={onSelect} className={className}>
+      <Icon name="plug" className="text-muted-foreground [&_svg]:size-[17px]" />
+      {t('shell.nav.integrations', 'My integrations')}
+    </Link>
+  );
+};
 
 /**
  * AccountMenu — the ONE responsive avatar/identity account control in the top bar
@@ -183,6 +201,7 @@ export const AccountMenu: React.FC = () => {
             <Icon name="pencil" className="text-muted-foreground [&_svg]:size-[17px]" />
             {t('shell.nav.profileSettings', 'Profile & preferences')}
           </Link>
+          <MyIntegrationsItem className={cn(rowBase, 'text-foreground hover:bg-accent')} onSelect={() => setOpen(false)} />
 
           <div className="my-1 border-t border-border" />
 

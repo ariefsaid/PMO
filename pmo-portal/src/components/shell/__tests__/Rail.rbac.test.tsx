@@ -32,7 +32,7 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 }));
 
 // S6 entitlement rewire: Rail now calls useOrgFeatures() (which calls useAuth).
-let crmFeatureEnabled = true;
+const crmFeatureEnabled = true;
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({
     data: {
@@ -92,9 +92,9 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     renderRailAs('Project Manager');
     const link = screen.getByRole('link', { name: /^My Tasks$/ });
     expect(link).toHaveAttribute('href', '/my-tasks');
-    expect(link).toHaveAccessibleDescription('Your assigned work across projects');
-    expect(link).toHaveAttribute('aria-describedby', 'rail-my-tasks-hint');
-    expect(within(link).getByText('Your assigned work across projects')).toBeInTheDocument();
+    // FIN-S9: the name says it; no sub-line, no description wiring.
+    expect(link).not.toHaveAttribute('aria-describedby');
+    expect(within(link).queryByText('Your assigned work across projects')).not.toBeInTheDocument();
   });
 
   it('UXS-007: the personal task doorway does not change Executive navigation', () => {
@@ -102,12 +102,10 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
   });
 
-  it('UXS-030: Vendors opens the existing Companies list with the Vendor filter even when CRM navigation is hidden', () => {
-    crmFeatureEnabled = false;
-    renderRailAs('Finance');
-    expect(screen.getByRole('link', { name: 'Vendors' })).toHaveAttribute('href', '/companies?type=Vendor');
-    expect(screen.queryByRole('link', { name: 'Companies' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Contacts' })).not.toBeInTheDocument();
-    crmFeatureEnabled = true;
+  it('FIN-S9: there is no Vendors rail item (Companies carries the Vendor filter) and no My integrations item', () => {
+    renderRailAs('Admin');
+    expect(screen.queryByRole('link', { name: 'Vendors' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /my integrations/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Companies' })).toHaveAttribute('href', '/companies');
   });
 });

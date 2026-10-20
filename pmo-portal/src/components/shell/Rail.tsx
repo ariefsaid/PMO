@@ -53,13 +53,7 @@ interface NavItem {
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // M365 connection-model (D2, FR-M365SEP-016): the personal-connect surface — reachable by ANY
-  // active member of an entitled org, not only Admins. Gated by the `m365_integration`
-  // entitlement (matches the card's own gate) so a non-entitled org sees no dead link. The card
-  // itself lives on /integrations; this is the rail entry to it. Label disambiguates it from the
-  // ORGANIZATION surface at /administration/integrations (AC-ADMIA-006) — the rail, breadcrumb,
-  // H1 and translations must agree on "My integrations" for this personal route.
-  { to: '/integrations', text: 'My integrations', icon: 'plug', group: 'Overview', feature: 'm365_integration', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
@@ -75,7 +69,6 @@ const ALL_ITEMS: NavItem[] = [
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'CRM', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
@@ -196,12 +189,12 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
+    // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.
     '/companies?type=Vendor': t('shell.nav.vendors', 'Vendors'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
-    '/integrations': t('shell.nav.integrations', 'My integrations'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
@@ -237,42 +230,25 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         </>
       );
     }
-    if (item.to !== '/my-tasks') return <span>{label}</span>;
-    const hint = t('shell.nav.myTasksHint', 'Your assigned work across projects');
-    return (
-      <span className="flex min-w-0 flex-col text-left leading-tight">
-        <span>{label}</span>
-        <span id="rail-my-tasks-hint" className="mt-0.5 text-[11px] font-normal text-muted-foreground">
-          {hint}
-        </span>
-      </span>
-    );
+    return <span>{label}</span>;
   };
 
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
-    const isCompanyDirectoryLink = item.to === '/companies' || item.to === '/companies?type=Vendor';
-    const descriptionProps = item.to === '/my-tasks' ? { 'aria-describedby': 'rail-my-tasks-hint' } : {};
-    const itemClass = item.to === '/my-tasks' ? 'min-h-9 h-auto py-1' : '';
+    const isCompanyDirectoryLink = item.to === '/companies';
 
     if (isCompanyDirectoryLink) {
-      const active = location.pathname === '/companies' && (
-        item.to === '/companies?type=Vendor'
-          ? location.search === '?type=Vendor'
-          : location.search !== '?type=Vendor'
-      );
+      const active = location.pathname === '/companies' && location.search !== '?type=Vendor';
       return (
         <Link
           key={item.to}
           to={item.to}
           onClick={onNavigate}
           aria-current={active ? 'page' : undefined}
-          {...descriptionProps}
           className={cn(
             NAV_LINK_BASE,
-            itemClass,
             active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
           )}
         >
@@ -293,12 +269,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
           // Ignore NavLink's built-in isActive; use the override decision.
-          aria-label={item.to === '/my-tasks' ? navLabels[item.to] : undefined}
-          aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
           className={() =>
             cn(
               NAV_LINK_BASE,
-              itemClass,
               overrideActive
                 ? 'bg-primary/10 font-semibold text-nav-active-text'
                 : 'text-foreground hover:bg-accent',
@@ -317,13 +290,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         to={item.to}
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
-        aria-label={item.to === '/my-tasks' ? navLabels[item.to] : undefined}
-        aria-describedby={item.to === '/my-tasks' ? 'rail-my-tasks-hint' : undefined}
         className={({ isActive }: { isActive: boolean }) => {
           const active = isActive;
           return cn(
             NAV_LINK_BASE,
-            itemClass,
             active
               ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
