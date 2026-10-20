@@ -45,7 +45,7 @@ import IncomingPayments from '../IncomingPayments';
 import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 import { financeTestI18n } from './financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, instantToZonedDatetimeLocal } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 
 const TODAY = () => instantToZonedDatetimeLocal(new Date(), 'UTC').slice(0, 10);
@@ -498,8 +498,8 @@ describe('Receipt page — every allocation (S-06)', () => {
     const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
     expect(within(table).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
     expect(within(table).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
-    expect(within(table).getByText(/25,000/)).toBeInTheDocument();
-    expect(within(table).getByText(/30,000/)).toBeInTheDocument();
+    expect(within(table).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(table).getByText(formatCurrencyAuto(30_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
   });
 
   it('keeps settled invoice allocations in cards on phones', () => {
@@ -508,7 +508,7 @@ describe('Receipt page — every allocation (S-06)', () => {
     renderAt('/incoming-payments/ip-erp');
     const cards = screen.getByTestId('dt-card-branch');
     expect(within(cards).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
-    expect(within(cards).getByText(/25,000/)).toBeInTheDocument();
+    expect(within(cards).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {

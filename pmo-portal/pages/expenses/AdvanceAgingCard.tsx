@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, DataTable, ListState, type Column } from '@/src/components/ui';
 import { useExpenseAdvanceAging } from '@/src/hooks/useExpenseClaims';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto, formatCurrencyCents } from '@/src/lib/format';
 import { AGING_BUCKETS, agingTotals } from '@/src/lib/expenses/expenseRules';
 import { AGING_LIMIT, type ExpenseAdvanceAgingRow } from '@/src/lib/db/expenseClaims';
 import { agingBucketLabel } from './expenseLabels';
@@ -17,7 +17,7 @@ export const AdvanceAgingCard: React.FC = () => {
     { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}`} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
     { key: 'claimant', header: t('expenses.aging.columns.claimant', 'Claimant'), kind: 'text', cell: (row) => row.claimantName ?? '—' },
     { key: 'project', header: t('expenses.aging.columns.project', 'Project'), kind: 'text', cell: (row) => row.projectName ?? t('expenses.overhead', 'Overhead') },
-    { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatCurrencyCents(row.outstanding, row.currency) },
+    { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatCurrencyAuto(row.outstanding, row.currency) },
     { key: 'age', header: t('expenses.aging.columns.age', 'Age (days)'), kind: 'number', align: 'num', cell: (row) => row.ageDays ?? '—' },
   ], [t]);
   if (isPending) return null;

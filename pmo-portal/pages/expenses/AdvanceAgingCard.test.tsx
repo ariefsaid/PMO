@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto, formatCurrencyCents } from '@/src/lib/format';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
 const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
 
@@ -29,6 +29,7 @@ describe('AdvanceAgingCard', () => {
     expect(screen.getByTestId('aging-IDR-31-60')).toHaveTextContent(money(200.5, 'IDR'));
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Outstanding' })).toBeInTheDocument();
+    expect(within(table).getByText(formatCurrencyAuto(200.5, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ADV-2' })).toHaveAttribute('href', '/expenses/a2');
   });
   it('AC-EXP-063 keeps advance details in cards on phones', () => {
@@ -37,7 +38,7 @@ describe('AdvanceAgingCard', () => {
     renderCard();
     const cards = screen.getByTestId('dt-card-branch');
     expect(within(cards).getByRole('link', { name: 'ADV-1' })).toHaveAttribute('href', '/expenses/a1');
-    expect(within(cards).getByText(money(100, 'IDR'))).toBeInTheDocument();
+    expect(within(cards).getByText(formatCurrencyAuto(100, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
   it('AC-EXP-063 renders nothing when no advance is outstanding', () => {

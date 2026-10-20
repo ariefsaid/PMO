@@ -395,7 +395,7 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
   const currency = await verifyOwnedRows(ownership, await readIntent());
   if (!currency) failClosed('the saved claim is missing after the real create flow.');
   const formattedTotal = await page.evaluate(({ amount, currencyCode, locale }) => new Intl.NumberFormat(locale, {
-    style: 'currency', currency: currencyCode, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    style: 'currency', currency: currencyCode, minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(amount), {
     amount: EXPECTED_AMOUNT,
     currencyCode: currency,

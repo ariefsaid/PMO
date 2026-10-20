@@ -796,7 +796,9 @@ export function DataTable<Row>({
         {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
-              const value = total.values?.[column.key] ?? (index === 0 ? total.label : null);
+              const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
+                ? total.values[column.key]
+                : index === 0 ? total.label : null;
               return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>

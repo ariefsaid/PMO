@@ -7,7 +7,7 @@ import {
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyCents, formatDateOnly, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrencyAuto, formatDateOnly, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { ExpenseClaimLineRow, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { expenseTypeLabel } from './expenseLabels';
 
@@ -33,9 +33,9 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
     { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
     { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
     { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
-    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrencyCents(Number(line.amount), currency) },
+    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrencyAuto(Number(line.amount), currency) },
     ...(editable ? [{
-      key: 'actions', header: '', kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
+      key: 'actions', header: t('table.actions', 'Actions'), kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
       cell: (line: ExpenseClaimLineRow) => <div className="flex justify-end gap-1">
         <Button variant="ghost" size="sm" onClick={() => setEditing(line)}
           aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: line.description })}>
@@ -87,7 +87,10 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
             totals={[{
               key: currency,
               label: t('expenses.lines.total', 'Total'),
-              values: { amount: <span data-testid="lines-total">{formatCurrencyCents(totalCents / 100, currency)}</span> },
+              values: {
+                date: null,
+                amount: <span>{t('expenses.lines.total', 'Total')}: <span data-testid="lines-total">{formatCurrencyAuto(totalCents / 100, currency)}</span></span>,
+              },
             }]}
           />
         )}
