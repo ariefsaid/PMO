@@ -63,6 +63,8 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
+  exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -287,7 +289,7 @@ function stripHiddenClasses(colClassName?: string): string {
  */
 export function DataTable<Row>({
   rows,
-  columns,
+  columns: allColumns,
   rowKey,
   onActivate,
   rowLabel,
@@ -311,6 +313,7 @@ export function DataTable<Row>({
   totals,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
+  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());

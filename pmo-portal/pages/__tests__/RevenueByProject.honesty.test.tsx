@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -117,7 +117,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.queryAllByText('$0.00')).toHaveLength(0);
     // The tiles stay, honestly blank (em-dash), so the layout doesn't jump.
     expect(screen.getByText('Total Revenue (net of tax)')).toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows skeletons, not zeroes, while the revenue query is still loading', () => {
@@ -126,7 +126,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     renderPage();
 
     expect(screen.queryAllByText('$0')).toHaveLength(0);
-    expect(screen.getAllByTestId('kpi-skeleton').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByTestId('kpi-skeleton').length).toBeGreaterThanOrEqual(2);
   });
 
   it('reports the real totals once the data has actually loaded', () => {
@@ -137,9 +137,12 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     renderPage();
 
-    expect(screen.getByText('$4,200,000')).toBeInTheDocument();
-    expect(screen.getByText('$250,000')).toBeInTheDocument();
-    expect(screen.getByText('15')).toBeInTheDocument();
+    // Tile value and the table's total row both carry the per-currency total.
+    expect(screen.getAllByText('$4,200,000').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('$250,000').length).toBeGreaterThanOrEqual(2);
+    // FIN-S6: the Total Invoices and Projects tiles are gone (two money tiles remain).
+    expect(screen.queryByText('Total Invoices')).not.toBeInTheDocument();
+    expect(screen.queryByText('Projects', { selector: 'p, span, div' })).not.toBeInTheDocument();
   });
 
   it('reports a genuine zero as $0 when the org truly has no invoices yet', () => {
@@ -156,7 +159,8 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     renderPage('Project Manager');
 
-    expect(screen.getByRole('button', { name: 'Browse Projects' })).toBeInTheDocument();
+    // FIN-S6: no duplicate "Browse Projects" header button; the empty state still says who creates invoices.
+    expect(screen.queryByRole('button', { name: 'Browse Projects' })).not.toBeInTheDocument();
     expect(screen.getByText(/Finance manages invoice creation/)).toBeInTheDocument();
     expect(screen.queryByText('Create sales invoices to see revenue per project.')).toBeNull();
   });
@@ -184,24 +188,19 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     await testI18n.changeLanguage('en');
   });
 
-  it('AC-PFIN-009: Finance/Admin has an Assign project action; keyboard activation still opens the unassigned list for readers', async () => {
+  it('AC-PFIN-009 / FIN-S6: the Unassigned row is one clickable row for every role (no separate Assign button); keyboard activation opens the unassigned list', async () => {
     revenueState.data = [
       { project_id: null, project_name: null, currency: 'USD', total_amount: 1200, open_ar: 1200, invoice_count: 1 },
     ];
-    for (const role of ['Finance', 'Admin'] as const) {
-      const finance = renderPage(role);
-      fireEvent.click(screen.getByRole('button', { name: 'Assign project' }));
+    for (const role of ['Finance', 'Admin', 'Executive'] as const) {
+      const view = renderPage(role);
+      expect(screen.queryByRole('button', { name: 'Assign project' })).not.toBeInTheDocument();
+      const openGroup = screen.getByRole('button', { name: 'Open Unassigned (USD)' });
+      openGroup.focus();
+      await userEvent.keyboard('{Enter}');
       expect(screen.getByTestId('route-location')).toHaveTextContent('/sales-invoices?attribution=unassigned');
-      finance.unmount();
+      view.unmount();
     }
-
-    const reader = renderPage('Executive');
-    expect(screen.queryByRole('button', { name: 'Assign project' })).not.toBeInTheDocument();
-    const openGroup = screen.getByRole('button', { name: 'Open Unassigned (USD)' });
-    openGroup.focus();
-    await userEvent.keyboard('{Enter}');
-    expect(screen.getByTestId('route-location')).toHaveTextContent('/sales-invoices?attribution=unassigned');
-    reader.unmount();
   });
 
   it('AC-801-001: describes the unassigned invoices in English and Indonesian without exposing a setting key', async () => {
@@ -255,26 +254,20 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     renderPage();
 
-    expect(screen.getByText('Rp\u00a01.234.567', { normalizer: (text) => text })).toBeInTheDocument();
-    expect(screen.getByText('Rp\u00a012.345', { normalizer: (text) => text })).toBeInTheDocument();
-    expect(screen.getByText('2 faktur')).toBeInTheDocument();
+    expect(screen.getAllByText('Rp\u00a01.234.567', { normalizer: (text) => text }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Rp\u00a012.345', { normalizer: (text) => text }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText('2 faktur')).not.toBeInTheDocument();
   });
 
-  it('AC-L10N-B03 uses localized singular and plural invoice counts in both catalogues', async () => {
+  it('FIN-S6: no per-row "N invoices" sub-line, no second description line, no Currency column', () => {
     revenueState.data = [
-      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 0, invoice_count: 1 },
-      { project_id: 'p2', project_name: 'Beta', currency: 'USD', total_amount: 2_000, open_ar: 0, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 0, invoice_count: 2 },
     ];
-
-    const { unmount } = renderPage();
-    expect(screen.getByText('1 invoice')).toBeInTheDocument();
-    expect(screen.getByText('2 invoices')).toBeInTheDocument();
-
-    unmount();
-    await testI18n.changeLanguage('id');
     renderPage();
-    expect(screen.getByText('1 faktur')).toBeInTheDocument();
-    expect(screen.getByText('2 faktur')).toBeInTheDocument();
+    expect(screen.queryByText('2 invoices')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Billed work excludes tax; open receivables include tax owed/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
   });
 
   it('AC-831-2: a project billed in two currencies shows two rows, each labelled with its own currency', () => {
@@ -285,7 +278,7 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     renderPage();
 
-    expect(screen.getAllByText('$1,000.00').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$1,000').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/IDR[\s\u00a0]?2,000,000/).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -298,8 +291,10 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
 
     expect(screen.getAllByText('Total Revenue (net of tax)').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('Open AR (gross, tax included)').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('$250.00')).toBeInTheDocument();
-    expect(screen.getByText('$275.00')).toBeInTheDocument();
+    // T10: full amount, zero fraction suppressed; tabular, never monospace.
+    expect(screen.getAllByText('$250').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('$275').length).toBeGreaterThanOrEqual(2);
+    expect(document.querySelector('td .font-mono')).toBeNull();
   });
 
   it('AC-831-3: the org-wide total never adds two currencies into one number', () => {
