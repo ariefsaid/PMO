@@ -1,61 +1,474 @@
-import { useEffect, useRef, useState } from 'react';
-import { EntityFormModal, TextField, Button, useEntityForm } from '@/src/components/ui';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, EntityFormModal, Icon, ListState, TextField, useEntityForm, type SubmitError } from '@/src/components/ui';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
-import { browseOneDrive, getPersonalDrive, listChildren, listDrives, listSites, searchDrive, type GraphDrive, type GraphItem, type GraphReadRequest, type GraphSite } from '@/src/lib/m365/graphClient';
-import { suggestFolders } from '@/src/lib/m365/folderSuggestions';
-import { M365BrowseNotice } from './M365BrowseNotice';
+import {
+  browseOneDrive, getPersonalDrive, listChildren, listDrives, listSites, searchDrive,
+  type GraphDrive, type GraphItem, type GraphReadRequest, type GraphSite,
+} from '@/src/lib/m365/graphClient';
+import { suggestFolders, type PickerContext } from '@/src/lib/m365/folderSuggestions';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { M365BrowseNotice } from './M365BrowseNotice';
 
-export type PickerContext = { kind: 'project'; code: string | null } | { kind: 'procurement'; request_number: string | null; created_at: string } | { kind: 'budget' };
-interface Props { open: boolean; context: PickerContext; onClose: () => void; onSelect: (ref: MicrosoftReferenceInput) => Promise<void> }
-type Location = { kind: 'chooser' } | { kind: 'sites' } | { kind: 'libraries'; site: GraphSite } | { kind: 'items'; drive: GraphDrive; folder: GraphItem | null };
-export function MicrosoftDocumentPicker({ open, context, onClose, onSelect }: Props) {
-  const { connection, defaultLibrary, isPending, defaultError } = useMicrosoftDocuments();
-  const [location, setLocation] = useState<Location>({ kind: 'chooser' });
-  const [sites, setSites] = useState<GraphSite[]>([]); const [drives, setDrives] = useState<GraphDrive[]>([]);
-  const [items, setItems] = useState<GraphItem[]>([]); const [selected, setSelected] = useState<GraphItem | null>(null); const [pathStack, setPathStack] = useState<GraphItem[]>([]);
-  const [next, setNext] = useState<GraphReadRequest | null>(null); const [unsupportedCount, setUnsupportedCount] = useState(0); const [problem, setProblem] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false); const [search, setSearch] = useState(''); const [suggestions, setSuggestions] = useState<GraphItem[]>([]);
-  const generation = useRef(0); const defaultStarted = useRef(false); const previousSearch = useRef(''); const form = useEntityForm<{ selected: string }>({ initialValues: { selected: '' }, requiredFields: ['selected'] });
-  const resetForm = form.reset;
-  const invalidateRequests = () => { generation.current += 1; };
-  const [isSubmitting, setIsSubmitting] = useState(false); const [submitError, setSubmitError] = useState<{ headline: string; detail?: string } | null>(null);
+export type { PickerContext } from '@/src/lib/m365/folderSuggestions';
+export interface MicrosoftDocumentPickerProps {
+  open: boolean;
+  context: PickerContext;
+  onClose: () => void;
+  onSelect: (ref: MicrosoftReferenceInput) => Promise<void>;
+}
+
+type Location =
+  | { kind: 'chooser' }
+  | { kind: 'sites' }
+  | { kind: 'onedrive' }
+  | { kind: 'libraries'; site: GraphSite }
+  | { kind: 'suggestions' }
+  | { kind: 'items'; drive: GraphDrive; path: GraphItem[]; origin: 'default' | 'manual' };
+
+interface Listing { key: string; items: GraphItem[]; next: GraphReadRequest | null; unsupported: number; error: unknown }
+
+const SEARCH_DEBOUNCE_MS = 300;
+const MIN_SEARCH_LENGTH = 2;
+/** Codes that mean "the connection is the problem", not "this default library is unreachable". */
+const NOT_A_LIBRARY_PROBLEM = new Set([
+  'CONNECTION_STALE', 'CONNECTION_REVOKED', 'NOT_CONNECTED', 'SCOPE_INSUFFICIENT', 'UNAUTHORIZED', 'NOT_ENTITLED',
+  'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN', 'external-unreachable',
+]);
+const ROW_BUTTON = 'touch-target h-auto min-h-8 min-w-0 justify-start whitespace-normal break-words py-1 text-left';
+
+const codeOf = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
+const itemKey = (item: GraphItem) => `${item.drive_id}\u0000${item.item_id}`;
+const KIND_LABEL = { file: 'file', folder: 'folder' } as const;
+
+/** Only the reference fields leave the picker: never the Graph content tag, parent path or SharePoint ids. */
+function toReference(item: GraphItem): MicrosoftReferenceInput {
+  return { drive_id: item.drive_id, item_id: item.item_id, web_url: item.web_url, name: item.name, item_kind: item.item_kind };
+}
+
+/** `/drive/root:/Procurement/2027` or `/drives/<id>/root:/Projects` -> `Procurement / 2027`. */
+function conventionPath(parentPath: string | null): string {
+  const rest = (parentPath ?? '').replace(/^\/drives?\/(?:[^/]+\/)?root:/, '');
+  return rest.split('/').filter(Boolean).map((part) => { try { return decodeURIComponent(part); } catch { return part; } }).join(' / ');
+}
+
+function contextLabel(context: PickerContext): string | null {
+  if (context.kind === 'project') return context.code?.trim() || null;
+  if (context.kind === 'procurement') return context.request_number?.trim() || null;
+  return null;
+}
+
+function connectionNoticeCode(connection: { connected: boolean; status: string | null } | undefined): string {
+  if (!connection || !connection.connected) return 'NOT_CONNECTED';
+  return connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE';
+}
+
+/**
+ * Shared Microsoft 365 metadata picker (AC-M365DOC-054/056/057/067). Browses sites, libraries and
+ * OneDrive through the CALLER's own connection, GET-only, and commits a reference only on the final
+ * explicit "Link from Microsoft 365". Mounted only while open so every open starts fresh: nothing is
+ * remembered between opens, and unmounting invalidates any response still in flight.
+ */
+export function MicrosoftDocumentPicker(props: MicrosoftDocumentPickerProps) {
+  if (!props.open) return null;
+  return <PickerSession {...props} />;
+}
+
+function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerProps) {
+  const { connection, defaultLibrary, isPending, connectionError, defaultError, refetch } = useMicrosoftDocuments();
   const canBrowse = connection?.connected === true && connection.status === 'active';
+  const form = useEntityForm<{ selected: string }>({ initialValues: { selected: '' }, requiredFields: ['selected'] });
+  const setSelectedValue = form.setValue;
+
+  const [location, setLocation] = useState<Location>({ kind: 'chooser' });
+  const [selected, setSelected] = useState<GraphItem | null>(null);
+  const [sites, setSites] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphSite[]; error: unknown }>({ status: 'loading', value: [], error: null });
+  const [libraries, setLibraries] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphDrive[]; error: unknown }>({ status: 'loading', value: [], error: null });
+  const [oneDrive, setOneDrive] = useState<{ status: 'loading' | 'error'; error: unknown }>({ status: 'loading', error: null });
+  const [search, setSearch] = useState('');
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [moreBusyKey, setMoreBusyKey] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<{ key: string; error: unknown } | null>(null);
+  const [suggestions, setSuggestions] = useState<GraphItem[]>([]);
+  const [suggestionHint, setSuggestionHint] = useState(false);
+  const [startDone, setStartDone] = useState(false);
+  const [defaultUnavailable, setDefaultUnavailable] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+
+  const generation = useRef(0);
+  const navGeneration = useRef(0);
+  const startGeneration = useRef(0);
+  const startClaimed = useRef(false);
+  const focusAfterNavigation = useRef(false);
+  const focusFromIndex = useRef<number | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const loadMoreRef = useRef<HTMLButtonElement>(null);
+
   const drive = location.kind === 'items' ? location.drive : null;
-  const folder = location.kind === 'items' ? location.folder : null;
-  async function load(d: GraphDrive, f: GraphItem | null, append = false, cursor?: GraphReadRequest | null) {
-    const seq = generation.current;
-    setBusy(true); setProblem(null);
-    try { const page = cursor ? await browseOneDrive(cursor) : await listChildren(d.id, f?.item_id); if (seq !== generation.current) return; setItems(old => append ? [...old, ...page.value.filter(x => !old.some(y => y.drive_id === x.drive_id && y.item_id === x.item_id))] : page.value); setNext(page.next); setUnsupportedCount(count => append ? count + (page.unsupported_count ?? 0) : (page.unsupported_count ?? 0)); }
-    catch (e) { if (seq === generation.current) setProblem(e); } finally { if (seq === generation.current) setBusy(false); }
+  const path = location.kind === 'items' ? location.path : null;
+  const origin = location.kind === 'items' ? location.origin : null;
+  const folder = path?.at(-1) ?? null;
+  const term = search.trim().length >= MIN_SEARCH_LENGTH ? search.trim() : '';
+  const wantKey = drive ? [drive.id, folder?.item_id ?? '', term, nonce].join('\u0000') : null;
+  const loading = wantKey !== null && listing?.key !== wantKey;
+  const current = !loading && listing ? listing : null;
+  const moreBusy = !!current && moreBusyKey === current.key;
+  const moreFailure = current && moreError?.key === current.key ? moreError.error : null;
+
+  // Nothing in flight may touch state once the picker is gone.
+  useEffect(() => () => { generation.current += 1; navGeneration.current += 1; startGeneration.current += 1; }, []);
+
+  // One effect owns the location listing AND the debounced search, so a request is only ever started
+  // for the location the user is looking at, and every earlier request is invalidated by a new generation.
+  useEffect(() => {
+    if (!drive || !wantKey) return;
+    const seq = ++generation.current;
+    const run = async () => {
+      try {
+        const result = term ? await searchDrive(drive.id, term) : await listChildren(drive.id, folder?.item_id);
+        if (seq !== generation.current) return;
+        setListing({ key: wantKey, items: result.value, next: result.next, unsupported: result.unsupported_count ?? 0, error: null });
+      } catch (error) {
+        if (seq !== generation.current) return;
+        const code = codeOf(error);
+        if (origin === 'default' && !folder && !term && !(code && NOT_A_LIBRARY_PROBLEM.has(code))) {
+          setDefaultUnavailable(true);
+          setLocation({ kind: 'chooser' });
+          return;
+        }
+        setListing({ key: wantKey, items: [], next: null, unsupported: 0, error });
+      }
+    };
+    let timer: number | undefined;
+    if (term) timer = window.setTimeout(() => void run(), SEARCH_DEBOUNCE_MS);
+    else void run();
+    return () => { window.clearTimeout(timer); generation.current += 1; };
+  }, [drive, folder, origin, term, wantKey]);
+
+  // Open at the org default: contextual suggestions first (never for budgets), else its root.
+  useEffect(() => {
+    if (startClaimed.current || isPending || !canBrowse || !defaultLibrary) return;
+    startClaimed.current = true;
+    const seq = ++startGeneration.current;
+    const root: GraphDrive = { id: defaultLibrary.drive_id, name: defaultLibrary.drive_name, web_url: '' };
+    void (async () => {
+      let found: GraphItem[] = [];
+      if (context.kind !== 'budget') {
+        try { found = await suggestFolders(defaultLibrary, context); } catch { found = []; }
+      }
+      if (seq !== startGeneration.current) return;
+      if (found.length) {
+        setSuggestions(found);
+        setLocation({ kind: 'suggestions' });
+      } else {
+        setSuggestionHint(context.kind !== 'budget' && !!contextLabel(context));
+        setLocation({ kind: 'items', drive: root, path: [], origin: 'default' });
+      }
+      setStartDone(true);
+    })();
+  }, [isPending, canBrowse, defaultLibrary, context]);
+
+  const locationKey = location.kind === 'items' ? `items:${location.drive.id}:${location.path.map((p) => p.item_id).join('/')}`
+    : location.kind === 'libraries' ? `libraries:${location.site.id}` : location.kind;
+  useEffect(() => {
+    if (!focusAfterNavigation.current) return;
+    focusAfterNavigation.current = false;
+    headingRef.current?.focus();
+  }, [locationKey]);
+
+  useEffect(() => {
+    const index = focusFromIndex.current;
+    if (index === null || !current || index >= current.items.length) return;
+    focusFromIndex.current = null;
+    listRef.current?.querySelectorAll('li')[index]?.querySelector('button')?.focus();
+  }, [current]);
+  useEffect(() => { if (moreFailure) loadMoreRef.current?.focus(); }, [moreFailure]);
+
+  /** A manual choice beats, and cancels, an in-progress default start. */
+  const navigate = useCallback((next: Location) => {
+    startClaimed.current = true;
+    startGeneration.current += 1;
+    navGeneration.current += 1;
+    focusAfterNavigation.current = true;
+    setStartDone(true);
+    setSearch('');
+    // Item locations are keyed (drive/folder/term) and refetch themselves; clearing here would strand a same-key re-entry.
+    if (next.kind !== 'items') setListing(null);
+    setLocation(next);
+  }, []);
+
+  function select(item: GraphItem) {
+    setSelected(item);
+    setSelectedValue('selected', item.item_id);
   }
-  function openItems(d: GraphDrive, f: GraphItem | null = null) { generation.current++; setLocation({ kind: 'items', drive: d, folder: f }); setPathStack(f ? [f] : []); setSelected(null); form.setValue('selected', ''); setSearch(''); void load(d, f); }
-  function enterFolder(item: GraphItem) { if (!drive) return; generation.current++; const nextPath = [...pathStack, item]; setPathStack(nextPath); setLocation({ kind: 'items', drive, folder: item }); setSelected(null); form.setValue('selected', ''); setSearch(''); void load(drive, item); }
-  function goToBreadcrumb(index: number) { if (!drive) return; const nextPath = pathStack.slice(0, index + 1); const target = nextPath.at(-1) ?? null; setPathStack(nextPath); setLocation({ kind: 'items', drive, folder: target }); setSelected(null); form.setValue('selected', ''); setSearch(''); void load(drive, target); }
-  useEffect(() => { if (!open) { defaultStarted.current = false; return; } setLocation({ kind: 'chooser' }); setSelected(null); resetForm({ selected: '' }); setProblem(null); setSuggestions([]); }, [open, resetForm]);
-  // chooseDefault is intentionally excluded: the ref guard makes this open-scoped, while its
-  // inline identity changes each render. Inputs that can change the operation are listed here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!open || !canBrowse || !defaultLibrary || defaultStarted.current) return; defaultStarted.current = true; void chooseDefault(); }, [open, canBrowse, defaultLibrary]);
-  useEffect(() => { if (!open || !drive) return; if (!search.trim()) { if (previousSearch.current) void load(drive, folder); previousSearch.current = ''; return; } previousSearch.current = search; if (search.trim().length < 2) return; const seq = ++generation.current; setBusy(true); setProblem(null); const timer = window.setTimeout(async () => { try { const page = await searchDrive(drive.id, search.trim()); if (seq === generation.current) { setItems(page.value); setNext(page.next); setUnsupportedCount(page.unsupported_count ?? 0); } } catch (e) { if (seq === generation.current) setProblem(e); } finally { if (seq === generation.current) setBusy(false); } }, 300); return () => { window.clearTimeout(timer); invalidateRequests(); }; }, [open, drive, folder, search]);
-  async function chooseDefault() { if (!defaultLibrary) return; const d = { id: defaultLibrary.drive_id, name: defaultLibrary.drive_name, web_url: '' }; try { const found = await suggestFolders(defaultLibrary, context); if (found.length) setSuggestions(found); else openItems(d); } catch { openItems(d); } }
-  async function chooseSite(site: GraphSite) { setBusy(true); try { const page = await listDrives(site.id); setDrives(page.value); setLocation({ kind: 'libraries', site }); } catch (e) { setProblem(e); } finally { setBusy(false); } }
-  async function chooseOneDrive() { setBusy(true); try { const d = await getPersonalDrive(); openItems(d); } catch (e) { setProblem(e); setBusy(false); } }
-  async function doSubmit(e: React.FormEvent) { e.preventDefault(); if (!selected || isSubmitting) return; setIsSubmitting(true); setSubmitError(null); try { await onSelect(selected); onClose(); } catch { setSubmitError({ headline: 'Could not link this Microsoft item.', detail: 'Your selection is retained. Try again.' }); } finally { setIsSubmitting(false); } }
-  return <EntityFormModal open={open} title="Choose a Microsoft document" submitLabel="Link from Microsoft 365" onSubmit={doSubmit} onClose={onClose} submitDisabled={!form.isComplete || !selected} loading={isSubmitting} submitError={submitError} width="lg">
-    <div className="space-y-4 min-w-0">
-      {(!connection?.connected || connection.status !== 'active') && <M365BrowseNotice code={connection?.status === 'stale' ? 'CONNECTION_STALE' : 'NOT_CONNECTED'} />}
-      {isPending && <p role="status">Loading Microsoft connection…</p>}
-      {defaultError && <p role="status">Default library settings could not be read. Choose a location manually.</p>}
-      {defaultLibrary && <p className="text-sm text-muted-foreground">Default library: {defaultLibrary.site_name} / {defaultLibrary.drive_name}</p>}
-      {location.kind !== 'chooser' && <Button variant="ghost" onClick={() => { setLocation({ kind: 'chooser' }); setSelected(null); }}>Change location</Button>}
-      {location.kind === 'chooser' && <div className="flex gap-2"><Button variant="ghost" disabled={!canBrowse || busy} onClick={async () => { setBusy(true); try { const p = await listSites(); setSites(p.value); setLocation({ kind: 'sites' }); } catch (e) { setProblem(e); } finally { setBusy(false); } }}>SharePoint sites</Button><Button variant="ghost" disabled={!canBrowse || busy} onClick={chooseOneDrive}>My OneDrive</Button>{defaultLibrary && <Button variant="outline" disabled={!canBrowse || busy} onClick={chooseDefault}>Browse default library</Button>}</div>}
-      {location.kind === 'sites' && <div role="list">{sites.map(site => <Button key={site.id} variant="ghost" onClick={() => void chooseSite(site)}>{site.name}</Button>)}</div>}
-      {location.kind === 'libraries' && <div role="list">{drives.map(d => <Button key={d.id} variant="ghost" onClick={() => openItems(d)}>{d.name}</Button>)}</div>}
-      {drive && <><nav aria-label="Microsoft location"><ol className="flex gap-2"><li><Button variant="ghost" onClick={() => { setPathStack([]); openItems(drive, null); }}>{drive.name}</Button></li>{pathStack.map((part, index) => <li key={part.item_id}><Button variant="ghost" onClick={() => goToBreadcrumb(index)}>{part.name}</Button></li>)}</ol></nav><TextField label="Search this location" value={search} onChange={value => setSearch(value)} /><div role="list" className="max-h-72 overflow-auto">{items.map(item => <div role="listitem" key={`${item.drive_id}:${item.item_id}`} className={`flex flex-wrap items-center gap-2 border-b border-border p-2 min-w-0 ${selected?.item_id === item.item_id ? 'bg-secondary' : ''}`}><Button variant="ghost" onClick={() => { setSelected(item); form.setValue('selected', item.item_id); }} aria-pressed={selected?.item_id === item.item_id}>{item.name} ({item.item_kind})</Button>{item.item_kind === 'folder' && <Button variant="ghost" aria-label={`Browse ${item.name}`} onClick={() => enterFolder(item)}>Browse {item.name}</Button>}<Button variant="outline" onClick={() => { setSelected(item); form.setValue('selected', item.item_id); }}>Select {item.item_kind} {item.name}</Button></div>)}</div>{unsupportedCount > 0 && <p className="text-sm text-muted-foreground">Some items cannot be selected.</p>}{busy && <p role="status" aria-live="polite">Loading…</p>}{!busy && !items.length && <p>No items found. Choose another location or search.</p>}{next && <Button variant="outline" disabled={busy} onClick={() => void load(drive, folder, true, next)}>Load more</Button>}</>}
-      {suggestions.length > 0 && <section><p>Suggested folders</p>{suggestions.map(s => <div key={s.item_id} className="flex flex-wrap items-center gap-2"><span className="min-w-0 text-sm text-muted-foreground">{s.parent_path ?? 'Default library'} / {s.name}</span><Button variant="ghost" onClick={() => openItems({ id: s.drive_id, name: 'Default library', web_url: '' }, s)}>Browse {s.name}</Button><Button variant="outline" onClick={() => { setSelected(s); form.setValue('selected', s.item_id); }}>Link this folder</Button></div>)}</section>}
-      {problem !== null && <M365BrowseNotice code={(problem as { code?: string })?.code} onRetry={() => drive && void load(drive, folder)} />}
-      {selected && <p aria-live="polite">Selected {selected.item_kind}: {selected.name}</p>}
-    </div>
-  </EntityFormModal>;
+
+  function openItems(target: GraphDrive, nextPath: GraphItem[], nextOrigin: 'default' | 'manual' = 'manual') {
+    navigate({ kind: 'items', drive: target, path: nextPath, origin: nextOrigin });
+  }
+
+  async function showSites() {
+    navigate({ kind: 'sites' });
+    const seq = navGeneration.current;
+    setSites({ status: 'loading', value: [], error: null });
+    try {
+      const result = await listSites();
+      if (seq === navGeneration.current) setSites({ status: 'ready', value: result.value, error: null });
+    } catch (error) {
+      if (seq === navGeneration.current) setSites({ status: 'error', value: [], error });
+    }
+  }
+
+  async function showLibraries(site: GraphSite) {
+    navigate({ kind: 'libraries', site });
+    const seq = navGeneration.current;
+    setLibraries({ status: 'loading', value: [], error: null });
+    try {
+      const result = await listDrives(site.id);
+      if (seq === navGeneration.current) setLibraries({ status: 'ready', value: result.value, error: null });
+    } catch (error) {
+      if (seq === navGeneration.current) setLibraries({ status: 'error', value: [], error });
+    }
+  }
+
+  async function showOneDrive() {
+    navigate({ kind: 'onedrive' });
+    const seq = navGeneration.current;
+    setOneDrive({ status: 'loading', error: null });
+    try {
+      const personal = await getPersonalDrive();
+      if (seq !== navGeneration.current) return;
+      focusAfterNavigation.current = true;
+      setLocation({ kind: 'items', drive: personal, path: [], origin: 'manual' });
+    } catch (error) {
+      if (seq === navGeneration.current) setOneDrive({ status: 'error', error });
+    }
+  }
+
+  async function loadMore() {
+    if (!current?.next || moreBusy) return;
+    const { key, next, items } = current;
+    const seq = generation.current;
+    setMoreBusyKey(key); setMoreError(null);
+    try {
+      const result = await browseOneDrive(next);
+      if (seq !== generation.current) return;
+      const known = new Set(items.map(itemKey));
+      focusFromIndex.current = items.length;
+      setListing((old) => old && old.key === key
+        ? { ...old, items: [...old.items, ...result.value.filter((item) => !known.has(itemKey(item)))], next: result.next, unsupported: old.unsupported + (result.unsupported_count ?? 0) }
+        : old);
+    } catch (error) {
+      if (seq === generation.current) setMoreError({ key, error });
+    } finally {
+      setMoreBusyKey((busy) => (busy === key ? null : busy));
+    }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || saving) return;
+    setSaving(true); setSubmitError(null);
+    try {
+      await onSelect(toReference(selected));
+      onClose();
+    } catch (error) {
+      const code = codeOf(error);
+      const classified = classifyMutationError(error, undefined, { module: 'unknown', operation: 'create' });
+      setSubmitError({
+        headline: 'Could not link this Microsoft item.',
+        // Only database-authored families have vetted product copy; anything else stays generic.
+        detail: code === '23514' || code === '42501' ? classified.detail : 'Your selection is retained. Try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const starting = canBrowse && !!defaultLibrary && !startDone && !isPending;
+  const defaultDrive: GraphDrive | null = defaultLibrary ? { id: defaultLibrary.drive_id, name: defaultLibrary.drive_name, web_url: '' } : null;
+  const label = contextLabel(context);
+  const heading = (text: string) => (
+    <h3 ref={headingRef} tabIndex={-1} className="min-w-0 flex-1 break-words text-[13px] font-semibold text-foreground">{text}</h3>
+  );
+  const changeLocation = (
+    <Button variant="ghost" className="touch-target shrink-0" onClick={() => navigate({ kind: 'chooser' })}>Change location</Button>
+  );
+  const itemProblem = moreFailure ?? current?.error ?? null;
+
+  return (
+    <EntityFormModal
+      open
+      title="Choose a Microsoft document"
+      submitLabel="Link from Microsoft 365"
+      disabledReason="Select a file or folder to link."
+      onSubmit={(e) => void submit(e)}
+      onClose={onClose}
+      submitDisabled={!form.isComplete || !selected}
+      loading={saving}
+      submitError={submitError}
+      width="lg"
+    >
+      <div className="min-w-0 space-y-3">
+        {isPending && <p role="status" className="text-[13px] text-muted-foreground">Loading Microsoft connection…</p>}
+        {!isPending && connectionError != null && <M365BrowseNotice code={codeOf(connectionError)} onRetry={() => void refetch()} />}
+        {!isPending && connectionError == null && !canBrowse && <M365BrowseNotice code={connectionNoticeCode(connection)} />}
+        {defaultError != null && (
+          <ListState variant="error" title="Default library settings could not be read" sub="You can still choose a location manually." onRetry={() => void refetch()} />
+        )}
+        {defaultLibrary && <p className="min-w-0 break-words text-[13px] text-muted-foreground">{`Default library: ${defaultLibrary.site_name} / ${defaultLibrary.drive_name}`}</p>}
+        {defaultUnavailable && (
+          <p role="status" className="text-[13px] text-muted-foreground">Default library is unavailable; choose another accessible location. An Admin can change the default.</p>
+        )}
+        {starting && <p role="status" className="text-[13px] text-muted-foreground">Loading…</p>}
+
+        {!starting && location.kind === 'chooser' && (
+          <section className="space-y-2">
+            {heading('Choose a location')}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" className="touch-target" disabled={!canBrowse} onClick={() => void showSites()}><Icon name="folder" />SharePoint sites</Button>
+              <Button variant="ghost" className="touch-target" disabled={!canBrowse} onClick={() => void showOneDrive()}><Icon name="folder" />My OneDrive</Button>
+              {defaultDrive && !defaultUnavailable && (
+                <Button variant="outline" className="touch-target" disabled={!canBrowse} onClick={() => openItems(defaultDrive, [], 'default')}>Browse default library</Button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {location.kind === 'sites' && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">{heading('SharePoint sites')}{changeLocation}</div>
+            {sites.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">Loading…</p>}
+            {sites.status === 'error' && <M365BrowseNotice code={codeOf(sites.error)} onRetry={() => void showSites()} />}
+            {sites.status === 'ready' && !sites.value.length && <ListState variant="empty" title="No sites found" sub="Choose another location." className="py-6" />}
+            {sites.status === 'ready' && sites.value.length > 0 && (
+              <ul aria-label="SharePoint sites" className="max-h-72 overflow-auto">
+                {sites.value.map((site) => (
+                  <li key={site.id} className="border-b border-border last:border-b-0">
+                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} onClick={() => void showLibraries(site)}><Icon name="folder" />{site.name}</Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {location.kind === 'onedrive' && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">{heading('My OneDrive')}{changeLocation}</div>
+            {oneDrive.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">Loading…</p>}
+            {oneDrive.status === 'error' && <M365BrowseNotice code={codeOf(oneDrive.error)} onRetry={() => void showOneDrive()} />}
+          </section>
+        )}
+
+        {location.kind === 'libraries' && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">{heading(`Libraries in ${location.site.name}`)}{changeLocation}</div>
+            {libraries.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">Loading…</p>}
+            {libraries.status === 'error' && <M365BrowseNotice code={codeOf(libraries.error)} onRetry={() => void showLibraries(location.site)} />}
+            {libraries.status === 'ready' && !libraries.value.length && <ListState variant="empty" title="No libraries found" sub="Choose another location." className="py-6" />}
+            {libraries.status === 'ready' && libraries.value.length > 0 && (
+              <ul aria-label="Libraries" className="max-h-72 overflow-auto">
+                {libraries.value.map((lib) => (
+                  <li key={lib.id} className="border-b border-border last:border-b-0">
+                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} onClick={() => openItems(lib, [])}><Icon name="folder" />{lib.name}</Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {location.kind === 'suggestions' && defaultDrive && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">{heading(label ? `Suggested folders for ${label}` : 'Suggested folders')}{changeLocation}</div>
+            <ul aria-label="Suggested folders" className="max-h-72 overflow-auto">
+              {suggestions.map((folderItem) => (
+                <li key={itemKey(folderItem)} className={`flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-2 py-1.5 last:border-b-0 ${selected && itemKey(selected) === itemKey(folderItem) ? 'bg-secondary' : ''}`}>
+                  <span className="min-w-0 flex-1 break-words text-[13.5px] text-foreground">
+                    <Icon name="folder" className="mr-1.5 inline" />{folderItem.name}
+                    <span className="block text-[12px] text-muted-foreground">{conventionPath(folderItem.parent_path)}</span>
+                  </span>
+                  <Button variant="ghost" className="touch-target" aria-label={`Browse ${folderItem.name}`}
+                    onClick={() => openItems({ id: folderItem.drive_id, name: defaultDrive.name, web_url: '' }, [folderItem])}>Browse</Button>
+                  <Button variant="outline" className="touch-target" aria-label={`Link this folder ${folderItem.name}`}
+                    aria-pressed={!!selected && itemKey(selected) === itemKey(folderItem)} onClick={() => select(folderItem)}>Link this folder</Button>
+                </li>
+              ))}
+            </ul>
+            <Button variant="ghost" className="touch-target" onClick={() => openItems(defaultDrive, [], 'default')}>Browse the library root instead</Button>
+          </section>
+        )}
+
+        {drive && path && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">{heading('Choose a file or folder')}{changeLocation}</div>
+            <nav aria-label="Microsoft location">
+              <ol className="flex min-w-0 flex-wrap items-center gap-1 text-[13px]">
+                <li className="flex items-center gap-1">
+                  <Button variant="ghost" className={ROW_BUTTON} onClick={() => openItems(drive, [], origin ?? 'manual')}>{drive.name}</Button>
+                </li>
+                {path.map((part, index) => (
+                  <li key={part.item_id} className="flex items-center gap-1">
+                    <Icon name="chev" className="text-muted-foreground" />
+                    <Button variant="ghost" className={ROW_BUTTON} onClick={() => openItems(drive, path.slice(0, index + 1))}>{part.name}</Button>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+            <TextField
+              label="Search this location"
+              value={search}
+              onChange={setSearch}
+              helper="Type at least 2 characters. Results update after you stop typing."
+              fullWidth
+            />
+            {suggestionHint && !path.length && !term && label && (
+              <p className="text-[12.5px] text-muted-foreground">{`No folder suggestion for ${label}. Browse this library or choose another location.`}</p>
+            )}
+            {loading && <p role="status" aria-live="polite" className="text-[13px] text-muted-foreground">Loading…</p>}
+            {current && itemProblem != null && (
+              <M365BrowseNotice code={codeOf(itemProblem)} onRetry={moreFailure ? () => void loadMore() : () => setNonce((n) => n + 1)} />
+            )}
+            {current && !current.error && current.items.length === 0 && (
+              <ListState variant="empty" title="No items found" sub="Choose another location or search." className="py-6" />
+            )}
+            {current && current.items.length > 0 && (
+              <ul ref={listRef} aria-label="Items in this location" className="max-h-72 overflow-auto rounded-md border border-border">
+                {current.items.map((item) => {
+                  const isSelected = !!selected && itemKey(selected) === itemKey(item);
+                  return (
+                    <li key={itemKey(item)} className={`flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-2 py-1 last:border-b-0 ${isSelected ? 'bg-secondary' : ''}`}>
+                      <span className="flex min-w-0 flex-1 items-center">
+                        {item.item_kind === 'folder' ? (
+                          <Button variant="ghost" className={ROW_BUTTON} aria-label={`Browse ${item.name}`} onClick={() => openItems(drive, [...path, item])}>
+                            <Icon name="folder" />{item.name}
+                          </Button>
+                        ) : (
+                          <span className="flex min-w-0 items-start gap-1.5 break-words px-3 py-1 text-[13.5px] text-foreground"><Icon name="doc" className="mt-0.5" />{item.name}</span>
+                        )}
+                      </span>
+                      {isSelected && <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><Icon name="check" />Selected</span>}
+                      <Button variant="outline" className="touch-target" aria-pressed={isSelected} aria-label={`Select ${KIND_LABEL[item.item_kind]} ${item.name}`} onClick={() => select(item)}>Select</Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {current && current.unsupported > 0 && <p className="text-[12.5px] text-muted-foreground">Some items cannot be selected.</p>}
+            {moreBusy && <p role="status" aria-live="polite" className="text-[13px] text-muted-foreground">Loading…</p>}
+            {current?.next && (
+              <Button ref={loadMoreRef} variant="outline" className="touch-target" disabled={moreBusy} onClick={() => void loadMore()}>Load more</Button>
+            )}
+          </section>
+        )}
+
+        <p aria-live="polite" className="min-w-0 break-words text-[13px] text-foreground">
+          {selected ? `Selected ${KIND_LABEL[selected.item_kind]}: ${selected.name}` : ''}
+        </p>
+      </div>
+    </EntityFormModal>
+  );
 }
