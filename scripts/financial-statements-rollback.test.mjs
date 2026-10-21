@@ -173,11 +173,14 @@ test('AC-RF-002 dirty-delete rollback semantics', () => {
   const up = sqlFile('supabase/migrations/0330_statement_dirty_org_delete.sql');
   const down = sqlFile('supabase/migrations/rollback/0330_statement_dirty_org_delete_down.sql');
   const functionSignature = 'public.track_erp_statement_dirty_date()';
+  const source0321Definition = functionDefinition(sqlFile('supabase/migrations/0321_financial_statement_incremental_refresh.sql'), 'track_erp_statement_dirty_date');
   const orgId = '03300000-0000-0000-0000-000000000011';
   const controlOrgId = '03300000-0000-0000-0000-000000000012';
   const reupOrgId = '03300000-0000-0000-0000-000000000013';
   const script = `begin;
 set local client_min_messages=warning;
+-- Reconstruct the function live immediately before 0330 in migration order.
+${source0321Definition}
 create temporary table before_dirty_function on commit drop as
   select pg_get_functiondef(p.oid) as definition,p.prosecdef,p.proconfig,p.proacl
     from pg_proc p where p.oid='${functionSignature}'::regprocedure;
