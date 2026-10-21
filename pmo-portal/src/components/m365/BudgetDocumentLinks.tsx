@@ -54,8 +54,8 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
         </h3>
         {mayMutate && (
           <Button variant="outline" size="sm" disabled={!connected} onClick={() => setPickerOpen(true)}>
-            <Icon name="plug" />
-            {t('m365Documents.budget.link', 'Link Microsoft document')}
+            <Icon name="doc" />
+            {t('m365Documents.budget.link', 'Link from Microsoft 365')}
           </Button>
         )}
       </div>

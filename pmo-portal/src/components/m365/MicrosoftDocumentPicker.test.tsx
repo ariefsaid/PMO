@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
+import i18n from 'i18next';
+import idCatalogue from '../../../public/locales/id/common.json';
 import { MemoryRouter } from 'react-router';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { AppError } from '@/src/lib/appError';
@@ -185,13 +187,13 @@ describe('MicrosoftDocumentPicker locations', () => {
   it('AC-M365DOC-054 chooser: an absent connection links to setup, and a failed connection-status read is not shown as "not connected"', async () => {
     h.hook.connection = { status: null, connected: false };
     const { unmount } = renderPicker();
-    expect(await screen.findByRole('link', { name: 'Go to Microsoft 365 setup' })).toHaveAttribute('href', '/administration/integrations');
+    expect(await screen.findByRole('link', { name: 'Open My integrations' })).toHaveAttribute('href', '/integrations');
     unmount();
     h.hook.connection = undefined; h.hook.isError = true;
     h.hook.connectionError = new AppError('raw-synthetic-error', 'INTERNAL_ERROR');
     renderPicker();
     expect(await screen.findByRole('alert')).toHaveTextContent('Microsoft could not load this location');
-    expect(screen.queryByRole('link', { name: 'Go to Microsoft 365 setup' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open My integrations' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.hook.refetch).toHaveBeenCalled();
   });
@@ -414,7 +416,7 @@ describe('MicrosoftDocumentPicker paging and search', () => {
     renderPicker();
     await openLibrary(user);
     expect(rendered()).toHaveLength(100);
-    expect(screen.getByText('Some items cannot be selected.')).toBeInTheDocument();
+    expect(screen.getByText("2 items can't be linked (not a file or folder).")).toBeInTheDocument();
     expect(browseOneDrive).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     await waitFor(() => expect(rendered()).toHaveLength(200));
@@ -688,5 +690,107 @@ describe('MicrosoftDocumentPicker keyboard, states and accessibility', () => {
     renderPicker();
     await screen.findByRole('alert');
     expect((await axeViolations(document.body)).blocking).toEqual([]);
+  });
+});
+
+describe('#1020 Discover fixes', () => {
+  afterEach(async () => { await i18n.changeLanguage('en'); });
+  const LONG = `Extraordinarily_long_name_${'x'.repeat(80)}.pdf`;
+
+  it('F3: in Indonesian the whole picker (title, chooser, sites, list, select, load more) is translated', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    await i18n.changeLanguage('id');
+    const user = userEvent.setup();
+    vi.mocked(listChildren).mockResolvedValue(page(ROOT, { path: '/next' }, 1));
+    renderPicker();
+    expect(await screen.findByRole('dialog', { name: 'Pilih dokumen Microsoft' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pilih lokasi' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Situs SharePoint' }));
+    await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
+    await user.click(await screen.findByRole('button', { name: 'Documents' }));
+    expect(await screen.findByLabelText('Cari di lokasi ini')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Pilih berkas Report.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Muat lebih banyak' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose a file or folder')).not.toBeInTheDocument();
+  });
+
+  it('F3: the not-connected gate and the connection-loading line are translated too', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    await i18n.changeLanguage('id');
+    h.hook.connection = { status: null, connected: false };
+    renderPicker();
+    expect(await screen.findByRole('link', { name: 'Buka Integrasi saya' })).toHaveAttribute('href', '/integrations');
+  });
+
+  it('F10: a long unbroken name wraps inside its row, carries a title, and the Selected badge sits in the name block', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listChildren).mockResolvedValue(page([mk('long', 'file', LONG), ...ROOT]));
+    renderPicker();
+    await openLibrary(user);
+    await user.click(screen.getByRole('button', { name: `Select file ${LONG}` }));
+    const row = rendered()[0];
+    const nameEl = row.querySelector(`[title="${LONG}"]`) as HTMLElement;
+    expect(nameEl).not.toBeNull();
+    expect(nameEl.className).toContain('[overflow-wrap:anywhere]');
+    const badge = within(row).getByText('Selected');
+    expect(badge.parentElement).toBe(nameEl.parentElement);
+    expect(row.querySelector('button[aria-pressed]')?.className).toContain('shrink-0');
+  });
+
+  it('F10: breadcrumb entries for a long folder name wrap (title + anywhere-wrap) instead of running past the dialog', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listChildren).mockResolvedValue(page([mk('lf', 'folder', LONG)]));
+    renderPicker();
+    await openLibrary(user);
+    await user.click(screen.getByRole('button', { name: `Browse ${LONG}` }));
+    const crumb = await within(screen.getByRole('navigation', { name: 'Microsoft location' })).findByRole('button', { name: LONG });
+    expect(crumb).toHaveAttribute('title', LONG);
+    expect(crumb.className).toContain('[overflow-wrap:anywhere]');
+  });
+
+  it('F11: suggested folders stack Browse / Link under the name on narrow widths', async () => {
+    h.hook.defaultLibrary = LIBRARY;
+    vi.mocked(searchDrive).mockResolvedValue(page([mk('m1', 'folder', 'P-100 Alpha', { drive_id: 'drive-d', parent_path: '/drive/root:/Projects' })]));
+    renderPicker(PROJECT);
+    const row = (await screen.findByRole('button', { name: 'Link this folder P-100 Alpha' })).closest('li') as HTMLElement;
+    expect(row.className).toContain('flex-col');
+    const actions = screen.getByRole('button', { name: 'Browse P-100 Alpha' }).parentElement as HTMLElement;
+    expect(actions).toBe(screen.getByRole('button', { name: 'Link this folder P-100 Alpha' }).parentElement);
+    expect(actions.className).toContain('flex-wrap');
+  });
+
+  it('F17: the "Default library" line shows only at the default location, not after the user changes location', async () => {
+    h.hook.defaultLibrary = LIBRARY;
+    const user = userEvent.setup();
+    renderPicker({ kind: 'budget' });
+    expect(await screen.findByText('Default library: Synthetic site / Project library')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Change location' }));
+    expect(screen.queryByText(/Default library:/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'My OneDrive' }));
+    await screen.findByRole('button', { name: 'Select file Report.pdf' });
+    expect(screen.queryByText(/Default library:/)).not.toBeInTheDocument();
+  });
+
+  it('F17: says how many items cannot be linked and why (singular and plural)', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listChildren).mockResolvedValueOnce(page(ROOT, null, 1));
+    const { unmount } = renderPicker();
+    await openLibrary(user);
+    expect(screen.getByText("1 item can't be linked (not a file or folder).")).toBeInTheDocument();
+    unmount();
+    vi.mocked(listChildren).mockResolvedValueOnce(page(ROOT, null, 4));
+    renderPicker();
+    await openLibrary(user);
+    expect(screen.getByText("4 items can't be linked (not a file or folder).")).toBeInTheDocument();
+  });
+
+  it('F20: under StrictMode with an already-cached default library (project context, async suggestions) the picker leaves "Loading…" and lists the suggestions', async () => {
+    h.hook.defaultLibrary = LIBRARY;
+    vi.mocked(searchDrive).mockResolvedValue(page([mk('m1', 'folder', 'P-100 Alpha', { drive_id: 'drive-d', parent_path: '/drive/root:/Projects' })]));
+    render(<StrictMode><MemoryRouter><MicrosoftDocumentPicker open context={PROJECT} onClose={spy.close} onSelect={spy.select as never} /></MemoryRouter></StrictMode>);
+    expect(await screen.findByRole('button', { name: 'Browse P-100 Alpha' })).toBeInTheDocument();
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
   });
 });

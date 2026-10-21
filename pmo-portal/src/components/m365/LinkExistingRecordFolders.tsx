@@ -173,23 +173,47 @@ export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }
         {phase.name === 'stopped' && <p>{t('backfill.stopped', { count: counts.scanned, defaultValue: 'Stopped. {{count}} checked.' })}</p>}
         {phase.name === 'interrupted' && (
           <p>
-            {phase.error ? `${recordFolderText(t, phase.error)} ` : ''}
+            <InterruptedReason error={phase.error} />
             {t('backfill.interrupted', 'Stopped early. Counts so far are kept; continue to check the rest.')}
           </p>
         )}
-        {showSummary && !busy && (
-          <p className="tabular-nums">
-            {t('backfill.summary', {
-              linked: counts.linked,
-              needsChoice: counts.needsChoice,
-              missing: counts.missing,
-              failed: counts.failed,
-              skipped: counts.skipped,
-              defaultValue: 'Linked {{linked}} · Need a choice {{needsChoice}} · No match/code {{missing}} · Failed {{failed}} · Already linked {{skipped}}',
-            })}
-          </p>
-        )}
+        {showSummary && !busy && <SweepResult done={phase.name === 'done'} counts={counts} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Why the sweep stopped early. Reviewed remedies (connection, access) are kept; only the shared
+ * catch-all "could not create or link this folder" is replaced, because this sweep never creates folders.
+ */
+function InterruptedReason({ error }: { error: RecordFolderCopyKey | null }) {
+  const { t } = useTranslation();
+  const { t: tf } = useTranslation('recordFolders');
+  if (!error) return null;
+  if (error === 'error.generic') return <>{`${t('m365Documents.backfill.failed', 'Could not finish checking existing folders.')} `}</>;
+  return <>{`${recordFolderText(tf, error)} `}</>;
+}
+
+/** The sweep's plain-language result: counts, an explicit Done, and where to resolve what is left. */
+function SweepResult({ done, counts }: { done: boolean; counts: Counts }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {done && <p className="font-medium text-foreground">{t('m365Documents.backfill.done', 'Done. Every record has been checked.')}</p>}
+      <p className="tabular-nums">
+        {t('m365Documents.backfill.summary', {
+          linked: counts.linked,
+          needsChoice: counts.needsChoice,
+          missing: counts.missing,
+          failed: counts.failed,
+          skipped: counts.skipped,
+          defaultValue: 'Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}',
+        })}
+      </p>
+      {counts.needsChoice + counts.missing > 0 && (
+        <p>{t('m365Documents.backfill.resolve', 'To finish these, open the project or case, then use "Choose existing folder" or "Create folder in SharePoint".')}</p>
+      )}
+    </>
   );
 }

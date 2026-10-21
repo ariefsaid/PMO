@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import i18n from 'i18next';
+import idCatalogue from '../../../public/locales/id/common.json';
 import { M365BrowseNotice } from './M365BrowseNotice';
 
 const connect = vi.hoisted(() => ({ initiate: vi.fn() }));
@@ -35,10 +37,11 @@ describe('M365BrowseNotice', () => {
     expect(screen.queryByText(LEAKS)).not.toBeInTheDocument();
   });
 
-  it('AC-M365DOC-031 an absent connection links to the existing setup flow instead of reconnecting', () => {
+  it('AC-M365DOC-031 / F6: an absent connection links to My integrations (not the Admin page) instead of reconnecting', () => {
     renderNotice({ code: 'NOT_CONNECTED' });
     expect(screen.getByRole('alert')).toHaveTextContent('Connect Microsoft 365 first to browse documents.');
-    expect(screen.getByRole('link', { name: 'Go to Microsoft 365 setup' })).toHaveAttribute('href', '/administration/integrations');
+    // F6: the personal connection lives on /integrations; /administration/integrations is a role-gated Admin area.
+    expect(screen.getByRole('link', { name: 'Open My integrations' })).toHaveAttribute('href', '/integrations');
     expect(screen.queryByRole('button', { name: 'Reconnect Microsoft 365' })).not.toBeInTheDocument();
   });
 
@@ -95,5 +98,23 @@ describe('M365BrowseNotice', () => {
     expect(assign).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toMatch(/raw-synthetic/);
     vi.unstubAllGlobals();
+  });
+});
+
+describe('F3: the notice follows the interface language', () => {
+  afterEach(async () => { await i18n.changeLanguage('en'); });
+
+  it('F3: in Indonesian the copy, the link and the buttons are not English', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    await i18n.changeLanguage('id');
+    const { unmount } = renderNotice({ code: 'NOT_CONNECTED' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Hubungkan Microsoft 365 terlebih dahulu untuk menjelajahi dokumen.');
+    expect(screen.getByRole('link', { name: 'Buka Integrasi saya' })).toHaveAttribute('href', '/integrations');
+    unmount();
+    renderNotice({ code: 'CONNECTION_STALE', onRetry: vi.fn() });
+    expect(screen.getByRole('alert')).toHaveTextContent('Koneksi Microsoft 365 telah kedaluwarsa');
+    expect(screen.getByRole('button', { name: 'Hubungkan ulang Microsoft 365' })).toBeInTheDocument();
+    renderNotice({ onRetry: vi.fn() });
+    expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });
 });

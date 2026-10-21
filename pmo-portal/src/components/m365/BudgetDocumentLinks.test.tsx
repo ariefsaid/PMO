@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18n from 'i18next';
+import idCatalogue from '../../../public/locales/id/common.json';
 import { AppError } from '@/src/lib/appError';
 import { BudgetDocumentLinks } from './BudgetDocumentLinks';
 
@@ -56,7 +58,7 @@ describe('BudgetDocumentLinks rendering', () => {
     for (const status of ['Active', 'Archived']) {
       const { unmount } = render(<BudgetDocumentLinks versionId="v1" status={status} />);
       expect(screen.getByText('Evidence is read-only on this version.')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Link Microsoft document/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Link from Microsoft 365/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
       await userEvent.click(screen.getAllByRole('button', { name: /^Open in SharePoint/ })[0]);
       expect(window.open).toHaveBeenLastCalledWith(`${SP}/Quote.pdf`, '_blank', 'noopener,noreferrer');
@@ -85,7 +87,7 @@ describe('BudgetDocumentLinks rendering', () => {
 describe('BudgetDocumentLinks Draft mutations', () => {
   it('AC-M365DOC-060 a Draft version with an active connection links through the budget picker with one insert', async () => {
     render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
-    await userEvent.click(screen.getByRole('button', { name: /Link Microsoft document/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Link from Microsoft 365/ }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(mock.pickerProps?.context).toEqual({ kind: 'budget' });
     const ref = { drive_id: 'd', item_id: 'x', web_url: `${SP}/n.xlsx`, name: 'n.xlsx', item_kind: 'file' as const };
@@ -97,7 +99,7 @@ describe('BudgetDocumentLinks Draft mutations', () => {
   it('AC-M365DOC-060 without an active connection the link action is disabled with a hint, while existing links stay visible', () => {
     mock.connection = { connected: false, status: null };
     render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
-    expect(screen.getByRole('button', { name: /Link Microsoft document/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Link from Microsoft 365/ })).toBeDisabled();
     expect(screen.getByText(/Connect Microsoft 365/)).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
   });
@@ -105,7 +107,7 @@ describe('BudgetDocumentLinks Draft mutations', () => {
   it('AC-M365DOC-060 impersonation / non-editor (budgetEdit false on a Draft) gets the read-only view', () => {
     mock.mayMutate.mockReturnValue(false);
     render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
-    expect(screen.queryByRole('button', { name: /Link Microsoft document/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Link from Microsoft 365/ })).not.toBeInTheDocument();
     expect(screen.getByText('Evidence is read-only on this version.')).toBeInTheDocument();
   });
 
@@ -129,5 +131,25 @@ describe('BudgetDocumentLinks Draft mutations', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
     expect(screen.queryByText(/budget_version_document_links/)).not.toBeInTheDocument();
+  });
+});
+
+describe('#1020 Discover fixes', () => {
+  afterEach(async () => { await i18n.changeLanguage('en'); });
+
+  it('F17: the link action uses the same wording and a document icon (not the plug) as every other register', () => {
+    render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
+    const button = screen.getByRole('button', { name: 'Link from Microsoft 365' });
+    expect(button.querySelector('svg')).not.toBeNull();
+    expect(button.innerHTML).not.toMatch(/plug/i);
+  });
+
+  it('F3: in Indonesian the heading, link action and remove action are translated', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    await i18n.changeLanguage('id');
+    render(<BudgetDocumentLinks versionId="v1" status="Draft" />);
+    expect(screen.getByRole('heading', { name: 'Dokumen bukti' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hapus tautan ke Quote.pdf' })).toBeInTheDocument();
   });
 });
