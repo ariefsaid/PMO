@@ -141,14 +141,6 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-vi.mock('../../components/ProjectFormModal', () => ({
-  default: ({ onClose }: { onClose: () => void }) => (
-    <div role="dialog" aria-label="New project">
-      <button onClick={onClose}>Cancel</button>
-    </div>
-  ),
-}));
-
 import SalesPipeline from '../SalesPipeline';
 
 // list-working-set-return (#682): the view is URL-owned now — force table view via `?view=table`

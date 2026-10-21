@@ -25,18 +25,17 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     for (const [name, stage] of [[deal, 'Leads'], [internal, 'Internal Project']] as const) {
       await page.goto('/projects');
       await page.getByRole('button', { name: /new project/i }).click();
-      const dialog = page.getByRole('dialog');
-      await dialog.getByLabel(/Project name/).fill(name);
-      await pickComboboxOption(dialog, page, /Client company/, 'first');
-      await dialog.getByLabel('Origination stage').selectOption(stage);
-      await expect(dialog.getByLabel('Service line')).toBeEnabled();
-      await dialog.getByLabel('Service line').selectOption(serviceLine);
-      await dialog.getByLabel('Sector').selectOption(sector);
-      await dialog.getByLabel('Location').fill('West Java');
-      await dialog.getByLabel('Award type').selectOption('tender');
-      await dialog.getByLabel('Bidding entity').selectOption('consortium');
-      await dialog.getByRole('button', { name: 'Create project' }).click();
-      await expect(dialog).not.toBeVisible();
+      await page.getByLabel(/Project name/).fill(name);
+      await pickComboboxOption(page, page, /Client company/, 'first');
+      await page.getByLabel('Origination stage').selectOption(stage);
+      await expect(page.getByLabel('Service line')).toBeEnabled();
+      await page.getByLabel('Service line').selectOption(serviceLine);
+      await page.getByLabel('Sector').selectOption(sector);
+      await page.getByLabel('Location').fill('West Java');
+      await page.getByLabel('Award type').selectOption('tender');
+      await page.getByLabel('Bidding entity').selectOption('consortium');
+      await page.getByRole('button', { name: 'Create project' }).click();
+      await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
       created.push(name);
     }
     await page.goto('/sales?view=table');

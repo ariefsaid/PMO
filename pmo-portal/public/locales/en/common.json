@@ -3349,9 +3349,6 @@
         "title": "No projects match your search"
       }
     },
-    "toast": {
-      "projectCreated": "Project created"
-    },
     "view": {
       "board": "Board",
       "table": "Table"

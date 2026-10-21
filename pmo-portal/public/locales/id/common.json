@@ -3349,9 +3349,6 @@
         "title": "Tidak ada proyek yang cocok dengan pencarian"
       }
     },
-    "toast": {
-      "projectCreated": "Proyek dibuat"
-    },
     "view": {
       "board": "Board",
       "table": "Tabel"

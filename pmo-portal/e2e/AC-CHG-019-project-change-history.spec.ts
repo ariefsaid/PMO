@@ -36,13 +36,11 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await page.goto('/projects');
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
   await page.getByRole('button', { name: /new project/i }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 8_000 });
-  await dialog.getByLabel(/project name/i).fill(name);
-  await pickComboboxOption(dialog, page, /client company/i, new RegExp(CLIENT_A));
-  await dialog.getByLabel(/expected end/i).fill('2026-11-30');
-  await dialog.getByRole('button', { name: /^Create project$/i }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+  await page.getByLabel(/project name/i).fill(name);
+  await pickComboboxOption(page, page, /client company/i, new RegExp(CLIENT_A));
+  await page.getByLabel(/expected end/i).fill('2026-11-30');
+  await page.getByRole('button', { name: /^Create project$/i }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
 
   await page.goto('/sales');
   await openPipelineCard(page, name);

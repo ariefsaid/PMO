@@ -33,15 +33,14 @@ test(
 
     // Goal 2: The CTA opens the create form.
     await newProjectBtn.click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 8_000 });
+    await expect(page).toHaveURL(/\/projects\/new$/u);
 
     // Fill in the project name and pick a client company.
-    await dialog.getByLabel(/project name/i).fill(opportunityName);
-    await pickComboboxOption(dialog, page, /client company/i, 'first');
+    await page.getByLabel(/project name/i).fill(opportunityName);
+    await pickComboboxOption(page, page, /client company/i, 'first');
 
     // Submit and land on the new project. Back preserves the originating pipeline view.
-    await dialog.getByRole('button', { name: /^Create project$/i }).click();
+    await page.getByRole('button', { name: /^Create project$/i }).click();
     await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
     await expect(page.getByText(opportunityName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByRole('link', { name: /back to sales pipeline/i }).click();
