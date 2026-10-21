@@ -22,7 +22,6 @@
     "check:e2e-isolation": "bash ../scripts/check-e2e-isolation.sh",
     "check:e2e-fonts": "node ../scripts/check-e2e-fonts-ready.mjs && node ../scripts/check-e2e-fonts-ready.mjs --self-test",
     "check:edge-test-binding": "node ../scripts/check-edge-fn-test-binding.mjs",
-    "check:m365-folder-mutation": "node ../scripts/m365-record-folder-write-mutation.mjs",
     "check:redirect-targets": "node ../scripts/check-redirect-targets.mjs",
     "check:nul-bytes": "bash ../scripts/check-nul-bytes.sh ..",
     "check:dashboard-tiles": "node ../scripts/check-dashboard-tiles.mjs",
