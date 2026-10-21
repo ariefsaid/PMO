@@ -2,7 +2,11 @@
 
 # Real-data design pass — dashboards, project Overview, tables (2026-10-19)
 
-**Mode:** Operate. **Status:** findings, structure proposals, mockups and slice plan. No app change is authorized here.
+**Status after v0.24:** This is a pruned historical decision record, not an implementation brief. Findings and slices below are marked **SHIPPED** (with deciding commit/slice), **OPEN** (still valid and undecided), or **DROPPED** (the proposed treatment conflicts with the subtraction rule or has been superseded). The fixture in §0.1 is synthetic: all values and project/PO strings are invented; it contains no customer names or customer-specific values.
+
+**Binding owner rulings:** retain the current visual language (no colour, font or radius changes); every UI change leaves screens equal or simpler; state caveats once, only when abnormal. The page-structure proposals that add new readiness-notice/attention-band molecules are therefore **DROPPED**; they are not approved design direction. §6 is proposals only.
+
+**Mode:** Operate. No app change is authorized here.
 **Authority:** [DESIGN.md](../../DESIGN.md) for identity and tokens; [PRODUCT.md](../../PRODUCT.md) for principles. Identity is preserved: no new colour, font or radius. Proposed DESIGN.md additions are listed in §6 and need owner sign-off.
 **Trigger:** owner feedback from production on the first client's real data: a duplicate "Contract value on hand", 100% win rate despite a lost deal, amounts bleeding past card edges, and a project Overview that is "very scattered, no structure, lots of whitespace with no deliberate intent". The owner also asked for a TABLES section and decided to adopt column resizing.
 
@@ -49,110 +53,110 @@ Severity per impeccable: **P0** blocks the task · **P1** material confusion at 
 
 **Owned by the parallel lane `claude/v024-dash-truth`: referenced here, not duplicated:**
 
-- **RD-001 · P1 · Exec** — Two tiles share the label "Contract value on hand" but show different figures (`on_hand_value` vs `total_contract_value`). `ExecutiveDashboard.tsx:270,333`. *Who:* the owner can't tell which one is the book. *Principle:* consistency (H4).
-- **RD-002 · P1 · Exec** — Win rate by value reads 100% although a Loss Tender with value exists. `WinRateCard.tsx:82-86` / `get_win_rate`. *Who:* the owner overrates bid success. *Principle:* show money only when it is right.
-- **RD-003 · P1 · Exec** — IDR + USD close-outs collapse the on-hand figures to "Not available yet" instead of showing each currency. `ExecutiveDashboard.tsx:115-116`. *Principle:* unknown is never zero, but known per-currency figures must still show.
-- **RD-004 · P1 · Exec** — Pipeline-stage amounts sit in a fixed `w-[68px]` slot and clip. `ProjectedMarginBars.tsx:83`. *Principle:* craft-floor text-overflow.
+- **RD-001 · P1 · Exec** — **SHIPPED — d4daa71c (dash-truth)** — Two tiles share the label "Contract value on hand" but show different figures (`on_hand_value` vs `total_contract_value`). `ExecutiveDashboard.tsx:270,333`. *Who:* the owner can't tell which one is the book. *Principle:* consistency (H4).
+- **RD-002 · P1 · Exec** — **SHIPPED — d4daa71c (dash-truth)** — Win rate by value reads 100% although a Loss Tender with value exists. `WinRateCard.tsx:82-86` / `get_win_rate`. *Who:* the owner overrates bid success. *Principle:* show money only when it is right.
+- **RD-003 · P1 · Exec** — **SHIPPED — d4daa71c (dash-truth)** — IDR + USD close-outs collapse the on-hand figures to "Not available yet" instead of showing each currency. `ExecutiveDashboard.tsx:115-116`. *Principle:* unknown is never zero, but known per-currency figures must still show.
+- **RD-004 · P1 · Exec** — **SHIPPED — RD-S1 (67571547)** — Pipeline-stage amounts sit in a fixed `w-[68px]` slot and clip. `ProjectedMarginBars.tsx:83`. *Principle:* craft-floor text-overflow.
 
 **Not covered by that lane:**
 
-- **RD-005 · P1 · Exec/Finance** — "Total project spend" labels a **partial** sum (144/150 categories) as a total. `ExecutiveDashboard.tsx:351-352`, `FinanceDashboard.tsx:426-427`, `MobileExecutiveDashboard.tsx:174-177`. *Who:* the owner treats IDR 58 bn as all project cost; 6 categories are missing. *Principle:* DESIGN.md Unknowable-Is-Not-Zero (a partial is a claim).
-- **RD-006 · P1 · Exec + PM** — Risk is asserted where it can't be computed. With no active budgets and no dated phases: desktop "0 at-risk" (`ExecutiveDashboard.tsx:321`), mobile "**all on track**" (`MobileExecutiveDashboard.tsx:135-137`), PM "At risk 0 · budget usage > 90%" (`PMDashboard.tsx:86-90`). *Who:* the owner and PM read false reassurance. *Principle:* Unknowable-Is-Not-Zero; Stated-State.
-- **RD-007 · P2 · Exec** — "Nothing left to invoice on issued work orders" leads the chart area for an org that doesn't use work orders while billions are un-invoiced. `StillToInvoiceCard.tsx:43`. *Who:* the owner skims it as "nothing to bill". *Principle:* plain language / honest scope.
-- **RD-008 · P2 · Exec mobile** — The same figure has a different label on phone ("Contracted revenue", "Total contract value") and desktop. `MobileExecutiveDashboard.tsx:276,293`. *Principle:* CW-7 same terms on both. *Coordinate with RD-001.*
-- **RD-009 · P1 · Finance** — The "Outstanding invoices" tile is **vendor** invoices awaiting payment (payables), on a page that also shows customer AR. `FinanceDashboard.tsx:438-443`. *Who:* Finance reads money owed by vendors as money owed to the company. *Principle:* match the real world (H2).
-- **RD-010 · P1 · Finance** — The actuals snapshot renders a missing Net as `0`. `AccountingSnapshotsSection.tsx:161` (`r.net ?? 0`). *Principle:* Unknowable-Is-Not-Zero.
-- **RD-011 · P2 · Finance** — Actuals rows are per project, but the table has no Project column, so two projects on the same account and fiscal year look like duplicate rows. `AccountingSnapshotsSection.tsx:141-163` (acknowledged at `:255-259`).
-- **RD-012 · P2 · Finance** — "Contract value in progress" help says "active and closed-out" but the figure is the Ongoing-only total. `FinanceDashboard.tsx:420-424` vs `ExecutiveDashboard.tsx:326-328`.
-- **RD-013 · P2 · Finance** — The margin tile sub-line appends a label with no value ("· Known margin on billed work ·"). `FinanceDashboard.tsx:434-435`.
-- **RD-014 · P2 · Finance** — 14+ hard-coded English strings: "PRs awaiting you" `:416`, "Total project spend" `:426`, "Outstanding invoices" `:438`, "vendor-invoiced, awaiting payment" `:440`, Ready-to-pay headers `:79,101,115`, `daysAgoLabel` `:42-44`, empty/error copy `:142-144,402`, snapshot titles/headers `AccountingSnapshotsSection.tsx:79-159,247,265`. *Who:* Bahasa users get English money labels.
-- **RD-015 · P3 · Finance** — Aging cells print the currency twice ("IDR 1,234 IDR"). `AccountingSnapshotsSection.tsx:50-52`.
-- **RD-016 · P2 · Sales** — The table Stage column prints the raw stored status ("PQ Submitted", "Loss Tender") while the board and funnel say "Pre-Qual"; it isn't translated. `SalesPipeline.tsx:266`.
-- **RD-017 · P2 · Sales (latent, conditional)** — Stage totals are formatted in the org currency whatever the deal currency. `SalesPipeline.tsx:192-196`. One USD opportunity would be mislabelled. The client's open pipeline is IDR-only today; needs an RPC check.
-- **RD-018 · P1 · Overview** — One figure, two stories on the same page: the header says Actual is "Incomplete — see spending details" (`ProjectDetailHeader.tsx:164-170`), while Project finances prints "Recorded spending IDR …, partial" (`ProjectFinancesSection.tsx:131-137`). *Who:* the owner can't tell whether spending is known.
-- **RD-019 · P2 · Overview** — "No budget" (`ProjectFinancesSection.tsx:93`) and "No active budget" (×3 elsewhere) name one state two ways. "No budget" is false when draft versions exist.
-- **RD-020 · P2 · Overview** — Mixed precision on one strip: Contract is whole (`ProjectDetailHeader.tsx:221`), contract-after-cost has 2 decimals (`:182`), finances use exact `.00`.
-- **RD-021 · P2 · Overview** — The spending-setup link uses raw `text-primary` as text, which DESIGN.md records as sub-AA in dark. `ProjectFinancesSection.tsx:144`. **The #1044 plan's Slice A task 2 snippet repeats this; use `text-primary-text`.**
-- **RD-022 · P2 · PM** — One project missing a contract, or a second currency, erases the whole "My contract value" figure. `PMDashboard.tsx:46-47,81`. *Related to RD-003; show per currency.*
+- **RD-005 · P1 · Exec/Finance** — **SHIPPED — RD-C1 (ddd389c9)** — "Total project spend" labels a **partial** sum (144/150 categories) as a total. `ExecutiveDashboard.tsx:351-352`, `FinanceDashboard.tsx:426-427`, `MobileExecutiveDashboard.tsx:174-177`. *Who:* the owner treats IDR 58 bn as all project cost; 6 categories are missing. *Principle:* DESIGN.md Unknowable-Is-Not-Zero (a partial is a claim).
+- **RD-006 · P1 · Exec + PM** — **SHIPPED — RD-C1 (ddd389c9)** — Risk is asserted where it can't be computed. With no active budgets and no dated phases: desktop "0 at-risk" (`ExecutiveDashboard.tsx:321`), mobile "**all on track**" (`MobileExecutiveDashboard.tsx:135-137`), PM "At risk 0 · budget usage > 90%" (`PMDashboard.tsx:86-90`). *Who:* the owner and PM read false reassurance. *Principle:* Unknowable-Is-Not-Zero; Stated-State.
+- **RD-007 · P2 · Exec** — **SHIPPED — SL-B (c44a3330)** — "Nothing left to invoice on issued work orders" leads the chart area for an org that doesn't use work orders while billions are un-invoiced. `StillToInvoiceCard.tsx:43`. *Who:* the owner skims it as "nothing to bill". *Principle:* plain language / honest scope.
+- **RD-008 · P2 · Exec mobile** — **SHIPPED — RD-C1 (ddd389c9)** — The same figure has a different label on phone ("Contracted revenue", "Total contract value") and desktop. `MobileExecutiveDashboard.tsx:276,293`. *Principle:* CW-7 same terms on both. *Coordinate with RD-001.*
+- **RD-009 · P1 · Finance** — **SHIPPED — RD-C2 (ddd389c9)** — The "Outstanding invoices" tile is **vendor** invoices awaiting payment (payables), on a page that also shows customer AR. `FinanceDashboard.tsx:438-443`. *Who:* Finance reads money owed by vendors as money owed to the company. *Principle:* match the real world (H2).
+- **RD-010 · P1 · Finance** — **SHIPPED — RD-C2 (ddd389c9)** — The actuals snapshot renders a missing Net as `0`. `AccountingSnapshotsSection.tsx:161` (`r.net ?? 0`). *Principle:* Unknowable-Is-Not-Zero.
+- **RD-011 · P2 · Finance** — **SHIPPED — T1 (b9a0aa8d)** — Actuals rows are per project, but the table has no Project column, so two projects on the same account and fiscal year look like duplicate rows. `AccountingSnapshotsSection.tsx:141-163` (acknowledged at `:255-259`).
+- **RD-012 · P2 · Finance** — **SHIPPED — FIN-S* (v0.24 finance slices)** — "Contract value in progress" help says "active and closed-out" but the figure is the Ongoing-only total. `FinanceDashboard.tsx:420-424` vs `ExecutiveDashboard.tsx:326-328`.
+- **RD-013 · P2 · Finance** — **SHIPPED — FIN-S* (v0.24 finance slices)** — The margin tile sub-line appends a label with no value ("· Known margin on billed work ·"). `FinanceDashboard.tsx:434-435`.
+- **RD-014 · P2 · Finance** — **SHIPPED — RD-C2 (ddd389c9)** — 14+ hard-coded English strings: "PRs awaiting you" `:416`, "Total project spend" `:426`, "Outstanding invoices" `:438`, "vendor-invoiced, awaiting payment" `:440`, Ready-to-pay headers `:79,101,115`, `daysAgoLabel` `:42-44`, empty/error copy `:142-144,402`, snapshot titles/headers `AccountingSnapshotsSection.tsx:79-159,247,265`. *Who:* Bahasa users get English money labels.
+- **RD-015 · P3 · Finance** — **SHIPPED — FIN-S* (v0.24 finance slices)** — Aging cells print the currency twice ("IDR 1,234 IDR"). `AccountingSnapshotsSection.tsx:50-52`.
+- **RD-016 · P2 · Sales** — **SHIPPED — RD-S5 (19e62dad)** — The table Stage column prints the raw stored status ("PQ Submitted", "Loss Tender") while the board and funnel say "Pre-Qual"; it isn't translated. `SalesPipeline.tsx:266`.
+- **RD-017 · P2 · Sales (latent, conditional)** — **SHIPPED — RD-S5 (19e62dad)** — Stage totals are formatted in the org currency whatever the deal currency. `SalesPipeline.tsx:192-196`. One USD opportunity would be mislabelled. The client's open pipeline is IDR-only today; needs an RPC check.
+- **RD-018 · P1 · Overview** — **SHIPPED — PD-C (211c53a1)** — One figure, two stories on the same page: the header says Actual is "Incomplete — see spending details" (`ProjectDetailHeader.tsx:164-170`), while Project finances prints "Recorded spending IDR …, partial" (`ProjectFinancesSection.tsx:131-137`). *Who:* the owner can't tell whether spending is known.
+- **RD-019 · P2 · Overview** — **SHIPPED — PD-B (49ce89f9)** — "No budget" (`ProjectFinancesSection.tsx:93`) and "No active budget" (×3 elsewhere) name one state two ways. "No budget" is false when draft versions exist.
+- **RD-020 · P2 · Overview** — **OPEN** — Mixed precision on one strip: Contract is whole (`ProjectDetailHeader.tsx:221`), contract-after-cost has 2 decimals (`:182`), finances use exact `.00`.
+- **RD-021 · P2 · Overview** — **SHIPPED — #1044 / PD-C (268ca8e2)** — The spending-setup link uses raw `text-primary` as text, which DESIGN.md records as sub-AA in dark. `ProjectFinancesSection.tsx:144`. **The #1044 plan's Slice A task 2 snippet repeats this; use `text-primary-text`.**
+- **RD-022 · P2 · PM** — **SHIPPED — RD-C1 (ddd389c9)** — One project missing a contract, or a second currency, erases the whole "My contract value" figure. `PMDashboard.tsx:46-47,81`. *Related to RD-003; show per currency.*
 
 ### 1.2 STRUCTURE / HIERARCHY (56)
 
 **Executive dashboard (11)**
 
-- **RD-023 · P1** — Six equal KPI tiles in a 1/2/3/4-column grid leave an orphan row (4+2 at ≥1180) and no figure leads. `ExecutiveDashboard.tsx:259-262`. *Principle:* layout squint test; craft-floor bans the identical-card grid.
-- **RD-024 · P1** — The approvals tile is outside any grid, so it renders **full width** (~1150 px) holding "0 · nothing waiting" plus a blue **Review** button that leads to an empty inbox. `ExecutiveDashboard.tsx:252-256`, `AwaitingApprovalTile.tsx:98`. *Who:* the owner sees whitespace and a call to action with nothing behind it. *Principle:* One-Blue; clear queue is compact (DESIGN.md §7).
-- **RD-025 · P1 · computed** — KPI value overflow. 23 px/700 exact IDR with `.00` ("IDR 160,890,500,000.00", 22 chars ≈ 290 px) in a ~250 px content box (4-column at 1440). The value `div` has no `min-w-0`, and Intl joins symbol and digits with a non-breaking space. `KPITile.tsx:187-194`. *Who:* the owner sees amounts cross card edges (reported). *Principle:* craft-floor text-overflow.
-- **RD-026 · P1** — Tile sub-lines carry 3–4 facts: tile 1 has contract-after-Actual, margin label and value, and two coverage sentences. `ExecutiveDashboard.tsx:272-273,353-355`. Tiles reach uneven heights; sub-lines wrap 4–5 times.
-- **RD-027 · P1** — Partial-spending coverage is explained **N times**: tile 1, tile 6, every BvA row (`BvACard.tsx:82-88`) and the mobile drill cell (`MobileExecutiveDashboard.tsx:180-181`). *Principle:* distill (say it once).
-- **RD-028 · P1** — "Pipeline forecast margin" takes a tile and a card headline even though, with no budgets, it can never be computed. The reason prints at 23 px and 30 px. `ExecutiveDashboard.tsx:128-134,300-311`, `ProjectedMarginBars.tsx:49-51`.
-- **RD-029 · P2** — BvA rows each repeat "Active-budget risk: No active budget", and draw no bar while Actual is incomplete. "Spending vs contract" then compares nothing. `BvACard.tsx:71-81`.
-- **RD-030 · P2** — Icon-tile tones are decoration, not meaning: red for spend implies danger; a blue tile on a non-action tile breaks One-Blue. `ExecutiveDashboard.tsx:283-351`, `KPITile.tsx:16-21`.
-- **RD-031 · P2 (conditional)** — Chart cards use `items-start`, so bottoms are ragged. The "PMO purchasing requests" chart stays near-empty for ERP-native purchasing. `ExecutiveDashboard.tsx:164-187`.
-- **RD-032 · P2 · computed** — The mobile "Total project spend" drill cell stacks a value and two 11 px coverage sentences in a ~165 px half-width cell (6+ lines). `MobileExecutiveDashboard.tsx:168-186`.
-- **RD-033 · P3** — The subtitle promises metrics the page can't show ("margin on hand, pipeline forecast"). `ExecutiveDashboard.tsx:247`.
+- **RD-023 · P1** — **SHIPPED — SL-B (c44a3330)** — Six equal KPI tiles in a 1/2/3/4-column grid leave an orphan row (4+2 at ≥1180) and no figure leads. `ExecutiveDashboard.tsx:259-262`. *Principle:* layout squint test; craft-floor bans the identical-card grid.
+- **RD-024 · P1** — **SHIPPED — SL-A (d059883e)** — The approvals tile is outside any grid, so it renders **full width** (~1150 px) holding "0 · nothing waiting" plus a blue **Review** button that leads to an empty inbox. `ExecutiveDashboard.tsx:252-256`, `AwaitingApprovalTile.tsx:98`. *Who:* the owner sees whitespace and a call to action with nothing behind it. *Principle:* One-Blue; clear queue is compact (DESIGN.md §7).
+- **RD-025 · P1 · computed** — **SHIPPED — RD-S1 (67571547)** — KPI value overflow. 23 px/700 exact IDR with `.00` ("IDR 160,890,500,000.00", 22 chars ≈ 290 px) in a ~250 px content box (4-column at 1440). The value `div` has no `min-w-0`, and Intl joins symbol and digits with a non-breaking space. `KPITile.tsx:187-194`. *Who:* the owner sees amounts cross card edges (reported). *Principle:* craft-floor text-overflow.
+- **RD-026 · P1** — **OPEN** — Tile sub-lines carry 3–4 facts: tile 1 has contract-after-Actual, margin label and value, and two coverage sentences. `ExecutiveDashboard.tsx:272-273,353-355`. Tiles reach uneven heights; sub-lines wrap 4–5 times.
+- **RD-027 · P1** — **SHIPPED — RD-C1 (ddd389c9)** — Partial-spending coverage is explained **N times**: tile 1, tile 6, every BvA row (`BvACard.tsx:82-88`) and the mobile drill cell (`MobileExecutiveDashboard.tsx:180-181`). *Principle:* distill (say it once).
+- **RD-028 · P1** — **SHIPPED — SL-B (c44a3330)** — "Pipeline forecast margin" takes a tile and a card headline even though, with no budgets, it can never be computed. The reason prints at 23 px and 30 px. `ExecutiveDashboard.tsx:128-134,300-311`, `ProjectedMarginBars.tsx:49-51`.
+- **RD-029 · P2** — **OPEN** — BvA rows each repeat "Active-budget risk: No active budget", and draw no bar while Actual is incomplete. "Spending vs contract" then compares nothing. `BvACard.tsx:71-81`.
+- **RD-030 · P2** — **OPEN** — Icon-tile tones are decoration, not meaning: red for spend implies danger; a blue tile on a non-action tile breaks One-Blue. `ExecutiveDashboard.tsx:283-351`, `KPITile.tsx:16-21`.
+- **RD-031 · P2 (conditional)** — **OPEN** — Chart cards use `items-start`, so bottoms are ragged. The "PMO purchasing requests" chart stays near-empty for ERP-native purchasing. `ExecutiveDashboard.tsx:164-187`.
+- **RD-032 · P2 · computed** — **OPEN** — The mobile "Total project spend" drill cell stacks a value and two 11 px coverage sentences in a ~165 px half-width cell (6+ lines). `MobileExecutiveDashboard.tsx:168-186`.
+- **RD-033 · P3** — **OPEN** — The subtitle promises metrics the page can't show ("margin on hand, pipeline forecast"). `ExecutiveDashboard.tsx:247`.
 
 **Finance dashboard (7)**
 
-- **RD-034 · P2** — The approvals tile sits alone in a 2-column grid: a half-width tile plus an empty half. `FinanceDashboard.tsx:415-417`.
-- **RD-035 · P2** — The KPI grid declares 5 columns for 4 tiles, leaving an empty fifth slot at ≥1180. `FinanceDashboard.tsx:418`.
-- **RD-036 · P1** — For this org the page is up to five stacked ~200 px empty blocks: Ready to pay, Budget review ("No active budgets ready for review"), Actuals, AP, AR. `FinanceDashboard.tsx:455-521`, `ListState.tsx:126` (`py-14`). *Who:* Finance scrolls past emptiness to find one figure.
-- **RD-037 · P2** — "Ask your administrator to sync accounting data" appears ×3, shown to the Admin who *is* the administrator. `AccountingSnapshotsSection.tsx:249,267,280`.
-- **RD-038 · P2** — The aging Party cell repeats snapshot-level metadata (report date, ageing basis, ERP ranges) on every row. `AccountingSnapshotsSection.tsx:94-98`.
-- **RD-039 · P2** — The purchasing chart sits alone in a 2-up grid: half width plus an empty half. `FinanceDashboard.tsx:523-541`.
-- **RD-040 · P3** — Title jargon: "Budget review — top 5 by variance (portfolio-wide)". `FinanceDashboard.tsx:473`.
+- **RD-034 · P2** — **SHIPPED — SL-A (d059883e)** — The approvals tile sits alone in a 2-column grid: a half-width tile plus an empty half. `FinanceDashboard.tsx:415-417`.
+- **RD-035 · P2** — **SHIPPED — T1 dashboard adoption (b9a0aa8d)** — The KPI grid declares 5 columns for 4 tiles, leaving an empty fifth slot at ≥1180. `FinanceDashboard.tsx:418`.
+- **RD-036 · P1** — **OPEN** — For this org the page is up to five stacked ~200 px empty blocks: Ready to pay, Budget review ("No active budgets ready for review"), Actuals, AP, AR. `FinanceDashboard.tsx:455-521`, `ListState.tsx:126` (`py-14`). *Who:* Finance scrolls past emptiness to find one figure.
+- **RD-037 · P2** — **OPEN** — "Ask your administrator to sync accounting data" appears ×3, shown to the Admin who *is* the administrator. `AccountingSnapshotsSection.tsx:249,267,280`.
+- **RD-038 · P2** — **SHIPPED — SL-F (bec9ab8b)** — The aging Party cell repeats snapshot-level metadata (report date, ageing basis, ERP ranges) on every row. `AccountingSnapshotsSection.tsx:94-98`.
+- **RD-039 · P2** — **SHIPPED — FIN-S* (v0.24 finance slices)** — The purchasing chart sits alone in a 2-up grid: half width plus an empty half. `FinanceDashboard.tsx:523-541`.
+- **RD-040 · P3** — **OPEN** — Title jargon: "Budget review — top 5 by variance (portfolio-wide)". `FinanceDashboard.tsx:473`.
 
 **PM dashboard (3)**
 
-- **RD-041 · P2** — The approvals tile sits alone in a 2-column grid. `PMDashboard.tsx:68-70`.
-- **RD-042 · P2** — A 4-column KPI band holds 3 tiles, leaving an empty slot at ≥1180. `PMDashboard.tsx:72`.
-- **RD-043 · P2 · computed** — The 64 px margin slot (`w-16`) receives "Not available yet" in 13 px bold, which wraps into 3 lines and bleeds. The column has no header; its caption sits in the card head. `PMDashboard.tsx:111,143-147`.
+- **RD-041 · P2** — **SHIPPED — SL-A (d059883e)** — The approvals tile sits alone in a 2-column grid. `PMDashboard.tsx:68-70`.
+- **RD-042 · P2** — **SHIPPED — v0.24 PM dashboard (28599e3f)** — A 4-column KPI band holds 3 tiles, leaving an empty slot at ≥1180. `PMDashboard.tsx:72`.
+- **RD-043 · P2 · computed** — **SHIPPED — v0.24 PM dashboard (28599e3f)** — The 64 px margin slot (`w-16`) receives "Not available yet" in 13 px bold, which wraps into 3 lines and bleeds. The column has no header; its caption sits in the card head. `PMDashboard.tsx:111,143-147`.
 
 **Sales pipeline cards (3)**
 
-- **RD-044 · P2** — Funnel bars default to primary blue, so five blue bars plus the selected stage compete with "New project". `Funnel.tsx:140`; `SalesPipeline.tsx:185-198` passes no `barColor`. *Principle:* One-Blue.
-- **RD-045 · P2** — The project cell spells out "PMO Project Number: …" and "Client Project Code: …" in 11 px mono on every row. `SalesPipeline.tsx:237-244`. *Principle:* recognition before compression.
-- **RD-046 · P3** — The same pipeline is exact with `.00` on the dashboard and whole on Sales (`SalesPipeline.tsx:193` vs `ExecutiveDashboard.tsx:115`).
+- **RD-044 · P2** — **SHIPPED — RD-S5 (19e62dad)** — Funnel bars default to primary blue, so five blue bars plus the selected stage compete with "New project". `Funnel.tsx:140`; `SalesPipeline.tsx:185-198` passes no `barColor`. *Principle:* One-Blue.
+- **RD-045 · P2** — **SHIPPED — T4 (0eb96893)** — The project cell spells out "PMO Project Number: …" and "Client Project Code: …" in 11 px mono on every row. `SalesPipeline.tsx:237-244`. *Principle:* recognition before compression.
+- **RD-046 · P3** — **OPEN** — The same pipeline is exact with `.00` on the dashboard and whole on Sales (`SalesPipeline.tsx:193` vs `ExecutiveDashboard.tsx:115`).
 
 **Project detail → Overview (16)** — Admin, Ongoing, no budget, phases, invoices or work orders.
 
-- **RD-047 · P1** — **The page says "nothing here" about 12 times:** 3 header tiles (RD-048), the phases prompt, Budget utilization, Budget snapshot, empty Procurement summary, "No submitted invoices", "No budget", the drawdown with zero orders, P&L "not available yet", and the empty progress curve. `ProjectDetail.tsx:214-251`, `OverviewTab.tsx:175-484`. *Who:* the owner's "scattered, whitespace with no intent". *Principle:* distill; one main job per screen.
-- **RD-048 · P1** — Header strip: 3 of 5 values are prose reasons in 17 px bold ("Incomplete — see spending details", "Unavailable", "No active budget"). "PMO purchase orders: Not tracked in PMO yet" spends a tile on a capability the org doesn't use. `ProjectDetailHeader.tsx:216-286`.
-- **RD-049 · P1 · computed** — Header strip bleed between 768 and 1180 px. `md:grid-cols-5` gives ~140–200 px per tile, and a signed exact "+IDR 29,812,225,000.00" (non-breaking, ~210 px at 17 px bold) crosses into the neighbouring tile. `ProjectDetailHeader.tsx:559-563`, `StatTiles.tsx:102-115`.
-- **RD-050 · P1** — Row 1 is a `lg:grid-cols-2` grid holding only "Budget utilization" for finance roles: a half-width card saying "No active budget" next to ~560 px of nothing. `OverviewTab.tsx:179-267`.
-- **RD-051 · P2** — Row 2 puts two ~200 px empty states side by side ("No purchase requests…" / "No active budget"). `OverviewTab.tsx:279-483`.
-- **RD-052 · P2** — "No active budget" is said 4× on one page (Spend tile, Budget utilization, Budget snapshot, "No budget").
-- **RD-053 · P2** — The empty phases prompt leads Overview with fake progress bars in `primary/20` (blue decoration standing in for content) plus a primary button. `MilestoneStrip.tsx:461-485`. *Principle:* craft-floor bans decorative chrome; One-Blue.
-- **RD-054 · P2** — The progress-curve empty state (~200 px) restates the phases gap. `ProjectSCurve.tsx:87-101`.
-- **RD-055 · P2** — P&L puts its period picker above its own title and reads "Statements are not available yet" for every project. `ProjectProfitLossSection.tsx:128-178`.
-- **RD-056 · P2** — With zero work orders, the drawdown shows Ceiling (= Contract), 0, 0 and Headroom (= Contract). The contract value prints 3× on the page. `ProjectDrawdown.tsx:133-163`.
-- **RD-057 · P2** — Peer sections use five heading treatments (14/700 h2, 16/600 h2, 14/600 h2, 15/600 h3, non-heading CardHead). `MilestoneStrip.tsx:232`, `ProjectDrawdown.tsx:80`, `ProjectFinancesSection.tsx:26`, `ProjectSCurve.tsx:83`, `OverviewTab.tsx:224,282,394`.
-- **RD-058 · P2** — Five different section intervals (`mb-6`, `space-y-8`, `gap-6`, `mt-8`, `border-y py-4`), and Project finances is a ruled band while its siblings are bare cards. `ProjectDetail.tsx:217,240,246`, `OverviewTab.tsx:175,179`, `ProjectFinancesSection.tsx:80`. *Principle:* layout rhythm.
-- **RD-059 · P2** — Two disclosures overlap: header "More project details" and "Project details and actions" both carry PMO number and client code. `ProjectDetailHeader.tsx:204-212`, `ProjectDetailRail.tsx:69-145`.
-- **RD-060 · P3** — Bare `<p role="status">` lines float between a `dl` and an `h3` with no type role. `ProjectFinancesSection.tsx:92-93`.
-- **RD-061 · P3** — Over-long label: "Billed-work revenue (net of tax, advances excluded)". `ProjectFinancesSection.tsx:113`.
-- **RD-062 · P2** — On phone the money position and remedies sit roughly 4 screens below the empty phases prompt. `ProjectDetail.tsx:214-251`.
+- **RD-047 · P1** — **SHIPPED — PD-B (49ce89f9)** — **The page says "nothing here" about 12 times:** 3 header tiles (RD-048), the phases prompt, Budget utilization, Budget snapshot, empty Procurement summary, "No submitted invoices", "No budget", the drawdown with zero orders, P&L "not available yet", and the empty progress curve. `ProjectDetail.tsx:214-251`, `OverviewTab.tsx:175-484`. *Who:* the owner's "scattered, whitespace with no intent". *Principle:* distill; one main job per screen.
+- **RD-048 · P1** — **SHIPPED — PD-A (2ee0b54d)** — Header strip: 3 of 5 values are prose reasons in 17 px bold ("Incomplete — see spending details", "Unavailable", "No active budget"). "PMO purchase orders: Not tracked in PMO yet" spends a tile on a capability the org doesn't use. `ProjectDetailHeader.tsx:216-286`.
+- **RD-049 · P1 · computed** — **OPEN** — Header strip bleed between 768 and 1180 px. `md:grid-cols-5` gives ~140–200 px per tile, and a signed exact "+IDR 29,812,225,000.00" (non-breaking, ~210 px at 17 px bold) crosses into the neighbouring tile. `ProjectDetailHeader.tsx:559-563`, `StatTiles.tsx:102-115`.
+- **RD-050 · P1** — **SHIPPED — PD-B (49ce89f9)** — Row 1 is a `lg:grid-cols-2` grid holding only "Budget utilization" for finance roles: a half-width card saying "No active budget" next to ~560 px of nothing. `OverviewTab.tsx:179-267`.
+- **RD-051 · P2** — **SHIPPED — PD-B (49ce89f9)** — Row 2 puts two ~200 px empty states side by side ("No purchase requests…" / "No active budget"). `OverviewTab.tsx:279-483`.
+- **RD-052 · P2** — **SHIPPED — PD-B (49ce89f9)** — "No active budget" is said 4× on one page (Spend tile, Budget utilization, Budget snapshot, "No budget").
+- **RD-053 · P2** — **SHIPPED — PD-B (49ce89f9)** — The empty phases prompt leads Overview with fake progress bars in `primary/20` (blue decoration standing in for content) plus a primary button. `MilestoneStrip.tsx:461-485`. *Principle:* craft-floor bans decorative chrome; One-Blue.
+- **RD-054 · P2** — **SHIPPED — PD-B (49ce89f9)** — The progress-curve empty state (~200 px) restates the phases gap. `ProjectSCurve.tsx:87-101`.
+- **RD-055 · P2** — **SHIPPED — PD-B (49ce89f9)** — P&L puts its period picker above its own title and reads "Statements are not available yet" for every project. `ProjectProfitLossSection.tsx:128-178`.
+- **RD-056 · P2** — **SHIPPED — SUB-C (f87c0edc)** — With zero work orders, the drawdown shows Ceiling (= Contract), 0, 0 and Headroom (= Contract). The contract value prints 3× on the page. `ProjectDrawdown.tsx:133-163`.
+- **RD-057 · P2** — **OPEN** — Peer sections use five heading treatments (14/700 h2, 16/600 h2, 14/600 h2, 15/600 h3, non-heading CardHead). `MilestoneStrip.tsx:232`, `ProjectDrawdown.tsx:80`, `ProjectFinancesSection.tsx:26`, `ProjectSCurve.tsx:83`, `OverviewTab.tsx:224,282,394`.
+- **RD-058 · P2** — **OPEN** — Five different section intervals (`mb-6`, `space-y-8`, `gap-6`, `mt-8`, `border-y py-4`), and Project finances is a ruled band while its siblings are bare cards. `ProjectDetail.tsx:217,240,246`, `OverviewTab.tsx:175,179`, `ProjectFinancesSection.tsx:80`. *Principle:* layout rhythm.
+- **RD-059 · P2** — **SHIPPED — PD-A (2ee0b54d)** — Two disclosures overlap: header "More project details" and "Project details and actions" both carry PMO number and client code. `ProjectDetailHeader.tsx:204-212`, `ProjectDetailRail.tsx:69-145`.
+- **RD-060 · P3** — **OPEN** — Bare `<p role="status">` lines float between a `dl` and an `h3` with no type role. `ProjectFinancesSection.tsx:92-93`.
+- **RD-061 · P3** — **OPEN** — Over-long label: "Billed-work revenue (net of tax, advances excluded)". `ProjectFinancesSection.tsx:113`.
+- **RD-062 · P2** — **OPEN** — On phone the money position and remedies sit roughly 4 screens below the empty phases prompt. `ProjectDetail.tsx:214-251`.
 
 **Tables, app-wide (10)**
 
-- **RD-063 · P1** — Partial or unknown state repeats on every row in 10 px text: "Incomplete source coverage", "ERP actual", "As of …", "No active budget". `Projects.tsx:640-653,694-723`. With the client's data, 25 rows each carry 2–3 caveats.
-- **RD-064 · P2** — There is no primary-cell contract; every table invents its identity cell. `Projects.tsx:422-470`, `SalesPipeline.tsx:220-249`, `FinanceDashboard.tsx:80-90`.
-- **RD-065 · P2** — The status pill is forced to 10 px, `max-w-[68px]`, wrapping. `Projects.tsx:566`. Below the Label token (12 px).
-- **RD-066 · P2** — Numeric columns stack prose under the value, right-aligned, so the column edge is ragged. `FinanceDashboard.tsx:350-371`, `Projects.tsx:610-655`.
-- **RD-067 · P2** — No group or total row inside the table: `TableFoot` is a `div` outside `<table>` (`DataTable.tsx:887-901`), so totals can't align to their columns. Raw tables each invent a `tfoot`.
-- **RD-068 · P2** — 12 hand-rolled tables use 4 header styles, and 6 of them have no phone branch (§4.3).
-- **RD-069 · P2** — `whitespace-nowrap` on every body cell (`DataTable.tsx:408`): any consumer that forgets `truncate` forces horizontal scroll, and long Bahasa names are the norm here.
-- **RD-070 · P2** — Sales invoices: 10 columns at one weight, 3 of them dates, and no primary identity cell. `SalesInvoices.tsx:673-857`.
-- **RD-071 · P3** — Sortable headers show no cue until active. `DataTable.tsx:327-337`.
-- **RD-072 · P2** — Money precision differs between tables: whole (Ready to pay, Budget review, Pipeline, Projects), cents (Expense lines, Advance aging, Still to invoice), exact `.00` (tiles).
+- **RD-063 · P1** — **SHIPPED — T2 (869a1859)** — Partial or unknown state repeats on every row in 10 px text: "Incomplete source coverage", "ERP actual", "As of …", "No active budget". `Projects.tsx:640-653,694-723`. With the client's data, 25 rows each carry 2–3 caveats.
+- **RD-064 · P2** — **SHIPPED — T1 (b9a0aa8d)** — There is no primary-cell contract; every table invents its identity cell. `Projects.tsx:422-470`, `SalesPipeline.tsx:220-249`, `FinanceDashboard.tsx:80-90`.
+- **RD-065 · P2** — **SHIPPED — T1 (b9a0aa8d)** — The status pill is forced to 10 px, `max-w-[68px]`, wrapping. `Projects.tsx:566`. Below the Label token (12 px).
+- **RD-066 · P2** — **OPEN** — Numeric columns stack prose under the value, right-aligned, so the column edge is ragged. `FinanceDashboard.tsx:350-371`, `Projects.tsx:610-655`.
+- **RD-067 · P2** — **SHIPPED — T1 (b9a0aa8d)** — No group or total row inside the table: `TableFoot` is a `div` outside `<table>` (`DataTable.tsx:887-901`), so totals can't align to their columns. Raw tables each invent a `tfoot`.
+- **RD-068 · P2** — **SHIPPED — T5–T9 (1b9476ed, e1385a17, d7ef8752, 87ebcc15, 5ba3cfbf)** — 12 hand-rolled tables use 4 header styles, and 6 of them have no phone branch (§4.3).
+- **RD-069 · P2** — **SHIPPED — T1 (b9a0aa8d)** — `whitespace-nowrap` on every body cell (`DataTable.tsx:408`): any consumer that forgets `truncate` forces horizontal scroll, and long Bahasa names are the norm here.
+- **RD-070 · P2** — **SHIPPED — T4 (d48bd676)** — Sales invoices: 10 columns at one weight, 3 of them dates, and no primary identity cell. `SalesInvoices.tsx:673-857`.
+- **RD-071 · P3** — **SHIPPED — T1 (b9a0aa8d)** — Sortable headers show no cue until active. `DataTable.tsx:327-337`.
+- **RD-072 · P2** — **OPEN** — Money precision differs between tables: whole (Ready to pay, Budget review, Pipeline, Projects), cents (Expense lines, Advance aging, Still to invoice), exact `.00` (tiles).
 
 **Cross-cutting (6)**
 
-- **RD-073 · P1** — Unavailable reasons are rendered *as the figure* (bold 17–30 px) instead of DESIGN.md's rule: "—" with the reason attached (`title` + `sr-only`). `ExecutiveDashboard.tsx:115-116`, `ProjectDetailHeader.tsx:164-170,180-182,276-284`, `ProjectedMarginBars.tsx:50`, `PMDashboard.tsx:146`. *Who:* reasons shout like numbers, so the eye can't find the numbers.
-- **RD-074 · P2** — Dashboard IDR always carries `.00` (`dashboardMoney.ts:7` → `format.ts:89-91`): 3 extra characters per billions figure and the main contributor to the bleed.
-- **RD-075 · P2** — Six figure sizes (34/30/23/17/15/13) with no named token. `WinRateCard.tsx:130`, `ProjectedMarginBars.tsx:49`, `KPITile.tsx:188`, `StatTiles.tsx:104`, `ProjectDrawdown.tsx:53`, `BvACard.tsx:61`.
-- **RD-076 · P2** — `CardHead` is a `div`, so card titles are absent from heading navigation on every dashboard and on Overview. `Card.tsx:53-67`.
-- **RD-077 · P2** — The KPI help "?" is 15 px at 55% opacity, ~2.4:1 against the card (below WCAG 1.4.11's 3:1). `KPITile.tsx:120`.
-- **RD-078 · P3** — DESIGN.md's YAML omits `--primary-text`, which `index.css:94,176` defines and DESIGN.md's prose relies on (doc drift).
+- **RD-073 · P1** — **OPEN** — Unavailable reasons are rendered *as the figure* (bold 17–30 px) instead of DESIGN.md's rule: "—" with the reason attached (`title` + `sr-only`). `ExecutiveDashboard.tsx:115-116`, `ProjectDetailHeader.tsx:164-170,180-182,276-284`, `ProjectedMarginBars.tsx:50`, `PMDashboard.tsx:146`. *Who:* reasons shout like numbers, so the eye can't find the numbers.
+- **RD-074 · P2** — **OPEN** — Dashboard IDR always carries `.00` (`dashboardMoney.ts:7` → `format.ts:89-91`): 3 extra characters per billions figure and the main contributor to the bleed.
+- **RD-075 · P2** — **OPEN** — Six figure sizes (34/30/23/17/15/13) with no named token. `WinRateCard.tsx:130`, `ProjectedMarginBars.tsx:49`, `KPITile.tsx:188`, `StatTiles.tsx:104`, `ProjectDrawdown.tsx:53`, `BvACard.tsx:61`.
+- **RD-076 · P2** — **SHIPPED — T1 (b9a0aa8d)** — `CardHead` is a `div`, so card titles are absent from heading navigation on every dashboard and on Overview. `Card.tsx:53-67`.
+- **RD-077 · P2** — **SHIPPED — RD-S1 (4a7e27ac)** — The KPI help "?" is 15 px at 55% opacity, ~2.4:1 against the card (below WCAG 1.4.11's 3:1). `KPITile.tsx:120`.
+- **RD-078 · P3** — **SHIPPED — DESIGN.md / T1 (b9a0aa8d)** — DESIGN.md's YAML omits `--primary-text`, which `index.css:94,176` defines and DESIGN.md's prose relies on (doc drift).
 
 ### 1.3 Heuristic snapshot (source-based, all four pages together)
 
@@ -172,7 +176,11 @@ Severity per impeccable: **P0** blocks the task · **P1** material confusion at 
 
 **Persona red flags.** *Owner-operator (Admin, real data):* opens Executive, sees a duplicate label, 100% win rate, amounts crossing card edges and "all on track" on phone, and can't trust any of it. *PM:* opens a project, scrolls past a fake-bar phases prompt and three "no budget" messages before reaching any figure. *Bahasa Finance user:* Finance dashboard headers and labels are English (RD-014).
 
-## 2. Page structure proposals
+## 2. Page structure proposals (historical; status annotated)
+
+**OPEN IA option (from #806 redesign directions, §2 only):** consider seven job-named destinations—Home, Approvals, Projects, Sales, Money, Purchasing, Time—with Settings at the account/bottom position. This is an IA option only, not an approved navigation change; validate against existing roles and destinations before implementation. No visual direction is carried forward.
+
+**DROPPED as written:** the shared rules below introduce new readiness-notice/attention-band molecules and other broad redesign changes, contrary to the subtraction ruling. They are retained only as historical context; do not implement them as a bundle. The one still-open IA option is recorded below.
 
 **Shared rules (all pages):**
 
@@ -325,24 +333,24 @@ Every later slice **adds its route to this spec's matrix**, so bleeding can't re
 | # | Slice | Files (main) | Findings | Owning tests | Depends on |
 |---|---|---|---|---|---|
 | — | `claude/v024-dash-truth` (external) | Exec / WinRate / ProjectedMarginBars | 001–004 | that lane's | — |
-| RD-S1 | Figure contract + overflow gate | `KPITile.tsx`, `StatTiles.tsx`, `dashboardMoney.ts`, `ProjectedMarginBars.tsx` headline, e2e spec + fixture helper | 025, 049 (gate), 073, 074, 075, 077 | `AC-RD-GEOM-001` (e2e geometry); `AC-RD-UNAVAIL-001` (RTL: "—" + `title` + sr reason, no prose in figure slot); `AC-RD-MONEY-001` (unit: zero fraction suppressed, non-zero kept exact) | dash-truth merged; owner OK on §3.1/§3.2 |
-| RD-C1 | Unknowable dashboard claims | `ExecutiveDashboard.tsx`, `MobileExecutiveDashboard.tsx`, `PMDashboard.tsx`, `AtRiskProjectsLink.tsx` | 005, 006, 008, 022 | `AC-RD-RISK-001` (RTL: no budgets/phases → "can't be checked yet", never "on track"/"0"); `AC-RD-SPEND-001` (label "Recorded spending" + Partial when coverage < total) | dash-truth |
-| RD-C2 | Finance truth and language | `FinanceDashboard.tsx`, `AccountingSnapshotsSection.tsx`, EN/ID catalogues | 009–015 | `AC-RD-FIN-001` (null Net → "—"); `AC-RD-FIN-002` (Project column on actuals); `AC-RD-FIN-003` (Bahasa render has no English money labels) | — |
-| RD-S2 | Executive restructure | `ExecutiveDashboard.tsx`, `MobileExecutiveDashboard.tsx`, new `ReadinessNotice`, `AttentionBand` in `src/components/dashboard/` | 007, 023, 024, 026–033 | `AC-RD-EXEC-001` (one readiness notice; coverage string count = 1); `AC-RD-EXEC-002` (0 approvals → no primary button); geometry matrix + `/` | RD-S1, RD-C1 |
-| RD-S3 | Finance restructure | `FinanceDashboard.tsx`, `AccountingSnapshotsSection.tsx` | 034–040 | `AC-RD-FIN-004` (empty blocks don't render; one sync line); geometry + Finance role | RD-C2, RD-S2 (shared notice/band) |
-| RD-S4 | PM dashboard | `PMDashboard.tsx` | 041–043 | `AC-RD-PM-001` (my-projects table, margin column header); geometry + PM | RD-S2 |
-| RD-S5 | Sales pipeline cards | `SalesPipeline.tsx`, `Funnel.tsx` | 016, 017, 044–046 | `AC-RD-SALES-001` (neutral bars; board titles in Stage column); `AC-RD-SALES-002` (mixed-currency stage → "—" + reason) | RD-S1 |
-| RD-S6 | Project Overview restructure | `ProjectDetail.tsx`, `tabs/OverviewTab.tsx`, `ProjectFinancesSection.tsx`, `MilestoneStrip.tsx` (empty branch), `ProjectSCurve.tsx`, `ProjectProfitLossSection.tsx`, `ProjectDrawdown.tsx`, new `ProjectSetupChecklist.tsx` | 018–021, 047, 050–058, 060–062 | `AC-RD-OVW-001` (Overview with no budget/phases/invoices: one checklist, zero empty `ListState`s, no "No active budget" text); `AC-RD-OVW-002` (checklist rows role-gated, re-binding AC-1044-001); geometry + `/projects/:id` | #1044 Slice A merged; RD-S1 |
-| RD-S7 | Project header strip + one Details disclosure | `ProjectDetailHeader.tsx`, `ProjectDetailRail.tsx` | 048, 059 | `AC-RD-HDR-001` (no prose in figure slots; not-tracked capability not rendered); geometry at 1024 | #1044 Slice B; RD-S1 |
-| T1 | DataTable hierarchy contract | `DataTable.tsx` (+ `tableWidthPrefs.ts`), `DESIGN.md` §5 Data Table | 064, 065, 067, 069, 071, 072, 076 (CardHead → heading prop) | `AC-TBL-RESIZE-001` (RTL: keyboard ±16/Home/End/Enter; `aria-value*`); `AC-TBL-RESIZE-002` (persistence per tableId×user, clamp, unknown keys ignored); `AC-TBL-GROUP-001` (per-currency subtotals, never summed across); `AC-TBL-CAVEAT-001` (one footnote, header mark); e2e `AC-TBL-GEOM-001` (header/cell boxes within the scroller; ⋯ visible at 1440) | TanStack lane merged |
-| T2 | Projects list adopts | `Projects.tsx` | 063, 065, 066 | `AC-RD-TBL-PROJ-001` (25 fixture rows → caveat text count = 1) | T1 |
-| T3 | Finance tables adopt | `FinanceDashboard.tsx` Ready-to-pay / Budget review, aging | 066, 038 | extends AC-RD-FIN-004 | T1, RD-S3 |
-| T4 | Sales invoices + Pipeline tables adopt | `SalesInvoices.tsx`, `SalesPipeline.tsx` | 070, 045 | `AC-RD-TBL-INV-001` (primary cell number+customer; ≤7 columns visible at 1440) | T1 |
-| T5 | Budget tables | `ProjectBudget.tsx`, `BudgetProjection.tsx`, `BudgetAccountMap.tsx` | 068 | existing budget suites + `AC-TBL-GEOM-001` routes | T1, #1044 Slice D |
-| T6 | Expenses + receipt | `ExpenseLinesCard.tsx`, `AdvanceAgingCard.tsx`, `ReceiptRecord.tsx` | 068 | existing suites + phone card assertions | T1 |
-| T7 | Procurement | `LineItemsSection.tsx`, `VendorQuotesTab.tsx` | 068 | `AC-RD-TBL-QUOTE-001` (quote comparison exposes table semantics + select) | T1 |
-| T8 | Admin tools | `IntegrationsView.tsx`, `ImportWizard.tsx` | 068 (+ i18n) | existing suites | T1 |
-| T9 | Timesheet grid | `TimesheetGrid.tsx` | 068 | existing `timesheet.mobile.test.tsx` + total row | T1 (editable + sticky-left) |
+| RD-S1 — SHIPPED — 67571547 / 044a8c6d (RD-S1) | Figure contract + overflow gate | `KPITile.tsx`, `StatTiles.tsx`, `dashboardMoney.ts`, `ProjectedMarginBars.tsx` headline, e2e spec + fixture helper | 025, 049 (gate), 073, 074, 075, 077 | `AC-RD-GEOM-001` (e2e geometry); `AC-RD-UNAVAIL-001` (RTL: "—" + `title` + sr reason, no prose in figure slot); `AC-RD-MONEY-001` (unit: zero fraction suppressed, non-zero kept exact) | dash-truth merged; owner OK on §3.1/§3.2 |
+| RD-C1 — SHIPPED — ddd389c9 (RD-C1) | Unknowable dashboard claims | `ExecutiveDashboard.tsx`, `MobileExecutiveDashboard.tsx`, `PMDashboard.tsx`, `AtRiskProjectsLink.tsx` | 005, 006, 008, 022 | `AC-RD-RISK-001` (RTL: no budgets/phases → "can't be checked yet", never "on track"/"0"); `AC-RD-SPEND-001` (label "Recorded spending" + Partial when coverage < total) | dash-truth |
+| RD-C2 — SHIPPED — ddd389c9 (RD-C2) | Finance truth and language | `FinanceDashboard.tsx`, `AccountingSnapshotsSection.tsx`, EN/ID catalogues | 009–015 | `AC-RD-FIN-001` (null Net → "—"); `AC-RD-FIN-002` (Project column on actuals); `AC-RD-FIN-003` (Bahasa render has no English money labels) | — |
+| RD-S2 — DROPPED as written — v0.24 subtraction (SL-B, c44a3330); no readiness-notice/attention-band molecules | Executive restructure | `ExecutiveDashboard.tsx`, `MobileExecutiveDashboard.tsx`, new `ReadinessNotice`, `AttentionBand` in `src/components/dashboard/` | 007, 023, 024, 026–033 | `AC-RD-EXEC-001` (one readiness notice; coverage string count = 1); `AC-RD-EXEC-002` (0 approvals → no primary button); geometry matrix + `/` | RD-S1, RD-C1 |
+| RD-S3 — DROPPED as written — no new notice/band molecules; validate remaining finance findings individually | Finance restructure | `FinanceDashboard.tsx`, `AccountingSnapshotsSection.tsx` | 034–040 | `AC-RD-FIN-004` (empty blocks don't render; one sync line); geometry + Finance role | RD-C2, RD-S2 (shared notice/band) |
+| RD-S4 — DROPPED as written — no new notice/band molecules; v0.24 PM changes are recorded above | PM dashboard | `PMDashboard.tsx` | 041–043 | `AC-RD-PM-001` (my-projects table, margin column header); geometry + PM | RD-S2 (shared dependency, not pursued) |
+| RD-S5 — SHIPPED — 19e62dad (RD-S5) | Sales pipeline cards | `SalesPipeline.tsx`, `Funnel.tsx` | 016, 017, 044–046 | `AC-RD-SALES-001` (neutral bars; board titles in Stage column); `AC-RD-SALES-002` (mixed-currency stage → "—" + reason) | RD-S1 (dependency; shipped) |
+| RD-S6 — SHIPPED — PD-B (49ce89f9), PD-C (211c53a1), SUB-C (f87c0edc) | Project Overview restructure | `ProjectDetail.tsx`, `tabs/OverviewTab.tsx`, `ProjectFinancesSection.tsx`, `MilestoneStrip.tsx` (empty branch), `ProjectSCurve.tsx`, `ProjectProfitLossSection.tsx`, `ProjectDrawdown.tsx`, new `ProjectSetupChecklist.tsx` | 018–021, 047, 050–058, 060–062 | `AC-RD-OVW-001` (Overview with no budget/phases/invoices: one checklist, zero empty `ListState`s, no "No active budget" text); `AC-RD-OVW-002` (checklist rows role-gated, re-binding AC-1044-001); geometry + `/projects/:id` | #1044 Slice A merged; RD-S1 |
+| RD-S7 — SHIPPED — PD-A (2ee0b54d) | Project header strip + one Details disclosure | `ProjectDetailHeader.tsx`, `ProjectDetailRail.tsx` | 048, 059 | `AC-RD-HDR-001` (no prose in figure slots; not-tracked capability not rendered); geometry at 1024 | #1044 Slice B; RD-S1 |
+| T1 — SHIPPED — b9a0aa8d (T1) | DataTable hierarchy contract | `DataTable.tsx` (+ `tableWidthPrefs.ts`), `DESIGN.md` §5 Data Table | 064, 065, 067, 069, 071, 072, 076 (CardHead → heading prop) | `AC-TBL-RESIZE-001` (RTL: keyboard ±16/Home/End/Enter; `aria-value*`); `AC-TBL-RESIZE-002` (persistence per tableId×user, clamp, unknown keys ignored); `AC-TBL-GROUP-001` (per-currency subtotals, never summed across); `AC-TBL-CAVEAT-001` (one footnote, header mark); e2e `AC-TBL-GEOM-001` (header/cell boxes within the scroller; ⋯ visible at 1440) | TanStack lane merged |
+| T2 — SHIPPED — 869a1859 (T2) | Projects list adopts | `Projects.tsx` | 063, 065, 066 | `AC-RD-TBL-PROJ-001` (25 fixture rows → caveat text count = 1) | T1 — SHIPPED — b9a0aa8d (T1) |
+| T3 — SHIPPED — v0.24 Finance / T1 adoption (b9a0aa8d) | Finance tables adopt | `FinanceDashboard.tsx` Ready-to-pay / Budget review, aging | 066, 038 | extends AC-RD-FIN-004 | T1, RD-S3 |
+| T4 — SHIPPED — 0eb96893 / d48bd676 (T4) | Sales invoices + Pipeline tables adopt | `SalesInvoices.tsx`, `SalesPipeline.tsx` | 070, 045 | `AC-RD-TBL-INV-001` (primary cell number+customer; ≤7 columns visible at 1440) | T1 — SHIPPED — b9a0aa8d (T1) |
+| T5 — SHIPPED — 1b9476ed (T5) | Budget tables | `ProjectBudget.tsx`, `BudgetProjection.tsx`, `BudgetAccountMap.tsx` | 068 | existing budget suites + `AC-TBL-GEOM-001` routes | T1, #1044 Slice D |
+| T6 — SHIPPED — e1385a17 (T6) | Expenses + receipt | `ExpenseLinesCard.tsx`, `AdvanceAgingCard.tsx`, `ReceiptRecord.tsx` | 068 | existing suites + phone card assertions | T1 — SHIPPED — b9a0aa8d (T1) |
+| T7 — SHIPPED — d7ef8752 (T7) | Procurement | `LineItemsSection.tsx`, `VendorQuotesTab.tsx` | 068 | `AC-RD-TBL-QUOTE-001` (quote comparison exposes table semantics + select) | T1 — SHIPPED — b9a0aa8d (T1) |
+| T8 — SHIPPED — 87ebcc15 (T8) | Admin tools | `IntegrationsView.tsx`, `ImportWizard.tsx` | 068 (+ i18n) | existing suites | T1 — SHIPPED — b9a0aa8d (T1) |
+| T9 — SHIPPED — 5ba3cfbf (T9) | Timesheet grid | `TimesheetGrid.tsx` | 068 | existing `timesheet.mobile.test.tsx` + total row | T1 (editable + sticky-left) |
 
 **Order:** dash-truth → RD-S1 → (RD-C1 ∥ RD-C2 ∥ RD-S5) → RD-S2 → (RD-S3 ∥ RD-S4) → #1044 A/B → RD-S6 → RD-S7. In parallel: TanStack lane → T1 → T2…T9.
 
@@ -360,7 +368,7 @@ Read from the worktree `PMO-wt-v024-plan-1044-project-internals` working copy. N
 | **E** invoice/procurement wording | **Keep** | Disjoint |
 | 25–29 acceptance | **Keep**; RD-S6 updates the AC-1044-014 Overview fixture as a deliberate UX step change (goal oracle unchanged) | — |
 
-## 6. Proposed DESIGN.md additions (owner sign-off; not written to DESIGN.md yet)
+## 6. DESIGN.md additions — proposals only (not approved; not written to DESIGN.md)
 
 1. **Spacing roles** (multiples of `spacing.base` 4px): `section` 32 · `group` 16 · `item` 8 · `inline` 4. Fixes RD-058.
 2. **Figure roles:** `metric` 23/700/-0.02em tabular (the existing KPI value), stepping to 17 in containers under 230 px; `figure` 15/600 tabular for inline money. Retire 34/30 on dashboards. Fixes RD-075.
@@ -371,4 +379,4 @@ Read from the worktree `PMO-wt-v024-plan-1044-project-internals` working copy. N
 
 ## 7. Mockups
 
-`docs/ux/mockups/2026-10-19-real-data/`: `index.html`, `tokens.css` (DESIGN.md tokens only; `--space-*` marked as proposed), and `executive-`, `finance-`, `sales-pipeline-`, `project-overview-`, `tables-` × `1440`/`390`. They are static sketches for the ~30-second owner shape check. They weren't rendered in this session either.
+Retained only the page sketches linked from §2. They are static historical sketches, not visual direction; they were not rendered in the original session.
