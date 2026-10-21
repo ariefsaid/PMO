@@ -35,7 +35,7 @@ describe('AC-M365DOC-071 — record folder copy map', () => {
     const copy = recordFolderErrorCopy({ code: 'SCOPE_INSUFFICIENT' });
     expect(copy).toEqual({ key: 'error.additionalConsent', remedy: 'reconnect', ok: false });
     expect(recordFolderText(tDefault, copy.key)).toBe(
-      'The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.');
+      'Creating folders needs one more permission from Microsoft. Allow it, then try again.');
   });
 
   it('access copy never promises that reconnecting fixes access', () => {
@@ -73,7 +73,7 @@ describe('AC-M365DOC-071 — record folder copy map', () => {
   });
 
   it('an unknown or internal outcome is the generic failure, not a success', () => {
-    expect(recordFolderOutcomeCopy({ state: 'not_found' }).ok).toBe(false);
+    expect(recordFolderOutcomeCopy({ state: 'not_found' } as never).ok).toBe(false);
     expect(recordFolderOutcomeCopy({ state: 'surprise' } as never).key).toBe('error.generic');
     expect(recordFolderOutcomeCopy(undefined as never).key).toBe('error.generic');
   });

@@ -92,14 +92,14 @@ const SELECTED = {
 describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040)', () => {
   it('AC-M365DOC-011: pick first, then the ordinary form; ONE create call carries the reference (no empty intermediate row)', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: 'From Microsoft 365' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
     // The picker closed before the form opened: one modal at a time, and nothing written yet.
     expect(screen.queryByRole('dialog', { name: 'Synthetic picker' })).not.toBeInTheDocument();
     expect(h.create).not.toHaveBeenCalled();
     const form = screen.getByRole('dialog');
     const title = within(form).getByRole('textbox', { name: /Title/ });
-    expect(title).toHaveValue('Synthetic.pdf');
+    expect(title).toHaveValue('Synthetic'); // F7: seeded without the file extension (still editable)
     await userEvent.clear(title);
     await userEvent.type(title, 'Foundation GA');
     await userEvent.click(within(form).getByRole('button', { name: 'Add document' }));
@@ -120,7 +120,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
 
   it('AC-M365DOC-040: a role that cannot create documents is offered neither entry point', () => {
     renderAs('Engineer');
-    expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add document' })).not.toBeInTheDocument();
   });
 });

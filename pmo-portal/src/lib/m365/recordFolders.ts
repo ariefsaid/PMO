@@ -21,7 +21,7 @@ const SAFE_ERROR = 'Microsoft could not create or link this folder. Please try a
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const KINDS = new Set(['project', 'procurement']);
 const LINKED_STATES = new Set(['already_linked', 'linked', 'created']);
-const DOMAIN_STATES = new Set(['needs_choice', 'not_found', 'default_unset', 'missing_identifier']);
+const DOMAIN_STATES = new Set(['needs_choice', 'default_unset', 'missing_identifier']);
 const BUCKETS = ['linked', 'needs_choice', 'missing', 'failed', 'skipped'] as const;
 const STOPPED = new Set(['connection', 'default_changed', 'unavailable']);
 /** The server processes at most five records per invoke (plan: Backfill and performance contract). */
@@ -69,7 +69,7 @@ function decodeOutcome(data: unknown): RecordFolderOutcome {
   }
   if (DOMAIN_STATES.has(data.state)) {
     if (!hasExactKeys(data, ['state'], ['state'])) throw malformed();
-    return { state: data.state as 'needs_choice' | 'not_found' | 'default_unset' | 'missing_identifier' };
+    return { state: data.state as 'needs_choice' | 'default_unset' | 'missing_identifier' };
   }
   throw malformed();
 }
@@ -102,7 +102,7 @@ const isCount = (value: unknown): value is number =>
 
 function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBackfillPage {
   if (!isRecord(data)) throw malformed();
-  const allowed = ['scanned', ...BUCKETS, 'next', 'stopped'];
+  const allowed = ['scanned', ...BUCKETS, 'next', 'stopped', 'retry_after_seconds'];
   if (!hasExactKeys(data, allowed, ['scanned', ...BUCKETS, 'next'])) throw malformed();
   const counts = [data.scanned, ...BUCKETS.map((key) => data[key])];
   if (!counts.every(isCount)) throw malformed();
@@ -112,6 +112,8 @@ function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBa
   const next = data.next === null ? null : validCursor(data.next) ? data.next : undefined;
   if (next === undefined) throw malformed();
   if (data.stopped !== undefined && (typeof data.stopped !== 'string' || !STOPPED.has(data.stopped))) throw malformed();
+  const retry = data.retry_after_seconds;
+  if (retry !== undefined && (!isCount(retry) || retry > 30 || data.stopped !== 'unavailable')) throw malformed();
   // A continuation must make progress: the same cursor again would loop forever.
   if (next && request && next.kind === request.kind && next.after === request.after) throw malformed();
   const page: RecordFolderBackfillPage = {
@@ -124,6 +126,7 @@ function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBa
     next,
   };
   if (data.stopped !== undefined) page.stopped = data.stopped as NonNullable<RecordFolderBackfillPage['stopped']>;
+  if (retry !== undefined) page.retry_after_seconds = retry as number;
   return page;
 }
 

@@ -50,6 +50,12 @@ export interface World {
   link: (call: FetchCall) => Response;
   created: (call: FetchCall) => Response;
   candidates: (call: FetchCall) => Response;
+  /** `rate_limit_hit` answer: true = under the limit. */
+  rate: (call: FetchCall) => Response;
+  /** Make the stored access token already expired so the first Graph call refreshes it. */
+  accessExpired: boolean;
+  /** Microsoft token endpoint (refresh). */
+  refresh: (call: FetchCall) => Response | Promise<Response>;
 }
 
 export const projectRow = (over: Record<string, unknown> = {}) => ({
@@ -76,6 +82,9 @@ export function newWorld(over: Partial<World> = {}): World {
     link: () => jsonResponse({ document_id: "10200000-0000-0000-0000-0000000009aa", state: "linked" }),
     created: () => new Response(null, { status: 204 }),
     candidates: () => jsonResponse([]),
+    rate: () => jsonResponse(true),
+    accessExpired: false,
+    refresh: () => jsonResponse({ access_token: "synthetic-refreshed", refresh_token: "synthetic-rotated", expires_in: 3600 }),
     ...over,
   };
 }
@@ -88,10 +97,12 @@ const b64url = (bytes: Uint8Array) =>
 async function connectionRow(world: World) {
   const encrypted = await encryptToken("synthetic-access-token", KEK_BYTES);
   const hex = Array.from(serializeEnvelope(encrypted.iv, encrypted.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
+  const refresh = await encryptToken("synthetic-refresh-token", KEK_BYTES);
+  const refreshHex = Array.from(serializeEnvelope(refresh.iv, refresh.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
   return {
     id: "synthetic-connection", org_id: ORG, user_id: USER, entra_tenant_id: "synthetic-tenant",
-    entra_user_object_id: null, scopes: world.scopes, refresh_token_ciphertext: "\\x00",
-    access_token_ciphertext: `\\x${hex}`, access_token_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    entra_user_object_id: null, scopes: world.scopes, refresh_token_ciphertext: `\\x${refreshHex}`,
+    access_token_ciphertext: `\\x${hex}`, access_token_expires_at: new Date(Date.now() + (world.accessExpired ? -1_000 : 3_600_000)).toISOString(),
     refresh_token_expires_at: null, key_id: "kek-v1", status: world.connectionStatus,
     connected_at: new Date().toISOString(), last_refresh_at: null, updated_at: new Date().toISOString(),
   };
@@ -131,6 +142,9 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     { label: "link", pathname: "/rest/v1/rpc/m365_link_record_folder", response: (call) => world.link(call) },
     { label: "created", pathname: "/rest/v1/rpc/m365_record_folder_created", response: (call) => world.created(call) },
     { label: "candidates", pathname: "/rest/v1/rpc/m365_record_folder_candidates", response: (call) => world.candidates(call) },
+    { label: "pkce-state", method: "POST", pathname: "/rest/v1/m365_pkce_states", response: () => new Response(null, { status: 201 }) },
+    { label: "rate", pathname: "/rest/v1/rpc/rate_limit_hit", response: (call) => world.rate(call) },
+    { label: "token", host: "login.microsoftonline.com", response: (call) => world.refresh(call) },
     { label: "error-events", method: "POST", pathname: "/rest/v1/error_events", response: () => new Response(null, { status: 201 }) },
     {
       label: "graph", host: "graph.microsoft.com",
@@ -212,17 +226,20 @@ export function folderItem(id: string, name: string, parentId: string, over: Rec
     ...over,
   };
 }
-/** A search hit for a folder that sits at the convention parent path. */
-export function searchHit(id: string, name: string, parentPath: string) {
-  return {
-    id, name, webUrl: webUrl(id), folder: { childCount: 0 },
-    parentReference: { driveId: DRIVE, id: "synthetic-parent", path: `/drives/${DRIVE}/root:${parentPath}` },
-  };
-}
-export const graphError = (status: number, code: string) => jsonResponse({ error: { code, message: "synthetic upstream text" } }, { status });
-export const SEARCH = new RegExp(`^/drives/${DRIVE}/root/search\\(q='`);
+export const graphError = (status: number, code: string, headers: Record<string, string> = {}) =>
+  jsonResponse({ error: { code, message: "synthetic upstream text" } }, { status, headers });
+export const notFound = () => graphError(404, "itemNotFound");
 export const SITE_DRIVES = `/sites/${SITE}/drives`;
 export const okDrives = () => gget(SITE_DRIVES, () => jsonResponse({ value: [{ id: DRIVE }] }));
 export const okRoot = () => gget(`/drives/${DRIVE}/root`, () => jsonResponse({ id: ROOT, folder: { childCount: 1 }, parentReference: { driveId: DRIVE } }));
-export const emptySearch = () => gget(SEARCH, () => jsonResponse({ value: [] }));
-export const notFound = () => graphError(404, "itemNotFound");
+
+// ── convention-parent discovery (children listing of the convention parent, never a drive-wide search) ──
+export const PROJECTS_ID = "projects-id";
+export const child = (parent: string, name: string) => `/drives/${DRIVE}/items/${parent}:/${name}`;
+export const childrenOf = (parent: string) => `/drives/${DRIVE}/items/${parent}/children`;
+export const projectsFolder = () => gget(child(ROOT, "Projects"), () => jsonResponse(folderItem(PROJECTS_ID, "Projects", ROOT)));
+/** Root + Projects + a listing of Projects answered by `respond`. */
+export const discoverProjects = (respond: GraphRoute["respond"]): GraphRoute[] => [okRoot(), projectsFolder(), gget(childrenOf(PROJECTS_ID), respond)];
+/** A listing of Projects with no children (root and Projects themselves are supplied by the test). */
+export const emptyListing = () => gget(childrenOf(PROJECTS_ID), () => jsonResponse({ value: [] }));
+export const emptyDiscovery = (): GraphRoute[] => discoverProjects(() => jsonResponse({ value: [] }));

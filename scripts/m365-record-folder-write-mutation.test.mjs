@@ -31,11 +31,26 @@ export function folderWriteAllowed(request, context) { // mutation-witness:allow
 }
 `;
 
+const EXTRA = {
+  'recordFolders.ts': 'matches = matches.filter((m) => !taken.has(m.item_id)); // mutation-witness:exclude-shared\n  if (!rate.exceeded) return null; // mutation-witness:rate-limit\n',
+  'recordFolderSearch.ts': 'if (page === MAX_LISTING_PAGES - 1) return incomplete("page_limit"); // mutation-witness:page-cap-incomplete\n        if (!folderNameMatchesCode(folder.name, convention.term)) continue; // mutation-witness:strict-boundary\n',
+  'recordFolderParents.ts': 'if (receiptOnConflict && !await onCreated(x)) { // mutation-witness:conflict-receipt\n',
+  'folderBudget.ts': 'return left <= 0 ? null : Math.min(FETCH, left); // mutation-witness:deadline-spent\n',
+};
+const OUTSIDE = {
+  'supabase/functions/_shared/microsoftFolderConvention.ts': "return n.length === c.length || n[c.length] === ' '; // mutation-witness:space-boundary\n",
+  [`${CUSTODY}/index.ts`]: 'result = await handleInitiateConnect(authed, body); // mutation-witness:initiate-body\n',
+};
+const ORIGINAL = { 'graphRead.ts': READ, 'graphFolderWrite.ts': WRITE, ...EXTRA, 'microsoftFolderConvention.ts': OUTSIDE['supabase/functions/_shared/microsoftFolderConvention.ts'], 'index.ts': OUTSIDE[`${CUSTODY}/index.ts`] };
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'm365-witness-'));
   mkdirSync(join(root, CUSTODY), { recursive: true });
   writeFileSync(join(root, CUSTODY, 'graphRead.ts'), READ);
   writeFileSync(join(root, CUSTODY, 'graphFolderWrite.ts'), WRITE);
+  for (const [file, text] of Object.entries(EXTRA)) writeFileSync(join(root, CUSTODY, file), text);
+  mkdirSync(join(root, 'supabase/functions/_shared'), { recursive: true });
+  for (const [file, text] of Object.entries(OUTSIDE)) writeFileSync(join(root, file), text);
   return root;
 }
 const killedOutput = (step) => `${step} ... FAILED\nAssertionError: boom`;
@@ -56,7 +71,7 @@ test('kills every mutant on its assertion, then restores byte-identical sources'
   });
   assert.equal(result.mutants, MUTATIONS.length);
   assert.equal(seen.length, MUTATIONS.length);
-  assert.ok(seen.every((text, i) => text !== (MUTATIONS[i].file.endsWith('graphRead.ts') ? READ : WRITE)), 'each run saw a mutated file');
+  assert.ok(seen.every((text, i) => text !== ORIGINAL[MUTATIONS[i].file.split('/').pop()]), 'each run saw a mutated file');
   assert.equal(readFileSync(join(root, CUSTODY, 'graphRead.ts'), 'utf8'), READ);
   assert.equal(readFileSync(join(root, CUSTODY, 'graphFolderWrite.ts'), 'utf8'), WRITE);
 });
@@ -96,7 +111,8 @@ test('the real shipped sources satisfy the static wiring pins', () => {
   const write = readFileSync(new URL('../supabase/functions/m365-token-custody/graphFolderWrite.ts', import.meta.url), 'utf8');
   assert.deepEqual(staticWiringProblems(read, write), []);
   for (const mutation of MUTATIONS) {
-    const text = mutation.file.endsWith('graphRead.ts') ? read : write;
+    const text = mutation.file.endsWith('graphRead.ts') ? read : mutation.file.endsWith('graphFolderWrite.ts') ? write
+      : readFileSync(new URL(`../${mutation.file}`, import.meta.url), 'utf8');
     const line = text.split('\n').find((candidate) => candidate.includes(mutation.tag));
     assert.ok(line, `${mutation.id}: tag present`);
     assert.notEqual(mutation.apply(line), line, `${mutation.id}: mutation changes the line`);

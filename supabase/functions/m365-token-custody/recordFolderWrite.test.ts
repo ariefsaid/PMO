@@ -262,7 +262,7 @@ Deno.test("AC-M365DOC-070 capability by mode: match_only has no mutator and need
     const read = await openCallerRecordFolderAccess(deps, { site_id: SITE, drive_id: DRIVE }, "match_only", createGraphBudget());
     assert("get" in read);
     assertFalse("createFolder" in read);
-    assertFalse("readFolder" in read);
+    assertEquals(Object.keys(read).sort(), ["get", "readFolder"]); // reads only: path resolution, listings, no mutator
     const ensure = await openCallerRecordFolderAccess(deps, { site_id: SITE, drive_id: DRIVE }, "ensure", createGraphBudget());
     assert("status" in ensure && ensure.status === 403);
     assertEquals((ensure.body as { error: string }).error, "SCOPE_INSUFFICIENT");

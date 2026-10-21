@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, GateNotice, Icon } from '@/src/components/ui';
+import { Button, Icon } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useFeature } from '@/src/auth/useFeature';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRecordFolder } from '@/src/hooks/useRecordFolder';
 import { initiateM365Connect } from '@/src/lib/m365/connectClient';
@@ -31,17 +32,19 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
   const may = usePermission();
   const roles = useEffectiveRole();
   const { pending, settledCopy, ensure } = useRecordFolder(target);
+  const m365 = useFeature('m365_integration');
   const [reconnectFailed, setReconnectFailed] = useState(false);
 
   // Explicit view-only gate: `usePermission` binds the REAL role but does not itself refuse impersonation.
-  const allowed = roles.realRole === roles.effectiveRole
+  const allowed = m365 && roles.realRole === roles.effectiveRole
     && may('create', target.kind === 'project' ? 'document' : 'procDoc');
   if (!allowed) return null;
 
-  async function reconnect() {
+  async function reconnect(folders: boolean) {
     setReconnectFailed(false);
     try {
-      const { authorizeUrl } = await initiateM365Connect();
+      // Incremental consent (RF-8): only the "needs the folder permission" case asks for it.
+      const { authorizeUrl } = await initiateM365Connect(folders ? { folders: true } : {});
       if (!isHttps(authorizeUrl)) throw new Error('unsafe');
       window.location.assign(authorizeUrl);
     } catch {
@@ -50,6 +53,8 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
   }
 
   const failed = settledCopy && !settledCopy.ok ? settledCopy : null;
+  // A retry cannot succeed until an Admin picks the default library; it would only repeat the same notice.
+  const retryUseless = failed?.key === 'error.defaultUnset';
   const linkedMessage = settledCopy?.ok ? recordFolderText(t, settledCopy.key) : null;
 
   return (
@@ -59,16 +64,23 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
         {pending ? t('status.pending', 'Creating folder…') : (linkedMessage ?? '')}
       </p>
       {!hasFolder && failed && (
-        <GateNotice variant="blocked" role="status" data-testid="record-folder-failure">
+        <div
+          role="status"
+          data-testid="record-folder-failure"
+          className="flex items-start gap-2.5 rounded-lg border border-border bg-muted px-3.5 py-3 text-[13px] text-foreground"
+        >
+          <Icon name="info" className="mt-px size-[17px] shrink-0 text-muted-foreground" />
           <div className="min-w-0 break-words">
-            <b className="font-semibold">{t('status.savedNotLinked', 'Record saved. Folder not linked.')}</b>{' '}
-            {recordFolderText(t, failed.key)}
+            <b className="font-semibold">{t('status.notLinked', 'Folder not linked.')}</b>{' '}
+            {failed.key === 'error.missingIdentifier' && target.kind === 'project'
+              ? t('error.missingProjectCode', 'Add a project code to create its folder.')
+              : recordFolderText(t, failed.key)}
           </div>
-        </GateNotice>
+        </div>
       )}
       {!hasFolder && (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" loading={pending} disabled={pending} onClick={ensure}>
+          <Button variant="outline" size="sm" loading={pending} disabled={pending || retryUseless} onClick={ensure}>
             <Icon name="folder" />
             {t('action.create', 'Create folder in SharePoint')}
           </Button>
@@ -78,8 +90,10 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
             </Button>
           )}
           {failed?.remedy === 'reconnect' && (
-            <Button variant="outline" size="sm" onClick={() => { void reconnect(); }}>
-              {t('action.reconnect', 'Reconnect Microsoft')}
+            <Button variant="outline" size="sm" onClick={() => { void reconnect(failed.key === 'error.additionalConsent'); }}>
+              {failed.key === 'error.additionalConsent'
+                ? t('action.allowFolders', 'Allow folder creation')
+                : t('action.reconnect', 'Reconnect Microsoft')}
             </Button>
           )}
         </div>

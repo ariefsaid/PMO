@@ -2,21 +2,25 @@
   "action": {
     "create": "Buat folder di SharePoint",
     "choose": "Pilih folder yang ada",
+    "allowFolders": "Izinkan pembuatan folder",
     "reconnect": "Hubungkan ulang Microsoft"
   },
   "status": {
     "pending": "Membuat folder…",
     "linked": "Folder tertaut",
-    "savedNotLinked": "Data tersimpan. Folder belum tertaut."
+    "savedNotLinked": "Folder belum dibuat",
+    "notLinked": "Folder belum tertaut.",
+    "unavailable": "Microsoft tidak merespons. Buat folder nanti dari Dokumen."
   },
   "error": {
-    "additionalConsent": "Koneksi memerlukan izin tambahan. Minta admin Microsoft Anda menyetujuinya, lalu hubungkan ulang.",
+    "additionalConsent": "Pembuatan folder memerlukan satu izin tambahan dari Microsoft. Izinkan, lalu coba lagi.",
     "notConnected": "Hubungkan akun Microsoft Anda, lalu coba lagi.",
     "access": "Akses bergantung pada izin Microsoft Anda. Minta admin Microsoft Anda memeriksa akses pembuatan folder.",
     "defaultUnset": "Minta Admin untuk memilih pustaka dokumen bawaan.",
     "missingIdentifier": "Tambahkan kode data ini, lalu coba lagi.",
     "ambiguous": "Lebih dari satu folder cocok. Pilih folder yang sudah ada.",
-    "generic": "Microsoft tidak dapat membuat atau menautkan folder ini. Silakan coba lagi."
+    "generic": "Microsoft tidak dapat membuat atau menautkan folder ini. Silakan coba lagi.",
+    "missingProjectCode": "Tambahkan kode proyek untuk membuat foldernya."
   },
   "backfill": {
     "start": "Tautkan folder yang ada",

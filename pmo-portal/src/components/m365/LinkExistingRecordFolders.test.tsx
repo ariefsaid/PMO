@@ -102,11 +102,11 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     const spy = vi.spyOn(qc, 'invalidateQueries');
     mount();
     await userEvent.setup().click(start());
-    await waitFor(() => expect(screen.getByText(/Linked 2 · Need a choice 1 · No match\/code 1 · Failed 1 · Already linked 1/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Linked: 2 · Need your choice: 1 · No matching folder or no code: 1 · Failed: 1 · Already linked: 1/)).toBeTruthy());
     expect(linkExisting.mock.calls.map((c) => c[0])).toEqual([undefined, { kind: 'project', after: A }, { kind: 'procurement', after: null }]);
     expect(ensure).not.toHaveBeenCalled();
     expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1'] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-docs', 'org-1'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-documents', 'org-1'] });
     // done: the action is available again for a later explicit run
     expect(start()).toBeTruthy();
   });
@@ -117,9 +117,9 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     mount();
     await userEvent.setup().click(start());
     expect(screen.getByText(/The current batch is still running/)).toBeTruthy();
-    expect(screen.queryByText(/Linked \d/)).toBeNull();
+    expect(screen.queryByText(/Linked: \d/)).toBeNull();
     await act(async () => d.resolve(page()));
-    await screen.findByText(/Linked 1/);
+    await screen.findByText(/Linked: 1/);
   });
 
   it('a double click is a single run', async () => {
@@ -138,12 +138,12 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     const user = userEvent.setup();
     await user.click(start());
     const cont = await screen.findByRole('button', { name: 'Continue' });
-    expect(screen.getByText(/Linked 1/)).toBeTruthy();
+    expect(screen.getByText(/Linked: 1/)).toBeTruthy();
     await new Promise((r) => setTimeout(r, 20));
     expect(linkExisting).toHaveBeenCalledTimes(1);
     linkExisting.mockResolvedValueOnce(page({ scanned: 1, linked: 1, needs_choice: 0 }));
     await user.click(cont);
-    await screen.findByText(/Linked 2/);
+    await screen.findByText(/Linked: 2/);
     expect(linkExisting).toHaveBeenLastCalledWith({ kind: 'project', after: A });
   });
 
@@ -157,12 +157,49 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     const cont = await screen.findByRole('button', { name: 'Continue' });
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
     expect(screen.getByText(/Access depends on your Microsoft permissions/)).toBeTruthy();
-    expect(screen.getByText(/Linked 1 · Need a choice 1/)).toBeTruthy();
+    expect(screen.getByText(/Linked: 1 · Need your choice: 1/)).toBeTruthy();
     expect(linkExisting).toHaveBeenCalledTimes(2);
     linkExisting.mockResolvedValueOnce(page({ scanned: 1, linked: 1, needs_choice: 0 }));
     await user.click(cont);
-    await screen.findByText(/Linked 2 · Need a choice 1/);
+    await screen.findByText(/Linked: 2 · Need your choice: 1/);
     expect(linkExisting).toHaveBeenLastCalledWith({ kind: 'project', after: A });
+  });
+
+  it('H19 two consecutive pages that only fail stop the sweep with a plain message, backing off 1 s before the second', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const failing = page({ scanned: 2, linked: 0, needs_choice: 0, failed: 2, next: { kind: 'project', after: A } });
+      linkExisting
+        .mockResolvedValueOnce(failing)
+        .mockResolvedValueOnce({ ...failing, next: { kind: 'project', after: B } })
+        .mockResolvedValue(page());
+      mount();
+      await act(async () => { start().click(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(linkExisting).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Could not finish checking existing folders/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('H19 a failure that carries a retryAfter hint waits that long, retries once, then stops on a second failure', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      linkExisting.mockRejectedValue(Object.assign(new AppError('x', 'external-unreachable'), { retryAfter: 7 }));
+      mount();
+      await act(async () => { start().click(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+    } finally { vi.useRealTimers(); }
   });
 
   it('a non-progress next cursor fails instead of looping', async () => {
@@ -190,10 +227,10 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — Stop and cancellation', (
     await act(async () => d.resolve(page({ next: { kind: 'project', after: B } })));
     await screen.findByText(/Stopped\. 2 checked\./);
     expect(linkExisting).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Linked 1/)).toBeTruthy(); // the settled page is counted honestly
+    expect(screen.getByText(/Linked: 1/)).toBeTruthy(); // the settled page is counted honestly
     linkExisting.mockResolvedValueOnce(page({ scanned: 1, linked: 0, needs_choice: 0, missing: 1 }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await screen.findByText(/No match\/code 1/);
+    await screen.findByText(/No matching folder or no code: 1/);
     expect(linkExisting).toHaveBeenLastCalledWith({ kind: 'project', after: B });
   });
 
@@ -218,7 +255,7 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — Stop and cancellation', (
     await act(async () => d.resolve(page({ next: { kind: 'project', after: A } })));
     await new Promise((r) => setTimeout(r, 10));
     expect(linkExisting).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText(/Linked \d/)).toBeNull();
+    expect(screen.queryByText(/Linked: \d/)).toBeNull();
     expect(start()).toBeTruthy();
   });
 
@@ -235,6 +272,42 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — Stop and cancellation', (
   });
 });
 
+describe('F9: the sweep result is plain, finished, and says where to resolve what is left', () => {
+  it('F9: a finished sweep says Done and points to the register for records that need a choice or have no match', async () => {
+    linkExisting.mockResolvedValue(page({ scanned: 4, linked: 1, needs_choice: 1, missing: 2 }));
+    mount();
+    await userEvent.setup().click(start());
+    expect(await screen.findByText('Done. Every record has been checked.')).toBeTruthy();
+    expect(screen.getByText(/Linked: 1 · Need your choice: 1 · No matching folder or no code: 2/)).toBeTruthy();
+    expect(screen.getByText(/open the project or case, then use "Choose existing folder" or "Create folder in SharePoint"/)).toBeTruthy();
+    expect(screen.queryByText(/No match\/code/)).toBeNull();
+  });
+
+  it('F9: nothing to resolve means no pointer', async () => {
+    linkExisting.mockResolvedValue(page({ scanned: 2, linked: 2, needs_choice: 0, missing: 0 }));
+    mount();
+    await userEvent.setup().click(start());
+    await screen.findByText('Done. Every record has been checked.');
+    expect(screen.queryByText(/Choose existing folder/)).toBeNull();
+  });
+
+  it('F9: an interrupted sweep never says a folder could not be created or linked (this sweep creates nothing)', async () => {
+    linkExisting.mockRejectedValue(new AppError('boom', 'GRAPH_ERROR'));
+    mount();
+    await userEvent.setup().click(start());
+    expect(await screen.findByText(/Could not finish checking existing folders/)).toBeTruthy();
+    expect(screen.queryByText(/could not create or link/i)).toBeNull();
+    expect(screen.queryByText('Done. Every record has been checked.')).toBeNull();
+  });
+
+  it('F9: a connection problem keeps its reviewed reconnect remedy', async () => {
+    linkExisting.mockRejectedValue(new AppError('x', 'CONNECTION_STALE'));
+    mount();
+    await userEvent.setup().click(start());
+    expect(await screen.findByText(/Connect your Microsoft account, then try again\./)).toBeTruthy();
+  });
+});
+
 describe('AC-M365DOC-072 LinkExistingRecordFolders — a11y / localization', () => {
   it('has no blocking axe violations idle, mid-run and complete', async () => {
     const d = deferred<RecordFolderBackfillPage>();
@@ -244,7 +317,7 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — a11y / localization', () 
     await userEvent.setup().click(start());
     expect((await axeViolations(document.body)).blocking).toEqual([]);
     await act(async () => d.resolve(page()));
-    await screen.findByText(/Linked 1/);
+    await screen.findByText(/Linked: 1/);
     expect((await axeViolations(document.body)).blocking).toEqual([]);
   });
 
@@ -252,6 +325,6 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — a11y / localization', () 
     linkExisting.mockResolvedValue(page());
     mount();
     await userEvent.setup().click(start());
-    expect((await screen.findByText(/Linked 1/)).className).toContain('tabular-nums');
+    expect((await screen.findByText(/Linked: 1/)).className).toContain('tabular-nums');
   });
 });

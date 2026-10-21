@@ -135,7 +135,8 @@ export function useProjectMutations() {
       const row = await repositories.project.create(input);
       // #1020: link/create the project's SharePoint folder. Fire-and-forget (void, never awaited,
       // failures caught inside): a folder problem can neither delay nor fail the saved project.
-      startRecordFolder({ kind: 'project', id: row.id });
+      // No usable identifier (code and project number both empty) = nothing to name the folder by: skip silently.
+      if (row.code?.trim() || row.pmo_project_number?.trim()) startRecordFolder({ kind: 'project', id: row.id });
       const erpSetup = await synchronizeErpProject(row.id, currentUser?.org_id);
       return { ...row, erpSetup };
     },

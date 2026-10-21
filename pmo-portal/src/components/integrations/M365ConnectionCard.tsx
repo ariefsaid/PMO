@@ -8,6 +8,7 @@ import { useFeature } from '@/src/auth/useFeature';
 import { formatInstantDate } from '@/src/lib/format';
 import {
   initiateM365Connect,
+  keepsFolderPermission,
   disconnectM365,
   getM365ConnectionStatus,
   type ConnectionStatus,
@@ -161,6 +162,8 @@ export const M365ConnectionCard: React.FC = () => {
   const [phase, setPhase] = useState<Phase>('loading');
   const [errorState, setErrorState] = useState<CardError | null>(null);
   const [connectedAt, setConnectedAt] = useState<string | null>(null);
+  // RF-8: whether the live connection already holds the folder permission; a reconnect keeps it.
+  const keepFoldersRef = useRef(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Disconnect-failure recovery, shown in the originating dialog. Only the stable code is retained;
   // copy is derived during render so a locale change updates it in place (FR-M365LOC-003).
@@ -261,6 +264,7 @@ export const M365ConnectionCard: React.FC = () => {
   }, [entitled]);
 
   const applyStatus = useCallback((status: ConnectionStatus) => {
+    keepFoldersRef.current = status.connected && keepsFolderPermission(status);
     if (!status.connected) {
       setPhase('idle');
       setErrorState(null);
@@ -297,7 +301,7 @@ export const M365ConnectionCard: React.FC = () => {
     setPhase('connecting');
     setErrorState(null);
     try {
-      const { authorizeUrl } = await initiateM365Connect();
+      const { authorizeUrl } = await initiateM365Connect(keepFoldersRef.current ? { folders: true } : {});
       // Top-level redirect — Microsoft's consent page must be user-visible (FR-M365-101).
       window.location.assign(authorizeUrl);
       // Leave initiatingRef set: the browser is navigating away; a stray second click stays a no-op.

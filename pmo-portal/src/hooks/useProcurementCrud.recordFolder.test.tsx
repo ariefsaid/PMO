@@ -8,12 +8,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { ToastProvider } from '@/src/components/ui/Toast';
+import { ToastProvider, useOptionalToast } from '@/src/components/ui/Toast';
 import type { Role } from '@/src/auth/AuthContext';
 
 const { procurement, m365RecordFolders } = vi.hoisted(() => ({
   procurement: { create: vi.fn(), transition: vi.fn() },
   m365RecordFolders: { ensure: vi.fn() },
+}));
+const toastSpy = vi.hoisted(() => vi.fn());
+vi.mock('@/src/components/ui/Toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/components/ui/Toast')>()),
+  useOptionalToast: () => ({ toast: toastSpy }),
 }));
 const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
@@ -42,6 +47,7 @@ const input = { title: 'Synthetic case', projectId: null, vendorId: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  toastSpy.mockReset();
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   procurement.create.mockResolvedValue({ id: 'c1', code: 'IMP-1', pr_number: null });
   procurement.transition.mockResolvedValue(undefined);
@@ -49,6 +55,21 @@ beforeEach(() => {
 });
 
 describe('AC-M365DOC-071 create-case wiring', () => {
+  it.each([
+    ['linked', () => Promise.resolve({ state: 'created', document_id: 'd' })],
+    ['expected state', () => Promise.resolve({ state: 'needs_choice' })],
+    ['abnormal failure', () => Promise.reject(Object.assign(new Error('x'), { code: 'GRAPH_ERROR' }))],
+  ])('RF-6 the toast sequence of a case create (%s) ends with the record-created message', async (_n, impl) => {
+    m365RecordFolders.ensure.mockImplementation(impl);
+    const { result } = renderHook(() => ({ m: useCreateProcurement(), t: useOptionalToast() }), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.m.mutateAsync(input);
+      result.current.t?.toast('Case created', 'success');
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    expect(toastSpy.mock.calls.map((c) => c[0])).toEqual(['Case created']);
+  });
+
   it('an imported case that already carries a code starts exactly one ensure and returns the row unchanged', async () => {
     const { result } = renderHook(() => useCreateProcurement(), { wrapper: wrapper() });
     let row: unknown;
@@ -106,6 +127,20 @@ describe('AC-M365DOC-071 submit-to-Requested wiring (pr_number is stamped by thi
   it.each(['Approved', 'Rejected', 'Cancelled', 'Draft'] as const)('a transition to %s starts none', async (to) => {
     const { result } = renderHook(() => useProcurementMutations('c1'), { wrapper: wrapper() });
     await act(async () => { await result.current.transition.mutateAsync({ to }); });
+    expect(m365RecordFolders.ensure).not.toHaveBeenCalled();
+  });
+
+  it('RF-9 a case raised by someone else, moved to Requested by an approver, starts exactly one ensure for the approver', async () => {
+    // The case was raised by another user (an Engineer); the transition runs for THIS signed-in approver.
+    const { result } = renderHook(() => useProcurementMutations('c-raised-by-other'), { wrapper: wrapper('Project Manager') });
+    await act(async () => { await result.current.transition.mutateAsync({ to: 'Requested' }); });
+    expect(m365RecordFolders.ensure).toHaveBeenCalledTimes(1);
+    expect(m365RecordFolders.ensure).toHaveBeenCalledWith({ kind: 'procurement', id: 'c-raised-by-other' });
+  });
+
+  it('RF-9 a view-only impersonating approver starts nothing', async () => {
+    const { result } = renderHook(() => useProcurementMutations('c1'), { wrapper: wrapper('Engineer') });
+    await act(async () => { await result.current.transition.mutateAsync({ to: 'Requested' }); });
     expect(m365RecordFolders.ensure).not.toHaveBeenCalled();
   });
 

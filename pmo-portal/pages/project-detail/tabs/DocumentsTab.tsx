@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -230,9 +231,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   // A Microsoft reference renders through the shared read-only cell (table AND Drawer); a row whose
   // reference is incomplete is never mistaken for one and keeps the ordinary File cell.
-  const microsoftCell = (d: ProjectDocumentRow): React.ReactNode => {
+  const microsoftCell = (d: ProjectDocumentRow, compact = false): React.ReactNode => {
     const reference = projectReference(d);
-    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} /> : null;
+    return reference ? <LinkedDocumentCell compact={compact} reference={reference} title={d.title} owner={projectOwner(d)} /> : null;
   };
 
   const columns: Column<ProjectDocumentRow>[] = [
@@ -271,7 +272,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       header: t('projectDetail.documents.column.file', 'File'),
       size: 176, minSize: 176, maxSize: 176,
       colClassName: 'hidden md:table-cell w-[176px]',
-      cell: (d) => microsoftCell(d) ?? (
+      cell: (d) => microsoftCell(d, true) ?? (
         <FileCell
           status={d.status}
           filePath={d.file_path}
@@ -301,7 +302,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
-          <span className="tabular text-[13px] text-muted-foreground">{d.doc_date}</span>
+          <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">{d.doc_date}</span>
         ) : (
           <span className="text-muted-foreground">{'—'}</span>
         ),
@@ -558,11 +559,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             {t('projectDetail.documents.heading', 'Document register')}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <RecordFolderAction target={{ kind: 'project', id: projectId }} hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')} />
-          {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
-              button was removed — file upload is signposted by the register subtitle copy
-              ("file attachments arrive with Storage"), not a fake disabled control. */}
+        {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
+            button was removed — file upload is signposted by the register subtitle copy
+            ("file attachments arrive with Storage"), not a fake disabled control. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {canCreate && (
             <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
               <Icon name="plus" />
@@ -571,11 +571,20 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           )}
           {canCreate && (
             <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
-              <Icon name="plug" />
-              {t('m365Documents.linkFromMicrosoft', 'From Microsoft 365')}
+              <Icon name="doc" />
+              {t('m365Documents.link', 'Link from Microsoft 365')}
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
+      <div className="mb-3.5 empty:hidden">
+        <RecordFolderAction
+          target={{ kind: 'project', id: projectId }}
+          hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
+          onChooseExisting={() => setMicrosoftEntry({ kind: 'create' })}
+        />
       </div>
 
       {microsoftEntry && (
@@ -716,6 +725,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <DocumentFormModal
           doc={formTarget.doc}
           reference={formTarget.reference}
+          onChangeReference={() => { setFormTarget(null); setMicrosoftEntry({ kind: 'create' }); }}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             // One INSERT carries the reference (no empty intermediate row).
@@ -1102,10 +1112,16 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
 
 // ── Create / edit metadata form modal ────────────────────────────────────────
 
+/** A file's title starts from its name without the extension; a folder keeps its whole name. Still editable. */
+const seedTitle = (reference: MicrosoftReferenceInput): string =>
+  reference.item_kind === 'folder' ? reference.name : reference.name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+
 interface DocumentFormModalProps {
   doc: ProjectDocumentRow | null;
   /** A Microsoft reference chosen first; the title is seeded from its name but stays editable. */
   reference?: MicrosoftReferenceInput;
+  /** Reopens the Microsoft picker so the chosen item can be swapped before saving. */
+  onChangeReference?: () => void;
   onClose: () => void;
   onCreate: (input: ProjectDocumentInput) => Promise<void>;
   onUpdate: (id: string, input: ProjectDocumentInput) => Promise<void>;
@@ -1115,6 +1131,7 @@ interface DocumentFormModalProps {
 const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   doc,
   reference,
+  onChangeReference,
   onClose,
   onCreate,
   onUpdate,
@@ -1126,7 +1143,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const form = useEntityForm<FormValues>({
     initialValues: {
-      title: doc?.title ?? reference?.name ?? '',
+      title: doc?.title ?? (reference ? seedTitle(reference) : ''),
       code: doc?.code ?? '',
       category: doc?.category ?? 'Drawing',
       revision: doc?.revision ?? '',
@@ -1190,10 +1207,12 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       subtitle={
         isEdit
           ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
-          : t(
-              'projectDetail.documents.form.newSubtitle',
-              'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
-            )
+          : reference
+            ? t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
+            : t(
+                'projectDetail.documents.form.newSubtitle',
+                'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
+              )
       }
       submitLabel={
         isEdit
@@ -1208,6 +1227,17 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
+      {reference && (
+        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px]">
+          <Icon name={reference.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 break-words font-medium text-foreground" title={reference.name}>{reference.name}</span>
+          {onChangeReference && (
+            <Button type="button" variant="ghost" size="sm" onClick={onChangeReference}>
+              {t('m365Documents.docsTab.change', 'Change')}
+            </Button>
+          )}
+        </div>
+      )}
       <FormSection legend={t('projectDetail.documents.form.legend', 'Document')}>
         <FormGrid>
           <TextField
@@ -1300,9 +1330,22 @@ const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect
     // Unknown (status read failed): never assume active; offer an explicit retry next to the action.
     notice = <M365BrowseNotice code="external-unreachable" onRetry={() => void refetch()} />;
   } else if (!connection.connected) {
-    notice = <M365BrowseNotice code="NOT_CONNECTED" />;
+    // The personal connection page (/integrations) is open to every role; the Admin area is not.
+    notice = (
+      <div className="min-w-0 space-y-2">
+        <GateNotice variant="blocked">
+          {t('m365Documents.docsTab.notConnected', 'Connect Microsoft 365 first to browse documents.')}
+        </GateNotice>
+        <Link
+          to="/integrations"
+          className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"
+        >
+          {t('m365Documents.docsTab.myIntegrations', 'My integrations')}
+        </Link>
+      </div>
+    );
   } else {
-    notice = <M365BrowseNotice code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
+    notice = <M365BrowseNotice connection={connection} code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
   }
 
   return (

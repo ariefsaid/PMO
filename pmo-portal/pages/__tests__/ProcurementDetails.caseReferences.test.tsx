@@ -187,7 +187,7 @@ describe('AC-M365DOC-058 case references on the real procurement Documents tab',
     expect(screen.queryByRole('region', { name: 'Case references' })).toBeNull();
   });
 
-  it('adds register references to the Documents tab count without touching the ledger rows', () => {
+  it('F8: the Documents tab count is the ledger only — SharePoint links neither change it nor are fetched for it', () => {
     renderAt('/procurement/proc-001/documents');
     const base = screen.getByRole('tab', { name: /Documents/ }).textContent;
     refs.rows = [{ id: 'a' }, { id: 'b' }];
@@ -195,6 +195,6 @@ describe('AC-M365DOC-058 case references on the real procurement Documents tab',
     renderAt('/procurement/proc-001/documents');
     const withRefs = screen.getByRole('tab', { name: /Documents/ }).textContent;
     const n = (text: string | null) => Number(/(\d+)\s*$/.exec(text ?? '')?.[1] ?? 0);
-    expect(n(withRefs)).toBe(n(base) + 2);
+    expect(n(withRefs)).toBe(n(base));
   });
 });

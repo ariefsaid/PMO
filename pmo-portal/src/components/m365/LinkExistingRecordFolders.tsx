@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
+import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { repositories } from '@/src/lib/repositories';
@@ -87,43 +88,44 @@ export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }
     let cursor = start;
     let acc = base;
     setCounts(acc);
-    try {
-      for (;;) {
+    // Pages that only fail, and errors the server marks retryable, are paced and capped: two in a row stop the run.
+    let fails = 0;
+    const pause = (ms: number) => new Promise<void>((res) => { setTimeout(res, ms); });
+    const finish = (next: Phase) => { running.current = false; setPhase(next); };
+    for (;;) {
+      try {
         const page = await repositories.m365RecordFolders.linkExisting(cursor ?? undefined);
         if (generation.current !== mine) return; // orphaned: ignore the response, schedule nothing
         acc = addPage(acc, page);
         setCounts(acc);
         if (page.linked > 0) {
           void qc.invalidateQueries({ queryKey: ['project-documents', orgId] });
-          void qc.invalidateQueries({ queryKey: ['procurement-docs', orgId] });
+          void qc.invalidateQueries({ queryKey: procurementDocumentsKey(orgId) });
         }
         const next = page.next;
         if (next && cursor && next.kind === cursor.kind && next.after === cursor.after) {
-          running.current = false;
-          setPhase({ name: 'interrupted', cursor, error: 'error.generic' }); // a non-progress cursor would loop
-          return;
+          return finish({ name: 'interrupted', cursor, error: 'error.generic' }); // a non-progress cursor would loop
         }
         cursor = next;
-        if (page.stopped) {
-          running.current = false;
-          setPhase({ name: 'interrupted', cursor, error: null });
-          return;
+        if (page.stopped) return finish({ name: 'interrupted', cursor, error: null });
+        if (!cursor) return finish({ name: 'done' });
+        const onlyFailed = page.failed > 0 && page.linked + page.needs_choice + page.missing + page.skipped === 0;
+        fails = onlyFailed ? fails + 1 : 0;
+        if (fails >= 2) return finish({ name: 'interrupted', cursor, error: 'error.generic' });
+        if (fails > 0) await pause(1000 * 2 ** (fails - 1));
+        if (generation.current !== mine) return;
+        if (stopRequested.current) return finish({ name: 'stopped', cursor });
+      } catch (error) {
+        if (generation.current !== mine) return;
+        const hint = (error as { retryAfter?: unknown } | null)?.retryAfter;
+        fails += 1;
+        if (typeof hint === 'number' && hint > 0 && fails < 2 && !stopRequested.current) {
+          await pause(Math.min(hint, 60) * 1000);
+          if (generation.current !== mine) return;
+          continue;
         }
-        if (!cursor) {
-          running.current = false;
-          setPhase({ name: 'done' });
-          return;
-        }
-        if (stopRequested.current) {
-          running.current = false;
-          setPhase({ name: 'stopped', cursor });
-          return;
-        }
+        return finish({ name: 'interrupted', cursor, error: recordFolderErrorCopy(error).key });
       }
-    } catch (error) {
-      if (generation.current !== mine) return;
-      running.current = false;
-      setPhase({ name: 'interrupted', cursor, error: recordFolderErrorCopy(error).key });
     }
   }, [qc, orgId]);
 
@@ -173,23 +175,47 @@ export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }
         {phase.name === 'stopped' && <p>{t('backfill.stopped', { count: counts.scanned, defaultValue: 'Stopped. {{count}} checked.' })}</p>}
         {phase.name === 'interrupted' && (
           <p>
-            {phase.error ? `${recordFolderText(t, phase.error)} ` : ''}
+            <InterruptedReason error={phase.error} />
             {t('backfill.interrupted', 'Stopped early. Counts so far are kept; continue to check the rest.')}
           </p>
         )}
-        {showSummary && !busy && (
-          <p className="tabular-nums">
-            {t('backfill.summary', {
-              linked: counts.linked,
-              needsChoice: counts.needsChoice,
-              missing: counts.missing,
-              failed: counts.failed,
-              skipped: counts.skipped,
-              defaultValue: 'Linked {{linked}} · Need a choice {{needsChoice}} · No match/code {{missing}} · Failed {{failed}} · Already linked {{skipped}}',
-            })}
-          </p>
-        )}
+        {showSummary && !busy && <SweepResult done={phase.name === 'done'} counts={counts} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Why the sweep stopped early. Reviewed remedies (connection, access) are kept; only the shared
+ * catch-all "could not create or link this folder" is replaced, because this sweep never creates folders.
+ */
+function InterruptedReason({ error }: { error: RecordFolderCopyKey | null }) {
+  const { t } = useTranslation();
+  const { t: tf } = useTranslation('recordFolders');
+  if (!error) return null;
+  if (error === 'error.generic') return <>{`${t('m365Documents.backfill.failed', 'Could not finish checking existing folders.')} `}</>;
+  return <>{`${recordFolderText(tf, error)} `}</>;
+}
+
+/** The sweep's plain-language result: counts, an explicit Done, and where to resolve what is left. */
+function SweepResult({ done, counts }: { done: boolean; counts: Counts }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {done && <p className="font-medium text-foreground">{t('m365Documents.backfill.done', 'Done. Every record has been checked.')}</p>}
+      <p className="tabular-nums">
+        {t('m365Documents.backfill.summary', {
+          linked: counts.linked,
+          needsChoice: counts.needsChoice,
+          missing: counts.missing,
+          failed: counts.failed,
+          skipped: counts.skipped,
+          defaultValue: 'Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}',
+        })}
+      </p>
+      {counts.needsChoice + counts.missing > 0 && (
+        <p>{t('m365Documents.backfill.resolve', 'To finish these, open the project or case, then use "Choose existing folder" or "Create folder in SharePoint".')}</p>
+      )}
+    </>
   );
 }

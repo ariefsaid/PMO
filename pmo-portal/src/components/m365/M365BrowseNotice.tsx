@@ -1,30 +1,30 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, GateNotice } from '@/src/components/ui';
-import { describeM365Error, initiateM365Connect } from '@/src/lib/m365/connectClient';
-
-const GENERIC_BROWSE = 'Microsoft could not load this location. Check access and SharePoint availability with your Microsoft admin, or retry.';
-const NETWORK_BROWSE = 'Could not load Microsoft items. Retry; your selection and location are kept.';
-const SAFE_RECONNECT_FAILURE = 'Could not start the Microsoft 365 reconnect. Try again.';
+import { initiateM365Connect, keepsFolderPermission, type ConnectionStatus } from '@/src/lib/m365/connectClient';
+import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
 
 /** Codes whose remedy is a (re)connect: the only ones that may offer the Reconnect action. */
 const RECONNECT_CODES = new Set(['CONNECTION_STALE', 'CONNECTION_REVOKED', 'SCOPE_INSUFFICIENT']);
 /** Codes the shared taxonomy words precisely (entitlement/membership/approval); no retry or reconnect loop. */
 const TAXONOMY_CODES = new Set(['NOT_ENTITLED', 'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN', 'UNAUTHORIZED']);
 
-function messageFor(code: string | undefined): string {
+function messageFor(t: TFunction, code: string | undefined): string {
   switch (code) {
     case 'CONNECTION_STALE':
     case 'CONNECTION_REVOKED':
-      return 'The Microsoft 365 connection expired. Reconnect to link more documents.';
+      return t('m365Documents.notice.expired', 'The Microsoft 365 connection expired. Reconnect to link more documents.');
     case 'SCOPE_INSUFFICIENT':
-      return 'The connection needs additional permissions. Reconnect to grant them.';
+      return t('m365Documents.notice.scope', 'The connection needs additional permissions. Reconnect to grant them.');
     case 'NOT_CONNECTED':
-      return 'Connect Microsoft 365 first to browse documents.';
+      return t('m365Documents.notice.notConnected', 'Connect Microsoft 365 first to browse documents.');
     case 'external-unreachable':
-      return NETWORK_BROWSE;
+      return t('m365Documents.notice.network', 'Could not load Microsoft items. Retry; your selection and location are kept.');
     default:
-      return code && TAXONOMY_CODES.has(code) ? describeM365Error(code) : GENERIC_BROWSE;
+      return (code && TAXONOMY_CODES.has(code) ? knownM365ErrorReason(t, code) : null)
+        ?? t('m365Documents.notice.generic', 'Microsoft could not load this location. Check access and SharePoint availability with your Microsoft admin, or retry.');
   }
 }
 
@@ -39,6 +39,8 @@ export interface M365BrowseNoticeProps {
   onRetry?: () => void;
   /** Overrides the default reconnect (existing `initiateM365Connect` + redirect to its returned authorize URL only). */
   onReconnect?: () => void;
+  /** The caller's connection, when known: a reconnect keeps a folder permission it already holds (RF-8). */
+  connection?: Pick<ConnectionStatus, 'scopes'>;
 }
 
 /**
@@ -46,7 +48,8 @@ export interface M365BrowseNoticeProps {
  * Maps stable codes only; raw bodies, identifiers and scope strings never reach the DOM.
  * Reconnect is offered only where a connection is the remedy, never as a licence/access fix.
  */
-export function M365BrowseNotice({ code, onRetry, onReconnect }: M365BrowseNoticeProps) {
+export function M365BrowseNotice({ code, onRetry, onReconnect, connection }: M365BrowseNoticeProps) {
+  const { t } = useTranslation();
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectFailed, setReconnectFailed] = useState(false);
   const canReconnect = !!code && RECONNECT_CODES.has(code);
@@ -56,7 +59,7 @@ export function M365BrowseNotice({ code, onRetry, onReconnect }: M365BrowseNotic
     if (onReconnect) { onReconnect(); return; }
     setReconnecting(true); setReconnectFailed(false);
     try {
-      const { authorizeUrl } = await initiateM365Connect();
+      const { authorizeUrl } = await initiateM365Connect(keepsFolderPermission(connection) ? { folders: true } : {});
       if (!isHttps(authorizeUrl)) throw new Error('unsafe');
       window.location.assign(authorizeUrl);
     } catch {
@@ -67,19 +70,19 @@ export function M365BrowseNotice({ code, onRetry, onReconnect }: M365BrowseNotic
 
   return (
     <div className="min-w-0 space-y-2">
-      <GateNotice variant="blocked">{messageFor(code)}</GateNotice>
-      {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{SAFE_RECONNECT_FAILURE}</p>}
+      <GateNotice variant="blocked">{messageFor(t, code)}</GateNotice>
+      {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{t('m365Documents.notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
       <div className="flex flex-wrap gap-2">
         {code === 'NOT_CONNECTED' && (
           <Link
-            to="/administration/integrations"
+            to="/integrations"
             className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"
           >
-            Go to Microsoft 365 setup
+            {t('m365Documents.notice.openIntegrations', 'Open My integrations')}
           </Link>
         )}
-        {canRetry && <Button variant="outline" onClick={onRetry}>Retry</Button>}
-        {canReconnect && <Button variant="outline" loading={reconnecting} onClick={() => void reconnect()}>Reconnect Microsoft 365</Button>}
+        {canRetry && <Button variant="outline" onClick={onRetry}>{t('m365Documents.notice.retry', 'Retry')}</Button>}
+        {canReconnect && <Button variant="outline" loading={reconnecting} onClick={() => void reconnect()}>{t('m365Documents.notice.reconnect', 'Reconnect Microsoft 365')}</Button>}
       </div>
     </div>
   );

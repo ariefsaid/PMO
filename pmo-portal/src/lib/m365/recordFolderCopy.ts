@@ -76,7 +76,7 @@ export function recordFolderText(t: TFunction<'recordFolders'>, key: RecordFolde
     case 'status.linked':
       return t('status.linked', 'Folder linked');
     case 'error.additionalConsent':
-      return t('error.additionalConsent', 'The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.');
+      return t('error.additionalConsent', 'Creating folders needs one more permission from Microsoft. Allow it, then try again.');
     case 'error.notConnected':
       return t('error.notConnected', 'Connect your Microsoft account, then try again.');
     case 'error.access':

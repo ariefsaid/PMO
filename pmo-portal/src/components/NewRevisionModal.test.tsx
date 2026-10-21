@@ -126,4 +126,18 @@ describe('NewRevisionModal', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'New revision' })).toHaveAttribute('aria-modal', 'true');
   });
+
+  it('F7: a revision made from the latest Microsoft file does not promise a later upload', () => {
+    render(
+      <NewRevisionModal
+        parent={{ ...baseDoc, source: 'onedrive', ms_item_kind: 'file' }}
+        microsoft={{ drive_id: 'd', item_id: 'i', web_url: 'https://contoso.sharepoint.com/x.pdf', name: 'x.pdf', item_kind: 'file' }}
+        onSubmit={vi.fn()}
+        onClose={vi.fn()}
+        loading={false}
+      />,
+    );
+    expect(screen.queryByText(/can be uploaded once the revision is created/)).not.toBeInTheDocument();
+    expect(screen.getByText('Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')).toBeInTheDocument();
+  });
 });

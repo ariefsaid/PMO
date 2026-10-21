@@ -16,6 +16,7 @@ import {
   getM365ConnectionStatus,
   describeM365Error,
   classifyM365InvokeError,
+  keepsFolderPermission,
 } from '../connectClient';
 import { AppError } from '../../appError';
 
@@ -68,6 +69,14 @@ describe('AC-M365-014 — initiateM365Connect transport', () => {
     expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'initiate_connect' } });
     expect(result.authorizeUrl).toContain('login.microsoftonline.com');
     expect(result.state).toBe('state-abc');
+  });
+
+  it('AC-M365DOC-070: { folders: true } sends the optional strict field; the default call sends none', async () => {
+    invoke.mockResolvedValue({ data: { authorizeUrl: 'https://login.microsoftonline.com/x', state: 's' }, error: null });
+    await initiateM365Connect({ folders: true });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: { action: 'initiate_connect', folders: true } });
+    await initiateM365Connect({ folders: false });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: { action: 'initiate_connect' } });
   });
 
   it('AC-M365-014: a 200 with no data throws a generic AppError (no crash, no redirect)', async () => {
@@ -345,5 +354,20 @@ describe('AC-M365SEP-019 — disabled-member / org-approval / entitlement copy i
     // Distinct from the other two outcomes.
     expect(copy).not.toBe(describeM365Error('NOT_ENTITLED'));
     expect(copy).not.toBe(describeM365Error('DISABLED_MEMBER'));
+  });
+});
+
+describe('RF-8 keepsFolderPermission', () => {
+  const status = (scopes: string[]) => ({ connected: true, status: 'active' as const, connected_at: null, last_refresh_at: null, scopes });
+  it('RF-8: true for a bare or Graph-qualified Sites.Selected scope, case-insensitively', () => {
+    expect(keepsFolderPermission(status(['Files.Read', 'Sites.Selected']))).toBe(true);
+    expect(keepsFolderPermission(status(['https://graph.microsoft.com/Sites.Selected']))).toBe(true);
+    expect(keepsFolderPermission(status(['sites.selected']))).toBe(true);
+  });
+  it('RF-8: false without it, for look-alike scopes, and for an absent status', () => {
+    expect(keepsFolderPermission(status(['Files.Read', 'Sites.Read.All']))).toBe(false);
+    expect(keepsFolderPermission(status([]))).toBe(false);
+    expect(keepsFolderPermission(undefined)).toBe(false);
+    expect(keepsFolderPermission(null)).toBe(false);
   });
 });

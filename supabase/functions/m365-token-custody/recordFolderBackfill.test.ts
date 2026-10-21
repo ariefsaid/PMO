@@ -15,8 +15,11 @@ import {
   projectRow,
   READ_SCOPES,
   rpcBodies,
-  SEARCH,
-  searchHit,
+  child,
+  childrenOf,
+  folderItem,
+  okRoot,
+  ROOT,
   tableCalls,
   type World,
 } from "./recordFolderTestKit.ts";
@@ -36,7 +39,11 @@ interface Fixture {
   /** code by record number: undefined => `C-<n>`; null => missing code */
   codes?: Record<number, string | null>;
   withFolder?: Set<string>;
-  search?: Record<string, () => Response>;
+  /** Replace the folders listed under Projects / Procurement/2026 (default: one `<code> Synthetic` per record). */
+  projectItems?: Array<{ id: string; name: string }>;
+  caseItems?: Array<{ id: string; name: string }>;
+  /** Override the n-th (1-based) listing request across the whole sweep. */
+  listing?: (n: number) => Response | undefined;
   link?: World["link"];
   extra?: Partial<World>;
 }
@@ -68,13 +75,28 @@ function sweepWorld(fx: Fixture): World {
       const { p_kind, p_after } = call.bodyJson as { p_kind: "project" | "procurement"; p_after: string | null };
       return jsonResponse(all[p_kind].filter((id) => !p_after || id > p_after).slice(0, 6).map((id) => ({ id })));
     },
-    graph: [gget(SEARCH, (_call, path) => {
-      const code = /q='([^']*)'/.exec(path)![1]!;
-      const custom = fx.search?.[code];
-      if (custom) return custom();
-      // One hit under each convention parent: only the one matching the record kind may be linked.
-      return jsonResponse({ value: [searchHit(`found-${code}`, `${code} Synthetic`, "/Projects"), searchHit(`found-case-${code}`, `${code} Synthetic`, "/Procurement/2026")] });
-    })],
+    graph: (() => {
+      let listings = 0;
+      const items = (kind: "project" | "case") => {
+        const custom = kind === "project" ? fx.projectItems : fx.caseItems;
+        if (custom) return custom;
+        const ids = kind === "project" ? fx.projects : fx.cases ?? [];
+        return ids.map((n) => ({ id: kind === "project" ? `found-C-${n}` : `found-case-C-${n}`, name: `${codeOf(kind === "project" ? projectId(n) : caseId(n))} Synthetic` }))
+          .filter((item) => !item.name.startsWith("null"));
+      };
+      const listingOf = (kind: "project" | "case", parentId: string) => () => {
+        listings += 1;
+        return fx.listing?.(listings) ?? jsonResponse({ value: items(kind).map((item) => folderItem(item.id, item.name, parentId)) });
+      };
+      return [
+        okRoot(),
+        gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
+        gget(childrenOf("projects-id"), listingOf("project", "projects-id")),
+        gget(child(ROOT, "Procurement"), () => jsonResponse(folderItem("proc-id", "Procurement", ROOT))),
+        gget(child("proc-id", "2026"), () => jsonResponse(folderItem("year-id", "2026", "proc-id"))),
+        gget(childrenOf("year-id"), listingOf("case", "year-id")),
+      ];
+    })(),
     ...(fx.link ? { link: fx.link } : {}),
     ...fx.extra,
   });
@@ -93,17 +115,16 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
       projects: [1, 2, 3, 4, 5],
       codes: { 4: null },
       withFolder: new Set([projectId(5)]),
-      search: {
-        "C-2": () => jsonResponse({ value: [searchHit("a", "C-2 one", "/Projects"), searchHit("b", "C-2 two", "/Projects")] }),
-        "C-3": () => jsonResponse({ value: [] }),
-      },
+      projectItems: [{ id: "found-C-1", name: "C-1 Synthetic" }, { id: "a", name: "C-2 one" }, { id: "b", name: "C-2 two" }],
     });
     await run(world, async ({ call, calls, token }) => {
       const body = await page(await call(sweep));
       assertEquals(body, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1, next: { kind: "procurement", after: null } });
       assertEquals(sum(body), body.scanned);
-      // match-only: every Graph call is a GET search (no parents, no year, no create).
-      assert(graphSummary(calls).every((line) => line.startsWith("GET /drives/synthetic-drive/root/search")), graphSummary(calls).join("\n"));
+      // match-only: every Graph call is a GET (no create); the Projects listing is read ONCE for the whole page.
+      assert(graphSummary(calls).every((line) => line.startsWith("GET ")), graphSummary(calls).join("\n"));
+      assertEquals(graphSummary(calls).filter((line) => line.endsWith("/items/projects-id/children")).length, 1);
+      assertEquals(graphSummary(calls).filter((line) => line.includes("/search(")).length, 0);
       assertEquals(rpcBodies(calls, "m365_record_folder_created").length, 0);
       // The single match is linked through the caller-RLS RPC with the exact reference and settings snapshot.
       const links = rpcBodies(calls, "m365_link_record_folder");
@@ -176,7 +197,7 @@ Deno.test("AC-M365DOC-072 backfill never links a longer code's folder (P-1 vs P-
   const world = sweepWorld({
     projects: [1],
     codes: { 1: "P-1" },
-    search: { "P-1": () => jsonResponse({ value: [searchHit("p10", "P-10 Alpha", "/Projects")] }) },
+    projectItems: [{ id: "p10", name: "P-10 Alpha" }],
   });
   await run(world, async ({ call, calls }) => {
     const body = await page(await call(sweep));
@@ -211,28 +232,43 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
     });
   });
 
-  await t.step("a per-record search failure is failed, never missing; the page still completes", async () => {
-    await run(sweepWorld({ projects: [1, 2], search: { "C-1": () => graphError(503, "serviceNotAvailable") } }), async ({ call, calls }) => {
+  await t.step("a per-record discovery failure is failed, never missing; the page still completes", async () => {
+    await run(sweepWorld({ projects: [1, 2], listing: (n) => n === 1 ? graphError(503, "serviceNotAvailable") : undefined }), async ({ call, calls }) => {
       const body = await page(await call(sweep));
       assertEquals([body.scanned, body.failed, body.missing, body.linked], [2, 1, 0, 1]);
-      assertEquals(graphCalls(calls).length, 2); // no retry
+      assertEquals(graphSummary(calls).filter((line) => line.endsWith("/items/projects-id/children")).length, 2); // one per record, no retry
+    });
+  });
+
+  await t.step("two consecutive Graph failures STOP the page (stopped: unavailable) instead of failing every remaining record; a 429 Retry-After is surfaced capped", async () => {
+    await run(sweepWorld({ projects: [1, 2, 3, 4, 5], listing: () => graphError(429, "activityLimitReached", { "Retry-After": "9" }) }), async ({ call }) => {
+      const body = await page(await call(sweep)) as Page & { retry_after_seconds?: number };
+      assertEquals([body.scanned, body.failed, body.stopped, body.retry_after_seconds], [2, 2, "unavailable", 9]);
+      assertEquals(body.next, { kind: "project", after: projectId(2) });
+    });
+    // A success in between resets the streak: failure, success, failure never stops the page.
+    await run(sweepWorld({ projects: [1, 2, 3], projectItems: [{ id: "x", name: "C-2 Synthetic" }], listing: (n) => n === 1 || n === 3 ? graphError(503, "serviceNotAvailable") : undefined }), async ({ call }) => {
+      const body = await page(await call(sweep));
+      assertEquals(body.stopped, undefined);
+      assertEquals(body.scanned, 3);
     });
   });
 
   await t.step("a concurrent folder link appearing mid-sweep counts as skipped", async () => {
-    await run(sweepWorld({ projects: [1], search: {}, link: () => jsonResponse({ document_id: LINK_ID, state: "already_linked" }) }), async ({ call }) => {
+    await run(sweepWorld({ projects: [1], link: () => jsonResponse({ document_id: LINK_ID, state: "already_linked" }) }), async ({ call }) => {
       const body = await page(await call(sweep));
       assertEquals([body.scanned, body.skipped, body.linked], [1, 1, 0]);
     });
   });
 
-  await t.step("the shared 15s budget ends the page between records with the cursor after the last processed", async () => {
+  await t.step("the shared 12s deadline ends the page between records with the cursor after the last processed", async () => {
     const time = new FakeTime();
     try {
-      await run(sweepWorld({ projects: [1, 2, 3, 4], search: { "C-1": () => { time.tick(8_000); return jsonResponse({ value: [] }); }, "C-2": () => { time.tick(8_000); return jsonResponse({ value: [] }); } } }), async ({ call }) => {
+      // Each link (database) takes 7s of wall clock: after two records the deadline is spent.
+      await run(sweepWorld({ projects: [1, 2, 3, 4], link: () => { time.tick(7_000); return jsonResponse({ document_id: LINK_ID, state: "linked" }); } }), async ({ call }) => {
         const body = await page(await call(sweep));
         assertEquals(body.scanned, 2);
-        assertEquals(body.missing, 2);
+        assertEquals(body.linked, 2);
         assertEquals(body.next, { kind: "project", after: projectId(2) });
         assertFalse("stopped" in body);
       });
@@ -246,7 +282,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
     try {
       const world = sweepWorld({ projects: [1, 2] });
       const original = world.candidates;
-      world.candidates = (call) => { time.tick(16_000); return original(call); };
+      world.candidates = (call) => { time.tick(13_000); return original(call); };
       await run(world, async ({ call }) => {
         const response = await call(sweep);
         assertEquals(response.status, 502);
@@ -277,7 +313,8 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
   await t.step("a failure caused by the spent budget stops the page as unavailable (record not marked failed)", async () => {
     const time = new FakeTime();
     try {
-      await run(sweepWorld({ projects: [1, 2, 3], search: { "C-2": () => { time.tick(16_000); return graphError(503, "serviceNotAvailable"); } } }), async ({ call }) => {
+      // Record 1 already has a folder (no Graph work); record 2's discovery fails AFTER the deadline is spent.
+      await run(sweepWorld({ projects: [1, 2, 3], withFolder: new Set([projectId(1)]), listing: () => { time.tick(13_000); return graphError(503, "serviceNotAvailable"); } }), async ({ call }) => {
         const body = await page(await call(sweep));
         assertEquals(body.scanned, 1);
         assertEquals(body.stopped, "unavailable");
@@ -307,5 +344,32 @@ Deno.test("AC-M365DOC-072 the sweep reads settings and parents under the caller 
     }
     assertEquals(calls.filter((c) => c.url.host === "graph.microsoft.com" && c.method !== "GET").length, 0);
     assertEquals(calls.filter((c) => c.url.host === "login.microsoftonline.com").length, 0);
+  });
+});
+
+Deno.test("AC-M365DOC-072 the sweep is rate limited per Admin (12 / 10 min) before any candidate read or Graph call", async () => {
+  await run(sweepWorld({ projects: [1] }), async ({ call, calls }) => {
+    await call(sweep);
+    assertEquals(rpcBodies(calls, "rate_limit_hit")[0], { p_key: "m365-token-custody:link_existing_record_folders:synthetic-folder-user", p_limit: 12, p_window_secs: 600 });
+  });
+  await run(sweepWorld({ projects: [1], extra: { rate: () => jsonResponse(false) } }), async ({ call, calls }) => {
+    const response = await call(sweep);
+    assertEquals(response.status, 429);
+    assertEquals((await response.json()).error, "RATE_LIMITED");
+    assertEquals(rpcBodies(calls, "m365_record_folder_candidates").length, 0);
+    assertEquals(graphCalls(calls).length, 0);
+  });
+});
+
+Deno.test("AC-M365DOC-072 backfill never auto-links a folder already linked to another record", async () => {
+  const world = sweepWorld({
+    projects: [1],
+    projectItems: [{ id: "taken", name: "C-1 Synthetic" }],
+    extra: { documents: (call) => call.url.searchParams.has("ms_item_id") ? [{ ms_item_id: "taken" }] : [] },
+  });
+  await run(world, async ({ call, calls }) => {
+    const body = await page(await call(sweep));
+    assertEquals([body.linked, body.missing], [0, 1]); // match-only never creates; the record stays unlinked
+    assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0);
   });
 });

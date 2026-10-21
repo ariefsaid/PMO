@@ -35,6 +35,8 @@ vi.mock('@/src/hooks/useFileUpload', () => ({
 }));
 vi.mock('@/src/hooks/useRevision', () => ({ useRevision: () => ({ createRevision: { mutate: vi.fn(), isPending: false } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { document: {}, m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } } }));
+const m365Feature = vi.hoisted(() => ({ on: true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
 import DocumentsTab from '../DocumentsTab';
@@ -61,6 +63,7 @@ const renderTab = (role: Role = 'Project Manager', viewAs?: Role) =>
 const create = () => screen.queryAllByRole('button', { name: 'Create folder in SharePoint' });
 
 beforeEach(() => {
+  m365Feature.on = true;
   ensure.mockReset();
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   docsState.data = [row({})];
@@ -73,6 +76,12 @@ describe('AC-M365DOC-071 DocumentsTab mount', () => {
     docsState.data = [row({}), row({ id: 'd2', source: 'onedrive', ms_item_kind: 'file' })];
     renderTab('Project Manager');
     expect(create()).toHaveLength(1);
+  });
+
+  it('RF-7 hides the Create folder action when Microsoft 365 is off for the org', () => {
+    m365Feature.on = false;
+    renderTab('Project Manager');
+    expect(create()).toHaveLength(0);
   });
 
   it('hides it when the register holds a folder reference (direct open does not depend on the connection)', () => {
@@ -99,7 +108,7 @@ describe('AC-M365DOC-071 DocumentsTab mount', () => {
     ensure.mockRejectedValue(new AppError('RAW-UPSTREAM-MARKER', 'GRAPH_ERROR'));
     renderTab('Project Manager');
     await userEvent.setup().click(create()[0]);
-    expect((await screen.findByTestId('record-folder-failure')).textContent).toContain('Record saved. Folder not linked.');
+    expect((await screen.findByTestId('record-folder-failure')).textContent).toContain('Folder not linked.');
     expect(screen.getByText('Foundation GA')).toBeTruthy();
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
     expect(create()).toHaveLength(1);

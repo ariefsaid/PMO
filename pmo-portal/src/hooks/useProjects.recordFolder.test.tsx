@@ -8,9 +8,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { ToastProvider } from '@/src/components/ui/Toast';
+import { ToastProvider, useOptionalToast } from '@/src/components/ui/Toast';
 import type { Role } from '@/src/auth/AuthContext';
 
+const toastSpy = vi.hoisted(() => vi.fn());
+vi.mock('@/src/components/ui/Toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/components/ui/Toast')>()),
+  useOptionalToast: () => ({ toast: toastSpy }),
+}));
 const { project, integrations, m365RecordFolders, order } = vi.hoisted(() => ({
   order: [] as string[],
   integrations: { getBinding: vi.fn() },
@@ -44,12 +49,45 @@ beforeEach(() => {
   order.length = 0;
   vi.clearAllMocks();
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  project.create.mockImplementation(async () => { order.push('insert'); return { id: 'p9', name: 'Synthetic project' }; });
+  project.create.mockImplementation(async () => { order.push('insert'); return { id: 'p9', name: 'Synthetic project', code: 'P-1', pmo_project_number: null }; });
   integrations.getBinding.mockImplementation(async () => { order.push('erp'); return null; });
   m365RecordFolders.ensure.mockImplementation(() => { order.push('folder'); return new Promise(() => {}); });
 });
 
 describe('AC-M365DOC-071 create-project wiring', () => {
+  it.each([
+    ['no code and no number', { code: null, pmo_project_number: null }],
+    ['blank code and number', { code: '  ', pmo_project_number: '' }],
+  ])('H3 a saved row with %s starts no ensure, silently', async (_n, ids) => {
+    project.create.mockImplementation(async () => ({ id: 'p9', name: 'Synthetic project', ...ids }));
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrapper() });
+    await act(async () => { await result.current.create.mutateAsync(input); });
+    expect(m365RecordFolders.ensure).not.toHaveBeenCalled();
+  });
+
+  it('H3 a row with only a project number still starts the ensure', async () => {
+    project.create.mockImplementation(async () => ({ id: 'p9', name: 'Synthetic project', code: null, pmo_project_number: 'N-1' }));
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrapper() });
+    await act(async () => { await result.current.create.mutateAsync(input); });
+    expect(m365RecordFolders.ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['linked', () => Promise.resolve({ state: 'created', document_id: 'd' })],
+    ['expected state', () => Promise.resolve({ state: 'default_unset' })],
+    ['abnormal failure', () => Promise.reject(Object.assign(new Error('x'), { code: 'GRAPH_ERROR' }))],
+  ])('RF-6 the toast sequence of a project create (%s) ends with the record-created message', async (_n, impl) => {
+    m365RecordFolders.ensure.mockImplementation(impl);
+    const { result } = renderHook(() => ({ m: useProjectMutations(), t: useOptionalToast() }), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.m.create.mutateAsync(input);
+      result.current.t?.toast('Project created', 'success');
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    const titles = toastSpy.mock.calls.map((c) => c[0]);
+    expect(titles).toEqual(['Project created']);
+  });
+
   it('starts the folder step once, after the INSERT and before ERP setup, and a never-settling folder cannot delay the save', async () => {
     const { result } = renderHook(() => useProjectMutations(), { wrapper: wrapper() });
     let saved: { id: string; erpSetup?: string } | undefined;

@@ -48,12 +48,21 @@ describe('AC-M365DOC-071 useRecordFolder', () => {
     expect(result.current.pending).toBe(true);
   });
 
+  it('H20 an unavailable result refreshes the case register so a late-linked folder clears the notice', async () => {
+    ensure.mockRejectedValue(Object.assign(new Error('x'), { code: 'external-unreachable' }));
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useRecordFolder(target), { wrapper });
+    act(() => result.current.ensure());
+    await waitFor(() => expect(result.current.settledCopy?.ok).toBe(false));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-documents', 'org-1', target.id] });
+  });
+
   it('records the linked outcome and refreshes the case register', async () => {
     ensure.mockResolvedValue({ state: 'created', document_id: '22222222-2222-4222-8222-222222222222' });
     const spy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(() => useRecordFolder(target), { wrapper });
     act(() => result.current.ensure());
     await waitFor(() => expect(result.current.settledCopy?.ok).toBe(true));
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-docs', 'org-1', target.id] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-documents', 'org-1', target.id] });
   });
 });

@@ -47,14 +47,14 @@ export function folderMatches(item: { drive_id: string; item_kind: string; name:
 
 /**
  * Strict auto-link match (ensure/backfill only): the folder name IS the code, or the code followed by a
- * space, '-', '_' or '.', so P-1 never matches P-10. `code` is already sanitized. The picker's looser prefix
+ * single space; '-', '_' and '.' are not boundaries, so P-1 never matches P-10 or P-1-A. `code` is already sanitized. The picker's looser prefix
  * suggestions keep using {@link folderMatches}.
  */
 export function folderNameMatchesCode(name: string, code: string): boolean {
-  const n = name.toLocaleLowerCase('en');
-  const c = code.toLocaleLowerCase('en');
+  const n = name.normalize('NFC').toLocaleLowerCase('en');
+  const c = code.normalize('NFC').toLocaleLowerCase('en');
   if (!c || !n.startsWith(c)) return false;
-  return n.length === c.length || [' ', '-', '_', '.'].includes(n[c.length]!);
+  return n.length === c.length || n[c.length] === ' '; // mutation-witness:space-boundary
 }
 
 export function folderSearchRequest(driveId: string, term: string): GraphReadRequest {
@@ -64,19 +64,41 @@ export function folderSearchRequest(driveId: string, term: string): GraphReadReq
   return { path: `/drives/${encodedDrive}/root/search(q=${encoded})`, query: { '$top': '100' } };
 }
 
+export function folderChildrenRequest(driveId: string, parentId: string): GraphReadRequest {
+  return {
+    path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(parentId)}/children`,
+    query: { '$top': '200', '$select': 'id,name,webUrl,parentReference,folder,file' },
+  };
+}
+
 const allowedNextQueryKeys = new Set(['$top', '$skiptoken', '$skip', '$select', '$orderby', 'search']);
+
+function decodedPath(pathname: string): string | null {
+  try { return decodeURIComponent(pathname); } catch { return null; }
+}
+
+/**
+ * Validate a Graph `@odata.nextLink` against the request it continues. The path is compared DECODED, so
+ * Graph may send a literal `'` / `,` or the percent-encoded form; encoded separators and dot segments are
+ * refused first. `$top` (and `$select`, when sent) must equal the initial request's.
+ */
 export function parseFolderSearchNext(link: unknown, initial: GraphReadRequest): GraphReadRequest | null {
   if (typeof link !== 'string') return null;
   let url: URL;
   try { url = new URL(link); } catch { return null; }
   if (url.protocol !== 'https:' || url.origin !== 'https://graph.microsoft.com' || url.username || url.password
-    || url.hash || url.pathname !== `/v1.0${initial.path}` || /%2e|%2f|%5c/i.test(url.pathname)) return null;
+    || url.hash || /%2e|%2f|%5c/i.test(url.pathname)) return null;
+  const actual = decodedPath(url.pathname);
+  const expected = decodedPath(`/v1.0${initial.path}`);
+  if (actual === null || expected === null || actual !== expected) return null;
   const query: Record<string, string> = {};
   for (const [key, value] of url.searchParams) {
     if (!allowedNextQueryKeys.has(key) || Object.hasOwn(query, key)) return null;
     query[key] = value;
   }
-  if (query.$top !== undefined && query.$top !== '100') return null;
-  query.$top = '100';
+  const top = initial.query?.$top ?? '100';
+  if (query.$top !== undefined && query.$top !== top) return null;
+  if (query.$select !== undefined && query.$select !== initial.query?.$select) return null;
+  query.$top = top;
   return { path: initial.path, query };
 }

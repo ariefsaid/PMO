@@ -51,6 +51,15 @@ export interface ConnectionStatus {
   scopes: string[];
 }
 
+/**
+ * RF-8: true when the connection already holds the folder permission (`Sites.Selected`, bare or
+ * Graph-qualified, any case). A generic reconnect passes this as `folders` so it KEEPS a permission
+ * the connection has and never newly asks for one.
+ */
+export function keepsFolderPermission(status: Pick<ConnectionStatus, 'scopes'> | null | undefined): boolean {
+  return (status?.scopes ?? []).some((scope) => /(^|\/)sites\.selected$/i.test(scope));
+}
+
 /** The edge fn's JSON error body shape ({ error: M365ErrorCode, message: string }). */
 interface M365ErrorBody {
   error?: string;
@@ -123,11 +132,15 @@ async function throwClassified(error: unknown): Promise<never> {
  * POST `action: 'initiate_connect'` → `{ authorizeUrl, state }`. On success the FE performs a
  * TOP-LEVEL redirect to `authorizeUrl` (Microsoft's consent page must be user-visible — that lives
  * in the card, not here). Throws `AppError(message, M365ErrorCode)` on any failure.
+ *
+ * Wire contract: body is exactly `{ action: 'initiate_connect' }`, or `{ action: 'initiate_connect',
+ * folders: true }` to ALSO request the incremental `Sites.Selected` consent for record folders (a reconnect).
+ * `folders: false` is never sent. Response: `{ authorizeUrl, state }`.
  */
-export async function initiateM365Connect(): Promise<InitiateConnectResult> {
+export async function initiateM365Connect(options: { folders?: boolean } = {}): Promise<InitiateConnectResult> {
   const { data, error } = await invokeWithTimeout(
     supabase.functions.invoke<InitiateConnectResult>(FN_NAME, {
-      body: { action: 'initiate_connect' },
+      body: options.folders === true ? { action: 'initiate_connect', folders: true } : { action: 'initiate_connect' },
     }),
   );
   if (error) await throwClassified(error);

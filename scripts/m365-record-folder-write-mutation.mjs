@@ -24,6 +24,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CUSTODY = 'supabase/functions/m365-token-custody';
 export const TEST_FILE = `${CUSTODY}/recordFolderWrite.test.ts`;
+/** Every suite that carries a witness assertion; the harness runs them together. */
+export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`, `${CUSTODY}/initiateServed.test.ts`];
+const ENSURE_FILE = `${CUSTODY}/recordFolders.ts`;
+const SEARCH_FILE = `${CUSTODY}/recordFolderSearch.ts`;
+const PARENTS_FILE = `${CUSTODY}/recordFolderParents.ts`;
+const BUDGET_FILE = `${CUSTODY}/folderBudget.ts`;
+const CONVENTION_FILE = 'supabase/functions/_shared/microsoftFolderConvention.ts';
+const INDEX_FILE = `${CUSTODY}/index.ts`;
 const WRITE_FILE = `${CUSTODY}/graphFolderWrite.ts`;
 const READ_FILE = `${CUSTODY}/graphRead.ts`;
 
@@ -44,6 +52,34 @@ export const MUTATIONS = [
   { id: 'scope-get-only', file: READ_FILE, tag: 'mutation-witness:scope-get-only',
     apply: (line) => line.replace('return false;', 'void 0;'),
     killedBy: 'the browser proxy surface is GET-only and body-less' },
+  // Read-path / audit / throttle / deadline rules of ensure (ADR-0089): each guards a way two records could
+  // share a folder, a folder could be created on an uncertain read, or a write could go unaudited or unbounded.
+  { id: 'exclude-shared', file: ENSURE_FILE, tag: 'mutation-witness:exclude-shared',
+    apply: (line) => line.replace('!taken.has(m.item_id)', 'true'),
+    killedBy: 'folders already linked to a DIFFERENT record are excluded from auto-link' },
+  { id: 'rate-limit', file: ENSURE_FILE, tag: 'mutation-witness:rate-limit',
+    apply: (line) => line.replace('if (!rate.exceeded)', 'if (true || !rate.exceeded)'),
+    killedBy: 'ensure is rate limited per user' },
+  { id: 'page-cap-incomplete', file: SEARCH_FILE, tag: 'mutation-witness:page-cap-incomplete',
+    apply: (line) => line.replace('return incomplete("page_limit");', 'return { complete: true, folders: [...folders.values()] };'),
+    killedBy: 'an exhausted page cap is incomplete' },
+  { id: 'strict-boundary', file: SEARCH_FILE, tag: 'mutation-witness:strict-boundary',
+    apply: (line) => line.replace('if (!folderNameMatchesCode(folder.name, convention.term))', 'if (false)'),
+    killedBy: "auto-link matches the record's code exactly" },
+  // Boundary rule: the code is followed by a single space or nothing; '-', '_' and '.' are not boundaries.
+  { id: 'space-boundary', file: CONVENTION_FILE, tag: 'mutation-witness:space-boundary',
+    apply: (line) => line.replace("n[c.length] === ' '", "[' ', '-', '_', '.'].includes(n[c.length]!)"),
+    killedBy: 'is not a match' },
+  // The served handler must hand the request body to initiate (the folders flag).
+  { id: 'initiate-body', file: INDEX_FILE, tag: 'mutation-witness:initiate-body',
+    apply: (line) => line.replace('handleInitiateConnect(authed, body)', 'handleInitiateConnect(authed)'),
+    killedBy: 'folders:true => the authorize URL carries Sites.Selected' },
+  { id: 'conflict-receipt', file: PARENTS_FILE, tag: 'mutation-witness:conflict-receipt',
+    apply: (line) => line.replace('receiptOnConflict &&', 'receiptOnConflict && Date.now() < 0 &&'),
+    killedBy: 'a 409 winner we link after our own POST gets the receipt' },
+  { id: 'deadline-spent', file: BUDGET_FILE, tag: 'mutation-witness:deadline-spent',
+    apply: (line) => line.replace('left <= 0 ? null', 'left < 0 ? null'),
+    killedBy: 'the 12 second deadline is shared' },
 ];
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');
@@ -54,7 +90,7 @@ const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, '');
 export function denoRunner(root) {
   return () => {
     const result = spawnSync('deno', [
-      'test', '--config', `${CUSTODY}/deno.json`, '--allow-env', '--allow-net', '--allow-read', TEST_FILE,
+      'test', '--config', `${CUSTODY}/deno.json`, '--allow-env', '--allow-net', '--allow-read', ...TEST_FILES,
     ], { cwd: root, encoding: 'utf8', timeout: 240_000 });
     return { code: result.status ?? 1, output: stripAnsi(`${result.stdout ?? ''}\n${result.stderr ?? ''}`) };
   };

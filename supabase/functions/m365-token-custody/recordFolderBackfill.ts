@@ -9,10 +9,12 @@
 import type { HandlerDeps, HandlerResult } from "./types.ts";
 import { openCallerRecordFolderAccess } from "./graphRead.ts";
 import { createGraphBudget } from "./folderBudget.ts";
+import { createFolderDiscovery } from "./recordFolderSearch.ts";
 import {
   authorizeFolderCaller,
   failure,
   findExistingFolder,
+  folderRateLimited,
   isRecord,
   linkFailureResult,
   loadRecord,
@@ -81,12 +83,15 @@ export async function handleLinkExistingRecordFolders(
   body: unknown,
   deps: HandlerDeps,
 ): Promise<HandlerResult> {
+  const budget = createGraphBudget(); // started with the handler: one deadline for the whole page
   const request = parseBackfillRequest(body);
   if (!request) {
     return failure(400, "BAD_REQUEST", "Cannot link existing folders.");
   }
   const caller = await authorizeFolderCaller(deps, (role) => role === "Admin");
   if ("status" in caller) return caller;
+  const limited = await folderRateLimited(deps, "link_existing_record_folders", 12);
+  if (limited) return limited;
 
   const snapshot = await readDefaultSnapshot(deps, caller.orgId);
   if (snapshot === "error") {
@@ -95,9 +100,9 @@ export async function handleLinkExistingRecordFolders(
   if (snapshot === "unset") {
     return failure(400, "BAD_REQUEST", "Choose a default document library first.");
   }
-  const budget = createGraphBudget();
   const read = await openCallerRecordFolderAccess(deps, snapshot, "match_only", budget);
   if (!("get" in read)) return read;
+  const discovery = createFolderDiscovery(read, snapshot.drive_id); // one listing per convention parent per page
 
   const page: RecordFolderBackfillPage = {
     scanned: 0,
@@ -114,10 +119,13 @@ export async function handleLinkExistingRecordFolders(
   let stop: { reason: Stop; result: HandlerResult } | null = null;
   let budgetEnded = false;
   let moreInKind = false;
+  // Two consecutive per-record Graph failures mean Microsoft is unwell: stop instead of failing the rest.
+  let graphFailures = 0;
+  let retryAfter: number | undefined;
 
   const processOne = async (
     id: string,
-  ): Promise<{ bucket: Bucket } | { stop: Stop; result: HandlerResult }> => {
+  ): Promise<{ bucket: Bucket; graphFailed?: boolean } | { stop: Stop; result: HandlerResult }> => {
     const target = { kind, id };
     const record = await loadRecord(deps, caller.orgId, target);
     if (record.state === "denied") return { bucket: "skipped" };
@@ -126,7 +134,7 @@ export async function handleLinkExistingRecordFolders(
     if (existing === "error") return { bucket: "failed" };
     if (existing) return { bucket: "skipped" }; // a concurrent link appeared
     if (!record.identity) return { bucket: "missing" };
-    const match = await matchAndLinkRecord(deps, target, record.identity, snapshot, read);
+    const match = await matchAndLinkRecord(deps, target, record.identity, snapshot, discovery);
     switch (match.kind) {
       case "linked":
         return { bucket: "linked" };
@@ -146,7 +154,7 @@ export async function handleLinkExistingRecordFolders(
             stop: "unavailable",
             result: failure(502, "GRAPH_ERROR", "Graph API request failed"),
           }
-          : { bucket: "failed" };
+          : (retryAfter = match.retryAfter ?? retryAfter, { bucket: "failed", graphFailed: true });
       case "link_failed":
         return match.failure === "default_changed"
           ? { stop: "default_changed", result: linkFailureResult("default_changed") }
@@ -185,6 +193,11 @@ export async function handleLinkExistingRecordFolders(
       page.scanned += 1;
       page[done.bucket] += 1;
       lastProcessed = id;
+      graphFailures = done.graphFailed ? graphFailures + 1 : 0;
+      if (graphFailures >= 2) {
+        stop = { reason: "unavailable", result: failure(502, "GRAPH_ERROR", "Graph API request failed") };
+        break;
+      }
     }
     break;
   }
@@ -194,6 +207,7 @@ export async function handleLinkExistingRecordFolders(
     return stop?.result ?? failure(502, "GRAPH_ERROR", "Graph API request failed");
   }
   if (stop) page.stopped = stop.reason;
+  if (stop?.reason === "unavailable" && retryAfter !== undefined) page.retry_after_seconds = retryAfter;
   if (lastProcessed !== null && (stop || budgetEnded || moreInKind)) {
     page.next = { kind, after: lastProcessed };
   } else if (kind === "project") {
