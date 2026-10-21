@@ -1,0 +1,33 @@
+{
+  "action": {
+    "create": "Buat folder di SharePoint",
+    "choose": "Pilih folder yang ada",
+    "reconnect": "Hubungkan ulang Microsoft"
+  },
+  "status": {
+    "pending": "Membuat folder…",
+    "linked": "Folder tertaut",
+    "savedNotLinked": "Data tersimpan. Folder belum tertaut."
+  },
+  "error": {
+    "additionalConsent": "Koneksi memerlukan izin tambahan. Minta admin Microsoft Anda menyetujuinya, lalu hubungkan ulang.",
+    "notConnected": "Hubungkan akun Microsoft Anda, lalu coba lagi.",
+    "access": "Akses bergantung pada izin Microsoft Anda. Minta admin Microsoft Anda memeriksa akses pembuatan folder.",
+    "defaultUnset": "Minta Admin untuk memilih pustaka dokumen bawaan.",
+    "missingIdentifier": "Tambahkan kode data ini, lalu coba lagi.",
+    "ambiguous": "Lebih dari satu folder cocok. Pilih folder yang sudah ada.",
+    "generic": "Microsoft tidak dapat membuat atau menautkan folder ini. Silakan coba lagi."
+  },
+  "backfill": {
+    "start": "Tautkan folder yang ada",
+    "stop": "Hentikan",
+    "continue": "Lanjutkan",
+    "progress": "{{count}} diperiksa sejauh ini…",
+    "stopping": "Berhenti setelah kelompok saat ini selesai…",
+    "uncertain": "Kelompok saat ini masih berjalan, jadi jumlah dapat berubah.",
+    "stopped": "Dihentikan. {{count}} diperiksa.",
+    "interrupted": "Berhenti lebih awal. Jumlah sejauh ini disimpan; lanjutkan untuk memeriksa sisanya.",
+    "needsDefault": "Pilih pustaka dokumen bawaan terlebih dahulu.",
+    "summary": "Tertaut {{linked}} · Perlu dipilih {{needsChoice}} · Tidak cocok/kode {{missing}} · Gagal {{failed}} · Sudah tertaut {{skipped}}"
+  }
+}
