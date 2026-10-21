@@ -31,6 +31,8 @@ import {
   handleIssueMicrosoftDocument,
   handleRefreshReferences,
 } from "./documentVerification.ts";
+import { handleEnsureRecordFolder } from "./recordFolders.ts";
+import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -188,6 +190,14 @@ export async function handler(req: Request): Promise<Response> {
         break;
       case "refresh_references":
         result = await handleRefreshReferences(body, authed);
+        break;
+      case "ensure_record_folder":
+        // ADR-0089: ensure + link the record's one reference-only folder. Typed kind + UUID only.
+        result = await handleEnsureRecordFolder(body, authed);
+        break;
+      case "link_existing_record_folders":
+        // ADR-0089 / FR-M365DOC-072: Admin, match-only, keyset-paged sweep. Never creates.
+        result = await handleLinkExistingRecordFolders(body, authed);
         break;
       case "initiate_org_approval":
         // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's

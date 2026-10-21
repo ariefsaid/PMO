@@ -12,18 +12,18 @@
 // `PromiseLike` (not `Promise`): the real supabase-js query builder is a thenable, not nominally a
 // Promise (missing catch/finally/[Symbol.toStringTag] under Deno's stricter check) — PromiseLike
 // needs only .then(), satisfied by both the real client and every test's plain-object mock.
+export interface SelectFilterBuilder
+  extends PromiseLike<{ data: unknown; error: unknown }> {
+  eq(column: string, value: string): SelectFilterBuilder;
+  order(column: string, options?: { ascending?: boolean }): SelectFilterBuilder;
+  limit(count: number): SelectFilterBuilder;
+  single(): PromiseLike<{ data: unknown; error: unknown }>;
+  maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
+}
+
 export interface M365SupabaseLike {
   from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        eq(column: string, value: string): {
-          single(): PromiseLike<{ data: unknown; error: unknown }>;
-          maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
-        };
-        single(): PromiseLike<{ data: unknown; error: unknown }>;
-        maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
-      };
-    };
+    select(columns: string): SelectFilterBuilder;
     insert(row: object): PromiseLike<{ error: unknown }>;
     // `delete` is fluent + thenable (the real supabase-js builder is): `.delete().eq(col, val)` is
     // awaitable (revoke.ts awaits it) AND chains `.select(...).maybeSingle()` for the atomic
@@ -144,6 +144,13 @@ export interface ConnectionStatusResponse {
   scopes: string[];
 }
 
+/** `ensure_record_folder` (ADR-0089): typed record kind + UUID only; everything else is server-derived. */
+export type { EnsureRecordFolderRequest, RecordFolderBackfillRequest } from "../_shared/microsoftRecordFolder.ts";
+import type {
+  EnsureRecordFolderRequest,
+  RecordFolderBackfillRequest,
+} from "../_shared/microsoftRecordFolder.ts";
+
 export type M365Request =
   | InitiateConnectRequest
   | InitiateOrgApprovalRequest
@@ -152,7 +159,9 @@ export type M365Request =
   | ConnectionStatusRequest
   | CheckDocumentsRequest
   | IssueDocumentRequest
-  | RefreshReferencesRequest;
+  | RefreshReferencesRequest
+  | EnsureRecordFolderRequest
+  | RecordFolderBackfillRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
