@@ -23,7 +23,7 @@
 >   since approval" when they differ (ADR-0071 drift). Where `sharepointIds` are absent, the action is
 >   shown as unavailable with that reason. No version-content download, no copied bytes.
 >
-> **Proposed amendment 2026-10-21 (owner ask, PENDING OWNER SIGN-OFF — not buildable until signed):**
+> **Amendment 2026-10-21 — SIGNED by the owner 2026-10-21 ("go ahead"):**
 > PMO creates **one folder per project and one per procurement case** in the org default library and
 > links it automatically; no subfolders, no other naming rule. This narrows FR-M365DOC-061 (read-only)
 > to a single permitted write: create-folder, on one granted site, as the signed-in user. See §3.9.
@@ -574,7 +574,7 @@ build must verify effective grants/policies on its migrated local DB, not infer 
   shall not create, rename, move, upload, copy or delete Microsoft files/folders. Link/unlink/delete
   are PMO-local reference mutations; no file/version bytes shall be downloaded into or cached by PMO.
   Recommended folders are created/managed in Microsoft by the organization, not this phase.
-  *(Amendment 2026-10-21, pending sign-off: §3.9 FR-M365DOC-069/070 permit exactly one write, creating
+  *(Amendment 2026-10-21, owner-signed: §3.9 FR-M365DOC-069/070 permit exactly one write, creating
   a record's own folder; every other clause of this requirement stands.)*
 
 - **FR-M365DOC-062 (Event-driven — atomic mutations and legacy preservation).** When a caller links
@@ -627,7 +627,7 @@ build must verify effective grants/policies on its migrated local DB, not infer 
 | Invalid metadata/URL/kind or denied DB mutation | Cannot link this item / you cannot change this record; use classified safe copy | No partial row, raw identifier or upstream message |
 | Approved version unavailable | Approved version unavailable (reviewed reason); latest is separately labelled | Never silently redirect the approved action to latest |
 
-### 3.9 Record folders (proposed amendment 2026-10-21 — PENDING OWNER SIGN-OFF)
+### 3.9 Record folders (amendment 2026-10-21 — owner-signed)
 
 Owner ask: "less convention, and less rules are better UX." So PMO makes the one folder a record needs
 and links it; people never create or pick it by hand. Nothing else about Microsoft changes.
@@ -687,7 +687,7 @@ row with server-derived actor/org and no name/path exists; a refused or failed c
 *(Owns FR-073.)*
 
 **Owner-gated input:** the admin grant of the `write` role on the chosen site (one Graph call, scripted
-for the admin). Until granted, FR-071's fallback applies and linking keeps working read-only.
+for the admin; the owner runs it, never an agent). Until granted, FR-071's fallback applies and linking keeps working read-only.
 
 ---
 
