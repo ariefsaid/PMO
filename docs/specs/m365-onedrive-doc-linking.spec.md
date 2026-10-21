@@ -636,7 +636,7 @@ and links it; people never create or pick it by hand. Nothing else about Microso
   created, and the org has a default library (FR-M365DOC-055), the system shall ensure that record's
   folder and link it as a reference-only folder entry in the record's own register (FR-M365DOC-057):
   - project: `Projects/<project code> <project name>`; procurement: `Procurement/<UTC creation year>/<request number> <subject>`;
-  - it first looks for an existing folder with the same code prefix (FR-M365DOC-056's bounded search):
+  - it first looks for an existing folder whose name is the record's code, or starts with the code followed by a space, '-', '_' or '.' (so P-1 never matches P-10) (FR-M365DOC-056's bounded search):
     exactly one match → link it, create nothing; several → link none and offer the picker;
     none → create the folder (and a missing `Procurement/<year>` parent), then link it;
   - a record that already has a folder reference is left alone (idempotent; repeat calls are no-ops);
@@ -664,7 +664,7 @@ and links it; people never create or pick it by hand. Nothing else about Microso
   normal link event.
 
 **AC-M365DOC-069 (served handler — Deno, Graph mocked).** Given projects/cases with zero, one and two
-matching folders, an existing folder reference, a missing year folder and a name with rejected
+matching folders (a folder whose name is the code, or the code followed by a space, '-', '_' or '.'; a longer code such as P-10 does not match P-1), an existing folder reference, a missing year folder and a name with rejected
 characters, When the ensure step runs, Then it links the single match without a write, links none for
 two, creates `<code> <name>` (sanitized) under the convention path for none, creates the year folder
 first when missing, and makes no call for a record already linked. *(Owns FR-069.)*

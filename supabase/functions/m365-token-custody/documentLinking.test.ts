@@ -576,8 +576,8 @@ Deno.test("AC-M365DOC-056 served handler enforces consented scopes on graph_prox
           },
           body: JSON.stringify({
             action: "graph_proxy",
-            method: "POST",
-            path: "/me/drive/root/children",
+            method: "GET",
+            path: "/me/events",
           }),
         }),
       );

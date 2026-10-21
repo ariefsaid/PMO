@@ -191,6 +191,8 @@
     "m365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean)",
     "m365_delete_connection(uuid,uuid,uuid)",
     "m365_disconnect_cascade(uuid,uuid,text)",
+    "m365_record_folder_created(uuid,text,uuid,text,text)",
+    "m365_record_folder_default_matches(text,text,timestamp with time zone)",
     "m365_issue_document(uuid,uuid,text,text,text,text,text,text)",
     "m365_membership_state(uuid)",
     "m365_pkce_sweep_tick()",
