@@ -192,6 +192,7 @@
     "m365_delete_connection(uuid,uuid,uuid)",
     "m365_disconnect_cascade(uuid,uuid,text)",
     "m365_folder_linked_elsewhere(text,uuid,text,text)",
+    "m365_finish_refresh(uuid,uuid,uuid,bytea,text,timestamp with time zone,bytea,bytea,timestamp with time zone,text[])",
     "m365_record_folder_created(uuid,text,uuid,text,text)",
     "m365_record_folder_default_matches(text,text,timestamp with time zone)",
     "m365_issue_document(uuid,uuid,text,text,text,text,text,text)",
