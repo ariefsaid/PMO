@@ -50,13 +50,6 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-// The Microsoft evidence panel has its own suite (BudgetDocumentLinks.test.tsx) and reads through a
-// QueryClient this page suite does not provide; here only its mount under the selected version matters.
-vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
-  BudgetDocumentLinks: ({ versionId, status }: { versionId: string; status: string }) => (
-    <div data-testid="budget-evidence-mount" data-version={versionId} data-status={status} />
-  ),
-}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

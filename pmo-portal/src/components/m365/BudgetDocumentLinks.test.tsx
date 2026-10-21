@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { AppError } from '@/src/lib/appError';
 import { BudgetDocumentLinks } from './BudgetDocumentLinks';
 
+vi.unmock('./BudgetDocumentLinks');
+
 const mock = vi.hoisted(() => ({
   mayMutate: vi.fn(),
   links: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
