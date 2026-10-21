@@ -1,6 +1,8 @@
 -- 0338_m365_record_folder_shared_guard.sql — a folder already linked to another record of the same kind is
 -- never auto-linked a second time. The org-wide existence check is a definer helper (the caller's RLS may
--- hide other records' rows); the guarded link RPC stays security invoker and returns a safe state.
+-- hide other records' rows) and reveals nothing to a caller without a writer role; the guarded link RPC stays
+-- security invoker and returns a safe state. The check-and-insert is serialised per record (first lock) and per
+-- folder (second lock, always taken after the first), so two records cannot link one folder concurrently.
 -- Reversible: supabase/migrations/rollback/0338_m365_record_folder_shared_guard_down.sql.
 create or replace function public.m365_folder_linked_elsewhere(p_kind text,p_record_id uuid,p_drive_id text,p_item_id text)
 returns boolean language plpgsql stable security definer set search_path=pg_catalog,public as $$
@@ -8,6 +10,7 @@ declare v_org uuid;
 begin
   v_org:=public.auth_org_id();
   if v_org is null or not public.is_active_member() then return false; end if;
+  if public.auth_role()::text not in ('Admin','Executive','Project Manager','Finance') then return false; end if;
   if p_kind='project' then
     return exists(select 1 from public.project_documents d where d.org_id=v_org and d.source='onedrive'
       and d.ms_item_kind='folder' and d.ms_drive_id=p_drive_id and d.ms_item_id=p_item_id and d.project_id<>p_record_id);
@@ -72,6 +75,9 @@ begin
   end if;
   v_drive:=p_reference->>'drive_id'; v_item:=p_reference->>'item_id';
   v_url:=p_reference->>'web_url'; v_name:=p_reference->>'name';
+  -- Serialise per folder (after the record lock, always in this order) so the check and the insert below cannot
+  -- interleave with another record linking the same folder.
+  perform pg_advisory_xact_lock(hashtextextended('m365-folder-item:'||v_org::text||':'||v_drive||':'||v_item,0));
   -- Two records of one kind must never silently share a folder: refuse and insert nothing.
   v_shared:=public.m365_folder_linked_elsewhere(p_kind,p_record_id,v_drive,v_item);
   if v_shared then return jsonb_build_object('state','needs_choice'); end if;

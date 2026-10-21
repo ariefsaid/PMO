@@ -47,3 +47,11 @@ Deno.test('AC-M365DOC-070 bidi, zero-width, C1 and line-separator characters are
     assertEquals(sanitizeRecordFolderName(`A${ch}B`), 'A B', `U+${ch.codePointAt(0)!.toString(16)}`);
   }
 });
+
+Deno.test('AC-M365DOC-070 word joiner, soft hyphen, Mongolian vowel separator, Arabic letter mark and tag characters are replaced too', () => {
+  for (const ch of ['⁠', '⁡', '⁤', '­', '᠎', '؜', '\u{E0000}', '\u{E0041}', '\u{E007F}']) {
+    assertEquals(sanitizeRecordFolderName(`A${ch}B`), 'A B', `U+${ch.codePointAt(0)!.toString(16)}`);
+  }
+  // The match term goes through the same function, so a hidden character cannot make two names look alike.
+  assertEquals(sanitizeRecordFolderName('P⁠-1'), 'P -1');
+});

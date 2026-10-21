@@ -28,9 +28,9 @@ export interface RecordFolderBackfillPage {
 
 export function sanitizeRecordFolderName(value: string): string {
   // NFC first (an NFD-named folder must match its NFC code), then reserved characters and invisible
-  // formatting/separator controls (bidi, zero-width, C1, line/paragraph separators) become spaces.
+  // formatting/separator controls (bidi, zero-width, word joiner, soft hyphen, tag characters, C1, line/paragraph separators) become spaces.
   const replaced = value.normalize('NFC')
-    .replace(/["*:<>?\/\\|\u202A-\u202E\u2066-\u2069\u200B-\u200F\uFEFF\u0080-\u009F\u2028\u2029]/gu, ' ')
+    .replace(/["*:<>?\/\\|\u202A-\u202E\u2066-\u2069\u200B-\u200F\uFEFF\u0080-\u009F\u2028\u2029\u2060-\u2064\u00AD\u180E\u061C\u{E0000}-\u{E007F}]/gu, ' ')
     .replace(/^[ .]+|[ .]+$/gu, ' ');
   return Array.from(replaced.trim()).slice(0, 120).join('')
     .replace(/[ .]+$/gu, '').trim()

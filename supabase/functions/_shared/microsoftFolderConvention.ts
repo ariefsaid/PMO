@@ -47,14 +47,14 @@ export function folderMatches(item: { drive_id: string; item_kind: string; name:
 
 /**
  * Strict auto-link match (ensure/backfill only): the folder name IS the code, or the code followed by a
- * space, '-', '_' or '.', so P-1 never matches P-10. `code` is already sanitized. The picker's looser prefix
+ * single space; '-', '_' and '.' are not boundaries, so P-1 never matches P-10 or P-1-A. `code` is already sanitized. The picker's looser prefix
  * suggestions keep using {@link folderMatches}.
  */
 export function folderNameMatchesCode(name: string, code: string): boolean {
   const n = name.normalize('NFC').toLocaleLowerCase('en');
   const c = code.normalize('NFC').toLocaleLowerCase('en');
   if (!c || !n.startsWith(c)) return false;
-  return n.length === c.length || [' ', '-', '_', '.'].includes(n[c.length]!);
+  return n.length === c.length || n[c.length] === ' '; // mutation-witness:space-boundary
 }
 
 export function folderSearchRequest(driveId: string, term: string): GraphReadRequest {

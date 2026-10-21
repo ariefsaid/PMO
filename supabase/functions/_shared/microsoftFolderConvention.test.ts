@@ -19,9 +19,9 @@ Deno.test('builds escaped bounded folder search and pins continuation', () => {
   ]) assertEquals(parseFolderSearchNext(link, request), null);
 });
 
-Deno.test('AC-M365DOC-069 strict code match: exact or code + separator, never a longer code', () => {
-  for (const name of ['P-1', 'p-1', 'P-1 Alpha', 'p-1-alpha', 'P-1_x', 'P-1.x']) assertEquals(folderNameMatchesCode(name, 'P-1'), true, name);
-  for (const name of ['P-10 Alpha', 'P-1a', 'XP-1', '', 'P-']) assertEquals(folderNameMatchesCode(name, 'P-1'), false, name);
+Deno.test('AC-M365DOC-069 strict code match: exact or code + a single space, never a longer code', () => {
+  for (const name of ['P-1', 'p-1', 'P-1 Alpha', 'p-1 alpha']) assertEquals(folderNameMatchesCode(name, 'P-1'), true, name);
+  for (const name of ['P-10 Alpha', 'P-1a', 'XP-1', '', 'P-', 'P-1-A Alpha', 'p-1-alpha', 'P-1_x', 'P-1.x', 'P-1\tx']) assertEquals(folderNameMatchesCode(name, 'P-1'), false, name);
   assertEquals(folderNameMatchesCode('anything', ''), false);
 });
 

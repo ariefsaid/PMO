@@ -25,11 +25,13 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CUSTODY = 'supabase/functions/m365-token-custody';
 export const TEST_FILE = `${CUSTODY}/recordFolderWrite.test.ts`;
 /** Every suite that carries a witness assertion; the harness runs them together. */
-export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`];
+export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`, `${CUSTODY}/initiateServed.test.ts`];
 const ENSURE_FILE = `${CUSTODY}/recordFolders.ts`;
 const SEARCH_FILE = `${CUSTODY}/recordFolderSearch.ts`;
 const PARENTS_FILE = `${CUSTODY}/recordFolderParents.ts`;
 const BUDGET_FILE = `${CUSTODY}/folderBudget.ts`;
+const CONVENTION_FILE = 'supabase/functions/_shared/microsoftFolderConvention.ts';
+const INDEX_FILE = `${CUSTODY}/index.ts`;
 const WRITE_FILE = `${CUSTODY}/graphFolderWrite.ts`;
 const READ_FILE = `${CUSTODY}/graphRead.ts`;
 
@@ -64,6 +66,14 @@ export const MUTATIONS = [
   { id: 'strict-boundary', file: SEARCH_FILE, tag: 'mutation-witness:strict-boundary',
     apply: (line) => line.replace('if (!folderNameMatchesCode(folder.name, convention.term))', 'if (false)'),
     killedBy: "auto-link matches the record's code exactly" },
+  // Boundary rule: the code is followed by a single space or nothing; '-', '_' and '.' are not boundaries.
+  { id: 'space-boundary', file: CONVENTION_FILE, tag: 'mutation-witness:space-boundary',
+    apply: (line) => line.replace("n[c.length] === ' '", "[' ', '-', '_', '.'].includes(n[c.length]!)"),
+    killedBy: 'is not a match' },
+  // The served handler must hand the request body to initiate (the folders flag).
+  { id: 'initiate-body', file: INDEX_FILE, tag: 'mutation-witness:initiate-body',
+    apply: (line) => line.replace('handleInitiateConnect(authed, body)', 'handleInitiateConnect(authed)'),
+    killedBy: 'folders:true => the authorize URL carries Sites.Selected' },
   { id: 'conflict-receipt', file: PARENTS_FILE, tag: 'mutation-witness:conflict-receipt',
     apply: (line) => line.replace('receiptOnConflict &&', 'receiptOnConflict && Date.now() < 0 &&'),
     killedBy: 'a 409 winner we link after our own POST gets the receipt' },

@@ -142,6 +142,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     { label: "link", pathname: "/rest/v1/rpc/m365_link_record_folder", response: (call) => world.link(call) },
     { label: "created", pathname: "/rest/v1/rpc/m365_record_folder_created", response: (call) => world.created(call) },
     { label: "candidates", pathname: "/rest/v1/rpc/m365_record_folder_candidates", response: (call) => world.candidates(call) },
+    { label: "pkce-state", method: "POST", pathname: "/rest/v1/m365_pkce_states", response: () => new Response(null, { status: 201 }) },
     { label: "rate", pathname: "/rest/v1/rpc/rate_limit_hit", response: (call) => world.rate(call) },
     { label: "token", host: "login.microsoftonline.com", response: (call) => world.refresh(call) },
     { label: "error-events", method: "POST", pathname: "/rest/v1/error_events", response: () => new Response(null, { status: 201 }) },

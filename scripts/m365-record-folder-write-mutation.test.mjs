@@ -37,7 +37,11 @@ const EXTRA = {
   'recordFolderParents.ts': 'if (receiptOnConflict && !await onCreated(x)) { // mutation-witness:conflict-receipt\n',
   'folderBudget.ts': 'return left <= 0 ? null : Math.min(FETCH, left); // mutation-witness:deadline-spent\n',
 };
-const ORIGINAL = { 'graphRead.ts': READ, 'graphFolderWrite.ts': WRITE, ...EXTRA };
+const OUTSIDE = {
+  'supabase/functions/_shared/microsoftFolderConvention.ts': "return n.length === c.length || n[c.length] === ' '; // mutation-witness:space-boundary\n",
+  [`${CUSTODY}/index.ts`]: 'result = await handleInitiateConnect(authed, body); // mutation-witness:initiate-body\n',
+};
+const ORIGINAL = { 'graphRead.ts': READ, 'graphFolderWrite.ts': WRITE, ...EXTRA, 'microsoftFolderConvention.ts': OUTSIDE['supabase/functions/_shared/microsoftFolderConvention.ts'], 'index.ts': OUTSIDE[`${CUSTODY}/index.ts`] };
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'm365-witness-'));
@@ -45,6 +49,8 @@ function fixture() {
   writeFileSync(join(root, CUSTODY, 'graphRead.ts'), READ);
   writeFileSync(join(root, CUSTODY, 'graphFolderWrite.ts'), WRITE);
   for (const [file, text] of Object.entries(EXTRA)) writeFileSync(join(root, CUSTODY, file), text);
+  mkdirSync(join(root, 'supabase/functions/_shared'), { recursive: true });
+  for (const [file, text] of Object.entries(OUTSIDE)) writeFileSync(join(root, file), text);
   return root;
 }
 const killedOutput = (step) => `${step} ... FAILED\nAssertionError: boom`;
