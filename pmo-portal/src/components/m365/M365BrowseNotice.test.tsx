@@ -117,4 +117,19 @@ describe('F3: the notice follows the interface language', () => {
     renderNotice({ onRetry: vi.fn() });
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });
+
+  it('RF-8 a reconnect from a connection that holds Sites.Selected keeps the folder permission; without it sends nothing', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    connect.initiate.mockResolvedValue({ authorizeUrl: 'https://login.example.invalid/authorize?x=1', state: 's' });
+    const held = { connected: true, status: 'stale' as const, connected_at: null, last_refresh_at: null, scopes: ['Files.Read', 'Sites.Selected'] };
+    const { unmount } = renderNotice({ code: 'CONNECTION_STALE', connection: held });
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect Microsoft 365' }));
+    expect(connect.initiate).toHaveBeenLastCalledWith({ folders: true });
+    unmount();
+    renderNotice({ code: 'CONNECTION_STALE', connection: { ...held, scopes: ['Files.Read'] } });
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect Microsoft 365' }));
+    expect(connect.initiate).toHaveBeenLastCalledWith({});
+    vi.unstubAllGlobals();
+  });
 });

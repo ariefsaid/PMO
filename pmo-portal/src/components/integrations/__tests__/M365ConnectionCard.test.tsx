@@ -1140,3 +1140,28 @@ describe('AC-M365LOC-008 — a wrapped status line keeps its icon on the FIRST l
     expectFirstLineIcon(screen.getByTestId('m365-org-approved-msg'));
   });
 });
+describe('RF-8 — an ordinary reconnect keeps a folder permission the connection already holds', () => {
+  const AUTH = 'https://login.microsoftonline.com/t/oauth2/v2.0/authorize?client_id=x';
+  const initiateBody = () =>
+    invoke.mock.calls.map((c) => (c[1] as { body?: Record<string, unknown> } | undefined)?.body).find((b) => b?.action === 'initiate_connect');
+
+  it('RF-8: Reconnect on a stale connection holding Sites.Selected sends folders:true', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: { ...STATUS_STALE, scopes: ['Files.Read', 'Sites.Selected'] }, error: null });
+    await renderCard();
+    const btn = await screen.findByRole('button', { name: /reconnect microsoft 365/i });
+    invoke.mockResolvedValueOnce({ data: { authorizeUrl: AUTH, state: 's' }, error: null });
+    await userEvent.setup().click(btn);
+    expect(initiateBody()).toEqual({ action: 'initiate_connect', folders: true });
+  });
+
+  it('RF-8: Reconnect without the permission sends no folders option (never newly asks)', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: { ...STATUS_STALE, scopes: ['Files.Read'] }, error: null });
+    await renderCard();
+    const btn = await screen.findByRole('button', { name: /reconnect microsoft 365/i });
+    invoke.mockResolvedValueOnce({ data: { authorizeUrl: AUTH, state: 's' }, error: null });
+    await userEvent.setup().click(btn);
+    expect(initiateBody()).toEqual({ action: 'initiate_connect' });
+  });
+});

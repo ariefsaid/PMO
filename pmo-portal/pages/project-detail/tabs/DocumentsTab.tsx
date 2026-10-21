@@ -1345,7 +1345,7 @@ const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect
       </div>
     );
   } else {
-    notice = <M365BrowseNotice code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
+    notice = <M365BrowseNotice connection={connection} code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
   }
 
   return (

@@ -321,8 +321,8 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     >
       <div className="min-w-0 space-y-3">
         {isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loadingConnection', 'Loading Microsoft connection…')}</p>}
-        {!isPending && connectionError != null && <M365BrowseNotice code={codeOf(connectionError)} onRetry={() => void refetch()} />}
-        {!isPending && connectionError == null && !canBrowse && <M365BrowseNotice code={connectionNoticeCode(connection)} />}
+        {!isPending && connectionError != null && <M365BrowseNotice connection={connection} code={codeOf(connectionError)} onRetry={() => void refetch()} />}
+        {!isPending && connectionError == null && !canBrowse && <M365BrowseNotice connection={connection} code={connectionNoticeCode(connection)} />}
         {defaultError != null && (
           <ListState variant="error" title={t('m365Documents.picker.defaultReadError', 'Default library settings could not be read')} sub={t('m365Documents.picker.defaultReadErrorSub', 'You can still choose a location manually.')} onRetry={() => void refetch()} />
         )}
@@ -353,7 +353,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.sites', 'SharePoint sites'))}{changeLocation}</div>
             {sites.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
-            {sites.status === 'error' && <M365BrowseNotice code={codeOf(sites.error)} onRetry={() => void showSites()} />}
+            {sites.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(sites.error)} onRetry={() => void showSites()} />}
             {sites.status === 'ready' && !sites.value.length && <ListState variant="empty" title={t('m365Documents.picker.noSites', 'No sites found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
             {sites.status === 'ready' && sites.value.length > 0 && (
               <ul aria-label={t('m365Documents.picker.sites', 'SharePoint sites')} className="max-h-72 overflow-auto">
@@ -371,7 +371,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.oneDrive', 'My OneDrive'))}{changeLocation}</div>
             {oneDrive.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
-            {oneDrive.status === 'error' && <M365BrowseNotice code={codeOf(oneDrive.error)} onRetry={() => void showOneDrive()} />}
+            {oneDrive.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(oneDrive.error)} onRetry={() => void showOneDrive()} />}
           </section>
         )}
 
@@ -379,7 +379,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.librariesIn', 'Libraries in {{site}}', { site: location.site.name }))}{changeLocation}</div>
             {libraries.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
-            {libraries.status === 'error' && <M365BrowseNotice code={codeOf(libraries.error)} onRetry={() => void showLibraries(location.site)} />}
+            {libraries.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(libraries.error)} onRetry={() => void showLibraries(location.site)} />}
             {libraries.status === 'ready' && !libraries.value.length && <ListState variant="empty" title={t('m365Documents.picker.noLibraries', 'No libraries found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
             {libraries.status === 'ready' && libraries.value.length > 0 && (
               <ul aria-label={t('m365Documents.picker.libraries', 'Libraries')} className="max-h-72 overflow-auto">
@@ -444,7 +444,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
             )}
             {loading && <p role="status" aria-live="polite" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {current && itemProblem != null && (
-              <M365BrowseNotice code={codeOf(itemProblem)} onRetry={moreFailure ? () => void loadMore() : () => setNonce((n) => n + 1)} />
+              <M365BrowseNotice connection={connection} code={codeOf(itemProblem)} onRetry={moreFailure ? () => void loadMore() : () => setNonce((n) => n + 1)} />
             )}
             {current && !current.error && current.items.length === 0 && (
               <ListState variant="empty" title={t('m365Documents.picker.noItems', 'No items found')} sub={t('m365Documents.picker.noItemsSub', 'Choose another location or search.')} className="py-6" />

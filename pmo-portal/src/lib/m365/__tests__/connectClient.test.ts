@@ -16,6 +16,7 @@ import {
   getM365ConnectionStatus,
   describeM365Error,
   classifyM365InvokeError,
+  keepsFolderPermission,
 } from '../connectClient';
 import { AppError } from '../../appError';
 
@@ -353,5 +354,20 @@ describe('AC-M365SEP-019 — disabled-member / org-approval / entitlement copy i
     // Distinct from the other two outcomes.
     expect(copy).not.toBe(describeM365Error('NOT_ENTITLED'));
     expect(copy).not.toBe(describeM365Error('DISABLED_MEMBER'));
+  });
+});
+
+describe('RF-8 keepsFolderPermission', () => {
+  const status = (scopes: string[]) => ({ connected: true, status: 'active' as const, connected_at: null, last_refresh_at: null, scopes });
+  it('RF-8: true for a bare or Graph-qualified Sites.Selected scope, case-insensitively', () => {
+    expect(keepsFolderPermission(status(['Files.Read', 'Sites.Selected']))).toBe(true);
+    expect(keepsFolderPermission(status(['https://graph.microsoft.com/Sites.Selected']))).toBe(true);
+    expect(keepsFolderPermission(status(['sites.selected']))).toBe(true);
+  });
+  it('RF-8: false without it, for look-alike scopes, and for an absent status', () => {
+    expect(keepsFolderPermission(status(['Files.Read', 'Sites.Read.All']))).toBe(false);
+    expect(keepsFolderPermission(status([]))).toBe(false);
+    expect(keepsFolderPermission(undefined)).toBe(false);
+    expect(keepsFolderPermission(null)).toBe(false);
   });
 });

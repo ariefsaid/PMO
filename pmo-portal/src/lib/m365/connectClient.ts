@@ -51,6 +51,15 @@ export interface ConnectionStatus {
   scopes: string[];
 }
 
+/**
+ * RF-8: true when the connection already holds the folder permission (`Sites.Selected`, bare or
+ * Graph-qualified, any case). A generic reconnect passes this as `folders` so it KEEPS a permission
+ * the connection has and never newly asks for one.
+ */
+export function keepsFolderPermission(status: Pick<ConnectionStatus, 'scopes'> | null | undefined): boolean {
+  return (status?.scopes ?? []).some((scope) => /(^|\/)sites\.selected$/i.test(scope));
+}
+
 /** The edge fn's JSON error body shape ({ error: M365ErrorCode, message: string }). */
 interface M365ErrorBody {
   error?: string;

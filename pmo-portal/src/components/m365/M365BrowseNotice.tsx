@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button, GateNotice } from '@/src/components/ui';
-import { initiateM365Connect } from '@/src/lib/m365/connectClient';
+import { initiateM365Connect, keepsFolderPermission, type ConnectionStatus } from '@/src/lib/m365/connectClient';
 import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
 
 /** Codes whose remedy is a (re)connect: the only ones that may offer the Reconnect action. */
@@ -39,6 +39,8 @@ export interface M365BrowseNoticeProps {
   onRetry?: () => void;
   /** Overrides the default reconnect (existing `initiateM365Connect` + redirect to its returned authorize URL only). */
   onReconnect?: () => void;
+  /** The caller's connection, when known: a reconnect keeps a folder permission it already holds (RF-8). */
+  connection?: Pick<ConnectionStatus, 'scopes'>;
 }
 
 /**
@@ -46,7 +48,7 @@ export interface M365BrowseNoticeProps {
  * Maps stable codes only; raw bodies, identifiers and scope strings never reach the DOM.
  * Reconnect is offered only where a connection is the remedy, never as a licence/access fix.
  */
-export function M365BrowseNotice({ code, onRetry, onReconnect }: M365BrowseNoticeProps) {
+export function M365BrowseNotice({ code, onRetry, onReconnect, connection }: M365BrowseNoticeProps) {
   const { t } = useTranslation();
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectFailed, setReconnectFailed] = useState(false);
@@ -57,7 +59,7 @@ export function M365BrowseNotice({ code, onRetry, onReconnect }: M365BrowseNotic
     if (onReconnect) { onReconnect(); return; }
     setReconnecting(true); setReconnectFailed(false);
     try {
-      const { authorizeUrl } = await initiateM365Connect();
+      const { authorizeUrl } = await initiateM365Connect(keepsFolderPermission(connection) ? { folders: true } : {});
       if (!isHttps(authorizeUrl)) throw new Error('unsafe');
       window.location.assign(authorizeUrl);
     } catch {
