@@ -81,6 +81,7 @@ const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
 const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
 const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
+const MeetingCreatePage = React.lazy(() => import('./pages/MeetingCreate'));
 const ExpenseClaimsPage = React.lazy(() => import('./pages/ExpenseClaims'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
@@ -160,6 +161,7 @@ export const appRouteConfig: RouteObject[] = [
   //   Reads are RLS-scoped (attendance ∪ author ∪ grant ∪ Admin, migration 0205), so the routes
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.
   { path: '/meetings', element: <MeetingsPage /> },
+  { path: '/meetings/new', element: <MeetingCreatePage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   // #775: expense claims and cash advances.
   { path: '/expenses', element: <ExpenseClaimsPage /> },

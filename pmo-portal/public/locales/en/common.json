@@ -1723,15 +1723,11 @@
       }
     },
     "delete": "Delete",
-    "edit": "Edit",
     "error": {
       "sub": "Something went wrong fetching this meeting.",
       "title": "Couldn't load meeting"
     },
     "form": {
-      "editSubmit": "Save meeting",
-      "editSubtitle": "Update this meeting record",
-      "editTitle": "Edit meeting",
       "errors": {
         "titleRequired": "Meeting title is required.",
         "whenInvalid": "Enter a valid date and time."
@@ -1830,23 +1826,14 @@
       "unavailableProject": "Unavailable project"
     },
     "form": {
-      "errors": {
-        "titleRequired": "Meeting title is required.",
-        "whenInvalid": "Enter a valid date and time."
-      },
       "location": {
         "label": "Location",
         "placeholder": "e.g. Site office, Teams call"
       },
-      "newSubmit": "Create meeting",
-      "newSubtitle": "Record when it happened and start the minutes",
       "newTitle": "New meeting",
       "project": {
         "label": "Project",
         "none": "No project"
-      },
-      "sections": {
-        "details": "Details"
       },
       "title": {
         "label": "Title",

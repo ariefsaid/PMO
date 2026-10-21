@@ -120,6 +120,7 @@
 #    items and view-only shares. Added by the slice that built the screens (DD-I18N-9's additive
 #    rule — a launch-scope screen shipping without its line silently shrinks this gate).
 /meetings                      pages/Meetings.tsx
+/meetings/new                  pages/MeetingCreate.tsx
 /meetings/:meetingId           pages/MeetingDetail.tsx src/components/shell/BackBar.tsx
 
 # ── Expenses (#775): claims and cash advances — the field team's own money, filed by every role.
