@@ -1,7 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
+import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
 
 /**
  * Progress-billing DAL (#766, migration 0250). BoQ lines are RLS-scoped table writes; an assessment goes
@@ -33,7 +33,8 @@ export interface BoqItemInput {
   unit: string;
   quantity: number;
   rate: number;
-  workOrderId: string | null;
+  earningBasis: EarningBasis;
+  lineNo: number | null;
 }
 
 export interface ProgressClaimInput {
@@ -64,7 +65,10 @@ function fail(error: { message: string; code?: string }): never {
 
 export async function listBoqItems(projectId: string): Promise<BoqItemRow[]> {
   const { data, error } = await supabase.from('boq_items').select('*')
-    .eq('project_id', projectId).order('created_at', { ascending: true });
+    .eq('project_id', projectId)
+    .order('line_no', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
   if (error) fail(error);
   return data ?? [];
 }
@@ -72,7 +76,7 @@ export async function listBoqItems(projectId: string): Promise<BoqItemRow[]> {
 export async function createBoqItem(projectId: string, input: BoqItemInput): Promise<BoqItemRow> {
   const { data, error } = await supabase.from('boq_items').insert({
     project_id: projectId, item_code: input.itemCode, description: input.description, unit: input.unit,
-    quantity: input.quantity, rate: input.rate, work_order_id: input.workOrderId,
+    quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
   }).select().single();
   if (error) fail(error);
   return data as BoqItemRow;
@@ -81,7 +85,7 @@ export async function createBoqItem(projectId: string, input: BoqItemInput): Pro
 export async function updateBoqItem(id: string, input: BoqItemInput): Promise<void> {
   const { data, error } = await supabase.from('boq_items').update({
     item_code: input.itemCode, description: input.description, unit: input.unit,
-    quantity: input.quantity, rate: input.rate, work_order_id: input.workOrderId,
+    quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
   }).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Bill of quantities line not found or you do not have permission to edit it.');
@@ -147,21 +151,57 @@ export async function recordProgressAssessment(input: ProgressAssessmentInput): 
   return Number(data);
 }
 
+function malformed(what: string): never {
+  throw new AppError(`billing summary has a malformed ${what}`, 'billing-malformed');
+}
+
+/** A required finite number; null, missing, blank and non-finite values are errors, never zero. */
+function finite(value: unknown, what: string): number {
+  const parsed = typeof value === 'string' ? (value.trim() === '' ? NaN : Number(value)) : typeof value === 'number' ? value : NaN;
+  if (!Number.isFinite(parsed)) malformed(what);
+  return parsed;
+}
+
+function parseAllocation(raw: unknown): AllocationFacts {
+  if (typeof raw !== 'object' || raw === null) malformed('allocation');
+  const a = raw as Record<string, unknown>;
+  if (typeof a.work_order_id !== 'string' || typeof a.boq_item_id !== 'string' || typeof a.final !== 'boolean'
+    || !('accepted_quantity' in a)) malformed('allocation');
+  return {
+    workOrderId: a.work_order_id,
+    boqItemId: a.boq_item_id,
+    quantity: finite(a.quantity, 'allocation quantity'),
+    claimedQuantity: finite(a.claimed_quantity, 'allocation claimed quantity'),
+    // null = no confirmed BAST, which is not the same as a BAST of zero.
+    acceptedQuantity: a.accepted_quantity === null ? null : finite(a.accepted_quantity, 'allocation accepted quantity'),
+    final: a.final,
+  };
+}
+
+function parseContractLine(line: Record<string, unknown>): ContractLineFacts {
+  if (typeof line.boq_item_id !== 'string') malformed('contract line');
+  if (line.earning_basis !== 'unit_rate' && line.earning_basis !== 'lump_sum') malformed('earning basis');
+  if (!Array.isArray(line.allocations)) malformed('allocations list');
+  return {
+    boqItemId: line.boq_item_id,
+    earningBasis: line.earning_basis,
+    lineNo: line.line_no === null || line.line_no === undefined ? null : finite(line.line_no, 'line number'),
+    orderedQuantity: finite(line.ordered_quantity, 'ordered quantity'),
+    acceptedQuantity: finite(line.accepted_quantity, 'accepted quantity'),
+    closedFinal: finite(line.closed_final, 'closed final quantity'),
+    earnedQuantity: finite(line.earned_quantity, 'earned quantity'),
+    contractBalance: finite(line.contract_balance, 'contract balance'),
+    allocations: (line.allocations as unknown[]).map(parseAllocation),
+  };
+}
+
 export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
   const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
   if (error) fail(error);
   if (data === null || data === undefined) return null;
   const raw = data as Record<string, unknown>;
-  const num = (key: string): number => {
-    const value = Number(raw[key]);
-    if (raw[key] === null || raw[key] === undefined || !Number.isFinite(value)) {
-      throw new AppError(`billing summary is missing ${key}`, 'billing-malformed');
-    }
-    return value;
-  };
-  const boq = Array.isArray(raw.boq)
-    ? (raw.boq as Array<{ boq_item_id: string; claimed_quantity: unknown; assessed_quantity: unknown }>)
-    : null;
+  const num = (key: string): number => finite(raw[key], key);
+  const boq = Array.isArray(raw.boq) ? (raw.boq as Array<Record<string, unknown>>) : null;
   if (typeof raw.currency !== 'string' || boq === null) throw new AppError('billing summary is malformed', 'billing-malformed');
   const rawAssessment = raw.assessment as { month?: unknown; pct_complete?: unknown } | null | undefined;
   let assessment: ProjectBillingFacts['assessment'] = null;
@@ -180,9 +220,11 @@ export async function getProjectBilling(projectId: string): Promise<ProjectBilli
     dpRecovered: num('dp_recovered'),
     notSubmitted: num('not_submitted'),
     assessment,
-    claimedByBoqItem: Object.fromEntries(boq.map((line) => [line.boq_item_id, Number(line.claimed_quantity)])),
+    claimedByBoqItem: Object.fromEntries(boq.map((line) => [line.boq_item_id as string, Number(line.claimed_quantity)])),
     assessedByBoqItem: Object.fromEntries(boq
       .filter((line) => line.assessed_quantity !== null && line.assessed_quantity !== undefined)
-      .map((line) => [line.boq_item_id, Number(line.assessed_quantity)])),
+      .map((line) => [line.boq_item_id as string, Number(line.assessed_quantity)])),
+    earnedValue: num('earned_value'),
+    contractLines: boq.map(parseContractLine),
   };
 }

@@ -3,9 +3,33 @@ import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
 /**
  * #766 — pure progress-billing arithmetic for the Billing tab. Figures arrive from `get_project_billing` net
  * of tax in the project's currency. Balances are derived in integer cents and never clamped (DD-PBL-9).
- * ⚑ Assessed to date and the gap use the management pack's own `pctOf`, so they ARE the pack's recognised to
- * date and unbilled for the current month — one formula, not two.
+ * Where a project has contract lines, assessed to date is the server's earned value (DD-CQ-5); otherwise it is the
+ * latest assessment % of the net contract via `pctOf`.
  */
+export type EarningBasis = 'unit_rate' | 'lump_sum';
+
+/** One work-order allocation of a contract line. `acceptedQuantity` null = no confirmed BAST (distinct from 0). */
+export interface AllocationFacts {
+  workOrderId: string;
+  boqItemId: string;
+  quantity: number;
+  claimedQuantity: number;
+  acceptedQuantity: number | null;
+  final: boolean;
+}
+
+export interface ContractLineFacts {
+  boqItemId: string;
+  earningBasis: EarningBasis;
+  lineNo: number | null;
+  orderedQuantity: number;
+  acceptedQuantity: number;
+  closedFinal: number;
+  earnedQuantity: number;
+  contractBalance: number;
+  allocations: AllocationFacts[];
+}
+
 export interface ProjectBillingFacts {
   currency: string;
   contractNet: number;
@@ -19,6 +43,10 @@ export interface ProjectBillingFacts {
   claimedByBoqItem: Record<string, number>;
   /** Quantity done to date per BoQ line in the latest assessment (absent = not measured). */
   assessedByBoqItem: Record<string, number>;
+  /** Σ per-line round(earned quantity × rate, 2), computed by the server. */
+  earnedValue: number;
+  /** Per-line contract facts; empty when the project has no contract lines. */
+  contractLines: ContractLineFacts[];
 }
 
 export interface ProjectBillingSummary extends ProjectBillingFacts {
@@ -26,7 +54,7 @@ export interface ProjectBillingSummary extends ProjectBillingFacts {
   dpHeld: number;
   /** Net contract − billed to date. */
   remaining: number;
-  /** Latest assessment % × net contract; null without an assessment. */
+  /** Server earned value for a project with contract lines, else latest assessment % × net contract (null without one). */
   assessedToDate: number | null;
   /** Assessed − billed ("work done, not yet billed"); null without an assessment. */
   unbilledWork: number | null;
@@ -35,9 +63,11 @@ export interface ProjectBillingSummary extends ProjectBillingFacts {
 const milli = (value: number): number => Math.round(value * 1000);
 
 export function summarizeBilling(facts: ProjectBillingFacts): ProjectBillingSummary {
-  const assessedCents = facts.assessment && facts.contractNet >= 0
-    ? pctOf(toCents(facts.contractNet), facts.assessment.pctComplete)
-    : null;
+  const assessedCents = facts.contractLines.length > 0
+    ? toCents(facts.earnedValue)
+    : facts.assessment && facts.contractNet >= 0
+      ? pctOf(toCents(facts.contractNet), facts.assessment.pctComplete)
+      : null;
   return {
     ...facts,
     dpHeld: fromCents(toCents(facts.dpBilled) - toCents(facts.dpRecovered)),
@@ -72,6 +102,27 @@ export function prefillFromAssessment(
     if (assessed[id] === undefined) continue;
     const left = milli(assessed[id]) - milli(claimed[id] ?? 0);
     if (left > 0) fill[id] = left / 1000;
+  }
+  return fill;
+}
+
+/**
+ * Pre-fill for a work-order claim (DD-CQ-6), over that work order's allocations, in integer milli-quantities.
+ * With a confirmed BAST: accepted − claimed on this work order. Without one: the smaller of assessed − claimed on
+ * all live claims and allocated − claimed on this work order. Non-positive values are omitted. Editable, not a cap.
+ */
+export function prefillWorkOrderClaim(
+  allocations: readonly AllocationFacts[],
+  assessed: Record<string, number>,
+  claimedAll: Record<string, number>,
+): Record<string, number> {
+  const fill: Record<string, number> = {};
+  for (const a of allocations) {
+    const claimedHere = milli(a.claimedQuantity);
+    const suggested = a.acceptedQuantity !== null
+      ? milli(a.acceptedQuantity) - claimedHere
+      : Math.min(milli(assessed[a.boqItemId] ?? 0) - milli(claimedAll[a.boqItemId] ?? 0), milli(a.quantity) - claimedHere);
+    if (suggested > 0) fill[a.boqItemId] = suggested / 1000;
   }
   return fill;
 }
