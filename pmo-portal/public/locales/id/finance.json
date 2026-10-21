@@ -9,6 +9,10 @@
   "statements": {
     "amountsIn": "Jumlah dalam",
     "forThePeriod": "Untuk periode",
-    "periodShown": "Periode yang ditampilkan"
+    "periodShown": "Periode yang ditampilkan",
+    "collapseGroup": "Ciutkan {{group}}",
+    "expandGroup": "Bentangkan {{group}}",
+    "collapseAll": "Ciutkan semua",
+    "expandAll": "Bentangkan semua"
   }
 }
