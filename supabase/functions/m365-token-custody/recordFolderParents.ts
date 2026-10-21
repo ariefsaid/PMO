@@ -34,7 +34,7 @@ export type ParentFailure =
   | { kind: "forbidden" }
   | { kind: "refused" }
   | { kind: "audit_failed" }
-  | { kind: "unavailable"; result?: HandlerResult };
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
 
 export type FolderResolution =
   | { ok: true; item: MicrosoftReferenceInput; created: boolean }
@@ -86,7 +86,7 @@ export async function verifyDriveBelongsToSite(
 }
 
 /** A returned folder item, validated against the identity the server asked for. */
-function validateFolderItem(
+export function validateFolderItem(
   raw: unknown,
   expected: { driveId: string; parentId: string; name: string },
 ): MicrosoftReferenceInput | null {
@@ -94,7 +94,7 @@ function validateFolderItem(
   const parent = isRecord(raw.parentReference) ? raw.parentReference : null;
   if (
     !safeGraphId(raw.id) || typeof raw.name !== "string" ||
-    raw.name.toLocaleLowerCase("en") !== expected.name.toLocaleLowerCase("en") ||
+    raw.name.normalize("NFC").toLocaleLowerCase("en") !== expected.name.normalize("NFC").toLocaleLowerCase("en") ||
     !validMicrosoftBrowserUrl(raw.webUrl) || !parent ||
     parent.driveId !== expected.driveId || parent.id !== expected.parentId
   ) return null;
@@ -110,7 +110,7 @@ function validateFolderItem(
 function failureOf(outcome: FolderOutcome): ParentFailure {
   if (outcome.kind === "forbidden") return { kind: "forbidden" };
   return outcome.kind === "unavailable"
-    ? { kind: "unavailable", result: outcome.result }
+    ? { kind: "unavailable", result: outcome.result, retryAfter: outcome.retryAfter }
     : { kind: "unavailable" };
 }
 
@@ -126,6 +126,7 @@ export async function resolveOrCreateFolder(
   name: string,
   lookupFirst: boolean,
   onCreated: CreatedFolderHook,
+  receiptOnConflict = false,
 ): Promise<FolderResolution> {
   const expected = { driveId, parentId, name };
   if (lookupFirst) {
@@ -155,9 +156,14 @@ export async function resolveOrCreateFolder(
     return { ok: false, failure: winner.kind === "not_found" ? { kind: "refused" } : failureOf(winner) };
   }
   const item = validateFolderItem(winner.item, expected);
-  return item
-    ? { ok: true, item, created: false }
-    : { ok: false, failure: { kind: "refused" } };
+  if (!item) return { ok: false, failure: { kind: "refused" } };
+  // FR-073: our own POST was refused as a name conflict, so we cannot tell a racing creator from a create
+  // whose answer we lost. The folder is about to be linked by this operation, so record the creation receipt
+  // (the unique identity index makes a second receipt for the same folder a no-op).
+  if (receiptOnConflict && !await onCreated({ drive_id: item.drive_id, item_id: item.item_id })) { // mutation-witness:conflict-receipt
+    return { ok: false, failure: { kind: "audit_failed" } };
+  }
+  return { ok: true, item, created: false };
 }
 
 /** Resolve the drive root, then each server convention segment, creating only the missing ones. */

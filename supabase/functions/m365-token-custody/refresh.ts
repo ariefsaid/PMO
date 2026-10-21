@@ -32,6 +32,7 @@ const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 export async function refreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
+  timeoutMs?: number,
 ): Promise<boolean> {
   const { env, serviceClient } = deps;
   const fetchImpl = deps.fetch ?? fetch;
@@ -82,6 +83,7 @@ export async function refreshAccessToken(
         scope: connection.scopes.join(' '),
       }),
     },
+    timeoutMs,
     );
   } catch {
     // Transient (deadline/network): record it and report failure WITHOUT classifying the connection —

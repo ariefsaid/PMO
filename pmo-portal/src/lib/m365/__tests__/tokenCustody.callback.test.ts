@@ -69,6 +69,50 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(service.writes).toHaveLength(0);
   });
 
+  describe('AC-M365DOC-070 — the stored scopes are what Microsoft GRANTED', () => {
+    const requested = ['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'Sites.Selected', 'offline_access', 'openid', 'profile'];
+    async function connectWith(scope: unknown) {
+      const service = mockClient({
+        m365_pkce_states: [{ data: pkceRow({ scopes: requested }), error: null }],
+        profiles: [{ data: { status: 'active' }, error: null }],
+        org_features: [{ data: { enabled: true }, error: null }],
+        ms_graph_connections: [{ data: null, error: null }, { data: { id: 'conn-1' }, error: null }],
+      });
+      const fetch = fetchOk({
+        access_token: 'A', refresh_token: 'R', expires_in: 3600,
+        ...(scope === undefined ? {} : { scope }),
+        id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+      });
+      await handleCallback(callbackReq({ code: 'c', state: 'state-xyz' }), deps({ service, fetch }));
+      const upsert = service.writes.find((w) => w.kind === 'upsert' && w.table === 'ms_graph_connections');
+      return (upsert!.payload as { scopes: string[] }).scopes;
+    }
+
+    it('a token response WITHOUT Sites.Selected stores a set without it (ensure then needs additional consent)', async () => {
+      const stored = await connectWith('Files.Read Files.Read.All Sites.Read.All offline_access openid profile');
+      expect(stored).not.toContain('Sites.Selected');
+      expect(stored).toEqual(['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'offline_access', 'openid', 'profile']);
+    });
+
+    it('Graph-qualified and bare names are both tolerated and normalised', async () => {
+      const stored = await connectWith('https://graph.microsoft.com/Files.Read Sites.Read.All https://graph.microsoft.com/Sites.Selected offline_access');
+      expect(stored).toEqual(['Files.Read', 'Sites.Read.All', 'Sites.Selected', 'offline_access', 'openid', 'profile']);
+    });
+
+    it('scopes Microsoft returned that were never requested are not stored', async () => {
+      const stored = await connectWith('Files.Read Files.ReadWrite.All User.Read');
+      expect(stored).toEqual(['Files.Read', 'offline_access', 'openid', 'profile']); // protocol scopes kept so refresh still rotates
+    });
+
+    it('an absent or unusable scope string falls back to the requested set WITHOUT the folder scope', async () => {
+      for (const scope of [undefined, '', '   ', 42]) {
+        const stored = await connectWith(scope);
+        expect(stored).not.toContain('Sites.Selected');
+        expect(stored).toContain('Files.Read');
+      }
+    });
+  });
+
   it('AC-M365-103: valid state+code → exchanges, encrypts BOTH tokens, upserts an active connection, audits, redirects', async () => {
     const service = mockClient({
       m365_pkce_states: [{ data: pkceRow(), error: null }],

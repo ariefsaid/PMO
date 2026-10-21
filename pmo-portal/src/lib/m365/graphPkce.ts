@@ -16,12 +16,19 @@ const VERIFIER_BYTES = 64; // → 86 base64url chars after encoding, within the 
 const AUTHORIZE_BASE = 'https://login.microsoftonline.com';
 
 /**
- * Microsoft Graph data permissions shared by the personal authorize flow and the Microsoft admin-consent
- * URL (protocol scopes are added only to the authorize flow). `Sites.Selected` is the delegated scope behind
- * the single record-folder create (ADR-0089); an admin grants the app `write` on one site only, so it is NOT
- * a tenant-wide write, and no `Files.ReadWrite*` is ever requested.
+ * Microsoft Graph READ permissions shared by the personal authorize flow and the Microsoft admin-consent
+ * URL (protocol scopes are added only to the authorize flow). Unchanged by record folders: connecting and
+ * approving the app request exactly these, and no `Files.ReadWrite*` is ever requested.
  */
-export const M365_PHASE1_DATA_SCOPES = ['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'Sites.Selected'];
+export const M365_PHASE1_DATA_SCOPES = ['Files.Read', 'Files.Read.All', 'Sites.Read.All'];
+
+/**
+ * Incremental consent for record folders (ADR-0089): `Sites.Selected` is requested ONLY when a member
+ * reconnects to enable folder creation (`initiate_connect` with `folders: true`). It is the delegated scope
+ * behind the single folder create; an admin grants the app `write` on one site only, so it is NOT a
+ * tenant-wide write.
+ */
+export const M365_FOLDER_SCOPES = ['Sites.Selected'];
 // Valid Microsoft tenant identifiers: a GUID, the keywords common/organizations/consumers, or a
 // verified domain (e.g. contoso.onmicrosoft.com). All match [A-Za-z0-9._-]. Anything else could
 // smuggle path/query segments into the authorize URL (security-audit Minor 1, 2026-07-14).

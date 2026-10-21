@@ -85,11 +85,48 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
     expect(body.authorizeUrl).toMatch(/^https:\/\/login\.microsoftonline\.com\/test-tenant-id\/oauth2\/v2\.0\/authorize/);
     expect(body.authorizeUrl).toContain('response_type=code');
     expect(body.authorizeUrl).toContain('code_challenge_method=S256');
-    expect(body.authorizeUrl).toContain('scope=Files.Read+Files.Read.All+Sites.Read.All+Sites.Selected+offline_access+openid+profile');
+    expect(body.authorizeUrl).toContain('scope=Files.Read+Files.Read.All+Sites.Read.All+offline_access+openid+profile');
+    expect(body.authorizeUrl).not.toContain('Sites.Selected'); // default connect is read-only exactly as before folders
     // The single-use state row was written for this org+user.
     expect(service.writes).toContainEqual(
       expect.objectContaining({ table: 'm365_pkce_states', kind: 'insert' }),
     );
+  });
+
+  it('AC-M365DOC-070: folders:true adds ONLY Sites.Selected to the authorize URL and to the stored requested scopes', async () => {
+    const service = mockClient();
+    const result = await handleInitiateConnect(
+      deps({ service, caller: entitledCaller('Admin'), userId: 'user-1' }),
+      { action: 'initiate_connect', folders: true },
+    );
+    expect(result.status).toBe(200);
+    const url = new URL((result.body as { authorizeUrl: string }).authorizeUrl);
+    expect(url.searchParams.get('scope')).toBe('Files.Read Files.Read.All Sites.Read.All offline_access openid profile Sites.Selected');
+    const stored = service.writes.find((w) => w.table === 'm365_pkce_states')!.payload as { scopes: string[] };
+    expect(stored.scopes).toContain('Sites.Selected');
+  });
+
+  it('AC-M365DOC-070: default and explicit-absent folders request no Sites.Selected, and the stored requested scopes agree', async () => {
+    const service = mockClient();
+    const result = await handleInitiateConnect(
+      deps({ service, caller: entitledCaller('Admin'), userId: 'user-1' }),
+      { action: 'initiate_connect' },
+    );
+    expect(result.status).toBe(200);
+    const stored = service.writes.find((w) => w.table === 'm365_pkce_states')!.payload as { scopes: string[] };
+    expect(stored.scopes).not.toContain('Sites.Selected');
+  });
+
+  it.each([
+    ['extra key', { action: 'initiate_connect', scopes: ['Files.ReadWrite.All'] }],
+    ['folders false', { action: 'initiate_connect', folders: false }],
+    ['folders string', { action: 'initiate_connect', folders: 'true' }],
+    ['folders with extra key', { action: 'initiate_connect', folders: true, tenant: 'x' }],
+  ])('AC-M365DOC-070: a strict body refuses %s before any state is stored', async (_label, body) => {
+    const service = mockClient();
+    const result = await handleInitiateConnect(deps({ service, caller: entitledCaller('Admin'), userId: 'user-1' }), body);
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
+    expect(service.writes).toHaveLength(0);
   });
 
   it('AC-M365SEP-020: repeated initiation is rate-limited before another PKCE state is stored', async () => {

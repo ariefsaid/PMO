@@ -155,7 +155,7 @@ export async function handler(req: Request): Promise<Response> {
   try {
     switch (body.action) {
       case "initiate_connect":
-        result = await handleInitiateConnect(authed);
+        result = await handleInitiateConnect(authed, body);
         break;
       case "graph_proxy":
         result = await handleGraphProxy(

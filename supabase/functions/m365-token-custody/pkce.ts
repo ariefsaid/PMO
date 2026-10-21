@@ -6,6 +6,7 @@ export {
   buildAuthorizeUrl,
   buildAdminConsentUrl,
   M365_PHASE1_DATA_SCOPES,
+  M365_FOLDER_SCOPES,
   type AuthorizeUrlParams,
   type AdminConsentUrlParams,
 } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';

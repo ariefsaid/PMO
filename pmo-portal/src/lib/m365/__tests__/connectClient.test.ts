@@ -70,6 +70,14 @@ describe('AC-M365-014 — initiateM365Connect transport', () => {
     expect(result.state).toBe('state-abc');
   });
 
+  it('AC-M365DOC-070: { folders: true } sends the optional strict field; the default call sends none', async () => {
+    invoke.mockResolvedValue({ data: { authorizeUrl: 'https://login.microsoftonline.com/x', state: 's' }, error: null });
+    await initiateM365Connect({ folders: true });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: { action: 'initiate_connect', folders: true } });
+    await initiateM365Connect({ folders: false });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: { action: 'initiate_connect' } });
+  });
+
   it('AC-M365-014: a 200 with no data throws a generic AppError (no crash, no redirect)', async () => {
     invoke.mockResolvedValueOnce({ data: null, error: null });
     await expect(initiateM365Connect()).rejects.toMatchObject({ name: 'AppError' });

@@ -1,8 +1,9 @@
-// folderBudget.ts — the shared Graph deadline for one record-folder invocation (ADR-0089).
-// One 15-second budget spans search, parent resolution and create (never a fresh 15s per call); each
-// fetch is bounded by min(5s, remaining). No retries: a deadline is a failure, never an absence.
+// folderBudget.ts — the ONE wall-clock deadline for a record-folder invocation (ADR-0089).
+// It is created when the handler starts, so a single 12-second budget spans authorization reads, the
+// token refresh, discovery, parent resolution and create (never a fresh allowance per stage); each
+// outbound call is bounded by min(5s, remaining). No retries: a deadline is a failure, never an absence.
 
-export const FOLDER_GRAPH_BUDGET_MS = 15_000;
+export const FOLDER_GRAPH_BUDGET_MS = 12_000;
 export const FOLDER_GRAPH_FETCH_MS = 5_000;
 
 export interface GraphBudget {
@@ -22,7 +23,7 @@ export function createGraphBudget(
     remaining,
     slice: () => {
       const left = remaining();
-      return left <= 0 ? null : Math.min(FOLDER_GRAPH_FETCH_MS, left);
+      return left <= 0 ? null : Math.min(FOLDER_GRAPH_FETCH_MS, left); // mutation-witness:deadline-spent
     },
   };
 }

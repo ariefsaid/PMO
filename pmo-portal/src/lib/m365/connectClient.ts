@@ -123,11 +123,15 @@ async function throwClassified(error: unknown): Promise<never> {
  * POST `action: 'initiate_connect'` → `{ authorizeUrl, state }`. On success the FE performs a
  * TOP-LEVEL redirect to `authorizeUrl` (Microsoft's consent page must be user-visible — that lives
  * in the card, not here). Throws `AppError(message, M365ErrorCode)` on any failure.
+ *
+ * Wire contract: body is exactly `{ action: 'initiate_connect' }`, or `{ action: 'initiate_connect',
+ * folders: true }` to ALSO request the incremental `Sites.Selected` consent for record folders (a reconnect).
+ * `folders: false` is never sent. Response: `{ authorizeUrl, state }`.
  */
-export async function initiateM365Connect(): Promise<InitiateConnectResult> {
+export async function initiateM365Connect(options: { folders?: boolean } = {}): Promise<InitiateConnectResult> {
   const { data, error } = await invokeWithTimeout(
     supabase.functions.invoke<InitiateConnectResult>(FN_NAME, {
-      body: { action: 'initiate_connect' },
+      body: options.folders === true ? { action: 'initiate_connect', folders: true } : { action: 'initiate_connect' },
     }),
   );
   if (error) await throwClassified(error);
