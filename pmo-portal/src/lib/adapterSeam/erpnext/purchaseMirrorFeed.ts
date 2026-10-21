@@ -5,7 +5,7 @@
  * sums these rows into spent/committed/actuals (their cost already arrives through the GL mirror).
  *
  * Per doctype: read the `purchases::<doctype>` watermark, list submitted/cancelled docs `modified >=` it,
- * hand them to `upsert_erp_purchase_documents` (newer-or-equal `modified` wins; the RPC also re-stamps
+ * hand them to `upsert_erp_purchase_documents` (a strictly newer `modified` wins; the RPC also re-stamps
  * project attribution + the PMO-owned flag for the whole org), then advance the watermark. Drafts are never
  * listed: draft → submitted → cancelled each bump `modified`, so a document is re-read at every state it can
  * be shown in (#901's rule — never filter on a state the original can leave unseen — holds).
@@ -53,6 +53,9 @@ export interface PurchaseMirrorRow {
 export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
 
 const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
+// One malformed field must not fail the whole batch every tick: an unparseable value is stored as unknown.
+const money = (v: unknown): string | null => { const t = str(v); return t !== null && /^-?\d+(\.\d+)?$/.test(t) ? t : null; };
+const date = (v: unknown): string | null => { const t = str(v); return t !== null && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null; };
 
 export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, unknown>): PurchaseMirrorRow {
   const isPi = doctype === 'Purchase Invoice';
@@ -61,12 +64,12 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
     erp_name: String(d.name),
     supplier: str(d.supplier),
     supplier_name: str(d.supplier_name) ?? str(d.supplier),
-    doc_date: str(isPi ? d.posting_date : d.transaction_date),
-    due_date: str(isPi ? d.due_date : d.schedule_date),
+    doc_date: date(isPi ? d.posting_date : d.transaction_date),
+    due_date: date(isPi ? d.due_date : d.schedule_date),
     bill_no: isPi ? str(d.bill_no) : null,
     currency: str(d.currency),
-    grand_total: str(d.grand_total),
-    outstanding_amount: isPi ? str(d.outstanding_amount) : null,
+    grand_total: money(d.grand_total),
+    outstanding_amount: isPi ? money(d.outstanding_amount) : null,
     erp_status: str(d.status),
     erp_docstatus: Number(d.docstatus),
     is_return: Boolean(d.is_return),
@@ -94,27 +97,33 @@ async function fetchSince(client: ErpClientDeps, doctype: PurchaseDoctype, compa
   return { docs, caughtUp: false };
 }
 
-/** Feed both purchase doctypes for one org. Always calls the RPC (even with no rows) so a project remap
- *  re-stamps attribution on the next tick without a refetch (FR-EPR-003). */
+/** Feed both purchase doctypes for one org in ONE upsert call — the call also re-stamps attribution for the
+ *  whole org, so it runs once per tick, and runs even with no rows so a project remap applies (FR-EPR-003). */
 export async function feedPurchaseMirror(
   sc: PurchaseFeedServiceClient,
   opts: { client: ErpClientDeps; orgId: string; company: string },
 ): Promise<FeedPurchaseMirrorResult> {
   if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
-  let fed = 0;
+  const fetched: Array<{ doctype: PurchaseDoctype; prev: string | null; next: string | null }> = [];
+  // Offset paging can return a document twice if it is edited mid-read; keep the newest copy only.
+  const latest = new Map<string, PurchaseMirrorRow>();
   let caughtUp = true;
   for (const doctype of PURCHASE_DOCTYPES) {
-    const domain = purchaseWmDomain(doctype);
-    const prev = await readWm(sc, opts.orgId, domain);
+    const prev = await readWm(sc, opts.orgId, purchaseWmDomain(doctype));
     const result = await fetchSince(opts.client, doctype, opts.company, prev);
-    const rows = result.docs.map((d) => toPurchaseMirrorRow(doctype, d));
-    const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: rows });
-    if (error) throw new AppError(error.message, error.code);
-    fed += Number(data ?? 0);
     caughtUp &&= result.caughtUp;
     let next: string | null = null;
-    for (const r of rows) if (next === null || r.erp_modified > next) next = r.erp_modified;
-    await advanceWm(sc, opts.orgId, domain, next, prev);
+    for (const d of result.docs) {
+      const row = toPurchaseMirrorRow(doctype, d);
+      const key = `${doctype}\u0000${row.erp_name}`;
+      const seen = latest.get(key);
+      if (!seen || row.erp_modified > seen.erp_modified) latest.set(key, row);
+      if (next === null || row.erp_modified > next) next = row.erp_modified;
+    }
+    fetched.push({ doctype, prev, next });
   }
-  return { fed, caughtUp };
+  const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()] });
+  if (error) throw new AppError(error.message, error.code);
+  for (const f of fetched) await advanceWm(sc, opts.orgId, purchaseWmDomain(f.doctype), f.next, f.prev);
+  return { fed: Number(data ?? 0), caughtUp };
 }

@@ -60,7 +60,7 @@ export const ErpPurchasesTable: React.FC<ErpPurchasesTableProps> = ({ rows, toda
     { key: 'billNo', header: t('erpPurchases.column.billNo', 'Supplier invoice no.'), kind: 'meta', cell: (r) => r.billNo ?? '—', exportValue: (r) => r.billNo ?? '' },
     {
       key: 'amount', header: t('erpPurchases.column.amount', 'Amount'), kind: 'money', align: 'num',
-      cell: (r) => (r.grandTotal === null ? '—' : formatCurrency(r.grandTotal, r.currency ?? '')),
+      cell: (r) => (r.grandTotal === null || !r.currency ? '—' : formatCurrency(r.grandTotal, r.currency)),
       exportValue: (r) => r.grandTotal ?? '',
     },
     {

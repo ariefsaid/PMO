@@ -1872,7 +1872,9 @@ export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: O
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
     const r = await feedPurchaseMirror(serviceClient as unknown as PurchaseFeedServiceClient, { client, orgId: org.orgId, company: org.company });
-    return { fed: r.fed, ...(r.caughtUp ? {} : { error: 'purchase feed is incomplete; resumes next tick' }) };
+    // A bounded backfill is progress, not a failure — warn like the ledger feed does.
+    if (!r.caughtUp) console.warn(`[erpnext-sweep] org ${org.orgId}: purchase feed backfill continues next tick`);
+    return { fed: r.fed };
   } catch (err) {
     return { fed: 0, error: errorMessage(err) };
   }

@@ -46,7 +46,8 @@ create policy erp_purchase_documents_select on public.erp_purchase_documents
 revoke all on public.erp_purchase_documents from anon, authenticated;
 grant select on public.erp_purchase_documents to authenticated;
 
--- Upsert one batch (newer-or-equal `modified` wins, FR-EPR-002), then re-stamp attribution and the
+-- Upsert one batch (a strictly newer `modified` wins, FR-EPR-002; the inclusive cursor's re-delivered
+-- boundary row is a no-op), then re-stamp attribution and the
 -- PMO-owned flag for the WHOLE org, so a project remap or a late external_refs row applies every tick.
 create function public.upsert_erp_purchase_documents(p_org_id uuid, p_rows jsonb)
 returns integer
@@ -69,7 +70,7 @@ begin
     grand_total = excluded.grand_total, outstanding_amount = excluded.outstanding_amount,
     erp_status = excluded.erp_status, erp_docstatus = excluded.erp_docstatus, is_return = excluded.is_return,
     erp_project = excluded.erp_project, erp_modified = excluded.erp_modified, updated_at = now()
-  where excluded.erp_modified >= d.erp_modified;
+  where excluded.erp_modified > d.erp_modified;
   get diagnostics v_written = row_count;
 
   -- ERP project name → PMO project, from the activated binding. A name mapped twice has no unique target

@@ -35,9 +35,10 @@ export function projectAging(rows: ErpPurchaseRow[], today: string): { aging: Pr
   const byCurrency = new Map<string, ProjectAging>();
   let sharedOpen = 0;
   for (const r of rows) {
-    if (r.doctype !== 'Purchase Invoice' || r.isReturn || !r.outstanding || r.outstanding <= 0) continue;
+    // ponytail: an invoice with no currency cannot be stated as money, so it stays out of the buckets.
+    if (r.doctype !== 'Purchase Invoice' || r.isReturn || !r.currency || !r.outstanding || r.outstanding <= 0) continue;
     if (r.projectIds.length > 1) { sharedOpen += 1; continue; }
-    const currency = r.currency ?? '';
+    const currency = r.currency;
     const entry = byCurrency.get(currency)
       ?? { currency, total: 0, buckets: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 } };
     entry.buckets[agingBucket(r.dueDate, today)] += r.outstanding;

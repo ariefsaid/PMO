@@ -1,7 +1,7 @@
 -- erp_purchase_documents.test.sql — 0335 (docs/specs/erp-purchases-readonly.spec.md).
 -- Owns AC-EPR-002..006.
 begin;
-select plan(17);
+select plan(19);
 
 insert into organizations (id, name, default_currency) values
   ('03350000-0000-0000-0000-00000000000a','EPR Org A','IDR'),
@@ -76,7 +76,12 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"03350000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select count(*) from erp_purchase_documents), 4::bigint, 'AC-EPR-005 an org A Project Manager reads org A rows');
 select throws_ok($$ update erp_purchase_documents set grand_total = 0 $$, '42501', null,
-  'AC-EPR-005 a member cannot write the mirror');
+  'AC-EPR-005 a member cannot update the mirror');
+select throws_ok($$ insert into erp_purchase_documents (erp_doctype, erp_name, erp_docstatus, erp_modified)
+                    values ('Purchase Invoice','FORGED',1,'2026-01-01') $$, '42501', null,
+  'AC-EPR-005 a member cannot insert into the mirror');
+select throws_ok($$ delete from erp_purchase_documents $$, '42501', null,
+  'AC-EPR-005 a member cannot delete from the mirror');
 select throws_ok($$ select upsert_erp_purchase_documents('03350000-0000-0000-0000-00000000000a','[]') $$, '42501', null,
   'AC-EPR-005 a member cannot execute the upsert');
 reset role;
@@ -92,8 +97,11 @@ reset role;
 
 -- AC-EPR-006 — never part of actuals: unchanged, and nothing else reads the table.
 select ok(
-  not exists (select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1')
-              except select * from actuals_before)
+  not exists ((select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1')
+               except select * from actuals_before)
+              union all
+              (select * from actuals_before
+               except select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1')))
   and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.prosrc ilike '%erp_purchase_documents%'
                      and p.proname <> 'upsert_erp_purchase_documents')

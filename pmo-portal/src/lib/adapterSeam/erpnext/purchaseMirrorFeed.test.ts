@@ -28,10 +28,11 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
     expect(result).toEqual({ fed: 2, caughtUp: true });
+    expect(h.rpc).toHaveBeenCalledTimes(1);
     expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [expect.objectContaining({
       erp_doctype: 'Purchase Order', erp_name: 'PUR-ORD-1', supplier_name: 'Acme', doc_date: '2026-01-05', due_date: '2026-01-20',
-      grand_total: '900000', outstanding_amount: null, bill_no: null, erp_status: 'To Bill', erp_project: 'ERP-A', erp_docstatus: 1 })] });
-    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [expect.objectContaining({
+      grand_total: '900000', outstanding_amount: null, bill_no: null, erp_status: 'To Bill', erp_project: 'ERP-A', erp_docstatus: 1 }),
+    expect.objectContaining({
       erp_doctype: 'Purchase Invoice', erp_name: 'ACC-PINV-1', doc_date: '2026-02-01', due_date: '2026-03-01', bill_no: 'INV-77',
       grand_total: '500000', outstanding_amount: '500000', erp_status: 'Unpaid', erp_project: null, is_return: false })] });
     const wm = Object.fromEntries(h.fake.rowsOf('external_sync_watermarks').map((r) => [r.domain, r.watermark_cursor]));
@@ -45,7 +46,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified",">=","2026-02-01 10:00:00"]');
-    expect(h.rpc).toHaveBeenCalledTimes(2);
+    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
     expect(h.fake.rowsOf('external_sync_watermarks')[0].watermark_cursor).toBe('2026-02-01 10:00:00');
   });
 
@@ -61,6 +62,21 @@ describe('erpnext/purchaseMirrorFeed', () => {
     h.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('boom');
     expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
+  });
+
+  it('keeps the newest copy of a document delivered twice, nulls unparseable fields, and takes the max modified as the cursor', async () => {
+    const h = harness({ 'Purchase Invoice': [
+      { ...PI, modified: '2026-02-03 00:00:00', status: 'Paid', outstanding_amount: 0 },
+      { ...PI, modified: '2026-02-01 10:00:00' },
+      { ...PI, name: 'ACC-PINV-2', grand_total: 'n/a', due_date: '03/01/2026', modified: '2026-02-02 00:00:00' },
+    ] });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    const rows = h.rpc.mock.calls[0][1].p_rows as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')).toMatchObject({ erp_status: 'Paid', outstanding_amount: '0' });
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')).toMatchObject({ grand_total: null, due_date: null });
+    const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === purchaseWmDomain('Purchase Invoice'));
+    expect(wm?.watermark_cursor).toBe('2026-02-03 00:00:00');
   });
 
   it('refuses to run without a company', async () => {
