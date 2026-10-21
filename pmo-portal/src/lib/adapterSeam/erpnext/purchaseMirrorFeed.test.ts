@@ -22,6 +22,7 @@ function harness(docs: Record<string, unknown[]>) {
       if (field === 'modified' && op === '=') return doc.modified === value;
       if (field === 'modified' && op === '>') return String(doc.modified) > String(value);
       if (field === 'name' && op === '>') return String(doc.name) > String(value);
+      if (field === 'name' && op === '>=') return String(doc.name) >= String(value);
       return true;
     })).sort((a, b) => String(a.modified).localeCompare(String(b.modified)) || String(a.name).localeCompare(String(b.name)));
     const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
@@ -48,30 +49,30 @@ describe('erpnext/purchaseMirrorFeed', () => {
       grand_total: '500000', outstanding_amount: '500000', erp_status: 'Unpaid', erp_project: null, is_return: false })]);
     const wm = Object.fromEntries(h.fake.rowsOf('external_sync_watermarks').map((r) => [r.domain, r.watermark_cursor]));
     expect(wm).toEqual({
-      'purchases::v2::Purchase Order': JSON.stringify({ version: 2, modified: PO.modified }),
-      'purchases::v2::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified }),
+      'purchases::v2::Purchase Order': JSON.stringify({ version: 2, modified: PO.modified, name: PO.name }),
+      'purchases::v2::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified, name: PI.name }),
     });
     // Company-scoped, drafts never listed.
     expect(h.urls.every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
   });
 
-  it('AC-EPR-001 resumes from the stored watermark without issuing a no-op RPC', async () => {
+  it('AC-EPR-001 resumes inclusively from the stored legacy watermark and re-stamps on idle', async () => {
     const h = harness({});
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified","=","2026-02-01 10:00:00"]');
-    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
-      domain: 'purchases::v2::Purchase Invoice',
-      watermark_cursor: JSON.stringify({ version: 2, modified: '2026-02-01 10:00:00' }),
+      domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00',
     }));
   });
 
-  it('does nothing on an idle tick with canonical cursors', async () => {
-    const h = harness({ 'Purchase Order': [PO], 'Purchase Invoice': [PI] });
-    for (const [domain, modified] of [[PURCHASE_CURSOR_DOMAINS[0], PO.modified], [PURCHASE_CURSOR_DOMAINS[1], PI.modified]]) {
+  it('re-stamps idle named cursors without writing cursor state', async () => {
+    const h = harness({});
+    for (const [domain, modified, name] of [[PURCHASE_CURSOR_DOMAINS[0], PO.modified, PO.name], [PURCHASE_CURSOR_DOMAINS[1], PI.modified, PI.name]]) {
       h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain,
-        watermark_cursor: JSON.stringify({ version: 2, modified }) });
+        watermark_cursor: JSON.stringify({ version: 2, modified, name }) });
     }
     let cursorWrites = 0;
     const from = (table: string) => {
@@ -88,7 +89,67 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     await feedPurchaseMirror(sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
-    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length === 0)).toBe(true);
+    expect(cursorWrites).toBe(0);
+  });
+
+  it('re-stamps an idle tick exactly once with empty rows', async () => {
+    const h = harness({});
+    const cursor = JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-1' });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice', watermark_cursor: cursor });
+
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
+  });
+
+  it('mirrors a same-timestamp late document after the completed page cursor', async () => {
+    const original = { ...PI, name: 'ACC-PINV-1', modified: PI.modified };
+    const late = { ...PI, name: 'ACC-PINV-2', modified: PI.modified };
+    const docs = { 'Purchase Invoice': [original] };
+    const h = harness(docs);
+
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    docs['Purchase Invoice'].push(late);
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+    expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: original.name }));
+    expect(h.rpc.mock.calls[1][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: late.name }));
+    expect(h.urls.some((url) => url.includes('["name",">=","ACC-PINV-1"]'))).toBe(true);
+  });
+
+  it('resumes a name-less v2 cursor inclusively at its timestamp', async () => {
+    const boundary = { ...PI, name: 'ACC-PINV-LATE', modified: PI.modified };
+    const h = harness({ 'Purchase Invoice': [boundary] });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice',
+      watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified }) });
+
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+    expect(h.urls.some((url) => url.includes('["modified","=","2026-02-01 10:00:00"]'))).toBe(true);
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toContainEqual(expect.objectContaining({ erp_name: boundary.name }));
+  });
+
+  it('does not write a cursor on an idle tick with a named boundary', async () => {
+    const h = harness({});
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice',
+      watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-1' }) });
+    let cursorWrites = 0;
+    const from = (table: string) => {
+      const builder = h.fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
+      return new Proxy(builder, { get(target, key, receiver) {
+        if (key === 'upsert' || key === 'update') return (...args: unknown[]) => {
+          cursorWrites += 1;
+          return Reflect.get(target, key, receiver).apply(target, args);
+        };
+        return Reflect.get(target, key, receiver);
+      } });
+    };
+
+    await feedPurchaseMirror({ from, rpc: h.rpc } as never, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
     expect(cursorWrites).toBe(0);
   });
 
@@ -118,7 +179,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')).toMatchObject({ erp_status: 'Paid', outstanding_amount: '0' });
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')).toMatchObject({ grand_total: null, due_date: null });
     const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === 'purchases::v2::Purchase Invoice');
-    expect(wm?.watermark_cursor).toBe(JSON.stringify({ version: 2, modified: '2026-02-03 00:00:00' }));
+    expect(wm?.watermark_cursor).toBe(JSON.stringify({ version: 2, modified: '2026-02-03 00:00:00', name: 'ACC-PINV-1' }));
   });
 
   it('keeps valid documents flowing when ERP returns unsupported status or overflowing money values', async () => {
@@ -141,7 +202,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-16-DIGITS', grand_total: null }));
     expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
-      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified }),
+      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-VALID' }),
     }));
   });
 
@@ -156,10 +217,10 @@ describe('erpnext/purchaseMirrorFeed', () => {
       events.push('read');
       const decoded = decodeURIComponent(url);
       const equalPhase = decoded.includes('["modified","=","2026-04-01 00:00:00"]');
-      const afterName = decoded.match(/\["name",">","([^"]+)"\]/)?.[1];
+      const afterName = decoded.match(/\["name",">=","([^"]+)"\]/)?.[1];
       const laterPhase = decoded.includes('["modified",">","2026-04-01 00:00:00"]');
       const doctype = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
-      const selected = doctype !== 'Purchase Order' ? [] : equalPhase ? names.filter((name) => !afterName || name > afterName)
+      const selected = doctype !== 'Purchase Order' ? [] : equalPhase ? names.filter((name) => !afterName || name >= afterName)
         : laterPhase ? [] : names;
       const start = Number(new URL(url).searchParams.get('limit_start') ?? '0');
       const rows = selected.slice(start, start + 500).map((name) => ({ ...PO, name, modified: '2026-04-01 00:00:00' }));
@@ -175,11 +236,14 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const second = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(second.caughtUp).toBe(false);
     const secondCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
-    expect(secondCount - firstCount).toBe(5500);
-    const third = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
-    expect(third.caughtUp).toBe(true);
-    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(12503);
-    expect(12503 - secondCount).toBe(1503);
+    expect(secondCount).toBeGreaterThan(firstCount);
+    let final = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
+    for (let tick = 0; tick < 5 && !final.caughtUp; tick += 1) {
+      final = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
+    }
+    expect(final.caughtUp).toBe(true);
+    const mirroredNames = (rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ erp_name: string }>).map((row) => row.erp_name);
+    expect(new Set(mirroredNames)).toHaveLength(12503);
     expect(reads).toBeGreaterThan(2);
     expect(events.slice(0, 3)).toEqual(['read', 'write', 'read']);
     const callUrls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => decodeURIComponent(String(call[0])));
@@ -230,7 +294,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
-    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(1);
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
     expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: PI.name, erp_status: 'Corrected' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: expect.stringContaining('v2'), watermark_cursor: expect.stringContaining('2026-02-01 10:00:00'),
@@ -355,7 +419,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
       expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
       await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
       expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
-      expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({ watermark_cursor: JSON.stringify({ version: 2, modified: PO.modified }) }));
+      expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({ watermark_cursor: JSON.stringify({ version: 2, modified: PO.modified, name: PO.name }) }));
     } finally {
       vi.useRealTimers();
     }

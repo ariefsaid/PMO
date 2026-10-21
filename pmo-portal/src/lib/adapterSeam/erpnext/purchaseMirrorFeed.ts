@@ -106,7 +106,7 @@ async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company
   if (cursor) {
     if (equalBoundary) {
       filters.push(['modified', '=', cursor.modified]);
-      if (cursor.name) filters.push(['name', '>', cursor.name]);
+      if (cursor.name) filters.push(['name', '>=', cursor.name]);
     } else filters.push(['modified', '>', cursor.modified]);
   }
   const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
@@ -163,16 +163,16 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   const transport = { ...opts.client, maxRetries: 0, timeoutMs: REQUEST_TIMEOUT_MS };
   let reads = 0;
   let fed = 0;
+  let wroteRows = false;
   const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
     const legacy = stored === null ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
     const cursor = parseCursor(stored ?? legacy);
-    // A canonical name-less v2 cursor is already past its equality boundary. Start strictly after it
-    // on idle ticks; named cursors are in the middle of a same-timestamp page and must resume inclusively.
-    const equalityDone = Boolean(stored && stored.startsWith('{') && cursor && !cursor.name);
-    pending.push({ doctype, domain, stored, cursor, equalityDone });
+    // Every cursor resumes inclusively: name-bearing cursors replay their boundary row, while legacy
+    // and name-less cursors replay the whole timestamp boundary before advancing strictly past it.
+    pending.push({ doctype, domain, stored, cursor, equalityDone: false });
   }
 
   // Alternate durable pages so both document types progress within the shared budget.
@@ -187,9 +187,6 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       if (!equalityDone && cursor) {
         state.equalityDone = true;
         pending.push(state);
-      } else if (cursor) {
-        const canonical = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
-        if (canonical !== state.stored) await saveCursor(sc, opts.orgId, domain, state.stored, canonical, deadline);
       }
       continue;
     }
@@ -200,14 +197,15 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       const existing = pageLatest.get(row.erp_name);
       if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
     }
-    const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
-    if (error) throw new AppError(error.message, error.code);
-    fed += Number(data ?? 0);
+    if (pageLatest.size > 0) {
+      const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
+      if (error) throw new AppError(error.message, error.code);
+      fed += Number(data ?? 0);
+      wroteRows = true;
+    }
     const last = rows[rows.length - 1];
     const completed = rows.length < PAGE_SIZE && (equalityDone || Boolean(cursor?.name));
-    state.cursor = completed
-      ? { version: CURSOR_VERSION, modified: String(last.modified) }
-      : { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
+    state.cursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
     const next = encodeCursor(state.cursor);
     await saveCursor(sc, opts.orgId, domain, state.stored, next, deadline);
     state.stored = next;
@@ -215,6 +213,10 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       state.equalityDone = rows.length < PAGE_SIZE;
       pending.push(state);
     }
+  }
+  if (!wroteRows) {
+    const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
+    if (error) throw new AppError(error.message, error.code);
   }
   return { fed, caughtUp: pending.length === 0 };
 }
