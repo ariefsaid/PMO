@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import i18n from 'i18next';
+import idCatalogue from '../../public/locales/id/common.json';
 
 const h = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
@@ -16,6 +18,7 @@ const h = vi.hoisted(() => ({
   },
   picker: { props: null as null | { open: boolean; context: unknown; onClose: () => void; onSelect: (r: unknown) => Promise<void> } },
   refresh: vi.fn(),
+  folderAction: { props: null as null | { onChooseExisting?: () => void } },
 }));
 
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', async (orig) => ({
@@ -38,7 +41,9 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
   },
 }));
 // The case register mounts RecordFolderAction (own coverage: RecordFolderAction.test / useStartRecordFolder tests).
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/RecordFolderAction', () => ({
+  RecordFolderAction: (props: { onChooseExisting?: () => void }) => { h.folderAction.props = props; return null; },
+}));
 vi.mock('@/src/lib/m365/graphClient', () => ({ refreshMicrosoftReferences: h.refresh }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }) }));
 
@@ -86,7 +91,7 @@ describe('AC-M365DOC-058/059 case references on the Documents tab', () => {
   it('shows file and folder references and a legacy plain URL for a project-less case at any stage', () => {
     h.rows = [msRow(), msRow({ id: 'ms-2', ms_item_name: 'Synthetic file', ms_item_kind: 'file', ms_item_id: 'item-3' }), legacyRow()];
     renderIt();
-    expect(screen.getByRole('heading', { name: 'Case references' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'SharePoint links for this case' })).toBeInTheDocument();
     expect(screen.getByText('Synthetic folder')).toBeInTheDocument();
     expect(screen.getByText('Synthetic file')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
@@ -103,9 +108,9 @@ describe('AC-M365DOC-058/059 case references on the Documents tab', () => {
     expect(screen.getAllByText('This link cannot be opened.').length).toBeGreaterThan(0);
   });
 
-  it('shows the empty and error states', () => {
+  it('shows the empty state', () => {
     renderIt();
-    expect(screen.getByText('No references yet')).toBeInTheDocument();
+    expect(screen.getByText('No links yet')).toBeInTheDocument();
   });
 
   it('exposes no money or stage command', () => {
@@ -123,7 +128,6 @@ describe('AC-M365DOC-060 permissions (real-role procDoc matrix)', () => {
     expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Unlink/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Clear link/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Link .* from Microsoft 365/ })).toBeNull();
     expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
   });
 
@@ -144,32 +148,20 @@ describe('AC-M365DOC-060/062 create flow, suggestion and failure retention', () 
     expect(h.picker.props?.context).toEqual({ kind: 'procurement', request_number: 'PR-2026-001', created_at: '2026-10-01T00:00:00Z' });
   });
 
-  it('commits exactly one create with optional metadata after the picker selection', async () => {
+  it('commits exactly one create straight after the picker selection, with no second details step', async () => {
     renderIt();
     fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     await act(async () => { await h.picker.props!.onSelect(picked); });
-    act(() => h.picker.props!.onClose());
-    const dialog = await screen.findByRole('dialog', { name: /Add case reference/ });
-    fireEvent.change(within(dialog).getByLabelText(/Reference number/), { target: { value: ' REF-77 ' } });
-    fireEvent.change(within(dialog).getByLabelText(/Date/), { target: { value: '2026-10-14' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Link reference' }));
-    await waitFor(() => expect(h.hook.create.mutateAsync).toHaveBeenCalledTimes(1));
-    expect(h.hook.create.mutateAsync).toHaveBeenCalledWith({ reference: picked, metadata: { referenceNumber: 'REF-77', date: '2026-10-14' } });
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Add case reference/ })).toBeNull());
+    expect(h.hook.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.hook.create.mutateAsync).toHaveBeenCalledWith({ reference: picked });
+    expect(screen.queryByRole('dialog', { name: /Add case reference/ })).toBeNull();
   });
 
-  it('a failed create keeps the dialog, the selection and the typed values and shows an alert', async () => {
+  it('a failed create rejects out of onSelect so the picker keeps the selection and reports it', async () => {
     h.hook.create.mutateAsync.mockRejectedValue(Object.assign(new Error('collision'), { code: '23514' }));
     renderIt();
     fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
-    await act(async () => { await h.picker.props!.onSelect(picked); });
-    act(() => h.picker.props!.onClose());
-    const dialog = await screen.findByRole('dialog', { name: /Add case reference/ });
-    fireEvent.change(within(dialog).getByLabelText(/Reference number/), { target: { value: 'REF-1' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Link reference' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not add this reference.');
-    expect(screen.getByRole('dialog', { name: /Add case reference/ })).toBeInTheDocument();
-    expect(within(screen.getByRole('dialog', { name: /Add case reference/ })).getByLabelText(/Reference number/)).toHaveValue('REF-1');
+    await expect(act(async () => { await h.picker.props!.onSelect(picked); })).rejects.toThrow('collision');
   });
 
   it('closing the picker without a selection creates nothing', () => {
@@ -180,15 +172,6 @@ describe('AC-M365DOC-060/062 create flow, suggestion and failure retention', () 
     expect(h.hook.create.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('an empty legacy row links through linkMicrosoftDocument, never create, never overwriting a URL', async () => {
-    h.rows = [emptyRow(), legacyRow()];
-    renderIt();
-    expect(screen.queryByRole('button', { name: /^Link Quote from Microsoft 365/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Link Spec from Microsoft 365' }));
-    await h.picker.props!.onSelect(picked);
-    expect(h.hook.link.mutateAsync).toHaveBeenCalledWith({ id: 'empty-1', reference: picked });
-    expect(h.hook.create.mutateAsync).not.toHaveBeenCalled();
-  });
 });
 
 describe('AC-M365DOC-062/063 unlink and legacy clear retain metadata', () => {
@@ -274,5 +257,79 @@ describe('AC-M365DOC-059/062 matching browse refresh', () => {
     expect(h.refresh).toHaveBeenCalledTimes(1);
     expect(h.hook.unlink.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText('Synthetic folder')).toBeInTheDocument();
+  });
+});
+
+describe('F8: the case register is a plain list of SharePoint links, not a second ledger', () => {
+  afterEach(async () => { await i18n.changeLanguage('en'); });
+
+  it('F8: no table, no type/status/date columns, no ledger row without a link; each link shows name, when linked, open and unlink', () => {
+    h.rows = [msRow({ ms_item_name: 'Spec folder' }), legacyRow(), emptyRow({ type: 'Capture RFQ', reference_number: 'RFQ-2026-004', status: 'Issued' })];
+    renderIt();
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByRole('columnheader')).toBeNull();
+    const items = within(screen.getByRole('list', { name: 'SharePoint links for this case' })).getAllByRole('listitem');
+    expect(items).toHaveLength(2); // the link-less ledger record is not listed here
+    expect(screen.queryByText('RFQ-2026-004')).toBeNull();
+    expect(screen.queryByText('Issued')).toBeNull();
+    expect(screen.queryByText('No file linked')).toBeNull();
+    expect(within(items[0]).getByText('Spec folder')).toBeInTheDocument();
+    expect(within(items[0]).getByText('Linked Oct 2, 2026')).toBeInTheDocument();
+    expect(within(items[0]).getByRole('button', { name: /Open folder in/ })).toBeInTheDocument();
+    expect(within(items[0]).getByRole('button', { name: 'Unlink Spec folder' })).toBeInTheDocument();
+  });
+
+  it('F8: legacy plain-link rows keep working (open + clear) inside the same list', () => {
+    h.rows = [legacyRow()];
+    renderIt();
+    const item = within(screen.getByRole('list', { name: 'SharePoint links for this case' })).getByRole('listitem');
+    expect(within(item).getByRole('link', { name: 'Open linked document' })).toHaveAttribute('href', 'https://legacy.invalid/q.pdf');
+    expect(within(item).getByText('Plain link, not from Microsoft 365')).toBeInTheDocument();
+    expect(within(item).getByRole('button', { name: 'Clear link on Quote' })).toBeInTheDocument();
+  });
+
+  it('F8: exactly one link button, whatever the rows', () => {
+    h.rows = [msRow(), legacyRow(), emptyRow()];
+    renderIt();
+    expect(screen.getAllByRole('button', { name: /from Microsoft 365/ })).toHaveLength(1);
+  });
+
+  it('F8: a link-less record cannot make the empty state disappear', () => {
+    h.rows = [emptyRow()];
+    renderIt();
+    expect(screen.getByText('No links yet')).toBeInTheDocument();
+  });
+
+  it('F3: in Indonesian the heading, empty state and link action are translated', async () => {
+    i18n.addResourceBundle('id', 'common', idCatalogue, true, true);
+    await i18n.changeLanguage('id');
+    renderIt();
+    expect(screen.getByRole('heading', { name: 'Tautan SharePoint untuk kasus ini' })).toBeInTheDocument();
+    expect(screen.getByText('Belum ada tautan')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
+  });
+});
+
+describe('F5 (case side): "Choose existing folder" opens the picker', () => {
+  it('F5: RecordFolderAction receives onChooseExisting, which opens the picker with the case suggestion context', () => {
+    renderIt();
+    expect(h.folderAction.props?.onChooseExisting).toBeTypeOf('function');
+    expect(h.picker.props?.open).toBe(false);
+    act(() => h.folderAction.props!.onChooseExisting!());
+    expect(h.picker.props?.open).toBe(true);
+    expect(h.picker.props?.context).toEqual({ kind: 'procurement', request_number: 'PR-2026-001', created_at: '2026-10-01T00:00:00Z' });
+  });
+
+  it('F5: a folder picked that way is linked to the case like any other link', async () => {
+    renderIt();
+    act(() => h.folderAction.props!.onChooseExisting!());
+    await act(async () => { await h.picker.props!.onSelect({ ...picked, item_kind: 'folder' }); });
+    expect(h.hook.create.mutateAsync).toHaveBeenCalledWith({ reference: { ...picked, item_kind: 'folder' } });
+  });
+
+  it('F5: a reader without link permission gets no choose-existing handler', () => {
+    h.perms.create = false;
+    renderIt();
+    expect(h.folderAction.props?.onChooseExisting).toBeUndefined();
   });
 });

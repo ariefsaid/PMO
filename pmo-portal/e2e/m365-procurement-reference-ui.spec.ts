@@ -6,7 +6,7 @@ import { login } from './helpers';
  * #1020 AC-M365DOC-058/059 — a Project Manager links a SharePoint folder to an OVERHEAD
  * procurement case (no PMO project), and the reference survives reload and stage/tab navigation.
  *
- * Goal oracle: the linked folder is listed under "Case references" on the Documents tab and its
+ * Goal oracle: the linked folder is listed under "SharePoint links for this case" on the Documents tab and its
  * "Open folder in SharePoint" action is enabled — after a full reload and after leaving and
  * re-entering the tab. Microsoft is mocked at the edge-function boundary (connection status +
  * read-only Graph GETs); nothing is written to Microsoft.
@@ -65,20 +65,16 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 15_000 });
 
-  // Documents tab → Case references → pick the folder.
+  // Documents tab → SharePoint links → pick the folder.
   await page.getByRole('tab', { name: /Documents/ }).click();
-  const section = page.getByRole('region', { name: 'Case references' });
-  await expect(section.getByText('No references yet')).toBeVisible({ timeout: 15_000 });
+  const section = page.getByRole('region', { name: 'SharePoint links for this case' });
+  await expect(section.getByText('No links yet')).toBeVisible({ timeout: 15_000 });
   await section.getByRole('button', { name: 'Link from Microsoft 365' }).click();
 
   const picker = page.getByRole('dialog', { name: /Choose a Microsoft document/ });
   await picker.getByRole('button', { name: 'My OneDrive' }).click();
   await picker.getByRole('button', { name: `Select folder ${FOLDER_NAME}` }).click();
   await picker.getByRole('button', { name: 'Link from Microsoft 365' }).click();
-
-  // Optional details step, then the final commit.
-  const details = page.getByRole('dialog', { name: /Add case reference/ });
-  await details.getByRole('button', { name: 'Link reference' }).click();
 
   const open = section.getByRole('button', { name: /Open folder in/ });
   await expect(section.getByText(FOLDER_NAME)).toBeVisible({ timeout: 15_000 });
@@ -87,9 +83,9 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   // Reload, leave the tab and come back: the reference is still there.
   await page.reload();
   await page.getByRole('tab', { name: /Documents/ }).click();
-  await expect(page.getByRole('region', { name: 'Case references' }).getByText(FOLDER_NAME)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByText(FOLDER_NAME)).toBeVisible({ timeout: 15_000 });
   await page.getByRole('tab', { name: 'Overview' }).click();
   await page.getByRole('tab', { name: /Documents/ }).click();
-  await expect(page.getByRole('region', { name: 'Case references' }).getByText(FOLDER_NAME)).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Case references' }).getByRole('button', { name: /Open folder in/ }).first()).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByText(FOLDER_NAME)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByRole('button', { name: /Open folder in/ }).first()).toBeEnabled();
 });
