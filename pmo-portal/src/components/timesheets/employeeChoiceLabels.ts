@@ -42,11 +42,11 @@ export function employeeChoiceLabels(
   });
   if (!options.omitAmbiguous) return labels.map(({ value, label, email }) => ({ value, label, email }));
 
+  // Drop choices that cannot be told apart first, then de-duplicate labels among the rest only.
+  const distinguishable = labels.filter(({ duplicateName, hasEmail }) => !(duplicateName && !hasEmail));
   const labelCounts = new Map<string, number>();
-  for (const { label } of labels) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
-  return labels
-    .filter(({ label, duplicateName, hasEmail }) =>
-      !(duplicateName && !hasEmail) && labelCounts.get(label) === 1,
-    )
+  for (const { label } of distinguishable) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  return distinguishable
+    .filter(({ label }) => labelCounts.get(label) === 1)
     .map(({ value, label, email }) => ({ value, label, email }));
 }
