@@ -56,6 +56,8 @@ export interface World {
   accessExpired: boolean;
   /** Microsoft token endpoint (refresh). */
   refresh: (call: FetchCall) => Response | Promise<Response>;
+  /** Synthetic fixture value captured for exact refresh-generation assertions. */
+  seededRefreshCiphertext?: string;
 }
 
 export const projectRow = (over: Record<string, unknown> = {}) => ({
@@ -99,6 +101,7 @@ async function connectionRow(world: World) {
   const hex = Array.from(serializeEnvelope(encrypted.iv, encrypted.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
   const refresh = await encryptToken("synthetic-refresh-token", KEK_BYTES);
   const refreshHex = Array.from(serializeEnvelope(refresh.iv, refresh.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
+  world.seededRefreshCiphertext = `\\x${refreshHex}`;
   return {
     id: "synthetic-connection", org_id: ORG, user_id: USER, entra_tenant_id: "synthetic-tenant",
     entra_user_object_id: null, scopes: world.scopes, refresh_token_ciphertext: `\\x${refreshHex}`,
@@ -172,6 +175,7 @@ const ENV_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_K
 let authority: Awaited<ReturnType<typeof createJwtAuthority>> | null = null;
 
 export interface Scenario extends FetchMockContext {
+  world: World;
   /** POST the body to the shipped handler as the synthetic user. */
   call(body: unknown): Promise<Response>;
   token: string;
@@ -197,6 +201,7 @@ export function makeScenarioRunner(
       return await withFetchMock(routesFor(world, connection), (ctx) =>
         fn({
           ...ctx,
+          world,
           token,
           deps: {
             env: {

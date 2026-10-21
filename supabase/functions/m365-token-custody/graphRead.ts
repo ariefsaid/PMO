@@ -646,8 +646,14 @@ async function sendGraphRequest(
 function metadataOnly(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(metadataOnly);
   if (!value || typeof value !== "object") return value;
+  const metadataFields = new Set([
+    "@odata.nextLink", "id", "name", "webUrl", "value", "parentReference",
+    "file", "folder", "cTag", "eTag", "sharepointIds", "lastModifiedDateTime",
+    "driveType", "description", "driveId", "path", "siteId", "siteUrl",
+    "listId", "listItemId", "mimeType", "size",
+  ]);
   return Object.fromEntries(Object.entries(value).filter(([key]) =>
-    !["@microsoft.graph.downloadUrl", "access_token", "refresh_token"].includes(key)
+    metadataFields.has(key)
   ).map(([key, item]) => [key, metadataOnly(item)]));
 }
 
@@ -780,7 +786,7 @@ function isOneDrivePath(path: string): boolean { // mutation-witness:metadata-pa
   const drive = `(?:/me/drive|/drives/${id})`;
   return path === "/sites" || path === "/drives" ||
     new RegExp(`^/sites/${id}(?:/drives)?$`, "u").test(path) ||
-    new RegExp(`^${drive}(?:/(?:root(?:/children|/search\\(q=.+\\))?|items(?:/${id}(?:/children|/versions)?)?))?$`, "u").test(path) ||
+    new RegExp(`^${drive}(?:/(?:root(?:/children|/search\\(q=[^/]+\\))?|items(?:/${id}(?:/children|/versions)?)?))?$`, "u").test(path) ||
     new RegExp(`^${drive}/items/${id}:/[^/]+$`, "u").test(path);
 }
 

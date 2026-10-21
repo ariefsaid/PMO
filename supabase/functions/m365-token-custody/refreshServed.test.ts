@@ -9,14 +9,14 @@ Deno.test("AC-M365DOC-070 served refresh uses the current grant for the folder c
   await run(newWorld({ accessExpired: true, graph: [...emptyDiscovery(), okDrives()], refresh: () => jsonResponse({
     access_token: "synthetic-new-access", refresh_token: "synthetic-new-refresh", expires_in: 3600,
     scope: "Files.Read Files.Read.All Sites.Read.All offline_access",
-  }) }), async ({ call, calls }) => {
+  }) }), async ({ call, calls, world }) => {
     const response = await call(ensure);
     assertEquals(response.status, 403);
     assertEquals((await response.json()).error, "SCOPE_INSUFFICIENT");
     const completed = rpcBodies(calls, "m365_finish_refresh");
     assertEquals(completed.length, 1);
     assertEquals((completed[0]!.p_scopes as string[]).includes("Sites.Selected"), false);
-    assertEquals(typeof completed[0]!.p_expected_refresh_token_ciphertext, "string");
+    assertEquals(completed[0]!.p_expected_refresh_token_ciphertext, world.seededRefreshCiphertext);
     assertEquals(graphCalls(calls).filter((c) => c.method === "POST").length, 0);
   });
 });
@@ -32,13 +32,23 @@ Deno.test("AC-M365DOC-070 served refresh requires a usable access token and pins
   });
 });
 
+Deno.test("AC-M365DOC-070 served refresh reuse revocation carries the original generation", async () => {
+  await run(newWorld({ accessExpired: true, refresh: () => jsonResponse({ error: "invalid_grant", error_description: "refresh token reuse detected" }, { status: 400 }) }), async ({ call, calls, world }) => {
+    assertEquals((await call(ensure)).status, 409);
+    const completed = rpcBodies(calls, "m365_finish_refresh");
+    assertEquals(completed.length, 1);
+    assertEquals(completed[0]!.p_status, "revoked");
+    assertEquals(completed[0]!.p_expected_refresh_token_ciphertext, world.seededRefreshCiphertext);
+  });
+});
+
 Deno.test("AC-M365DOC-070 served refresh status completion carries the original generation", async () => {
-  await run(newWorld({ accessExpired: true, refresh: () => jsonResponse({ error: "invalid_grant" }, { status: 400 }) }), async ({ call, calls }) => {
+  await run(newWorld({ accessExpired: true, refresh: () => jsonResponse({ error: "invalid_grant" }, { status: 400 }) }), async ({ call, calls, world }) => {
     assertEquals((await call(ensure)).status, 409);
     const completed = rpcBodies(calls, "m365_finish_refresh");
     assertEquals(completed.length, 1);
     assertEquals(completed[0]!.p_status, "stale");
-    assertEquals(typeof completed[0]!.p_expected_refresh_token_ciphertext, "string");
+    assertEquals(completed[0]!.p_expected_refresh_token_ciphertext, world.seededRefreshCiphertext);
     assertEquals(graphCalls(calls).length, 0);
     assertEquals(rpcBodies(calls, "m365_set_connection_status").length, 0);
   });
