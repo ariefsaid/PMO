@@ -227,7 +227,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   /**
-   * Work-order allocations of contract lines (ADR-0090, migration 0337). Mirrors the allocation table's RLS:
+   * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
    * the BoQ writer set, and only while the work order is Draft/Issued (the state trigger freezes Closed/Cancelled).
    * `record.status` is the WORK ORDER's status; unknown status denies. View-as sessions are view-only.
    */
@@ -238,7 +238,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: (role, ctx) => has(MASTER_DATA, role) && isOpenWorkOrder(ctx) && ctx.record?.viewOnly !== true,
   },
   /**
-   * BAST acceptances (ADR-0090). UX only — the three definer RPCs are the authority.
+   * BAST acceptances (ADR-0091). UX only — the three definer RPCs are the authority.
    *   create   (prepare)  ← `may_record_project_progress`: Finance rank and above, or the project's own PM
    *                         (`record.project_manager_id`), on an Issued work order (`record.status`).
    *   confirm             ← Admin/Finance on a Draft acceptance (`record.status`). The preparer is not OFFERED their

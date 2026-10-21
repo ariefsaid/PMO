@@ -34,7 +34,7 @@ export function useWorkOrderLines(workOrderId: string) {
 }
 
 /**
- * Cache design (ADR-0090). Allocation writes refresh the allocation lists and the billing summary (ordered and
+ * Cache design (ADR-0091). Allocation writes refresh the allocation lists and the billing summary (ordered and
  * balance facts). Preparing or withdrawing a BAST refreshes the acceptances only — it moves no money. Confirming
  * additionally refreshes everything a close can change: the summary, the work orders, the drawdown, per-order
  * billing and the org-wide still-to-invoice card. Invalidate on success only: never optimistically close a work

@@ -925,7 +925,7 @@ const progressBilling: ProgressBillingRepository = {
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
 };
 
-/** Contract quantities (ADR-0090): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
+/** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
 const workOrderAcceptance: WorkOrderAcceptanceRepository = {
   listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
   listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),

@@ -79,7 +79,7 @@ export interface WorkOrdersTabProps {
   projectManagerId?: string | null;
 }
 
-/** `closing_value` is stamped server-side by the final BAST (ADR-0090); null until then. */
+/** `closing_value` is stamped server-side by the final BAST (ADR-0091); null until then. */
 type WorkOrderWithClosing = WorkOrderRow & { closing_value?: number | null };
 
 /** `YYYY-MM-DD` in the browser's zone — only the BAST date dialog's default. */
@@ -142,7 +142,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
 
-  // ── ADR-0090: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
+  // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
   //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
   const boq = useBoqItems(projectId);
   const projectBilling = useProjectBilling(projectId);

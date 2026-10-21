@@ -1,7 +1,7 @@
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
- * Claim quantity suggestions per work order (ADR-0090 DD-CQ-6, AC-CQ-013). A pre-fill, never a rule: the person
+ * Claim quantity suggestions per work order (ADR-0091 DD-CQ-6, AC-CQ-013). A pre-fill, never a rule: the person
  * edits it. Integer milli-units throughout — no binary-float quantity maths.
  *
  *   • a confirmed BAST on this order:  accepted − claimed on this order (other orders' claims are irrelevant);

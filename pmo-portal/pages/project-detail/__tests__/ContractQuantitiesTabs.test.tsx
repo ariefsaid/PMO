@@ -8,7 +8,7 @@ import { formatCurrencyCents } from '@/src/lib/format';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
- * AC-CQ-015 — Billing and Work orders tabs under contract quantities (ADR-0090). Synthetic data only:
+ * AC-CQ-015 — Billing and Work orders tabs under contract quantities (ADR-0091). Synthetic data only:
  * a 1,900 km line, a 1,000 km order, a 997 km final BAST.
  */
 const h = vi.hoisted(() => ({

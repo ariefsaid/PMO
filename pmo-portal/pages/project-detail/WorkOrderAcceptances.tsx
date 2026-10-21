@@ -8,7 +8,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 /**
- * The BAST (client acceptance) list of ONE work order (ADR-0090). Statuses and Stage/Final are words, not colour
+ * The BAST (client acceptance) list of ONE work order (ADR-0091). Statuses and Stage/Final are words, not colour
  * alone. Actions follow DD-CQ-8: PM (own project) or Finance rank prepare and re-record a Draft; the preparer or
  * Admin/Finance withdraw it; Admin/Finance confirm. Confirm is offered to the preparer too — the server lets a sole
  * active operator confirm their own preparation and refuses it otherwise with its reason — with a hint, never a

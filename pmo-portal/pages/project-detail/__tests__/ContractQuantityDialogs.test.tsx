@@ -15,7 +15,7 @@ import type { ContractLineFacts } from '@/src/lib/progressBilling';
 import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 
 /**
- * AC-CQ-014 — the contract-quantity dialogs (ADR-0090): BoQ line basis, percent assessment, allocation,
+ * AC-CQ-014 — the contract-quantity dialogs (ADR-0091): BoQ line basis, percent assessment, allocation,
  * claim pre-fill and BAST preparation. Synthetic data only.
  */
 describe('AC-CQ-014 BoqItemFormModal earning basis', () => {

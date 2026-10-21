@@ -10,7 +10,7 @@ import type { BoqItemInput, BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { EarningBasis } from '@/src/lib/progressBilling';
 
 /**
- * Add or edit one bill-of-quantities line (#766). Rates exclude tax (DD-PBL-6). A lump-sum line is one lot earned by percent; its quantity is fixed at 1 (ADR-0090). When ERPNext owns the revenue
+ * Add or edit one bill-of-quantities line (#766). Rates exclude tax (DD-PBL-6). A lump-sum line is one lot earned by percent; its quantity is fixed at 1 (ADR-0091). When ERPNext owns the revenue
  * domain the item is picked from the ERP catalogue (the line becomes an invoice line); otherwise it is typed.
  */
 interface FormValues {
@@ -21,7 +21,7 @@ interface FormValues {
 }
 
 const LUMP_SUM_UNITS = ['lot', 'ls', 'lump sum'];
-/** Mirrors the CLI's defaultContractLineBasis (ADR-0090): the unit suggests the basis, never forces it. */
+/** Mirrors the CLI's defaultContractLineBasis (ADR-0091): the unit suggests the basis, never forces it. */
 const defaultBasis = (unit: string): EarningBasis => (LUMP_SUM_UNITS.includes(unit.trim().toLowerCase()) ? 'lump_sum' : 'unit_rate');
 const effectiveBasis = (v: Pick<FormValues, 'basis' | 'unit'>): EarningBasis => v.basis || defaultBasis(v.unit);
 

@@ -42,7 +42,7 @@ export function useProgressBillingMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
   };
-  // ADR-0090: a BoQ line's quantity/rate/basis feeds the allocations and BAST quantities that cite it.
+  // ADR-0091: a BoQ line's quantity/rate/basis feeds the allocations and BAST quantities that cite it.
   const invalidateBoq = () => {
     invalidate();
     void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId, projectId] });

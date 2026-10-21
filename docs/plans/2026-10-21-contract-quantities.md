@@ -1,7 +1,7 @@
 # Contract quantities, allocations and BAST — implementation plan
 
 **Date:** 2026-10-21. **Status:** decided design; build not started by this docs task.
-**Spec:** `docs/specs/progress-billing.spec.md` §8. **ADR:** `docs/adr/0090-work-order-closing-value-and-bast.md`.
+**Spec:** `docs/specs/progress-billing.spec.md` §8. **ADR:** `docs/adr/0091-work-order-closing-value-and-bast.md`.
 **Branch/worktree:** `feat/contract-quantities`, this worktree only, based on `origin/dev`.
 **Executor:** Director-dispatched money/SoD work. Three build lanes **in sequence A → B → C on this
 one branch**, not three parallel workers/branches. No push/merge/deploy is authorised by this plan.

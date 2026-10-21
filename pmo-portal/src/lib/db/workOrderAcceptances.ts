@@ -3,7 +3,7 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
- * Contract-quantity DAL (migration 0337, ADR-0090). Allocations (`work_order_lines`) are RLS-scoped table
+ * Contract-quantity DAL (migration 0337, ADR-0091). Allocations (`work_order_lines`) are RLS-scoped table
  * writes by the BoQ writer roles; BAST acceptances are written ONLY through the three definer RPCs (no client
  * DML grant exists). org_id is never sent from the client.
  */

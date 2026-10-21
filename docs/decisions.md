@@ -3452,7 +3452,7 @@ line amount, reaching 100% at client acceptance (BAST). Default basis from unit:
 case-insensitive → lump sum; otherwise unit rate, editable. Service list without rates defaults to
 one lump-sum line. Project WIP = summed line earned − DD-PBL-9 billed work (DP excluded). Replace
 latest percent × net contract for projects with lines; no-line projects retain the percent method.
-Spec `docs/specs/progress-billing.spec.md` §8; ADR-0090.
+Spec `docs/specs/progress-billing.spec.md` §8; ADR-0091.
 
 ## OD-CQ-2 — work orders order quantities; BAST closes them (owner 2026-10-21)
 
@@ -3514,7 +3514,7 @@ writes; narrow confirm-only flag (0252 pattern) and immutable-once-set trigger. 
 coalesce(closing_value, original order value excl. tax). Replace operational order-net expressions
 in work_order_billing, assert_work_order_invoiceable, get_project_drawdown and transition_work_order's
 issue committed sum. Original PO display and final upper-bound check retain original order net.
-ADR-0090 records the field and alternatives.
+ADR-0091 records the field and alternatives.
 
 ## DD-CQ-5 — quantity-earned project billing (Director 2026-10-21)
 

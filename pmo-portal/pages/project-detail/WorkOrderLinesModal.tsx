@@ -8,7 +8,7 @@ import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
- * Contract lines ordered on one work order (ADR-0090, OD-CQ-2). Each BoQ line is allocated, changed or removed
+ * Contract lines ordered on one work order (ADR-0091, OD-CQ-2). Each BoQ line is allocated, changed or removed
  * on its own — the table API offers no atomic multi-row save, so none is promised: every operation persists
  * alone and the caller refetches the authoritative list. Over-ordering is shown in words, never blocked.
  */

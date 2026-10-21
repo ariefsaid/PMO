@@ -18,7 +18,7 @@
 > [`docs/plans/2026-10-07-billing-by-work-order.md`](../plans/2026-10-07-billing-by-work-order.md); migration
 > `0262_billing_by_work_order.sql`; rulings `DD-BWO-n`).
 > **Amended 2026-10-21:** §8 — contract quantities, work-order allocations and BAST; OD-CQ-1..4,
-> DD-CQ-1..8, [ADR-0090](../adr/0090-work-order-closing-value-and-bast.md),
+> DD-CQ-1..8, [ADR-0091](../adr/0091-work-order-closing-value-and-bast.md),
 > [plan](../plans/2026-10-21-contract-quantities.md), migration `0337_contract_quantities.sql`.
 > §8 supersedes the single-work-order-per-line scope in DD-PBL-4 / FR-PB-002 / FR-PB-007 and
 > the percent-only assessed-value rule for projects with contract lines; earlier text is retained as history.
@@ -684,7 +684,7 @@ client's acceptance, not an invoice, receipt or replacement document register.
   trigger refuses change even by other definer callers. `effective_net = coalesce(closing_value,
   case when tax_treatment='inclusive' then order_value-tax_amount else order_value end)`.
   Use it in `work_order_billing`, `assert_work_order_invoiceable`, `get_project_drawdown` and
-  `transition_work_order` issue-gate committed sum. ADR-0090 records this new money field.
+  `transition_work_order` issue-gate committed sum. ADR-0091 records this new money field.
 - **DD-CQ-5 — earned quantity in SQL.** With A = latest assessed quantity (0 if absent),
   `closed_alloc` = allocations on Closed WOs with confirmed final BAST, `closed_final` = final
   accepted quantities on those WOs, `open_cap = greatest(line.quantity-closed_final,0)`,

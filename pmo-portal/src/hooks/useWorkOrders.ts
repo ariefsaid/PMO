@@ -71,7 +71,7 @@ export function useWorkOrderMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
     // …and the org-wide still-to-invoice card on the dashboards, which reads the same fact.
     void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
-    // Contract quantities (ADR-0090): ordered/balance facts count Issued and Closed allocations only, and a
+    // Contract quantities (ADR-0091): ordered/balance facts count Issued and Closed allocations only, and a
     // status move freezes or releases the allocation list and BAST actions.
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });

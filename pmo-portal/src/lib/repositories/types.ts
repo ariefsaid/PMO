@@ -671,7 +671,7 @@ export interface ProgressBillingRepository {
 }
 
 /**
- * Contract quantities (ADR-0090): allocations of contract lines to a work order (plain table writes) and BAST
+ * Contract quantities (ADR-0091): allocations of contract lines to a work order (plain table writes) and BAST
  * acceptances (definer RPCs only). Nothing here dispatches to an ERP.
  */
 export interface WorkOrderAcceptanceRepository {

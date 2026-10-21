@@ -5,7 +5,7 @@ import type { Role } from './AuthContext';
 const ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
 const as = (realRole: Role, record: Record<string, unknown> = {}, currentUserId = 'u-1') => ({ realRole, currentUserId, record });
 
-describe('contract quantities policy (ADR-0090)', () => {
+describe('contract quantities policy (ADR-0091)', () => {
   it.each([['Admin', true], ['Executive', true], ['Project Manager', true], ['Finance', true], ['Engineer', false]] as const)(
     'AC-CQ-015 %s allocates contract lines to a Draft or Issued work order: %s', (role, allowed) => {
       for (const status of ['Draft', 'Issued']) {

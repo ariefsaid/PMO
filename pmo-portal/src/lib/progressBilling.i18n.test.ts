@@ -13,7 +13,7 @@ const leaves = (tree: Tree, prefix = ''): Record<string, string> => Object.fromE
     : Object.entries(leaves(value, `${prefix}${key}.`)))),
 );
 const billing = (catalogue: unknown) => leaves(((catalogue as Tree).projectDetail as Tree).billing as Tree);
-// ADR-0090 strings live in the projectTabs namespace (new `common` keys are refused by check:i18n).
+// ADR-0091 strings live in the projectTabs namespace (new `common` keys are refused by check:i18n).
 const quantities = (catalogue: unknown) => leaves((catalogue as Tree).contractQuantities as Tree);
 const KEY = /'projectTabs:contractQuantities\.([A-Za-z.]+)'/g;
 const usedQuantityKeys = (files: string[]) =>

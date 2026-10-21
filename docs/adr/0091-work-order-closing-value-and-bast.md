@@ -1,4 +1,4 @@
-# ADR-0090 — A final BAST closes accepted work at a separate server-only value
+# ADR-0091 — A final BAST closes accepted work at a separate server-only value
 
 - **Status:** Accepted design (2026-10-21, owner OD-CQ-1..4; implementation pending)
 - **Related:** ADR-0077 (assessments vs claims, DP recovery); ADR-0080 (WO billing fence and locks);

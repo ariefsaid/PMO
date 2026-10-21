@@ -12,7 +12,7 @@ import type {
 } from '@/src/lib/db/workOrderAcceptances';
 
 /**
- * Prepare (or re-record a Draft of) a BAST — the client's acceptance of work on one work order (ADR-0090, OD-CQ-2).
+ * Prepare (or re-record a Draft of) a BAST — the client's acceptance of work on one work order (ADR-0091, OD-CQ-2).
  * Quantities are CUMULATIVE to date per allocated line, never a delta; a lump-sum line is a percent of its lot. A
  * stage BAST may leave lines out (they contribute nothing); a final one must state every allocated line. Confirming
  * is a separate step by someone else — this dialog only prepares. The server re-checks everything.

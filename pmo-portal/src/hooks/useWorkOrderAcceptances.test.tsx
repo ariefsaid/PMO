@@ -55,7 +55,7 @@ describe('contract-quantity read hooks', () => {
   });
 });
 
-describe('useWorkOrderAcceptanceMutations (cache design, ADR-0090)', () => {
+describe('useWorkOrderAcceptanceMutations (cache design, ADR-0091)', () => {
   it('AC-CQ-015 allocation writes refresh the allocation lists and the billing facts, nothing money-moving', async () => {
     const { spy, wrapper } = setup();
     const { result } = renderHook(() => useWorkOrderAcceptanceMutations('p1'), { wrapper });
