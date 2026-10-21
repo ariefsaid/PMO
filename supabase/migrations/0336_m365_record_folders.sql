@@ -1,4 +1,4 @@
--- 0335_m365_record_folders.sql — guarded record-folder references and durable create receipts.
+-- 0336_m365_record_folders.sql — guarded record-folder references and durable create receipts.
 create or replace function public.m365_link_record_folder(
   p_kind text, p_record_id uuid, p_reference jsonb,
   p_default_site_id text, p_default_drive_id text, p_settings_updated_at timestamptz
