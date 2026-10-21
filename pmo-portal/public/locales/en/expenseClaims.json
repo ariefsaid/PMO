@@ -1,0 +1,12 @@
+{
+  "new": {
+    "subtitle": "Enter the claim details and expense lines. Nothing is saved until you select Save.",
+    "validation": "Enter a title and complete any expense line you start.",
+    "noPermission": "You do not have permission to create expense claims.",
+    "discardTitle": "Discard unsaved claim?",
+    "discardBody": "Your claim details and lines have not been saved. Leave and discard them?",
+    "discardLeave": "Leave",
+    "discardStay": "Stay",
+    "saving": "Saving…"
+  }
+}
