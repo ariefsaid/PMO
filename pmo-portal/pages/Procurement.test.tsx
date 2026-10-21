@@ -41,6 +41,7 @@ const seed = [
 ];
 
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 // FK pickers in the New-PR modal read cached option hooks; stub them so the index
 // test needs no QueryClient (the loaders just hand back the static list).

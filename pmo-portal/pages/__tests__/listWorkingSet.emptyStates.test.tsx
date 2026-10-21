@@ -45,6 +45,7 @@ const noopMutations = () => ({
   isPending: false,
 });
 
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // Projects' table row status control needs a QueryClientProvider this suite doesn't mount —
 // stubbed exactly as pages/__tests__/Projects.atRiskFilter.test.tsx does (rendering, not status

@@ -4857,7 +4857,7 @@
     "pageDescriptionOrgWide": "Raise requests and track approvals, orders and payments. Open a request for its full history.",
     "pageDescriptionOwnScoped": "Track the requests you raised from approval through payment.",
     "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
-    "projectEmptyScope": "This list covers PMO requests. ERP-native purchases stay in the ERP.",
+    "projectEmptyScope": "This list covers PMO requests. Purchases recorded in ERPNext appear below.",
     "dashboardEmpty": "No PMO requests to show"
   },
   "uxs29": {

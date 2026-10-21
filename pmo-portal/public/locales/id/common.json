@@ -4857,7 +4857,7 @@
     "pageDescriptionOrgWide": "Ajukan dan lacak permintaan pembelian, persetujuan, pesanan, dan pembayaran. Buka permintaan untuk melihat riwayat lengkapnya.",
     "pageDescriptionOwnScoped": "Lacak permintaan yang Anda ajukan dari persetujuan hingga pembayaran.",
     "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
-    "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian langsung tercatat di ERP.",
+    "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian yang tercatat di ERPNext tampil di bawah.",
     "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
   },
   "uxs29": {

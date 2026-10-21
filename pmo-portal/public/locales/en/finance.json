@@ -10,5 +10,49 @@
     "amountsIn": "Amounts in",
     "forThePeriod": "For the period",
     "periodShown": "Period shown"
+  },
+  "erpPurchases": {
+    "title": "Purchases recorded in ERPNext",
+    "countedInActuals": "Already counted in Actuals. Shown for reference, not added again.",
+    "allLink": "All ERP purchases",
+    "pageDescription": "Purchase orders and supplier invoices entered in ERPNext. Their cost is already in each project's Actuals.",
+    "backToProcurement": "Procurement requests",
+    "noAccess": "You don't have access to the organization's purchases",
+    "error": "Couldn't load ERP purchases",
+    "empty": "No purchases from ERPNext yet",
+    "emptySub": "They appear here after the next sync once ERPNext is connected.",
+    "noProject": "No project",
+    "shared": "Shared with other projects",
+    "status": {
+      "paid": "Paid",
+      "partlyPaid": "Partly paid",
+      "unpaid": "Unpaid",
+      "overdue": "Overdue",
+      "return": "Return"
+    },
+    "type": {
+      "order": "Purchase order",
+      "invoice": "Supplier invoice"
+    },
+    "column": {
+      "document": "Document",
+      "supplier": "Supplier",
+      "project": "Project",
+      "date": "Date",
+      "billNo": "Supplier invoice no.",
+      "amount": "Amount",
+      "status": "Status"
+    },
+    "aging": {
+      "title": "Unpaid by age",
+      "notDue": "Not due",
+      "d1_30": "1–30 days",
+      "d31_60": "31–60 days",
+      "d61_90": "61–90 days",
+      "d90Plus": "Over 90 days",
+      "total": "Unpaid total",
+      "sharedExcluded_one": "{{count}} unpaid invoice shared with other projects is not in these figures.",
+      "sharedExcluded_other": "{{count}} unpaid invoices shared with other projects are not in these figures."
+    }
   }
 }
