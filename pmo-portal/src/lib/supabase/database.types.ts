@@ -547,43 +547,44 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          earning_basis: string
           id: string
+          import_key: string | null
           item_code: string
+          line_no: number | null
           org_id: string
           project_id: string
           quantity: number
           rate: number
           unit: string
-          earning_basis: string
-          line_no: number | null
-          import_key: string | null
         }
         Insert: {
           created_at?: string
           description: string
+          earning_basis?: string
           id?: string
+          import_key?: string | null
           item_code: string
+          line_no?: number | null
           org_id?: string
           project_id: string
           quantity: number
           rate: number
           unit: string
-          earning_basis?: string
-          line_no?: number | null
-          import_key?: string | null
         }
         Update: {
           created_at?: string
           description?: string
+          earning_basis?: string
           id?: string
+          import_key?: string | null
           item_code?: string
+          line_no?: number | null
           org_id?: string
           project_id?: string
           quantity?: number
           rate?: number
           unit?: string
-          earning_basis?: string
-          line_no?: number | null
         }
         Relationships: [
           {
@@ -7094,11 +7095,11 @@ export type Database = {
           confirmed_by?: string | null
           document_id?: string | null
           id?: string
-          is_final: boolean
+          is_final?: boolean
           note?: string | null
-          org_id?: string
+          org_id: string
           prepared_at?: string
-          prepared_by?: string
+          prepared_by: string
           project_id: string
           status?: string
           withdrawn_at?: string | null
@@ -7123,10 +7124,31 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "work_order_acceptances_work_order_id_fkey"
-            columns: ["work_order_id"]
+            foreignKeyName: "work_order_acceptances_confirmed_by_fkey"
+            columns: ["confirmed_by"]
             isOneToOne: false
-            referencedRelation: "work_orders"
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_acceptances_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_acceptances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_acceptances_prepared_by_fkey"
+            columns: ["prepared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -7134,6 +7156,20 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_acceptances_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_acceptances_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -7151,12 +7187,17 @@ export type Database = {
           boq_item_id: string
           created_at?: string
           id?: string
-          org_id?: string
+          org_id: string
           quantity: number
           work_order_id: string
         }
         Update: {
+          boq_item_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
           quantity?: number
+          work_order_id?: string
         }
         Relationships: [
           {
@@ -7165,6 +7206,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "boq_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_lines_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
           },
           {
             foreignKeyName: "work_order_lines_work_order_id_fkey"
@@ -7273,6 +7328,13 @@ export type Database = {
           wo_number?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "work_orders_closing_acceptance_id_fkey"
+            columns: ["closing_acceptance_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_acceptances"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "work_orders_issued_by_fkey"
             columns: ["issued_by"]
@@ -9040,6 +9102,23 @@ export type Database = {
         }
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
+      prepare_work_order_acceptance: {
+        Args: {
+          p_acceptance_date: string
+          p_acceptance_id?: string
+          p_document_id?: string
+          p_is_final: boolean
+          p_lines: Json
+          p_note?: string
+          p_work_order_id: string
+        }
+        Returns: string
+      }
+      withdraw_work_order_acceptance: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       procurement_request_amount: {
         Args: { p_procurement_id: string }
         Returns: number
@@ -9647,20 +9726,6 @@ export type Database = {
         }[]
       }
       withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
-      confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
-      prepare_work_order_acceptance: {
-        Args: {
-          p_acceptance_date: string
-          p_acceptance_id?: string
-          p_document_id?: string
-          p_is_final: boolean
-          p_lines: Json
-          p_note?: string
-          p_work_order_id: string
-        }
-        Returns: string
-      }
-      withdraw_work_order_acceptance: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       budget_category:

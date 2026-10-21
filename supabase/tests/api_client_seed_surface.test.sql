@@ -1,12 +1,12 @@
 -- api_client_seed_surface.test.sql — the active-Admin tier of the OAuth API-client guard (#796, ADR-0074).
 -- Migration 0239: a token carrying `client_id` may POST set_project_contract_value / transition_project and
--- GET/POST budget_versions / budget_line_items ONLY when its user is an active Admin; any such token may
+-- GET/POST budget_versions / budget_line_items / boq_items ONLY when its user is an active Admin; any such token may
 -- GET external_domain_ownership. Everything else stays as 0222 left it (42501).
 -- No CLI token may send `Prefer: resolution=…` (it turns a POST into an upsert, i.e. an UPDATE).
 -- Mutation checks: make the Admin conditional `if true` and the non-Admin rows must go red; delete the
 -- `resolution=` refusal and the two Prefer rows must go red.
 begin;
-select plan(29);
+select plan(39);
 
 insert into auth.users (id, email) values
   ('07960000-0000-0000-0000-0000000000a1', 'load-admin@example.com'),
@@ -39,12 +39,24 @@ select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/budget_vers
 select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 active Admin client: POST budget_versions');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/budget_line_items');
 select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 active Admin client: POST budget_line_items');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'GET', '/boq_items');
+select lives_ok('select public.api_client_request_guard()', 'AC-CQ-018 active Admin client: GET contract lines');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/boq_items');
+select lives_ok('select public.api_client_request_guard()', 'AC-CQ-018 active Admin client: POST contract lines');
 
 -- active Admin: still closed
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'PATCH', '/budget_line_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: PATCH budget_line_items refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'DELETE', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: DELETE budget_versions refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'PATCH', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Admin client: PATCH contract lines refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'DELETE', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Admin client: DELETE contract lines refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/boq_items', '{"prefer":"resolution=merge-duplicates"}');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 upsert remains refused for contract lines');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/prepare_work_order_acceptance');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 BAST RPC remains outside the API-client tier');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/activate_budget_version');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: budget activation stays in the app');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/rpc/set_work_order_value');
@@ -66,6 +78,10 @@ select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/rpc/transit
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: transition_project refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: GET budget_versions refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Project Manager client: GET contract lines refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Project Manager client: POST contract lines refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: POST budget_versions refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_line_items');
@@ -84,6 +100,10 @@ select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'POST', '/rpc/transit
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 disabled Admin client: transition_project refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'GET', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 disabled Admin client: GET budget_versions refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'GET', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 disabled Admin client: GET contract lines refused');
+select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'POST', '/boq_items');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 disabled Admin client: POST contract lines refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'POST', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 disabled Admin client: POST budget_versions refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a3', 'GET', '/budget_line_items');
