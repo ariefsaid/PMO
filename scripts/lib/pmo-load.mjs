@@ -2,7 +2,7 @@
  * pmo-load — `pmo load`: one client's starting data, through the app's own write paths (#796).
  * Spec: docs/specs/client-starting-data-cli.spec.md · ADR-0074 · runbook docs/runbooks/pmo-cli.md §4.
  *
- * Order: companies → projects (create as Leads → contract value → stage walk) → draft budgets.
+ * Order: companies → projects (create as Leads → contract value → stage walk) → draft budgets → contract lines.
  * resolveLoad() only READS and returns problems or a plan; applyLoad() writes the plan in order (or,
  * with dryRun, only lists it) and stops at the first refusal. Every entity is matched before it is
  * written, so re-running the same file resumes and never duplicates.
@@ -43,10 +43,12 @@ const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location
 const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
-  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget',
+  'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines',
   ...OPTIONAL_PROJECT_FIELDS,
 ]);
 const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fiscal_year', 'reference']);
+const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
+const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
 const COMPANY_FIELDS = new Set(['name', 'short_name']);
 const PROJECT_SELECT = 'id,code,name,client_id,status,contract_value,pmo_project_number';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
@@ -61,8 +63,15 @@ const isDate = (v) =>
 /** numeric(14,2): finite, non-negative, below 1e12, at most two decimals. */
 const isAmount = (v) =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e12 && Math.abs(Math.round(v * 100) - v * 100) < 1e-6;
+/** numeric(14,3) quantity: finite, positive, below 1e11, at most three decimals. */
+const isQuantity = (v) =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e11 && Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6;
 const eq = (v) => `eq.${v}`;
 const params = (o) => new URLSearchParams(o);
+
+/** A contract line's earning basis when the file gives none: a lump-sum unit earns by percent. */
+export const defaultContractLineBasis = (unit) =>
+  ['lot', 'ls', 'lump sum'].includes(String(unit).trim().toLowerCase()) ? 'lump_sum' : 'unit_rate';
 
 /** A project row's match key: the organisation's own code, else its name and client. */
 export function projectKey(p) {
@@ -160,6 +169,7 @@ export function validateLoadFile(doc) {
       add('"customer_contract_ref" and "contract_date" are recorded only when a project is won');
     }
     for (const d of ['start_date', 'end_date']) if (p[d] !== undefined && !isDate(p[d])) add(`"${d}" must be a date (YYYY-MM-DD)`);
+    if (p.contract_lines !== undefined) validateContractLines(p.contract_lines, add);
     if (p.budget === undefined) return undefined;
     if (!Array.isArray(p.budget)) return add('"budget" must be a list of lines');
     const lineKeys = new Set();
@@ -178,6 +188,37 @@ export function validateLoadFile(doc) {
     return undefined;
   });
   return problems;
+}
+
+/** Every contract-line problem (DD-CQ-7), whether or not the project has a budget. `add` prefixes the project. */
+function validateContractLines(lines, add) {
+  if (!Array.isArray(lines)) return add('"contract_lines" must be a list of lines');
+  const seen = new Set();
+  lines.forEach((l, j) => {
+    const addLine = (m) => add(`contract_lines[${j}]: ${m}`);
+    if (!isObject(l)) return addLine('must be an object');
+    for (const k of Object.keys(l)) if (!CONTRACT_LINE_FIELDS.has(k)) addLine(`unknown field "${k}"`);
+    if (!isText(l.key)) addLine('"key" is required');
+    else if (seen.has(l.key)) addLine(`"key" "${l.key}" appears twice`);
+    else seen.add(l.key);
+    if (!isText(l.item_code)) addLine('"item_code" (the ERP service item) is required');
+    else if (l.item_code.length > 140) addLine('"item_code" must be at most 140 characters');
+    for (const [k, max] of [['description', 500], ['unit', 40]]) {
+      if (!isText(l[k])) addLine(`"${k}" is required`);
+      else if (l[k].length > max) addLine(`"${k}" must be at most ${max} characters`);
+    }
+    const quantityOk = isQuantity(l.quantity);
+    if (!quantityOk) addLine('"quantity" must be a positive number below 100000000000 with at most 3 decimals');
+    if (!isAmount(l.rate)) addLine('"rate" must be a non-negative amount with at most 2 decimals');
+    if (l.line_no !== undefined && l.line_no !== null && !Number.isInteger(l.line_no)) addLine('"line_no" must be a whole number');
+    const basisOk = l.basis === undefined || CONTRACT_LINE_BASES.includes(l.basis);
+    if (!basisOk) addLine('"basis" must be "unit_rate" or "lump_sum"');
+    if (basisOk && quantityOk && isText(l.unit) && (l.basis ?? defaultContractLineBasis(l.unit)) === 'lump_sum' && l.quantity !== 1) {
+      addLine('a lump-sum line must have quantity 1');
+    }
+    return undefined;
+  });
+  return undefined;
 }
 
 /**
@@ -266,8 +307,10 @@ export async function resolveLoad(doc, api) {
       path: existing ? remainingPath(p.stage, existing.status) : [...LOAD_STAGE_PATHS[p.stage]],
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
       budget: null,
+      contractLines: null,
     };
     if (entry.path !== null && p.budget?.length) entry.budget = await resolveBudget(api, entry, problems);
+    if (entry.path !== null && p.contract_lines?.length) entry.contractLines = await resolveContractLines(api, entry, problems);
     projects.push(entry);
   }
   return { problems, plan: { erpOwnsCompanies, companies, projects } };
@@ -289,6 +332,22 @@ async function resolveBudget(api, entry, problems) {
   }
   const loaded = new Set(have.map((r) => r.import_key));
   return { state: 'attach', versionId: versions[0].id, lines: lines.filter((l) => !loaded.has(l.import_key)) };
+}
+
+/**
+ * Contract lines (DD-CQ-7): a new key is created, a known (project, key) is skipped — never updated. A planned
+ * project has no id yet, so there is nothing to look up and every line is new; its parent is the plan entry.
+ */
+async function resolveContractLines(api, entry, problems) {
+  const lines = entry.input.contract_lines;
+  if (!entry.existing) return { lines: lines.map((line) => ({ line, exists: false })) };
+  const have = await api.get('boq_items', params({ select: 'id,import_key', project_id: eq(entry.id), import_key: 'not.is.null' }));
+  if (have.length >= READ_CAP) {
+    problems.push(`${entry.key}: the project has too many contract lines to check — finish them in the app`);
+    return { lines: [] };
+  }
+  const loaded = new Set(have.map((r) => r.import_key));
+  return { lines: lines.map((line) => ({ line, exists: loaded.has(line.key) })) };
 }
 
 function projectPayload(e) {
@@ -386,8 +445,39 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       });
     }
     if (e.budget) await applyBudget(e, api, write, note, { batchId, importedAt });
+    if (e.contractLines) await applyContractLines(e, api, write, note);
   }
   return done;
+}
+
+/** The row POSTed for one contract line: key → import_key, basis → earning_basis; org_id is stamped by the database. */
+function contractLinePayload(projectId, line) {
+  return {
+    project_id: projectId, import_key: line.key, line_no: line.line_no ?? null,
+    item_code: line.item_code, description: line.description, unit: line.unit,
+    quantity: line.quantity, rate: line.rate,
+    earning_basis: line.basis ?? defaultContractLineBasis(line.unit),
+  };
+}
+
+/** One POST per new line — never PATCH or upsert (corrections are made in the app); 23505 means another run got there first. */
+async function applyContractLines(e, api, write, note) {
+  for (const { line, exists } of e.contractLines.lines) {
+    if (exists) {
+      note({ kind: 'contract_line.skip', key: e.key, line_key: line.key, reason: 'already loaded — correct it in the app' });
+      continue;
+    }
+    // A dry run never reaches the callback, so a planned project's missing id is never read.
+    await write({ kind: 'contract_line.create', key: e.key, line_key: line.key }, async () => {
+      try {
+        const [row] = await api.post('boq_items', contractLinePayload(e.id, line));
+        return { id: row?.id };
+      } catch (err) {
+        if (err.code !== '23505') throw err;
+        return { kind: 'contract_line.skip', reason: 'already loaded by another run — correct it in the app' };
+      }
+    });
+  }
 }
 
 async function applyBudget(e, api, write, note, { batchId, importedAt }) {

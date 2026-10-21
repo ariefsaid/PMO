@@ -36,6 +36,8 @@ One JSON object with two optional lists. Field names are the database's where on
 | `projects[].service_line`, `sector`, `location`, `award_type`, `bidding_entity` | no | Classification (#770). |
 | `projects[].budget[]` | no | Lines: `category` (the `budget_category` enum, incl. `Special expenses`), `budgeted_amount`, optional `description`, `fiscal_year`, `reference`. |
 
+| `projects[].contract_lines[]` | no | Contract quantities (progress-billing spec §8): `key` (unique within the project, the re-run match key), `item_code` (the ERP service item, ≤ 140), `description` (≤ 500), `unit` (≤ 40), `quantity` (> 0, < 1e11, ≤ 3 decimals), `rate` (amount, ≤ 2 decimals); optional `line_no` (whole number) and `basis` (`unit_rate` \| `lump_sum`; default from the unit: `lot` / `ls` / `lump sum`, case-insensitive, → `lump_sum`, else `unit_rate`). A lump-sum line must have quantity 1. Needs no `budget`. |
+
 Load files hold client data. They live outside the repository and are never committed.
 
 ## 3. Decisions (with reasons)
@@ -75,9 +77,17 @@ Load files hold client data. They live outside the repository and are never comm
   `23505` from the 0195 index counts as skipped. If the project already has an Active or Archived
   version the budget is skipped (more lines go through the app's budget import). The CLI never sends
   `status`, `activated_at` or `actual_amount`. **Activation stays in the app** (approval + ERPNext push).
+- **D7a — contract lines are insert-only (DD-CQ-7, FR-CQ-013).** Per project, each new `key` is one `POST`
+  to `boq_items` (`key` → `import_key`, `basis` → `earning_basis`, no `org_id`), after the project's
+  stage walk and budget. A `(project, key)` that already exists is skipped even if the file differs, and
+  a concurrent `23505` is a skip; never `PATCH` or upsert — corrections are made in the app. All rows are
+  validated before any request; a project with more than 1000 existing lines fails preflight (a full
+  read cannot prove a key is absent). `boq_items` joins the Admin tier (`GET`/`POST` only; the guard
+  list changes in migration `0335`) and is refused by `get` / `create` / `update`. Work-order
+  allocations and acceptances (BAST) are not loadable.
 - **D8 — match keys (idempotency).** Company: exact legal name. Project: `code`, else exact name +
   client. Contract value: current value 0. Stage: the project's current stage on the target's path
-  (resume from there; off the path → "diverged", left alone). Budget line: `(version, import_key)`.
+  (resume from there; off the path → "diverged", left alone). Budget line: `(version, import_key)`. Contract line: `(project, import_key)`.
   A completed file re-run makes zero writes.
 - **D9 — companies while ERPNext owns them are not created by the CLI.** Today, with the `companies`
   domain externally owned, a PMO insert is refused by RLS (`companies_insert`, 0097). The shipped push
@@ -100,7 +110,7 @@ Load files hold client data. They live outside the repository and are never comm
 
 ## 4. What stays in the app
 
-Budget activation · work orders (OD-SEED-5) · the ERP project link (`config.project_map` is
+Budget activation · work orders and their quantity allocations / acceptances (OD-SEED-5) · correcting a loaded contract line · the ERP project link (`config.project_map` is
 service-role-only today; #772 ships its writer) · creating companies while ERPNext owns them (D9) ·
 changing an existing value, stage or short name (re-runs never overwrite) · `Loss Tender`, `Internal
 Project`, archive, restore, delete · classification option lists (Admin settings, #770 — configure
@@ -197,6 +207,9 @@ before loading) · people and roles.
   rows are attributed to that Admin.
 - **AC-CSD-016** Given `pmo rpc transition_project` or `pmo create budget_versions`, then the CLI refuses
   before any request, saying only `pmo load` uses it.
+- **AC-CQ-016 / 017 / 018** Contract lines through `pmo load` (D7a): see progress-billing spec §8 for the
+  statements; owned by `scripts/pmo-load.test.mjs` (validation, resolve, apply) with CLI runs in
+  `scripts/pmo.test.mjs`, and the guard half by `supabase/tests/0335_contract_lines_api_guard.test.sql`.
 
 ## 7. Traceability
 
@@ -218,6 +231,9 @@ before loading) · people and roles.
 | AC-CSD-014 | CLI node test | `scripts/pmo.test.mjs` (lists), `scripts/pmo-load.test.mjs` (paths) |
 | AC-CSD-015 | Integration (pgTAP) | `supabase/tests/client_starting_data_sequence.test.sql` |
 | AC-CSD-016 | CLI node test | `scripts/pmo.test.mjs` |
+| AC-CQ-016 | CLI node test | `scripts/pmo-load.test.mjs` (CLI run: `scripts/pmo.test.mjs`) |
+| AC-CQ-017 | CLI node test | `scripts/pmo-load.test.mjs` (CLI run: `scripts/pmo.test.mjs`) |
+| AC-CQ-018 | Integration (pgTAP) | `supabase/tests/0335_contract_lines_api_guard.test.sql` (CLI lists: `scripts/pmo.test.mjs`) |
 
 No new e2e: the live pre-request wiring is already proven by the AC-CLI-001 journey; the Admin tier is a
 pure function of request settings (pgTAP), and the RPC sequence is proven in the database (AC-CSD-015).
