@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
+import { defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -343,4 +343,71 @@ test('AC-CSD-012: the first refusal stops the load and reports what was done and
     return true;
   });
   assert.equal(writes(api).at(-1).body.p_to, 'Won, Pending KoM', 'no write after the refusal');
+});
+
+// ── contract lines (progress billing §8, DD-CQ-7) ────────────────────────────────────────────────
+
+const LINE = (over = {}) => ({
+  key: 'L-1', item_code: 'SVC-001', description: 'Survey service', unit: 'm2', quantity: 100, rate: 25000, ...over,
+});
+const projectWith = (contract_lines, over = {}) => ({ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', contract_lines, ...over });
+
+test('AC-CQ-016: validation returns every contract-line problem, row by row, when the project has no budget', () => {
+  const doc = { projects: [projectWith([
+    LINE({ key: 'A', item_code: '' }),
+    LINE({ key: 'B', quantity: 0 }),
+    LINE({ key: 'B', rate: 1.234 }),
+    LINE({ key: 'C', unit: 'LS', quantity: 2 }),
+    LINE({ key: 'D', quantity: 1.2345 }),
+    LINE({ key: 'E', basis: 'per_hour' }),
+    LINE({ key: 'F', extra: 1 }),
+    LINE({ key: ' ' }),
+    'not an object',
+  ])] };
+  assert.deepEqual(validateLoadFile(doc), [
+    'projects[0] (ORG-001): contract_lines[0]: "item_code" (the ERP service item) is required',
+    'projects[0] (ORG-001): contract_lines[1]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[2]: "key" "B" appears twice',
+    'projects[0] (ORG-001): contract_lines[2]: "rate" must be a non-negative amount with at most 2 decimals',
+    'projects[0] (ORG-001): contract_lines[3]: a lump-sum line must have quantity 1',
+    'projects[0] (ORG-001): contract_lines[4]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[5]: "basis" must be "unit_rate" or "lump_sum"',
+    'projects[0] (ORG-001): contract_lines[6]: unknown field "extra"',
+    'projects[0] (ORG-001): contract_lines[7]: "key" is required',
+    'projects[0] (ORG-001): contract_lines[8]: must be an object',
+  ]);
+});
+
+test('AC-CQ-016: contract_lines must be a list; unknown fields, lengths and line_no are checked', () => {
+  assert.deepEqual(validateLoadFile({ projects: [projectWith({})] }), ['projects[0] (ORG-001): "contract_lines" must be a list of lines']);
+  assert.deepEqual(validateLoadFile({ projects: [projectWith([LINE({
+    item_code: 'x'.repeat(141), description: 'd'.repeat(501), unit: 'u'.repeat(41), line_no: 1.5,
+  })])] }), [
+    'projects[0] (ORG-001): contract_lines[0]: "item_code" must be at most 140 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "description" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "unit" must be at most 40 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "line_no" must be a whole number',
+  ]);
+  assert.deepEqual(validateLoadFile({ projects: [projectWith([LINE({ description: undefined, unit: undefined, rate: undefined, quantity: 'a' })])] }), [
+    'projects[0] (ORG-001): contract_lines[0]: "description" is required',
+    'projects[0] (ORG-001): contract_lines[0]: "unit" is required',
+    'projects[0] (ORG-001): contract_lines[0]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[0]: "rate" must be a non-negative amount with at most 2 decimals',
+  ]);
+});
+
+test('AC-CQ-016: valid lines pass, with a project that also has a budget; explicit basis wins over the unit default', () => {
+  const ok = projectWith([
+    LINE({ key: 'A', line_no: 1 }),
+    LINE({ key: 'B', unit: 'Lump Sum', quantity: 1, rate: 5000 }),
+    LINE({ key: 'C', unit: 'lot', quantity: 1, basis: 'lump_sum' }),
+    LINE({ key: 'D', unit: 'lot', quantity: 3, basis: 'unit_rate' }),
+    LINE({ key: 'E', quantity: 0.001 }),
+  ], { budget: [{ category: 'Labor', budgeted_amount: 1 }] });
+  assert.deepEqual(validateLoadFile({ projects: [ok] }), []);
+});
+
+test('AC-CQ-016: the default basis follows the unit, case-insensitively and trimmed', () => {
+  for (const u of ['lot', 'LOT', ' Ls ', 'lump sum', 'Lump Sum']) assert.equal(defaultContractLineBasis(u), 'lump_sum', u);
+  for (const u of ['m2', 'hari', 'unit', 'lots', '']) assert.equal(defaultContractLineBasis(u), 'unit_rate', u);
 });
