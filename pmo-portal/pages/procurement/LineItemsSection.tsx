@@ -105,7 +105,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
 
   const columns: Column<ProcurementItemRow>[] = [
     {
-      key: 'description', header: erpItems ? 'Item / description' : 'Description', kind: 'primary', size: 320, minSize: 200,
+      key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', size: 320, minSize: 200,
       cell: (it) => {
         if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
           <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} />
@@ -128,7 +128,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   return <Card className="mb-4" data-testid="line-items-section">
     <CardHead>{t('lineItems.heading', 'Line items')}<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span></CardHead>
     <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
-      state={items.length === 0 ? 'empty' : undefined} emptyTitle={`No line items yet.${editable ? ' Add one below.' : ''}`}
+      state={items.length === 0 ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
     {editable && <CardPad>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">

@@ -84,6 +84,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
         </ToastProvider>
       </I18nextProvider>,
     );
+    expect(screen.getByText('Belum ada item permintaan. Tambahkan di bawah.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('combobox', { name: 'Item ERP' }));
     expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
   });

@@ -230,13 +230,16 @@ export async function createProcurementItem(
       .maybeSingle();
     if (readError) throwWrite(readError);
     const row = existing as ProcurementItemRow | null;
+    const quantity = numericAtDatabaseScale(input.quantity);
+    const rate = numericAtDatabaseScale(input.rate);
     const matches = row !== null
+      && quantity !== null && rate !== null
       && row.id === input.id
       && row.procurement_id === procurementId
       && row.name === input.name
       && row.description === (input.description ?? null)
-      && numericAtDatabaseScale(row.quantity) === numericAtDatabaseScale(input.quantity)
-      && numericAtDatabaseScale(row.rate) === numericAtDatabaseScale(input.rate);
+      && numericAtDatabaseScale(row.quantity) === quantity
+      && numericAtDatabaseScale(row.rate) === rate;
     if (matches) return row;
     throw new ProcurementError(RECONCILE_LINE_MESSAGE, '23505');
   }

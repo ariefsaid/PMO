@@ -229,6 +229,16 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
     })).rejects.toThrow(/open the saved request to reconcile/i);
   });
 
+  it('AC-PROC-003 requires comparable finite numeric values when reconciling a line', async () => {
+    h.result.queue.push(
+      { data: null, error: { message: 'duplicate key', code: '23505' } },
+      { data: { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: 'NaN', rate: '86.00', description: null }, error: null },
+    );
+    await expect(createProcurementItem('pr1', {
+      id: 'stable-id', name: 'Wire', quantity: Number.NaN, rate: 86,
+    })).rejects.toThrow(/open the saved request to reconcile/i);
+  });
+
   it('AC-PROC-003 refuses a duplicate ID not visible under RLS and the same parent filter', async () => {
     h.result.queue.push(
       { data: null, error: { message: 'duplicate key', code: '23505' } },

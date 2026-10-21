@@ -94,7 +94,7 @@ const ExpenseClaimNew: React.FC = () => {
       const { headline, detail } = classifyMutationError(reason);
       if (savedId && (failure.draftSaved || createdClaimId || capture.recovery?.draftSaved)) {
         if (receipt) {
-          try { await capture.cleanupUnlinkedAttachment(); } catch { /* Keep the saved draft usable if best-effort receipt cleanup cannot finish. */ }
+          void capture.cleanupUnlinkedAttachment().catch(() => undefined);
         }
         toast(headline, detail, 'warning');
         navigate(`/expenses/${savedId}`, { replace: true });
