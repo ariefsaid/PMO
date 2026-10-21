@@ -323,6 +323,28 @@ const child = (parent: string, name: string) => `/drives/${DRIVE}/items/${parent
 const childrenOf = (parent: string) => `/drives/${DRIVE}/items/${parent}/children`;
 const postedName = (call: { bodyJson?: unknown }) => (call.bodyJson as { name: string }).name;
 
+Deno.test("AC-M365DOC-069 auto-link matches the record's code exactly or code + separator, never a longer code (P-1 vs P-10)", async (t) => {
+  const p1 = [projectRow({ code: "P-1" })];
+  await t.step("only P-10 Alpha present => no match => the folder is CREATED, not linked", async () => {
+    await run(newWorld({ parent: p1, graph: [
+      gget(SEARCH, () => jsonResponse({ value: [hit("p10", "P-10 Alpha")] })),
+      okDrives(), okRoot(),
+      gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
+      gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
+    ] }), async ({ call, calls }) => {
+      assertEquals((await (await call(ensureProject)).json()).state, "created");
+      assertEquals(rpcBodies(calls, "m365_link_record_folder").map((b) => (b.p_reference as { item_id: string }).item_id), ["leaf-id"]);
+    });
+  });
+  for (const name of ["P-1 Alpha", "p-1-alpha", "P-1", "P-1_x", "P-1.x"]) {
+    await t.step(`'${name}' is linked`, async () => {
+      await run(newWorld({ parent: p1, graph: [gget(SEARCH, () => jsonResponse({ value: [hit("m1", name), hit("p10", "P-10 Alpha")] }))] }), async ({ call }) => {
+        assertEquals((await (await call(ensureProject)).json()).state, "linked");
+      });
+    });
+  }
+});
+
 Deno.test("AC-M365DOC-069 default drive is bound to the default site and parents are resolved only from server convention segments", async (t) => {
   const base = [emptySearch(), okDrives(), okRoot()];
   await t.step("configured drive in the default site: Projects exists => leaf POST under it", async () => {

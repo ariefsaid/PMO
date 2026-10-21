@@ -45,6 +45,18 @@ export function folderMatches(item: { drive_id: string; item_kind: string; name:
     && normalizeFolderParentPath(item.parent_path, driveId) === `/drive/root:${convention.parentSegments.length ? `/${convention.parentSegments.join('/')}` : ''}`;
 }
 
+/**
+ * Strict auto-link match (ensure/backfill only): the folder name IS the code, or the code followed by a
+ * space, '-', '_' or '.', so P-1 never matches P-10. `code` is already sanitized. The picker's looser prefix
+ * suggestions keep using {@link folderMatches}.
+ */
+export function folderNameMatchesCode(name: string, code: string): boolean {
+  const n = name.toLocaleLowerCase('en');
+  const c = code.toLocaleLowerCase('en');
+  if (!c || !n.startsWith(c)) return false;
+  return n.length === c.length || [' ', '-', '_', '.'].includes(n[c.length]!);
+}
+
 export function folderSearchRequest(driveId: string, term: string): GraphReadRequest {
   const encodedDrive = encodeURIComponent(driveId);
   const escaped = `'${term.replaceAll("'", "''")}'`;

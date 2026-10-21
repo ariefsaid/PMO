@@ -7,6 +7,7 @@ import type { HandlerResult } from "./types.ts";
 import type { RecordFolderReadAccess } from "./graphRead.ts";
 import {
   folderMatches,
+  folderNameMatchesCode,
   folderSearchRequest,
   parseFolderSearchNext,
 } from "../_shared/microsoftFolderConvention.ts";
@@ -61,11 +62,8 @@ function decodeItem(
   if (typeof raw.id !== "string" || !raw.id || typeof raw.name !== "string" || !raw.name) {
     return "invalid";
   }
-  if (
-    !raw.name.toLocaleLowerCase("en").startsWith(
-      convention.term.toLocaleLowerCase("en"),
-    )
-  ) return null;
+  // Strict auto-link rule: a longer code (P-10) must never match the record's code (P-1).
+  if (!folderNameMatchesCode(raw.name, convention.term)) return null;
   const parent = isRecord(raw.parentReference) ? raw.parentReference : null;
   if (
     !validMicrosoftBrowserUrl(raw.webUrl) || !parent ||

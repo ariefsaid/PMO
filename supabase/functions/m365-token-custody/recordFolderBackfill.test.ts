@@ -172,6 +172,19 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
   });
 });
 
+Deno.test("AC-M365DOC-072 backfill never links a longer code's folder (P-1 vs P-10)", async () => {
+  const world = sweepWorld({
+    projects: [1],
+    codes: { 1: "P-1" },
+    search: { "P-1": () => jsonResponse({ value: [searchHit("p10", "P-10 Alpha", "/Projects")] }) },
+  });
+  await run(world, async ({ call, calls }) => {
+    const body = await page(await call(sweep));
+    assertEquals([body.linked, body.missing], [0, 1]);
+    assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0);
+  });
+});
+
 Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unprocessed and put the cursor after the last processed record", async (t) => {
   await t.step("seven projects: five now, the sixth is NOT scanned, cursor after the fifth; the next page finishes", async () => {
     await run(sweepWorld({ projects: [1, 2, 3, 4, 5, 6, 7] }), async ({ call, calls }) => {

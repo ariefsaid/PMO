@@ -73,7 +73,7 @@ grant execute on function public.m365_record_folder_default_matches(text,text,ti
 
 create or replace function public.m365_record_folder_created(p_actor_id uuid,p_kind text,p_record_id uuid,p_drive_id text,p_item_id text)
 returns void language plpgsql security definer set search_path=pg_catalog,public as $$
-declare v_org uuid; v_role text; v_site text; v_default_drive text;
+declare v_org uuid; v_role text;
 begin
   if p_actor_id is null or p_kind not in ('project','procurement') or p_record_id is null
      or nullif(btrim(p_drive_id),'') is null or nullif(btrim(p_item_id),'') is null then
@@ -87,8 +87,7 @@ begin
   else
     if not exists(select 1 from public.procurements p where p.id=p_record_id and p.org_id=v_org) then raise insufficient_privilege; end if;
   end if;
-  select s.default_site_id,s.default_drive_id into v_site,v_default_drive from public.org_m365_document_settings s where s.org_id=v_org;
-  if v_default_drive is distinct from p_drive_id or v_site is null then raise insufficient_privilege; end if;
+  -- No current-default-drive check: Microsoft already returned 201, so a default changed since must not leave the folder unaudited.
   perform pg_advisory_xact_lock(hashtextextended('m365-folder-created:'||v_org::text||':'||p_drive_id||':'||p_item_id,0));
   if exists(select 1 from public.audit_events a where a.org_id=v_org and a.action='m365.folder_created'
     and a.detail->>'ms_drive_id'=p_drive_id and a.detail->>'ms_item_id'=p_item_id) then return; end if;

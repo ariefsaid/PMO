@@ -482,6 +482,8 @@ async function sendFolderRequest(
       method,
       headers: { Authorization: `Bearer ${accessToken}`, ...GRAPH_HEADERS },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      // The folder write must never follow a redirect off the pinned Graph URL.
+      ...(method === "POST" ? { redirect: "error" as const } : {}),
     }, timeoutMs);
   } catch {
     await recordM365Error(deps.serviceClient, {

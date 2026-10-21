@@ -162,6 +162,7 @@ Deno.test("AC-M365DOC-070 the narrow folder adapter builds its own request, clas
       assertEquals(post!.method, "POST");
       assertEquals(graphPath(post!), createPath);
       assertEquals(post!.url.search, "");
+      assertEquals(post!.redirect, "error"); // the one Graph write never follows a redirect
       assertEquals(post!.bodyJson, { name: ctx.name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" });
       assertEquals(post!.headers.get("authorization"), "Bearer synthetic-access-token");
       assertFalse(JSON.stringify(outcome).includes("synthetic-access-token"));
