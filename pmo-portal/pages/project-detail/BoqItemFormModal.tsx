@@ -7,26 +7,34 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import type { BoqItemInput, BoqItemRow } from '@/src/lib/db/progressBilling';
-import type { WorkOrderRow } from '@/src/lib/db/workOrders';
+import type { EarningBasis } from '@/src/lib/progressBilling';
 
 /**
- * Add or edit one bill-of-quantities line (#766). Rates exclude tax (DD-PBL-6). When ERPNext owns the revenue
+ * Add or edit one bill-of-quantities line (#766). Rates exclude tax (DD-PBL-6). A lump-sum line is one lot earned by percent; its quantity is fixed at 1 (ADR-0090). When ERPNext owns the revenue
  * domain the item is picked from the ERP catalogue (the line becomes an invoice line); otherwise it is typed.
  */
-interface FormValues { itemCode: string; description: string; unit: string; quantity: string; rate: string; workOrderId: string }
+interface FormValues {
+  itemCode: string; description: string; unit: string; quantity: string; rate: string;
+  /** '' = derive from the unit (lot / ls / lump sum ⇒ lump sum); a value is an explicit choice. */
+  basis: '' | EarningBasis;
+  lineNo: string;
+}
+
+const LUMP_SUM_UNITS = ['lot', 'ls', 'lump sum'];
+/** Mirrors the CLI's defaultContractLineBasis (ADR-0090): the unit suggests the basis, never forces it. */
+const defaultBasis = (unit: string): EarningBasis => (LUMP_SUM_UNITS.includes(unit.trim().toLowerCase()) ? 'lump_sum' : 'unit_rate');
+const effectiveBasis = (v: Pick<FormValues, 'basis' | 'unit'>): EarningBasis => v.basis || defaultBasis(v.unit);
 
 export interface BoqItemFormModalProps {
   /** null = add a line; a row = edit it. */
   item: BoqItemRow | null;
-  /** This project's work orders. */
-  workOrders: WorkOrderRow[];
   currencySymbolPrefix: string;
   onClose: () => void;
   onSave: (input: BoqItemInput) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
-const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, currencySymbolPrefix, onClose, onSave, onError }) => {
+const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError }) => {
   const { t } = useTranslation();
   const erpItems = useErpItemOptions('sales');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -38,9 +46,12 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, c
     if (!v.description.trim()) errors.description = required;
     if (!v.unit.trim()) errors.unit = required;
     const quantity = parseMoneyInputAtScale(v.quantity, 3);
-    if (quantity === null || quantity <= 0) errors.quantity = t('projectDetail.billing.boqForm.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places');
+    if (effectiveBasis(v) !== 'lump_sum' && (quantity === null || quantity <= 0)) errors.quantity = t('projectDetail.billing.boqForm.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places');
     const rate = parseMoneyInputAtScale(v.rate, 2);
     if (rate === null || rate < 0) errors.rate = t('projectDetail.billing.boqForm.errors.rate', 'Enter a rate of 0 or more with at most 2 decimal places');
+    if (v.lineNo.trim() !== '' && !/^\d{1,9}$/.test(v.lineNo.trim())) {
+      errors.lineNo = t('projectDetail.billing.boqForm.errors.lineNo', 'Enter a whole line number, or leave it blank');
+    }
     return errors;
   }, [t]);
 
@@ -48,21 +59,24 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, c
     initialValues: item
       ? { itemCode: item.item_code, description: item.description, unit: item.unit,
           quantity: formatMoneyInputValue(Number(item.quantity)), rate: formatMoneyInputValue(Number(item.rate)),
-          workOrderId: item.work_order_id ?? '' }
-      : { itemCode: '', description: '', unit: '', quantity: '', rate: '', workOrderId: '' },
+          basis: item.earning_basis, lineNo: item.line_no === null ? '' : String(item.line_no) }
+      : { itemCode: '', description: '', unit: '', quantity: '', rate: '', basis: '', lineNo: '' },
     validate,
     idPrefix: 'boq-item',
     module: 'billing',
-    requiredFields: ['itemCode', 'description', 'unit', 'quantity', 'rate'],
+    // quantity is required by validate() instead: a lump-sum line has none to type.
+    requiredFields: ['itemCode', 'description', 'unit', 'rate'],
   });
   const itemField = form.fieldProps('itemCode');
   const descriptionField = form.fieldProps('description');
   const unitField = form.fieldProps('unit');
   const quantityField = form.fieldProps('quantity');
   const rateField = form.fieldProps('rate');
-  const woField = form.fieldProps('workOrderId');
+  const basisField = form.fieldProps('basis');
+  const lineNoField = form.fieldProps('lineNo');
+  const lumpSum = effectiveBasis(form.values) === 'lump_sum';
 
-  const checked = { itemCode: itemField, description: descriptionField, unit: unitField, quantity: quantityField, rate: rateField };
+  const checked = { itemCode: itemField, description: descriptionField, unit: unitField, quantity: quantityField, rate: rateField, lineNo: lineNoField };
   const errorSummary = (() => {
     const items = (Object.keys(checked) as Array<keyof typeof checked>)
       .filter((key) => form.errors[key])
@@ -70,22 +84,24 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, c
     return items.length > 0 ? items : undefined;
   })();
 
-  const woOptions = [
-    { value: '', label: t('projectDetail.billing.boqForm.noWorkOrder', 'None — the whole contract') },
-    ...workOrders.map((wo) => ({ value: wo.id, label: wo.wo_number ? `${wo.wo_number} — ${wo.title}` : wo.title })),
+  const basisOptions = [
+    { value: 'unit_rate', label: t('projectDetail.billing.boqForm.basisUnitRate', 'Unit rate — quantity × rate') },
+    { value: 'lump_sum', label: t('projectDetail.billing.boqForm.basisLumpSum', 'Lump sum — 1 lot, earned by percent') },
   ];
   const itemLabel = t('projectDetail.billing.boqForm.item', 'ERP item');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const quantity = parseMoneyInputAtScale(values.quantity, 3);
+      const basis = effectiveBasis(values);
+      const quantity = basis === 'lump_sum' ? 1 : parseMoneyInputAtScale(values.quantity, 3);
       const rate = parseMoneyInputAtScale(values.rate, 2);
       if (quantity === null || rate === null) return;
       try {
         await onSave({
           itemCode: values.itemCode.trim(), description: values.description.trim(), unit: values.unit.trim(),
-          quantity, rate, workOrderId: values.workOrderId || null,
+          quantity, rate, earningBasis: basis,
+          lineNo: values.lineNo.trim() === '' ? null : Number(values.lineNo.trim()),
         });
       } catch (err) {
         const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
@@ -102,7 +118,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, c
       title={item
         ? t('projectDetail.billing.boqForm.titleEdit', 'Edit bill of quantities line')
         : t('projectDetail.billing.boqForm.titleNew', 'Add a bill of quantities line')}
-      subtitle={t('projectDetail.billing.boqForm.subtitle', 'Rates exclude tax. A line may belong to one work order on this project.')}
+      subtitle={t('projectDetail.billing.boqForm.subtitle', 'Rates exclude tax. Work orders take quantities from a line when you allocate it.')}
       submitLabel={t('projectDetail.billing.boqForm.save', 'Save line')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -126,14 +142,19 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, workOrders, c
             error={descriptionField.error} fullWidth />
           <TextField id={unitField.id} label={t('projectDetail.billing.boqForm.unit', 'Unit')} required
             value={unitField.value} onChange={unitField.onChange} onBlur={unitField.onBlur} error={unitField.error} />
-          <NumberField id={quantityField.id} label={t('projectDetail.billing.boqForm.quantity', 'Quantity')} required
-            value={quantityField.value} onChange={quantityField.onChange} onBlur={quantityField.onBlur}
-            error={quantityField.error} localeAware />
+          <SelectField id={basisField.id} label={t('projectDetail.billing.boqForm.basis', 'Earned by')}
+            value={basisField.value || defaultBasis(unitField.value)}
+            onChange={(value) => basisField.onChange(value as EarningBasis)} onBlur={basisField.onBlur} options={basisOptions} />
+          {!lumpSum && (
+            <NumberField id={quantityField.id} label={t('projectDetail.billing.boqForm.quantity', 'Quantity')} required
+              value={quantityField.value} onChange={quantityField.onChange} onBlur={quantityField.onBlur}
+              error={quantityField.error} localeAware />
+          )}
           <NumberField id={rateField.id} label={t('projectDetail.billing.boqForm.rate', 'Rate (excl. PPN)')} required
             prefix={currencySymbolPrefix} value={rateField.value} onChange={rateField.onChange} onBlur={rateField.onBlur}
             error={rateField.error} localeAware />
-          <SelectField id={woField.id} label={t('projectDetail.billing.boqForm.workOrder', 'Work order')}
-            value={woField.value} onChange={woField.onChange} onBlur={woField.onBlur} options={woOptions} />
+          <TextField id={lineNoField.id} label={t('projectDetail.billing.boqForm.lineNo', 'Line no. (optional)')}
+            value={lineNoField.value} onChange={lineNoField.onChange} onBlur={lineNoField.onBlur} error={lineNoField.error} />
         </FormGrid>
       </FormSection>
     </EntityFormModal>
