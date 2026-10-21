@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
  * Revision creation mutation for the project-documents register.
@@ -14,6 +15,8 @@ export interface CreateRevisionArgs {
   category: string;
   revision: string;
   doc_date: string;
+  /** Latest Microsoft file to reference on the new child Draft; never inherits the parent's pin. */
+  microsoft?: MicrosoftReferenceInput;
 }
 
 export function useRevision(projectId: string) {
@@ -23,7 +26,7 @@ export function useRevision(projectId: string) {
 
   const createRevision = useMutation({
     mutationFn: (args: CreateRevisionArgs) =>
-      repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null),
+      repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null, args.microsoft),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
     },
