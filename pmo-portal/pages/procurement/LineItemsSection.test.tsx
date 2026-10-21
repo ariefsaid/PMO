@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import enProcurement from '@/public/locales/en/procurement.json';
+import idProcurement from '@/public/locales/id/procurement.json';
 
 const items: ProcurementItemRow[] = [
   {
@@ -61,6 +65,29 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await user.click(screen.getByRole('button', { name: /add line item/i }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'ITEM-TEST', description: 'Inspection of test unit', quantity: 2, rate: 10 });
   });
+  it('renders the item search placeholder in Indonesian when the UI language is Indonesian', async () => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: 'en',
+      defaultNS: 'procurement',
+      resources: { en: { procurement: enProcurement }, id: { procurement: idProcurement } },
+      interpolation: { escapeValue: false },
+      initImmediate: false,
+      react: { useSuspense: false },
+    });
+    catalog.connected = true;
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <LineItemsSection items={[]} editable onAdd={vi.fn()} onUpdate={vi.fn()} onDelete={vi.fn()} onError={vi.fn()} currency="IDR" erpItems={{ loadOptions: async () => [] }} />
+        </ToastProvider>
+      </I18nextProvider>,
+    );
+    await userEvent.click(screen.getByRole('combobox', { name: 'Item ERP' }));
+    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+  });
+
   it('AC-PROC-003: renders rows with a derived line total + footer total (tabular)', () => {
     renderSection();
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();

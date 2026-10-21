@@ -349,7 +349,10 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
           semantics="toggle"
           ariaLabel={labels.periodShown}
           value={shown}
-          onChange={setShown}
+          onChange={(nextSide) => {
+            setCollapsed(new Set());
+            setShown(nextSide);
+          }}
           options={[{ value: 'current', label: labels.current }, { value: 'prior', label: labels.prior }]}
           />
         </div>

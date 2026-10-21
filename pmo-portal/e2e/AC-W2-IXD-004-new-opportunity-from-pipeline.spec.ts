@@ -41,7 +41,7 @@ test(
 
     // Submit and land on the new project. Back preserves the originating pipeline view.
     await page.getByRole('button', { name: /^Create project$/i }).click();
-    await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
     await expect(page.getByText(opportunityName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByRole('link', { name: /back to sales pipeline/i }).click();
 
