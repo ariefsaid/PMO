@@ -38,7 +38,7 @@ const NOT_A_LIBRARY_PROBLEM = new Set([
 ]);
 /** `overflow-wrap:anywhere` (not `break-words`) so a long unbroken name also shrinks its flex row instead of overflowing it. */
 const WRAP = '[overflow-wrap:anywhere]';
-const ROW_BUTTON = `touch-target h-auto min-h-8 min-w-0 justify-start whitespace-normal ${WRAP} py-1 text-left`;
+const ROW_BUTTON = `touch-target h-auto min-h-8 min-w-0 justify-start whitespace-normal! ${WRAP} py-1 text-left`;
 
 const codeOf = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
 const itemKey = (item: GraphItem) => `${item.drive_id}\u0000${item.item_id}`;

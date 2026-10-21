@@ -63,7 +63,7 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false }:
       {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference — contents are not issued or approved')}</span>}
       {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
+        <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal! text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
           <Icon name="eye" />
           {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
         </Button>

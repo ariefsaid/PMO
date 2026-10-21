@@ -63,7 +63,7 @@ describe('F2: narrow containers', () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root).toHaveClass('min-w-0');
     expect(screen.getByText('Changed').closest('div')).toHaveClass('flex-wrap', 'min-w-0');
-    expect(screen.getByRole('button')).toHaveClass('whitespace-normal');
+    expect(screen.getByRole('button')).toHaveClass('whitespace-normal!');
   });
 });
 

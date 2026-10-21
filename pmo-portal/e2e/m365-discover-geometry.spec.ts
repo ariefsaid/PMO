@@ -132,6 +132,19 @@ async function seedLinkedRows(page: Page) {
   });
 }
 
+/** The record-folder UI is gated by the m365_integration entitlement: grant it by rewriting this page's org_features read. */
+async function enableM365Feature(page: Page) {
+  await page.route('**/rest/v1/org_features*', async (route) => {
+    const response = await route.fetch();
+    if (!response.ok()) return route.fulfill({ response });
+    const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
+    return route.fulfill({
+      response,
+      json: [...rows.filter((r) => r.feature_key !== 'm365_integration'), { feature_key: 'm365_integration', enabled: true }],
+    });
+  });
+}
+
 /** Bahasa without a persisted write: the profile row the AuthProvider reads carries locale 'id' (as UXS-006). */
 async function forceBahasa(page: Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
@@ -171,6 +184,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockCustody(page, { connected: true });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await login(page, 'pm@acme.test');
     await openDocuments(page, 'Documents');
 
@@ -198,6 +212,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockCustody(page, { connected: true });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await login(page, 'pm@acme.test');
     await openDocuments(page, 'Documents');
 
@@ -217,6 +232,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockCustody(page, { connected: true });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await login(page, 'pm@acme.test');
     await openDocuments(page, 'Documents');
 
@@ -253,6 +269,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
   test('F5: a folder step that needs a choice offers "Choose existing folder", which opens the picker', async ({ page }) => {
     await mockCustody(page, { connected: true, ensure: { state: 'needs_choice' } });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await login(page, 'pm@acme.test');
     await openDocuments(page, 'Documents');
 
@@ -266,6 +283,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
   test('F6: the not-connected notice links to the page every role can open (/integrations)', async ({ page }) => {
     await mockCustody(page, { connected: false });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await login(page, 'pm@acme.test');
     await openDocuments(page, 'Documents');
 
@@ -278,6 +296,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
   test('F3: in Bahasa the Microsoft cell, picker and unlink confirmation are Indonesian', async ({ page }) => {
     await mockCustody(page, { connected: true });
     await seedLinkedRows(page);
+    await enableM365Feature(page);
     await forceBahasa(page);
     await login(page, 'admin@acme.test');
     await openDocuments(page, 'Dokumen');

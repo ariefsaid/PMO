@@ -242,6 +242,18 @@ describe('MicrosoftDocumentPicker locations', () => {
     expect(screen.getByRole('button', { name: 'Select file Report.pdf' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Select folder Folder' })).toHaveAttribute('aria-pressed', 'false');
   });
+
+  it('AC-M365DOC-054 geometry: browse and breadcrumb buttons may wrap a long name (the button base has no-wrap, so the override must win)', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await openLibrary(user);
+    await user.click(screen.getByRole('button', { name: 'Browse Folder' }));
+    const nav = await screen.findByRole('navigation', { name: 'Microsoft location' });
+    for (const button of [screen.getByRole('button', { name: 'Browse Folder' }), ...within(nav).getAllByRole('button')]) {
+      expect(button).toHaveClass('whitespace-normal!', 'min-w-0');
+      expect(button.className).toContain('[overflow-wrap:anywhere]');
+    }
+  });
 });
 
 describe('MicrosoftDocumentPicker default library', () => {
