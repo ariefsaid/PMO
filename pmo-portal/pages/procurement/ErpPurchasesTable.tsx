@@ -12,7 +12,6 @@ const PAYMENT_VARIANT: Record<PaymentState, StatusVariant> = {
 export interface ErpPurchasesTableProps {
   rows: ErpPurchaseRow[];
   today: string;
-  tableId: string;
   /** Org-wide view: project column; ids not in the map read "No project". */
   projectNames?: ReadonlyMap<string, string>;
   /** Project view: mark invoices also attributed to other projects. */
@@ -20,7 +19,7 @@ export interface ErpPurchasesTableProps {
 }
 
 /** FR-EPR-006/007 — read-only rows; nothing here opens, edits or adopts the ERP document (DD-XING-2). */
-export const ErpPurchasesTable: React.FC<ErpPurchasesTableProps> = ({ rows, today, tableId, projectNames, sharedMarker }) => {
+export const ErpPurchasesTable: React.FC<ErpPurchasesTableProps> = ({ rows, today, projectNames, sharedMarker }) => {
   const { t } = useTranslation('finance');
   const paymentLabel = (s: PaymentState) => ({
     paid: t('erpPurchases.status.paid', 'Paid'),
@@ -78,7 +77,7 @@ export const ErpPurchasesTable: React.FC<ErpPurchasesTableProps> = ({ rows, toda
       rows={rows}
       columns={columns}
       rowKey={(r) => r.id}
-      tableId={tableId}
+      tableId={projectNames ? 'erp-purchases-table' : 'project-erp-purchases-table'}
       accessibleName={t('erpPurchases.title', 'Purchases recorded in ERPNext')}
     />
   );

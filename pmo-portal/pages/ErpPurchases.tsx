@@ -35,7 +35,7 @@ const ErpPurchasesPage: React.FC = () => {
           sub={t('erpPurchases.emptySub', 'They appear here after the next sync once ERPNext is connected.')} />
       ) : (
         <Card className="overflow-hidden">
-          <ErpPurchasesTable rows={rows} today={localToday()} tableId="erp-purchases-table" projectNames={projectNames} />
+          <ErpPurchasesTable rows={rows} today={localToday()} projectNames={projectNames} />
         </Card>
       )}
     </ListPage>

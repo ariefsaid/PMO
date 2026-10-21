@@ -68,7 +68,7 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
         </p>
       )}
 
-      <ErpPurchasesTable rows={rows} today={today} tableId="project-erp-purchases-table" sharedMarker />
+      <ErpPurchasesTable rows={rows} today={today} sharedMarker />
     </section>
   );
 };
