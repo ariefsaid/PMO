@@ -59,6 +59,7 @@ table_read(){
   case "$expectation" in
     none) jq -e 'length==0' "$BODY" >/dev/null || { flag "$name returned rows"; return; } ;;
     own-org-only) jq -e --arg org "$B_ORG" --arg key "$key" 'all(.[]; .[$key]==$org)' "$BODY" >/dev/null || { flag "$name returned foreign rows"; return; } ;;
+    parent-org-only) jq -e --arg org "$B_ORG" 'all(.[]; .acceptance.org_id==$org)' "$BODY" >/dev/null || { flag "$name returned foreign-parent rows"; return; } ;;
     global-readable) ;;
     *) probe_error "$name unknown expectation"; return ;;
   esac
@@ -74,7 +75,9 @@ table_update(){
 }
 if [ "${RPC_ONLY:-0}" != 1 ]; then
   while IFS=$'\t' read -r t has_org pk columns expectation by_id; do
-    code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$columns&limit=3")
+    select_columns=$columns
+    [ "$t" != work_order_acceptance_lines ] || select_columns='acceptance_id,acceptance:work_order_acceptances!inner(org_id)'
+    code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$select_columns&limit=3")
     org_key=org_id; [ "$has_org" = true ] || org_key=$pk
     table_read "table $t blind read" "$code" "$expectation" "$org_key"
     if [ "$by_id" != applicable ]; then say "  N/A  $t by-id read/update — $by_id"; continue; fi
@@ -185,10 +188,22 @@ A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
 A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")
 A_SLIP=$(jq -r '.[]|select(.table=="vendor_withholding_slips")|.id' "$A_ROWS_JSON")
 A_VENDOR_BILL=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
+A_WO=$(jq -r '.[]|select(.table=="work_orders")|.id' "$A_ROWS_JSON")
+A_ACCEPTANCE=$(jq -r '.[]|select(.table=="work_order_acceptances")|.id' "$A_ROWS_JSON")
 for id in A_PROJECT A_COMPANY; do value=${!id}; [ -n "$value" ] && [ "$value" != null ] || skip "create_native_sales_invoice ($id)"; done
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc create_progress_claim "{\"p_project_id\":\"$A_PROJECT\",\"p_kind\":\"down_payment\",\"p_work_order_id\":null,\"p_lines\":null,\"p_down_payment_amount\":1,\"p_recovery_pct\":1,\"p_recover_remaining\":false}")
 else skip "create_progress_claim (projects)"; fi
+if [ -n "$A_WO" ] && [ "$A_WO" != null ]; then
+  c=$(rpc prepare_work_order_acceptance "{\"p_work_order_id\":\"$A_WO\",\"p_acceptance_date\":\"2026-09-08\",\"p_is_final\":false,\"p_lines\":[],\"p_document_id\":null,\"p_note\":null,\"p_acceptance_id\":null}")
+else skip "prepare_work_order_acceptance (work_orders)"; fi
+if [ -n "$A_ACCEPTANCE" ] && [ "$A_ACCEPTANCE" != null ]; then
+  c=$(rpc confirm_work_order_acceptance "{\"p_id\":\"$A_ACCEPTANCE\"}")
+  c=$(rpc withdraw_work_order_acceptance "{\"p_id\":\"$A_ACCEPTANCE\"}")
+else
+  c=$(rpc confirm_work_order_acceptance '{"p_id":"00000000-0000-4000-8000-000000000001"}')
+  c=$(rpc withdraw_work_order_acceptance '{"p_id":"00000000-0000-4000-8000-000000000001"}')
+fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ] && [ -n "$A_COMPANY" ] && [ "$A_COMPANY" != null ]; then
   c=$(rpc create_native_sales_invoice "{\"p_project_id\":\"$A_PROJECT\",\"p_customer_id\":\"$A_COMPANY\",\"p_lines\":[{\"description\":\"probe\",\"qty\":1,\"rate\":1}],\"p_work_order_id\":null}")
 fi

@@ -129,8 +129,8 @@ changed — none matched, or the database did not let you change it.
   Also read-only: `external_domain_ownership` (`domain, external_tier`).
 - RPCs: `get_project_milestones`.
 - **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
-  value, and draft budgets from one JSON file. It alone uses `set_project_contract_value`,
-  `transition_project`, `budget_versions`, `budget_line_items`; `rpc` / `create` refuse them.
+  value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
+  `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -161,13 +161,22 @@ violates row-level security policy").
    companies, create every missing company first — in the app (Companies → New, pushed to ERPNext)
    or as a Customer in ERPNext — and wait for it to appear in PMO.
 2. Claude writes the load file (spec §2) **outside the repository** from the client's spreadsheets.
-3. `node scripts/pmo.mjs load <file.json> --dry-run` — fix every problem it lists; read the plan.
+   For contract quantities, convert each project's price sheet or SPK (the contractual service list)
+   into `projects[].contract_lines[]`: one row per item with a stable `key` (e.g. the sheet's row id),
+   the ERP service `item_code` (required), `description`, `unit`, `quantity`, `rate`, optional `line_no`
+   and `basis`. Lump-sum units (`lot`, `ls`, `lump sum`) default to `lump_sum` and need quantity 1.
+   Generic shape: `{"key":"L-001","item_code":"SVC-001","description":"Survey service","unit":"m2","quantity":100,"rate":25000}`.
+3. `node scripts/pmo.mjs load <file.json> --dry-run` — fix every problem it lists; read the plan
+   (`contract_line.create` / `contract_line.skip` per line).
 4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
-   budgets. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
+   budgets → contract lines. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
 5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
    work orders are created by the client's users.
 
-Re-runs never overwrite: a different stored value, stage or short name is reported, not changed.
+Re-runs never overwrite: a different stored value, stage or short name is reported, not changed. A
+contract line whose `key` already exists is skipped even if its quantity or rate in the file differs
+(`contract_line.skip`): correct it in the app (Billing). The load never creates work-order allocations
+or acceptances (BAST) — those are made in the app.
 Milestones, tasks, meetings and CRM activities still use `create` (§3).
 
 ---

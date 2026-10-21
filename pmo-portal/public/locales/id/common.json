@@ -2198,7 +2198,7 @@
           "assessed": "Dinilai",
           "claimed": "Ditagih",
           "item": "Item",
-          "quantity": "Kuantitas",
+          "quantity": "Kontrak",
           "rate": "Harga satuan",
           "remaining": "Sisa untuk ditagih"
         },
@@ -2229,15 +2229,13 @@
         },
         "item": "Item ERP",
         "legend": "Baris",
-        "noWorkOrder": "Tidak ada — seluruh kontrak",
         "quantity": "Kuantitas",
         "rate": "Harga satuan (belum termasuk PPN)",
         "save": "Simpan baris",
-        "subtitle": "Harga belum termasuk pajak. Satu baris dapat terkait satu work order di proyek ini.",
+        "subtitle": "Harga belum termasuk pajak. Work Order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "titleEdit": "Ubah baris bill of quantities",
         "titleNew": "Tambah baris bill of quantities",
-        "unit": "Satuan",
-        "workOrder": "Work order"
+        "unit": "Satuan"
       },
       "claimForm": {
         "dpAmount": "Nilai uang muka (belum termasuk PPN)",

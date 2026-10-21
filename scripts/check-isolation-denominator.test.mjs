@@ -297,7 +297,7 @@ process.stdout.write(String(code));
       if (override !== '') fs.writeFileSync(env.TABLES_JSON, JSON.stringify(override === 'matching' ? denominator.tables : override));
     }
     if (runner) Object.assign(env, { SMOKE_EMAIL: 'synthetic', SMOKE_PASSWORD: 'synthetic' });
-    return spawnSync('bash', [runner ? 'scripts/post-deploy-probes.sh' : 'scripts/isolation-probe.sh'], {env, encoding: 'utf8', timeout: 120000});
+    return spawnSync('bash', [runner ? 'scripts/post-deploy-probes.sh' : 'scripts/isolation-probe.sh'], {env, encoding: 'utf8', timeout: 300000});
   } finally { fs.rmSync(dir, {recursive:true, force:true}); }
 }
 

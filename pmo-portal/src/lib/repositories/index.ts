@@ -233,6 +233,10 @@ import {
   listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
 } from '@/src/lib/db/progressBilling';
 import {
+  listProjectAcceptances, listWorkOrderLines, listProjectWorkOrderLines, createWorkOrderLine, updateWorkOrderLine, deleteWorkOrderLine,
+  prepareWorkOrderAcceptance, withdrawWorkOrderAcceptance, confirmWorkOrderAcceptance,
+} from '@/src/lib/db/workOrderAcceptances';
+import {
   listExpenseClaims, getExpenseClaim, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim,
   addExpenseLine, updateExpenseLine, removeExpenseLine, transitionExpenseClaim, recordExpenseAdvanceReturn,
   getExpenseAdvanceOutstanding, getExpenseClaimRoutes, getExpenseAdvanceAging,
@@ -331,6 +335,7 @@ import type {
   MilestoneRepository,
   WorkOrderRepository,
   ProgressBillingRepository,
+  WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
@@ -922,6 +927,19 @@ const progressBilling: ProgressBillingRepository = {
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
 };
 
+/** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
+const workOrderAcceptance: WorkOrderAcceptanceRepository = {
+  listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
+  listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
+  listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),
+  createLine: (input) => wrap(() => createWorkOrderLine(input)),
+  updateLine: (id, quantity) => wrap(() => updateWorkOrderLine(id, quantity)),
+  deleteLine: (id) => wrap(() => deleteWorkOrderLine(id)),
+  prepare: (input) => wrap(() => prepareWorkOrderAcceptance(input)),
+  withdraw: (id) => wrap(() => withdrawWorkOrderAcceptance(id)),
+  confirm: (id) => wrap(() => confirmWorkOrderAcceptance(id)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -1276,6 +1294,7 @@ export const repositories: Repositories = {
   milestone,
   workOrder,
   progressBilling,
+  workOrderAcceptance,
   procurementFiles,
   expenseClaim,
   expenseReceipts,
@@ -1314,6 +1333,7 @@ export type {
   MilestoneRepository,
   WorkOrderRepository,
   ProgressBillingRepository,
+  WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,

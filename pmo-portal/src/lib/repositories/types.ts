@@ -4,6 +4,9 @@ import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
+import type {
+  ConfirmWorkOrderAcceptanceResult, PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineInput, WorkOrderLineRow,
+} from '@/src/lib/db/workOrderAcceptances';
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
@@ -668,6 +671,27 @@ export interface ProgressBillingRepository {
   summary(projectId: string): Promise<ProjectBillingFacts | null>;
 }
 
+/**
+ * Contract quantities (ADR-0091): allocations of contract lines to a work order (plain table writes) and BAST
+ * acceptances (definer RPCs only). Nothing here dispatches to an ERP.
+ */
+export interface WorkOrderAcceptanceRepository {
+  /** Every acceptance on a project with its lines, newest first; refuses a saturated list. */
+  listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  /** The allocations of one work order. */
+  listLines(workOrderId: string): Promise<WorkOrderLineRow[]>;
+  /** Every allocation on a project's work orders. */
+  listProjectLines(projectId: string): Promise<WorkOrderLineRow[]>;
+  createLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow>;
+  updateLine(id: string, quantity: number): Promise<void>;
+  deleteLine(id: string): Promise<void>;
+  /** Creates a Draft, or replaces the Draft named by `acceptanceId`; returns the acceptance id. */
+  prepare(input: PrepareWorkOrderAcceptanceInput): Promise<string>;
+  withdraw(id: string): Promise<void>;
+  /** Confirms; a final one closes the work order. Figures come only from this response. */
+  confirm(id: string): Promise<ConfirmWorkOrderAcceptanceResult>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -833,6 +857,7 @@ export interface Repositories {
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;

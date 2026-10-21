@@ -17,6 +17,11 @@
 > [ADR-0080](../adr/0080-billing-by-work-order.md); plan
 > [`docs/plans/2026-10-07-billing-by-work-order.md`](../plans/2026-10-07-billing-by-work-order.md); migration
 > `0262_billing_by_work_order.sql`; rulings `DD-BWO-n`).
+> **Amended 2026-10-21:** §8 — contract quantities, work-order allocations and BAST; OD-CQ-1..4,
+> DD-CQ-1..8, [ADR-0091](../adr/0091-work-order-closing-value-and-bast.md),
+> [plan](../plans/2026-10-21-contract-quantities.md), migration `0337_contract_quantities.sql`.
+> §8 supersedes the single-work-order-per-line scope in DD-PBL-4 / FR-PB-002 / FR-PB-007 and
+> the percent-only assessed-value rule for projects with contract lines; earlier text is retained as history.
 
 ## Owner ruling (2026-10-06)
 
@@ -48,6 +53,8 @@ Renumbered after the ruling. "Was" gives the previous number; **changed** / **ne
 - **DD-PBL-4 — scope.** *(was 2; unchanged)* The BoQ belongs to the project (the contract). A BoQ line may name
   one work order on the same project. A billing claim covers either the project's untagged lines or exactly one
   work order's lines; the work order must be Issued or Closed and supplies the invoice's client PO.
+  **Superseded in part (2026-10-21):** the single `boq_items.work_order_id` link and untagged-line scope
+  are replaced by allocations and allocation-based claim scope (DD-CQ-2/6, §8).
 - **DD-PBL-5 — recovery.** *(was 3; unchanged)* One live down payment per project, with its recovery % on the
   down-payment claim. Each billing claim recovers `round(gross × % / 100, 2)`, capped at the unrecovered balance;
   "recover the rest" takes `min(balance, gross)`. A billing claim is refused while the live down payment's
@@ -138,7 +145,8 @@ Finance bills.
   with an ERP item code, description, unit, quantity (> 0, at most 3 decimals) and rate (≥ 0, 2 decimals,
   excluding tax).
 - **FR-PB-002** Where a BoQ line names a work order, the system shall require that work order to be on the line's
-  project.
+  project. **Superseded (2026-10-21):** same-project validation now applies to `work_order_lines`,
+  not a `boq_items.work_order_id` column (DD-CQ-2/6, §8).
 - **FR-PB-021** When the project's PM, or a Finance-rank-or-above user, records an assessment for a project and
   month, the system shall store the quantity done to date for each BoQ line sent (≥ 0, at most 3 decimals),
   replace that month's earlier quantities, and set the month's percent complete to
@@ -166,6 +174,8 @@ Finance bills.
   lines where that is not above zero; the user may change every figure.
 - **FR-PB-007** Where a claim names a work order, the system shall accept only that work order's BoQ lines and
   require the work order to be Issued or Closed; where it names none, only lines with no work order.
+  **Superseded scope (2026-10-21):** eligibility is an allocation on the selected WO, or no allocation
+  anywhere for a claim without a WO (DD-CQ-2/6, §8); the status and client-PO rules stand.
 - **FR-PB-008** While the project has a live down payment whose invoice is Submitted, Unpaid or Paid, the system
   shall set a billing claim's recovery to `min(round(gross × % / 100, 2), unrecovered balance)`.
 - **FR-PB-009** Where the user chooses to recover the rest, the system shall set the recovery to
@@ -595,3 +605,339 @@ The milestone → work order display link (DD-BWO-12, follow-up); native invoici
 rule already covers it); credit notes against work orders (owner question 1); currency conversion; per-line work-order
 allocation of one invoice across several work orders (one invoice bills one work order); a PM dashboard card;
 reflecting an ERPNext Desk edit back as a refusal (it is shown as over-invoiced, never refused).
+
+## 8. Amendment 2026-10-21 — contract quantities, work-order allocation and BAST
+
+Decided owner brief, not a new interview. All amounts below are invented examples, excl. tax in the
+project currency. A project remains the contract; down payment remains per project. BAST means the
+client's acceptance, not an invoice, receipt or replacement document register.
+
+### 8.1 Owner rulings (OD-CQ-1..4, 2026-10-21)
+
+- **OD-CQ-1 — earning basis per line.** Unit-rate lines (km, stations, units, man-days): earned =
+  quantity done × rate. Lump-sum lines: 1 lot; earned = % complete × line amount, assessed by the PM;
+  reaches 100% at the client's acceptance (BAST). Basis defaults from the unit (`lot`, `LS`, `lump sum`,
+  case-insensitive → lump sum; anything else → unit rate), editable per line. Project WIP (work done,
+  not yet billed) = Σ line earned − billed to date (DD-PBL-9, DP excluded). Replaces latest % × net
+  contract wherever a project has lines; projects with no lines keep the percent method. A service
+  list with no rates: one lump-sum line (default).
+- **OD-CQ-2 — work orders order contract quantities; BAST closes them.** A WO carries quantities
+  against contract lines, full or partial (the normal case). Show the contract balance not yet
+  ordered; over/under ordering is shown, not blocked. First-class BAST on the WO: date, quantity per
+  line, link to the signed BAST in the project document register, final flag. PM or Finance prepares;
+  Finance/Admin confirms; preparer ≠ confirmer, except exactly the budget-activation sole-operator
+  exception (OD-BUDGET-6 amendment, 0298). Several stage/monthly BASTs per WO; confirmed final closes
+  it (Issued → Closed).
+- **OD-CQ-3 — closing value, never an edited order value.** DD-WO-5 stands: issued order value is the
+  frozen client PO. Final confirmation stamps separate closing value = Σ round(final qty × rate, 2),
+  excl. tax. Billing caps, still-to-invoice, drawdown and WIP use the closing outcome once set.
+  Unused quantity returns to the contract balance (ordered 1,000, final 997 → 903 of 1,900 available).
+  DP still unrecovered on closing is flagged and must be recovered (claim “recover the rest”) or
+  refunded explicitly, never silently lost.
+- **OD-CQ-4 — load path.** Operator loads contract lines with `pmo load` from the budget workbook
+  price sheet (description, unit rate, estimated quantity, unit), or SPK when no workbook exists.
+  Same guarded surface and `--dry-run` as draft budgets; no in-app import now (#1278).
+
+### 8.2 Director rulings (DD-CQ-1..8, 2026-10-21)
+
+- **DD-CQ-1 — line basis.** Add `boq_items.earning_basis text not null default 'unit_rate'`, checked
+  to `unit_rate|lump_sum`; lump sum requires quantity exactly 1 (23514). Its assessment and BAST
+  quantities are fractions 0–1. UI enters/displays percent, at most one decimal of percent (stored
+  three decimals). Add nullable `line_no integer` and `import_key text`, unique `(project_id, import_key)`.
+  FE defaults basis from the unit per OD-CQ-1.
+- **DD-CQ-2 — allocations replace the single link.** `work_order_lines(id, org_id, work_order_id,
+  boq_item_id, quantity numeric(14,3) > 0, created_at, unique(work_order_id, boq_item_id))` has a
+  same-project trigger (23514). Copy every existing non-null BoQ work-order link into an allocation
+  at full line quantity; then drop `boq_items.work_order_id` (one source). Down migration re-adds it
+  and backfills only lines with exactly one allocation. FORCE RLS, active membership and org stamp;
+  direct table writers Admin/Executive/PM/Finance, only Draft/Issued WOs. Closed/Cancelled allocations
+  frozen (42501). With confirmed BAST quantities, forbid deletion or reduction below the latest
+  confirmed BAST quantity (23514). Total allocation above/below contract quantity is shown, not blocked.
+- **DD-CQ-3 — BAST records and RPCs.** Header `work_order_acceptances(id, org_id, project_id,
+  work_order_id, acceptance_date date, is_final boolean, document_id uuid null → project_documents,
+  status text Draft|Confirmed|Withdrawn, prepared_by, prepared_at, confirmed_by, confirmed_at,
+  confirm_basis text null standard|sole_operator, withdrawn_at, note text ≤ 500)`; children
+  `work_order_acceptance_lines(acceptance_id, boq_item_id, quantity numeric(14,3) ≥ 0,
+  primary key(acceptance_id, boq_item_id))`. Quantities are cumulative accepted-to-date for that WO,
+  not incremental. Clients SELECT only through org/member RLS; writes only via these definers:
+  - `prepare_work_order_acceptance(p_work_order_id uuid, p_acceptance_date date, p_is_final boolean,
+    p_lines jsonb, p_document_id uuid default null, p_note text default null,
+    p_acceptance_id uuid default null) returns uuid`. Create or replace a Draft's fields and lines;
+    permission = `may_record_project_progress` (project PM or Finance rank+); WO Issued. Every line
+    allocated to WO, no repeats, finite quantity ≥0 and ≤3 dp, lump sum ≤1. Final includes every
+    allocated line (zero allowed). Optional document must be on same project; status checked at confirm.
+    Audit creation/replacement.
+  - `withdraw_work_order_acceptance(p_id uuid) returns void`. Draft only, preparer or Admin/Finance;
+    audit withdrawal.
+  - `confirm_work_order_acceptance(p_id uuid) returns jsonb`. Admin/Finance only; caller ≠ preparer
+    unless 0298's sole-active-member predicate, recording `confirm_basis`. Issued WO; same-project
+    Issued/Approved document with a file, as claim evidence. At most one Confirmed final per WO.
+    Confirmed headers and children immutable by trigger. Final takes `lock_work_order_billing(wo)`
+    before WO row lock, computes Σ round(qty × rate, 2), refuses BW001 if above original order net or
+    below already billed + pending on WO (DD-BWO-1 lines), with figures in message. Stamp closing value,
+    closing acceptance, Closed and closed_at atomically. Return `{closing_value, dp_held}` (project DP
+    invoiced − recovered), audit. A confirmed BAST's document remains ordinary attachable claim evidence;
+    no new evidence path.
+- **DD-CQ-4 — server-only closing money.** Add `work_orders.closing_value numeric(14,2) null` and
+  `closing_acceptance_id uuid null`. No client UPDATE grant (nor client INSERT of these stamps).
+  Confirm alone sets them using a narrowly scoped transaction flag (0252 pattern); once set, a
+  trigger refuses change even by other definer callers. `effective_net = coalesce(closing_value,
+  case when tax_treatment='inclusive' then order_value-tax_amount else order_value end)`.
+  Use it in `work_order_billing`, `assert_work_order_invoiceable`, `get_project_drawdown` and
+  `transition_work_order` issue-gate committed sum. ADR-0091 records this new money field.
+- **DD-CQ-5 — earned quantity in SQL.** With A = latest assessed quantity (0 if absent),
+  `closed_alloc` = allocations on Closed WOs with confirmed final BAST, `closed_final` = final
+  accepted quantities on those WOs, `open_cap = greatest(line.quantity-closed_final,0)`,
+  `earned_quantity = closed_final + least(greatest(A-closed_alloc,0),open_cap)`.
+  Earned line value = round(earned_quantity × rate, 2); project earned = Σ. Closed WOs count at final
+  acceptance; assessment counts only beyond what those WOs ordered. Apply the same formula to
+  lump-sum fractions; stage BASTs affect evidence/pre-fill, not earned value. `get_project_billing`
+  adds `earned_value`; each BoQ row adds `earning_basis`, `line_no`, `ordered_quantity` (Issued+Closed
+  allocations), `accepted_quantity` (latest confirmed BAST per WO), `closed_final`, `earned_quantity`,
+  `contract_balance = line.quantity - Issued allocations - closed_final`, and `allocations[]` with
+  `{work_order_id, boq_item_id, quantity, claimed_quantity, accepted_quantity, final}`. Claimed is live
+  claims on that WO; accepted is latest confirmed BAST on it. FE `summarizeBilling` uses earned value
+  for projects with lines, otherwise existing `pctOf`; WIP = earned − `work_billed`. Management-pack
+  `pct_complete` stays unchanged; follow-up derives its recognised figure from earned value.
+- **DD-CQ-6 — claims by allocation.** With a WO, `create_progress_claim` accepts only allocated lines;
+  without WO, only lines with no allocation at all (including Draft/Cancelled allocations).
+  Other rules unchanged: evidence, immutability, recovery, SoD and effective-net cap. WO pre-fill =
+  latest confirmed BAST qty − live claimed qty on that WO; without BAST, min(assessed − claimed on
+  all live claims, allocated − claimed on this WO); omit non-positive values. Without WO retain
+  assessed-minus-live-claimed on eligible lines. Pre-fill is editable, not a quantity cap.
+- **DD-CQ-7 — CLI contract lines.** Per project `contract_lines: [{key, line_no?, item_code,
+  description, unit, quantity, rate, basis?}]`. ERP service `item_code` required. Default basis from
+  unit. POST `boq_items`, mapping key → import_key; skip existing `(project, import_key)` (23505),
+  never update; corrections in app. Dry run lists all validation/reference problems (including missing
+  project, bad quantity/rate, lump-sum quantity ≠1 and duplicate key) and, for valid input, the plan.
+  Add `boq_items` to CLI `LOAD_TABLES` and guard `admin_write_tables` together (guard replacement
+  inside 0337, not a second migration). Update CLI spec §2 and runbook §4. No allocation/BAST load.
+- **DD-CQ-8 — who.** Lines/basis and allocations: Admin, Executive, PM, Finance. BAST prepare:
+  project's PM or Finance rank+ (`may_record_project_progress`, so Executive/Admin eligible too).
+  Confirm: Admin/Finance with DD-CQ-3 SoD. Claims unchanged.
+- **DD-CQ-9 — closing a work order that has contract lines.** *(Director 2026-10-21, plan open point 1)*
+  `transition_work_order` refuses Issued → Closed (42501, message: "close it by confirming its final BAST")
+  for a work order that has allocations; only a confirmed final BAST closes it. A work order with no
+  allocations keeps the manual close. Already-Closed work orders are not migrated: none has
+  allocations today, their allocations would be frozen anyway, and with no closing value they read
+  at their order net. The UI hides Close on a work order with allocations and points to the BAST.
+  Proof extends AC-CQ-006 (pgTAP) and AC-CQ-015 (RTL). The management-pack follow-up is #1279.
+
+### 8.3 Job stories
+
+- When I (operator) onboard a generic contract, I want to load its priced quantities once from its
+  workbook/SPK and inspect a dry run, so re-running does not duplicate or overwrite corrected lines.
+- When I (PM) receive an order for part of a 1,900 km contract, I want to allocate 1,000 km and see
+  what remains unordered, so later orders reuse the same priced line rather than duplicating it.
+- When the client accepts 997 km finally, I want to record the signed BAST and have Finance confirm
+  it, so the order closes honestly, 903 km becomes available and billing uses the accepted value.
+- When I (Finance) bill accepted work, I want in-scope quantities pre-filled and DP still held called
+  out, so the final invoice fits the closing ceiling without hiding unrecovered advances.
+- When I (Executive/PM/Finance) review mixed unit-rate and lump-sum work, I want earned work less
+  billed work, not a percent multiplied by an unrelated contract total.
+
+### 8.4 Functional requirements (EARS)
+
+- **FR-CQ-001** The system shall store each contract line's basis, optional line number and import
+  key per DD-CQ-1, require 1 lot for lump sum, and default basis from unit in FE and CLI.
+- **FR-CQ-002** When a permitted writer allocates a contract line to a Draft or Issued WO, the system
+  shall stamp org, require same project and a positive finite ≤3-dp quantity, and keep one row per
+  WO/line; it shall display over/under ordering without a contract-quantity ceiling refusal.
+- **FR-CQ-003** While a WO is Closed/Cancelled, the system shall refuse allocation writes (42501);
+  while a confirmed acceptance exists, it shall refuse deleting its allocation or reducing below the
+  latest confirmed accepted quantity (23514).
+- **FR-CQ-004** When a permitted preparer records/replaces a Draft BAST, the system shall validate
+  cumulative allocated quantities and final-line completeness per DD-CQ-3, stamp preparer/time and audit.
+- **FR-CQ-005** When the preparer or Admin/Finance withdraws a Draft BAST, the system shall stamp it
+  Withdrawn and audit, without changing allocations, invoices, earned value or WO status.
+- **FR-CQ-006** When Admin/Finance confirms a BAST, the system shall enforce SoD, current sole-operator
+  eligibility, document evidence and Issued-WO status, stamp confirmer/time/basis and audit; confirmed
+  headers and quantities shall be immutable.
+- **FR-CQ-007** When the confirmed BAST is final, the system shall atomically stamp closing money and
+  close the WO per DD-CQ-3/4, serialising against billing, and refuse BW001 with figures above order
+  net or below already billed plus pending; at most one final shall be confirmed.
+- **FR-CQ-008** Where closing value exists, the system shall use effective net in every operational
+  order-net reader (billing, refusal, drawdown and issue gate), leaving original PO and tax facts frozen.
+- **FR-CQ-009** The system shall return earned value, ordered, accepted, earned and contract-balance
+  quantities and per-WO allocation/claim/acceptance facts in `get_project_billing` per DD-CQ-5.
+- **FR-CQ-010** Where contract lines exist, the Billing tab shall show assessed-to-date as earned
+  value and WIP as earned minus DD-PBL-9 billed work; where no lines exist, it shall retain `pctOf`
+  and the no-assessment null state.
+- **FR-CQ-011** When Finance creates a progress claim, the database shall apply allocation scope and
+  the FE shall offer/pre-fill only eligible lines per DD-CQ-6, retaining editable quantities and all
+  existing money/evidence/SoD rules.
+- **FR-CQ-012** When final confirmation returns positive `dp_held`, the UI shall persistently state
+  the DP is still held and direct Finance to recover the rest on the next claim or explicitly refund;
+  it shall never mark recovery/refund done or erase the balance merely because a WO closed.
+- **FR-CQ-013** When `pmo load` sees contract_lines, it shall validate all rows before writes, resolve
+  project/keys with read-only lookups, POST new rows and skip existing keys per DD-CQ-7; dry run shall
+  write nothing. An unresolvable project is a preflight problem, not an invented parent.
+- **FR-CQ-014** The system shall expose the CLI addition only through the active-Admin load tier,
+  keeping ordinary CLI verbs and all allocation/BAST endpoints outside that tier.
+- **FR-CQ-015** The UI shall remove the line-level WO picker, offer allocations and BAST actions on
+  each WO, display order and closing values distinctly, show lump-sum progress as percent, and flag
+  over-measure/over-order in words, not colour alone.
+
+### 8.5 Observed contracts (read at this branch's base, not claims about deployment)
+
+- **OBS-CQ-001** 0250 defines one nullable `boq_items.work_order_id`; 0262's `create_progress_claim`
+  still scopes by it. DD-CQ-2/6 replaces both, never the claim/invoice's own work-order link.
+- **OBS-CQ-002** 0252's assessment RPC sets then immediately clears its derived-percent flag; preserve
+  that mechanism when adding lump-sum validation. `pct_complete` and management-pack readers stay.
+- **OBS-CQ-003** 0197 normalises drawdown and issue committed totals to order net; 0227's
+  `set_work_order_value` permits Draft only. Closing is a separate server-only field, not a new setter.
+- **OBS-CQ-004** 0262 already has advisory billing locks and pending/in-flight reservation logic;
+  preserve the invoice mirror exemption and the existing refusal path. BAST never writes the ERP.
+- **OBS-CQ-005** 0298 counts all active org profiles, not only Finance/Admin, for the sole-operator
+  exception. The exception does not grant a role that the caller otherwise lacks.
+- **OBS-CQ-006** `scripts/lib/pmo-load.mjs` separates validate → resolve → apply and stops at the
+  first server refusal; `0239` and CLI load allow-lists are paired. Extend, do not add an importer.
+
+### 8.6 Non-functional requirements
+
+- **NFR-CQ-001 (security/tenancy)** New business tables shall FORCE RLS with own-org active-member
+  reads; allocation writes shall have both role/project validation and state triggers. Acceptance
+  children shall derive org membership through the header (their decided shape has no org_id).
+  BAST tables shall have no client DML grants; RPCs shall reassert active membership, org and role,
+  with fixed search_path and no anon EXECUTE. Internal helpers/triggers shall have no client EXECUTE.
+  Update `supabase/tests/0178_anon_executable_definers.test.sql` with exactly the three BAST RPCs:
+  literal baseline 70 names +3 =73; re-count after rebase, keep hardcoded count and mutation oracle.
+- **NFR-CQ-002 (reversibility)** Supply `supabase/migrations/0337_contract_quantities.sql` and
+  `supabase/migrations/rollback/0337_contract_quantities_down.sql`. Restore replaced functions,
+  views, grants, guard and old column before dropping new objects. Backfill old link only for exactly
+  one allocation; multi-allocation lines cannot be represented in the old schema and require an
+  operator-reviewed export before rollback. Never infer an arbitrary WO or alter posted invoices.
+- **NFR-CQ-003 (exactness)** SQL numeric, finite validation before typmod rounding; quantities ≤3 dp,
+  rate/closing money ≤2 dp; round each line then sum (Postgres half-away-from-zero). FE subtracts
+  cents and milli-quantities exactly, with decimal-safe percent/fraction conversion. No mixed-currency
+  sum; closing value already excludes tax and must not be normalised a second time.
+- **NFR-CQ-004 (i18n/a11y)** Every new UI string shall exist in English and Indonesian. DESIGN.md
+  primitives, labelled controls, keyboard/focus/inline-error behavior, exact table money and phone
+  reflow apply; no new visual language or colour-only warnings.
+- **NFR-CQ-005 (honest states)** Pending, empty, absent assessment, unavailable and failed reads shall
+  stay distinct. Malformed earned/allocation/acceptance payloads are errors, not zeros. Closing/DP
+  success appears only after authoritative response; a refused confirm retains the Draft and inputs.
+- **NFR-CQ-006 (performance)** Aggregate allocations, latest confirmed BAST per WO and live claims
+  before joining (avoid multiplication/N+1); index WO/line, org/project, acceptance/status and document
+  FKs. Keep one summary RPC and bounded/paged lists that refuse saturation rather than truncate silently.
+
+### 8.7 Acceptance criteria (Given/When/Then)
+
+- **AC-CQ-001** Given contract lines, When basis is saved, Then unit-rate is allowed and a lump-sum
+  line requires quantity 1; invalid basis, NaN/Infinity and zero contract quantity fail 23514; line_no
+  can be null, and duplicate non-null project/import_key fails 23505 while other projects may reuse it.
+- **AC-CQ-002** Given a 1,900 km line and Draft/Issued WOs, When PM allocates 1,000 and 950 km,
+  Then both save (over-order is permitted), same WO/line duplicates fail, same-project/org is required,
+  Engineer writes fail, disabled/other-org reads return none and anon has no access; When the WO
+  closes/cancels, Then its allocations are frozen; Given latest confirmed quantity 997, Then deleting
+  the allocation or reducing it to 996 fails 23514 and 997 is allowed while Issued.
+- **AC-CQ-003** Given a pre-0337 BoQ line linked to one WO, When 0337 applies, Then one allocation
+  contains its full quantity and the old column is absent; When down runs, Then the old column and
+  same link return, a line with two allocations gets no arbitrary old link, and replaced SQL/ACL
+  contracts return without changing any invoice.
+- **AC-CQ-004** Given an Issued WO with allocations, When its PM (or Finance rank+) prepares and
+  re-records a Draft, Then cumulative lines replace rather than add, actor/time are recorded and
+  both actions audited; a repeated/unallocated line, negative/4-dp quantity, lump-sum >1, final
+  omitting an allocated line, another project's document or another PM fails; When preparer or
+  Admin/Finance withdraws, Then Draft becomes Withdrawn and a second withdrawal/confirmation fails.
+- **AC-CQ-005** Given two active org members and a Draft BAST prepared by Finance, When its preparer
+  confirms, Then 42501 and no close; When a distinct Admin/Finance confirms with an Issued/Approved
+  same-project document carrying a file, Then confirm_basis=standard; Given only that Finance/Admin
+  is active, When they prepare and confirm, Then confirm_basis=sole_operator; a second active Engineer
+  removes the exception. PM cannot confirm; disabled/other-org/anon cannot invoke; absent, Draft,
+  fileless or foreign evidence fails. Confirmed header/line mutation and a second final are refused.
+- **AC-CQ-006** Given a generic 1,900 km line at 50,000, a WO allocating 1,000 km with order net
+  50,000,000, and a final BAST for 997 km, When a permitted distinct confirmer confirms, Then closing
+  value=49,850,000, status=Closed, closed_at and closing_acceptance_id are stamped, order value/tax
+  facts unchanged and audit recorded; clients/other definer paths cannot set or change closing stamps.
+- **AC-CQ-007** Given that WO, When final quantity 1,001 implies 50,050,000, Then confirm fails BW001
+  naming closing and order net 50,000,000; Given 49,900,000 billed+pending, When final 997 is confirmed,
+  Then BW001 names 49,850,000 and 49,900,000 and nothing closes; equality is allowed. Billing and
+  confirmation share the advisory lock before mutable reads; unreadable billing fails closed.
+- **AC-CQ-008** Given closing value 49,850,000 and billed 40,000,000 with pending 5,000,000, When
+  billing/drawdown/issue-gate readers run, Then effective net=49,850,000, remaining=4,850,000 and
+  committed=49,850,000 (not original 50,000,000); a new invoice exactly 4,850,000 passes, one cent
+  more fails BW001 through existing native/outbox/claim fences; an unclosed inclusive order still
+  subtracts tax once. The dashboard consuming the billing view sees the same reduced remainder.
+- **AC-CQ-009** Given the 1,900/1,000/997 example and latest assessment 1,000, When billing is read
+  after final close, Then earned qty=997, value=49,850,000 and contract balance=903; When assessed
+  quantity becomes 1,050, Then earned qty=1,047 and value=52,350,000; assessment 2,000 earns only
+  1,900 (95,000,000). Ordered remains 1,000; accepted=997. Stage BASTs do not change earned.
+- **AC-CQ-010** Given a 1-lot lump-sum line at 50,000 and assessment 0.4, When billing is read,
+  Then earned qty=0.4 and earned value=20,000; a stage BAST does not make the whole lot earned,
+  and final 1 makes it 50,000. Multiple WOs' latest cumulative acceptances are selected once per WO,
+  never summed across monthly BAST history; cancelled WOs do not consume ordered contract balance.
+- **AC-CQ-011** Given one line allocated to two WOs and one unallocated line, When Finance claims
+  on the first WO, Then only its allocated lines qualify; When claiming with no WO, Then only the
+  entirely unallocated line qualifies (a Draft/Cancelled allocation also excludes a line); evidence,
+  recovery, copied rates, claim immutability and existing billing cap remain enforced.
+- **AC-CQ-012** Given projects with/without lines, When summarizeBilling runs, Then the line project
+  uses server earned_value even if percent × contract differs (49,850,000 − 40,000,000 =9,850,000
+  WIP), the no-line project uses pctOf and stays null without assessment; malformed earned data
+  is unavailable, not zero. DP-held and money differences stay exact in cents and may be negative.
+- **AC-CQ-013** Given WO allocation 1,000, global assessment 1,050, claimed 100 on this WO and 50
+  on another, When pre-fill runs without BAST, Then min(1,050−150,1,000−100)=900; Given latest BAST
+  997 on this WO, Then 897 is pre-filled regardless of other WO claims; non-positive lines omitted.
+  No-WO scope offers only unallocated lines; edits are still possible after pre-fill.
+- **AC-CQ-014** Given BoQ/assessment/claim dialogs, When unit is `LS`, `lot` or `Lump Sum`, Then new
+  basis defaults lump sum (override allowed), quantity is fixed at 1 and hidden; When 40.0% is
+  assessed/accepted, Then 0.400 is sent, 40.01% is rejected and 100% sends 1.000. There is no BoQ
+  WO picker; allocation editor shows contract balance and allows textual over-order warnings.
+- **AC-CQ-015** Given WO allocation/BAST lists and current JWT role, When preparing/confirming/
+  withdrawing, Then affordances match DD-CQ-8 and SoD (UI may withhold same-preparer confirm), final
+  success shows order/closing values separately and positive dp_held persistently says to recover
+  the rest on the next claim or explicitly refund; a refused save stays open with inputs and server
+  figures. Billing table shows contract, ordered, balance, accepted, earned and claimed, with percent
+  for lump sum, text warnings, loading/empty/error states and no fabricated zero.
+- **AC-CQ-016** Given a load file with missing item_code, duplicate key, bad quantity/rate and a
+  lump-sum quantity 2, When validation runs, Then every row problem is returned before requests;
+  Given missing/unresolvable project, Then preflight fails before writes. A valid dry run plans
+  each contract line using resolved project id (or a planned new project's reference), makes GETs
+  only and defaults basis case-insensitively from unit; explicit basis wins.
+- **AC-CQ-017** Given valid contract lines, When apply runs, Then POSTs omit org_id, map key to
+  import_key and basis to earning_basis and include required ERP item; re-run skips existing keys,
+  concurrent 23505 skips without PATCH, another failure stops/report partial completion; no allocation
+  or BAST is loaded and corrections are directed to the app.
+- **AC-CQ-018** Given OAuth-client requests, When active Admin uses GET/POST boq_items, Then guard
+  admits them subject to RLS; PATCH/DELETE/upsert, non-Admin/disabled users and allocation/BAST calls
+  are refused, while browser behavior is unchanged. CLI LOAD_TABLES equals latest guard list;
+  generic get/create/update still refuses the load-only table.
+- **AC-CQ-019** Given all new UI keys, When both catalogues are checked, Then English and Indonesian
+  values exist and are non-empty, including basis, quantities, BAST states, refusals and DP notice.
+- **AC-CQ-020** Given an Issued WO on a generic contract and signed document in its register, When
+  PM allocates 1,000, prepares final 997, and a distinct Finance confirms, Then the rendered WO is
+  Closed at 49,850,000, the Billing tab shows balance 903 and earned 49,850,000, and still-to-invoice
+  uses closing value after navigation/reload. This is the only new curated cross-stack journey.
+
+### 8.8 AC owning layer (ADR-0010)
+
+| AC | Owning layer | Canonical proof |
+|---|---|---|
+| AC-CQ-001 | pgTAP | `supabase/tests/0337_contract_lines.test.sql` |
+| AC-CQ-002 | pgTAP | `supabase/tests/0337_work_order_lines.test.sql` |
+| AC-CQ-003 | pgTAP upgrade/reversal harness | `scripts/contract-quantities-rollback.test.sql` |
+| AC-CQ-004 | pgTAP | `supabase/tests/0337_work_order_acceptances.test.sql` |
+| AC-CQ-005 | pgTAP | `supabase/tests/0337_work_order_acceptances.test.sql` |
+| AC-CQ-006 | pgTAP | `supabase/tests/0337_work_order_closing_value.test.sql` |
+| AC-CQ-007 | pgTAP | `supabase/tests/0337_work_order_closing_value.test.sql` |
+| AC-CQ-008 | pgTAP | `supabase/tests/0337_work_order_effective_net.test.sql` |
+| AC-CQ-009 | pgTAP | `supabase/tests/0337_contract_earned_value.test.sql` |
+| AC-CQ-010 | pgTAP | `supabase/tests/0337_contract_earned_value.test.sql` |
+| AC-CQ-011 | pgTAP | `supabase/tests/0337_progress_claim_allocations.test.sql` |
+| AC-CQ-012 | Vitest | `pmo-portal/src/lib/progressBilling.test.ts` |
+| AC-CQ-013 | Vitest | `pmo-portal/src/lib/progressBilling.test.ts` |
+| AC-CQ-014 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ContractQuantityDialogs.test.tsx` |
+| AC-CQ-015 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ContractQuantitiesTabs.test.tsx` |
+| AC-CQ-016 | Node | `scripts/pmo-load.test.mjs` |
+| AC-CQ-017 | Node | `scripts/pmo-load.test.mjs` |
+| AC-CQ-018 | pgTAP | `supabase/tests/0337_contract_lines_api_guard.test.sql` (Node list/verb regressions support it) |
+| AC-CQ-019 | Vitest | `pmo-portal/src/lib/progressBilling.i18n.test.ts` |
+| AC-CQ-020 | Playwright | `pmo-portal/e2e/AC-CQ-020-contract-quantities.spec.ts` |
+
+### 8.9 Out of scope
+
+In-app import (#1278); loading allocations/BASTs; management-pack recognition change (#765 follow-up);
+retention; a new ERP command, automatic invoice or automatic DP refund; editing original issued order
+money; automatically marking an acceptance Confirmed or evidence attached; BAST-period accounting;
+ERP-side quantity tracking; currency conversion; changing claim submit SoD or per-project DP scope.
+See the plan's Open points for shipped-code integration questions, not reopened owner rulings.

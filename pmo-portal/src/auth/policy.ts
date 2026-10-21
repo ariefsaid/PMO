@@ -38,7 +38,9 @@ export type Action =
   | 'manage'
   | 'push_timesheet'
   | 'confirm_employee_link'
-  | 'upload';
+  | 'upload'
+  | 'withdraw'
+  | 'confirm';
 
 export type Entity =
   | 'project'
@@ -63,6 +65,8 @@ export type Entity =
   | 'workOrder'
   | 'boqItem'
   | 'progressClaim'
+  | 'workOrderLine'
+  | 'workOrderAcceptance'
   | 'expenseClaim'
   | 'contact'
   | 'contactActivity'
@@ -126,6 +130,7 @@ const DELIVERY: Role[] = ['Admin', 'Executive', 'Project Manager']; // delivery 
 const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']; // incl. Finance
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
+const CONFIRM_BAST: Role[] = ['Admin', 'Finance']; // BAST confirmation / any-draft withdrawal (DD-CQ-8)
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
 /**
  * Revenue WRITE set — who may raise a sales invoice, record an incoming receipt, cancel either, or
@@ -220,6 +225,38 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
+  },
+  /**
+   * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
+   * the BoQ writer set, and only while the work order is Draft/Issued (the state trigger freezes Closed/Cancelled).
+   * `record.status` is the WORK ORDER's status; unknown status denies. View-as sessions are view-only.
+   */
+  workOrderLine: {
+    view: allow(MASTER_DATA),
+    create: (role, ctx) => has(MASTER_DATA, role) && isOpenWorkOrder(ctx) && ctx.record?.viewOnly !== true,
+    edit: (role, ctx) => has(MASTER_DATA, role) && isOpenWorkOrder(ctx) && ctx.record?.viewOnly !== true,
+    delete: (role, ctx) => has(MASTER_DATA, role) && isOpenWorkOrder(ctx) && ctx.record?.viewOnly !== true,
+  },
+  /**
+   * BAST acceptances (ADR-0091). UX only — the three definer RPCs are the authority.
+   *   create   (prepare)  ← `may_record_project_progress`: Finance rank and above, or the project's own PM
+   *                         (`record.project_manager_id`), on an Issued work order (`record.status`).
+   *   confirm             ← Admin/Finance on a Draft acceptance (`record.status`). The preparer IS offered it, with a
+   *                         hint: the server refuses same-person confirmation unless they are the organisation's sole
+   *                         operator (a one-person org must be able to close a work order); the refusal is shown.
+   *   withdraw            ← the preparer, or Admin/Finance, on a Draft acceptance.
+   */
+  workOrderAcceptance: {
+    view: allow(MASTER_DATA),
+    create: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Issued' &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && has(CONFIRM_BAST, role),
+    withdraw: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' &&
+      (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId)),
   },
   /**
    * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,
@@ -571,6 +608,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
         ctx.record?.project_manager_id === ctx.currentUserId),
   },
 };
+
+/** Allocation writes are open only while the work order is Draft or Issued (`record.status` = the work order's). */
+function isOpenWorkOrder(ctx: PolicyContext): boolean {
+  return ctx.record?.status === 'Draft' || ctx.record?.status === 'Issued';
+}
 
 /**
  * The pure policy predicate. Reads the REAL role from `ctx.realRole`. Deny-by-default.
