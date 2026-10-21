@@ -226,6 +226,10 @@ import {
   transitionWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
+import {
+  listWorkOrderLines, createWorkOrderLine, updateWorkOrderLine, deleteWorkOrderLine, listWorkOrderAcceptances,
+  prepareWorkOrderAcceptance, withdrawWorkOrderAcceptance, confirmWorkOrderAcceptance,
+} from '@/src/lib/db/workOrderAcceptances';
 import { listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import {
   listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
@@ -330,6 +334,7 @@ import type {
   MilestoneRepository,
   WorkOrderRepository,
   ProgressBillingRepository,
+  WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
@@ -920,6 +925,17 @@ const progressBilling: ProgressBillingRepository = {
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
 };
 
+const workOrderAcceptance: WorkOrderAcceptanceRepository = {
+  listLines: (projectId) => wrap(() => listWorkOrderLines(projectId)),
+  createLine: (workOrderId, boqItemId, quantity) => wrap(() => createWorkOrderLine(workOrderId, boqItemId, quantity)),
+  updateLine: (id, quantity) => wrap(() => updateWorkOrderLine(id, quantity)),
+  deleteLine: (id) => wrap(() => deleteWorkOrderLine(id)),
+  listAcceptances: (projectId) => wrap(() => listWorkOrderAcceptances(projectId)),
+  prepare: (input) => wrap(() => prepareWorkOrderAcceptance(input)),
+  withdraw: (id) => wrap(() => withdrawWorkOrderAcceptance(id)),
+  confirm: (id) => wrap(() => confirmWorkOrderAcceptance(id)),
+};
+
 const procurementFiles: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
   prepareUpload: (phase, procurementId, fileName) =>
@@ -1269,6 +1285,7 @@ export const repositories: Repositories = {
   milestone,
   workOrder,
   progressBilling,
+  workOrderAcceptance,
   procurementFiles,
   expenseClaim,
   expenseReceipts,

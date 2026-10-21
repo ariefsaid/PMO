@@ -6,7 +6,21 @@ import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
  * ⚑ Assessed to date and the gap use the management pack's own `pctOf`, so they ARE the pack's recognised to
  * date and unbilled for the current month — one formula, not two.
  */
+export type EarningBasis = 'unit_rate' | 'lump_sum';
+export interface AllocationFacts {
+  workOrderId: string; boqItemId: string; quantity: number; claimedQuantity: number;
+  /** null = no confirmed BAST (distinct from a BAST of zero). */
+  acceptedQuantity: number | null; final: boolean;
+}
+export interface ContractLineFacts {
+  boqItemId: string; earningBasis: EarningBasis; lineNo: number | null;
+  orderedQuantity: number; acceptedQuantity: number; closedFinal: number;
+  earnedQuantity: number; contractBalance: number; allocations: AllocationFacts[];
+}
+
 export interface ProjectBillingFacts {
+  earnedValue: number;
+  contractLines: ContractLineFacts[];
   currency: string;
   contractNet: number;
   workBilled: number;
@@ -35,9 +49,11 @@ export interface ProjectBillingSummary extends ProjectBillingFacts {
 const milli = (value: number): number => Math.round(value * 1000);
 
 export function summarizeBilling(facts: ProjectBillingFacts): ProjectBillingSummary {
-  const assessedCents = facts.assessment && facts.contractNet >= 0
-    ? pctOf(toCents(facts.contractNet), facts.assessment.pctComplete)
-    : null;
+  const assessedCents = facts.contractLines.length > 0
+    ? toCents(facts.earnedValue)
+    : facts.assessment && facts.contractNet >= 0
+      ? pctOf(toCents(facts.contractNet), facts.assessment.pctComplete)
+      : null;
   return {
     ...facts,
     dpHeld: fromCents(toCents(facts.dpBilled) - toCents(facts.dpRecovered)),

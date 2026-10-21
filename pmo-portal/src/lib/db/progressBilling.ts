@@ -1,7 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
+import type { EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
 
 /**
  * Progress-billing DAL (#766, migration 0250). BoQ lines are RLS-scoped table writes; an assessment goes
@@ -9,7 +9,10 @@ import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
  * definer RPCs (no client write grant exists); the summary is the INVOKER `get_project_billing`.
  * org_id is never sent from the client.
  */
-export type BoqItemRow = Tables<'boq_items'>;
+// provisional (Lane A types supersede): the work_order_id link is gone; basis/line_no/import_key arrive.
+export type BoqItemRow = Omit<Tables<'boq_items'>, 'work_order_id'> & {
+  earning_basis: EarningBasis; line_no: number | null; import_key: string | null;
+};
 export type ProgressClaimRow = Tables<'progress_claims'>;
 export type ProgressClaimLineRow = Tables<'progress_claim_lines'>;
 
@@ -33,7 +36,8 @@ export interface BoqItemInput {
   unit: string;
   quantity: number;
   rate: number;
-  workOrderId: string | null;
+  earningBasis: EarningBasis;
+  lineNo: number | null;
 }
 
 export interface ProgressClaimInput {
@@ -66,23 +70,23 @@ export async function listBoqItems(projectId: string): Promise<BoqItemRow[]> {
   const { data, error } = await supabase.from('boq_items').select('*')
     .eq('project_id', projectId).order('created_at', { ascending: true });
   if (error) fail(error);
-  return data ?? [];
+  return (data ?? []) as unknown as BoqItemRow[];
 }
 
 export async function createBoqItem(projectId: string, input: BoqItemInput): Promise<BoqItemRow> {
   const { data, error } = await supabase.from('boq_items').insert({
     project_id: projectId, item_code: input.itemCode, description: input.description, unit: input.unit,
-    quantity: input.quantity, rate: input.rate, work_order_id: input.workOrderId,
-  }).select().single();
+    quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
+  } as never).select().single();
   if (error) fail(error);
-  return data as BoqItemRow;
+  return data as unknown as BoqItemRow;
 }
 
 export async function updateBoqItem(id: string, input: BoqItemInput): Promise<void> {
   const { data, error } = await supabase.from('boq_items').update({
     item_code: input.itemCode, description: input.description, unit: input.unit,
-    quantity: input.quantity, rate: input.rate, work_order_id: input.workOrderId,
-  }).eq('id', id).select('id');
+    quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
+  } as never).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Bill of quantities line not found or you do not have permission to edit it.');
 }
@@ -173,6 +177,8 @@ export async function getProjectBilling(projectId: string): Promise<ProjectBilli
     assessment = { month: rawAssessment.month, pctComplete: pct };
   }
   return {
+    earnedValue: raw.earned_value === undefined ? 0 : num('earned_value'),
+    contractLines: [],
     currency: raw.currency,
     contractNet: num('contract_net'),
     workBilled: num('work_billed'),

@@ -38,7 +38,9 @@ export type Action =
   | 'manage'
   | 'push_timesheet'
   | 'confirm_employee_link'
-  | 'upload';
+  | 'upload'
+  | 'confirm'
+  | 'withdraw';
 
 export type Entity =
   | 'project'
@@ -63,6 +65,8 @@ export type Entity =
   | 'workOrder'
   | 'boqItem'
   | 'progressClaim'
+  | 'workOrderLine'
+  | 'workOrderAcceptance'
   | 'expenseClaim'
   | 'contact'
   | 'contactActivity'
@@ -220,6 +224,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(MASTER_DATA),
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
+  },
+  // provisional (Lane C1 supersedes): allocation = the BoQ writer set; BAST prepare = may_record_project_progress.
+  workOrderLine: {
+    view: allow(MASTER_DATA),
+    create: allow(MASTER_DATA),
+    edit: allow(MASTER_DATA),
+    delete: allow(MASTER_DATA),
+  },
+  workOrderAcceptance: {
+    create: (role, ctx) =>
+      has(MONEY_AUTHORITY, role) ||
+      (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId),
+    confirm: allow(['Admin', 'Finance']),
+    withdraw: (role, ctx) =>
+      has(['Admin', 'Finance'], role) || (!!ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId),
   },
   /**
    * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,

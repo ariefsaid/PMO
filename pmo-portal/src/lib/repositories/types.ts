@@ -5,6 +5,9 @@ import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
+import type {
+  ConfirmWorkOrderAcceptanceResult, PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow,
+} from '@/src/lib/db/workOrderAcceptances';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
@@ -667,6 +670,18 @@ export interface ProgressBillingRepository {
   summary(projectId: string): Promise<ProjectBillingFacts | null>;
 }
 
+/** Contract-quantity allocations and BAST acceptances (ADR-0090). */
+export interface WorkOrderAcceptanceRepository {
+  listLines(projectId: string): Promise<WorkOrderLineRow[]>;
+  createLine(workOrderId: string, boqItemId: string, quantity: number): Promise<WorkOrderLineRow>;
+  updateLine(id: string, quantity: number): Promise<void>;
+  deleteLine(id: string): Promise<void>;
+  listAcceptances(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  prepare(input: PrepareWorkOrderAcceptanceInput): Promise<string>;
+  withdraw(id: string): Promise<void>;
+  confirm(id: string): Promise<ConfirmWorkOrderAcceptanceResult>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -826,6 +841,7 @@ export interface Repositories {
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;
