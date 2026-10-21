@@ -307,8 +307,10 @@ export async function resolveLoad(doc, api) {
       path: existing ? remainingPath(p.stage, existing.status) : [...LOAD_STAGE_PATHS[p.stage]],
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
       budget: null,
+      contractLines: null,
     };
     if (entry.path !== null && p.budget?.length) entry.budget = await resolveBudget(api, entry, problems);
+    if (entry.path !== null && p.contract_lines?.length) entry.contractLines = await resolveContractLines(api, entry, problems);
     projects.push(entry);
   }
   return { problems, plan: { erpOwnsCompanies, companies, projects } };
@@ -330,6 +332,22 @@ async function resolveBudget(api, entry, problems) {
   }
   const loaded = new Set(have.map((r) => r.import_key));
   return { state: 'attach', versionId: versions[0].id, lines: lines.filter((l) => !loaded.has(l.import_key)) };
+}
+
+/**
+ * Contract lines (DD-CQ-7): a new key is created, a known (project, key) is skipped — never updated. A planned
+ * project has no id yet, so there is nothing to look up and every line is new; its parent is the plan entry.
+ */
+async function resolveContractLines(api, entry, problems) {
+  const lines = entry.input.contract_lines;
+  if (!entry.existing) return { lines: lines.map((line) => ({ line, exists: false })) };
+  const have = await api.get('boq_items', params({ select: 'id,import_key', project_id: eq(entry.id), import_key: 'not.is.null' }));
+  if (have.length >= READ_CAP) {
+    problems.push(`${entry.key}: the project has too many contract lines to check — finish them in the app`);
+    return { lines: [] };
+  }
+  const loaded = new Set(have.map((r) => r.import_key));
+  return { lines: lines.map((line) => ({ line, exists: loaded.has(line.key) })) };
 }
 
 function projectPayload(e) {

@@ -411,3 +411,59 @@ test('AC-CQ-016: the default basis follows the unit, case-insensitively and trim
   for (const u of ['lot', 'LOT', ' Ls ', 'lump sum', 'Lump Sum']) assert.equal(defaultContractLineBasis(u), 'lump_sum', u);
   for (const u of ['m2', 'hari', 'unit', 'lots', '']) assert.equal(defaultContractLineBasis(u), 'unit_rate', u);
 });
+
+const LINES_DOC = (lines = [LINE({ key: 'A', line_no: 1 }), LINE({ key: 'B', unit: 'LS', quantity: 1 })], over = {}) => ({
+  projects: [projectWith(lines, { stage: 'Ongoing Project', contract_value: 1000, tax_treatment: 'exclusive', tax_amount: 0, customer_contract_ref: 'PO-1', contract_date: '2025-02-01', ...over })],
+});
+const getsOf = (api, table) => api.calls.filter((c) => c.kind === 'get' && c.target === table);
+
+test('AC-CQ-016: resolve plans lines on a project that does not exist yet, with no lookup and no write', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  const { problems, plan } = await resolveLoad(LINES_DOC(), api);
+  assert.deepEqual(problems, []);
+  const entry = plan.projects[0];
+  assert.equal(entry.id, null, 'the project is planned, not yet created');
+  assert.deepEqual(entry.contractLines.lines.map((l) => [l.line.key, l.exists]), [['A', false], ['B', false]]);
+  assert.deepEqual(getsOf(api, 'boq_items'), [], 'a planned project has nothing to look up');
+  assert.deepEqual(writes(api), []);
+});
+
+test('AC-CQ-016: resolve looks up an existing project\'s keys with one filtered GET and marks the known ones', async () => {
+  const api = fakeApi({ tables: {
+    companies: COMPANIES(), projects: [EXISTING()],
+    boq_items: [{ id: 'b-1', project_id: 'p-1', import_key: 'A' }, { id: 'b-2', project_id: 'p-other', import_key: 'B' }, { id: 'b-3', project_id: 'p-1', import_key: null }],
+  } });
+  const { problems, plan } = await resolveLoad(LINES_DOC(), api);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(plan.projects[0].contractLines.lines.map((l) => [l.line.key, l.exists]), [['A', true], ['B', false]]);
+  const [get] = getsOf(api, 'boq_items');
+  assert.equal(getsOf(api, 'boq_items').length, 1);
+  const q = new URLSearchParams(get.query);
+  assert.equal(q.get('project_id'), 'eq.p-1');
+  assert.equal(q.get('select'), 'id,import_key');
+  assert.deepEqual(writes(api), []);
+});
+
+test('AC-CQ-016: lines resolve on a project that has no budget in the file', async () => {
+  const noBudget = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()] } }));
+  assert.equal(noBudget.plan.projects[0].budget, null);
+  assert.equal(noBudget.plan.projects[0].contractLines.lines.length, 2);
+});
+
+test('AC-CQ-016: an ambiguous or unresolvable project is a preflight problem, never an invented parent', async () => {
+  const ambiguous = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING(), EXISTING({ id: 'p-2' })] } }));
+  assert.equal(ambiguous.problems.length, 1);
+  assert.match(ambiguous.problems[0], /more than one project matches/);
+  assert.deepEqual(ambiguous.plan.projects, []);
+
+  const noClient = await resolveLoad(LINES_DOC(), fakeApi());
+  assert.match(noClient.problems[0], /not a company in PMO/);
+  assert.deepEqual(noClient.plan.projects, []);
+});
+
+test('AC-CQ-016: a read that fills the 1000-row cap cannot prove a key is absent — a preflight problem', async () => {
+  const full = Array.from({ length: 1000 }, (_, i) => ({ id: `b-${i}`, project_id: 'p-1', import_key: `K-${i}` }));
+  const { problems } = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], boq_items: full } }));
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /ORG-001: .*too many contract lines to check/);
+});
