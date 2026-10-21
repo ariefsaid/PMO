@@ -7,6 +7,7 @@ const PO = { name: 'PUR-ORD-1', supplier: 'SUP-1', supplier_name: 'Acme', transa
 const PI = { name: 'ACC-PINV-1', supplier: 'SUP-1', supplier_name: 'Acme', posting_date: '2026-02-01', due_date: '2026-03-01',
   bill_no: 'INV-77', currency: 'IDR', grand_total: 500000, outstanding_amount: 500000, status: 'Unpaid', docstatus: 1,
   is_return: 0, project: null, modified: '2026-02-01 10:00:00' };
+const PURCHASE_CURSOR_DOMAINS = ['Purchase Order', 'Purchase Invoice'].map((doctype) => `purchases::v2::${doctype}`);
 
 function harness(docs: Record<string, unknown[]>) {
   const fake = new FakePostgrest({ external_sync_watermarks: [] }, { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
@@ -54,16 +55,41 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(h.urls.every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
   });
 
-  it('AC-EPR-001 resumes from the stored watermark and still calls the RPC with no rows (re-stamps attribution)', async () => {
+  it('AC-EPR-001 resumes from the stored watermark without issuing a no-op RPC', async () => {
     const h = harness({});
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified","=","2026-02-01 10:00:00"]');
-    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
+    expect(h.rpc).not.toHaveBeenCalled();
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: 'purchases::v2::Purchase Invoice',
       watermark_cursor: JSON.stringify({ version: 2, modified: '2026-02-01 10:00:00' }),
     }));
+  });
+
+  it('does nothing on an idle tick with canonical cursors', async () => {
+    const h = harness({ 'Purchase Order': [PO], 'Purchase Invoice': [PI] });
+    for (const [domain, modified] of [[PURCHASE_CURSOR_DOMAINS[0], PO.modified], [PURCHASE_CURSOR_DOMAINS[1], PI.modified]]) {
+      h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain,
+        watermark_cursor: JSON.stringify({ version: 2, modified }) });
+    }
+    let cursorWrites = 0;
+    const from = (table: string) => {
+      const builder = h.fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
+      return new Proxy(builder, { get(target, key, receiver) {
+        if (key === 'upsert' || key === 'update') return (...args: unknown[]) => {
+          cursorWrites += 1;
+          return Reflect.get(target, key, receiver).apply(target, args);
+        };
+        return Reflect.get(target, key, receiver);
+      } });
+    };
+    const sc = { from, rpc: h.rpc } as never;
+
+    await feedPurchaseMirror(sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(cursorWrites).toBe(0);
   });
 
   it('fails closed on a malformed ERP response without moving the watermark', async () => {
@@ -100,16 +126,20 @@ describe('erpnext/purchaseMirrorFeed', () => {
       { ...PI, name: 'ACC-PINV-CANCELLED', docstatus: 2 },
       { ...PI, name: 'ACC-PINV-BAD-STATUS', docstatus: 3 },
       { ...PI, name: 'ACC-PINV-OVERFLOW', grand_total: '10000000000000000.00', due_date: '2026-02-30' },
+      { ...PI, name: 'ACC-PINV-THREE-DECIMALS', grand_total: '12.345', outstanding_amount: '10.000000001' },
+      { ...PI, name: 'ACC-PINV-16-DIGITS', grand_total: '1000000000000000' },
       { ...PI, name: 'ACC-PINV-VALID' },
     ] });
 
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
-    expect(h.rpc.mock.calls[0][1].p_rows).toEqual([
-      expect.objectContaining({ erp_name: 'ACC-PINV-CANCELLED', erp_docstatus: 2 }),
-      expect.objectContaining({ erp_name: 'ACC-PINV-OVERFLOW', grand_total: null, due_date: null }),
-      expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }),
-    ]);
+    const mirrored = h.rpc.mock.calls.flatMap((call) => call[1].p_rows);
+    expect(mirrored).toHaveLength(5);
+    expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-CANCELLED', erp_docstatus: 2 }));
+    expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-OVERFLOW', grand_total: null, due_date: null }));
+    expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-THREE-DECIMALS', grand_total: '12.345', outstanding_amount: '10.000000001' }));
+    expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-16-DIGITS', grand_total: null }));
+    expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: 'purchases::v2::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified }),
     }));
@@ -195,12 +225,12 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps legacy timestamp watermarks and replays equal-boundary corrections inclusively', async () => {
+  it('replays a legacy timestamp boundary once, then keeps the canonical cursor idle', async () => {
     const h = harness({ 'Purchase Invoice': [{ ...PI, modified: '2026-02-01 10:00:00', status: 'Corrected' }] });
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
-    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(1);
     expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: PI.name, erp_status: 'Corrected' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: expect.stringContaining('v2'), watermark_cursor: expect.stringContaining('2026-02-01 10:00:00'),

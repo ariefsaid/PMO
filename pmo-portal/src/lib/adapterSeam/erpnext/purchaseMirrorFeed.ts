@@ -53,9 +53,9 @@ export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
 const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
 const money = (v: unknown): string | null => {
   const t = str(v);
-  if (t === null || !/^-?\d+(\.\d{1,2})?$/.test(t)) return null;
+  if (t === null || !/^-?\d+(\.\d+)?$/.test(t)) return null;
   const whole = t.replace(/^-/, '').split('.')[0].replace(/^0+/, '') || '0';
-  return whole.length <= 16 ? t : null;
+  return whole.length <= 15 ? t : null;
 };
 const date = (v: unknown): string | null => {
   const t = str(v);
@@ -163,13 +163,16 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   const transport = { ...opts.client, maxRetries: 0, timeoutMs: REQUEST_TIMEOUT_MS };
   let reads = 0;
   let fed = 0;
-  let wroteAny = false;
   const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
     const legacy = stored === null ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
-    pending.push({ doctype, domain, stored, cursor: parseCursor(stored ?? legacy), equalityDone: false });
+    const cursor = parseCursor(stored ?? legacy);
+    // A canonical name-less v2 cursor is already past its equality boundary. Start strictly after it
+    // on idle ticks; named cursors are in the middle of a same-timestamp page and must resume inclusively.
+    const equalityDone = Boolean(stored && stored.startsWith('{') && cursor && !cursor.name);
+    pending.push({ doctype, domain, stored, cursor, equalityDone });
   }
 
   // Alternate durable pages so both document types progress within the shared budget.
@@ -200,9 +203,8 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
     const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
     if (error) throw new AppError(error.message, error.code);
     fed += Number(data ?? 0);
-    wroteAny = true;
     const last = rows[rows.length - 1];
-    const completed = rows.length < PAGE_SIZE && equalityDone;
+    const completed = rows.length < PAGE_SIZE && (equalityDone || Boolean(cursor?.name));
     state.cursor = completed
       ? { version: CURSOR_VERSION, modified: String(last.modified) }
       : { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
@@ -213,10 +215,6 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       state.equalityDone = rows.length < PAGE_SIZE;
       pending.push(state);
     }
-  }
-  if (!wroteAny) {
-    const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
-    if (error) throw new AppError(error.message, error.code);
   }
   return { fed, caughtUp: pending.length === 0 };
 }

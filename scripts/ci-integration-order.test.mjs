@@ -8,6 +8,15 @@ const packageJson = JSON.parse(
   readFileSync(new URL('../pmo-portal/package.json', import.meta.url), 'utf8'),
 );
 
+test('repository script tests run after npm ci installs their dependencies', () => {
+  const install = workflow.indexOf('run: npm ci', workflow.indexOf('  verify:'));
+  const tests = workflow.indexOf('- name: Repository script tests (non-DB)');
+
+  assert.notEqual(install, -1, 'verify must install npm dependencies');
+  assert.notEqual(tests, -1, 'verify must run repository script tests');
+  assert.ok(tests > install, 'repository script tests that spawn checked-in CLIs must run after npm ci');
+});
+
 test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   const scriptTests = readdirSync(new URL('../scripts/', import.meta.url))
     .filter((file) => file.endsWith('.test.mjs'));
@@ -30,6 +39,9 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   provesCoverage(workflow);
   assert.throws(() => provesCoverage(workflow.replace(/scripts\/financial-statements-rollback\.test\.mjs/g, '')),
     /financial-statements-rollback\.test\.mjs is missing from CI/);
+  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
+  assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
+    'script tests must run only through the repository-test glob, not hand-picked duplicates');
 
 });
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
+import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
@@ -112,6 +113,22 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createItem.mock.calls[1][0]).toEqual({
       procurementId: 'new-id', input: { id: firstLineId, name: 'Paper', quantity: 2, rate: 10 },
     });
+  });
+
+  it('shows the reconcile instructions for a conflicting saved line ID', async () => {
+    mocks.createItem.mockRejectedValueOnce(new ProcurementError(
+      'This line ID already has different saved data. Open the saved request to reconcile it before retrying.', '23505',
+    ));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Open the saved request to reconcile it before retrying/i);
+    expect(screen.queryByText(/Save again to retry/i)).not.toBeInTheDocument();
   });
 
   it('AC-PROC1-005 freezes saved request fields after a child write needs retry', async () => {

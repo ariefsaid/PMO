@@ -9,6 +9,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurement, useCreateProcurementItem } from '@/src/hooks/useProcurementCrud';
 import type { NewProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
@@ -106,19 +107,21 @@ export default function ProcurementCreate() {
     }
 
     const failedLines: DraftLine[] = [];
+    let reconcileMessage: string | undefined;
     for (const line of lines) {
       try {
         await createItem.mutateAsync({
           procurementId: savedId,
           input: { id: line.id, name: line.name, quantity: line.quantity, rate: line.rate },
         });
-      } catch {
+      } catch (error) {
         failedLines.push(line);
+        if (error instanceof ProcurementError && error.code === '23505') reconcileMessage = error.message;
       }
     }
     if (failedLines.length > 0) {
       setLines(failedLines);
-      setErrors({ save: t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
+      setErrors({ save: reconcileMessage ?? t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
       setSaving(false);
       return;
     }
