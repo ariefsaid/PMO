@@ -4922,7 +4922,6 @@
     "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
   },
   "m365Documents": {
-    "linkFromMicrosoft": "From Microsoft 365",
     "link": "Link from Microsoft 365",
     "linked": "Microsoft item linked",
     "unlink": "Unlink Microsoft item",
@@ -5009,6 +5008,70 @@
       "site": "Site",
       "unavailable": "The default library could not be read",
       "unavailableSub": "The current setting is unchanged. Try again."
+    },
+    "cell": {
+      "file": "{{place}} file",
+      "folder": "{{place}} folder",
+      "open": "Open in {{place}}",
+      "openLatest": "Open latest in {{place}}",
+      "openFolder": "Open folder in {{place}}",
+      "openShort": "Open",
+      "versions": "Versions",
+      "versionsOf": "Versions of {{name}}",
+      "openRefused": "This Microsoft link cannot be opened.",
+      "accessFile": "Opens in Microsoft. Access depends on your Microsoft permissions on this file.",
+      "accessFolder": "Opens in Microsoft. Access depends on your Microsoft permissions on this folder.",
+      "approvedVersion": "Approved version {{version}}",
+      "issuedVersion": "Issued version {{version}}",
+      "approvedVersionLabel": "Approved version",
+      "issuedVersionLabel": "Issued version"
+    },
+    "drift": {
+      "sinceApproval": "since approval",
+      "sinceIssue": "since issue",
+      "changed": "Changed",
+      "unchanged": "Unchanged",
+      "checked": "Checked {{date}}",
+      "changedSinceApproval": "Changed since approval",
+      "changedSinceIssue": "Changed since issue",
+      "unchangedSinceApproval": "Unchanged since approval. Verified {{date}}.",
+      "unchangedSinceIssue": "Unchanged since issue. Verified {{date}}.",
+      "notVerified": "Not verified",
+      "notVerifiedSince": "Not verified since {{date}}. Microsoft could not be checked.",
+      "notVerifiedYet": "Not verified yet.",
+      "notVerifiedYetFailed": "Not verified yet. Microsoft could not be checked."
+    },
+    "versions": {
+      "title": "Versions of {{name}}",
+      "done": "Done",
+      "close": "Close",
+      "loading": "Loading…",
+      "emptyTitle": "No versions listed",
+      "emptySub": "Microsoft lists no earlier versions of this file.",
+      "list": "Versions",
+      "version": "Version {{id}}",
+      "loadMore": "Load more"
+    },
+    "history": {
+      "view": "View approved version history",
+      "viewAria": "View approved version history: {{name}}",
+      "partial": "Approved version not found in loaded history.",
+      "loadMore": "Load more history",
+      "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",
+      "notRecorded": "Approved version unavailable: no version was recorded when this file was issued.",
+      "pruned": "Approved version unavailable: Microsoft no longer lists it, so it may have been pruned. The latest version is still available.",
+      "noVersioning": "Approved version unavailable: Microsoft lists no versions for this file (version history may be turned off). The latest version is still available.",
+      "needsConnection": "Approved version history needs a Microsoft 365 connection.",
+      "needsReconnect": "Approved version history needs you to reconnect Microsoft 365.",
+      "needsScope": "Approved version history needs additional Microsoft permissions.",
+      "generic": "Microsoft could not load version history. Retry, or open the latest version."
+    },
+    "revisionLinkedSubtitle": "Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.",
+    "docsTab": {
+      "linkedSubtitle": "Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.",
+      "change": "Change",
+      "notConnected": "Connect Microsoft 365 first to browse documents.",
+      "myIntegrations": "My integrations"
     }
   }
 }

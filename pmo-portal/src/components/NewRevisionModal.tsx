@@ -80,7 +80,11 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
     <EntityFormModal
       open
       title="New revision"
-      subtitle="Create the next revision of this document. The file can be uploaded once the revision is created."
+      subtitle={
+        microsoft
+          ? t('m365Documents.revisionLinkedSubtitle', 'Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')
+          : 'Create the next revision of this document. The file can be uploaded once the revision is created.'
+      }
       submitLabel="Create revision"
       onSubmit={handleSubmit}
       onClose={onClose}

@@ -4922,7 +4922,6 @@
     "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
   },
   "m365Documents": {
-    "linkFromMicrosoft": "Dari Microsoft 365",
     "link": "Tautkan dari Microsoft 365",
     "linked": "Item Microsoft ditautkan",
     "unlink": "Lepas tautan item Microsoft",
@@ -5009,6 +5008,70 @@
       "site": "Situs",
       "unavailable": "Pustaka default tidak dapat dibaca",
       "unavailableSub": "Pengaturan saat ini tidak berubah. Coba lagi."
+    },
+    "cell": {
+      "file": "File {{place}}",
+      "folder": "Folder {{place}}",
+      "open": "Buka di {{place}}",
+      "openLatest": "Buka versi terbaru di {{place}}",
+      "openFolder": "Buka folder di {{place}}",
+      "openShort": "Buka",
+      "versions": "Versi",
+      "versionsOf": "Versi dari {{name}}",
+      "openRefused": "Tautan Microsoft ini tidak dapat dibuka.",
+      "accessFile": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas file ini.",
+      "accessFolder": "Dibuka di Microsoft. Akses bergantung pada izin Microsoft Anda atas folder ini.",
+      "approvedVersion": "Versi disetujui {{version}}",
+      "issuedVersion": "Versi diterbitkan {{version}}",
+      "approvedVersionLabel": "Versi disetujui",
+      "issuedVersionLabel": "Versi diterbitkan"
+    },
+    "drift": {
+      "sinceApproval": "sejak disetujui",
+      "sinceIssue": "sejak diterbitkan",
+      "changed": "Berubah",
+      "unchanged": "Tidak berubah",
+      "checked": "Diperiksa {{date}}",
+      "changedSinceApproval": "Berubah sejak disetujui",
+      "changedSinceIssue": "Berubah sejak diterbitkan",
+      "unchangedSinceApproval": "Tidak berubah sejak disetujui. Diverifikasi {{date}}.",
+      "unchangedSinceIssue": "Tidak berubah sejak diterbitkan. Diverifikasi {{date}}.",
+      "notVerified": "Belum diverifikasi",
+      "notVerifiedSince": "Belum diverifikasi sejak {{date}}. Microsoft tidak dapat diperiksa.",
+      "notVerifiedYet": "Belum diverifikasi.",
+      "notVerifiedYetFailed": "Belum diverifikasi. Microsoft tidak dapat diperiksa."
+    },
+    "versions": {
+      "title": "Versi {{name}}",
+      "done": "Selesai",
+      "close": "Tutup",
+      "loading": "Memuat…",
+      "emptyTitle": "Tidak ada versi",
+      "emptySub": "Microsoft tidak mencantumkan versi sebelumnya dari file ini.",
+      "list": "Versi",
+      "version": "Versi {{id}}",
+      "loadMore": "Muat lebih banyak"
+    },
+    "history": {
+      "view": "Lihat riwayat versi yang disetujui",
+      "viewAria": "Lihat riwayat versi yang disetujui: {{name}}",
+      "partial": "Versi yang disetujui tidak ditemukan dalam riwayat yang dimuat.",
+      "loadMore": "Muat riwayat lebih banyak",
+      "noSharepointIds": "Riwayat versi tidak tersedia: Microsoft tidak memberikan pengenal SharePoint.",
+      "notRecorded": "Versi yang disetujui tidak tersedia: tidak ada versi yang dicatat saat file ini diterbitkan.",
+      "pruned": "Versi yang disetujui tidak tersedia: Microsoft tidak lagi mencantumkannya, mungkin sudah dihapus. Versi terbaru masih tersedia.",
+      "noVersioning": "Versi yang disetujui tidak tersedia: Microsoft tidak mencantumkan versi apa pun untuk file ini (riwayat versi mungkin dimatikan). Versi terbaru masih tersedia.",
+      "needsConnection": "Riwayat versi yang disetujui memerlukan koneksi Microsoft 365.",
+      "needsReconnect": "Riwayat versi yang disetujui mengharuskan Anda menghubungkan ulang Microsoft 365.",
+      "needsScope": "Riwayat versi yang disetujui memerlukan izin Microsoft tambahan.",
+      "generic": "Microsoft tidak dapat memuat riwayat versi. Coba lagi, atau buka versi terbaru."
+    },
+    "revisionLinkedSubtitle": "Buat revisi berikutnya dari dokumen ini. Revisi ini menaut ke file Microsoft terbaru, jadi tidak ada yang perlu diunggah.",
+    "docsTab": {
+      "linkedSubtitle": "Catat gambar, spesifikasi, atau transmittal. File-nya tetap berada di Microsoft 365.",
+      "change": "Ubah",
+      "notConnected": "Hubungkan Microsoft 365 terlebih dahulu untuk menelusuri dokumen.",
+      "myIntegrations": "Integrasi saya"
     }
   }
 }

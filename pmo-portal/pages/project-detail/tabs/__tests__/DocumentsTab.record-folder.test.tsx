@@ -99,7 +99,7 @@ describe('AC-M365DOC-071 DocumentsTab mount', () => {
     ensure.mockRejectedValue(new AppError('RAW-UPSTREAM-MARKER', 'GRAPH_ERROR'));
     renderTab('Project Manager');
     await userEvent.setup().click(create()[0]);
-    expect((await screen.findByTestId('record-folder-failure')).textContent).toContain('Record saved. Folder not linked.');
+    expect((await screen.findByTestId('record-folder-failure')).textContent).toContain('Folder not linked.');
     expect(screen.getByText('Foundation GA')).toBeTruthy();
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
     expect(create()).toHaveLength(1);

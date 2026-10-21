@@ -53,7 +53,7 @@ const renderTab = () =>
     </MemoryRouter>,
   );
 
-const openEntry = () => userEvent.click(screen.getByRole('button', { name: 'From Microsoft 365' }));
+const openEntry = () => userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
 
 beforeEach(() => {
   h.pickerProps.length = 0;
@@ -69,7 +69,8 @@ describe('DocumentsTab — Microsoft connection gate (AC-M365DOC-014/031)', () =
     renderTab();
     await openEntry();
     expect(screen.getByText(/Connect Microsoft 365 first/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Microsoft 365 setup/ })).toHaveAttribute('href', '/administration/integrations');
+    // F6: the personal connection page, reachable by every role (not the Admin-only administration area).
+    expect(screen.getByRole('link', { name: 'My integrations' })).toHaveAttribute('href', '/integrations');
     expect(h.pickerRequests).not.toHaveBeenCalled();
   });
 

@@ -10,6 +10,11 @@ export interface LinkedDocumentCellProps {
   /** The PMO title. It is never changed by a Microsoft rename; a differing Microsoft name is shown as secondary text. */
   title?: string;
   owner: ReferenceOwner;
+  /**
+   * Register rows: icon + file label, one status pill and one Open action. The access sentence,
+   * versions and approved history live in the full (Drawer) cell, so they are not repeated per row.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -19,21 +24,27 @@ export interface LinkedDocumentCellProps {
  * Everything that DOES read Microsoft (versions, approved history) is a separate, explicit action
  * and never replaces or disables "open".
  */
-export function LinkedDocumentCell({ reference, title, owner }: LinkedDocumentCellProps) {
+export function LinkedDocumentCell({ reference, title, owner, compact = false }: LinkedDocumentCellProps) {
   const { t } = useTranslation();
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [openRefused, setOpenRefused] = useState(false);
-  const provenance = microsoftProvenance(reference.web_url);
+  const place = microsoftProvenance(reference.web_url);
   const isFolder = reference.item_kind === 'folder';
-  const noun = isFolder ? 'folder' : 'file';
   const project = owner.kind === 'project' ? owner : null;
   const controlled = !!project && !isFolder && project.status !== 'Draft';
   const approved = controlled && APPROVED_STATUSES.has(project.status);
-  const pinnedLabel = controlled && project.version_id_at_issue
-    ? `${approved ? 'Approved' : 'Issued'} version ${project.version_id_at_issue}`
+  const version = project?.version_id_at_issue ?? null;
+  const pinnedLabel = controlled && version
+    ? approved
+      ? t('m365Documents.cell.approvedVersion', 'Approved version {{version}}', { version })
+      : t('m365Documents.cell.issuedVersion', 'Issued version {{version}}', { version })
     : null;
   const label = title ?? reference.name;
-  const openText = isFolder ? `Open folder in ${provenance}` : approved ? `Open latest in ${provenance}` : `Open in ${provenance}`;
+  const openText = isFolder
+    ? t('m365Documents.cell.openFolder', 'Open folder in {{place}}', { place })
+    : approved
+      ? t('m365Documents.cell.openLatest', 'Open latest in {{place}}', { place })
+      : t('m365Documents.cell.open', 'Open in {{place}}', { place });
 
   function openReference() {
     // Re-validated at the moment of navigation, not trusted from storage.
@@ -46,32 +57,37 @@ export function LinkedDocumentCell({ reference, title, owner }: LinkedDocumentCe
     <div className="flex min-w-0 flex-col gap-1">
       <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-foreground">
         <Icon name={isFolder ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
-        <span className="min-w-0 break-words">{`${provenance} ${noun}`}</span>
+        <span className="min-w-0 break-words">{isFolder ? t('m365Documents.cell.folder', '{{place}} folder', { place }) : t('m365Documents.cell.file', '{{place}} file', { place })}</span>
       </span>
-      {reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
+      {!compact && reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
       {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference — contents are not issued or approved')}</span>}
+      {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <Button variant="ghost" size="sm" className="min-w-0" aria-label={`${openText}: ${label}`} onClick={openReference}>
+        <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
           <Icon name="eye" />
-          {openText}
+          {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
         </Button>
-        {!isFolder && (
-          <Button variant="ghost" size="sm" aria-label={`Versions of ${label}`} onClick={() => setVersionsOpen(true)}>
-            Versions
+        {!compact && !isFolder && (
+          <Button variant="ghost" size="sm" aria-label={t('m365Documents.cell.versionsOf', 'Versions of {{name}}', { name: label })} onClick={() => setVersionsOpen(true)}>
+            {t('m365Documents.cell.versions', 'Versions')}
           </Button>
         )}
       </div>
-      {openRefused && <p role="alert" className="text-[12px] text-destructive-text">This Microsoft link cannot be opened.</p>}
-      <span className="break-words text-[12px] text-muted-foreground">
-        {`Opens in Microsoft. Access depends on your Microsoft permissions on this ${noun}.`}
-      </span>
-      {pinnedLabel && <span className="break-words text-[12px] text-muted-foreground">{pinnedLabel}</span>}
-      {controlled && <DocumentDriftBadge status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
-      {approved && <ApprovedVersionHistory reference={reference} pinnedVersionId={project.version_id_at_issue} />}
+      {openRefused && <p role="alert" className="text-[12px] text-destructive-text">{t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.')}</p>}
+      {!compact && (
+        <span className="break-words text-[12px] text-muted-foreground">
+          {isFolder
+            ? t('m365Documents.cell.accessFolder', 'Opens in Microsoft. Access depends on your Microsoft permissions on this folder.')
+            : t('m365Documents.cell.accessFile', 'Opens in Microsoft. Access depends on your Microsoft permissions on this file.')}
+        </span>
+      )}
+      {!compact && pinnedLabel && <span className="break-words text-[12px] text-muted-foreground">{pinnedLabel}</span>}
+      {!compact && controlled && <DocumentDriftBadge status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
+      {!compact && approved && <ApprovedVersionHistory reference={reference} pinnedVersionId={project.version_id_at_issue} />}
       {versionsOpen && (
         <LinkedDocumentVersionsModal
           reference={reference}
-          pinned={pinnedLabel && project?.version_id_at_issue ? { id: project.version_id_at_issue, label: approved ? 'Approved version' : 'Issued version' } : null}
+          pinned={pinnedLabel && version ? { id: version, label: approved ? t('m365Documents.cell.approvedVersionLabel', 'Approved version') : t('m365Documents.cell.issuedVersionLabel', 'Issued version') } : null}
           onClose={() => setVersionsOpen(false)}
         />
       )}

@@ -130,12 +130,13 @@ describe('AC-M365DOC-071 RecordFolderAction — outcomes', () => {
     ['SCOPE_INSUFFICIENT', 'The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.'],
     ['FORBIDDEN', 'Access depends on your Microsoft permissions. Ask your Microsoft admin to check folder creation access.'],
     ['GRAPH_ERROR', 'Microsoft could not create or link this folder. Please try again.'],
-  ])('%s shows reviewed copy with "Record saved. Folder not linked." and never the raw marker', async (code, copy) => {
+  ])('%s shows reviewed copy with "Folder not linked." and never the raw marker', async (code, copy) => {
     ensure.mockRejectedValue(new AppError('RAW-UPSTREAM-MARKER', code));
     mount(<RecordFolderAction target={project} hasFolder={false} />);
     await userEvent.setup().click(createBtn()[0]);
     const region = await screen.findByTestId('record-folder-failure');
-    expect(region.textContent).toContain('Record saved. Folder not linked.');
+    expect(region.textContent).toContain('Folder not linked.');
+    expect(region.textContent).not.toContain('Record saved');
     expect(region.textContent).toContain(copy);
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
     expect(createBtn()).toHaveLength(1); // the one retry action
@@ -211,5 +212,34 @@ describe('AC-M365DOC-071 RecordFolderAction — outcomes', () => {
     await user.keyboard('{Enter}');
     await screen.findByTestId('record-folder-failure');
     expect((await axeViolations(document.body)).blocking).toEqual([]);
+  });
+});
+
+describe('F14: failure banner', () => {
+  it('F14: the banner is a neutral notice (no padlock) and its heading does not claim the record was just saved', async () => {
+    ensure.mockRejectedValue(new AppError('x', 'GRAPH_ERROR'));
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    await userEvent.setup().click(createBtn()[0]);
+    const region = await screen.findByTestId('record-folder-failure');
+    expect(region.querySelector('[data-icon="lock"]')).toBeNull();
+    expect(region.textContent).toContain('Folder not linked.');
+    expect(region.textContent).not.toContain('Record saved');
+  });
+
+  it('F14: with no default library the doomed retry is disabled and the banner says who can fix it', async () => {
+    ensure.mockResolvedValue({ state: 'default_unset' });
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    await userEvent.setup().click(createBtn()[0]);
+    const region = await screen.findByTestId('record-folder-failure');
+    expect(region.textContent).toContain('Ask an Admin to choose the default document library.');
+    expect((createBtn()[0] as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('F14: a missing record code keeps the button enabled so the user can retry after adding it', async () => {
+    ensure.mockResolvedValue({ state: 'missing_identifier' });
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    await userEvent.setup().click(createBtn()[0]);
+    await screen.findByTestId('record-folder-failure');
+    expect((createBtn()[0] as HTMLButtonElement).disabled).toBe(false);
   });
 });

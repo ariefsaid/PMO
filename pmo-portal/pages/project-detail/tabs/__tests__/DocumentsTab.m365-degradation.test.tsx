@@ -75,7 +75,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
   ])('%s: browse is recovered through reviewed copy; row, open and the reference stay', async (_name, connection, copy) => {
     h.conn.connection = connection;
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'From Microsoft 365' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     expect(screen.getByText(copy)).toBeInTheDocument();
     rowOpenStillWorks();
   });

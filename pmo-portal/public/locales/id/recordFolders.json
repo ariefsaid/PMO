@@ -7,7 +7,8 @@
   "status": {
     "pending": "Membuat folder…",
     "linked": "Folder tertaut",
-    "savedNotLinked": "Data tersimpan. Folder belum tertaut."
+    "savedNotLinked": "Data tersimpan. Folder belum tertaut.",
+    "notLinked": "Folder belum tertaut."
   },
   "error": {
     "additionalConsent": "Koneksi memerlukan izin tambahan. Minta admin Microsoft Anda menyetujuinya, lalu hubungkan ulang.",
