@@ -26,7 +26,9 @@ export function useRevision(projectId: string) {
 
   const createRevision = useMutation({
     mutationFn: (args: CreateRevisionArgs) =>
-      repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null, args.microsoft),
+      args.microsoft
+        ? repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null, args.microsoft)
+        : repositories.document.createRevision(args.parentId, args, currentUser?.id ?? null),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
     },

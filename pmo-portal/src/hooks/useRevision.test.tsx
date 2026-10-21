@@ -31,6 +31,6 @@ describe('useRevision', () => {
     document.createRevision.mockResolvedValue({ id: 'd2' });
     const { result } = renderHook(() => useRevision('p1'), { wrapper: wrap(new QueryClient()) });
     await act(async () => { await result.current.createRevision.mutateAsync(base); });
-    expect(document.createRevision).toHaveBeenLastCalledWith('d1', expect.anything(), 'author-1', undefined);
+    expect(document.createRevision).toHaveBeenLastCalledWith('d1', expect.anything(), 'author-1');
   });
 });
