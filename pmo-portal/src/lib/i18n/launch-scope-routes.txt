@@ -124,6 +124,7 @@
 
 # ── Expenses (#775): claims and cash advances — the field team's own money, filed by every role.
 /expenses                      pages/ExpenseClaims.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts pages/expenses/useOwnAdvanceOptions.ts
+/expenses/new                  pages/ExpenseClaimNew.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts pages/expenses/useOwnAdvanceOptions.ts
 /expenses/:claimId             pages/ExpenseClaimDetail.tsx pages/expenses/*.tsx pages/expenses/expenseLabels.ts src/components/shell/BackBar.tsx
 
 # ── Personal profile language settings (RIS readiness slice): every signed-in user's choice of

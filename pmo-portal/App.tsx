@@ -82,6 +82,7 @@ const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
 const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
 const ExpenseClaimsPage = React.lazy(() => import('./pages/ExpenseClaims'));
+const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
@@ -163,6 +164,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   // #775: expense claims and cash advances.
   { path: '/expenses', element: <ExpenseClaimsPage /> },
+  { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
   { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },

@@ -61,21 +61,26 @@ test('AC-EXP-070 a field claim is filed, approved by the project approver, paid 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/expenses');
   await page.getByRole('button', { name: 'New claim' }).click();
-  const form = page.getByRole('dialog');
-  await form.getByLabel(/Title/).fill(`${tag} site visit`);
-  await form.getByLabel('Project').selectOption({ label: tag });
-  await form.getByLabel('Budget category').selectOption({ label: 'Special expenses' });
-  await form.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('textbox', { name: 'Title' }).fill(`${tag} site visit`);
+  await page.getByLabel('Project').selectOption({ label: tag });
+  await page.getByLabel('Budget category').selectOption({ label: 'Special expenses' });
+  await page.getByLabel(/^Date/).fill('2026-10-01');
+  await page.getByLabel(/^Type/).selectOption('Travel');
+  await page.getByLabel(/^Description/).fill('Taxi to site');
+  await page.getByRole('textbox', { name: 'Amount' }).fill('750000');
+  await page.getByRole('button', { name: 'Add line' }).click();
+  const dates = page.getByLabel(/^Date/);
+  await dates.nth(1).fill('2026-10-02');
+  await page.getByLabel(/^Type/).nth(1).selectOption('Travel');
+  await page.getByLabel(/^Description/).nth(1).fill('Rail fare');
+  await page.getByRole('textbox', { name: 'Amount' }).nth(1).fill('10000');
+  await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   const claimUrl = page.url();
 
-  await page.getByRole('button', { name: 'Add line' }).click();
-  const lineForm = page.getByRole('dialog');
-  await lineForm.getByLabel(/Date/).fill('2026-10-01');
-  await lineForm.getByLabel(/Description/).fill('Taxi to site');
-  await lineForm.getByLabel(/Amount/).fill('750000');
-  await lineForm.getByRole('button', { name: 'Add line' }).click();
-  await expect(page.getByTestId('lines-total')).toContainText('750');
+  await expect(page.getByRole('row', { name: /Taxi to site/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Rail fare/ })).toBeVisible();
+  await expect(page.getByTestId('lines-total')).toContainText('760');
   await page.getByRole('button', { name: 'Submit for approval' }).click();
   await expect(page.getByTestId('expense-status')).toHaveAttribute('data-status', 'Submitted', { timeout: 15_000 });
 

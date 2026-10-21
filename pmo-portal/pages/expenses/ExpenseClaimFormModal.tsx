@@ -14,7 +14,7 @@ import { expenseTypeLabel } from './expenseLabels';
 
 /** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
  *  stays available; this is display only — it never blocks, switches posting on, or re-queues older claims. */
-const PostingReadinessNote: React.FC = () => {
+export const PostingReadinessNote: React.FC = () => {
   const { t } = useTranslation();
   const { state } = useExpensePostingReadiness();
   if (state === 'checking' || state === 'ready') return null;
