@@ -62,7 +62,7 @@ const MeetingCreate: React.FC = () => {
   const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending;
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setPendingLeave(() => leave) });
-  const onEditorReady = useCallback((blocks: NoteBlock[]) => { initialMinutesRef.current = blocks; setMinutes(blocks); }, []);
+  const onEditorReady = useCallback((blocks: NoteBlock[]) => { initialMinutesRef.current = structuredClone(blocks); setMinutes(blocks); }, []);
   const notifyError = (error: unknown, part: string) => {
     const { headline, detail } = classifyMutationError(error);
     toast(headline, `${part}: ${detail}`, 'warning');
@@ -107,6 +107,7 @@ const MeetingCreate: React.FC = () => {
       if (minutesChanged) {
         try {
           await update.mutateAsync({ id: meetingId, patch: { notes: liveMinutes } });
+          initialMinutesRef.current = structuredClone(liveMinutes);
           setMinutesPending(false);
         } catch { failedMinutes = true; }
       }

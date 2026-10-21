@@ -150,6 +150,23 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(JSON.stringify(mutations.update.mutateAsync.mock.calls[1][0].patch.notes)).toContain('Minutes text');
   });
 
+  it('AC-MTG1-002 retries attendees without re-saving minutes already acknowledged', async () => {
+    mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(2);
+  });
+
   it('AC-MTG1-003: leaving with an unsaved draft asks before discarding and creates nothing', async () => {
     renderPage();
     const user = userEvent.setup();
