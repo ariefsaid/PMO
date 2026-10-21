@@ -445,8 +445,39 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       });
     }
     if (e.budget) await applyBudget(e, api, write, note, { batchId, importedAt });
+    if (e.contractLines) await applyContractLines(e, api, write, note);
   }
   return done;
+}
+
+/** The row POSTed for one contract line: key → import_key, basis → earning_basis; org_id is stamped by the database. */
+function contractLinePayload(projectId, line) {
+  return {
+    project_id: projectId, import_key: line.key, line_no: line.line_no ?? null,
+    item_code: line.item_code, description: line.description, unit: line.unit,
+    quantity: line.quantity, rate: line.rate,
+    earning_basis: line.basis ?? defaultContractLineBasis(line.unit),
+  };
+}
+
+/** One POST per new line — never PATCH or upsert (corrections are made in the app); 23505 means another run got there first. */
+async function applyContractLines(e, api, write, note) {
+  for (const { line, exists } of e.contractLines.lines) {
+    if (exists) {
+      note({ kind: 'contract_line.skip', key: e.key, line_key: line.key, reason: 'already loaded — correct it in the app' });
+      continue;
+    }
+    // A dry run never reaches the callback, so a planned project's missing id is never read.
+    await write({ kind: 'contract_line.create', key: e.key, line_key: line.key }, async () => {
+      try {
+        const [row] = await api.post('boq_items', contractLinePayload(e.id, line));
+        return { id: row?.id };
+      } catch (err) {
+        if (err.code !== '23505') throw err;
+        return { kind: 'contract_line.skip', reason: 'already loaded by another run — correct it in the app' };
+      }
+    });
+  }
 }
 
 async function applyBudget(e, api, write, note, { batchId, importedAt }) {

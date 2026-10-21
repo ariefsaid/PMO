@@ -467,3 +467,81 @@ test('AC-CQ-016: a read that fills the 1000-row cap cannot prove a key is absent
   assert.equal(problems.length, 1);
   assert.match(problems[0], /ORG-001: .*too many contract lines to check/);
 });
+
+const linesLoad = (api, doc = LINES_DOC(), dryRun = false) => load(api, doc, dryRun);
+
+test('AC-CQ-017: each new line is POSTed to boq_items with the mapped columns, no org_id, after the project is created', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await linesLoad(api, LINES_DOC([
+    LINE({ key: 'A', line_no: 7 }),
+    LINE({ key: 'B', unit: 'Lump Sum', quantity: 1, rate: 5000, description: 'Mobilisation' }),
+    LINE({ key: 'C', unit: 'lot', quantity: 3, basis: 'unit_rate', line_no: null }),
+  ]));
+  const w = writes(api);
+  assert.deepEqual(w.map((c) => c.target).filter((t) => t === 'boq_items' || t === 'projects'), ['projects', 'boq_items', 'boq_items', 'boq_items']);
+  const projectIndex = w.findIndex((c) => c.target === 'projects');
+  const lastRpc = w.map((c) => c.kind).lastIndexOf('rpc');
+  assert.ok(lastRpc < w.findIndex((c) => c.target === 'boq_items'), 'lines come after the project stage walk');
+  const pid = `projects-${1 + projectIndex}`;
+  assert.deepEqual(w.filter((c) => c.target === 'boq_items').map((c) => c.body), [
+    { project_id: pid, import_key: 'A', line_no: 7, item_code: 'SVC-001', description: 'Survey service', unit: 'm2', quantity: 100, rate: 25000, earning_basis: 'unit_rate' },
+    { project_id: pid, import_key: 'B', line_no: null, item_code: 'SVC-001', description: 'Mobilisation', unit: 'Lump Sum', quantity: 1, rate: 5000, earning_basis: 'lump_sum' },
+    { project_id: pid, import_key: 'C', line_no: null, item_code: 'SVC-001', description: 'Survey service', unit: 'lot', quantity: 3, rate: 25000, earning_basis: 'unit_rate' },
+  ]);
+  for (const c of w.filter((x) => x.target === 'boq_items')) assert.equal('org_id' in c.body, false);
+});
+
+test('AC-CQ-017: known keys are skipped even when the file differs; re-running writes nothing; no PATCH ever', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Active', version: 1 }],
+    boq_items: [{ id: 'b-1', project_id: 'p-1', import_key: 'A', quantity: 1 }] } });
+  const actions = await linesLoad(api);
+  assert.deepEqual(writes(api).map((c) => [c.kind, c.body.import_key]), [['post', 'B']]);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [
+    ['contract_line.skip', 'A'], ['contract_line.create', 'B'],
+  ]);
+  assert.match(actions.find((a) => a.kind === 'contract_line.skip').reason, /correct it in the app/);
+
+  const before = writes(api).length;
+  const rerun = await linesLoad(api);
+  assert.equal(writes(api).length, before, 're-run: zero writes');
+  assert.deepEqual(new Set(rerun.filter((a) => a.kind.startsWith('contract_line')).map((a) => a.kind)), new Set(['contract_line.skip']));
+  assert.equal(api.calls.some((c) => c.kind === 'patch' && c.target === 'boq_items'), false);
+});
+
+test('AC-CQ-017: a raced 23505 is a skip, not an error; any other refusal stops and reports what was done', async () => {
+  const raced = fakeApi({ tables: { companies: COMPANIES() }, fail: (k, t, b) => t === 'boq_items' && b.import_key === 'A' && '23505' });
+  const actions = await linesLoad(raced);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [
+    ['contract_line.skip', 'A'], ['contract_line.create', 'B'],
+  ]);
+
+  const doc = LINES_DOC([LINE({ key: 'A' }), LINE({ key: 'B' }), LINE({ key: 'C' })]);
+  const stopped = fakeApi({ tables: { companies: COMPANIES() }, fail: (k, t, b) => t === 'boq_items' && b.import_key === 'B' && '42501' });
+  const { plan } = await resolveLoad(doc, stopped);
+  await assert.rejects(applyLoad(plan, stopped, { dryRun: false, batchId: 'b', importedAt: 't' }), (e) => {
+    assert.equal(e.code, '42501');
+    assert.deepEqual(e.loadReport.failed, { kind: 'contract_line.create', key: 'ORG-001', line_key: 'B' });
+    assert.deepEqual(e.loadReport.done.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [['contract_line.create', 'A']]);
+    return true;
+  });
+  assert.equal(writes(stopped).filter((c) => c.target === 'boq_items').length, 2, 'C is never attempted');
+});
+
+test('AC-CQ-017: a dry run lists the line actions and makes GETs only; no allocation or BAST is ever written', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Active', version: 1 }] } });
+  const actions = await linesLoad(api, LINES_DOC(), true);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [['contract_line.create', 'A'], ['contract_line.create', 'B']]);
+
+  const live = fakeApi({ tables: { companies: COMPANIES() } });
+  await linesLoad(live);
+  const targets = new Set(writes(live).map((c) => c.target));
+  for (const banned of ['work_order_lines', 'work_order_acceptances', 'work_order_acceptance_lines']) assert.equal(targets.has(banned), false, banned);
+});
+
+test('AC-CQ-017: a project that diverged from the file gets no contract-line writes', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender' })] } });
+  const actions = await linesLoad(api);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(actions.map((a) => a.kind), ['project.diverged']);
+});
