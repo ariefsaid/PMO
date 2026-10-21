@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
 import { APPROVED_STATUSES, microsoftProvenance, validMicrosoftBrowserUrl, type MicrosoftReference, type ReferenceOwner } from '@/src/lib/m365/reference';
 import { DocumentDriftBadge } from './DocumentDriftBadge';
@@ -19,6 +20,7 @@ export interface LinkedDocumentCellProps {
  * and never replaces or disables "open".
  */
 export function LinkedDocumentCell({ reference, title, owner }: LinkedDocumentCellProps) {
+  const { t } = useTranslation();
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [openRefused, setOpenRefused] = useState(false);
   const provenance = microsoftProvenance(reference.web_url);
@@ -47,7 +49,7 @@ export function LinkedDocumentCell({ reference, title, owner }: LinkedDocumentCe
         <span className="min-w-0 break-words">{`${provenance} ${noun}`}</span>
       </span>
       {reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
-      {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">Folder reference — contents are not issued or approved</span>}
+      {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference — contents are not issued or approved')}</span>}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" className="min-w-0" aria-label={`${openText}: ${label}`} onClick={openReference}>
           <Icon name="eye" />
