@@ -39,6 +39,7 @@ interface CaptureIntent extends ExpenseCaptureInput {
   path: string | null;
   draftSaved: boolean;
   attachmentState: ExpenseCaptureAttachmentState | null;
+  confirmationStarted: boolean;
 }
 
 function sameIntent(intent: CaptureIntent, input: ExpenseCaptureInput): boolean {
@@ -98,6 +99,7 @@ export function useExpenseCapture() {
         path: null,
         draftSaved: false,
         attachmentState: input.receiptFile ? 'selected' : null,
+        confirmationStarted: false,
       };
       intentRef.current = intent;
     }
@@ -155,6 +157,7 @@ export function useExpenseCapture() {
       setProgress(null);
 
       setRecovery(snapshot(intent, 'confirming-receipt'));
+      intent.confirmationStarted = true;
       await confirmExpenseCaptureReceipt(intent.claimId, intent.fileId, intent.path);
       intent.attachmentState = 'confirmed';
       invalidateDraftReads(intent.claimId);
@@ -172,9 +175,10 @@ export function useExpenseCapture() {
     }
   }, [invalidateDraftReads]);
 
-  const cleanupUnlinkedAttachment = useCallback(async () => {
+  const cleanupUnlinkedAttachment = useCallback(async (options?: { beforeConfirmationOnly?: boolean }) => {
     const intent = intentRef.current;
     if (!intent?.draftSaved || !intent.fileId || !intent.path) return;
+    if (options?.beforeConfirmationOnly && intent.confirmationStarted) return;
     try {
       await cleanupUnlinkedExpenseCaptureReceipt(intent.claimId, intent.fileId, intent.path);
       intent.path = null;

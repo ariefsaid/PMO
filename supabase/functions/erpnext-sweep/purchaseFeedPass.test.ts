@@ -14,12 +14,12 @@ const org = {
 Deno.test('purchases pass runs after the ledger feed; its failure is recorded and accounting still refreshes', async () => {
   const order: string[] = [];
   const result = await runErpSweepCycle({
-    listEmployingOrgs: async () => [org],
-    reconcileOrgOutbox: async () => ({ reconciled: 0, errors: [] }),
-    sweepOrgDoctypes: async () => ({ applied: 0 }),
-    feedOrgLedgers: async () => { order.push('ledger'); return { gl: 0, ple: 0, glCaughtUp: true, pleCaughtUp: true }; },
-    feedOrgPurchases: async () => { order.push('purchases'); throw new Error('erp down'); },
-    refreshOrgAccounting: async () => { order.push('accounting'); return {}; },
+    listEmployingOrgs: () => Promise.resolve([org]),
+    reconcileOrgOutbox: () => Promise.resolve({ reconciled: 0, errors: [] }),
+    sweepOrgDoctypes: () => Promise.resolve({ applied: 0 }),
+    feedOrgLedgers: () => { order.push('ledger'); return Promise.resolve({ gl: 0, ple: 0, glCaughtUp: true, pleCaughtUp: true }); },
+    feedOrgPurchases: () => { order.push('purchases'); return Promise.reject(new Error('erp down')); },
+    refreshOrgAccounting: () => { order.push('accounting'); return Promise.resolve({}); },
   });
   assert(order.join(',') === 'ledger,purchases,accounting', `order was ${order.join(',')}`);
   assert(result.perOrg[0].errors.includes('purchases:erp down'), 'purchase failure is recorded per org');

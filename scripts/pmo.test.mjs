@@ -1265,6 +1265,24 @@ test('AC-CSD-002: pmo load lists every problem in an invalid file and sends noth
   }
 });
 
+test('AC-CQ-016: invalid contract-line bounds stop preflight before any request', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const bad = { projects: [{ code: 'C-1', name: 'Project', client: 'Client', stage: 'Leads', contract_lines: [
+      { key: 'K'.repeat(501), item_code: 'SVC', description: 'Service', unit: 'hour', quantity: 1, rate: 1, line_no: 2147483648 },
+    ] }] };
+    const r = await runCli(['load', writeLoadFile(configDir, bad), '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned actions', async () => {
   const fake = await fakeSupabase({ handler: emptyDbAs('Admin') });
   const configDir = tmpDir();

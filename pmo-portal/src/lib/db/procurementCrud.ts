@@ -168,6 +168,8 @@ export async function updateProcurementHeader(
 
 /** A line item the form supplies. `amount` is server-generated, never sent. */
 export interface ProcurementItemInput {
+  /** Stable client-generated UUID for retryable draft-line inserts. */
+  id?: string;
   name: string;
   quantity: number;
   rate: number;
@@ -179,6 +181,30 @@ export interface ProcurementItemInput {
  * the requester/4-role write policy + the Draft-only restrictive freeze, 0015).
  * `amount` is a generated stored column — never written.
  */
+function numericAtDatabaseScale(value: number | string): string | null {
+  const text = String(value);
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(text);
+  if (!match) return null;
+  const [, sign, whole, fraction = '', exponentText = '0'] = match;
+  const exponent = Number(exponentText);
+  const shift = exponent - fraction.length + 2;
+  if (!Number.isInteger(shift) || Math.abs(shift) > 100) return null;
+  const digits = BigInt(`${whole}${fraction}` || '0');
+  let scaled: bigint;
+  if (shift >= 0) {
+    scaled = digits * (10n ** BigInt(shift));
+  } else {
+    const divisor = 10n ** BigInt(-shift);
+    const quotient = digits / divisor;
+    const remainder = digits % divisor;
+    scaled = quotient + (remainder * 2n >= divisor ? 1n : 0n);
+  }
+  if (scaled === 0n) return '0';
+  return `${sign === '-' ? '-' : ''}${scaled}`;
+}
+
+const RECONCILE_LINE_MESSAGE = 'This line ID already has different saved data. Open the saved request to reconcile it before retrying.';
+
 export async function createProcurementItem(
   procurementId: string,
   input: ProcurementItemInput,
@@ -186,6 +212,7 @@ export async function createProcurementItem(
   const { data, error } = await supabase
     .from('procurement_items')
     .insert({
+      ...(input.id !== undefined ? { id: input.id } : {}),
       procurement_id: procurementId,
       name: input.name,
       quantity: input.quantity,
@@ -194,6 +221,28 @@ export async function createProcurementItem(
     })
     .select()
     .single();
+  if (error?.code === '23505' && input.id !== undefined) {
+    const { data: existing, error: readError } = await supabase
+      .from('procurement_items')
+      .select()
+      .eq('id', input.id)
+      .eq('procurement_id', procurementId)
+      .maybeSingle();
+    if (readError) throwWrite(readError);
+    const row = existing as ProcurementItemRow | null;
+    const quantity = numericAtDatabaseScale(input.quantity);
+    const rate = numericAtDatabaseScale(input.rate);
+    const matches = row !== null
+      && quantity !== null && rate !== null
+      && row.id === input.id
+      && row.procurement_id === procurementId
+      && row.name === input.name
+      && row.description === (input.description ?? null)
+      && numericAtDatabaseScale(row.quantity) === quantity
+      && numericAtDatabaseScale(row.rate) === rate;
+    if (matches) return row;
+    throw new ProcurementError(RECONCILE_LINE_MESSAGE, '23505');
+  }
   if (error) throwWrite(error);
   return data as ProcurementItemRow;
 }

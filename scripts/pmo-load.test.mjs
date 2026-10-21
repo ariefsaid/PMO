@@ -396,6 +396,19 @@ test('AC-CQ-016: contract_lines must be a list; unknown fields, lengths and line
   ]);
 });
 
+test('AC-CQ-016: rejects values outside database integer and import-key bounds during preflight', () => {
+  const problems = validateLoadFile({ projects: [projectWith([
+    LINE({ key: 'k'.repeat(501), line_no: 2147483648 }),
+    LINE({ key: 'unicode-'.repeat(70) + '界'.repeat(4_501), line_no: -2147483649 }),
+  ])] });
+  assert.deepEqual(problems, [
+    'projects[0] (ORG-001): contract_lines[0]: "key" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "line_no" must fit a 32-bit integer',
+    'projects[0] (ORG-001): contract_lines[1]: "key" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[1]: "line_no" must fit a 32-bit integer',
+  ]);
+});
+
 test('AC-CQ-016: valid lines pass, with a project that also has a budget; explicit basis wins over the unit default', () => {
   const ok = projectWith([
     LINE({ key: 'A', line_no: 1 }),

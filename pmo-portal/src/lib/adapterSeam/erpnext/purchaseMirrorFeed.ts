@@ -1,22 +1,18 @@
-/**
+/*
  * erpnext/purchaseMirrorFeed.ts (FR-EPR-001..004, docs/specs/erp-purchases-readonly.spec.md) — the sweep pass
  * that mirrors ERP-native Purchase Orders / Purchase Invoices into `erp_purchase_documents` (0335) for a
  * READ-ONLY list. DD-XING-2: read, never adopted — nothing here creates a PMO procurement case, and nothing
  * sums these rows into spent/committed/actuals (their cost already arrives through the GL mirror).
- *
- * Per doctype: read the `purchases::<doctype>` watermark, list submitted/cancelled docs `modified >=` it,
- * hand them to `upsert_erp_purchase_documents` (a strictly newer `modified` wins; the RPC also re-stamps
- * project attribution + the PMO-owned flag for the whole org), then advance the watermark. Drafts are never
- * listed: draft → submitted → cancelled each bump `modified`, so a document is re-read at every state it can
- * be shown in (#901's rule — never filter on a state the original can leave unseen — holds).
  */
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
-import { advanceWm, readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import { readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
 
 export type PurchaseDoctype = 'Purchase Order' | 'Purchase Invoice';
 export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
+const CURSOR_VERSION = 2;
+const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::v2::${doctype}`;
 
 const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
   'Purchase Order': ['name', 'supplier', 'supplier_name', 'transaction_date', 'schedule_date', 'currency',
@@ -25,7 +21,9 @@ const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
     'grand_total', 'outstanding_amount', 'status', 'docstatus', 'is_return', 'project', 'modified'],
 };
 const PAGE_SIZE = 500;
-const MAX_PAGES = 20;
+const MAX_PAGE_READS = 12;
+const PASS_BUDGET_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 5_000;
 
 export interface PurchaseFeedServiceClient extends Pick<LedgerFeedServiceClient, 'from'> {
   rpc(name: 'upsert_erp_purchase_documents', args: { p_org_id: string; p_rows: PurchaseMirrorRow[] }):
@@ -53,11 +51,23 @@ export interface PurchaseMirrorRow {
 export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
 
 const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
-// One malformed field must not fail the whole batch every tick: an unparseable value is stored as unknown.
-const money = (v: unknown): string | null => { const t = str(v); return t !== null && /^-?\d+(\.\d+)?$/.test(t) ? t : null; };
-const date = (v: unknown): string | null => { const t = str(v); return t !== null && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null; };
+const money = (v: unknown): string | null => {
+  const t = str(v);
+  if (t === null || !/^-?\d+(\.\d+)?$/.test(t)) return null;
+  const whole = t.replace(/^-/, '').split('.')[0].replace(/^0+/, '') || '0';
+  return whole.length <= 15 ? t : null;
+};
+const date = (v: unknown): string | null => {
+  const t = str(v);
+  if (t === null || !/^(\d{4})-(\d{2})-(\d{2})$/.test(t)) return null;
+  const [, year, month, day] = t.match(/^(\d{4})-(\d{2})-(\d{2})$/)!;
+  const parsed = new Date(`${t}T00:00:00.000Z`);
+  return parsed.getUTCFullYear() === Number(year) && parsed.getUTCMonth() + 1 === Number(month) && parsed.getUTCDate() === Number(day) ? t : null;
+};
 
-export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, unknown>): PurchaseMirrorRow {
+export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, unknown>): PurchaseMirrorRow | null {
+  const status = Number(d.docstatus);
+  if (status !== 1 && status !== 2) return null;
   const isPi = doctype === 'Purchase Invoice';
   return {
     erp_doctype: doctype,
@@ -71,59 +81,142 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
     grand_total: money(d.grand_total),
     outstanding_amount: isPi ? money(d.outstanding_amount) : null,
     erp_status: str(d.status),
-    erp_docstatus: Number(d.docstatus),
+    erp_docstatus: status,
     is_return: Boolean(d.is_return),
     erp_project: str(d.project),
     erp_modified: String(d.modified),
   };
 }
 
-async function fetchSince(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, since: string | null) {
+interface PurchaseCursor { version: 2; modified: string; name?: string }
+function parseCursor(value: string | null): PurchaseCursor | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<PurchaseCursor>;
+    if (parsed.version === CURSOR_VERSION && typeof parsed.modified === 'string'
+      && (!parsed.name || typeof parsed.name === 'string')) return parsed as PurchaseCursor;
+  } catch { /* legacy cursors are plain Frappe timestamps */ }
+  return { version: CURSOR_VERSION, modified: value };
+}
+function encodeCursor(cursor: PurchaseCursor): string { return JSON.stringify(cursor); }
+
+async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, cursor: PurchaseCursor | null,
+  equalBoundary: boolean, offset: number, timeoutMs: number) {
   const filters: unknown[] = [['company', '=', company], ['docstatus', 'in', [1, 2]]];
-  if (since) filters.push(['modified', '>=', since]);
-  const docs: Record<string, unknown>[] = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
-      + `&limit_page_length=${PAGE_SIZE}&limit_start=${page * PAGE_SIZE}&order_by=${encodeURIComponent('modified asc, name asc')}`;
-    const body = await erpnextRequest(client, { method: 'GET', path: `/api/resource/${encodeURIComponent(doctype)}?${qs}` });
-    const rows = (body as { data?: unknown } | null)?.data;
-    if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).name === 'string'
-      && typeof (r as Record<string, unknown>).modified === 'string')) {
-      throw new AppError(`ERPNext ${doctype} list response was malformed`, 'external-unreachable');
-    }
-    docs.push(...(rows as Record<string, unknown>[]));
-    if (rows.length < PAGE_SIZE) return { docs, caughtUp: true };
+  if (cursor) {
+    if (equalBoundary) {
+      filters.push(['modified', '=', cursor.modified]);
+      if (cursor.name) filters.push(['name', '>=', cursor.name]);
+    } else filters.push(['modified', '>', cursor.modified]);
   }
-  return { docs, caughtUp: false };
+  const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
+    + `&limit_page_length=${PAGE_SIZE}&limit_start=${offset}&order_by=${encodeURIComponent('modified asc, name asc')}`;
+  const body = await erpnextRequest({ ...client, timeoutMs }, { method: 'GET', path: `/api/resource/${encodeURIComponent(doctype)}?${qs}` });
+  const rows = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).name === 'string'
+    && typeof (r as Record<string, unknown>).modified === 'string')) {
+    throw new AppError(`ERPNext ${doctype} list response was malformed`, 'external-unreachable');
+  }
+  return rows as Record<string, unknown>[];
 }
 
-/** Feed both purchase doctypes for one org in ONE upsert call — the call also re-stamps attribution for the
- *  whole org, so it runs once per tick, and runs even with no rows so a project remap applies (FR-EPR-003). */
-export async function feedPurchaseMirror(
-  sc: PurchaseFeedServiceClient,
-  opts: { client: ErpClientDeps; orgId: string; company: string },
-): Promise<FeedPurchaseMirrorResult> {
-  if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
-  const fetched: Array<{ doctype: PurchaseDoctype; prev: string | null; next: string | null }> = [];
-  // Offset paging can return a document twice if it is edited mid-read; keep the newest copy only.
-  const latest = new Map<string, PurchaseMirrorRow>();
-  let caughtUp = true;
-  for (const doctype of PURCHASE_DOCTYPES) {
-    const prev = await readWm(sc, opts.orgId, purchaseWmDomain(doctype));
-    const result = await fetchSince(opts.client, doctype, opts.company, prev);
-    caughtUp &&= result.caughtUp;
-    let next: string | null = null;
-    for (const d of result.docs) {
-      const row = toPurchaseMirrorRow(doctype, d);
-      const key = `${doctype}\u0000${row.erp_name}`;
-      const seen = latest.get(key);
-      if (!seen || row.erp_modified > seen.erp_modified) latest.set(key, row);
-      if (next === null || row.erp_modified > next) next = row.erp_modified;
-    }
-    fetched.push({ doctype, prev, next });
+async function withinBudget<T>(deadline: number, operation: () => PromiseLike<T>): Promise<T> {
+  const remainingMs = deadline - Date.now();
+  if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable')), remainingMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-  const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()] });
-  if (error) throw new AppError(error.message, error.code);
-  for (const f of fetched) await advanceWm(sc, opts.orgId, purchaseWmDomain(f.doctype), f.next, f.prev);
-  return { fed: Number(data ?? 0), caughtUp };
+}
+
+async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: string, previous: string | null, next: string, deadline: number): Promise<void> {
+  const table = sc.from('external_sync_watermarks');
+  if (previous === null) {
+    const { error } = await withinBudget(deadline, () => table.upsert({ org_id: orgId, external_tier: 'erpnext', domain, watermark_cursor: next },
+      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true }));
+    if (error) throw new AppError(error.message, error.code);
+  } else {
+    const { count, error } = await withinBudget(deadline, () => table.update({ watermark_cursor: next }, { count: 'exact' })
+      .eq('org_id', orgId).eq('external_tier', 'erpnext').eq('domain', domain).eq('watermark_cursor', previous));
+    if (error) throw new AppError(error.message, error.code);
+    if (count === 0) {
+      const current = await withinBudget(deadline, () => readWm(sc, orgId, domain));
+      if (current !== next) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
+    }
+  }
+  const stored = await withinBudget(deadline, () => readWm(sc, orgId, domain));
+  if (stored !== next && stored !== previous) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
+}
+
+/** Persist each successful page before making another remote request. Cursor JSON is a v2 namespace,
+ * separate from the shared timestamp-only monotonic feeds; the legacy timestamp is read only to seed it. */
+export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { client: ErpClientDeps; orgId: string; company: string }): Promise<FeedPurchaseMirrorResult> {
+  if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
+  const deadline = Date.now() + PASS_BUDGET_MS;
+  const transport = { ...opts.client, maxRetries: 0, timeoutMs: REQUEST_TIMEOUT_MS };
+  let reads = 0;
+  let fed = 0;
+  let wroteRows = false;
+  const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
+  for (const doctype of PURCHASE_DOCTYPES) {
+    const domain = purchaseCursorDomain(doctype);
+    const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
+    const legacy = stored === null ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
+    const cursor = parseCursor(stored ?? legacy);
+    // Every cursor resumes inclusively: name-bearing cursors replay their boundary row, while legacy
+    // and name-less cursors replay the whole timestamp boundary before advancing strictly past it.
+    pending.push({ doctype, domain, stored, cursor, equalityDone: false });
+  }
+
+  // Alternate durable pages so both document types progress within the shared budget.
+  while (pending.length > 0 && reads < MAX_PAGE_READS) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    const state = pending.shift()!;
+    const { doctype, domain, cursor, equalityDone } = state;
+    const rows = await readPage(transport, doctype, opts.company, cursor, !equalityDone, 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+    reads += 1;
+    if (rows.length === 0) {
+      if (!equalityDone && cursor) {
+        state.equalityDone = true;
+        pending.push(state);
+      }
+      continue;
+    }
+    const pageLatest = new Map<string, PurchaseMirrorRow>();
+    for (const source of rows) {
+      const row = toPurchaseMirrorRow(doctype, source);
+      if (!row) continue;
+      const existing = pageLatest.get(row.erp_name);
+      if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
+    }
+    if (pageLatest.size > 0) {
+      const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
+      if (error) throw new AppError(error.message, error.code);
+      fed += Number(data ?? 0);
+      wroteRows = true;
+    }
+    const last = rows[rows.length - 1];
+    const completed = rows.length < PAGE_SIZE && (equalityDone || Boolean(cursor?.name));
+    state.cursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
+    const next = encodeCursor(state.cursor);
+    await saveCursor(sc, opts.orgId, domain, state.stored, next, deadline);
+    state.stored = next;
+    if (!completed) {
+      state.equalityDone = rows.length < PAGE_SIZE;
+      pending.push(state);
+    }
+  }
+  if (!wroteRows) {
+    const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
+    if (error) throw new AppError(error.message, error.code);
+  }
+  return { fed, caughtUp: pending.length === 0 };
 }

@@ -133,7 +133,7 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
-function decodeLocation(value: unknown): GraphSite | GraphDrive | null {
+function decodeLocation(value: unknown): { id: string; name: string; web_url: string } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   const id = readText(item.id);
@@ -158,17 +158,18 @@ async function readGraphObject<T>(request: GraphReadRequest, decode: (value: unk
   return value;
 }
 
-export function listSites(search?: string): Promise<GraphPage<GraphSite>> {
-  return readGraphPage({
-    path: '/sites', query: { search: search || '*', '$top': '100' },
-  }, (value) => decodeLocation(value) as GraphSite | null);
-}
+const decodeSite = (value: unknown): GraphSite | null => decodeLocation(value);
+const decodeDrive = (value: unknown): GraphDrive | null => decodeLocation(value);
 
-export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> {
-  return readGraphPage({
-    path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' },
-  }, (value) => decodeLocation(value) as GraphDrive | null);
+export function browseSites(search?: string, next?: GraphReadRequest): Promise<GraphPage<GraphSite>> {
+  return readGraphPage(next ?? { path: '/sites', query: { search: search || '*', '$top': '100' } }, decodeSite);
 }
+export function listSites(search?: string): Promise<GraphPage<GraphSite>> { return browseSites(search); }
+
+export function browseDrives(siteId: string, next?: GraphReadRequest): Promise<GraphPage<GraphDrive>> {
+  return readGraphPage(next ?? { path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' } }, decodeDrive);
+}
+export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> { return browseDrives(siteId); }
 
 export function getPersonalDrive(): Promise<GraphDrive> {
   return readGraphObject({ path: '/me/drive' }, (value) => decodeLocation(value) as GraphDrive | null);
@@ -183,7 +184,8 @@ export function listChildren(driveId: string, folderId?: string): Promise<GraphP
 }
 
 export function searchDrive(driveId: string, term: string): Promise<GraphPage<GraphItem>> {
-  return readGraphPage(folderSearchRequest(segment(driveId), term), decodeItem);
+  segment(driveId); // Validate here; folderSearchRequest performs the one URL encoding pass.
+  return readGraphPage(folderSearchRequest(driveId, term), decodeItem);
 }
 
 function decodeVersion(value: unknown): GraphVersion | null {

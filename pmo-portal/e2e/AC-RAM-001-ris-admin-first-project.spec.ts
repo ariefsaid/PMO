@@ -73,7 +73,7 @@ test('AC-RAM-001: a RIS Admin goes from organization setup to a first project, o
   await page.getByLabel(/project name/i).fill(name);
   await pickComboboxOption(page, page, /client company/i, 'first');
   await page.getByRole('button', { name: /^Create project$/i }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
   // GOAL: success names the created record, and the app opens the new record directly (FR-RAM-009 / AC-RAM-006).
   await expect(visibleToast(page, 'Project created')).toContainText(name);
 

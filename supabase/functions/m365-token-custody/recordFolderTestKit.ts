@@ -38,7 +38,7 @@ export const gpost = (match: string | RegExp, respond: GraphRoute["respond"]): G
 export interface World {
   role: string;
   /** Rows returned for the caller-RLS parent read (projects / procurements). */
-  parent: unknown[] | ((call: FetchCall) => unknown[]);
+  parent: unknown[] | ((call: FetchCall) => unknown[] | Promise<unknown[]>);
   parentError?: unknown;
   /** Rows returned for the folder register read. */
   documents: unknown[] | ((call: FetchCall) => unknown[]);
@@ -56,6 +56,8 @@ export interface World {
   accessExpired: boolean;
   /** Microsoft token endpoint (refresh). */
   refresh: (call: FetchCall) => Response | Promise<Response>;
+  /** Synthetic fixture value captured for exact refresh-generation assertions. */
+  seededRefreshCiphertext?: string;
 }
 
 export const projectRow = (over: Record<string, unknown> = {}) => ({
@@ -99,6 +101,7 @@ async function connectionRow(world: World) {
   const hex = Array.from(serializeEnvelope(encrypted.iv, encrypted.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
   const refresh = await encryptToken("synthetic-refresh-token", KEK_BYTES);
   const refreshHex = Array.from(serializeEnvelope(refresh.iv, refresh.ciphertext), (b) => b.toString(16).padStart(2, "0")).join("");
+  world.seededRefreshCiphertext = `\\x${refreshHex}`;
   return {
     id: "synthetic-connection", org_id: ORG, user_id: USER, entra_tenant_id: "synthetic-tenant",
     entra_user_object_id: null, scopes: world.scopes, refresh_token_ciphertext: `\\x${refreshHex}`,
@@ -118,11 +121,11 @@ export const rpcBodies = (calls: FetchCall[], fn: string) =>
 export const tableCalls = (calls: FetchCall[], table: string) => calls.filter((call) => call.url.pathname === `/rest/v1/${table}`);
 
 function routesFor(world: World, connection: Record<string, unknown>): MockRoute[] {
-  const table = (name: string, responder: (call: FetchCall) => Response): MockRoute => ({
+  const table = (name: string, responder: (call: FetchCall) => Response | Promise<Response>): MockRoute => ({
     label: name, method: "GET", pathname: `/rest/v1/${name}`, response: responder,
   });
   const rows = (data: unknown[]) => jsonResponse(data);
-  const parentRows = (call: FetchCall) => rows(typeof world.parent === "function" ? world.parent(call) : world.parent);
+  const parentRows = async (call: FetchCall) => rows(typeof world.parent === "function" ? await world.parent(call) : world.parent);
   const documentRows = (call: FetchCall) => rows(typeof world.documents === "function" ? world.documents(call) : world.documents);
   return [
     { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: "active", org_id: ORG, role: world.role }) },
@@ -145,6 +148,16 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     { label: "pkce-state", method: "POST", pathname: "/rest/v1/m365_pkce_states", response: () => new Response(null, { status: 201 }) },
     { label: "rate", pathname: "/rest/v1/rpc/rate_limit_hit", response: (call) => world.rate(call) },
     { label: "token", host: "login.microsoftonline.com", response: (call) => world.refresh(call) },
+    { label: "finish-refresh", pathname: "/rest/v1/rpc/m365_finish_refresh", response: (call) => {
+      const args = call.bodyJson as Record<string, unknown>;
+      if (args.p_status === "active") Object.assign(connection, {
+        scopes: args.p_scopes, access_token_ciphertext: args.p_access_token_ciphertext,
+        refresh_token_ciphertext: args.p_refresh_token_ciphertext,
+        access_token_expires_at: args.p_access_token_expires_at,
+      });
+      return jsonResponse(connection.id);
+    } },
+    { label: "refresh-audit", pathname: "/rest/v1/rpc/audit_m365_event", response: () => jsonResponse(null) },
     { label: "error-events", method: "POST", pathname: "/rest/v1/error_events", response: () => new Response(null, { status: 201 }) },
     {
       label: "graph", host: "graph.microsoft.com",
@@ -162,6 +175,7 @@ const ENV_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_K
 let authority: Awaited<ReturnType<typeof createJwtAuthority>> | null = null;
 
 export interface Scenario extends FetchMockContext {
+  world: World;
   /** POST the body to the shipped handler as the synthetic user. */
   call(body: unknown): Promise<Response>;
   token: string;
@@ -187,6 +201,7 @@ export function makeScenarioRunner(
       return await withFetchMock(routesFor(world, connection), (ctx) =>
         fn({
           ...ctx,
+          world,
           token,
           deps: {
             env: {

@@ -346,6 +346,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     const previous = screen.getByRole('button', { name: 'Previous period' });
     fireEvent.click(previous);
     expect(previous).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse Prior group' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('table')).toBeInTheDocument();
     unmount();
   });

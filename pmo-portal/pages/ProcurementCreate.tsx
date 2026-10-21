@@ -9,6 +9,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurement, useCreateProcurementItem } from '@/src/hooks/useProcurementCrud';
 import type { NewProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
@@ -61,7 +62,7 @@ export default function ProcurementCreate() {
       ...current,
       {
         ...line,
-        id: `draft-${crypto.randomUUID()}`,
+        id: crypto.randomUUID(),
         amount,
         description: null,
       },
@@ -106,19 +107,21 @@ export default function ProcurementCreate() {
     }
 
     const failedLines: DraftLine[] = [];
+    let reconcileMessage: string | undefined;
     for (const line of lines) {
       try {
         await createItem.mutateAsync({
           procurementId: savedId,
-          input: { name: line.name, quantity: line.quantity, rate: line.rate },
+          input: { id: line.id, name: line.name, quantity: line.quantity, rate: line.rate },
         });
-      } catch {
+      } catch (error) {
         failedLines.push(line);
+        if (error instanceof ProcurementError && error.code === '23505') reconcileMessage = error.message;
       }
     }
     if (failedLines.length > 0) {
       setLines(failedLines);
-      setErrors({ save: t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
+      setErrors({ save: reconcileMessage ?? t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
       setSaving(false);
       return;
     }
@@ -144,6 +147,7 @@ export default function ProcurementCreate() {
         </header>
         <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Request details')}>
           <h2 className="mb-4 font-semibold">{t('procurement:create.requestDetails', 'Request details')}</h2>
+          <fieldset disabled={Boolean(savedRequestId) || saving}>
           <FormGrid>
             <TextField
               id="procurement-create-title"
@@ -181,23 +185,27 @@ export default function ProcurementCreate() {
               helper={BUDGET_CATEGORY_HELPER}
             />
           </FormGrid>
+          </fieldset>
         </section>
         {errors.save && <p role="alert" className="mb-4 text-sm text-destructive-text">{errors.save}</p>}
+        <fieldset disabled={saving} className="contents">
         <LineItemsSection
           items={lines as unknown as ProcurementItemRow[]}
           editable
+          busy={saving}
           onAdd={addLine}
           onUpdate={updateLine}
           onDelete={removeLine}
           onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
           currency={orgCurrency}
         />
+        </fieldset>
       </form>
       <ConfirmDialog
         open={pendingLeave !== null}
         tone="default"
         title={t('procurement:create.unsaved.title', 'Unsaved request')}
-        description={t('procurement:create.unsaved.description', 'This request has not been saved. Leave this page and discard it?')}
+        description={savedRequestId ? t('procurement:create.unsaved.partialDescription', 'Your request is saved. Any remaining line items will be lost if you leave.') : t('procurement:create.unsaved.description', 'This request has not been saved. Leave this page and discard it?')}
         confirmLabel={t('procurement:create.unsaved.leave', 'Leave')}
         cancelLabel={t('procurement:create.unsaved.stay', 'Stay')}
         onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}

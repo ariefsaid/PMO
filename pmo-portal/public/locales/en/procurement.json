@@ -1,6 +1,10 @@
 {
   "lineItems": {
     "erpItem": "ERP item",
+    "itemDescription": "Item / description",
+    "description": "Description",
+    "empty": "No line items yet.",
+    "emptyEditable": "No line items yet. Add one below.",
     "quantity": "Qty",
     "unitPrice": "Unit price",
     "lineTotal": "Line total",
@@ -41,6 +45,7 @@
     "unsaved": {
       "title": "Unsaved request",
       "description": "This request has not been saved. Leave this page and discard it?",
+      "partialDescription": "Your request is saved. Any remaining line items will be lost if you leave.",
       "leave": "Leave",
       "stay": "Stay"
     }
