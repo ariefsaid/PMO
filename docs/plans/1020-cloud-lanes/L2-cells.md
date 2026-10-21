@@ -1,3 +1,0 @@
-# #1020 lane L2 — reference cells. Branch: `m365/l2-cells`
-Tasks: plan **2.12–2.14** (direct-open LinkedDocumentCell, latest/version list/approved-history controls, drift badges + display-triggered check hook `useDocumentVerification`). Also the folder reference-only rendering inside the cell from 2.19 ("Folder reference — contents are not issued or approved").
-You own: `src/components/m365/LinkedDocumentCell*`, `LinkedDocumentVersions*`, `DocumentDriftBadge*`, `src/hooks/useDocumentVerification*`, `src/lib/m365/reference.ts` (projection helpers). Don't touch the picker files (L1) or pages/ (L3–L5).
