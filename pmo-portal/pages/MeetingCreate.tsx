@@ -44,6 +44,9 @@ const MeetingCreate: React.FC = () => {
   const [guests, setGuests] = useState<string[]>([]);
   const [guestName, setGuestName] = useState('');
   const [minutes, setMinutes] = useState<NoteBlock[]>([]);
+  const [minutesPending, setMinutesPending] = useState(true);
+  const [savedMeetingId, setSavedMeetingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const validate = useMemo(() => makeValidate(t), [t]);
   const form = useEntityForm<Values>({
     initialValues: { title: '', occurredAt: instantToZonedDatetimeLocal(new Date()), location: '', projectId: '' },
@@ -53,7 +56,7 @@ const MeetingCreate: React.FC = () => {
   const when = form.fieldProps('occurredAt');
   const location = form.fieldProps('location');
   const project = form.fieldProps('projectId');
-  const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutes.length > 0;
+  const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending || minutes.length > 0;
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setPendingLeave(() => leave) });
   const onEditorReady = useCallback((blocks: NoteBlock[]) => setMinutes(blocks), []);
@@ -71,30 +74,45 @@ const MeetingCreate: React.FC = () => {
     void form.handleSubmit(async (values) => {
       const instant = zonedDatetimeLocalToInstant(values.occurredAt);
       if (!instant) return;
-      let meeting;
-      try {
-        meeting = await create.mutateAsync({
-          title: values.title.trim(), occurred_at: instant.toISOString(),
-          location: values.location.trim() || null, project_id: values.projectId || null,
-        });
-      } catch (error) {
-        notifyError(error, tCreate('createFailed', 'Meeting could not be created.'));
-        return;
+      let meetingId = savedMeetingId;
+      if (!meetingId) {
+        try {
+          const meeting = await create.mutateAsync({
+            title: values.title.trim(), occurred_at: instant.toISOString(),
+            location: values.location.trim() || null, project_id: values.projectId || null,
+          });
+          meetingId = meeting.id;
+          setSavedMeetingId(meetingId);
+        } catch (error) {
+          notifyError(error, tCreate('createFailed', 'Meeting could not be created.'));
+          return;
+        }
       }
-      const failures: Array<{ error: unknown; part: string }> = [];
+      const failedMembers: ComboboxOption[] = [];
+      const failedGuests: string[] = [];
+      let failedMinutes = false;
       for (const member of members) {
-        try { await addAttendee.mutateAsync({ meetingId: meeting.id, identity: { profile_id: member.value } }); }
-        catch (error) { failures.push({ error, part: tCreate('attendeesFailed', 'Attendees were not all saved.') }); }
+        try { await addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }); }
+        catch { failedMembers.push(member); }
       }
       for (const name of guests) {
-        try { await addAttendee.mutateAsync({ meetingId: meeting.id, identity: { display_name: name } }); }
-        catch (error) { failures.push({ error, part: tCreate('attendeesFailed', 'Attendees were not all saved.') }); }
+        try { await addAttendee.mutateAsync({ meetingId, identity: { display_name: name } }); }
+        catch { failedGuests.push(name); }
       }
-      try { await update.mutateAsync({ id: meeting.id, patch: { notes: minutes } }); }
-      catch (error) { failures.push({ error, part: tCreate('minutesFailed', 'Minutes could not be saved.') }); }
-      navigate(`/meetings/${meeting.id}`, { replace: true, state: routerLocation.state });
-      if (failures.length) failures.forEach(({ error, part }) => notifyError(error, part));
-      else toast(t('meetings.toast.created', 'Meeting created'), values.title.trim(), 'success');
+      if (minutesPending) {
+        try {
+          await update.mutateAsync({ id: meetingId, patch: { notes: minutes } });
+          setMinutesPending(false);
+        } catch { failedMinutes = true; }
+      }
+      setMembers(failedMembers);
+      setGuests(failedGuests);
+      if (failedMembers.length || failedGuests.length || failedMinutes) {
+        setSaveError(true);
+        return;
+      }
+      navigate(`/meetings/${meetingId}`, { replace: true, state: routerLocation.state });
+      toast(t('meetings.toast.created', 'Meeting created'), values.title.trim(), 'success');
     });
   };
 
@@ -111,7 +129,7 @@ const MeetingCreate: React.FC = () => {
         <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: item.name }))]} />
       </FormGrid>
     </section>
-    <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor initialBlocks={[]} editable tasksExternal={false} onReady={onEditorReady} onChange={setMinutes} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
+    <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor initialBlocks={[]} editable tasksExternal={false} onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.attendees.title', 'Attendees')}</CardHead><CardPad>
       <ul className="mb-3 flex flex-col gap-1.5" data-testid="attendees-list">
         {members.map((member) => <li key={member.value} className="flex items-center gap-2 text-sm"><span className="flex-1">{member.label}</span><Button type="button" variant="ghost" size="sm" aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')} onClick={() => setMembers((existing) => existing.filter((item) => item.value !== member.value))}>{t('meetingDetail.attendees.remove', 'Remove attendee')}</Button></li>)}
@@ -122,6 +140,7 @@ const MeetingCreate: React.FC = () => {
         <div className="flex min-w-0 flex-1 items-end gap-2"><div className="min-w-0 flex-1"><TextField id="meeting-create-guest" label={t('meetingDetail.attendees.guestLabel', 'External guest')} value={guestName} onChange={setGuestName} /></div><Button type="button" variant="outline" disabled={!guestName.trim()} onClick={() => { setGuests((existing) => [...existing, guestName.trim()]); setGuestName(''); }}>{t('meetingDetail.attendees.addGuest', 'Add guest')}</Button></div>
       </div>
     </CardPad></Card>
+    {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
     <div className="flex justify-end pb-6"><Button type="submit" variant="primary" disabled={form.isSubmitting || create.isPending}>{tCreate('save', 'Save meeting')}</Button></div>
     <ConfirmDialog open={pendingLeave !== null} tone="default" title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved minutes')} description={t('meetingDetail.confirm.unsavedMinutes.description', 'Your meeting minutes have unsaved changes. Leave this page and discard them?')} confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')} cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
   </form>;

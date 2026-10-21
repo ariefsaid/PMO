@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   toast: vi.fn(),
   canCreate: true,
+  currency: 'USD',
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => mocks.canCreate }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'p1', label: 'Project One' }] }),
   useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Vendor One' }] }),
@@ -37,6 +39,7 @@ describe('AC-PROC1 one-page request creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.canCreate = true;
+    mocks.currency = 'USD';
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
   });
@@ -84,7 +87,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
-  it('AC-PROC1-005 preserves the record when a line write fails, warns, and opens its detail', async () => {
+  it('AC-PROC1-005 keeps failed line data on the saved request and retries only that line', async () => {
     mocks.createItem.mockRejectedValueOnce(new Error('line write failed'));
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
@@ -93,8 +96,26 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
+    expect(screen.getByText('Paper')).toBeVisible();
+    expect(screen.queryByText(/procurement\/new-id/)).not.toBeInTheDocument();
+    expect(mocks.createRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.createItem).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
-    expect(mocks.toast).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'warning');
+    expect(mocks.createRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.createItem).toHaveBeenCalledTimes(2);
+    expect(mocks.createItem.mock.calls[1][0]).toEqual({ procurementId: 'new-id', input: { name: 'Paper', quantity: 2, rate: 10 } });
+  });
+
+  it('AC-PROC1-008 formats draft line totals in the organization currency', () => {
+    mocks.currency = 'IDR';
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('IDR');
+    expect(screen.getByLabelText('New line total')).not.toHaveTextContent('$');
   });
 
   it('AC-PROC1-006 keeps the create permission gate on the route', () => {

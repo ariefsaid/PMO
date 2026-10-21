@@ -5,6 +5,7 @@ import { BackBar } from '@/src/components/shell';
 import { Button, Combobox, ConfirmDialog, FormGrid, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurement, useCreateProcurementItem } from '@/src/hooks/useProcurementCrud';
 import type { NewProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
@@ -31,6 +32,7 @@ export default function ProcurementCreate() {
   const { toast } = useToast();
   const create = useCreateProcurement();
   const createItem = useCreateProcurementItem();
+  const orgCurrency = useOrgCurrency();
   const projectId = new URLSearchParams(location.search).get('project');
   const { data: projects = [] } = useProjectOptions();
   const { data: vendors = [] } = useVendorOptions();
@@ -41,6 +43,7 @@ export default function ProcurementCreate() {
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [errors, setErrors] = useState<{ title?: string; save?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [savedRequestId, setSavedRequestId] = useState<string | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const dirty = !saving && (title !== '' || vendorId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId);
@@ -81,16 +84,19 @@ export default function ProcurementCreate() {
     setErrors({});
     setSaving(true);
 
-    let savedId: string;
+    let savedId = savedRequestId;
     try {
-      const input: NewProcurementInput = {
-        title: title.trim(),
-        projectId: selectedProject,
-        vendorId,
-        ...(budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
-      };
-      const request = await create.mutateAsync(input);
-      savedId = request.id;
+      if (!savedId) {
+        const input: NewProcurementInput = {
+          title: title.trim(),
+          projectId: selectedProject,
+          vendorId,
+          ...(budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
+        };
+        const request = await create.mutateAsync(input);
+        savedId = request.id;
+        setSavedRequestId(savedId);
+      }
     } catch (error) {
       const classified = classifyMutationError(error);
       setErrors({ save: classified.detail });
@@ -99,20 +105,22 @@ export default function ProcurementCreate() {
       return;
     }
 
-    const failedLines: Array<{ headline: string; detail: string }> = [];
+    const failedLines: DraftLine[] = [];
     for (const line of lines) {
       try {
         await createItem.mutateAsync({
           procurementId: savedId,
           input: { name: line.name, quantity: line.quantity, rate: line.rate },
         });
-      } catch (error) {
-        const classified = classifyMutationError(error);
-        failedLines.push({ headline: classified.headline, detail: classified.detail });
+      } catch {
+        failedLines.push(line);
       }
     }
     if (failedLines.length > 0) {
-      toast(failedLines[0].headline, failedLines.map((failure) => failure.detail).join(' · '), 'warning');
+      setLines(failedLines);
+      setErrors({ save: t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
+      setSaving(false);
+      return;
     }
     navigate(`/procurement/${savedId}`, { replace: true });
   };
@@ -182,7 +190,7 @@ export default function ProcurementCreate() {
           onUpdate={updateLine}
           onDelete={removeLine}
           onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
-          currency="USD"
+          currency={orgCurrency}
         />
       </form>
       <ConfirmDialog

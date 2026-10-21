@@ -93,13 +93,24 @@ const MeetingDetail: React.FC = () => {
   // differ. `key={meeting.id}` remounts the editor when a different meeting loads.
   const meeting = query.data ?? null;
   const [headerDraft, setHeaderDraft] = useState({ title: '', occurredAt: '', location: '', projectId: '' });
+  const headerDraftRef = useRef(headerDraft);
+  headerDraftRef.current = headerDraft;
+  const syncedHeaderRef = useRef<typeof headerDraft | null>(null);
   useEffect(() => {
-    if (meeting) setHeaderDraft({
+    if (!meeting) return;
+    const serverDraft = {
       title: meeting.title,
       occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)),
       location: meeting.location ?? '',
       projectId: meeting.project_id ?? '',
-    });
+    };
+    // A refetch replaces the header only when the user has not edited it since the last server copy.
+    const synced = syncedHeaderRef.current;
+    const draft = headerDraftRef.current;
+    const edited = synced !== null && (draft.title !== synced.title || draft.occurredAt !== synced.occurredAt
+      || draft.location !== synced.location || draft.projectId !== synced.projectId);
+    syncedHeaderRef.current = serverDraft;
+    if (!edited) setHeaderDraft(serverDraft);
   }, [meeting]);
   const editorRef = useRef<MinutesEditorHandle>(null);
   const [blocks, setBlocks] = useState<NoteBlock[] | null>(null);

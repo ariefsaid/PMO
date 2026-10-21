@@ -5,6 +5,7 @@
     "requestDetails": "Rincian permintaan",
     "titleField": "Judul",
     "titleRequired": "Judul permintaan wajib diisi.",
+    "linesFailed": "Permintaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
     "project": "Proyek",
     "selectProject": "Pilih proyek…",
     "vendor": "Pemasok",

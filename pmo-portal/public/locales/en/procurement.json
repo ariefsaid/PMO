@@ -5,6 +5,7 @@
     "requestDetails": "Request details",
     "titleField": "Title",
     "titleRequired": "A request title is required.",
+    "linesFailed": "Request saved, but some lines were not saved. Save again to retry.",
     "project": "Project",
     "selectProject": "Select a project…",
     "vendor": "Vendor",

@@ -80,17 +80,31 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it('AC-MTG1-002: continues to the saved record when an attendee write fails, and reports the failed part', async () => {
+  it('AC-MTG1-002: retains failed minutes and attendees, then retries only those parts', async () => {
     mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
+    mutations.update.mutateAsync.mockRejectedValueOnce(new Error('minutes write failed'));
     renderPage();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
     await user.click(screen.getByRole('button', { name: /Add guest/i }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByText('Guest One')).toBeVisible();
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
-    expect(mutations.update.mutateAsync).toHaveBeenCalled();
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Attendees/);
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutations.addAttendee.mutateAsync.mock.calls[1][0]).toEqual({ meetingId: 'meeting-new', identity: { display_name: 'Guest One' } });
+    expect(mutations.update.mutateAsync.mock.calls[1][0]).toEqual(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
+    // The typed minutes survive the failed write and are what the retry sends.
+    expect(JSON.stringify(mutations.update.mutateAsync.mock.calls[1][0].patch.notes)).toContain('Minutes text');
   });
 
   it('AC-MTG1-003: leaving with an unsaved draft asks before discarding and creates nothing', async () => {

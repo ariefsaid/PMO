@@ -671,6 +671,16 @@ describe('MeetingDetail — states', () => {
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', patch: expect.objectContaining({ title: 'Changed title' }) })));
   });
 
+  it('AC-MTG1-005: a meeting refetch does not overwrite a dirty header draft', async () => {
+    const view = renderPage('Engineer');
+    const title = screen.getByLabelText(/Title/) as HTMLInputElement;
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Typed title in progress');
+    meetingState.data = { ...baseMeeting, title: 'Refetched server title' };
+    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Typed title in progress');
+  });
+
   it('AC-MTG1-005: Cancel restores the original inline header values', async () => {
     renderPage('Engineer');
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
