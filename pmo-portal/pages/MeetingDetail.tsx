@@ -1,7 +1,6 @@
-import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
@@ -51,7 +50,6 @@ import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { upgradeNotes, type NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
 import {
-  type MeetingWithRefs,
   type MeetingAttendeeWithRefs,
   type MeetingGrantWithRefs,
 } from '@/src/lib/db/meetings';
@@ -75,6 +73,7 @@ const attendeeName = (a: MeetingAttendeeWithRefs): string =>
 
 const MeetingDetail: React.FC = () => {
   const { t } = useTranslation();
+  const { t: tMeetingCreate } = useTranslation('meetingCreate');
   const { meetingId } = useParams<{ meetingId: string }>();
   const may = usePermission();
   const { toast } = useToast();
@@ -93,6 +92,26 @@ const MeetingDetail: React.FC = () => {
   // The editor reports its normalised starting document (baseline) and every change; dirty = they
   // differ. `key={meeting.id}` remounts the editor when a different meeting loads.
   const meeting = query.data ?? null;
+  const [headerDraft, setHeaderDraft] = useState({ title: '', occurredAt: '', location: '', projectId: '' });
+  const headerDraftRef = useRef(headerDraft);
+  headerDraftRef.current = headerDraft;
+  const syncedHeaderRef = useRef<typeof headerDraft | null>(null);
+  useEffect(() => {
+    if (!meeting) return;
+    const serverDraft = {
+      title: meeting.title,
+      occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)),
+      location: meeting.location ?? '',
+      projectId: meeting.project_id ?? '',
+    };
+    // A refetch replaces the header only when the user has not edited it since the last server copy.
+    const synced = syncedHeaderRef.current;
+    const draft = headerDraftRef.current;
+    const edited = synced !== null && (draft.title !== synced.title || draft.occurredAt !== synced.occurredAt
+      || draft.location !== synced.location || draft.projectId !== synced.projectId);
+    syncedHeaderRef.current = serverDraft;
+    if (!edited) setHeaderDraft(serverDraft);
+  }, [meeting]);
   const editorRef = useRef<MinutesEditorHandle>(null);
   const [blocks, setBlocks] = useState<NoteBlock[] | null>(null);
   const [baseline, setBaseline] = useState<string | null>(null);
@@ -101,7 +120,6 @@ const MeetingDetail: React.FC = () => {
     setBlocks(doc);
   }, []);
 
-  const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
@@ -213,9 +231,11 @@ const MeetingDetail: React.FC = () => {
 
   const onSaveMinutes = async () => {
     try {
-      if (!blocks) return;
-      await update.mutateAsync({ id: meeting.id, patch: { notes: blocks } });
-      setBaseline(JSON.stringify(blocks));
+      const doc = editorRef.current?.getDocument() ?? blocks;
+      if (!doc) return;
+      await update.mutateAsync({ id: meeting.id, patch: { notes: doc } });
+      setBlocks(doc);
+      setBaseline(JSON.stringify(doc));
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       onMutationError(err);
@@ -316,6 +336,23 @@ const MeetingDetail: React.FC = () => {
       .map((p) => ({ value: p.id, label: p.full_name }));
   };
 
+  const headerDirty = Boolean(meeting && (
+    headerDraft.title !== meeting.title ||
+    headerDraft.occurredAt !== instantToZonedDatetimeLocal(new Date(meeting.occurred_at)) ||
+    headerDraft.location !== (meeting.location ?? '') ||
+    headerDraft.projectId !== (meeting.project_id ?? '')
+  ));
+  const saveHeader = async () => {
+    const instant = zonedDatetimeLocalToInstant(headerDraft.occurredAt);
+    if (!instant || !headerDraft.title.trim()) return;
+    try {
+      await update.mutateAsync({ id: meeting.id, patch: {
+        title: headerDraft.title.trim(), occurred_at: instant.toISOString(),
+        location: headerDraft.location.trim() || null, project_id: headerDraft.projectId || null,
+      } });
+      toast(t('meetingDetail.toast.updated', 'Meeting updated'), headerDraft.title.trim(), 'success');
+    } catch (err) { onMutationError(err); }
+  };
   const hasHeaderActions = canEdit || canArchive || canDelete;
 
   return (
@@ -325,7 +362,7 @@ const MeetingDetail: React.FC = () => {
       </div>
 
       <RecordHeader
-        name={meeting.title}
+        name={canEdit ? (headerDraft.title || meeting.title) : meeting.title}
         icon={(meeting.title.trim().charAt(0) || '•').toUpperCase()}
         status={
           meeting.archived_at ? (
@@ -334,28 +371,27 @@ const MeetingDetail: React.FC = () => {
             <StatusPill variant="violet">{t('meetingDetail.pill.meeting', 'Meeting')}</StatusPill>
           )
         }
-        meta={
+        meta={canEdit ? (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField id="meeting-header-title" label={t('meetingDetail.form.title.label', 'Title')} required value={headerDraft.title} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, title: value }))} error={!headerDraft.title.trim() ? t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.') : undefined} />
+            <TextField id="meeting-header-when" label={t('meetingDetail.form.when.label', 'When')} type="datetime-local" value={headerDraft.occurredAt} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, occurredAt: value }))} error={!zonedDatetimeLocalToInstant(headerDraft.occurredAt) ? t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.') : undefined} />
+            <TextField id="meeting-header-location" label={t('meetingDetail.form.location.label', 'Location')} value={headerDraft.location} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, location: value }))} />
+            <SelectField id="meeting-header-project" label={t('meetingDetail.form.project.label', 'Project')} value={headerDraft.projectId} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, projectId: value }))} options={[{ value: '', label: t('meetingDetail.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: item.name }))]} />
+          </div>
+        ) : (
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{formatDateTime(new Date(meeting.occurred_at))}</span>
             {meeting.location && <span>{meeting.location}</span>}
-            {meeting.project && (
-              <Link
-                to={`/projects/${meeting.project.id}`}
-                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                {meeting.project.name}
-              </Link>
-            )}
+            {meeting.project && <Link to={`/projects/${meeting.project.id}`} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{meeting.project.name}</Link>}
           </span>
-        }
+        )}
         actions={
           hasHeaderActions ? (
             <>
-              {canEdit && (
-                <Button variant="outline" size="sm" data-testid="meeting-edit" onClick={() => setEditOpen(true)}>
-                  {t('meetingDetail.edit', 'Edit')}
-                </Button>
-              )}
+              {canEdit && headerDirty && <>
+                <Button variant="primary" size="sm" data-testid="meeting-header-save" disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)} onClick={() => void saveHeader()}>{tMeetingCreate('save', 'Save meeting')}</Button>
+                <Button variant="outline" size="sm" data-testid="meeting-header-cancel" onClick={() => setHeaderDraft({ title: meeting.title, occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)), location: meeting.location ?? '', projectId: meeting.project_id ?? '' })}>{tMeetingCreate('cancel', 'Cancel')}</Button>
+              </>}
               {canArchive && !meeting.archived_at && (
                 <Button variant="ghost" size="sm" data-testid="meeting-archive" onClick={() => setArchiveOpen(true)}>
                   {t('meetingDetail.archive', 'Archive')}
@@ -631,21 +667,6 @@ const MeetingDetail: React.FC = () => {
         />
       )}
 
-      {/* ── Edit modal ─────────────────────────────────────────────────────── */}
-      {editOpen && (
-        <MeetingEditModal
-          meeting={meeting}
-          projectOptions={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
-          onClose={() => setEditOpen(false)}
-          onSave={async (patch) => {
-            await update.mutateAsync({ id: meeting.id, patch });
-            toast(t('meetingDetail.toast.updated', 'Meeting updated'), meeting.title, 'success');
-            setEditOpen(false);
-          }}
-          onError={onMutationError}
-        />
-      )}
-
       <ConfirmDialog
         open={archiveOpen}
         tone="default"
@@ -842,160 +863,6 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
               </span>
             </p>
           </div>
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
-  );
-};
-
-// ── Edit header modal ───────────────────────────────────────────────────────
-
-interface EditFormValues {
-  title: string;
-  occurredAt: string;
-  location: string;
-  projectId: string;
-}
-
-const makeEditValidate =
-  (t: TFunction) =>
-  (v: EditFormValues): Partial<Record<keyof EditFormValues, string>> => {
-    const errors: Partial<Record<keyof EditFormValues, string>> = {};
-    if (!v.title.trim())
-      errors.title = t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.');
-    // A meeting's time is required (#684): a cleared or unparseable "When" must block the save,
-    // never silently keep the meeting's old time — `zonedDatetimeLocalToInstant` returns null for
-    // both cases.
-    if (!zonedDatetimeLocalToInstant(v.occurredAt))
-      errors.occurredAt = t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.');
-    return errors;
-  };
-
-interface MeetingEditModalProps {
-  meeting: MeetingWithRefs;
-  projectOptions: { value: string; label: string }[];
-  onClose: () => void;
-  onSave: (patch: {
-    title: string;
-    occurred_at: string;
-    location: string | null;
-    project_id: string | null;
-  }) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const MeetingEditModal: React.FC<MeetingEditModalProps> = ({
-  meeting,
-  projectOptions,
-  onClose,
-  onSave,
-  onError,
-}) => {
-  const { t } = useTranslation();
-  const validate = useMemo(() => makeEditValidate(t), [t]);
-  const form = useEntityForm<EditFormValues>({
-    initialValues: {
-      title: meeting.title,
-      occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)),
-      location: meeting.location ?? '',
-      projectId: meeting.project_id ?? '',
-    },
-    validate,
-    idPrefix: 'meeting-edit-form',
-    requiredFields: ['title'],
-    module: 'meetings',
-  });
-
-  const titleField = form.fieldProps('title');
-  const occurredField = form.fieldProps('occurredAt');
-  const locationField = form.fieldProps('location');
-  const projectField = form.fieldProps('projectId');
-
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      try {
-        // `validate` already blocked submit when this is null (#684) — never reached with a
-        // cleared/unparseable value, so there is no silent fallback to the meeting's old time.
-        const instant = zonedDatetimeLocalToInstant(values.occurredAt)!;
-        await onSave({
-          title: values.title.trim(),
-          occurred_at: instant.toISOString(),
-          location: values.location.trim() || null,
-          project_id: values.projectId || null,
-        });
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'meetings',
-          operation: 'update',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={t('meetingDetail.form.editTitle', 'Edit meeting')}
-      subtitle={t('meetingDetail.form.editSubtitle', 'Update this meeting record')}
-      submitLabel={t('meetingDetail.form.editSubmit', 'Save meeting')}
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={[
-        form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
-        form.errors.occurredAt
-          ? { fieldId: occurredField.id, message: form.errors.occurredAt }
-          : null,
-      ].filter((item): item is { fieldId: string; message: string } => item !== null)}
-      submitError={saveError}
-    >
-      <FormSection legend={t('meetingDetail.form.sections.details', 'Details')}>
-        <FormGrid>
-          <TextField
-            id={titleField.id}
-            label={t('meetingDetail.form.title.label', 'Title')}
-            required
-            value={titleField.value}
-            onChange={titleField.onChange}
-            onBlur={titleField.onBlur}
-            error={titleField.error}
-            fullWidth
-          />
-          <TextField
-            id={occurredField.id}
-            label={t('meetingDetail.form.when.label', 'When')}
-            type="datetime-local"
-            value={occurredField.value}
-            onChange={occurredField.onChange}
-            onBlur={occurredField.onBlur}
-            error={occurredField.error}
-          />
-          <TextField
-            id={locationField.id}
-            label={t('meetingDetail.form.location.label', 'Location')}
-            value={locationField.value}
-            onChange={locationField.onChange}
-            onBlur={locationField.onBlur}
-          />
-          <SelectField
-            id={projectField.id}
-            label={t('meetingDetail.form.project.label', 'Project')}
-            value={projectField.value}
-            onChange={(v) => projectField.onChange(v)}
-            onBlur={projectField.onBlur}
-            options={[
-              { value: '', label: t('meetingDetail.form.project.none', 'No project') },
-              ...projectOptions,
-            ]}
-          />
         </FormGrid>
       </FormSection>
     </EntityFormModal>

@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — the dev seed carries exactly ONE non-template meeting (a scroll
 // journey needs several rows to overflow the list), so this spec creates its own uniquely-named
-// meetings (Date.now()) via the app's own "New meeting" form and deletes them again at the end
+// meetings (Date.now()) via the app's one-page create route and deletes them again at the end
 // (finally block, retry-safe); it never touches a shared seed row.
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login } from './helpers';
@@ -41,13 +41,10 @@ async function createMeeting(page: Page, title: string): Promise<string> {
   await page.goto('/meetings');
   await waitReady(page);
   await page.getByRole('button', { name: /new meeting/i }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 8_000 });
-  // The required field's label carries its marker ("Title *").
-  await dialog.getByLabel(/^Title\s*\*?$/i).fill(title);
-  await dialog.getByLabel(/^Project$/i).selectOption({ label: PROJECT_NAME });
-  await dialog.getByRole('button', { name: /create meeting/i }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/meetings\/new$/);
+  await page.getByLabel(/^Title\s*\*?$/i).fill(title);
+  await page.getByLabel(/^Project$/i).selectOption({ label: PROJECT_NAME });
+  await page.getByRole('button', { name: /save meeting/i }).click();
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+$/i, { timeout: 15_000 });
   return page.url().split('/meetings/')[1];
 }

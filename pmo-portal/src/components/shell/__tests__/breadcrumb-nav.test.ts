@@ -23,6 +23,11 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
   it('resolves the profile settings route to its page label', () => {
     expect(breadcrumbForPath('/settings/profile')).toEqual([{ label: 'Profile & preferences' }]);
   });
+  it('AC-PROJ1-001: the one-step create page reads Projects > New project, never Loading/Not found', () => {
+    const [parent, current] = breadcrumbForPath('/projects/new', undefined, undefined, true);
+    expect(parent.label).toBe('Projects');
+    expect(current).toEqual({ label: 'New project', i18nKey: 'projectForm.title.create' });
+  });
   it('AC-NAV-003: a module index route renders a single current crumb', () => {
     expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects', i18nKey: 'shell.nav.projects' }]);
     expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline', i18nKey: 'shell.nav.sales' }]);

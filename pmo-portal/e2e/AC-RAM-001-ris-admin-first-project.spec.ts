@@ -70,12 +70,10 @@ test('AC-RAM-001: a RIS Admin goes from organization setup to a first project, o
 
   // 3 — Create the first project.
   await page.getByRole('button', { name: /new project/i }).first().click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 8_000 });
-  await dialog.getByLabel(/project name/i).fill(name);
-  await pickComboboxOption(dialog, page, /client company/i, 'first');
-  await dialog.getByRole('button', { name: /^Create project$/i }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+  await page.getByLabel(/project name/i).fill(name);
+  await pickComboboxOption(page, page, /client company/i, 'first');
+  await page.getByRole('button', { name: /^Create project$/i }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
   // GOAL: success names the created record, and the app opens the new record directly (FR-RAM-009 / AC-RAM-006).
   await expect(visibleToast(page, 'Project created')).toContainText(name);
 

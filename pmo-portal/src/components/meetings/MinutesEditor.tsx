@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, startTransition, useCallback, useEffect, useImperativeHandle, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { filterSuggestionItems } from '@blocknote/core/extensions';
 import {
@@ -22,6 +22,8 @@ import './minutesEditor.css';
 export interface MinutesEditorHandle {
   /** Place an `actionItem` block referencing `taskId` where /action was invoked. No task write. */
   insertActionItem(taskId: string): void;
+  /** The editor's live document — `onChange` is deferred (a transition), so Save must not rely on it. */
+  getDocument(): NoteBlock[];
 }
 
 export interface MinutesEditorProps {
@@ -93,6 +95,7 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
         pendingBlockId.current = null;
         placeActionItem(editor, blockId, taskId);
       },
+      getDocument: () => editor.document as unknown as NoteBlock[],
     }),
     [editor],
   );
@@ -130,7 +133,8 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
         editable={editable}
         slashMenu={false}
         formattingToolbar={false}
-        onChange={() => onChange(editor.document as unknown as NoteBlock[])}
+        // A transition, not a sync update: a sync full-page render per keystroke hit React's nested-update limit (AC-MRT-001).
+        onChange={() => startTransition(() => onChange(editor.document as unknown as NoteBlock[]))}
       >
         {editable && <FormattingToolbarController formattingToolbar={toolbar} />}
         {editable && (

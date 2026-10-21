@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { ListState } from '@/src/components/ui/ListState';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
+import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair } from '@/src/lib/adapterSeam/erpnext/statementReports';
 import { formatDateOnly } from '@/src/lib/format';
@@ -30,6 +31,10 @@ export interface NativeStatementPairProps {
     forThePeriod: string;
     amountsIn: string;
     periodShown: string;
+    collapseGroup: (group: string) => string;
+    expandGroup: (group: string) => string;
+    collapseAll: string;
+    expandAll: string;
   };
 }
 
@@ -168,9 +173,42 @@ interface ValueColumn {
   readonly header: ReactNode;
 }
 
-function StatementTable({ headingId, lines, account, valueColumns, presentation, notProvided }: {
+function collapsibleGroupLines(lines: StatementLine[]): AccountLine[] {
+  return lines.flatMap((line, index) => {
+    if (line.kind !== 'account' || isComputedRow(line.source) || !(line.source.is_group === true || line.source.is_group_account === true)) return [];
+    const indent = typeof line.source.indent === 'number' ? line.source.indent : 0;
+    for (const candidate of lines.slice(index + 1)) {
+      if (candidate.kind === 'spacer' || isComputedRow(candidate.source)) break;
+      const nextIndent = typeof candidate.source.indent === 'number' ? candidate.source.indent : 0;
+      if (nextIndent <= indent) break;
+      return [line];
+    }
+    return [];
+  });
+}
+
+function hasCollapsibleGroups(lines: StatementLine[]): boolean {
+  return collapsibleGroupLines(lines).length > 0;
+}
+
+function CollapseAll({ lines, collapsed, setCollapsed, labels }: {
+  lines: StatementLine[];
+  collapsed: ReadonlySet<string>;
+  setCollapsed: (next: (previous: Set<string>) => Set<string>) => void;
+  labels: NativeStatementPairProps['labels'];
+}) {
+  if (!hasCollapsibleGroups(lines)) return null;
+  const groups = collapsibleGroupLines(lines);
+  const allCollapsed = groups.every((group) => collapsed.has(group.key));
+  return <button type="button" className="h-8 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</button>;
+}
+
+function StatementTable({ headingId, lines, account, valueColumns, presentation, notProvided, collapsed, setCollapsed, labels }: {
   headingId: string;
   lines: StatementLine[];
+  collapsed: ReadonlySet<string>;
+  setCollapsed: (next: (previous: Set<string>) => Set<string>) => void;
+  labels: NativeStatementPairProps['labels'];
   account: string;
   valueColumns: readonly ValueColumn[];
   presentation: StatementAmountPresentation;
@@ -180,6 +218,19 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
   const footer = last?.kind === 'account' && isComputedRow(last.source) ? last : null;
   const bodyLines = footer === null ? lines : lines.slice(0, -1);
 
+  const groups = collapsibleGroupLines(bodyLines).map((line) => {
+    const index = bodyLines.indexOf(line);
+    return { line, index, indent: typeof line.source.indent === 'number' ? line.source.indent : 0, label: displayLabel(line.source) };
+  });
+  const hiddenLines = new Set<number>();
+  groups.filter(({ line }) => collapsed.has(line.key)).forEach(({ index, indent }) => {
+    for (let childIndex = index + 1; childIndex < bodyLines.length; childIndex += 1) {
+      const child = bodyLines[childIndex];
+      if (child.kind === 'spacer' || isComputedRow(child.source)) break;
+      if ((typeof child.source.indent === 'number' ? child.source.indent : 0) <= indent) break;
+      hiddenLines.add(childIndex);
+    }
+  });
   const renderLine = (line: AccountLine, final: boolean) => {
     const label = displayLabel(line.source);
     const computed = isComputedRow(line.source);
@@ -195,7 +246,15 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
         className={cn('text-[13.5px] text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
       >
         <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || group ? 'font-semibold' : 'font-normal', rule)}>
-          <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined}>
+          <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">
+            {groups.some(({ line: groupLine }) => groupLine.key === line.key) && (() => {
+              const isCollapsed = collapsed.has(line.key);
+              return <button type="button" aria-label={(isCollapsed ? labels.expandGroup : labels.collapseGroup)(label)} aria-expanded={!isCollapsed} onClick={() => setCollapsed((previous) => {
+                const next = new Set(previous);
+                if (isCollapsed) next.delete(line.key); else next.add(line.key);
+                return next;
+              })} className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !isCollapsed && 'rotate-90')} /></button>;
+            })()}
             {number !== null && <span className="mr-2 font-normal text-muted-foreground tabular">{number}</span>}
             <span>{label}</span>
           </div>
@@ -231,7 +290,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
           </tr>
         </thead>
         <tbody>
-          {bodyLines.map((line) => line.kind === 'spacer'
+          {bodyLines.map((line, index) => hiddenLines.has(index) ? null : line.kind === 'spacer'
             ? <tr key={line.key} aria-hidden="true"><td colSpan={valueColumns.length + 1} className="h-3" /></tr>
             : renderLine(line, false))}
         </tbody>
@@ -264,6 +323,7 @@ const accountHeader = (side: NativeReportColumn) =>
 
 function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [shown, setShown] = useState<Side>('current');
   const side = pair[shown];
   const lines = mergeLines(side.rows, []);
@@ -283,13 +343,16 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
           periodLine={`${labels.forThePeriod} ${sideRange(side)}`}
           amountsLine={`${labels.amountsIn} ${currency}`}
         />
-        <ViewToggle
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <CollapseAll lines={lines} collapsed={collapsed} setCollapsed={setCollapsed} labels={labels} />
+          <ViewToggle
           semantics="toggle"
           ariaLabel={labels.periodShown}
           value={shown}
           onChange={setShown}
           options={[{ value: 'current', label: labels.current }, { value: 'prior', label: labels.prior }]}
-        />
+          />
+        </div>
       </div>
       {lines.length === 0
         ? <ListState variant="empty" title={labels.noActivity} sub={labels.noActivityDescription} />
@@ -301,6 +364,9 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
             valueColumns={valueColumns}
             presentation={presentation}
             notProvided={labels.notProvided}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+            labels={labels}
           />
         )}
     </div>
@@ -309,6 +375,7 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
 
 function ComparativeStatement({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const balanceSheet = pair.current.reportName === 'Balance Sheet';
   const lines = mergeLines(pair.current.rows, pair.prior.rows);
   const sideColumns = (side: Side): ValueColumn[] => periodColumns(pair[side]).map((column) => ({
@@ -328,13 +395,16 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
   const emptySides = (['current', 'prior'] as const).filter((side) => pair[side].rows.length === 0);
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <StatementHeading
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <StatementHeading
         id={headingId}
         reportTitle={reportTitle}
         companyLabel={companyLabel}
         periodLine={periodLine}
         amountsLine={`${labels.amountsIn} ${currency}`}
-      />
+        />
+        <CollapseAll lines={lines} collapsed={collapsed} setCollapsed={setCollapsed} labels={labels} />
+      </div>
       {lines.length === 0
         ? <ListState variant="empty" title={labels.noActivity} sub={labels.noActivityDescription} />
         : (
@@ -349,6 +419,9 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
               valueColumns={[...sideColumns('current'), ...sideColumns('prior')]}
               presentation={presentation}
               notProvided={labels.notProvided}
+              collapsed={collapsed}
+              setCollapsed={setCollapsed}
+              labels={labels}
             />
           </>
         )}

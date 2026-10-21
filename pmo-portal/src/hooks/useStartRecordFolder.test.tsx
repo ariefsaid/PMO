@@ -16,6 +16,8 @@ import { AppError } from '@/src/lib/appError';
 import type { RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 
 const auth = vi.hoisted(() => ({ current: { id: 'u1', org_id: 'org-1' } as { id: string; org_id: string } | null }));
+const m365Feature = vi.hoisted(() => ({ on: true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.current }) }));
 
 const ensure = vi.hoisted(() => vi.fn());
@@ -56,6 +58,7 @@ function SaveHarness() {
 }
 
 beforeEach(() => {
+  m365Feature.on = true;
   ensure.mockReset();
   auth.current = { id: 'u1', org_id: 'org-1' };
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -154,6 +157,15 @@ describe('AC-M365DOC-071 coordinator — useStartRecordFolder', () => {
     });
     act(() => bare.result.current(target));
     expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('does not start, or announce anything, in an org without Microsoft 365', () => {
+    m365Feature.on = false;
+    render(<QueryClientProvider client={qc}><ImpersonationProvider realRole="Project Manager"><ToastProvider><SaveHarness /></ToastProvider></ImpersonationProvider></QueryClientProvider>);
+    act(() => screen.getByText('save').click());
+    expect(ensure).not.toHaveBeenCalled();
+    expect(state()).toBeUndefined();
+    expect(screen.queryByText(/folder/i)).toBeNull();
   });
 
   it('a case start needs procDoc create (Finance may; Engineer may not)', () => {

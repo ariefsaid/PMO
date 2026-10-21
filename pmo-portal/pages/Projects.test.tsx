@@ -16,8 +16,6 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { AppError } from '@/src/lib/appError';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -556,62 +554,16 @@ describe('Projects index — New project create + gating', () => {
     expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-003: "New project" opens the create modal; blank required name + client keep submit disabled (F8 readiness)', async () => {
+  it('AC-PRJ-003: "New project" opens the one-step create page (no dialog), keeping this list as the return context', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /new project/i }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // F8 (AC-IXD-FORM-F8): the blank required name + client disable submit, so the user
-    // cannot silently submit a blank project and no create mutation fires.
-    const submit = screen.getByRole('button', { name: /^Create project$/i });
-    expect(submit).toBeDisabled();
-    await userEvent.click(submit);
-    expect(projectMutations.create.mutateAsync).not.toHaveBeenCalled();
-  });
-
-  it('AC-PRJ-003: a valid create submits name/status/client/PM/value to the mutation (origination = Leads)', async () => {
-    renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/project name/i), 'Harborside Terminal');
-    // Client company is a Combobox FK picker — open, search, select.
-    await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
-    const listbox = await screen.findByRole('listbox', { name: /compan/i });
-    await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
-    await waitFor(() =>
-      expect(projectMutations.create.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'Harborside Terminal',
-          status: 'Leads',
-          client_id: 'c2',
-        }),
-      ),
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const probe = screen.getByTestId('location-probe');
+    expect(probe).toHaveAttribute('data-pathname', '/projects/new');
+    expect(JSON.parse(probe.getAttribute('data-state') ?? 'null')).toEqual(
+      expect.objectContaining({ pmoListReturn: expect.objectContaining({ list: 'projects' }) }),
     );
-  });
-
-  it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', async () => {
-    renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
-    const dialog = screen.getByRole('dialog');
-    const select = within(dialog).getByLabelText(/origination stage/i) as HTMLSelectElement;
-    const options = Array.from(select.options).map((o) => o.value);
-    expect(options).toEqual(['Leads', 'Internal Project']);
-    expect(options).not.toContain('Ongoing Project');
-    expect(options).not.toContain('Won, Pending KoM');
-  });
-
-  it('AC-PRJ-003: a create rejected by RLS (42501) surfaces a classified warning toast', async () => {
-    projectMutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
-    renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/project name/i), 'Blocked Project');
-    await userEvent.click(within(dialog).getByRole('combobox', { name: /client company/i }));
-    const listbox = await screen.findByRole('listbox', { name: /compan/i });
-    await userEvent.click(within(listbox).getByRole('option', { name: /Innovate Corp/i }));
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Create project$/i }));
-    const toast = await findToastAnnouncement('alert', /don't have permission/i);
-    expect(toast).toHaveTextContent(/don't have permission/i);
+    expect(projectMutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

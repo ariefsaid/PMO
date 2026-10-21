@@ -101,8 +101,8 @@ dependencies such as Mailpit, so those journeys still need a dedicated serial re
 
 ## `routes × oracles` denominator (Layer 2)
 
-**Routes (39 non-catch-all route entries, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-10-14):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
-`/sales` · `/sales/:id` · `/procurement` · `/procurement/:id` · `/procurement/:id/:tab` · `/timesheets` · `/approvals` ·
+**Routes (40 non-catch-all route entries, from `pmo-portal/App.tsx` `appRouteConfig` — 2026-10-21):** `/` · `/projects` · `/projects/:id` · `/projects/:id/:tab` ·
+`/sales` · `/sales/:id` · `/procurement` · `/procurement/new` · `/procurement/:id` · `/procurement/:id/:tab` · `/timesheets` · `/approvals` ·
 `/companies` · `/companies/:id` · `/contacts` · `/contacts/:id` · `/incidents` · `/incidents/:id` (feature-hidden) ·
 `/my-tasks` · `/meetings` · `/meetings/:id` · `/reports` · `/administration` (entry alias) ·
 `/administration/users` · `/administration/integrations` · `/administration/accounting` · `/administration/credits` ·
@@ -110,6 +110,8 @@ dependencies such as Mailpit, so those journeys still need a dedicated serial re
 `/sales-invoices` · `/incoming-payments` · `/revenue-by-project` · `/integrations` (personal) · `/views` ·
 `/views/new` · `/views/:id` · `/views/:id/edit` · `/settings/profile`.
 ⚑ A prior list under-counted by 14 routes for ~6 weeks (the whole meeting module included) despite the maintenance gate below — re-derive it from `appRouteConfig`, never edit it by memory.
+
+**Procurement create cell (#806):** `/procurement/new` owns inline required-field validation, Draft-only parent + line-item save, project query preselection, permission gating and no-write-on-leave in `pages/ProcurementCreate.test.tsx`; `/procurement` owns the legacy `?create=1` redirect and list CTA in `pages/Procurement.test.tsx`; project-tab entry context is owned by `pages/project-detail/__tests__/ProcurementTab.newrequest.test.tsx`. The curated browser journey `e2e/AC-PROC-001-procurement-crud.spec.ts` retains the Draft + line-total goal oracle.
 
 **Administration IA cells:** The seven canonical child routes and personal `/integrations` receive
 action-completeness, state-coverage, cross-screen consistency, WCAG-AA, mobile@390, and

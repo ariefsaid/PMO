@@ -3,11 +3,11 @@
  *
  * When a user is on a project's Procurement tab they should be able to raise a
  * PR against THIS project without leaving the tab. The button is gated by
- * can('create', 'procurement') (ALL roles). Clicking it opens NewProcurementModal
- * with the project pre-selected.
+ * can('create', 'procurement') (ALL roles). Clicking it navigates to the full-page
+ * create route with the project id in the query string.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -136,65 +136,14 @@ describe('AC-S19-003: project procurement vocabulary', () => {
   });
 });
 
-// ── AC-JR-T13: modal opens with project pre-selected ─────────────────────────
+// ── AC-JR-T13: one-page create route and project context ──────────────────────
 
-describe('AC-JR-T13: clicking New request opens NewProcurementModal with project pre-selected', () => {
-  it('AC-JR-T13: clicking New request opens a dialog', async () => {
-    renderTab('Project Manager');
-    // Click the first "New request" button (header button)
-    const [headerBtn] = screen.getAllByRole('button', { name: /new request/i });
-    await userEvent.click(headerBtn);
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-  });
-
-  it('AC-JR-T13: the opened modal pre-selects the project from the tab context', async () => {
+describe('AC-JR-T13: New request navigates to the project-scoped create route', () => {
+  it('AC-JR-T13: clicking New request keeps this project in the create URL', async () => {
     renderTab('Project Manager');
     const [headerBtn] = screen.getAllByRole('button', { name: /new request/i });
     await userEvent.click(headerBtn);
-    // The project combobox should show the project name — "Test Project" — because
-    // we passed initialProjectId="proj-abc" and the FK options contain it.
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-    // The Combobox renders the selected label as text inside a role=combobox button.
-    // When initialProjectId is provided and options are loaded, the project name
-    // should appear as text inside the combobox trigger.
-    const projectCombo = screen.getByRole('combobox', { name: /project/i });
-    expect(projectCombo).toHaveTextContent('Test Project');
-  });
-
-  it('AC-JR-T13: successful create navigates to the new PR detail page', async () => {
-    renderTab('Project Manager');
-    const [headerBtn] = screen.getAllByRole('button', { name: /new request/i });
-    await userEvent.click(headerBtn);
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-    // Fill title and submit
-    await userEvent.type(screen.getByLabelText(/title/i), 'New cables');
-    await userEvent.click(screen.getByRole('button', { name: /create request/i }));
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/procurement/new-pr-1');
-    });
-  });
-
-  it('AC-JR-T13: cancelling the modal returns to the tab without navigating', async () => {
-    renderTab('Project Manager');
-    const [headerBtn] = screen.getAllByRole('button', { name: /new request/i });
-    await userEvent.click(headerBtn);
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-    // Close by pressing the "Close" icon button (aria-label="Close") in the modal header
-    const dialog = screen.getByRole('dialog');
-    const closeBtn = dialog.querySelector('button[aria-label="Close"]') as HTMLElement;
-    expect(closeBtn).not.toBeNull();
-    await userEvent.click(closeBtn);
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-    expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining('/procurement/'));
+    expect(mockNavigate).toHaveBeenCalledWith('/procurement/new?project=proj-abc');
   });
 });
 

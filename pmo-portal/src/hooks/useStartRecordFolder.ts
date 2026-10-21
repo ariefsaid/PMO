@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useFeature } from '@/src/auth/useFeature';
 import { can } from '@/src/auth/policy';
 import { useOptionalToast } from '@/src/components/ui/Toast';
 import { repositories } from '@/src/lib/repositories';
@@ -41,6 +42,7 @@ function useRoles(): ReturnType<typeof useEffectiveRole> | null {
  *   • It runs only because a create hook called it: no mount/refetch/reconnect auto-start, no timer,
  *     no automatic retry. The persistent retry affordance is the register's single Create button.
  *   • View-only impersonation and non-writer roles never start it (real JWT role, ADR-0016).
+ *   • An org without Microsoft 365 never starts it: no folder is expected, so no "not linked" caveat.
  */
 export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
   const qc = useQueryClient();
@@ -53,6 +55,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
   const userId = currentUser?.id ?? null;
   const realRole = roles?.realRole ?? null;
   const viewOnly = !roles || roles.realRole !== roles.effectiveRole;
+  const m365 = useFeature('m365_integration');
 
   // Latest values for the late-settling promise (the create dialog may be long gone by then).
   const live = useRef({ orgId, userId, toast: toastApi?.toast, t });
@@ -62,7 +65,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
 
   return useCallback((target: RecordFolderTarget): void => {
     try {
-      if (!orgId || !userId || viewOnly) return;
+      if (!m365 || !orgId || !userId || viewOnly) return;
       const allowed = can('create', target.kind === 'project' ? 'document' : 'procDoc', { realRole });
       if (!allowed) return;
 
@@ -103,5 +106,5 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
     } catch {
       /* start() is fire-and-forget: nothing here may throw into a save-success path */
     }
-  }, [qc, orgId, userId, realRole, viewOnly]);
+  }, [qc, m365, orgId, userId, realRole, viewOnly]);
 }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sales pipeline cards — proposed — 1440</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .funnel { display: grid; grid-template-columns: repeat(5, minmax(max-content, 1fr)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow-x: auto; }
+  .stage { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .stage + .stage { border-left: 1px solid hsl(var(--border)); }
+  .stage .name { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; }
+  .stage .name::before { content: ""; width: 9px; height: 9px; border-radius: 999px; background: hsl(var(--muted-foreground)); }
+  .stage .name span { margin-left: auto; font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .stage .val { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stage .wt { font-size: 12px; color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stage .track { margin-top: 8px; height: 5px; }
+  .stage[aria-pressed="true"] { background: hsl(var(--primary) / 0.06); box-shadow: inset 0 -2px 0 hsl(var(--primary)); }
+</style>
+</head>
+<body>
+<div class="frame-1440">
+  <nav class="rail" aria-label="Main"><div class="brand">PMO</div><div class="item">Dashboard</div><div class="group">CRM</div><div class="item active" aria-current="page">Sales pipeline</div><div class="item">Companies</div><div class="item">Contacts</div></nav>
+  <div>
+    <header class="topbar"><b>Sales pipeline</b><div class="search">Search ⌘K</div></header>
+    <main class="page">
+      <div class="anno"><b>Sketch-glance — what changed (RD-S5).</b>
+        <ul>
+          <li>Stage bars are neutral grey. Blue marks only the "New project" button and the stage you selected; before, five blue bars competed with the button.</li>
+          <li>Amounts are exact, without ".00", and each stage keeps its full figure.</li>
+          <li>The table's stage column uses the same names as the board ("Pre-Qual", not "PQ Submitted").</li>
+        </ul>
+      </div>
+      <div class="head">
+        <div><h1 class="h1">Sales pipeline</h1><p class="sub">19 open opportunities · 1 lost · 1 declined</p></div>
+        <button class="btn btn-primary">New project</button>
+      </div>
+
+      <section class="stack-item" aria-label="Pipeline summary">
+        <div class="funnel">
+          <div class="stage" role="button" tabindex="0" aria-pressed="false"><div class="name">Leads<span>10%</span></div><div class="val">IDR 38,200,000,000</div><div class="wt">IDR 3,820,000,000 weighted · 7</div><div class="track"><span style="width:9%"></span></div></div>
+          <div class="stage" role="button" tabindex="0" aria-pressed="false"><div class="name">Pre-Qual<span>25%</span></div><div class="val">IDR 26,500,000,000</div><div class="wt">IDR 6,625,000,000 weighted · 4</div><div class="track"><span style="width:15%"></span></div></div>
+          <div class="stage" role="button" tabindex="0" aria-pressed="true"><div class="name">Quotation<span>40%</span></div><div class="val">IDR 54,900,000,000</div><div class="wt">IDR 21,960,000,000 weighted · 5</div><div class="track"><span style="width:51%"></span></div></div>
+          <div class="stage" role="button" tabindex="0" aria-pressed="false"><div class="name">Tender<span>60%</span></div><div class="val">IDR 71,300,000,000</div><div class="wt">IDR 42,780,000,000 weighted · 3</div><div class="track"><span style="width:100%"></span></div></div>
+          <div class="stage" role="button" tabindex="0" aria-pressed="false"><div class="name">Negotiation<span>80%</span></div><div class="val muted">IDR 0</div><div class="wt">No opportunities</div><div class="track"><span style="width:0%"></span></div></div>
+        </div>
+        <div class="caption" style="display:flex;gap:6px">Weighted pipeline forecast <b class="tabular" style="color:hsl(var(--foreground))">IDR 75,185,000,000</b> of IDR 190,900,000,000 gross</div>
+      </section>
+
+      <section class="stack-group" aria-label="Opportunities">
+        <div class="dt-wrap">
+          <table class="dt">
+            <colgroup><col><col style="width:200px"><col style="width:132px"><col style="width:184px"><col style="width:168px"><col style="width:40px"></colgroup>
+            <thead><tr><th>Project</th><th>Customer</th><th>Stage</th><th class="num">Value · IDR</th><th class="num">Weighted · IDR</th><th><span class="sr">Actions</span></th></tr></thead>
+            <tbody>
+              <tr><td><div class="primary-name">Pembangunan Gedung Parkir Bertingkat dan Fasilitas Penunjang Bandara Wilayah Timur</div><div class="secondary"><span class="mono">PMO-2026-031</span></div></td><td class="meta">PT Angkasa Prima Sarana</td><td><span class="pill">Quotation</span></td><td class="num">24,600,000,000</td><td class="num muted">9,840,000,000</td><td>⋯</td></tr>
+              <tr><td><div class="primary-name">Renovasi Interior Kantor Pusat Lantai 3–7</div><div class="secondary"><span class="mono">PMO-2026-034</span></div></td><td class="meta">PT Bank Sejahtera Daerah</td><td><span class="pill">Quotation</span></td><td class="num">12,450,000,000</td><td class="num muted">4,980,000,000</td><td>⋯</td></tr>
+              <tr><td><div class="primary-name">Pekerjaan Mekanikal Elektrikal Rumah Sakit Daerah</div><div class="secondary"><span class="mono">PMO-2026-037</span></div></td><td class="meta">Pemerintah Kota Cendana</td><td><span class="pill">Quotation</span></td><td class="num">17,850,000,000</td><td class="num muted">7,140,000,000</td><td>⋯</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>

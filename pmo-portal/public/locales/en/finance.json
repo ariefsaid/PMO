@@ -9,7 +9,11 @@
   "statements": {
     "amountsIn": "Amounts in",
     "forThePeriod": "For the period",
-    "periodShown": "Period shown"
+    "periodShown": "Period shown",
+    "collapseGroup": "Collapse {{group}}",
+    "expandGroup": "Expand {{group}}",
+    "collapseAll": "Collapse all",
+    "expandAll": "Expand all"
   },
   "erpPurchases": {
     "title": "Purchases recorded in ERPNext",

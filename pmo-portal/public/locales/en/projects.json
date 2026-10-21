@@ -5,5 +5,10 @@
   },
   "actual": {
     "restrictedTag": "Restricted excluded"
+  },
+  "create": {
+    "accessDenied": "You can't create projects",
+    "leave": "Leave",
+    "stay": "Stay"
   }
 }
