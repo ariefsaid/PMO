@@ -211,6 +211,8 @@ begin
  select project_id,status into v_project,v_status from public.work_orders where id=p_work_order_id and org_id=v_org for update;
  if not found then raise exception 'work order not found' using errcode='P0002'; end if;
  if v_status<>'Issued' then raise exception 'only an issued work order can prepare an acceptance' using errcode='42501'; end if;
+ if p_document_id is not null and not exists(select 1 from public.project_documents d where d.id=p_document_id and d.org_id=v_org and d.project_id=v_project) then
+   raise exception 'the document must belong to this work order''s project' using errcode='23514'; end if;
  if not public.may_record_project_progress(v_project) then raise exception 'you may prepare an acceptance only on a project you manage, unless you are Finance, an Executive or an Admin' using errcode='42501'; end if;
  if exists(select 1 from jsonb_to_recordset(p_lines) x(boq_item_id uuid,quantity numeric)
   where not coalesce(x.quantity>=0 and x.quantity<'Infinity'::numeric and x.quantity=round(x.quantity,3),false)) then
@@ -286,6 +288,8 @@ begin
  if v_doc is null or not found then raise exception 'confirmation requires an Issued or Approved project document with a file' using errcode='23514'; end if;
  if v_is_final and exists(select 1 from public.work_order_lines l where l.work_order_id=v_wo and not exists(select 1 from public.work_order_acceptance_lines x where x.acceptance_id=p_id and x.boq_item_id=l.boq_item_id)) then
    raise exception 'a final acceptance must include every allocated contract line' using errcode='23514'; end if;
+ if exists(select 1 from public.work_order_acceptance_lines x where x.acceptance_id=p_id and not exists(select 1 from public.work_order_lines l where l.work_order_id=v_wo and l.boq_item_id=x.boq_item_id)) then
+   raise exception 'an accepted contract line is no longer allocated to this work order' using errcode='23514'; end if;
  select coalesce(sum(round(x.quantity*b.rate,2)),0) into v_close from public.work_order_acceptance_lines x join public.boq_items b on b.id=x.boq_item_id where x.acceptance_id=p_id;
  update public.work_order_acceptances set status='Confirmed',confirmed_by=auth.uid(),confirmed_at=now(),confirm_basis=v_basis where id=p_id;
  if v_is_final then
@@ -1057,15 +1061,15 @@ latest_bast as (
   coalesce((select sum(a.quantity) from allocation a where a.boq_item_id=b.id and a.status='Issued'),0) issued_ordered,
   coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.final and a.status='Closed'),0) closed_final,
   coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.accepted is not null),0) accepted_quantity,
-  coalesce(cl.claimed,0) claimed_quantity,coalesce(a.quantity_to_date,0) assessed_quantity,
-  coalesce((select jsonb_agg(jsonb_build_object('workOrderId',x.work_order_id,'boqItemId',x.boq_item_id,'quantity',x.quantity,'claimedQuantity',x.claimed,'acceptedQuantity',x.accepted,'final',x.final) order by x.work_order_id)
+  coalesce(cl.claimed,0) claimed_quantity,a.quantity_to_date assessed_quantity,
+  coalesce((select jsonb_agg(jsonb_build_object('work_order_id',x.work_order_id,'boq_item_id',x.boq_item_id,'quantity',x.quantity,'claimed_quantity',x.claimed,'accepted_quantity',x.accepted,'final',x.final) order by x.work_order_id)
     from allocation x where x.boq_item_id=b.id),'[]'::jsonb) allocations
  from public.boq_items b left join claimed_line cl on cl.boq_item_id=b.id left join assessed a on a.boq_item_id=b.id where b.project_id=p_project_id
 ), lines as (
  select a.*,
-  a.closed_final+least(greatest(a.assessed_quantity-a.closed_ordered,0),greatest(a.contract_quantity-a.closed_final,0)) earned_quantity,
+  a.closed_final+least(greatest(coalesce(a.assessed_quantity,0)-a.closed_ordered,0),greatest(a.contract_quantity-a.closed_final,0)) earned_quantity,
   greatest(a.contract_quantity-a.issued_ordered-a.closed_final,0) contract_balance
- from (select agg.*,coalesce((select sum(x.quantity) from allocation x join public.work_orders w on w.id=x.work_order_id where x.boq_item_id=agg.id and w.status='Closed'),0) closed_ordered from agg) a
+ from (select agg.*,coalesce((select sum(x.quantity) from allocation x join public.work_orders w on w.id=x.work_order_id where x.boq_item_id=agg.id and w.status='Closed' and w.closing_acceptance_id is not null),0) closed_ordered from agg) a
 )
 select jsonb_build_object(
  'currency',p.currency,'contract_net',p.contract_net,
