@@ -560,3 +560,13 @@ These are integration dispositions for the Director, not invitations to reopen O
    (`pmo-portal/src/lib/progressBilling.ts:3–7`). C01 must remove that now-superseded equality claim,
    not change the pack. Director should assign a follow-up issue for earned-value recognition after
    this docs handoff (no public issue was filed by this author). This does not block the three lanes.
+
+### Dispositions (Director 2026-10-21)
+
+1. **Manual close → DD-CQ-9.** In A15 add to `transition_work_order` (latest body 0197:303, re-create in 0335):
+   on Issued → Closed, if `exists (select 1 from public.work_order_lines l where l.work_order_id = p_id)`
+   raise 42501 'this work order has contract lines: close it by confirming its final BAST'. The confirm RPC
+   closes the work order itself (not via this function). No backfill of historical Closed rows. In C14 hide
+   Close for a work order with allocations. Extend AC-CQ-006 (pgTAP) and AC-CQ-015 (RTL).
+2. **Management pack → #1279.** C01 removes the equality comment only.
+

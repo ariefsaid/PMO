@@ -715,6 +715,13 @@ client's acceptance, not an invoice, receipt or replacement document register.
 - **DD-CQ-8 — who.** Lines/basis and allocations: Admin, Executive, PM, Finance. BAST prepare:
   project's PM or Finance rank+ (`may_record_project_progress`, so Executive/Admin eligible too).
   Confirm: Admin/Finance with DD-CQ-3 SoD. Claims unchanged.
+- **DD-CQ-9 — closing a work order that has contract lines.** *(Director 2026-10-21, plan open point 1)*
+  `transition_work_order` refuses Issued → Closed (42501, message: "close it by confirming its final BAST")
+  for a work order that has allocations; only a confirmed final BAST closes it. A work order with no
+  allocations keeps the manual close. Already-Closed work orders are not migrated: none has
+  allocations today, their allocations would be frozen anyway, and with no closing value they read
+  at their order net. The UI hides Close on a work order with allocations and points to the BAST.
+  Proof extends AC-CQ-006 (pgTAP) and AC-CQ-015 (RTL). The management-pack follow-up is #1279.
 
 ### 8.3 Job stories
 

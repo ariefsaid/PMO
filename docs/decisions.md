@@ -3552,3 +3552,10 @@ Lines/basis and allocations use unchanged BoQ writers Admin/Executive/PM/Finance
 uses project's PM or Finance rank+ (may_record_project_progress); confirm Admin/Finance with
 DD-CQ-3 SoD and sole-operator exception. Claims unchanged. Full ACs and owning layers live in
 progress-billing spec §8; sequential lanes in `docs/plans/2026-10-21-contract-quantities.md`.
+
+## DD-CQ-9 — a work order with contract lines closes only by its final BAST (Director 2026-10-21)
+
+`transition_work_order` refuses Issued → Closed for a work order that has allocations; its confirmed
+final BAST closes it (DD-CQ-3). Work orders with no allocations keep the manual close. Already-Closed
+work orders are not migrated (none has allocations; no closing value means they read at order net).
+Management-pack earned-value recognition is follow-up #1279.
