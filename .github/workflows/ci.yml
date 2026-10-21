@@ -241,6 +241,14 @@ jobs:
         working-directory: .
         run: bash scripts/deno-test-edge-fns.sh
 
+      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
+      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
+      - name: M365 folder-write mutation witness
+        working-directory: .
+        run: |
+          node scripts/m365-record-folder-write-mutation.mjs
+          node --test scripts/m365-record-folder-write-mutation.test.mjs scripts/m365-grant-site-write.test.mjs
+
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
     # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
