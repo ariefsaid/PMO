@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its OWN uniquely named client, project, BoQ line, issued work order and signed document; no shared seed row is read or mutated. A confirmed BAST is immutable by design (it cannot be deleted even by service role), so the closed fixture is left behind and the project is archived instead.
+// @e2e-isolation: serial — adds an IDR project to the shared seed org (the org's portfolio goes multi-currency, so executive totals read as unknown), and a confirmed BAST is immutable by design, so the closed fixture is left behind and the project is archived instead. Org-wide aggregate state: run in the serial lane, apart from the parallel dashboard readers.
 /**
  * AC-CQ-020 (progress-billing.spec.md §8.7) — contract quantities, end to end through the UI.
  *
@@ -13,8 +13,8 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { requireServiceRoleKey, signIn, SEED_PASSWORD } from './helpers';
-import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { requireServiceRoleKey, signIn, SEED_PASSWORD } from '../helpers';
+import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(180_000);
 
