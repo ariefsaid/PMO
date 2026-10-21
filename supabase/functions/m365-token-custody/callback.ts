@@ -11,7 +11,8 @@ import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaPa
 import { logAudit, recordM365Error } from './audit.ts';
 import { readM365MembershipState } from './auth.ts';
 import { isValidTenant, M365_FOLDER_SCOPES } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
-import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { fetchMicrosoftJson } from './microsoftTransport.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -123,8 +124,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   // Exchange the auth code for tokens (confidential client + PKCE verifier).
   let tokenRes: Response;
+  let tokenData: Record<string, unknown>;
   try {
-    tokenRes = await fetchBounded(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
+    const result = await fetchMicrosoftJson(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -136,6 +138,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
       redirect_uri: env.m365RedirectUri,
     }),
     });
+    tokenRes = result.response;
+    tokenData = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data as Record<string, unknown> : {};
   } catch (err) {
     // A hung or unreachable Microsoft token endpoint (deadline or network) takes the same path as a
     // rejected exchange — never an unhandled throw that leaves the consent redirect hanging.
@@ -146,9 +151,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Connection failed. Please try again.');
   }
 
-  const tokenData = (await tokenRes.json()) as Record<string, unknown>;
-
-  if (!tokenRes.ok) {
+  if (!tokenRes.ok || !validTokenPair(tokenData)) { // mutation-witness:callback-token-pair
     // AC-M365-140: log ONLY the sanitized Microsoft error code — never the code/verifier/secret.
     const sanitizedError = typeof tokenData.error === 'string' ? tokenData.error : 'UNKNOWN';
     console.error('[m365-token-custody] token exchange failed', { error: sanitizedError });
@@ -323,6 +326,12 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   });
 
   return redirectToFeSuccess(env);
+}
+
+export function validTokenPair(data: Record<string, unknown>): boolean {
+  return typeof data.access_token === 'string' && data.access_token.trim().length > 0 &&
+    typeof data.refresh_token === 'string' && data.refresh_token.trim().length > 0 &&
+    (data.expires_in === undefined || (typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0 && data.expires_in <= 86400));
 }
 
 const PROTOCOL_SCOPES = ['offline_access', 'openid', 'profile'];

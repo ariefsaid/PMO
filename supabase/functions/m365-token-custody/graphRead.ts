@@ -8,7 +8,7 @@ import type {
   HandlerDeps,
   HandlerResult,
 } from "./types.ts";
-import { resolveOrgOrResult } from "./auth.ts";
+import { microsoftReadQuota, resolveOrgOrResult } from "./auth.ts";
 import {
   decryptToken,
   deserializeEnvelope,
@@ -17,7 +17,7 @@ import {
 } from "./crypto.ts";
 import { refreshAccessToken } from "./refresh.ts";
 import { recordM365Error } from "./audit.ts";
-import { fetchBounded } from "../_shared/fetchWithDeadline.ts";
+import { fetchMicrosoftJson } from "./microsoftTransport.ts";
 import {
   buildFolderCreateRequest,
   folderWriteAllowed,
@@ -83,6 +83,8 @@ export async function openCallerGraphRead(
 ): Promise<GraphReadSession | HandlerResult> {
   const own = await openOwnConnection(deps, beforeConnection);
   if (!("connection" in own)) return own;
+  const limited = await microsoftReadQuota(deps);
+  if (limited) return limited;
   return { get: (request) => own.get(request), batch: own.batch };
 }
 
@@ -338,6 +340,9 @@ async function openOwnConnection(
     }
     const bearer = await token();
     if (typeof bearer !== "string") return bearer;
+    if (!scopeCoversPath(connection.scopes, "GET", normalizedPath)) {
+      return { status: 403, body: { error: "SCOPE_INSUFFICIENT", message: "requested Graph path requires additional consent" }, headers: GRAPH_HEADERS };
+    }
     const url = graphUrl(normalizedPath, request.query);
     if (!url) {
       return {
@@ -394,6 +399,9 @@ async function openOwnConnection(
     }
     const bearer = await token();
     if (typeof bearer !== "string") return bearer;
+    if (!entries.every((entry) => scopeCoversPath(connection.scopes, "GET", entry.url.split("?", 1)[0]!))) {
+      return { status: 403, body: { error: "SCOPE_INSUFFICIENT", message: "requested Graph path requires additional consent" }, headers: GRAPH_HEADERS };
+    }
     const url = new URL(`${GRAPH_BASE}/$batch`);
     return await sendGraphRequest(
       url,
@@ -430,6 +438,7 @@ async function openOwnConnection(
     if (typeof bearer !== "string") {
       return { kind: "unavailable", result: bearer };
     }
+    if (!scopeCoversPath(connection.scopes, "GET", normalizedPath, true)) return { kind: "unavailable" };
     const url = graphUrl(normalizedPath, { "$select": FOLDER_ITEM_SELECT });
     if (!url) return { kind: "unavailable" };
     return await sendFolderRequest(
@@ -460,6 +469,11 @@ async function openOwnConnection(
     const bearer = await token();
     if (typeof bearer !== "string") {
       return { kind: "unavailable", result: bearer };
+    }
+    if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-folder-grant
+      return { kind: "unavailable", result: {
+        status: 403, body: { error: "SCOPE_INSUFFICIENT", message: "folder creation requires additional consent" }, headers: GRAPH_HEADERS,
+      } };
     }
     const url = graphUrl(request.path);
     if (!url) return { kind: "unavailable" };
@@ -496,14 +510,13 @@ async function sendFolderRequest(
   timeoutMs: number,
 ): Promise<FolderOutcome> {
   let graphRes: Response;
+  let data: unknown;
   try {
-    graphRes = await fetchBounded(deps.fetch ?? fetch, url.toString(), {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
       method,
       headers: { Authorization: `Bearer ${accessToken}`, ...GRAPH_HEADERS },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      // The folder write must never follow a redirect off the pinned Graph URL.
-      ...(method === "POST" ? { redirect: "error" as const } : {}),
-    }, timeoutMs);
+    }, timeoutMs));
   } catch {
     await recordM365Error(deps.serviceClient, {
       errorCode: "GRAPH_ERROR",
@@ -515,7 +528,7 @@ async function sendFolderRequest(
   if (!graphRes.ok) {
     let upstreamCode = "";
     try {
-      const errBody = (await graphRes.json()) as { error?: { code?: unknown } };
+      const errBody = data as { error?: { code?: unknown } };
       upstreamCode = String(errBody?.error?.code ?? "");
     } catch { /* non-JSON upstream body */ }
     if (graphRes.status === 404 && upstreamCode === "itemNotFound") {
@@ -545,7 +558,7 @@ async function sendFolderRequest(
     return { kind: "unavailable" };
   }
   try {
-    const item = await graphRes.json();
+    const item = data;
     return item && typeof item === "object" && !Array.isArray(item)
       ? { kind: "ok", item: item as Record<string, unknown> }
       : { kind: "unavailable" };
@@ -566,12 +579,13 @@ async function sendGraphRequest(
 ): Promise<HandlerResult> {
   const { serviceClient } = deps;
   let graphRes: Response;
+  let data: unknown;
   try {
-    graphRes = await fetchBounded(deps.fetch ?? fetch, url.toString(), {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
       method,
       headers: { Authorization: `Bearer ${accessToken}`, ...GRAPH_HEADERS },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-    }, options.timeoutMs);
+    }, options.timeoutMs));
   } catch {
     await recordM365Error(serviceClient, {
       errorCode: "GRAPH_ERROR",
@@ -588,7 +602,7 @@ async function sendGraphRequest(
     let upstreamCode = "";
     let upstreamMessage = "";
     try {
-      const errBody = (await graphRes.json()) as {
+      const errBody = data as {
         error?: { code?: string; message?: string };
       };
       upstreamCode = String(errBody?.error?.code ?? "");
@@ -625,7 +639,16 @@ async function sendGraphRequest(
       headers: GRAPH_HEADERS,
     };
   }
-  return { status: 200, body: await graphRes.json(), headers: GRAPH_HEADERS };
+  if (data === null) return { status: 502, body: { error: "GRAPH_ERROR", message: "Graph API request failed" }, headers: GRAPH_HEADERS };
+  return { status: 200, body: metadataOnly(data), headers: GRAPH_HEADERS }; // mutation-witness:metadata-projection
+}
+
+function metadataOnly(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(metadataOnly);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) =>
+    !["@microsoft.graph.downloadUrl", "access_token", "refresh_token"].includes(key)
+  ).map(([key, item]) => [key, metadataOnly(item)]));
 }
 
 function graphUrl(path: string, query?: Record<string, string>): URL | null {
@@ -635,7 +658,11 @@ function graphUrl(path: string, query?: Record<string, string>): URL | null {
     !url.pathname.startsWith("/v1.0/")
   ) return null;
   if (query) {
+    const keys = new Set(["$top", "$skiptoken", "$skip", "$select", "$orderby", "search"]);
+    const fields = new Set(["id", "name", "webUrl", "parentReference", "file", "folder", "cTag", "eTag", "sharepointIds", "lastModifiedDateTime", "size", "driveType", "description"]);
     for (const [key, value] of Object.entries(query)) {
+      if (!keys.has(key) || typeof value !== "string" || value.length > 8192 ||
+        (key === "$select" && value.split(",").some((field) => !fields.has(field)))) return null;
       url.searchParams.set(key, value);
     }
   }
@@ -663,16 +690,18 @@ async function loadFreshAccessToken(
     if (!refreshed) throw new Error("refresh failed");
     const { data: fresh, error: freshError } = await serviceClient
       .from("ms_graph_connections")
-      .select("access_token_ciphertext, key_id")
+      .select("access_token_ciphertext, key_id, scopes")
       .eq("id", connection.id)
       .single();
     const freshRow = fresh as {
       access_token_ciphertext: Uint8Array | null;
       key_id: string;
+      scopes?: string[];
     } | null;
     if (freshError || !freshRow || !freshRow.access_token_ciphertext) {
       throw new Error("refresh produced no token");
     }
+    connection.scopes = Array.isArray(freshRow.scopes) ? freshRow.scopes : [];
     const envelope = deserializeEnvelope(
       fromByteaValue(freshRow.access_token_ciphertext),
     );
@@ -745,10 +774,14 @@ function normalizePathForScope(
   }
 }
 
-function isOneDrivePath(path: string): boolean {
-  return path === "/me/drive" || path.startsWith("/me/drive/") ||
-    path === "/drives" || path.startsWith("/drives/") || path === "/sites" ||
-    path.startsWith("/sites/");
+function isOneDrivePath(path: string): boolean { // mutation-witness:metadata-paths
+  // Named metadata endpoints only. Opaque identifiers remain encoded single path segments.
+  const id = "[^/?#:]+";
+  const drive = `(?:/me/drive|/drives/${id})`;
+  return path === "/sites" || path === "/drives" ||
+    new RegExp(`^/sites/${id}(?:/drives)?$`, "u").test(path) ||
+    new RegExp(`^${drive}(?:/(?:root(?:/children|/search\\(q=.+\\))?|items(?:/${id}(?:/children|/versions)?)?))?$`, "u").test(path) ||
+    new RegExp(`^${drive}/items/${id}:/[^/]+$`, "u").test(path);
 }
 
 export function scopeCoversPath(

@@ -95,7 +95,36 @@ function buildEnv(): M365Env {
   };
 }
 
+interface RequestDeadline { fetch: typeof fetch; limit(ms: number): void }
+
 export async function handler(req: Request): Promise<Response> {
+  if (req.method !== "POST") return await routeRequest(req);
+  const started = Date.now();
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let expire!: (response: Response) => void;
+  const deadline = new Promise<Response>((resolve) => { expire = resolve; });
+  const scope: RequestDeadline = {
+    fetch: (input, init) => {
+      if (controller.signal.aborted) return Promise.reject(new Error("request deadline"));
+      const signal = init && "signal" in init ? init.signal : undefined;
+      return globalThis.fetch(input, { ...init, signal: signal
+        ? AbortSignal.any([controller.signal, signal]) : controller.signal });
+    },
+    limit(ms) {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        controller.abort();
+        expire(toResponse({ status: 502, body: { error: "GRAPH_ERROR", message: "Graph API request failed" } }, buildEnv().allowedOrigin));
+      }, Math.max(0, ms - (Date.now() - started)));
+    },
+  };
+  scope.limit(18_000);
+  try { return await Promise.race([routeRequest(req, scope), deadline]); }
+  finally { clearTimeout(timer); }
+}
+
+async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Response> {
   const env = buildEnv();
   const cors = corsHeaders(env.allowedOrigin);
 
@@ -129,7 +158,7 @@ export async function handler(req: Request): Promise<Response> {
   // not be able to distinguish `400 invalid JSON` from `401` — authenticate first, then process,
   // so a malformed body from an anonymous caller returns 401 like every other unauthenticated hit.
   // No meaningful oracle either way, but the boundary now reads in the correct order.
-  const authed = await authedDeps(req, env);
+  const authed = await authedDeps(req, env, scope?.fetch);
   if (authed instanceof Response) return authed;
 
   // POST: parse the {action} body, then route.
@@ -151,6 +180,7 @@ export async function handler(req: Request): Promise<Response> {
     );
   }
 
+  if (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline
   let result: HandlerResult;
   try {
     switch (body.action) {
@@ -262,6 +292,7 @@ async function callbackDeps(env: M365Env): Promise<HandlerDeps | Response> {
 async function authedDeps(
   req: Request,
   env: M365Env,
+  fetchImpl?: typeof fetch,
 ): Promise<HandlerDeps | Response> {
   const anonKey = cfg("SUPABASE_ANON_KEY");
   const serviceRoleKey = cfg("SUPABASE_SERVICE_ROLE_KEY");
@@ -310,12 +341,12 @@ async function authedDeps(
 
   const callerClient = createClient(env.supabaseUrl, anonKey, {
     ...SUPABASE_EDGE_OPTIONS,
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    global: { headers: { Authorization: `Bearer ${jwt}` }, fetch: fetchImpl },
   });
   const serviceClient = createClient(
     env.supabaseUrl,
     serviceRoleKey,
-    SUPABASE_EDGE_OPTIONS,
+    { ...SUPABASE_EDGE_OPTIONS, global: { fetch: fetchImpl } },
   );
 
   return {
@@ -323,6 +354,7 @@ async function authedDeps(
     serviceClient: serviceClient as never,
     callerClient: callerClient as never,
     userId,
+    fetch: fetchImpl,
   };
 }
 

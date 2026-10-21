@@ -71,7 +71,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       ms_graph_connections: [
         { data: expired, error: null },
         { data: { id: 'conn-1' }, error: null }, // update … RETURNING → the persisted row
-        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1' }, error: null },
+        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1', scopes: expired.scopes }, error: null },
       ],
     });
     const fetch = vi.fn().mockImplementation((url: string) => {
@@ -118,7 +118,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       ms_graph_connections: [
         { data: expired, error: null },
         { data: { id: 'conn-1' }, error: null },
-        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1' }, error: null },
+        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1', scopes: expired.scopes }, error: null },
       ],
     });
     const fetch = vi.fn().mockImplementation((url: string) => {
