@@ -1039,11 +1039,6 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
         {microsoftFile ? (
           <DocField label={t('projectDetail.documents.field.file', 'File')}>
             {microsoftFile}
-            {isMicrosoftFolder(doc) && (
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                {t('m365Documents.referenceOnly', 'Folder reference — contents are not issued or approved')}
-              </p>
-            )}
           </DocField>
         ) : doc.file_path && (
           <DocField label={t('projectDetail.documents.field.file', 'File')}>
