@@ -101,7 +101,7 @@ const Projects: React.FC = () => {
   const clientCompanies = useMemo(() => clientCompaniesResult.data ?? [], [clientCompaniesResult.data]);
   const allCompanies = useMemo(() => companiesResult.data ?? [], [companiesResult.data]);
   const projectManagers = useMemo(() => projectManagersResult.data ?? [], [projectManagersResult.data]);
-  const { create, updateHeader, archive } = useProjectMutations();
+  const { updateHeader, archive } = useProjectMutations();
 
   const canCreate = may('create', 'project');
   const canEdit = may('edit', 'project');
@@ -153,8 +153,6 @@ const Projects: React.FC = () => {
   // so the mobile toolbar can drive them.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  // null = closed; true = the create-deal modal is open.
-  const [createOpen, setCreateOpen] = useState(false);
   // null = closed; { project } = edit modal open.
   const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
   // null = closed; project = archive confirm open.
@@ -391,25 +389,6 @@ const Projects: React.FC = () => {
       setArchiveTarget(null);
     }
   };
-
-  // The create-deal modal — rendered in every page state (the gated CTA in Header
-  // can open it from loading/error/empty/success alike). Hidden when createOpen is false.
-  const createModal = createOpen ? (
-    <ProjectFormModal
-      onClose={() => setCreateOpen(false)}
-      onSubmit={async (input) => {
-        const row = await create.mutateAsync(input);
-        toast(t('projects.toast.created', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name }) : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
-        setCreateOpen(false);
-        // Opens the new record with this list as its return context (#688 AC-RAM-006, #682).
-        openRecord(`/projects/${row.id}`);
-      }}
-      onError={(err) => {
-        const { headline, detail } = classifyMutationError(err);
-        toast(headline, detail, 'warning');
-      }}
-    />
-  ) : null;
 
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
@@ -707,7 +686,7 @@ const Projects: React.FC = () => {
   // ── States ──────────────────────────────────────────────────────────────
   const primaryAction = newProjectAction(
     canCreate,
-    () => setCreateOpen(true),
+    () => openRecord('/projects/new'),
     t('projects.actions.new', 'New project'),
   );
 
@@ -721,7 +700,6 @@ const Projects: React.FC = () => {
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
         </div>
-        {createModal}
       </ListPage>
     );
   }
@@ -739,7 +717,6 @@ const Projects: React.FC = () => {
           sub={t('projects.states.errorSub', 'Something went wrong fetching your projects.')}
           onRetry={() => refetch()}
         />
-        {createModal}
       </ListPage>
     );
   }
@@ -763,12 +740,11 @@ const Projects: React.FC = () => {
             canCreate
               ? {
                   label: t('projects.actions.new', 'New project'),
-                  onClick: () => setCreateOpen(true),
+                  onClick: () => openRecord('/projects/new'),
                 }
               : undefined
           }
         />
-        {createModal}
       </ListPage>
     );
   }
@@ -1246,7 +1222,6 @@ const Projects: React.FC = () => {
           ))}
         </div>
       )}
-      {createModal}
 
       {/* Edit-header modal (Admin·Exec·PM) — opened from the row menu */}
       {editTarget && (

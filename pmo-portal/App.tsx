@@ -60,6 +60,7 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
 const Projects = React.lazy(() => import('./pages/Projects'));
+const ProjectNew = React.lazy(() => import('./pages/ProjectNew'));
 const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDetail'));
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
@@ -131,6 +132,8 @@ export const appRouteConfig: RouteObject[] = [
   // B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are deep-linkable symmetrically
   //   (budget is just another :tab value). Both routes render ProjectDetail; the component reads
   //   :tab and defaults to 'overview'. A backward-compat alias keeps old /budget links working.
+  // One-step create (#806): a static segment, so it outranks `:projectId` below.
+  { path: '/projects/new', element: <ProjectNew /> },
   { path: '/projects/:projectId/:tab', element: <ProjectDetail /> },
   { path: '/projects/:projectId', element: <ProjectDetail /> },
   { path: '/sales', element: <SalesPipeline /> },

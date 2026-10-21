@@ -417,6 +417,8 @@ export function breadcrumbForPath(
         // localize like every other breadcrumb label (UXS-006).
         const recordCrumb = recordLabel
           ? { label: recordLabel }
+          : pathname === '/projects/new'
+            ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
           : recordResolved
             ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
             : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render

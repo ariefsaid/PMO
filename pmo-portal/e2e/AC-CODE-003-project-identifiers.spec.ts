@@ -14,17 +14,16 @@ test('AC-CODE-003: PMO Project Number and Client Project Code are separately vis
   await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: /new project/i }).click();
 
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/project name/i).fill(projectName);
-  await dialog.getByLabel(/origination stage/i).selectOption('Internal Project');
-  await pickComboboxOption(dialog, page, /client company/i, 'first');
+  await page.getByLabel(/project name/i).fill(projectName);
+  await page.getByLabel(/origination stage/i).selectOption('Internal Project');
+  await pickComboboxOption(page, page, /client company/i, 'first');
 
-  const pmoNumberField = dialog.getByLabel('PMO Project Number');
+  const pmoNumberField = page.getByLabel('PMO Project Number');
   await expect(pmoNumberField).toHaveValue(/^PRJ-\d{2}-\d{4,}$/, { timeout: 15_000 });
   const pmoNumber = await pmoNumberField.inputValue();
-  await dialog.getByLabel('Client Project Code').fill(clientCode);
-  await dialog.getByRole('button', { name: /^Create project$/i }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+  await page.getByLabel('Client Project Code').fill(clientCode);
+  await page.getByRole('button', { name: /^Create project$/i }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
 
   await expect(page.getByRole('heading', { name: projectName })).toBeVisible({ timeout: 15_000 });
   // PD-A: the codes live once, in the rail's details disclosure (the header disclosure is gone).
