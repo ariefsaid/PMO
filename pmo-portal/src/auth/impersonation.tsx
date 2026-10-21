@@ -80,10 +80,3 @@ export const useOptionalRealRole = (): Role | null => {
   const ctx = useContext(Ctx);
   return ctx?.realRole ?? null;
 };
-
-/**
- * Non-throwing read of the whole role context, for code that may run outside the provider (a hook
- * exercised in isolation). `null` means "no provider" — callers deny by default.
- */
-// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider; HMR-only lint concern
-export const useOptionalEffectiveRole = (): EffectiveRole | null => useContext(Ctx) ?? null;

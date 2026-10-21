@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
-import { useOptionalEffectiveRole } from '@/src/auth/impersonation';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useOptionalToast } from '@/src/components/ui/Toast';
 import { repositories } from '@/src/lib/repositories';
@@ -20,6 +20,15 @@ import {
   type RecordFolderState,
 } from './recordFolderState';
 
+/** `useEffectiveRole` throws outside its provider; a hook run in isolation must deny, not crash. */
+function useRoles(): ReturnType<typeof useEffectiveRole> | null {
+  try {
+    return useEffectiveRole();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Create-success coordinator (AC-M365DOC-071). A project / purchase case has just been saved; this
  * kicks off the server-side "link or create the SharePoint folder" step WITHOUT ever delaying or
@@ -36,7 +45,7 @@ import {
 export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
-  const roles = useOptionalEffectiveRole();
+  const roles = useRoles();
   const toastApi = useOptionalToast();
   const { t } = useTranslation('recordFolders');
 
