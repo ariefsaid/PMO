@@ -443,6 +443,8 @@ export interface ProcurementRepository {
   ): Promise<ProcurementDocumentRow>;
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   unlinkMicrosoftDocument(id: string): Promise<void>;
+  /** Clear a legacy plain link only (no Microsoft source); other metadata is retained. */
+  clearDocumentLink(id: string): Promise<void>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
   // ── New ERP-canonical record creators (Slice 5.4) ──
