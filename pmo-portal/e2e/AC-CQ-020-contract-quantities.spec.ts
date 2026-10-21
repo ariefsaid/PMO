@@ -127,7 +127,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await signIn(page, 'finance@acme.test');
     await openQuantities(page, projectId, woNumber);
     await page.getByRole('button', { name: 'Confirm BAST' }).click();
-    const confirmDialog = page.getByRole('dialog', { name: 'Confirm the final BAST?' });
+    const confirmDialog = page.getByRole('alertdialog', { name: 'Confirm the final BAST?' });
     await expect(confirmDialog).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Confirm final BAST' }).click();
     await expect(confirmDialog).toBeHidden({ timeout: 30_000 });
