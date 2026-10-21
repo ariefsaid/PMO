@@ -1,19 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   DataTable,
   ListState,
   StatusPill,
   Button,
   Icon,
-  useToast,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
-import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { usePermission } from '@/src/auth/usePermission';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency } from '@/src/lib/format';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -22,7 +19,6 @@ import {
   pillVariantForStatus,
   openPR,
 } from '../../../components/procurement';
-import { NewProcurementModal } from '../../procurement/NewProcurementModal';
 
 export interface ProcurementTabProps {
   projectId: string;
@@ -41,10 +37,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const may = usePermission();
   const statusLabel = useProcurementStatusLabel();
   const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
-  const create = useCreateProcurement();
-  const { toast } = useToast();
   const canCreate = may('create', 'procurement');
-  const [showNewModal, setShowNewModal] = useState(false);
 
   const rows = useMemo(
     () =>
@@ -117,7 +110,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           </h2>
         </div>
         {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => setShowNewModal(true)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(projectId)}`)}>
             <Icon name="plus" />
             {t('projectDetail.procurement.newRequest', 'New request')}
           </Button>
@@ -141,22 +134,6 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         )}
       tableId="project-detail-tabs-procurementtab-table" />
 
-      {/* New request modal — pre-selects this project (T13). */}
-      {showNewModal && (
-        <NewProcurementModal
-          initialProjectId={projectId}
-          onClose={() => setShowNewModal(false)}
-          onCreate={(input) => create.mutateAsync(input)}
-          onCreated={(id) => {
-            setShowNewModal(false);
-            navigate(`/procurement/${id}`);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
-      )}
     </div>
   );
 };

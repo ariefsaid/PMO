@@ -71,7 +71,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   });
 
   it('OD-MONEY-FMT: preserves non-zero cents in line-item amounts and estimated total', () => {
-    renderSection({ items: [{ ...items[0], rate: 86.25, amount: 2064.5 }] });
+    renderSection({ items: [{ ...items[0], quantity: 2, rate: 1032.25, amount: 2064.5 }] });
     expect(screen.getAllByText('$2,064.5').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -81,9 +81,16 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
   });
 
-  it('AC-PROC-003: empty state teaches when there are no items (editable)', () => {
+  it('AC-PROC-003: empty line totals remain unknown instead of displaying zero', () => {
     renderSection({ items: [] });
     expect(screen.getByText(/No line items yet/i)).toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AC-PROC-003: derives exact line and section totals from quantity × rate', () => {
+    renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
+    expect(screen.getAllByText('$0.3').length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-PROC-003: the inline add-row creates an item with parsed qty × rate', async () => {
