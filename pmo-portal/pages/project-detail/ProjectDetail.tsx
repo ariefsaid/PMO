@@ -263,7 +263,7 @@ const ProjectDetail: React.FC = () => {
           <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
             projectManagerId={project.project_manager_id ?? null} />
         )}
-        {tab === 'documents' && <DocumentsTab projectId={project.id} />}
+        {tab === 'documents' && <DocumentsTab projectId={project.id} projectCode={project.code} />}
         {tab === 'history' && (
           <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
         )}
