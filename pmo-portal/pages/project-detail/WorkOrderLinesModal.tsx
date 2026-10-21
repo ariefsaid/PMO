@@ -68,7 +68,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   const save = async (item: BoqItemRow) => {
     const quantity = parseMoneyInputAtScale((values[item.id] ?? '').trim(), 3);
     if (quantity === null || quantity <= 0) {
-      setError(item.id, t('projectDetail.workOrders.contractLines.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places'));
+      setError(item.id, t('projectTabs:contractQuantities.workOrders.contractLines.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places'));
       return;
     }
     setError(item.id, null);
@@ -103,22 +103,22 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     <EntityFormModal
       open
       width="lg"
-      title={t('projectDetail.workOrders.contractLines.title', 'Contract lines — {{wo}}', { wo: woLabel })}
-      subtitle={t('projectDetail.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
-      submitLabel={t('projectDetail.workOrders.contractLines.done', 'Done')}
+      title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines — {{wo}}', { wo: woLabel })}
+      subtitle={t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
+      submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
       onSubmit={(e) => { e.preventDefault(); onClose(); }}
       onClose={onClose}
     >
-      <FormSection legend={t('projectDetail.workOrders.contractLines.legend', 'Bill of quantities lines')}>
+      <FormSection legend={t('projectTabs:contractQuantities.workOrders.contractLines.legend', 'Bill of quantities lines')}>
         {!editable && (
           <p className="mb-3 text-[13px] text-muted-foreground">
             {workOrder.status === 'Draft' || workOrder.status === 'Issued'
-              ? t('projectDetail.workOrders.contractLines.readOnly', 'You can view these allocations but not change them.')
-              : t('projectDetail.workOrders.contractLines.frozen', 'This work order is {{status}}: its allocations are frozen.', { status: workOrder.status })}
+              ? t('projectTabs:contractQuantities.workOrders.contractLines.readOnly', 'You can view these allocations but not change them.')
+              : t('projectTabs:contractQuantities.workOrders.contractLines.frozen', 'This work order is {{status}}: its allocations are frozen.', { status: workOrder.status })}
           </p>
         )}
         {boqItems.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('projectDetail.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
+          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.noBoq', 'This project has no bill of quantities lines yet.')}</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {boqItems.map((item) => {
@@ -131,11 +131,11 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
               return (
                 <li key={item.id} className="flex flex-col gap-1.5 border-b border-border pb-3 last:border-b-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
-                    <span>{t('projectDetail.workOrders.contractLines.contractQty', 'Contract {{qty}} {{unit}}', { qty: formatNumberExact(Number(item.quantity)), unit: item.unit })}</span>
+                    <span>{t('projectTabs:contractQuantities.workOrders.contractLines.contractQty', 'Contract {{qty}} {{unit}}', { qty: formatNumberExact(Number(item.quantity)), unit: item.unit })}</span>
                     <span data-testid={`lines-balance-${item.id}`}>
                       {balance === undefined
-                        ? t('projectDetail.workOrders.contractLines.balanceUnknown', 'Balance unavailable')
-                        : t('projectDetail.workOrders.contractLines.balance', 'Not yet ordered {{qty}} {{unit}}', { qty: formatNumberExact(balance), unit: item.unit })}
+                        ? t('projectTabs:contractQuantities.workOrders.contractLines.balanceUnknown', 'Balance unavailable')
+                        : t('projectTabs:contractQuantities.workOrders.contractLines.balance', 'Not yet ordered {{qty}} {{unit}}', { qty: formatNumberExact(balance), unit: item.unit })}
                     </span>
                   </div>
                   {editable ? (
@@ -146,16 +146,16 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                           localeAware />
                       </div>
                       <Button type="button" variant="outline" size="sm" loading={busy === item.id} disabled={busy !== null}
-                        aria-label={t('projectDetail.workOrders.contractLines.saveRow', 'Save {{item}}', { item: item.item_code })}
+                        aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.saveRow', 'Save {{item}}', { item: item.item_code })}
                         onClick={() => void save(item)}>
-                        {t('projectDetail.workOrders.contractLines.save', 'Save')}
+                        {t('projectTabs:contractQuantities.workOrders.contractLines.save', 'Save')}
                       </Button>
                       {row && (
                         <Button type="button" variant="ghost" size="sm" disabled={busy !== null}
                           className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-                          aria-label={t('projectDetail.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
+                          aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
                           onClick={() => setRemoveFor({ item, row })}>
-                          {t('projectDetail.workOrders.contractLines.remove', 'Remove')}
+                          {t('projectTabs:contractQuantities.workOrders.contractLines.remove', 'Remove')}
                         </Button>
                       )}
                     </div>
@@ -169,7 +169,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                   )}
                   {over !== null && (
                     <p className="text-[12px] font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
-                      {t('projectDetail.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}} — more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
+                      {t('projectTabs:contractQuantities.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}} — more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
                     </p>
                   )}
                   {errors[item.id] && <FieldError>{errors[item.id]}</FieldError>}
@@ -183,9 +183,9 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
         <ConfirmDialog
           open
           tone="destructive"
-          title={t('projectDetail.workOrders.contractLines.confirmRemove.title', 'Remove this allocation?')}
-          description={t('projectDetail.workOrders.contractLines.confirmRemove.body', '{{item}} returns to the contract balance. A line already accepted by a confirmed BAST cannot be removed.', { item: removeFor.item.item_code })}
-          confirmLabel={t('projectDetail.workOrders.contractLines.confirmRemove.confirm', 'Remove allocation')}
+          title={t('projectTabs:contractQuantities.workOrders.contractLines.confirmRemove.title', 'Remove this allocation?')}
+          description={t('projectTabs:contractQuantities.workOrders.contractLines.confirmRemove.body', '{{item}} returns to the contract balance. A line already accepted by a confirmed BAST cannot be removed.', { item: removeFor.item.item_code })}
+          confirmLabel={t('projectTabs:contractQuantities.workOrders.contractLines.confirmRemove.confirm', 'Remove allocation')}
           loading={busy === removeFor.item.id}
           onConfirm={() => void runRemove()}
           onCancel={() => setRemoveFor(null)}

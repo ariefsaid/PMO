@@ -189,35 +189,35 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     ) },
     { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
       cell: (row) => row.earning_basis === 'lump_sum'
-        ? <span className="tabular">{t('projectDetail.billing.boq.lumpSum', 'Lump sum')}</span>
+        ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
         : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
     { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
       cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
     ...(hasLines ? [
-      { key: 'ordered', header: t('projectDetail.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return <span className="tabular" data-testid={`boq-ordered-${row.id}`}>{f ? quantityText(row, f.orderedQuantity) : '—'}</span>;
       } },
-      { key: 'balance', header: t('projectDetail.billing.boq.column.balance', 'Not yet ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Not yet ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-balance-${row.id}`}>
             {f ? quantityText(row, f.contractBalance) : '—'}
             {f && f.contractBalance < 0 && (
               <span className="ml-1 block text-[11px] text-destructive-text">
-                {t('projectDetail.billing.boq.overOrdered', 'Over-ordered by {{qty}}', { qty: quantityText(row, -f.contractBalance) })}
+                {t('projectTabs:contractQuantities.billing.boq.overOrdered', 'Over-ordered by {{qty}}', { qty: quantityText(row, -f.contractBalance) })}
               </span>
             )}
           </span>
         );
       } },
-      { key: 'accepted', header: t('projectDetail.billing.boq.column.accepted', 'Accepted (BAST)'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'accepted', header: t('projectTabs:contractQuantities.billing.boq.column.accepted', 'Accepted (BAST)'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-accepted-${row.id}`}>
             {f ? quantityText(row, f.acceptedQuantity) : '—'}
             {f && milliOf(f.acceptedQuantity) > milliOf(f.orderedQuantity) && (
-              <span className="ml-1 block text-[11px] text-destructive-text">{t('projectDetail.billing.boq.overMeasured', 'More than ordered')}</span>
+              <span className="ml-1 block text-[11px] text-destructive-text">{t('projectTabs:contractQuantities.billing.boq.overMeasured', 'More than ordered')}</span>
             )}
           </span>
         );
@@ -232,7 +232,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       );
     } },
     ...(hasLines ? [
-      { key: 'earned', header: t('projectDetail.billing.boq.column.earned', 'Earned'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'earned', header: t('projectTabs:contractQuantities.billing.boq.column.earned', 'Earned'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-earned-${row.id}`}>
@@ -421,7 +421,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               {summary.assessedToDate !== null && summary.assessedToDate !== 0 && (lineProject || summary.assessment) && (
                 <Figure testId="billing-assessed"
                   label={lineProject
-                    ? t('projectDetail.billing.summary.earned', 'Earned to date')
+                    ? t('projectTabs:contractQuantities.billing.summary.earned', 'Earned to date')
                     : t('projectDetail.billing.summary.assessed', 'Assessed to date')}
                   value={money(summary.assessedToDate)}
                   note={summary.assessment
@@ -443,7 +443,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           )}
           {summary && lineProject && !summary.assessment && (
             <p className="mt-3 text-[12px] text-muted-foreground" data-testid="billing-unassessed">
-              {t('projectDetail.billing.summary.noAssessment', 'No assessment yet')}
+              {t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}
             </p>
           )}
         </CardPad>

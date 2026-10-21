@@ -53,7 +53,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
       if (line.earning_basis === 'lump_sum') {
         const pct = parseMoneyInputAtScale(raw, 1);
         if (pct === null || pct < 0 || pct > 100) {
-          errs[line.id] = t('projectDetail.billing.assessment.errors.percent', 'Enter a percentage from 0 to 100 with at most 1 decimal place');
+          errs[line.id] = t('projectTabs:contractQuantities.billing.assessment.errors.percent', 'Enter a percentage from 0 to 100 with at most 1 decimal place');
         } else {
           lines.push({ boqItemId: line.id, quantityToDate: Math.round(pct * 10) / 1000 });
         }
@@ -99,7 +99,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
           {boqItems.map((line) => (
             <NumberField key={line.id} id={`assessment-qty-${line.id}`}
               label={line.earning_basis === 'lump_sum'
-                ? t('projectDetail.billing.assessment.percentToDate', '{{item}} — % done to date', { item: `${line.item_code} — ${line.description}` })
+                ? t('projectTabs:contractQuantities.billing.assessment.percentToDate', '{{item}} — % done to date', { item: `${line.item_code} — ${line.description}` })
                 : t('projectDetail.billing.assessment.quantityToDate', '{{item}} — done to date ({{unit}})',
                   { item: `${line.item_code} — ${line.description}`, unit: line.unit })}
               value={quantities[line.id] ?? ''}

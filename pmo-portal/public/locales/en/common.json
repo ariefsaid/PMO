@@ -2178,12 +2178,10 @@
       "assessment": {
         "errors": {
           "month": "Enter the month as YYYY-MM",
-          "percent": "Enter a percentage from 0 to 100 with at most 1 decimal place",
           "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places"
         },
         "month": "Month (YYYY-MM)",
         "note": "Note (optional)",
-        "percentToDate": "{{item}} — % done to date",
         "quantityToDate": "{{item}} — done to date ({{unit}})",
         "record": "Record progress",
         "save": "Save progress",
@@ -2196,15 +2194,11 @@
       "boq": {
         "add": "Add line",
         "column": {
-          "accepted": "Accepted (BAST)",
           "actions": "Actions",
           "assessed": "Assessed",
-          "balance": "Not yet ordered",
           "claimed": "Claimed",
-          "earned": "Earned",
           "item": "Item",
-          "ordered": "Ordered",
-          "quantity": "Quantity",
+          "quantity": "Contract",
           "rate": "Rate",
           "remaining": "Left to claim"
         },
@@ -2219,10 +2213,7 @@
         "emptySub": "Add the contract's priced lines to assess progress and bill by quantity.",
         "error": "Couldn’t load the bill of quantities",
         "errorSub": "Retry, or reopen the project.",
-        "lumpSum": "Lump sum",
         "overClaimed": "Over-claimed",
-        "overMeasured": "More than ordered",
-        "overOrdered": "Over-ordered by {{qty}}",
         "title": "Bill of quantities",
         "toast": {
           "deleted": "Bill of quantities line deleted",
@@ -2230,19 +2221,14 @@
         }
       },
       "boqForm": {
-        "basis": "Earned by",
-        "basisLumpSum": "Lump sum — 1 lot, earned by percent",
-        "basisUnitRate": "Unit rate — quantity × rate",
         "description": "Description",
         "errors": {
-          "lineNo": "Enter a whole line number, or leave it blank",
           "quantity": "Enter a quantity above 0 with at most 3 decimal places",
           "rate": "Enter a rate of 0 or more with at most 2 decimal places",
           "required": "Required"
         },
         "item": "ERP item",
         "legend": "Line",
-        "lineNo": "Line no. (optional)",
         "quantity": "Quantity",
         "rate": "Rate (excl. PPN)",
         "save": "Save line",
@@ -2265,7 +2251,6 @@
         "linesLegend": "Quantities to bill",
         "noLines": "No bill of quantities lines in this scope.",
         "prefill": "Start from the {{month}} assessment",
-        "prefillBast": "Start from the accepted BAST quantities",
         "quantity": "{{item}} — {{description}} ({{unit}})",
         "recoverRest": "Recover the rest of the down payment with this claim",
         "recoveryHelp": "Proportional to the contract: {{pct}}%",
@@ -2337,11 +2322,9 @@
         "billed": "Billed to date",
         "contract": "Contract value",
         "dpHeld": "Down payment held",
-        "earned": "Earned to date",
         "error": "Couldn't load billing",
         "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
-        "noAssessment": "No assessment yet",
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
@@ -2905,118 +2888,6 @@
       "value": "Order value"
     },
     "workOrders": {
-      "acceptances": {
-        "confirm": "Confirm BAST",
-        "confirmFinal": {
-          "body": "Confirming a final BAST closes the work order at the accepted quantities. The client’s PO value stays as recorded; the closing value is kept separately and unused quantity returns to the contract balance. This cannot be undone.",
-          "confirm": "Confirm final BAST",
-          "title": "Confirm the final BAST?"
-        },
-        "confirmStage": {
-          "body": "The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.",
-          "confirm": "Confirm BAST",
-          "title": "Confirm this BAST?"
-        },
-        "confirmWithdraw": {
-          "body": "The draft is withdrawn and cannot be confirmed. Prepare a new BAST if the client still accepts the work.",
-          "confirm": "Withdraw BAST",
-          "title": "Withdraw this BAST draft?"
-        },
-        "document": "Signed BAST: {{title}}",
-        "edit": "Edit",
-        "editLabel": "Edit draft BAST of {{date}}",
-        "empty": "No BASTs yet",
-        "error": "Couldn’t load the BASTs",
-        "final": "Final",
-        "form": {
-          "date": "BAST date",
-          "details": "Acceptance",
-          "document": "Signed BAST document",
-          "documentHelp": "From this project’s register: issued or approved, with a file. It is needed to confirm.",
-          "errors": {
-            "date": "Enter the BAST date",
-            "finalComplete": "A final BAST states every ordered line — enter a quantity, even 0",
-            "noLines": "Enter an accepted quantity for at least one line",
-            "quantity": "Each accepted quantity must be 0 or more with at most 3 decimal places"
-          },
-          "final": "This is the final BAST",
-          "finalHelp": "Confirming a final BAST closes the work order at the accepted quantities.",
-          "noAllocations": "Allocate contract lines to this work order first.",
-          "noDocument": "None yet",
-          "noEligibleDocument": "Upload and issue the signed BAST in the project register first. It is needed to confirm.",
-          "note": "Note (optional)",
-          "noteLegend": "Note",
-          "ordered": "Ordered {{qty}} {{unit}}",
-          "overMeasured": "More than ordered by {{qty}} {{unit}} ({{item}}).",
-          "percentLine": "{{item}} — % accepted",
-          "prepare": "Prepare BAST",
-          "quantities": "Accepted to date",
-          "quantityLine": "{{item}} — accepted to date ({{unit}})",
-          "save": "Save BAST",
-          "subtitle": "The client's acceptance of work, as cumulative quantities to date. Someone else confirms it; it does not create an invoice.",
-          "titleEdit": "Edit BAST — {{wo}}",
-          "titleNew": "Prepare BAST — {{wo}}"
-        },
-        "heading": "Acceptances (BAST)",
-        "noDocument": "No signed BAST document linked",
-        "prepare": "Prepare BAST",
-        "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
-        "soleOperator": "Confirmed by the only active member",
-        "stage": "Stage",
-        "status": {
-          "confirmed": "Confirmed",
-          "draft": "Draft",
-          "withdrawn": "Withdrawn"
-        },
-        "toast": {
-          "closed": "Final BAST confirmed — closed at {{amount}}",
-          "confirmed": "BAST confirmed",
-          "prepared": "BAST prepared",
-          "preparedSub": "Someone else confirms it before it counts.",
-          "updated": "BAST draft updated",
-          "withdrawn": "BAST withdrawn"
-        },
-        "withdraw": "Withdraw",
-        "withdrawLabel": "Withdraw draft BAST of {{date}}"
-      },
-      "closing": {
-        "closedAt": "Closed at {{amount}} (excl. PPN)",
-        "dpHeld": "{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it."
-      },
-      "contractLines": {
-        "balance": "Not yet ordered {{qty}} {{unit}}",
-        "balanceUnknown": "Balance unavailable",
-        "confirmRemove": {
-          "body": "{{item}} returns to the contract balance. A line already accepted by a confirmed BAST cannot be removed.",
-          "confirm": "Remove allocation",
-          "title": "Remove this allocation?"
-        },
-        "contractQty": "Contract {{qty}} {{unit}}",
-        "done": "Done",
-        "edit": "Edit lines",
-        "errors": {
-          "quantity": "Enter a quantity above 0 with at most 3 decimal places"
-        },
-        "frozen": "This work order is {{status}}: its allocations are frozen.",
-        "heading": "Contract lines",
-        "legend": "Bill of quantities lines",
-        "loadError": "Couldn’t load the contract lines",
-        "noBoq": "This project has no bill of quantities lines yet.",
-        "none": "No contract lines allocated yet",
-        "overOrdered": "Over-ordered by {{qty}} {{unit}} — more than the contract balance.",
-        "readOnly": "You can view these allocations but not change them.",
-        "remove": "Remove",
-        "removeRow": "Remove {{item}}",
-        "save": "Save",
-        "saveRow": "Save {{item}}",
-        "subtitle": "Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.",
-        "title": "Contract lines — {{wo}}"
-      },
-      "quantities": {
-        "counts": "{{lines}} lines · {{basts}} BAST",
-        "summary": "Contract lines and BAST — {{wo}}",
-        "title": "Contract quantities"
-      },
       "action": {
         "cancel": "Cancel",
         "close": "Close",

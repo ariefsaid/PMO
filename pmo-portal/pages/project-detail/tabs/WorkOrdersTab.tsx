@@ -420,9 +420,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     await quantityMutations.prepare.mutateAsync({ ...input, workOrderId: bastFor.row.id });
     toast(
       bastFor.draft
-        ? t('projectDetail.workOrders.acceptances.toast.updated', 'BAST draft updated')
-        : t('projectDetail.workOrders.acceptances.toast.prepared', 'BAST prepared'),
-      t('projectDetail.workOrders.acceptances.toast.preparedSub', 'Someone else confirms it before it counts.'),
+        ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.updated', 'BAST draft updated')
+        : t('projectTabs:contractQuantities.workOrders.acceptances.toast.prepared', 'BAST prepared'),
+      t('projectTabs:contractQuantities.workOrders.acceptances.toast.preparedSub', 'Someone else confirms it before it counts.'),
       'success',
     );
     setBastFor(null);
@@ -432,7 +432,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     if (!withdrawFor) return;
     try {
       await quantityMutations.withdraw.mutateAsync(withdrawFor.id);
-      toast(t('projectDetail.workOrders.acceptances.toast.withdrawn', 'BAST withdrawn'), undefined, 'success');
+      toast(t('projectTabs:contractQuantities.workOrders.acceptances.toast.withdrawn', 'BAST withdrawn'), undefined, 'success');
     } catch (err) {
       fail(err);
     } finally {
@@ -448,10 +448,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       if (result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
       toast(
         result && result.closingValue !== null
-          ? t('projectDetail.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
+          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
             amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false },
           })
-          : t('projectDetail.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
+          : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
         'success',
       );
@@ -503,7 +503,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
           {(row as WorkOrderWithClosing).closing_value != null && (
             <span className="mt-0.5 whitespace-normal text-[11px] font-semibold" data-testid={`wo-closing-${row.id}`}>
-              {t('projectDetail.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
+              {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
                 amount: formatCurrency(Number((row as WorkOrderWithClosing).closing_value), row.currency),
                 interpolation: { escapeValue: false },
               })}
@@ -658,7 +658,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
-          {t('projectDetail.workOrders.closing.dpHeld',
+          {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
             '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
         </div>
@@ -773,11 +773,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       {showQuantities && rows.length > 0 && (
         <Card variant="bare" data-testid="wo-quantities">
           <CardHead level={2} className="text-base">
-            {t('projectDetail.workOrders.quantities.title', 'Contract quantities')}
+            {t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities')}
           </CardHead>
           <CardPad>
             {lines.isError && (
-              <ListState variant="error" title={t('projectDetail.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
+              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
             )}
             <div className="flex flex-col gap-2">
               {rows.map((row) => {
@@ -788,18 +788,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 return (
                   <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
                     <summary className="cursor-pointer rounded text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                      {t('projectDetail.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
+                      {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
                       <span className="ml-2 font-normal text-muted-foreground">
-                        {t('projectDetail.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
+                        {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
                       </span>
                     </summary>
                     <div className="mt-3 flex flex-col gap-4">
-                      <section aria-label={t('projectDetail.workOrders.contractLines.heading', 'Contract lines')}>
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
                         <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                          {t('projectDetail.workOrders.contractLines.heading', 'Contract lines')}
+                          {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
                         </h3>
                         {mine.length === 0 ? (
-                          <p className="text-[13px] text-muted-foreground">{t('projectDetail.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
+                          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
                         ) : (
                           <ul className="flex flex-col gap-0.5 text-[13px]" data-testid={`wo-lines-${row.id}`}>
                             {mine.map((l) => {
@@ -816,14 +816,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         {editableLines && (
                           <div className="mt-2">
                             <Button variant="outline" size="sm" onClick={() => setLinesFor(row)}>
-                              {t('projectDetail.workOrders.contractLines.edit', 'Edit lines')}
+                              {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
                             </Button>
                           </div>
                         )}
                       </section>
-                      <section aria-label={t('projectDetail.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
                         <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                          {t('projectDetail.workOrders.acceptances.heading', 'Acceptances (BAST)')}
+                          {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
                         </h3>
                         <WorkOrderAcceptances
                           workOrder={row}
@@ -894,9 +894,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <ConfirmDialog
           open
           tone="destructive"
-          title={t('projectDetail.workOrders.acceptances.confirmWithdraw.title', 'Withdraw this BAST draft?')}
-          description={t('projectDetail.workOrders.acceptances.confirmWithdraw.body', 'The draft is withdrawn and cannot be confirmed. Prepare a new BAST if the client still accepts the work.')}
-          confirmLabel={t('projectDetail.workOrders.acceptances.confirmWithdraw.confirm', 'Withdraw BAST')}
+          title={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.title', 'Withdraw this BAST draft?')}
+          description={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.body', 'The draft is withdrawn and cannot be confirmed. Prepare a new BAST if the client still accepts the work.')}
+          confirmLabel={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.confirm', 'Withdraw BAST')}
           loading={quantityMutations.withdraw.isPending}
           onConfirm={() => void runWithdrawBast()}
           onCancel={() => setWithdrawFor(null)}
@@ -908,14 +908,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           open
           tone="destructive"
           title={confirmFor.acceptance.is_final
-            ? t('projectDetail.workOrders.acceptances.confirmFinal.title', 'Confirm the final BAST?')
-            : t('projectDetail.workOrders.acceptances.confirmStage.title', 'Confirm this BAST?')}
+            ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.title', 'Confirm the final BAST?')
+            : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.title', 'Confirm this BAST?')}
           description={
             <div className="flex flex-col gap-2">
               <p>
                 {confirmFor.acceptance.is_final
-                  ? t('projectDetail.workOrders.acceptances.confirmFinal.body', 'Confirming a final BAST closes the work order at the accepted quantities. The client’s PO value stays as recorded; the closing value is kept separately and unused quantity returns to the contract balance. This cannot be undone.')
-                  : t('projectDetail.workOrders.acceptances.confirmStage.body', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}
+                  ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.body', 'Confirming a final BAST closes the work order at the accepted quantities. The client’s PO value stays as recorded; the closing value is kept separately and unused quantity returns to the contract balance. This cannot be undone.')
+                  : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.body', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}
               </p>
               {confirmFor.error && (
                 <p role="alert" data-testid="bast-confirm-error" className="font-medium text-destructive-text">{confirmFor.error}</p>
@@ -923,8 +923,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </div>
           }
           confirmLabel={confirmFor.acceptance.is_final
-            ? t('projectDetail.workOrders.acceptances.confirmFinal.confirm', 'Confirm final BAST')
-            : t('projectDetail.workOrders.acceptances.confirmStage.confirm', 'Confirm BAST')}
+            ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.confirm', 'Confirm final BAST')
+            : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.confirm', 'Confirm BAST')}
           loading={quantityMutations.confirm.isPending}
           onConfirm={() => void runConfirmBast()}
           onCancel={() => setConfirmFor(null)}

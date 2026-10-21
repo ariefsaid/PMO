@@ -165,7 +165,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
           {Object.keys(prefill).length > 0 && (woPrefill?.fromBast || assessmentMonth) && (
             <Button type="button" variant="outline" size="sm" className="mb-3" onClick={applyPrefill}>
               {woPrefill?.fromBast
-                ? t('projectDetail.billing.claimForm.prefillBast', 'Start from the accepted BAST quantities')
+                ? t('projectTabs:contractQuantities.billing.claimForm.prefillBast', 'Start from the accepted BAST quantities')
                 : t('projectDetail.billing.claimForm.prefill', 'Start from the {{month}} assessment',
                   { month: formatUtcMonthYear(new Date(`${assessmentMonth ?? ''}T00:00:00Z`)) })}
             </Button>

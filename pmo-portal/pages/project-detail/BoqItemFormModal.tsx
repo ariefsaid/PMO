@@ -50,7 +50,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     const rate = parseMoneyInputAtScale(v.rate, 2);
     if (rate === null || rate < 0) errors.rate = t('projectDetail.billing.boqForm.errors.rate', 'Enter a rate of 0 or more with at most 2 decimal places');
     if (v.lineNo.trim() !== '' && !/^\d{1,9}$/.test(v.lineNo.trim())) {
-      errors.lineNo = t('projectDetail.billing.boqForm.errors.lineNo', 'Enter a whole line number, or leave it blank');
+      errors.lineNo = t('projectTabs:contractQuantities.billing.boqForm.errors.lineNo', 'Enter a whole line number, or leave it blank');
     }
     return errors;
   }, [t]);
@@ -85,8 +85,8 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
   })();
 
   const basisOptions = [
-    { value: 'unit_rate', label: t('projectDetail.billing.boqForm.basisUnitRate', 'Unit rate — quantity × rate') },
-    { value: 'lump_sum', label: t('projectDetail.billing.boqForm.basisLumpSum', 'Lump sum — 1 lot, earned by percent') },
+    { value: 'unit_rate', label: t('projectTabs:contractQuantities.billing.boqForm.basisUnitRate', 'Unit rate — quantity × rate') },
+    { value: 'lump_sum', label: t('projectTabs:contractQuantities.billing.boqForm.basisLumpSum', 'Lump sum — 1 lot, earned by percent') },
   ];
   const itemLabel = t('projectDetail.billing.boqForm.item', 'ERP item');
 
@@ -142,7 +142,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
             error={descriptionField.error} fullWidth />
           <TextField id={unitField.id} label={t('projectDetail.billing.boqForm.unit', 'Unit')} required
             value={unitField.value} onChange={unitField.onChange} onBlur={unitField.onBlur} error={unitField.error} />
-          <SelectField id={basisField.id} label={t('projectDetail.billing.boqForm.basis', 'Earned by')}
+          <SelectField id={basisField.id} label={t('projectTabs:contractQuantities.billing.boqForm.basis', 'Earned by')}
             value={basisField.value || defaultBasis(unitField.value)}
             onChange={(value) => basisField.onChange(value as EarningBasis)} onBlur={basisField.onBlur} options={basisOptions} />
           {!lumpSum && (
@@ -153,7 +153,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
           <NumberField id={rateField.id} label={t('projectDetail.billing.boqForm.rate', 'Rate (excl. PPN)')} required
             prefix={currencySymbolPrefix} value={rateField.value} onChange={rateField.onChange} onBlur={rateField.onBlur}
             error={rateField.error} localeAware />
-          <TextField id={lineNoField.id} label={t('projectDetail.billing.boqForm.lineNo', 'Line no. (optional)')}
+          <TextField id={lineNoField.id} label={t('projectTabs:contractQuantities.billing.boqForm.lineNo', 'Line no. (optional)')}
             value={lineNoField.value} onChange={lineNoField.onChange} onBlur={lineNoField.onBlur} error={lineNoField.error} />
         </FormGrid>
       </FormSection>
