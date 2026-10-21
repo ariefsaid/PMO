@@ -23,7 +23,7 @@ import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './budgetCategor
 // the host (`onClose`) and renders the editable header fields (title + project +
 // vendor) directly with Save/Cancel. Inline rather than a giant modal-over-page.
 //
-// Backed by `useEntityForm` (matches NewProcurementModal): one controlled-form
+// Backed by `useEntityForm`: one controlled-form
 // helper owns values / dirty / submit / per-field validation, so the title-required
 // rule and the disabled-Save state are the shared form contract, not ad-hoc state.
 // Token-pure (Card / form primitives).

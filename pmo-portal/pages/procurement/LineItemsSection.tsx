@@ -8,6 +8,7 @@ import {
   formatCurrencyAuto, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { itemsNetTotal } from '@/src/lib/itemsNet';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
@@ -62,7 +63,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const [deleteTarget, setDeleteTarget] = useState<ProcurementItemRow | null>(null);
   const addRateMask = useMoneyInputMask(draft.rate, (rate) => { setDraft((d) => ({ ...d, rate })); setAddErrors((prev) => ({ ...prev, rate: undefined })); });
   const editRateMask = useMoneyInputMask(editDraft.rate, (rate) => { setEditDraft((d) => ({ ...d, rate })); setEditErrors((prev) => ({ ...prev, rate: undefined })); });
-  const total = items.reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
+  const total = itemsNetTotal(items);
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
@@ -113,10 +114,15 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     },
     { key: 'quantity', header: 'Qty', kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
     { key: 'rate', header: 'Unit price', kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatCurrencyAuto(Number(it.rate), currency) },
-    { key: 'amount', header: 'Line total', kind: 'money', align: 'num', size: 150, cell: (it) => <span className="font-medium">{formatCurrencyAuto(editable && editingId === it.id ? num(editDraft.quantity) * num(editDraft.rate) : Number(it.amount ?? 0), currency)}</span> },
+    { key: 'amount', header: 'Line total', kind: 'money', align: 'num', size: 150, cell: (it) => {
+      const amount = editable && editingId === it.id
+        ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
+        : itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
+      return <span className="font-medium">{amount === null ? '—' : formatCurrencyAuto(amount, currency)}</span>;
+    } },
   ];
   if (editable) columns.push({ key: 'actions', header: 'Row actions', kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>Save</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>Edit</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
-  const columnsTotal = { amount: formatCurrencyAuto(total, currency) };
+  const columnsTotal = { amount: total === null ? '—' : formatCurrencyAuto(total, currency) };
   return <Card className="mb-4" data-testid="line-items-section">
     <CardHead>Line items<span className="ml-2 text-[12.5px] font-normal text-muted-foreground">qty × unit price → line total</span></CardHead>
     <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"

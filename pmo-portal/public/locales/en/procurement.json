@@ -1,0 +1,21 @@
+{
+  "create": {
+    "heading": "New purchase request",
+    "draftNote": "This request remains a draft until you submit it.",
+    "requestDetails": "Request details",
+    "titleField": "Title",
+    "titleRequired": "A request title is required.",
+    "project": "Project",
+    "selectProject": "Select a project…",
+    "vendor": "Vendor",
+    "selectVendor": "Optional — select a vendor…",
+    "budgetCategory": "Budget category",
+    "denied": "You do not have permission to create purchase requests.",
+    "unsaved": {
+      "title": "Unsaved request",
+      "description": "This request has not been saved. Leave this page and discard it?",
+      "leave": "Leave",
+      "stay": "Stay"
+    }
+  }
+}

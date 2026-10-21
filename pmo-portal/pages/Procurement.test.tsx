@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
@@ -42,8 +42,8 @@ const seed = [
 
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
-// FK pickers in the New-PR modal read cached option hooks; stub them so the index
-// test needs no QueryClient (the loaders just hand back the static list).
+// Project/vendor picker options are cached hooks; stub them so the index test
+// needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
@@ -55,18 +55,15 @@ const effRole = { value: 'Project Manager' as string | null };
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: effRole.value, realRole: effRole.value }),
 }));
-// The New-PR create hook (modal is launched from the header) — stubbed so the
-// index test stays focused on the gating + launch affordance.
-const createMutate = vi.fn().mockResolvedValue({ id: 'pc-new' });
-vi.mock('@/src/hooks/useProcurementCrud', () => ({
-  useCreateProcurement: () => ({ mutateAsync: createMutate, isPending: false }),
-}));
+const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname + useLocation().search}</output>;
+
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
 const renderPage = (initialPath = '/procurement') =>
   render(
     <ToastProvider>
       <MemoryRouter initialEntries={[initialPath]}>
+        <RouteProbe />
         <Procurement />
       </MemoryRouter>
     </ToastProvider>,
@@ -265,7 +262,6 @@ describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
     procState.isPending = false;
     procState.isError = false;
     effRole.value = 'Project Manager';
-    createMutate.mockClear();
   });
 
   it('AC-PROC-006: a write-role sees the header Raise request CTA', () => {
@@ -279,11 +275,16 @@ describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
     expect(screen.getByRole('button', { name: /raise request/i })).toBeInTheDocument();
   });
 
-  it('AC-PROC-006: clicking Raise request opens the New PR dialog', async () => {
+  it('AC-PROC-006: clicking Raise request navigates to the full-page create route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /raise request/i }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/procurement/new');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-PROC1-007: legacy create deep links preserve project context and redirect to the new page', async () => {
+    renderPage('/procurement?create=1&project=p1');
+    await waitFor(() => expect(screen.getByTestId('route-path')).toHaveTextContent('/procurement/new?project=p1'));
   });
 });
 

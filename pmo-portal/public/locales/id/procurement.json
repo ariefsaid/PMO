@@ -1,0 +1,21 @@
+{
+  "create": {
+    "heading": "Permintaan pembelian baru",
+    "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
+    "requestDetails": "Rincian permintaan",
+    "titleField": "Judul",
+    "titleRequired": "Judul permintaan wajib diisi.",
+    "project": "Proyek",
+    "selectProject": "Pilih proyek…",
+    "vendor": "Pemasok",
+    "selectVendor": "Opsional — pilih pemasok…",
+    "budgetCategory": "Kategori anggaran",
+    "denied": "Anda tidak memiliki izin untuk membuat permintaan pembelian.",
+    "unsaved": {
+      "title": "Permintaan belum disimpan",
+      "description": "Permintaan ini belum disimpan. Tinggalkan halaman dan buang?",
+      "leave": "Tinggalkan",
+      "stay": "Tetap di sini"
+    }
+  }
+}

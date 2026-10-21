@@ -64,6 +64,7 @@ const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDet
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
+const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
@@ -137,6 +138,7 @@ export const appRouteConfig: RouteObject[] = [
   // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
   { path: '/sales/:opportunityId', element: <SalesDetailRedirect /> },
   { path: '/procurement', element: <ProcurementPage /> },
+  { path: '/procurement/new', element: <ProcurementCreate /> },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: <ProcurementDetails /> },

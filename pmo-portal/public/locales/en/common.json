@@ -1976,12 +1976,6 @@
       "orgWide": "Procurement",
       "ownScoped": "Your purchase requests"
     },
-    "toast": {
-      "created": {
-        "detail": "Add line items and quotations next",
-        "headline": "Request created"
-      }
-    },
     "unknownRequester": "Unknown",
     "view": {
       "board": "Board",

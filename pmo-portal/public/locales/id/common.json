@@ -1976,12 +1976,6 @@
       "orgWide": "Pengadaan",
       "ownScoped": "Permintaan pembelian Anda"
     },
-    "toast": {
-      "created": {
-        "detail": "Selanjutnya tambahkan rincian item dan penawaran",
-        "headline": "Permintaan dibuat"
-      }
-    },
     "unknownRequester": "Tidak diketahui",
     "view": {
       "board": "Board",
