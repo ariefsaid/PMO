@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: vi.fn() }) }));
 import BoqItemFormModal from '../BoqItemFormModal';
+import ProgressAssessmentModal from '../ProgressAssessmentModal';
 
 /**
  * AC-CQ-014 — the contract-quantity dialogs (ADR-0090): BoQ line basis, percent assessment, allocation,
@@ -73,6 +74,64 @@ describe('AC-CQ-014 BoqItemFormModal earning basis', () => {
     await user.type(screen.getByLabelText(/Line no/), '1.5');
     await user.click(screen.getByRole('button', { name: 'Save line' }));
     expect((await screen.findAllByText('Enter a whole line number, or leave it blank')).length).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-CQ-014 ProgressAssessmentModal lump-sum percent', () => {
+  const line = (id: string, code: string, unit: string, basis: 'unit_rate' | 'lump_sum') =>
+    ({ id, org_id: 'o', project_id: 'p', earning_basis: basis, line_no: null, import_key: null, item_code: code,
+      description: `${code} work`, unit, quantity: basis === 'lump_sum' ? 1 : 10, rate: 1000, created_at: '' }) as BoqItemRow;
+  const BOQ = [line('u1', 'SURVEY', 'km', 'unit_rate'), line('l1', 'MOBILISE', 'lot', 'lump_sum')];
+  function renderModal(assessed: Record<string, number> = {}) {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<ToastProvider><ProgressAssessmentModal boqItems={BOQ} assessedByBoqItem={assessed} defaultMonth="2026-10"
+      onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
+    return { onSave, user: userEvent.setup() };
+  }
+  const submit = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Save progress' }));
+
+  it('AC-CQ-014 a lump-sum line asks for percent and shows the stored fraction as percent', () => {
+    renderModal({ l1: 0.4 });
+    expect(screen.getByLabelText(/MOBILISE.*% done to date/)).toHaveValue('40');
+    expect(screen.getByLabelText(/SURVEY.*done to date \(km\)/)).toHaveValue('');
+  });
+
+  it('AC-CQ-014 40.0 percent is sent as the 0.400 fraction and unit-rate lines keep quantities', async () => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/MOBILISE/), '40.0');
+    await user.type(screen.getByLabelText(/SURVEY/), '2.5');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith({
+      month: '2026-10-01',
+      quantities: [{ boqItemId: 'u1', quantityToDate: 2.5 }, { boqItemId: 'l1', quantityToDate: 0.4 }],
+      note: null,
+    });
+  });
+
+  it('AC-CQ-014 40.1 percent maps to 0.401 without float noise', async () => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/MOBILISE/), '40.1');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      quantities: expect.arrayContaining([{ boqItemId: 'l1', quantityToDate: 0.401 }]),
+    }));
+  });
+
+  it('AC-CQ-014 100 percent is sent as 1', async () => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/MOBILISE/), '100');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      quantities: expect.arrayContaining([{ boqItemId: 'l1', quantityToDate: 1 }]),
+    }));
+  });
+
+  it.each(['40.01', '100.1', '-1'])('AC-CQ-014 %s percent is refused', async (value) => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/MOBILISE/), value);
+    await submit(user);
+    expect((await screen.findAllByText('Enter a percentage from 0 to 100 with at most 1 decimal place')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
   });
 });
