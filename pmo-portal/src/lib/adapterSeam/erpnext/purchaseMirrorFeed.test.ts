@@ -23,7 +23,9 @@ function harness(docs: Record<string, unknown[]>) {
       if (field === 'name' && op === '>') return String(doc.name) > String(value);
       return true;
     })).sort((a, b) => String(a.modified).localeCompare(String(b.modified)) || String(a.name).localeCompare(String(b.name)));
-    return new Response(JSON.stringify({ data: selected }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
+    const pageLength = Number(new URL(url).searchParams.get('limit_page_length') ?? 500);
+    return new Response(JSON.stringify({ data: selected.slice(start, start + pageLength) }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   const sc = { from: (t: string) => fake.from(t), rpc } as never;
   const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
@@ -138,16 +140,16 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     const first = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(first.caughtUp).toBe(false);
-    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(6000);
+    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(5500);
     const firstCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
     const second = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(second.caughtUp).toBe(false);
     const secondCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
-    expect(secondCount - firstCount).toBe(6000);
+    expect(secondCount - firstCount).toBe(5500);
     const third = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(third.caughtUp).toBe(true);
     expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(12503);
-    expect(12503 - secondCount).toBe(503);
+    expect(12503 - secondCount).toBe(1503);
     expect(reads).toBeGreaterThan(2);
     expect(events.slice(0, 3)).toEqual(['read', 'write', 'read']);
     const callUrls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => decodeURIComponent(String(call[0])));
@@ -219,6 +221,51 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(failedWrite.fetchImpl).toHaveBeenCalledTimes(1);
     expect(failedWrite.urls).toHaveLength(1);
     expect(failedWrite.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
+  });
+
+  it('makes progress on invoices while orders still have a full backlog', async () => {
+    const orders = Array.from({ length: 12503 }, (_, i) => ({ ...PO, name: `PO-${String(i).padStart(5, '0')}` }));
+    const h = harness({ 'Purchase Order': orders, 'Purchase Invoice': [PI] });
+    const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    expect(result.caughtUp).toBe(false);
+    expect(h.urls.slice(0, 2).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!))).toEqual(['Purchase Order', 'Purchase Invoice']);
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toContainEqual(expect.objectContaining({ erp_doctype: 'Purchase Invoice', erp_name: PI.name }));
+    expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length <= 500)).toBe(true);
+  });
+
+  it('bounds a stalled request to the remaining pass time after persisting the previous page', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const h = harness({});
+      const rows = Array.from({ length: 500 }, (_, i) => ({ ...PO, name: `PO-${String(i).padStart(3, '0')}` }));
+      let reads = 0;
+      let pendingSignal: AbortSignal | undefined;
+      const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+        reads += 1;
+        if (reads === 1) {
+          vi.setSystemTime(24500);
+          return new Response(JSON.stringify({ data: rows }), { status: 200 });
+        }
+        pendingSignal = init?.signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => pendingSignal?.addEventListener('abort', () => reject(pendingSignal?.reason), { once: true }));
+      });
+      const promise = feedPurchaseMirror(h.sc, { client: { ...h.client, maxRetries: 3, fetchImpl: fetchImpl as unknown as typeof fetch }, orgId: 'org-1', company: 'Example Co' });
+      const rejected = expect(promise).rejects.toThrow('500ms deadline');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(499);
+      expect(pendingSignal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(h.rpc).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(h.fake.rowsOf('external_sync_watermarks')[0].watermark_cursor))).toMatchObject({ name: rows[499].name });
+    } finally {
+      consoleError.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('refuses to run without a company', async () => {

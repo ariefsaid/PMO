@@ -147,66 +147,60 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   const transport = { ...opts.client, maxRetries: 0, timeoutMs: REQUEST_TIMEOUT_MS };
   let reads = 0;
   let fed = 0;
-  let caughtUp = true;
   let wroteAny = false;
-
+  const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
-    let stored = await readWm(sc, opts.orgId, domain);
+    const stored = await readWm(sc, opts.orgId, domain);
     const legacy = stored === null ? await readWm(sc, opts.orgId, purchaseWmDomain(doctype)) : null;
-    let cursor = parseCursor(stored ?? legacy);
-    let equalityDone = false;
-    while (reads < MAX_PAGE_READS && Date.now() < deadline) {
-      // Inclusive replay starts from every name at the boundary; a persisted name resumes only a
-      // bounded continuation through that same timestamp before later timestamps are queried.
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) { caughtUp = false; break; }
-      const rows = await readPage(transport, doctype, opts.company, cursor, !equalityDone, 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
-      reads += 1;
-      if (rows.length === 0) {
-        if (!equalityDone && cursor) { equalityDone = true; continue; }
-        if (cursor) {
-          const canonical = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
-          if (canonical !== stored) await saveCursor(sc, opts.orgId, domain, stored, canonical);
-        }
-        break;
+    pending.push({ doctype, domain, stored, cursor: parseCursor(stored ?? legacy), equalityDone: false });
+  }
+
+  // Alternate durable pages so both document types progress within the shared budget.
+  while (pending.length > 0 && reads < MAX_PAGE_READS) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    const state = pending.shift()!;
+    const { doctype, domain, cursor, equalityDone } = state;
+    const rows = await readPage(transport, doctype, opts.company, cursor, !equalityDone, 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+    reads += 1;
+    if (rows.length === 0) {
+      if (!equalityDone && cursor) {
+        state.equalityDone = true;
+        pending.push(state);
+      } else if (cursor) {
+        const canonical = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
+        if (canonical !== state.stored) await saveCursor(sc, opts.orgId, domain, state.stored, canonical);
       }
-      const pageLatest = new Map<string, PurchaseMirrorRow>();
-      for (const source of rows) {
-        const row = toPurchaseMirrorRow(doctype, source);
-        if (!row) continue;
-        const existing = pageLatest.get(row.erp_name);
-        if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
-      }
-      const pageRows = [...pageLatest.values()];
-      const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: pageRows });
-      if (error) throw new AppError(error.message, error.code);
-      fed += Number(data ?? 0);
-      wroteAny = true;
-      const last = rows[rows.length - 1];
-      cursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
-      let nextCursor: PurchaseCursor = cursor;
-      if (rows.length < PAGE_SIZE && equalityDone) nextCursor = { version: CURSOR_VERSION, modified: cursor.modified };
-      const next = encodeCursor(nextCursor);
-      await saveCursor(sc, opts.orgId, domain, stored, next);
-      stored = next;
-      cursor = nextCursor;
-      if (rows.length < PAGE_SIZE) {
-        if (!equalityDone) { equalityDone = true; continue; }
-        const caughtCursor = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
-        if (caughtCursor !== stored) {
-          await saveCursor(sc, opts.orgId, domain, stored, caughtCursor);
-        }
-        break;
-      }
-      // The next iteration first drains any remaining names at this timestamp, then proceeds later.
-      equalityDone = false;
+      continue;
     }
-    if (reads >= MAX_PAGE_READS || Date.now() >= deadline) caughtUp = false;
+    const pageLatest = new Map<string, PurchaseMirrorRow>();
+    for (const source of rows) {
+      const row = toPurchaseMirrorRow(doctype, source);
+      if (!row) continue;
+      const existing = pageLatest.get(row.erp_name);
+      if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
+    }
+    const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] });
+    if (error) throw new AppError(error.message, error.code);
+    fed += Number(data ?? 0);
+    wroteAny = true;
+    const last = rows[rows.length - 1];
+    const completed = rows.length < PAGE_SIZE && equalityDone;
+    state.cursor = completed
+      ? { version: CURSOR_VERSION, modified: String(last.modified) }
+      : { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
+    const next = encodeCursor(state.cursor);
+    await saveCursor(sc, opts.orgId, domain, state.stored, next);
+    state.stored = next;
+    if (!completed) {
+      state.equalityDone = rows.length < PAGE_SIZE;
+      pending.push(state);
+    }
   }
   if (!wroteAny) {
     const { error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] });
     if (error) throw new AppError(error.message, error.code);
   }
-  return { fed, caughtUp };
+  return { fed, caughtUp: pending.length === 0 };
 }
