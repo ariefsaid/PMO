@@ -59,7 +59,7 @@ const MeetingCreate: React.FC = () => {
   const when = form.fieldProps('occurredAt');
   const location = form.fieldProps('location');
   const project = form.fieldProps('projectId');
-  const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending || minutes.length > 0;
+  const dirty = form.isDirty || guestName.trim().length > 0 || guests.length > 0 || members.length > 0 || minutesPending;
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setPendingLeave(() => leave) });
   const onEditorReady = useCallback((blocks: NoteBlock[]) => { initialMinutesRef.current = blocks; setMinutes(blocks); }, []);

@@ -30,7 +30,10 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const liveDocument: never[] = [];
   const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
-    React.useEffect(() => { liveDocument.splice(0); onReady([]); }, [onReady]);
+    React.useEffect(() => {
+      liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
+      onReady([...liveDocument]);
+    }, [onReady]);
     return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button></>;
   });
   return { default: EditorStub };
@@ -73,6 +76,14 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.create.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: 'Design review' }));
     expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({ meetingId: 'meeting-new', identity: { display_name: 'Guest One' } });
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
+  });
+
+  it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('AC-MTG1-004: requires a title inline and creates nothing when left blank', async () => {
