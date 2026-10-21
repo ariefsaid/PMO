@@ -1,7 +1,7 @@
--- 0335 rollback. Restores the pre-0335 schema and live function/ACL contracts.
+-- 0337 rollback. Restores the pre-0337 schema and live function/ACL contracts.
 -- Lossy allocation mapping: only a BoQ line with exactly one allocation is linked back.
 
--- Restore latest pre-0335 function and view bodies before removing allocation objects.
+-- Restore latest pre-0337 function and view bodies before removing allocation objects.
 
 alter table public.boq_items add column work_order_id uuid references public.work_orders(id);
 update public.boq_items b set work_order_id=x.work_order_id from (

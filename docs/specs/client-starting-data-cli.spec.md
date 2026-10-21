@@ -83,7 +83,7 @@ Load files hold client data. They live outside the repository and are never comm
   a concurrent `23505` is a skip; never `PATCH` or upsert — corrections are made in the app. All rows are
   validated before any request; a project with more than 1000 existing lines fails preflight (a full
   read cannot prove a key is absent). `boq_items` joins the Admin tier (`GET`/`POST` only; the guard
-  list changes in migration `0335`) and is refused by `get` / `create` / `update`. Work-order
+  list changes in migration `0337`) and is refused by `get` / `create` / `update`. Work-order
   allocations and acceptances (BAST) are not loadable.
 - **D8 — match keys (idempotency).** Company: exact legal name. Project: `code`, else exact name +
   client. Contract value: current value 0. Stage: the project's current stage on the target's path
@@ -209,7 +209,7 @@ before loading) · people and roles.
   before any request, saying only `pmo load` uses it.
 - **AC-CQ-016 / 017 / 018** Contract lines through `pmo load` (D7a): see progress-billing spec §8 for the
   statements; owned by `scripts/pmo-load.test.mjs` (validation, resolve, apply) with CLI runs in
-  `scripts/pmo.test.mjs`, and the guard half by `supabase/tests/0335_contract_lines_api_guard.test.sql`.
+  `scripts/pmo.test.mjs`, and the guard half by `supabase/tests/0337_contract_lines_api_guard.test.sql`.
 
 ## 7. Traceability
 
@@ -233,7 +233,7 @@ before loading) · people and roles.
 | AC-CSD-016 | CLI node test | `scripts/pmo.test.mjs` |
 | AC-CQ-016 | CLI node test | `scripts/pmo-load.test.mjs` (CLI run: `scripts/pmo.test.mjs`) |
 | AC-CQ-017 | CLI node test | `scripts/pmo-load.test.mjs` (CLI run: `scripts/pmo.test.mjs`) |
-| AC-CQ-018 | Integration (pgTAP) | `supabase/tests/0335_contract_lines_api_guard.test.sql` (CLI lists: `scripts/pmo.test.mjs`) |
+| AC-CQ-018 | Integration (pgTAP) | `supabase/tests/0337_contract_lines_api_guard.test.sql` (CLI lists: `scripts/pmo.test.mjs`) |
 
 No new e2e: the live pre-request wiring is already proven by the AC-CLI-001 journey; the Admin tier is a
 pure function of request settings (pgTAP), and the RPC sequence is proven in the database (AC-CSD-015).

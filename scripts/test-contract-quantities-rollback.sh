@@ -11,8 +11,8 @@ import sys
 out=Path(sys.argv[1])
 text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
 for marker, source in [
-    ('-- @0335_DOWN@', 'supabase/migrations/rollback/0335_contract_quantities_down.sql'),
-    ('-- @0335_UP@', 'supabase/migrations/0335_contract_quantities.sql'),
+    ('-- @0337_DOWN@', 'supabase/migrations/rollback/0337_contract_quantities_down.sql'),
+    ('-- @0337_UP@', 'supabase/migrations/0337_contract_quantities.sql'),
 ]:
     text=text.replace(marker, Path(source).read_text())
 out.write_text(text)

@@ -90,7 +90,7 @@ money calculation. Never convert already-net closing money through inclusive tax
 
 ## 2. Contracts and implementation sketches
 
-All SQL changes below live in **`supabase/migrations/0335_contract_quantities.sql`**. Replaced
+All SQL changes below live in **`supabase/migrations/0337_contract_quantities.sql`**. Replaced
 functions must contain their complete current body with only the named deltas; do not change older
 forward migrations. Copy the latest definition, not a historical spec's approximation.
 
@@ -382,35 +382,35 @@ C-test() { scripts/with-test-lock.sh bash -c 'cd pmo-portal && npx vitest run "$
 
 ### Lane A — schema, server behavior, pgTAP, manifest and generated types
 
-Only 0335 forward + its matching rollback. SQL files below are new unless explicitly called
+Only 0337 forward + its matching rollback. SQL files below are new unless explicitly called
 existing. Acceptance matrix and synthetic fixtures are shared within each pgTAP transaction, never
 by mutating common seed data. Start new feature fixtures with isolated IDs and roles; use the
 existing 0250/0262 JWT fixture pattern, without committing people details.
 
 | Task / minutes | RED first → implementation (exact paths/delta) | AC / verify |
 |---|---|---|
-| A01 / 3 | Write `supabase/tests/0335_contract_lines.test.sql`: basis domain, quantity=1, finite checks, optional line_no/import key uniqueness. Apply §2.1 BoQ ALTER in 0335. | AC-CQ-001; `A-test supabase/tests/0335_contract_lines.test.sql` |
-| A02 / 3 | Write `scripts/contract-quantities-rollback.test.sql` transaction harness: `\ir ../supabase/migrations/rollback/0335_contract_quantities_down.sql`, insert old linked BoQ fixtures, `\ir ../supabase/migrations/0335_contract_quantities.sql`, assert full allocation and absent old column. Start work_order_lines creation/backfill/drop in 0335. | AC-CQ-003; `A-test scripts/contract-quantities-rollback.test.sql` (GREEN after A20) |
-| A03 / 3 | Add allocation own/foreign/disabled/Engineer read-write tests in `supabase/tests/0335_work_order_lines.test.sql`; create allocation indexes, RLS/FORCE RLS, stamp trigger and column grants in 0335 per §2.1. | AC-CQ-002; `A-test supabase/tests/0335_work_order_lines.test.sql` |
-| A04 / 3 | Add allocation wrong-project/parent-repoint/duplicate/precision tests and convert existing `supabase/tests/0250_progress_billing_boq.test.sql` old-link inserts to allocations. Implement allocation scope trigger; preserve all BoQ authority/numeric assertions. | AC-CQ-001/002; `A-test supabase/tests/0335_work_order_lines.test.sql supabase/tests/0250_progress_billing_boq.test.sql` |
-| A05 / 3 | Add Closed/Cancelled insert/update/delete and latest-confirmed-quantity floor assertions to 0335_work_order_lines test. Attach WO-row locking state/floor trigger after migration backfill. | AC-CQ-002; `A-test supabase/tests/0335_work_order_lines.test.sql` (BAST fixtures GREEN after A11) |
-| A06 / 4 | Write table/grant/parent-tenancy assertions in `supabase/tests/0335_work_order_acceptances.test.sql`; create header/children/indexes/partial-final-unique index from §2.1, own-org SELECT policies, child parent-derived SELECT, no client DML. | AC-CQ-004/005; `A-test supabase/tests/0335_work_order_acceptances.test.sql` |
-| A07 / 4 | Add prepare permission/create-stamp/audit tests to same file; implement prepare signature and membership/WO/project/permission checks, insert Draft and children, log_audit. | AC-CQ-004; `A-test supabase/tests/0335_work_order_acceptances.test.sql` |
-| A08 / 4 | Add repeat/foreign/unallocated/4-dp/NaN/LS>1/final-missing-line and Draft replacement assertions; implement pre-cast validation and replacement under WO→acceptance locks. Recheck allocations on confirm as well. | AC-CQ-004; `A-test supabase/tests/0335_work_order_acceptances.test.sql` |
-| A09 / 3 | Add withdraw actor/status/audit assertions; implement withdraw_work_order_acceptance, Draft-only, preparer-or-Admin/Finance, stamps. | AC-CQ-004; `A-test supabase/tests/0335_work_order_acceptances.test.sql` |
-| A10 / 4 | Add confirmer role, two-member self-refusal, sole Finance/Admin success, second active Engineer blocks, offboarded/cross-org/anon cases; implement confirm membership/org/role and exact 0298 count predicate plus basis stamps. | AC-CQ-005; `A-test supabase/tests/0335_work_order_acceptances.test.sql` |
-| A11 / 4 | Add document, immutable header/children incl. DELETE, stage behavior and duplicate-final assertions; implement document check and immutability triggers; index race oracle on confirmed final. | AC-CQ-005/010; `A-test supabase/tests/0335_work_order_acceptances.test.sql supabase/tests/0335_work_order_lines.test.sql` |
-| A12 / 3 | Write `supabase/tests/0335_work_order_closing_value.test.sql` closing pair client/definer/overwrite assertions; add money columns, pair check, narrow guard and history registry delta in 0335. Confirm uses guarded write window, immediately clears it. | AC-CQ-006; `A-test supabase/tests/0335_work_order_closing_value.test.sql` |
-| A13 / 4 | Add 1,000→997 close, 1,001 BW001, below-billed/pending BW001, equality and rollback-of-stamps assertions; finish final-confirm sum/upper bound/billing-lock/WO-close/DP-result/audit path per §2.2. Include two confirms' unique-final oracle. | AC-CQ-006/007; `A-test supabase/tests/0335_work_order_closing_value.test.sql` |
-| A14 / 4 | Write `supabase/tests/0335_work_order_effective_net.test.sql` view/fence/drawdown/next-issue cases, incl. inclusive order and exact one-cent boundary. Replace work_order_billing and assert_work_order_invoiceable expressions, retaining all view grants/callers. | AC-CQ-008; `A-test supabase/tests/0335_work_order_effective_net.test.sql` |
-| A15 / 3 | Complete same test's reduced committed drawdown/issue-overcommit acknowledgment oracle; replace 0197 drawdown and transition committed sums. Do not change the manual-close arm before Open point 1 disposition. | AC-CQ-008; `A-test supabase/tests/0335_work_order_effective_net.test.sql` |
-| A16 / 4 | Write `supabase/tests/0335_progress_claim_allocations.test.sql`; change 0262 claim scope per §2.3. Update old linked fixtures/messages in `supabase/tests/0250_progress_billing_claims.test.sql` and `supabase/tests/0262_work_order_billing_refusal.test.sql` to allocation inserts, without changing evidence/SoD/cap oracles. | AC-CQ-011; `A-test supabase/tests/0335_progress_claim_allocations.test.sql supabase/tests/0250_progress_billing_claims.test.sql supabase/tests/0262_work_order_billing_refusal.test.sql` |
-| A17 / 4 | Write `supabase/tests/0335_contract_earned_value.test.sql`: synthetic 1900/1000/997, A=1000 then 1050 then 2000; implement pre-aggregated closed/order/assessment earning CTEs and earned_value/line facts in get_project_billing. | AC-CQ-009; `A-test supabase/tests/0335_contract_earned_value.test.sql` |
-| A18 / 4 | Add lump-sum 0.4, stage vs final, latest-cumulative-not-history-sum, cancelled WO and multi-WO cases; finish allocations[]/balance/accepted fields. Add assessment LS-bound validation to latest 0252 body, retaining percent flag and scalar fallback. | AC-CQ-009/010; `A-test supabase/tests/0335_contract_earned_value.test.sql supabase/tests/0252_progress_pct_derived_guard.test.sql` |
-| A19 / 3 | Write `supabase/tests/0335_contract_lines_api_guard.test.sql` active-Admin GET/POST, PATCH/DELETE/upsert/non-Admin/disabled/BAST refusal, browser pass-through. Put complete 0239 api_client_request_guard replacement in 0335 with only boq_items added to admin_write_tables and original grants/notify retained. | AC-CQ-018; `A-test supabase/tests/0335_contract_lines_api_guard.test.sql supabase/tests/api_client_seed_surface.test.sql` |
-| A20 / 5 | Complete `supabase/migrations/rollback/0335_contract_quantities_down.sql`: restore old column/grants/trigger and unique-single-allocation links; restore pre-0335 get_project_billing (0250), assessment (0252), claim/view/fence (0262), drawdown/transition (0197), API guard (0239), history registry; drop closing FK/columns, new guards/RPCs/tables/line fields in dependency order. Extend rollback harness with second allocation and down assertions, then ROLLBACK entire harness transaction. | AC-CQ-003; `A-test scripts/contract-quantities-rollback.test.sql` |
-| A21 / 3 | Add three RPC names to existing `supabase/tests/0178_anon_executable_definers.test.sql`, manually enumerate baseline 70 +3 and set both hardcoded assertions/messages to 73. Preserve throwaway-writer mutation. Add explicit new function/table/column privilege assertions to 0335 tests and migration end DO block. | AC-CQ-005/006/018; `A-test supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0335_work_order_acceptances.test.sql` |
-| A22 / 3 | Regenerate `scripts/isolation-probe-denominator.json` against this forward schema; classify three tables and three definer write RPCs, child parent-org semantics and synthetic refusal args, remove old column from boq_items select list. Regenerate types into a temporary file and merge only 0335 schema/RPC deltas, preserving hand-corrected nullability of unrelated RPC/view outputs. | AC-CQ-001–011/018; commands below |
+| A01 / 3 | Write `supabase/tests/0337_contract_lines.test.sql`: basis domain, quantity=1, finite checks, optional line_no/import key uniqueness. Apply §2.1 BoQ ALTER in 0337. | AC-CQ-001; `A-test supabase/tests/0337_contract_lines.test.sql` |
+| A02 / 3 | Write `scripts/contract-quantities-rollback.test.sql` transaction harness: `\ir ../supabase/migrations/rollback/0337_contract_quantities_down.sql`, insert old linked BoQ fixtures, `\ir ../supabase/migrations/0337_contract_quantities.sql`, assert full allocation and absent old column. Start work_order_lines creation/backfill/drop in 0337. | AC-CQ-003; `A-test scripts/contract-quantities-rollback.test.sql` (GREEN after A20) |
+| A03 / 3 | Add allocation own/foreign/disabled/Engineer read-write tests in `supabase/tests/0337_work_order_lines.test.sql`; create allocation indexes, RLS/FORCE RLS, stamp trigger and column grants in 0337 per §2.1. | AC-CQ-002; `A-test supabase/tests/0337_work_order_lines.test.sql` |
+| A04 / 3 | Add allocation wrong-project/parent-repoint/duplicate/precision tests and convert existing `supabase/tests/0250_progress_billing_boq.test.sql` old-link inserts to allocations. Implement allocation scope trigger; preserve all BoQ authority/numeric assertions. | AC-CQ-001/002; `A-test supabase/tests/0337_work_order_lines.test.sql supabase/tests/0250_progress_billing_boq.test.sql` |
+| A05 / 3 | Add Closed/Cancelled insert/update/delete and latest-confirmed-quantity floor assertions to 0337_work_order_lines test. Attach WO-row locking state/floor trigger after migration backfill. | AC-CQ-002; `A-test supabase/tests/0337_work_order_lines.test.sql` (BAST fixtures GREEN after A11) |
+| A06 / 4 | Write table/grant/parent-tenancy assertions in `supabase/tests/0337_work_order_acceptances.test.sql`; create header/children/indexes/partial-final-unique index from §2.1, own-org SELECT policies, child parent-derived SELECT, no client DML. | AC-CQ-004/005; `A-test supabase/tests/0337_work_order_acceptances.test.sql` |
+| A07 / 4 | Add prepare permission/create-stamp/audit tests to same file; implement prepare signature and membership/WO/project/permission checks, insert Draft and children, log_audit. | AC-CQ-004; `A-test supabase/tests/0337_work_order_acceptances.test.sql` |
+| A08 / 4 | Add repeat/foreign/unallocated/4-dp/NaN/LS>1/final-missing-line and Draft replacement assertions; implement pre-cast validation and replacement under WO→acceptance locks. Recheck allocations on confirm as well. | AC-CQ-004; `A-test supabase/tests/0337_work_order_acceptances.test.sql` |
+| A09 / 3 | Add withdraw actor/status/audit assertions; implement withdraw_work_order_acceptance, Draft-only, preparer-or-Admin/Finance, stamps. | AC-CQ-004; `A-test supabase/tests/0337_work_order_acceptances.test.sql` |
+| A10 / 4 | Add confirmer role, two-member self-refusal, sole Finance/Admin success, second active Engineer blocks, offboarded/cross-org/anon cases; implement confirm membership/org/role and exact 0298 count predicate plus basis stamps. | AC-CQ-005; `A-test supabase/tests/0337_work_order_acceptances.test.sql` |
+| A11 / 4 | Add document, immutable header/children incl. DELETE, stage behavior and duplicate-final assertions; implement document check and immutability triggers; index race oracle on confirmed final. | AC-CQ-005/010; `A-test supabase/tests/0337_work_order_acceptances.test.sql supabase/tests/0337_work_order_lines.test.sql` |
+| A12 / 3 | Write `supabase/tests/0337_work_order_closing_value.test.sql` closing pair client/definer/overwrite assertions; add money columns, pair check, narrow guard and history registry delta in 0337. Confirm uses guarded write window, immediately clears it. | AC-CQ-006; `A-test supabase/tests/0337_work_order_closing_value.test.sql` |
+| A13 / 4 | Add 1,000→997 close, 1,001 BW001, below-billed/pending BW001, equality and rollback-of-stamps assertions; finish final-confirm sum/upper bound/billing-lock/WO-close/DP-result/audit path per §2.2. Include two confirms' unique-final oracle. | AC-CQ-006/007; `A-test supabase/tests/0337_work_order_closing_value.test.sql` |
+| A14 / 4 | Write `supabase/tests/0337_work_order_effective_net.test.sql` view/fence/drawdown/next-issue cases, incl. inclusive order and exact one-cent boundary. Replace work_order_billing and assert_work_order_invoiceable expressions, retaining all view grants/callers. | AC-CQ-008; `A-test supabase/tests/0337_work_order_effective_net.test.sql` |
+| A15 / 3 | Complete same test's reduced committed drawdown/issue-overcommit acknowledgment oracle; replace 0197 drawdown and transition committed sums. Do not change the manual-close arm before Open point 1 disposition. | AC-CQ-008; `A-test supabase/tests/0337_work_order_effective_net.test.sql` |
+| A16 / 4 | Write `supabase/tests/0337_progress_claim_allocations.test.sql`; change 0262 claim scope per §2.3. Update old linked fixtures/messages in `supabase/tests/0250_progress_billing_claims.test.sql` and `supabase/tests/0262_work_order_billing_refusal.test.sql` to allocation inserts, without changing evidence/SoD/cap oracles. | AC-CQ-011; `A-test supabase/tests/0337_progress_claim_allocations.test.sql supabase/tests/0250_progress_billing_claims.test.sql supabase/tests/0262_work_order_billing_refusal.test.sql` |
+| A17 / 4 | Write `supabase/tests/0337_contract_earned_value.test.sql`: synthetic 1900/1000/997, A=1000 then 1050 then 2000; implement pre-aggregated closed/order/assessment earning CTEs and earned_value/line facts in get_project_billing. | AC-CQ-009; `A-test supabase/tests/0337_contract_earned_value.test.sql` |
+| A18 / 4 | Add lump-sum 0.4, stage vs final, latest-cumulative-not-history-sum, cancelled WO and multi-WO cases; finish allocations[]/balance/accepted fields. Add assessment LS-bound validation to latest 0252 body, retaining percent flag and scalar fallback. | AC-CQ-009/010; `A-test supabase/tests/0337_contract_earned_value.test.sql supabase/tests/0252_progress_pct_derived_guard.test.sql` |
+| A19 / 3 | Write `supabase/tests/0337_contract_lines_api_guard.test.sql` active-Admin GET/POST, PATCH/DELETE/upsert/non-Admin/disabled/BAST refusal, browser pass-through. Put complete 0239 api_client_request_guard replacement in 0337 with only boq_items added to admin_write_tables and original grants/notify retained. | AC-CQ-018; `A-test supabase/tests/0337_contract_lines_api_guard.test.sql supabase/tests/api_client_seed_surface.test.sql` |
+| A20 / 5 | Complete `supabase/migrations/rollback/0337_contract_quantities_down.sql`: restore old column/grants/trigger and unique-single-allocation links; restore pre-0337 get_project_billing (0250), assessment (0252), claim/view/fence (0262), drawdown/transition (0197), API guard (0239), history registry; drop closing FK/columns, new guards/RPCs/tables/line fields in dependency order. Extend rollback harness with second allocation and down assertions, then ROLLBACK entire harness transaction. | AC-CQ-003; `A-test scripts/contract-quantities-rollback.test.sql` |
+| A21 / 3 | Add three RPC names to existing `supabase/tests/0178_anon_executable_definers.test.sql`, manually enumerate baseline 70 +3 and set both hardcoded assertions/messages to 73. Preserve throwaway-writer mutation. Add explicit new function/table/column privilege assertions to 0337 tests and migration end DO block. | AC-CQ-005/006/018; `A-test supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0337_work_order_acceptances.test.sql` |
+| A22 / 3 | Regenerate `scripts/isolation-probe-denominator.json` against this forward schema; classify three tables and three definer write RPCs, child parent-org semantics and synthetic refusal args, remove old column from boq_items select list. Regenerate types into a temporary file and merge only 0337 schema/RPC deltas, preserving hand-corrected nullability of unrelated RPC/view outputs. | AC-CQ-001–011/018; commands below |
 | A23 / 5 | Run SQL targeted gate and rollback harness, inspect actual pgTAP result body. Locally mutate final cap/SoD/immutability rules one at a time under lock, require owning tests RED, restore exact forward file and repeat GREEN. Record private mutation evidence, not public open-control notes. | AC-CQ-002/005–008/011; Lane A gate below |
 
 A22 exact commands (one hold keeps schema and type source coherent):
@@ -430,12 +430,12 @@ permission to cast away rows or claim a green PR before Lane C.
 Lane A gate (root, one lock; no full suite):
 
 ```bash
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0335_contract_lines.test.sql supabase/tests/0335_work_order_lines.test.sql supabase/tests/0335_work_order_acceptances.test.sql supabase/tests/0335_work_order_closing_value.test.sql supabase/tests/0335_work_order_effective_net.test.sql supabase/tests/0335_contract_earned_value.test.sql supabase/tests/0335_progress_claim_allocations.test.sql supabase/tests/0335_contract_lines_api_guard.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0005_force_rls.test.sql supabase/tests/0250_progress_billing_boq.test.sql supabase/tests/0250_progress_billing_claims.test.sql supabase/tests/0250_progress_billing_summary.test.sql supabase/tests/0250_progress_billing_assessment.test.sql supabase/tests/0252_progress_pct_derived_guard.test.sql supabase/tests/0262_work_order_billing_refusal.test.sql supabase/tests/0262_work_order_billing_figures.test.sql supabase/tests/record_history_read.test.sql scripts/contract-quantities-rollback.test.sql'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0337_contract_lines.test.sql supabase/tests/0337_work_order_lines.test.sql supabase/tests/0337_work_order_acceptances.test.sql supabase/tests/0337_work_order_closing_value.test.sql supabase/tests/0337_work_order_effective_net.test.sql supabase/tests/0337_contract_earned_value.test.sql supabase/tests/0337_progress_claim_allocations.test.sql supabase/tests/0337_contract_lines_api_guard.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0005_force_rls.test.sql supabase/tests/0250_progress_billing_boq.test.sql supabase/tests/0250_progress_billing_claims.test.sql supabase/tests/0250_progress_billing_summary.test.sql supabase/tests/0250_progress_billing_assessment.test.sql supabase/tests/0252_progress_pct_derived_guard.test.sql supabase/tests/0262_work_order_billing_refusal.test.sql supabase/tests/0262_work_order_billing_figures.test.sql supabase/tests/record_history_read.test.sql scripts/contract-quantities-rollback.test.sql'
 ```
 
 ### Lane B — operator load, node tests and CLI documentation
 
-Lane A's 0335 **already contains** the guard replacement (A19). Lane B does not create 0336 or edit
+Lane A's 0337 **already contains** the guard replacement (A19). Lane B does not create 0336 or edit
 0239. Keep the paired CLI/server list change in this branch; nothing is shipped between lanes.
 
 | Task / minutes | RED first → implementation | AC / verify |
@@ -448,7 +448,7 @@ Lane A's 0335 **already contains** the guard replacement (A19). Lane B does not 
 | B06 / 3 | Amend `docs/specs/client-starting-data-cli.spec.md` §2 field table with projects[].contract_lines schema, §3 D4/D8 and traceability as necessary; `docs/runbooks/pmo-cli.md` §4 workflow adds price-sheet/SPK conversion, item_code, dry-run, skip/correct-in-app. Generic one-line example only, never real source data. | AC-CQ-016–018; `B-test` and `git diff --check` |
 
 Lane B closes with `node --test scripts/pmo-load.test.mjs scripts/pmo.test.mjs` and
-`scripts/with-db-lock.sh supabase test db supabase/tests/0335_contract_lines_api_guard.test.sql supabase/tests/api_client_seed_surface.test.sql`.
+`scripts/with-db-lock.sh supabase test db supabase/tests/0337_contract_lines_api_guard.test.sql supabase/tests/api_client_seed_surface.test.sql`.
 Do not run a separate browser dispatch for this intermediate lane.
 
 ### Lane C — DAL, repositories, hooks, helpers, dialogs, tabs, i18n and one journey
@@ -479,24 +479,24 @@ Do not run a separate browser dispatch for this intermediate lane.
 
 | AC | Owning test file | Build tasks |
 |---|---|---|
-| AC-CQ-001 | `supabase/tests/0335_contract_lines.test.sql` | A01/A04 |
-| AC-CQ-002 | `supabase/tests/0335_work_order_lines.test.sql` | A03–A05/A11 |
+| AC-CQ-001 | `supabase/tests/0337_contract_lines.test.sql` | A01/A04 |
+| AC-CQ-002 | `supabase/tests/0337_work_order_lines.test.sql` | A03–A05/A11 |
 | AC-CQ-003 | `scripts/contract-quantities-rollback.test.sql` | A02/A20 |
-| AC-CQ-004 | `supabase/tests/0335_work_order_acceptances.test.sql` | A06–A09 |
-| AC-CQ-005 | `supabase/tests/0335_work_order_acceptances.test.sql` | A10/A11/A21/A23 |
-| AC-CQ-006 | `supabase/tests/0335_work_order_closing_value.test.sql` | A12/A13/A23 |
-| AC-CQ-007 | `supabase/tests/0335_work_order_closing_value.test.sql` | A13/A23 |
-| AC-CQ-008 | `supabase/tests/0335_work_order_effective_net.test.sql` | A14/A15/A23 |
-| AC-CQ-009 | `supabase/tests/0335_contract_earned_value.test.sql` | A17/A18 |
-| AC-CQ-010 | `supabase/tests/0335_contract_earned_value.test.sql` | A11/A18 |
-| AC-CQ-011 | `supabase/tests/0335_progress_claim_allocations.test.sql` | A16 |
+| AC-CQ-004 | `supabase/tests/0337_work_order_acceptances.test.sql` | A06–A09 |
+| AC-CQ-005 | `supabase/tests/0337_work_order_acceptances.test.sql` | A10/A11/A21/A23 |
+| AC-CQ-006 | `supabase/tests/0337_work_order_closing_value.test.sql` | A12/A13/A23 |
+| AC-CQ-007 | `supabase/tests/0337_work_order_closing_value.test.sql` | A13/A23 |
+| AC-CQ-008 | `supabase/tests/0337_work_order_effective_net.test.sql` | A14/A15/A23 |
+| AC-CQ-009 | `supabase/tests/0337_contract_earned_value.test.sql` | A17/A18 |
+| AC-CQ-010 | `supabase/tests/0337_contract_earned_value.test.sql` | A11/A18 |
+| AC-CQ-011 | `supabase/tests/0337_progress_claim_allocations.test.sql` | A16 |
 | AC-CQ-012 | `pmo-portal/src/lib/progressBilling.test.ts` | C01–C03/C12 |
 | AC-CQ-013 | `pmo-portal/src/lib/progressBilling.test.ts` | C01/C11 |
 | AC-CQ-014 | `pmo-portal/pages/project-detail/__tests__/ContractQuantityDialogs.test.tsx` | C08–C11/C13 |
 | AC-CQ-015 | `pmo-portal/pages/project-detail/__tests__/ContractQuantitiesTabs.test.tsx` | C04–C07/C10/C12–C14/C19 |
 | AC-CQ-016 | `scripts/pmo-load.test.mjs` | B02/B03/B05/B06 |
 | AC-CQ-017 | `scripts/pmo-load.test.mjs` | B04/B05/B06 |
-| AC-CQ-018 | `supabase/tests/0335_contract_lines_api_guard.test.sql` | A19/B01/B05 |
+| AC-CQ-018 | `supabase/tests/0337_contract_lines_api_guard.test.sql` | A19/B01/B05 |
 | AC-CQ-019 | `pmo-portal/src/lib/progressBilling.i18n.test.ts` | C15/C19 |
 | AC-CQ-020 | `pmo-portal/e2e/AC-CQ-020-contract-quantities.spec.ts` | C16/C18/C19 |
 
@@ -563,7 +563,7 @@ These are integration dispositions for the Director, not invitations to reopen O
 
 ### Dispositions (Director 2026-10-21)
 
-1. **Manual close → DD-CQ-9.** In A15 add to `transition_work_order` (latest body 0197:303, re-create in 0335):
+1. **Manual close → DD-CQ-9.** In A15 add to `transition_work_order` (latest body 0197:303, re-create in 0337):
    on Issued → Closed, if `exists (select 1 from public.work_order_lines l where l.work_order_id = p_id)`
    raise 42501 'this work order has contract lines: close it by confirming its final BAST'. The confirm RPC
    closes the work order itself (not via this function). No backfill of historical Closed rows. In C14 hide

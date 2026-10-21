@@ -3543,7 +3543,7 @@ Per-project contract_lines entries contain key, optional line_no, required ERP i
 description, unit, quantity, rate and optional basis. Default basis from unit; POST boq_items with
 import_key=key; existing project/key or 23505 is skipped, never updated. Validate whole input and
 resolve every reference before writes; dry run reports all problems or valid plan. Add boq_items to
-CLI LOAD_TABLES and guard admin_write_tables together in migration 0335, preserving active-Admin
+CLI LOAD_TABLES and guard admin_write_tables together in migration 0337, preserving active-Admin
 GET/POST-only tier. Update CLI spec §2 and runbook §4; corrections stay in app.
 
 ## DD-CQ-8 — line, allocation and acceptance authority (Director 2026-10-21)

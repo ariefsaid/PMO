@@ -1,6 +1,6 @@
--- 0335_contract_quantities.sql — contract quantities, WO allocations and cumulative BAST.
+-- 0337_contract_quantities.sql — contract quantities, WO allocations and cumulative BAST.
 -- Spec: docs/specs/progress-billing.spec.md §8; plan: docs/plans/2026-10-21-contract-quantities.md.
--- Reversal: rollback/0335_contract_quantities_down.sql.
+-- Reversal: rollback/0337_contract_quantities_down.sql.
 
 -- Contract-line metadata and explicit earning basis.
 alter table public.boq_items
@@ -1114,24 +1114,24 @@ begin
   if has_table_privilege('anon','public.work_order_lines','select')
      or has_table_privilege('anon','public.work_order_acceptances','select')
      or has_table_privilege('anon','public.work_order_acceptance_lines','select') then
-    raise exception '0335: anon can read a contract quantity table';
+    raise exception '0337: anon can read a contract quantity table';
   end if;
   if has_table_privilege('authenticated','public.work_order_acceptances','insert')
      or has_table_privilege('authenticated','public.work_order_acceptance_lines','insert') then
-    raise exception '0335: authenticated can write an acceptance table directly';
+    raise exception '0337: authenticated can write an acceptance table directly';
   end if;
   if has_function_privilege('anon','public.prepare_work_order_acceptance(uuid,date,boolean,jsonb,uuid,text,uuid)','execute')
      or has_function_privilege('anon','public.withdraw_work_order_acceptance(uuid)','execute')
      or has_function_privilege('anon','public.confirm_work_order_acceptance(uuid)','execute') then
-    raise exception '0335: anon can execute a BAST write RPC';
+    raise exception '0337: anon can execute a BAST write RPC';
   end if;
   if not has_function_privilege('authenticated','public.prepare_work_order_acceptance(uuid,date,boolean,jsonb,uuid,text,uuid)','execute')
      or not has_function_privilege('authenticated','public.withdraw_work_order_acceptance(uuid)','execute')
      or not has_function_privilege('authenticated','public.confirm_work_order_acceptance(uuid)','execute') then
-    raise exception '0335: an authenticated BAST RPC grant is missing';
+    raise exception '0337: an authenticated BAST RPC grant is missing';
   end if;
   if has_function_privilege('authenticated','public.check_work_order_line_scope()','execute')
      or has_function_privilege('authenticated','public.guard_work_order_closing_value()','execute') then
-    raise exception '0335: an internal trigger function is client executable';
+    raise exception '0337: an internal trigger function is client executable';
   end if;
 end $$;

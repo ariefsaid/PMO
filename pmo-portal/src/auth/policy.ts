@@ -227,7 +227,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   /**
-   * Work-order allocations of contract lines (ADR-0090, migration 0335). Mirrors the allocation table's RLS:
+   * Work-order allocations of contract lines (ADR-0090, migration 0337). Mirrors the allocation table's RLS:
    * the BoQ writer set, and only while the work order is Draft/Issued (the state trigger freezes Closed/Cancelled).
    * `record.status` is the WORK ORDER's status; unknown status denies. View-as sessions are view-only.
    */

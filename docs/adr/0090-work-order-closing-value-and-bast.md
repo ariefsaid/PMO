@@ -6,7 +6,7 @@
   (sole operator); DD-PBL-9 (one billed-work definition).
 - **Spec:** `docs/specs/progress-billing.spec.md` §8, DD-CQ-1..8.
 - **Plan:** `docs/plans/2026-10-21-contract-quantities.md`.
-- **Migration / reverse:** `0335_contract_quantities.sql` / `rollback/0335_contract_quantities_down.sql`.
+- **Migration / reverse:** `0337_contract_quantities.sql` / `rollback/0337_contract_quantities_down.sql`.
 
 ## Context
 

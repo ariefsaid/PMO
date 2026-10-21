@@ -19,7 +19,7 @@
 > `0262_billing_by_work_order.sql`; rulings `DD-BWO-n`).
 > **Amended 2026-10-21:** §8 — contract quantities, work-order allocations and BAST; OD-CQ-1..4,
 > DD-CQ-1..8, [ADR-0090](../adr/0090-work-order-closing-value-and-bast.md),
-> [plan](../plans/2026-10-21-contract-quantities.md), migration `0335_contract_quantities.sql`.
+> [plan](../plans/2026-10-21-contract-quantities.md), migration `0337_contract_quantities.sql`.
 > §8 supersedes the single-work-order-per-line scope in DD-PBL-4 / FR-PB-002 / FR-PB-007 and
 > the percent-only assessed-value rule for projects with contract lines; earlier text is retained as history.
 
@@ -711,7 +711,7 @@ client's acceptance, not an invoice, receipt or replacement document register.
   never update; corrections in app. Dry run lists all validation/reference problems (including missing
   project, bad quantity/rate, lump-sum quantity ≠1 and duplicate key) and, for valid input, the plan.
   Add `boq_items` to CLI `LOAD_TABLES` and guard `admin_write_tables` together (guard replacement
-  inside 0335, not a second migration). Update CLI spec §2 and runbook §4. No allocation/BAST load.
+  inside 0337, not a second migration). Update CLI spec §2 and runbook §4. No allocation/BAST load.
 - **DD-CQ-8 — who.** Lines/basis and allocations: Admin, Executive, PM, Finance. BAST prepare:
   project's PM or Finance rank+ (`may_record_project_progress`, so Executive/Admin eligible too).
   Confirm: Admin/Finance with DD-CQ-3 SoD. Claims unchanged.
@@ -802,8 +802,8 @@ client's acceptance, not an invoice, receipt or replacement document register.
   with fixed search_path and no anon EXECUTE. Internal helpers/triggers shall have no client EXECUTE.
   Update `supabase/tests/0178_anon_executable_definers.test.sql` with exactly the three BAST RPCs:
   literal baseline 70 names +3 =73; re-count after rebase, keep hardcoded count and mutation oracle.
-- **NFR-CQ-002 (reversibility)** Supply `supabase/migrations/0335_contract_quantities.sql` and
-  `supabase/migrations/rollback/0335_contract_quantities_down.sql`. Restore replaced functions,
+- **NFR-CQ-002 (reversibility)** Supply `supabase/migrations/0337_contract_quantities.sql` and
+  `supabase/migrations/rollback/0337_contract_quantities_down.sql`. Restore replaced functions,
   views, grants, guard and old column before dropping new objects. Backfill old link only for exactly
   one allocation; multi-allocation lines cannot be represented in the old schema and require an
   operator-reviewed export before rollback. Never infer an arbitrary WO or alter posted invoices.
@@ -831,7 +831,7 @@ client's acceptance, not an invoice, receipt or replacement document register.
   Engineer writes fail, disabled/other-org reads return none and anon has no access; When the WO
   closes/cancels, Then its allocations are frozen; Given latest confirmed quantity 997, Then deleting
   the allocation or reducing it to 996 fails 23514 and 997 is allowed while Issued.
-- **AC-CQ-003** Given a pre-0335 BoQ line linked to one WO, When 0335 applies, Then one allocation
+- **AC-CQ-003** Given a pre-0337 BoQ line linked to one WO, When 0337 applies, Then one allocation
   contains its full quantity and the old column is absent; When down runs, Then the old column and
   same link return, a line with two allocations gets no arbitrary old link, and replaced SQL/ACL
   contracts return without changing any invoice.
@@ -913,24 +913,24 @@ client's acceptance, not an invoice, receipt or replacement document register.
 
 | AC | Owning layer | Canonical proof |
 |---|---|---|
-| AC-CQ-001 | pgTAP | `supabase/tests/0335_contract_lines.test.sql` |
-| AC-CQ-002 | pgTAP | `supabase/tests/0335_work_order_lines.test.sql` |
+| AC-CQ-001 | pgTAP | `supabase/tests/0337_contract_lines.test.sql` |
+| AC-CQ-002 | pgTAP | `supabase/tests/0337_work_order_lines.test.sql` |
 | AC-CQ-003 | pgTAP upgrade/reversal harness | `scripts/contract-quantities-rollback.test.sql` |
-| AC-CQ-004 | pgTAP | `supabase/tests/0335_work_order_acceptances.test.sql` |
-| AC-CQ-005 | pgTAP | `supabase/tests/0335_work_order_acceptances.test.sql` |
-| AC-CQ-006 | pgTAP | `supabase/tests/0335_work_order_closing_value.test.sql` |
-| AC-CQ-007 | pgTAP | `supabase/tests/0335_work_order_closing_value.test.sql` |
-| AC-CQ-008 | pgTAP | `supabase/tests/0335_work_order_effective_net.test.sql` |
-| AC-CQ-009 | pgTAP | `supabase/tests/0335_contract_earned_value.test.sql` |
-| AC-CQ-010 | pgTAP | `supabase/tests/0335_contract_earned_value.test.sql` |
-| AC-CQ-011 | pgTAP | `supabase/tests/0335_progress_claim_allocations.test.sql` |
+| AC-CQ-004 | pgTAP | `supabase/tests/0337_work_order_acceptances.test.sql` |
+| AC-CQ-005 | pgTAP | `supabase/tests/0337_work_order_acceptances.test.sql` |
+| AC-CQ-006 | pgTAP | `supabase/tests/0337_work_order_closing_value.test.sql` |
+| AC-CQ-007 | pgTAP | `supabase/tests/0337_work_order_closing_value.test.sql` |
+| AC-CQ-008 | pgTAP | `supabase/tests/0337_work_order_effective_net.test.sql` |
+| AC-CQ-009 | pgTAP | `supabase/tests/0337_contract_earned_value.test.sql` |
+| AC-CQ-010 | pgTAP | `supabase/tests/0337_contract_earned_value.test.sql` |
+| AC-CQ-011 | pgTAP | `supabase/tests/0337_progress_claim_allocations.test.sql` |
 | AC-CQ-012 | Vitest | `pmo-portal/src/lib/progressBilling.test.ts` |
 | AC-CQ-013 | Vitest | `pmo-portal/src/lib/progressBilling.test.ts` |
 | AC-CQ-014 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ContractQuantityDialogs.test.tsx` |
 | AC-CQ-015 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/ContractQuantitiesTabs.test.tsx` |
 | AC-CQ-016 | Node | `scripts/pmo-load.test.mjs` |
 | AC-CQ-017 | Node | `scripts/pmo-load.test.mjs` |
-| AC-CQ-018 | pgTAP | `supabase/tests/0335_contract_lines_api_guard.test.sql` (Node list/verb regressions support it) |
+| AC-CQ-018 | pgTAP | `supabase/tests/0337_contract_lines_api_guard.test.sql` (Node list/verb regressions support it) |
 | AC-CQ-019 | Vitest | `pmo-portal/src/lib/progressBilling.i18n.test.ts` |
 | AC-CQ-020 | Playwright | `pmo-portal/e2e/AC-CQ-020-contract-quantities.spec.ts` |
 
