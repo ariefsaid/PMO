@@ -36,7 +36,11 @@
         "lineNo": "Line no. (optional)"
       },
       "claimForm": {
-        "prefillBast": "Start from the accepted BAST quantities"
+        "prefillBast": "Start from the accepted BAST quantities",
+        "percentLine": "{{item}} — % to bill",
+        "errors": {
+          "percent": "Enter a percentage above 0 and up to 100 with at most 1 decimal place"
+        }
       },
       "summary": {
         "earned": "Earned to date",

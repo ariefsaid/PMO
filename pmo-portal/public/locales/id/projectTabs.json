@@ -36,7 +36,11 @@
         "lineNo": "No. baris (opsional)"
       },
       "claimForm": {
-        "prefillBast": "Mulai dari kuantitas BAST yang diterima"
+        "prefillBast": "Mulai dari kuantitas BAST yang diterima",
+        "percentLine": "{{item}} — % untuk ditagih",
+        "errors": {
+          "percent": "Masukkan persentase di atas 0 hingga 100 dengan paling banyak 1 angka desimal"
+        }
       },
       "summary": {
         "earned": "Diperoleh s.d. saat ini",

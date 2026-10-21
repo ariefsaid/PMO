@@ -71,6 +71,9 @@ select set_eq(
             -- 0250 (#766): progress_claims carries created_by and withdrawn_by -> profiles. No DAL code embeds
             -- profiles from progress_claims today; whatever ships first MUST qualify it with !constraint_name.
             ('progress_claims -> profiles'),
+            -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
+            -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('work_order_acceptances -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),

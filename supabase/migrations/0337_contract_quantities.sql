@@ -169,7 +169,7 @@ begin
  return new;
 end; $$;
 revoke all on function public.guard_work_order_closing_value() from public,anon,authenticated;
-create trigger work_orders_closing_guard before insert or update on public.work_orders for each row execute function public.guard_work_order_closing_value();
+create trigger work_orders_zzzz_closing_guard before insert or update on public.work_orders for each row execute function public.guard_work_order_closing_value();
 
 -- Confirmed acceptance data cannot be rewritten or deleted; drafts are only replaced by the RPC.
 create or replace function public.guard_work_order_acceptance_immutable() returns trigger

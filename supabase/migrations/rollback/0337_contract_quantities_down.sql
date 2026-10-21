@@ -710,7 +710,7 @@ end;
 $$;
 revoke all on function public.api_client_request_guard() from public; grant execute on function public.api_client_request_guard() to anon,authenticated,service_role; notify pgrst, 'reload config';
 
-drop trigger if exists work_orders_closing_guard on public.work_orders;
+drop trigger if exists work_orders_zzzz_closing_guard on public.work_orders;
 drop function if exists public.guard_work_order_closing_value();
 drop trigger if exists work_order_acceptance_lines_immutable on public.work_order_acceptance_lines;
 drop trigger if exists work_order_acceptances_immutable on public.work_order_acceptances;
