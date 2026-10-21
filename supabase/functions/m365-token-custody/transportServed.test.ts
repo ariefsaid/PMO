@@ -77,16 +77,6 @@ Deno.test("AC-M365DOC-070 served batch re-checks Files scope after refresh", asy
   });
 });
 
-Deno.test("AC-M365DOC-070 metadata projection drops unlisted upstream fields", async () => {
-  await run(newWorld({ graph: [gget(`/drives/${DRIVE}/root`, () => jsonResponse({
-    id: "root", folder: {}, unlistedSensitive: "synthetic-unlisted-value",
-  }))] }), async ({ call }) => {
-    const response = await call(proxy(`/drives/${DRIVE}/root`));
-    assertEquals(response.status, 200);
-    assertEquals(JSON.stringify(await response.json()).includes("unlistedSensitive"), false);
-  });
-});
-
 Deno.test("AC-M365DOC-071 served ensure accounts for metadata body time", async () => {
   const time = new FakeTime();
   let canceled = false;

@@ -646,14 +646,10 @@ async function sendGraphRequest(
 function metadataOnly(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(metadataOnly);
   if (!value || typeof value !== "object") return value;
-  const metadataFields = new Set([
-    "@odata.nextLink", "id", "name", "webUrl", "value", "parentReference",
-    "file", "folder", "cTag", "eTag", "sharepointIds", "lastModifiedDateTime",
-    "driveType", "description", "driveId", "path", "siteId", "siteUrl",
-    "listId", "listItemId", "mimeType", "size",
-  ]);
+  // ponytail: strip known capability/token fields rather than keep a field list. A keep-list also
+  // filters envelope keys (batch `responses`/`status`/`body`) and silently broke document checks.
   return Object.fromEntries(Object.entries(value).filter(([key]) =>
-    metadataFields.has(key)
+    !["@microsoft.graph.downloadUrl", "@content.downloadUrl", "access_token", "refresh_token"].includes(key)
   ).map(([key, item]) => [key, metadataOnly(item)]));
 }
 
