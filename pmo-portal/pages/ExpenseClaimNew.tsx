@@ -93,13 +93,16 @@ const ExpenseClaimNew: React.FC = () => {
       const savedId = failure.claimId ?? createdClaimId ?? capture.recovery?.claimId;
       const { headline, detail } = classifyMutationError(reason);
       if (savedId && (failure.draftSaved || createdClaimId || capture.recovery?.draftSaved)) {
+        createdClaimId = savedId;
         if (receipt) {
-          void capture.cleanupUnlinkedAttachment().catch(() => undefined);
+          void capture.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }).catch(() => undefined);
         }
         toast(headline, detail, 'warning');
         navigate(`/expenses/${savedId}`, { replace: true });
       } else setError(`${headline}: ${detail}`);
-    } finally { saveInFlight.current = false; setSaving(false); }
+    } finally {
+      if (!createdClaimId) { saveInFlight.current = false; setSaving(false); }
+    }
   };
 
   if (!canCreate) return <><BackBar label={t('expenses.title', 'Expenses')} onBack={() => navigate('/expenses')} /><GateNotice variant="blocked">{t('expenseClaims:new.noPermission', 'You do not have permission to create expense claims.')}</GateNotice></>;

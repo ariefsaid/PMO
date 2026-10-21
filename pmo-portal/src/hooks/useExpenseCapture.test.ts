@@ -130,6 +130,51 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     expect(h.addLine.mock.calls.filter(([, line]) => line.description === 'Bus fare')).toHaveLength(2);
   });
 
+  it.each(['uploaded', 'confirmed'] as const)('AC-S29-003 preserves a %s receipt during automatic cleanup', async (state) => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    if (state === 'uploaded') h.confirm.mockRejectedValueOnce(new Error('confirmation response lost'));
+    const { result } = setup();
+    await act(async () => {
+      if (state === 'uploaded') await expect(result.current.capture(captureInput)).rejects.toThrow('confirmation response lost');
+      else await result.current.capture(captureInput);
+    });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.cleanup).not.toHaveBeenCalled();
+    expect(result.current.recovery?.attachment).toMatchObject({ state, path: expect.any(String) });
+  });
+
+  it('AC-S29-003 retains the confirmation history when a later retry fails earlier', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    h.confirm.mockRejectedValueOnce(new Error('confirmation response lost'));
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('confirmation response lost'); });
+    h.objectExists.mockRejectedValueOnce(new Error('retry read failed'));
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('retry read failed'); });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(h.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('AC-S29-003 cleans up an abandoned upload before receipt confirmation has started', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    h.upload.mockRejectedValueOnce(new Error('upload failed'));
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('upload failed'); });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.cleanup).toHaveBeenCalledTimes(1);
+    expect(result.current.recovery?.attachment).toMatchObject({ state: 'selected', path: null });
+  });
+
   it('AC-S29-003 creates one stable line without receipt storage work', async () => {
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce('00000000-0000-4000-8000-000000000039').mockReturnValueOnce('00000000-0000-4000-8000-000000000040');
     const { result } = setup();

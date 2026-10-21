@@ -22,8 +22,52 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  it('AC-EXP1-003 leaving an untouched page creates no claim or lines', () => { renderPage(); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(h.navigate).toHaveBeenCalledWith('/expenses'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); expect(h.addLine).not.toHaveBeenCalled(); });
  it('holds navigation after entry until the user confirms discarding unsaved values', () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Unsaved trip' } }); fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); expect(screen.getByRole('dialog', { name: 'Discard unsaved claim?' })).toBeInTheDocument(); expect(h.navigate).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Stay' })); expect(h.navigate).not.toHaveBeenCalled(); expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved trip'); expect(h.create).not.toHaveBeenCalled(); expect(h.capture).not.toHaveBeenCalled(); });
  it('suggests a title from the selected receipt until the claimant edits it', () => { renderPage(); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'site-visit.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('site-visit'); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Reviewed visit' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'another.pdf', { type: 'application/pdf' })] } }); expect(screen.getByLabelText(/Title/)).toHaveValue('Reviewed visit'); });
- it('AC-EXP1-004 lands on the saved draft and cleans up an unconfirmed receipt when capture fails', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).toHaveBeenCalledTimes(1); await waitFor(() => expect(document.querySelector('[data-toast="visible"]')).toHaveTextContent(/receipt upload failed/i)); });
+ it('AC-EXP1-004 lands on the saved draft and cleans up an unconfirmed receipt when capture fails', async () => { h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); expect(h.cleanup).toHaveBeenCalledTimes(1); expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true }); await waitFor(() => expect(document.querySelector('[data-toast="visible"]')).toHaveTextContent(/receipt upload failed/i)); });
  it('AC-EXP1-004 prevents overlapping submissions until the capture request settles', async () => { let resolveCapture!: (claimId: string) => void; h.capture.mockImplementationOnce(() => new Promise((resolve) => { resolveCapture = resolve; })); renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trip' } }); const saveButton = screen.getByRole('button', { name: 'Save' }); fireEvent.click(saveButton); fireEvent.click(saveButton); expect(h.capture).toHaveBeenCalledTimes(1); expect(saveButton).toBeDisabled(); resolveCapture('claim-1'); await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true })); });
+ it.each(['success', 'partial'] as const)('AC-EXP1-004 locks capture after %s navigation starts, even before unmount', async (outcome) => {
+  if (outcome === 'partial') h.capture.mockRejectedValueOnce(Object.assign(new Error('line save failed'), { claimId: 'claim-1', draftSaved: true }));
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
+  fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } });
+  fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } });
+  fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train' } });
+  fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add line' }));
+  fireEvent.change(screen.getAllByLabelText(/^Date/)[1], { target: { value: '2026-10-21' } });
+  fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } });
+  fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
+  fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
+  const saveButton = screen.getByRole('button', { name: 'Save' });
+  fireEvent.click(saveButton);
+  await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
+  expect(saveButton).toBeDisabled();
+  fireEvent.submit(saveButton.closest('form')!);
+  expect(h.capture).toHaveBeenCalledTimes(1);
+ });
+
+ it('AC-EXP1-004 allows retry when no saved draft or navigation exists', async () => {
+  h.capture.mockRejectedValueOnce(new Error('draft save failed'));
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+  expect(h.navigate).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
+  expect(h.capture).toHaveBeenCalledTimes(2);
+ });
+
+ it('AC-EXP1-004 keeps the saved draft accessible if best-effort cleanup is refused', async () => {
+  h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true }));
+  h.cleanup.mockRejectedValueOnce(new Error('cleanup refused'));
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
+  fireEvent.change(screen.getByLabelText('Receipt (optional)'), { target: { files: [new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' })] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
+  expect(h.cleanup).toHaveBeenCalledWith({ beforeConfirmationOnly: true });
+ });
+
  it('AC-EXP1-004 opens the saved draft while best-effort receipt cleanup is still pending', async () => {
   h.capture.mockRejectedValueOnce(Object.assign(new Error('receipt upload failed'), { claimId: 'claim-1', draftSaved: true }));
   h.cleanup.mockReturnValueOnce(new Promise(() => {}));
