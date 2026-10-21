@@ -17,7 +17,8 @@ insert into public.profiles (id,org_id,full_name,email,role,status) values
 insert into public.projects (id,org_id,code,name,status) values
  ('10200000-0000-0000-0000-000000000231','10200000-0000-0000-0000-000000000031','SHR-1','Synthetic first','Ongoing Project'),
  ('10200000-0000-0000-0000-000000000232','10200000-0000-0000-0000-000000000031','SHR-2','Synthetic second','Ongoing Project'),
- ('10200000-0000-0000-0000-000000000233','10200000-0000-0000-0000-000000000032','SHR-X','Synthetic foreign','Ongoing Project');
+ ('10200000-0000-0000-0000-000000000233','10200000-0000-0000-0000-000000000032','SHR-X','Synthetic foreign','Ongoing Project'),
+ ('10200000-0000-0000-0000-000000000234','10200000-0000-0000-0000-000000000031','SHR-3','Synthetic third','Ongoing Project');
 insert into public.procurements (id,org_id,title,project_id,status) values
  ('10200000-0000-0000-0000-000000000241','10200000-0000-0000-0000-000000000031','Synthetic case one',null,'Draft'),
  ('10200000-0000-0000-0000-000000000242','10200000-0000-0000-0000-000000000031','Synthetic case two',null,'Draft');
@@ -97,7 +98,7 @@ select is(public.m365_folder_linked_elsewhere('project','10200000-0000-0000-0000
  'AC-M365DOC-069 a writer sees that a folder is linked to another record of their org');
 select is(public.m365_folder_linked_elsewhere('project','10200000-0000-0000-0000-000000000232','synthetic-drive','foreign-only-item'),false,
  'AC-M365DOC-069 a folder linked only in another org does not count as linked elsewhere');
-select is((select public.m365_link_record_folder('project','10200000-0000-0000-0000-000000000232',
+select is((select public.m365_link_record_folder('project','10200000-0000-0000-0000-000000000234',
  '{"drive_id":"synthetic-drive","item_id":"foreign-only-item","web_url":"https://example.invalid/f","name":"SHR-2 Synthetic second","item_kind":"folder"}',
  'synthetic-site','synthetic-drive',(select updated_at from public.org_m365_document_settings))->>'state'),
  'linked','AC-M365DOC-069 the shared guard is org scoped: org A can link a folder id that org B also linked');
