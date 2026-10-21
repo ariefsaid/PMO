@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { TaxBasisLabel } from '../TaxBasisLabel';
 
+function visibleText(element: HTMLElement): string {
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('[hidden]').forEach((hiddenElement) => hiddenElement.remove());
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 /**
  * `OD-TAX-1` §2 — no bare number anywhere the treatment exists, and no invented one where it does
  * not. Both treatments appear here on purpose: a fixture carrying only one of them cannot tell a
@@ -11,6 +17,81 @@ import { TaxBasisLabel } from '../TaxBasisLabel';
  * issue's own test note names).
  */
 describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1)', () => {
+  it.each([
+    {
+      name: 'exclusive',
+      props: { treatment: 'exclusive', taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12 },
+      basis: 'excl. PPN',
+      facts: '12% · DPP 11/12',
+    },
+    {
+      name: 'inclusive',
+      props: { treatment: 'inclusive', taxRate: 5, taxBaseNumerator: 1, taxBaseDenominator: 2 },
+      basis: 'incl. PPN',
+      facts: '5% · DPP 1/2',
+    },
+    {
+      name: 'unknown rate and base',
+      props: { treatment: 'exclusive', taxRate: null, taxBaseUnknown: true },
+      basis: 'excl. PPN',
+      facts: 'rate not recorded · DPP not recorded',
+    },
+    {
+      name: 'known zero rate',
+      props: { treatment: 'exclusive', taxRate: 0, taxBaseNumerator: 1, taxBaseDenominator: 1 },
+      basis: 'excl. PPN',
+      facts: '0% · DPP 1/1',
+    },
+  ])('AC-V24P-014: $name hides the detail separator while collapsed', async ({ props, basis, facts }) => {
+    const user = userEvent.setup();
+    render(<TaxBasisLabel testId="basis-under-test" detailsMode="disclosure" {...props} />);
+
+    const label = screen.getByTestId('basis-under-test');
+    const trigger = within(label).getByRole('button');
+    const triggerId = trigger.id;
+    const panelId = trigger.getAttribute('aria-controls');
+    expect(triggerId).not.toBe('');
+    expect(panelId).toBeTruthy();
+    const panel = document.getElementById(panelId!);
+    expect(panel).toBeInTheDocument();
+    if (!panel) throw new Error('Tax detail panel was not found through aria-controls');
+
+    const expectStableRelationship = () => {
+      expect(trigger.id).toBe(triggerId);
+      expect(trigger).toHaveAttribute('aria-controls', panelId);
+      expect(panel.id).toBe(panelId);
+      expect(panel).toHaveAttribute('aria-labelledby', triggerId);
+    };
+
+    expectStableRelationship();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(panel).toHaveAttribute('hidden');
+    expect(visibleText(label)).toBe(`${basis} · Show tax details`);
+
+    await user.click(trigger);
+    expectStableRelationship();
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(panel).not.toHaveAttribute('hidden');
+    expect(panel).toBeVisible();
+    expect(visibleText(label)).toBe(`${basis} · Hide tax details · ${facts}`);
+
+    await user.click(trigger);
+    expectStableRelationship();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(panel).toHaveAttribute('hidden');
+    expect(visibleText(label)).toBe(`${basis} · Show tax details`);
+
+    await user.click(trigger);
+    expectStableRelationship();
+    expect(visibleText(label)).toBe(`${basis} · Hide tax details · ${facts}`);
+    await user.keyboard('{Escape}');
+    expectStableRelationship();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(panel).toHaveAttribute('hidden');
+    expect(visibleText(label)).toBe(`${basis} · Show tax details`);
+    expect(trigger).toHaveFocus();
+  });
+
   it('AC-S39-001: keeps each stored basis immediate and discloses only its authored details on demand', async () => {
     const user = userEvent.setup();
     render(
