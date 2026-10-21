@@ -40,10 +40,11 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
     && may('create', target.kind === 'project' ? 'document' : 'procDoc');
   if (!allowed) return null;
 
-  async function reconnect() {
+  async function reconnect(folders: boolean) {
     setReconnectFailed(false);
     try {
-      const { authorizeUrl } = await initiateM365Connect();
+      // Incremental consent (RF-8): only the "needs the folder permission" case asks for it.
+      const { authorizeUrl } = await initiateM365Connect(folders ? { folders: true } : {});
       if (!isHttps(authorizeUrl)) throw new Error('unsafe');
       window.location.assign(authorizeUrl);
     } catch {
@@ -89,8 +90,10 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
             </Button>
           )}
           {failed?.remedy === 'reconnect' && (
-            <Button variant="outline" size="sm" onClick={() => { void reconnect(); }}>
-              {t('action.reconnect', 'Reconnect Microsoft')}
+            <Button variant="outline" size="sm" onClick={() => { void reconnect(failed.key === 'error.additionalConsent'); }}>
+              {failed.key === 'error.additionalConsent'
+                ? t('action.allowFolders', 'Allow folder creation')
+                : t('action.reconnect', 'Reconnect Microsoft')}
             </Button>
           )}
         </div>

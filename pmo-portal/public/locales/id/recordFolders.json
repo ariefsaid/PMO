@@ -2,6 +2,7 @@
   "action": {
     "create": "Buat folder di SharePoint",
     "choose": "Pilih folder yang ada",
+    "allowFolders": "Izinkan pembuatan folder",
     "reconnect": "Hubungkan ulang Microsoft"
   },
   "status": {
@@ -12,7 +13,7 @@
     "unavailable": "Microsoft tidak merespons. Buat folder nanti dari Dokumen."
   },
   "error": {
-    "additionalConsent": "Koneksi memerlukan izin tambahan. Minta admin Microsoft Anda menyetujuinya, lalu hubungkan ulang.",
+    "additionalConsent": "Pembuatan folder memerlukan satu izin tambahan dari Microsoft. Izinkan, lalu coba lagi.",
     "notConnected": "Hubungkan akun Microsoft Anda, lalu coba lagi.",
     "access": "Akses bergantung pada izin Microsoft Anda. Minta admin Microsoft Anda memeriksa akses pembuatan folder.",
     "defaultUnset": "Minta Admin untuk memilih pustaka dokumen bawaan.",

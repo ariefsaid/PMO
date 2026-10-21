@@ -155,7 +155,7 @@ describe('AC-M365DOC-071 RecordFolderAction — outcomes', () => {
   });
 
   it.each([
-    ['SCOPE_INSUFFICIENT', 'The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.'],
+    ['SCOPE_INSUFFICIENT', 'Creating folders needs one more permission from Microsoft. Allow it, then try again.'],
     ['FORBIDDEN', 'Access depends on your Microsoft permissions. Ask your Microsoft admin to check folder creation access.'],
     ['GRAPH_ERROR', 'Microsoft could not create or link this folder. Please try again.'],
   ])('%s shows reviewed copy with "Folder not linked." and never the raw marker', async (code, copy) => {
@@ -217,9 +217,20 @@ describe('AC-M365DOC-071 RecordFolderAction — outcomes', () => {
     mount(<RecordFolderAction target={project} hasFolder={false} />);
     const user = userEvent.setup();
     await user.click(createBtn()[0]);
-    await user.click(await screen.findByRole('button', { name: 'Reconnect Microsoft' }));
+    await user.click(await screen.findByRole('button', { name: 'Allow folder creation' }));
     expect(initiate).toHaveBeenCalledTimes(1);
+    expect(initiate).toHaveBeenCalledWith({ folders: true });
     expect((await screen.findByRole('alert')).textContent).not.toContain('javascript');
+  });
+
+  it('RF-8: a plain not-connected failure reconnects WITHOUT the folder permission', async () => {
+    ensure.mockRejectedValue(new AppError('x', 'NOT_CONNECTED'));
+    initiate.mockResolvedValue({ authorizeUrl: 'javascript:alert(1)', state: 's' });
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    const user = userEvent.setup();
+    await user.click(createBtn()[0]);
+    await user.click(await screen.findByRole('button', { name: 'Reconnect Microsoft' }));
+    expect(initiate).toHaveBeenCalledWith({});
   });
 
   it('a contactAdmin failure offers no reconnect', async () => {
