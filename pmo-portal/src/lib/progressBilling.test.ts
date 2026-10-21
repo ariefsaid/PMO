@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
-import { claimNet, prefillFromAssessment, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
+import { claimNet, prefillFromAssessment, prefillWorkOrderClaim, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
+import type { AllocationFacts, ContractLineFacts } from './progressBilling';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 200_000, dpBilled: 200_000,
   dpRecovered: 40_000, notSubmitted: 40_000, assessment: null,
-  claimedByBoqItem: { b1: 5 }, assessedByBoqItem: {},
+  claimedByBoqItem: { b1: 5 }, assessedByBoqItem: {}, earnedValue: 0, contractLines: [] as ContractLineFacts[],
+};
+
+const LINE: ContractLineFacts = {
+  boqItemId: 'b1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 1000, acceptedQuantity: 0,
+  closedFinal: 0, earnedQuantity: 0, contractBalance: 900, allocations: [],
 };
 
 describe('progress billing helpers', () => {
@@ -55,5 +61,55 @@ describe('progress billing helpers', () => {
   it('AC-PB-016 the assessment pre-fill is assessed less claimed, omitting lines not above zero', () => {
     expect(prefillFromAssessment(['b1', 'b2', 'b3'], { b1: 6, b2: 1, b3: 0.3 }, { b1: 4, b2: 3, b3: 0.1 })).toEqual({ b1: 2, b3: 0.2 });
     expect(prefillFromAssessment(['b1'], {}, { b1: 1 })).toEqual({});
+  });
+
+  it('AC-CQ-012 a project with contract lines reads assessed-to-date as the server earned value, not percent x contract', () => {
+    const summary = summarizeBilling({ ...FACTS, earnedValue: 450_000, contractLines: [LINE], assessment: { month: '2026-10-01', pctComplete: 60 } });
+    expect(summary.assessedToDate).toBe(450_000);
+    expect(summary.unbilledWork).toBe(250_000);
+  });
+
+  it('AC-CQ-012 a line project with no assessment still shows earned work (0 stays 0, not null) and the gap', () => {
+    const summary = summarizeBilling({ ...FACTS, earnedValue: 0, contractLines: [LINE] });
+    expect(summary.assessedToDate).toBe(0);
+    expect(summary.unbilledWork).toBe(-200_000);
+    expect(summarizeBilling({ ...FACTS, earnedValue: 300_000, contractLines: [LINE] }).assessedToDate).toBe(300_000);
+  });
+
+  it('AC-CQ-012 a project without lines keeps the percent method and the null no-assessment state', () => {
+    expect(summarizeBilling({ ...FACTS, earnedValue: 999 }).assessedToDate).toBeNull();
+    expect(summarizeBilling({ ...FACTS, earnedValue: 999, assessment: { month: '2026-10-01', pctComplete: 60 } }).assessedToDate).toBe(600_000);
+  });
+
+  it('AC-CQ-012 earned value subtracts billed work in exact cents', () => {
+    expect(summarizeBilling({ ...FACTS, workBilled: 0.1, earnedValue: 0.3, contractLines: [LINE] }).unbilledWork).toBe(0.2);
+  });
+});
+
+describe('work-order claim pre-fill (AC-CQ-013)', () => {
+  const alloc = (over: Partial<AllocationFacts>): AllocationFacts => ({
+    workOrderId: 'wo-1', boqItemId: 'b1', quantity: 10, claimedQuantity: 0, acceptedQuantity: null, final: false, ...over,
+  });
+
+  it('AC-CQ-013 with a confirmed BAST the suggestion is accepted less claimed on this work order', () => {
+    expect(prefillWorkOrderClaim([alloc({ acceptedQuantity: 8.125, claimedQuantity: 3 })], {}, {})).toEqual({ b1: 5.125 });
+  });
+
+  it('AC-CQ-013 a BAST of zero is a BAST: it suggests nothing even where assessment is higher', () => {
+    expect(prefillWorkOrderClaim([alloc({ acceptedQuantity: 0 })], { b1: 9 }, {})).toEqual({});
+  });
+
+  it('AC-CQ-013 without a BAST the suggestion is the smaller of assessed-less-claimed-everywhere and allocated-less-claimed-here', () => {
+    expect(prefillWorkOrderClaim([alloc({ claimedQuantity: 2 })], { b1: 9 }, { b1: 4 })).toEqual({ b1: 5 });
+    expect(prefillWorkOrderClaim([alloc({ claimedQuantity: 2 })], { b1: 9 }, { b1: 0 })).toEqual({ b1: 8 });
+  });
+
+  it('AC-CQ-013 an unmeasured line counts as zero assessed and is omitted', () => {
+    expect(prefillWorkOrderClaim([alloc({})], {}, {})).toEqual({});
+  });
+
+  it('AC-CQ-013 non-positive suggestions are omitted and arithmetic is exact in milli-units', () => {
+    const rows = [alloc({ boqItemId: 'b1', acceptedQuantity: 1, claimedQuantity: 2 }), alloc({ boqItemId: 'b2', acceptedQuantity: 0.3, claimedQuantity: 0.1 })];
+    expect(prefillWorkOrderClaim(rows, {}, {})).toEqual({ b2: 0.2 });
   });
 });
