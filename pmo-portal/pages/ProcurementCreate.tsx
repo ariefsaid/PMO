@@ -139,7 +139,7 @@ export default function ProcurementCreate() {
             <p className="mt-1 text-sm text-muted-foreground">{t('procurement:create.draftNote', 'This request remains a draft until you submit it.')}</p>
           </div>
           <Button type="submit" variant="primary" loading={saving || create.isPending || createItem.isPending}>
-            {t('common.save', 'Save')}
+            {t('procurement:create.save', 'Save')}
           </Button>
         </header>
         <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Request details')}>

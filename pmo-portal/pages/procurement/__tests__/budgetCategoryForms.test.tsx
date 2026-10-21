@@ -12,6 +12,7 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurementItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out', sub: 'PRJ-1' }] }),
   useVendorOptions: () => ({ data: [] }),
