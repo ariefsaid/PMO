@@ -8783,6 +8783,29 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_user_id: string }
         Returns: undefined
       }
+      m365_link_record_folder: {
+        Args: {
+          p_default_drive_id: string
+          p_default_site_id: string
+          p_kind: string
+          p_record_id: string
+          p_reference: Json
+          p_settings_updated_at: string
+        }
+        Returns: Json
+      }
+      m365_record_folder_candidates: {
+        Args: { p_after?: string; p_kind: string }
+        Returns: { id: string }[]
+      }
+      m365_record_folder_created: {
+        Args: { p_actor_id: string; p_drive_id: string; p_item_id: string; p_kind: string; p_record_id: string }
+        Returns: undefined
+      }
+      m365_record_folder_default_matches: {
+        Args: { p_drive: string; p_site: string; p_updated_at: string }
+        Returns: boolean
+      }
       m365_issue_document: {
         Args: {
           p_actor_id: string
