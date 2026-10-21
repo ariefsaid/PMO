@@ -14,6 +14,7 @@ import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInv
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
 import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
+import { ensureRecordFolder, linkExistingRecordFolders } from '@/src/lib/m365/recordFolders';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
 import { companyCollectionsRepository } from './companyCollections';
@@ -24,6 +25,7 @@ import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActiva
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import {
+  type M365RecordFoldersRepository,
   type IntegrationsRepository,
   type IntegrationBinding,
   type ConnectCredential,
@@ -840,6 +842,11 @@ const m365DocumentSettings: M365DocumentSettingsRepository = {
   setDefaultLibrary: (value) => wrap(() => setDefaultLibrary(value)),
 };
 
+const m365RecordFolders: M365RecordFoldersRepository = {
+  ensure: (target) => wrap(() => ensureRecordFolder(target)),
+  linkExisting: (cursor) => wrap(() => linkExistingRecordFolders(cursor)),
+};
+
 const budget: BudgetRepository = {
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
@@ -1262,6 +1269,7 @@ const reports: ReportsRepository = {
 export const repositories: Repositories = {
   fxRates: fxRatesRepository,
   m365DocumentSettings,
+  m365RecordFolders,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
