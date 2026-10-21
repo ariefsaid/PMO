@@ -59,9 +59,9 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   await page.goto('/procurement');
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
   await page.getByRole('button', { name: /raise request/i }).click();
-  const raise = page.getByRole('dialog');
-  await raise.getByLabel(/title/i).fill(title);
-  await raise.getByRole('button', { name: /create request/i }).click();
+  await expect(page).toHaveURL(/\/procurement\/new$/); // one-page create (#806)
+  await page.getByLabel(/title/i).fill(title);
+  await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 15_000 });
 
