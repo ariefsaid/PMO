@@ -36,6 +36,9 @@ const REQUIRED = {
   'supabase/functions/erpnext-onboard/onboard.test.ts': 'handleOnboardRequest',
   'supabase/functions/telegram-notify/index.test.ts': 'handleTelegramNotifyRequest',
   'supabase/functions/m365-token-custody/documentLinking.test.ts': 'handler',
+  'supabase/functions/m365-token-custody/recordFolders.test.ts': 'handler',
+  'supabase/functions/m365-token-custody/recordFolderWrite.test.ts': 'handler',
+  'supabase/functions/m365-token-custody/recordFolderBackfill.test.ts': 'handler',
 };
 
 /** Copy anti-patterns: a test re-implementing what it should import. */
