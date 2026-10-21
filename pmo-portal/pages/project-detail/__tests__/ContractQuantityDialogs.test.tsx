@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
@@ -217,8 +217,12 @@ describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
     const { onError, user } = renderModal({ onCreate });
     await user.type(screen.getByLabelText(/STATION —/), '2');
     await user.click(screen.getByRole('button', { name: 'Save STATION' }));
-    const dialogError = (await screen.findAllByRole('alert')).find((node) => node.textContent?.includes('STATION'));
-    expect(dialogError).toBeDefined();
+    // findAllByRole resolves on the FIRST alert present; wait for the one that carries the line's error.
+    const dialogError = await waitFor(() => {
+      const node = screen.getAllByRole('alert').find((n) => n.textContent?.includes('STATION'));
+      expect(node).toBeDefined();
+      return node as HTMLElement;
+    });
     expect(dialogError).toHaveTextContent('closed');
     expect(screen.getByLabelText(/STATION —/)).toHaveValue('2');
     expect(onError).toHaveBeenCalled();
