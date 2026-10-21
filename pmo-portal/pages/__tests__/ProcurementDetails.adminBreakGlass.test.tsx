@@ -242,3 +242,7 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     expect(screen.queryByRole('button', { name: /Mark as Paid/i })).toBeNull();
   });
 });
+
+// Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
+vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

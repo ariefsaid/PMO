@@ -4922,5 +4922,42 @@
     "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
     "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien.",
     "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
+  },
+  "m365Documents": {
+    "procurement": {
+      "heading": "Referensi kasus",
+      "intro": "File dan folder SharePoint dan OneDrive yang ditautkan ke kasus ini. PMO menyimpan tautannya, bukan filenya.",
+      "link": "Tautkan dari Microsoft 365",
+      "linkRow": "Tautkan dari Microsoft 365",
+      "linkRowAria": "Tautkan {{type}} dari Microsoft 365",
+      "colType": "Jenis",
+      "colReference": "Referensi",
+      "colDate": "Tanggal",
+      "colStatus": "Status",
+      "colActions": "Aksi",
+      "emptyTitle": "Belum ada referensi",
+      "emptySub": "Tautkan file atau folder SharePoint atau OneDrive ke kasus ini.",
+      "emptySubReadOnly": "Belum ada yang ditautkan ke kasus ini.",
+      "errorTitle": "Referensi kasus tidak dapat dimuat",
+      "errorSub": "Periksa koneksi Anda lalu coba lagi.",
+      "noFile": "Belum ada file tertaut",
+      "legacyNote": "Tautan biasa, bukan dari Microsoft 365",
+      "openLegacy": "Buka dokumen tertaut",
+      "legacyUnsafe": "Tautan ini tidak dapat dibuka.",
+      "unlink": "Lepas tautan",
+      "unlinkAria": "Lepas tautan {{name}}",
+      "unlinkTitle": "Lepas tautan referensi ini",
+      "unlinkBody": "Ini hanya menghapus referensi di PMO. Item yang tersimpan di Microsoft 365 tidak diubah atau dihapus, dan baris tetap menyimpan jenis, status, nomor referensi, dan tanggalnya.",
+      "clearLegacy": "Hapus tautan",
+      "clearAria": "Hapus tautan pada {{type}}",
+      "clearTitle": "Hapus tautan ini",
+      "clearBody": "Ini menghapus alamat web yang tersimpan dari baris ini. Baris tetap menyimpan jenis, status, nomor referensi, dan tanggalnya.",
+      "changeFailed": "Referensi tidak berubah. Periksa izin Anda lalu coba lagi.",
+      "detailsTitle": "Tambah referensi kasus",
+      "detailsSubmit": "Tautkan referensi",
+      "refNumber": "Nomor referensi (opsional)",
+      "refDate": "Tanggal (opsional)",
+      "createFailed": "Tidak dapat menambahkan referensi ini."
+    }
   }
 }

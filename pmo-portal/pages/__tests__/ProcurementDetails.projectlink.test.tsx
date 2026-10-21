@@ -222,3 +222,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks.length).toBe(0);
   });
 });
+
+// Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
+vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
