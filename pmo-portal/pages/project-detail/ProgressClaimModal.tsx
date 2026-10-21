@@ -5,7 +5,7 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, formatUtcMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
-import { prefillFromAssessment, suggestedRecoveryPct, type ContractLineFacts } from '@/src/lib/progressBilling';
+import { fractionToPercentInput, percentToFraction, prefillFromAssessment, suggestedRecoveryPct, type ContractLineFacts } from '@/src/lib/progressBilling';
 import { prefillForWorkOrder } from '@/src/lib/contractQuantityPrefill';
 import type { BoqItemRow, ProgressClaimInput } from '@/src/lib/db/progressBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -92,6 +92,15 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
     for (const line of inScope) {
       const raw = (quantities[line.id] ?? '').trim();
       if (raw === '') continue;
+      if (line.earning_basis === 'lump_sum') {
+        const pct = parseMoneyInputAtScale(raw, 1);
+        if (pct === null || pct <= 0 || pct > 100) {
+          errs[line.id] = t('projectTabs:contractQuantities.billing.claimForm.errors.percent', 'Enter a percentage above 0 and up to 100 with at most 1 decimal place');
+        } else {
+          lines.push({ boqItemId: line.id, quantity: percentToFraction(pct) });
+        }
+        continue;
+      }
       const quantity = parseMoneyInputAtScale(raw, 3);
       if (quantity === null || quantity <= 0) {
         errs[line.id] = t('projectDetail.billing.claimForm.errors.quantity', 'Each quantity must be above 0 with at most 3 decimal places');
@@ -122,8 +131,11 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       .finally(() => setSaving(false));
   };
 
+  const lumpSumIds = new Set(inScope.filter((line) => line.earning_basis === 'lump_sum').map((line) => line.id));
   const applyPrefill = () =>
-    setQuantities(Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => [id, formatMoneyInputValue(quantity)])));
+    setQuantities(Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => [
+      id, lumpSumIds.has(id) ? fractionToPercentInput(quantity) : formatMoneyInputValue(quantity),
+    ])));
 
   return (
     <EntityFormModal
@@ -178,7 +190,9 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
             <FormGrid>
               {inScope.map((line) => (
                 <NumberField key={line.id} id={`claim-qty-${line.id}`}
-                  label={t('projectDetail.billing.claimForm.quantity', '{{item}} — {{description}} ({{unit}})',
+                  label={line.earning_basis === 'lump_sum'
+                    ? t('projectTabs:contractQuantities.billing.claimForm.percentLine', '{{item}} — % to bill', { item: `${line.item_code} — ${line.description}` })
+                    : t('projectDetail.billing.claimForm.quantity', '{{item}} — {{description}} ({{unit}})',
                     { item: line.item_code, description: line.description, unit: line.unit })}
                   value={quantities[line.id] ?? ''}
                   onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))}

@@ -147,3 +147,37 @@ describe('ProgressClaimModal contract-quantity pre-fill', () => {
     expect(screen.queryByLabelText(/SURVEY/)).toBeNull();
   });
 });
+
+describe('AC-CQ-014 ProgressClaimModal lump-sum percent (DD-CQ-1)', () => {
+  const LUMP = { ...line('l1', 'MOBILISE', 'Mobilisation', 'lot'), earning_basis: 'lump_sum', quantity: 1 } as BoqItemRow;
+  const FACTS_L = [{ ...lineFacts('l1', [allocFacts('wo-1', 'l1', 1, 0, null)]), earningBasis: 'lump_sum' as const }];
+  const setup = () => renderModal({
+    boqItems: [LUMP, BOQ[0]], allocations: [alloc('al9', 'wo-1', 'l1', 1)], contractLines: FACTS_L,
+    claimedByBoqItem: {}, assessedByBoqItem: { l1: 0.4 },
+  });
+
+  it('AC-CQ-014 the pre-filled fraction 0.4 shows as 40 percent', async () => {
+    const { user } = setup();
+    await user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+    expect(screen.getByLabelText(/MOBILISE.*%/)).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: /Start from the .* assessment/ }));
+    expect(screen.getByLabelText(/MOBILISE.*%/)).toHaveValue('40');
+  });
+
+  it('AC-CQ-014 typing 40 sends the 0.4 fraction', async () => {
+    const { onSave, user } = setup();
+    await user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+    await user.type(screen.getByLabelText(/MOBILISE.*%/), '40');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith({ kind: 'progress', workOrderId: 'wo-1', lines: [{ boqItemId: 'l1', quantity: 0.4 }], recoverRemaining: false });
+  });
+
+  it.each(['100.1', '40.01', '0'])('AC-CQ-014 %s percent is refused with an inline error', async (value) => {
+    const { onSave, user } = setup();
+    await user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+    await user.type(screen.getByLabelText(/MOBILISE.*%/), value);
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect((await screen.findAllByText('Enter a percentage above 0 and up to 100 with at most 1 decimal place')).length).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
