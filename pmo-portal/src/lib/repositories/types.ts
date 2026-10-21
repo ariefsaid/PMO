@@ -353,6 +353,7 @@ export interface DocumentRepository {
     parentId: string,
     input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
     authorId: string | null,
+    microsoft?: MicrosoftReferenceInput,
   ): Promise<ProjectDocumentRow>;
   /** Get the child (successor) document for lineage display. */
   getChild(parentId: string): Promise<ProjectDocumentRow | null>;

@@ -4922,5 +4922,21 @@
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
     "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
     "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
+  },
+  "m365Documents": {
+    "linkFromMicrosoft": "From Microsoft 365",
+    "link": "Link from Microsoft 365",
+    "linked": "Microsoft item linked",
+    "unlink": "Unlink Microsoft item",
+    "unlinkTitle": "Unlink {{title}}?",
+    "unlinkBody": "Only the PMO reference is removed. The Microsoft item is unchanged.",
+    "unlinkConfirm": "Unlink",
+    "unlinked": "Reference removed",
+    "checkingConnection": "Checking your Microsoft 365 connection…",
+    "referenceOnly": "Folder reference — contents are not issued or approved",
+    "newRevisionFromLatest": "Make new revision from latest file update",
+    "revisionLatestNote": "The new revision will reference the latest Microsoft file: {{name}}.",
+    "latestFailedTitle": "Could not read the latest file",
+    "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry."
   }
 }

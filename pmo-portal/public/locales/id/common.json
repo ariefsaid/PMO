@@ -4922,5 +4922,21 @@
     "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
     "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien.",
     "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
+  },
+  "m365Documents": {
+    "linkFromMicrosoft": "Dari Microsoft 365",
+    "link": "Tautkan dari Microsoft 365",
+    "linked": "Item Microsoft ditautkan",
+    "unlink": "Lepas tautan item Microsoft",
+    "unlinkTitle": "Lepas tautan {{title}}?",
+    "unlinkBody": "Hanya referensi PMO yang dihapus. Item Microsoft tidak berubah.",
+    "unlinkConfirm": "Lepas tautan",
+    "unlinked": "Referensi dihapus",
+    "checkingConnection": "Memeriksa koneksi Microsoft 365 Anda…",
+    "referenceOnly": "Referensi folder — isi folder tidak diterbitkan atau disetujui",
+    "newRevisionFromLatest": "Buat revisi baru dari pembaruan file terbaru",
+    "revisionLatestNote": "Revisi baru akan merujuk file Microsoft terbaru: {{name}}.",
+    "latestFailedTitle": "Tidak dapat membaca file terbaru",
+    "latestFailed": "Microsoft tidak dapat memuat file ini. Periksa akses dan ketersediaan SharePoint dengan admin Microsoft Anda, atau coba lagi."
   }
 }

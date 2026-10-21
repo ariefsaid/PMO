@@ -480,8 +480,8 @@ const document: DocumentRepository = {
   confirmUpload: (docId, path) => wrap(() => confirmUpload(docId, path)),
   cleanupObject: (filePath) => wrap(() => cleanupStorageObject(filePath)),
   getSignedUrl: (filePath, opts) => wrap(() => getSignedDownloadUrl(filePath, opts)),
-  createRevision: (parentId, input, authorId) =>
-    wrap(() => createDocumentRevision(parentId, input, authorId)),
+  createRevision: (parentId, input, authorId, microsoft) =>
+    wrap(() => createDocumentRevision(parentId, input, authorId, microsoft)),
   getChild: (parentId) => wrap(() => getChildDocument(parentId)),
 };
 

@@ -6,6 +6,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import { useAuth } from '@/src/auth/useAuth';
+import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
  * Per-project document register over the repository seam (ADR-0017). queryKey is
@@ -41,6 +42,11 @@ export function useChildDocument(parentId: string | null) {
 export interface UpdateDocumentArgs {
   id: string;
   input: ProjectDocumentInput;
+}
+
+export interface LinkArgs {
+  id: string;
+  reference: MicrosoftReferenceInput;
 }
 
 export interface TransitionDocumentArgs {
@@ -85,5 +91,17 @@ export function useDocumentMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, transition, remove };
+  // Reference link/unlink over the repository seam: one ordinary UPDATE each, no optimistic
+  // overwrite — the register refetches, so a failed collision keeps the row's current source.
+  const link = useMutation({
+    mutationFn: ({ id, reference }: LinkArgs) => repositories.document.linkMicrosoftDocument(id, reference),
+    onSuccess: invalidate,
+  });
+
+  const unlink = useMutation({
+    mutationFn: (id: string) => repositories.document.unlinkMicrosoftDocument(id),
+    onSuccess: invalidate,
+  });
+
+  return { create, update, transition, remove, link, unlink };
 }
