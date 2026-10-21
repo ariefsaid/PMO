@@ -268,6 +268,69 @@ describe('erpnext/purchaseMirrorFeed', () => {
     }
   });
 
+  it.each(['read', 'rpc', 'checkpoint'] as const)('bounds a stalled database %s operation to the pass budget', async (phase) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const h = harness({ 'Purchase Order': [PO] });
+      const pending = () => new Promise<never>(() => {});
+      if (phase === 'rpc') h.rpc.mockImplementationOnce(pending);
+      const read = { select: () => read, eq: () => read, maybeSingle: pending };
+      const sc = {
+        rpc: h.rpc,
+        from: (table: string) => phase === 'read' ? read : phase === 'checkpoint' ? { ...(h.fake.from(table) as Record<string, unknown>), upsert: pending } : h.fake.from(table),
+      };
+      let settled = false;
+      const result = feedPurchaseMirror(sc as never, { client: h.client, orgId: 'org-1', company: 'Example Co' }).then(
+        () => { settled = true; return null; },
+        (error: unknown) => { settled = true; return error; },
+      );
+      await vi.advanceTimersByTimeAsync(25000);
+      expect(settled).toBe(true);
+      expect(await result).toMatchObject({ code: 'external-unreachable', message: 'Purchase mirror pass deadline exceeded' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not begin a page write after its budget has elapsed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const h = harness({});
+      h.client.fetchImpl = vi.fn(async () => {
+        vi.setSystemTime(25000);
+        return new Response(JSON.stringify({ data: [PO] }), { status: 200 });
+      }) as unknown as typeof fetch;
+      await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('Purchase mirror pass deadline exceeded');
+      expect(h.rpc).not.toHaveBeenCalled();
+      expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves the cursor replayable if a timed-out page write completes later', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const h = harness({ 'Purchase Order': [PO] });
+      let acknowledge!: (value: { data: number; error: null }) => void;
+      h.rpc.mockImplementationOnce(() => new Promise((resolve) => { acknowledge = resolve; }));
+      const result = expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('Purchase mirror pass deadline exceeded');
+      await vi.advanceTimersByTimeAsync(25000);
+      await result;
+      acknowledge({ data: 1, error: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
+      await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+      expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
+      expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({ watermark_cursor: JSON.stringify({ version: 2, modified: PO.modified }) }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('refuses to run without a company', async () => {
     const h = harness({});
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: ' ' })).rejects.toThrow(/company/);

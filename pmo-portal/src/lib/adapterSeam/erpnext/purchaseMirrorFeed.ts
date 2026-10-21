@@ -120,22 +120,38 @@ async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company
   return rows as Record<string, unknown>[];
 }
 
-async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: string, previous: string | null, next: string): Promise<void> {
+async function withinBudget<T>(deadline: number, operation: () => PromiseLike<T>): Promise<T> {
+  const remainingMs = deadline - Date.now();
+  if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable')), remainingMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: string, previous: string | null, next: string, deadline: number): Promise<void> {
   const table = sc.from('external_sync_watermarks');
   if (previous === null) {
-    const { error } = await table.upsert({ org_id: orgId, external_tier: 'erpnext', domain, watermark_cursor: next },
-      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true });
+    const { error } = await withinBudget(deadline, () => table.upsert({ org_id: orgId, external_tier: 'erpnext', domain, watermark_cursor: next },
+      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true }));
     if (error) throw new AppError(error.message, error.code);
   } else {
-    const { count, error } = await table.update({ watermark_cursor: next }, { count: 'exact' })
-      .eq('org_id', orgId).eq('external_tier', 'erpnext').eq('domain', domain).eq('watermark_cursor', previous);
+    const { count, error } = await withinBudget(deadline, () => table.update({ watermark_cursor: next }, { count: 'exact' })
+      .eq('org_id', orgId).eq('external_tier', 'erpnext').eq('domain', domain).eq('watermark_cursor', previous));
     if (error) throw new AppError(error.message, error.code);
     if (count === 0) {
-      const current = await readWm(sc, orgId, domain);
+      const current = await withinBudget(deadline, () => readWm(sc, orgId, domain));
       if (current !== next) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
     }
   }
-  const stored = await readWm(sc, orgId, domain);
+  const stored = await withinBudget(deadline, () => readWm(sc, orgId, domain));
   if (stored !== next && stored !== previous) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
 }
 
@@ -151,8 +167,8 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
-    const stored = await readWm(sc, opts.orgId, domain);
-    const legacy = stored === null ? await readWm(sc, opts.orgId, purchaseWmDomain(doctype)) : null;
+    const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
+    const legacy = stored === null ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
     pending.push({ doctype, domain, stored, cursor: parseCursor(stored ?? legacy), equalityDone: false });
   }
 
@@ -170,7 +186,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
         pending.push(state);
       } else if (cursor) {
         const canonical = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
-        if (canonical !== state.stored) await saveCursor(sc, opts.orgId, domain, state.stored, canonical);
+        if (canonical !== state.stored) await saveCursor(sc, opts.orgId, domain, state.stored, canonical, deadline);
       }
       continue;
     }
@@ -181,7 +197,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       const existing = pageLatest.get(row.erp_name);
       if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
     }
-    const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] });
+    const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
     if (error) throw new AppError(error.message, error.code);
     fed += Number(data ?? 0);
     wroteAny = true;
@@ -191,7 +207,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       ? { version: CURSOR_VERSION, modified: String(last.modified) }
       : { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
     const next = encodeCursor(state.cursor);
-    await saveCursor(sc, opts.orgId, domain, state.stored, next);
+    await saveCursor(sc, opts.orgId, domain, state.stored, next, deadline);
     state.stored = next;
     if (!completed) {
       state.equalityDone = rows.length < PAGE_SIZE;
@@ -199,7 +215,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
     }
   }
   if (!wroteAny) {
-    const { error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] });
+    const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
     if (error) throw new AppError(error.message, error.code);
   }
   return { fed, caughtUp: pending.length === 0 };
