@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { readPair } from './check-m365-record-folder-reversal.mjs';
 
-test('0335 rollback is limited to its four RPCs and three indexes', () => {
+test('0336 rollback is limited to its four RPCs and three indexes', () => {
   const { up, down } = readPair();
   for (const name of ['m365_link_record_folder','m365_record_folder_created','m365_record_folder_candidates','m365_record_folder_default_matches']) {
     assert.match(up, new RegExp(`function public\\.${name}\\(`));

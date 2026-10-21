@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const upPath = new URL('../supabase/migrations/0335_m365_record_folders.sql', import.meta.url);
-const downPath = new URL('../supabase/migrations/rollback/0335_m365_record_folders_down.sql', import.meta.url);
+const upPath = new URL('../supabase/migrations/0336_m365_record_folders.sql', import.meta.url);
+const downPath = new URL('../supabase/migrations/rollback/0336_m365_record_folders_down.sql', import.meta.url);
 const container = 'supabase_db_pmo-portal';
 export function readPair(up = fs.readFileSync(upPath,'utf8'), down = fs.readFileSync(downPath,'utf8')) {
   return { up, down };
