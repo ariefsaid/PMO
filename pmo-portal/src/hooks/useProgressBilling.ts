@@ -45,7 +45,7 @@ export function useProgressBillingMutations(projectId: string) {
   // ADR-0091: a BoQ line's quantity/rate/basis feeds the allocations and BAST quantities that cite it.
   const invalidateBoq = () => {
     invalidate();
-    void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId, projectId] });
+    void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
     void qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
   };
   const createBoq = useMutation({ mutationFn: (input: BoqItemInput) => repositories.progressBilling.createBoq(projectId, input), onSuccess: invalidateBoq });

@@ -23,16 +23,6 @@ export function useProjectWorkOrderLines(projectId: string) {
   });
 }
 
-/** The allocations of one work order; keyed by work order so the dialog refetches authoritative rows. */
-export function useWorkOrderLines(workOrderId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-lines', orgId, workOrderId],
-    queryFn: () => repositories.workOrderAcceptance.listLines(workOrderId),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
-}
-
 /**
  * Cache design (ADR-0091). Allocation writes refresh the allocation lists and the billing summary (ordered and
  * balance facts). Preparing or withdrawing a BAST refreshes the acceptances only — it moves no money. Confirming

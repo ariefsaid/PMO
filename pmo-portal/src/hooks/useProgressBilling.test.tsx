@@ -76,10 +76,12 @@ describe('useProgressBillingMutations', () => {
     h.deleteBoq.mockResolvedValue(undefined);
     const { result, keys } = setup();
     const dependent = [
-      JSON.stringify(['work-order-lines', 'org-1', 'p1']),
+      JSON.stringify(['work-order-lines', 'org-1']),
       JSON.stringify(['work-order-acceptances', 'org-1', 'p1']),
       JSON.stringify(['project-billing', 'org-1', 'p1']),
     ];
+    // The prefix must actually match the project-wide allocations key the Work orders tab reads.
+    expect(['work-order-lines', 'org-1', 'project', 'p1'].slice(0, 2)).toEqual(JSON.parse(dependent[0]));
     await act(async () => { await result.current.createBoq.mutateAsync({} as never); });
     expect(keys()).toEqual(expect.arrayContaining(dependent));
     await act(async () => { await result.current.deleteBoq.mutateAsync('b1'); });

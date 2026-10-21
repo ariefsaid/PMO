@@ -5,7 +5,7 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({
   listByProject: vi.fn(async () => [{ id: 'a1', lines: [] }]),
-  listLines: vi.fn(async () => [{ id: 'l1' }]),
+  listProjectLines: vi.fn(async () => [{ id: 'l1' }]),
   createLine: vi.fn(async () => ({ id: 'l1' })),
   updateLine: vi.fn(async () => undefined),
   deleteLine: vi.fn(async () => undefined),
@@ -17,7 +17,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: 
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 
-import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useWorkOrderLines } from './useWorkOrderAcceptances';
+import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines } from './useWorkOrderAcceptances';
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -38,20 +38,21 @@ describe('contract-quantity read hooks', () => {
     expect(client.getQueryData(['work-order-acceptances', 'org-1', 'p1'])).toEqual([{ id: 'a1', lines: [] }]);
   });
 
-  it('AC-CQ-015 allocations are keyed by org and work order', async () => {
+  it('AC-CQ-015 allocations are one project query under an org-scoped key', async () => {
     const { client, wrapper } = setup();
-    const { result } = renderHook(() => useWorkOrderLines('wo-1'), { wrapper });
+    const { result } = renderHook(() => useProjectWorkOrderLines('p1'), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(client.getQueryData(['work-order-lines', 'org-1', 'wo-1'])).toEqual([{ id: 'l1' }]);
+    expect(h.listProjectLines).toHaveBeenCalledWith('p1');
+    expect(client.getQueryData(['work-order-lines', 'org-1', 'project', 'p1'])).toEqual([{ id: 'l1' }]);
   });
 
   it('AC-CQ-015 nothing is fetched without an org or an id', () => {
     auth.orgId = undefined;
     const { wrapper } = setup();
     renderHook(() => useWorkOrderAcceptances('p1'), { wrapper });
-    renderHook(() => useWorkOrderLines('wo-1'), { wrapper });
+    renderHook(() => useProjectWorkOrderLines('p1'), { wrapper });
     expect(h.listByProject).not.toHaveBeenCalled();
-    expect(h.listLines).not.toHaveBeenCalled();
+    expect(h.listProjectLines).not.toHaveBeenCalled();
   });
 });
 
