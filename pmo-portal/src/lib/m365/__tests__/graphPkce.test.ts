@@ -12,6 +12,7 @@ import {
   buildAuthorizeUrl,
   buildAdminConsentUrl,
   M365_PHASE1_DATA_SCOPES,
+  M365_FOLDER_SCOPES,
 } from '../graphPkce';
 
 // RFC 7636 §4.1 unreserved charset: ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -165,14 +166,18 @@ describe('buildAdminConsentUrl (step 2 — org approval)', () => {
   it('AC-M365SEP-013: includes the Graph-qualified Phase-1 data scopes, excluding OIDC protocol scopes', () => {
     const url = new URL(buildAdminConsentUrl(baseParams));
     expect(url.searchParams.get('scope')).toBe(
-      'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/Sites.Selected',
+      'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All',
     );
   });
 
-  it('AC-M365DOC-070: personal and Admin consent request the same data scopes, Sites.Selected included, never a broad write', () => {
-    expect(M365_PHASE1_DATA_SCOPES).toContain('Sites.Selected');
+  it('AC-M365DOC-070: Sites.Selected is a SEPARATE opt-in scope; the default data scopes are read-only exactly as before', () => {
+    expect(M365_FOLDER_SCOPES).toEqual(['Sites.Selected']);
+    expect(M365_PHASE1_DATA_SCOPES).toEqual(['Files.Read', 'Files.Read.All', 'Sites.Read.All']);
+    expect(M365_PHASE1_DATA_SCOPES).not.toContain('Sites.Selected');
+  });
+
+  it('AC-M365DOC-070: personal and Admin consent request the same read-only data scopes, never a broad write', () => {
     expect(M365_PHASE1_DATA_SCOPES).toEqual(expect.arrayContaining(['Files.Read', 'Files.Read.All', 'Sites.Read.All']));
-    expect(M365_PHASE1_DATA_SCOPES.filter((scope) => scope === 'Sites.Selected')).toHaveLength(1);
     expect(M365_PHASE1_DATA_SCOPES.some((scope) => /ReadWrite/u.test(scope))).toBe(false);
     const personal = new URL(buildAuthorizeUrl({
       tenant: baseParams.tenant,

@@ -73,7 +73,7 @@ describe('AC-M365DOC-071 — record folder copy map', () => {
   });
 
   it('an unknown or internal outcome is the generic failure, not a success', () => {
-    expect(recordFolderOutcomeCopy({ state: 'not_found' }).ok).toBe(false);
+    expect(recordFolderOutcomeCopy({ state: 'not_found' } as never).ok).toBe(false);
     expect(recordFolderOutcomeCopy({ state: 'surprise' } as never).key).toBe('error.generic');
     expect(recordFolderOutcomeCopy(undefined as never).key).toBe('error.generic');
   });

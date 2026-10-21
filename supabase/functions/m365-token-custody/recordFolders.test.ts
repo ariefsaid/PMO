@@ -7,7 +7,11 @@ import {
   CASE_ID,
   caseRow,
   DRIVE,
-  emptySearch,
+  child,
+  childrenOf,
+  discoverProjects,
+  emptyDiscovery,
+  emptyListing,
   folderItem,
   gget,
   gpost,
@@ -24,8 +28,7 @@ import {
   READ_SCOPES,
   ROOT,
   rpcBodies,
-  SEARCH,
-  searchHit,
+  PROJECTS_ID,
   settingsRow,
   SITE,
   tableCalls,
@@ -74,7 +77,7 @@ Deno.test("AC-M365DOC-069 served ensure reads the parent and register under the 
         assertEquals(read?.headers.get("authorization"), `Bearer ${token}`, table);
       }
       const [parent] = tableCalls(calls, "projects");
-      assertEquals(parent!.url.searchParams.get("select"), "id,org_id,code,name"); // code, never pmo_project_number
+      assertEquals(parent!.url.searchParams.get("select"), "id,org_id,code,pmo_project_number,name"); // identity = coalesce(code, pmo_project_number)
     });
   });
   for (const role of ["Engineer", "Viewer", "Operator"]) {
@@ -145,6 +148,10 @@ Deno.test("AC-M365DOC-071 settings and identifiers degrade to safe outcomes with
       assertEquals(await outcome(newWorld({ parent: [projectRow({ code })] })), { state: "missing_identifier" }, String(code));
     }
   });
+  await t.step("project identity is coalesce(code, pmo_project_number); only both empty => missing_identifier", async () => {
+    assertEquals(await outcome(newWorld({ parent: [projectRow({ code: " ", pmo_project_number: "" })] })), { state: "missing_identifier" });
+    assertEquals(await outcome(newWorld({ parent: [projectRow({ code: null, pmo_project_number: null })] })), { state: "missing_identifier" });
+  });
   await t.step("case identity is coalesce(pr_number, code); neither => missing_identifier; bad timestamp too", async () => {
     assertEquals(await outcome(newWorld({ parent: [caseRow({ pr_number: null, code: null })] }), ensureCase), { state: "missing_identifier" });
     assertEquals(await outcome(newWorld({ parent: [caseRow({ pr_number: " ", code: "" })] }), ensureCase), { state: "missing_identifier" });
@@ -191,7 +198,7 @@ Deno.test("AC-M365DOC-070 ensure requires the stored Sites.Selected consent BEFO
   });
   for (const scopes of [["Files.Read", "Sites.Selected"], ["Files.Read", "https://graph.microsoft.com/Sites.Selected"]]) {
     await t.step(`bare or Graph-qualified Sites.Selected (${scopes[1]}) is accepted`, async () => {
-      await run(newWorld({ scopes, graph: [emptySearch(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [] }))] }), async ({ call }) => {
+      await run(newWorld({ scopes, graph: [emptyListing(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [] }))] }), async ({ call }) => {
         const response = await call(ensureProject);
         assert(response.status !== 403 || (await response.json()).error !== "SCOPE_INSUFFICIENT");
       });
@@ -201,15 +208,13 @@ Deno.test("AC-M365DOC-070 ensure requires the stored Sites.Selected consent BEFO
 
 // ── search / link (A18, A19) ───────────────────────────────────────────────────
 
-const PROJECT_PARENT = "/Projects";
-const hit = (id: string, name = "P-100 Synthetic project") => searchHit(id, name, PROJECT_PARENT);
-const pageUrl = (skip: string, path = `/drives/${DRIVE}/root/search(q='P-100')`) =>
-  `https://graph.microsoft.com/v1.0${encodeURI(path).replace(/'/g, "%27")}?$top=100&$skiptoken=${skip}`;
+const hit = (id: string, name = "P-100 Synthetic project") => folderItem(id, name, PROJECTS_ID);
+const pageUrl = (skip: string) => `https://graph.microsoft.com/v1.0/drives/${DRIVE}/items/${PROJECTS_ID}/children?$top=200&$skiptoken=${skip}`;
 
 Deno.test("AC-M365DOC-069 complete-versus-uncertain search: only an exhausted well-formed chain may link or create", async (t) => {
   const linkOnly = (graph: ReturnType<typeof newWorld>["graph"]) => newWorld({ graph });
   await t.step("one unique match links it with ONE caller-RLS RPC carrying the exact reference and settings snapshot", async () => {
-    const world = linkOnly([gget(SEARCH, () => jsonResponse({ value: [hit("match-1"), searchHit("other", "P-100 elsewhere", "/Archive"), { id: "f", name: "P-100.pdf", file: {} }] }))]);
+    const world = linkOnly([...discoverProjects(() => jsonResponse({ value: [hit("match-1"), folderItem("other", "P-200 other record", PROJECTS_ID), { id: "f", name: "P-100.pdf", file: {} }] }))]);
     await run(world, async ({ call, calls, token }) => {
       const response = await call(ensureProject);
       assertEquals(await response.json(), { state: "linked", document_id: LINK_ID });
@@ -229,16 +234,16 @@ Deno.test("AC-M365DOC-069 complete-versus-uncertain search: only an exhausted we
       assertEquals(calls.filter((c) => c.method !== "GET" && c.url.host === "graph.microsoft.com").length, 0);
     });
   });
-  await t.step("matching is case-insensitive prefix on the SANITIZED code; apostrophes are doubled in the query", async () => {
-    await run(newWorld({ parent: [projectRow({ code: "P/9'x" })], graph: [gget(SEARCH, (_c, path) => {
-      assertStringIncludes(path, "q='P 9''x'");
+  await t.step("matching is case-insensitive on the SANITIZED code with the strict boundary", async () => {
+    await run(newWorld({ parent: [projectRow({ code: "P/9'x" })], graph: [...discoverProjects((_c, path) => {
+      void path;
       return jsonResponse({ value: [hit("m", "p 9'x lower-case prefix")] });
     })] }), async ({ call }) => {
       assertEquals((await (await call(ensureProject)).json()).state, "linked");
     });
   });
   await t.step("an RPC already_linked winning a race propagates; an RPC error or empty result never becomes success", async () => {
-    const graph = [gget(SEARCH, () => jsonResponse({ value: [hit("match-1")] }))];
+    const graph = [...discoverProjects(() => jsonResponse({ value: [hit("match-1")] }))];
     await run(newWorld({ graph, link: () => jsonResponse({ document_id: LINK_ID, state: "already_linked" }) }), async ({ call }) => {
       assertEquals(await (await call(ensureProject)).json(), { state: "already_linked", document_id: LINK_ID });
     });
@@ -265,17 +270,17 @@ Deno.test("AC-M365DOC-069 complete-versus-uncertain search: only an exhausted we
     });
   });
   await t.step("several matches link none and ask for a choice; duplicate hits count once", async () => {
-    await run(linkOnly([gget(SEARCH, () => jsonResponse({ value: [hit("a"), hit("b", "P-100 second")] }))]), async ({ call, calls }) => {
+    await run(linkOnly([...discoverProjects(() => jsonResponse({ value: [hit("a"), hit("b", "P-100 second")] }))]), async ({ call, calls }) => {
       assertEquals(await (await call(ensureProject)).json(), { state: "needs_choice" });
       assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0);
     });
-    await run(linkOnly([gget(SEARCH, () => jsonResponse({ value: [hit("a"), hit("a")] }))]), async ({ call }) => {
+    await run(linkOnly([...discoverProjects(() => jsonResponse({ value: [hit("a"), hit("a")] }))]), async ({ call }) => {
       assertEquals((await (await call(ensureProject)).json()).state, "linked");
     });
   });
   await t.step("a unique match on page 1 plus an ambiguous one on page 3 never links early", async () => {
     let page = 0;
-    const world = linkOnly([gget(SEARCH, () => {
+    const world = linkOnly([...discoverProjects(() => {
       page += 1;
       return jsonResponse(page === 1
         ? { value: [hit("a")], "@odata.nextLink": pageUrl("p2") }
@@ -292,15 +297,15 @@ Deno.test("AC-M365DOC-069 complete-versus-uncertain search: only an exhausted we
   await t.step("uncertain searches (4th page, unsafe or cyclic link, malformed folder, failure) never link or create", async () => {
     const uncertain: Array<[string, ReturnType<typeof newWorld>["graph"]]> = [];
     let n = 0;
-    uncertain.push(["fourth page", [gget(SEARCH, () => jsonResponse({ value: [], "@odata.nextLink": pageUrl(`s${(n += 1)}`) }))]]);
-    uncertain.push(["foreign host", [gget(SEARCH, () => jsonResponse({ value: [], "@odata.nextLink": "https://evil.invalid/v1.0/x?$top=100" }))]]);
-    uncertain.push(["cyclic", [gget(SEARCH, () => jsonResponse({ value: [], "@odata.nextLink": pageUrl("same") }))]]);
-    uncertain.push(["folder without a webUrl", [gget(SEARCH, () => jsonResponse({ value: [{ ...hit("a"), webUrl: "javascript:x" }] }))]]);
-    uncertain.push(["folder without a path", [gget(SEARCH, () => jsonResponse({ value: [{ id: "a", name: "P-100 x", webUrl: webUrl("a"), folder: {}, parentReference: { driveId: DRIVE } }] }))]]);
-    uncertain.push(["non-array value", [gget(SEARCH, () => jsonResponse({ value: "nope" }))]]);
-    uncertain.push(["oversized page", [gget(SEARCH, () => jsonResponse({ value: Array.from({ length: 101 }, (_, i) => hit(`x${i}`, `zzz ${i}`)) }))]]);
-    uncertain.push(["search refused", [gget(SEARCH, () => graphError(403, "accessDenied"))]]);
-    uncertain.push(["search 503", [gget(SEARCH, () => graphError(503, "serviceNotAvailable"))]]);
+    uncertain.push(["page cap exhausted", [...discoverProjects(() => jsonResponse({ value: [], "@odata.nextLink": pageUrl(`s${(n += 1)}`) }))]]);
+    uncertain.push(["foreign host", [...discoverProjects(() => jsonResponse({ value: [], "@odata.nextLink": "https://evil.invalid/v1.0/x?$top=100" }))]]);
+    uncertain.push(["cyclic", [...discoverProjects(() => jsonResponse({ value: [], "@odata.nextLink": pageUrl("same") }))]]);
+    uncertain.push(["folder without a webUrl", [...discoverProjects(() => jsonResponse({ value: [{ ...hit("a"), webUrl: "javascript:x" }] }))]]);
+    uncertain.push(["folder in another drive", [...discoverProjects(() => jsonResponse({ value: [folderItem("a", "P-100 x", PROJECTS_ID, { parentReference: { driveId: "other-drive", id: PROJECTS_ID } })] }))]]);
+    uncertain.push(["non-array value", [...discoverProjects(() => jsonResponse({ value: "nope" }))]]);
+    uncertain.push(["oversized page", [...discoverProjects(() => jsonResponse({ value: Array.from({ length: 201 }, (_, i) => hit(`x${i}`, `zzz ${i}`)) }))]]);
+    uncertain.push(["search refused", [...discoverProjects(() => graphError(403, "accessDenied"))]]);
+    uncertain.push(["search 503", [...discoverProjects(() => graphError(503, "serviceNotAvailable"))]]);
     for (const [label, graph] of uncertain) {
       await run(newWorld({ graph }), async ({ call, calls }) => {
         const response = await call(ensureProject);
@@ -319,15 +324,13 @@ Deno.test("AC-M365DOC-069 complete-versus-uncertain search: only an exhausted we
 // ── create (A20, A21, A22, A23) ────────────────────────────────────────────────
 
 const created = (id: string, name: string, parentId: string) => new Response(JSON.stringify(folderItem(id, name, parentId)), { status: 201, headers: { "content-type": "application/json" } });
-const child = (parent: string, name: string) => `/drives/${DRIVE}/items/${parent}:/${name}`;
-const childrenOf = (parent: string) => `/drives/${DRIVE}/items/${parent}/children`;
 const postedName = (call: { bodyJson?: unknown }) => (call.bodyJson as { name: string }).name;
 
 Deno.test("AC-M365DOC-069 auto-link matches the record's code exactly or code + separator, never a longer code (P-1 vs P-10)", async (t) => {
   const p1 = [projectRow({ code: "P-1" })];
   await t.step("only P-10 Alpha present => no match => the folder is CREATED, not linked", async () => {
     await run(newWorld({ parent: p1, graph: [
-      gget(SEARCH, () => jsonResponse({ value: [hit("p10", "P-10 Alpha")] })),
+      ...discoverProjects(() => jsonResponse({ value: [hit("p10", "P-10 Alpha")] })),
       okDrives(), okRoot(),
       gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
       gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
@@ -338,7 +341,7 @@ Deno.test("AC-M365DOC-069 auto-link matches the record's code exactly or code + 
   });
   for (const name of ["P-1 Alpha", "p-1-alpha", "P-1", "P-1_x", "P-1.x"]) {
     await t.step(`'${name}' is linked`, async () => {
-      await run(newWorld({ parent: p1, graph: [gget(SEARCH, () => jsonResponse({ value: [hit("m1", name), hit("p10", "P-10 Alpha")] }))] }), async ({ call }) => {
+      await run(newWorld({ parent: p1, graph: [...discoverProjects(() => jsonResponse({ value: [hit("m1", name), hit("p10", "P-10 Alpha")] }))] }), async ({ call }) => {
         assertEquals((await (await call(ensureProject)).json()).state, "linked");
       });
     });
@@ -346,7 +349,7 @@ Deno.test("AC-M365DOC-069 auto-link matches the record's code exactly or code + 
 });
 
 Deno.test("AC-M365DOC-069 default drive is bound to the default site and parents are resolved only from server convention segments", async (t) => {
-  const base = [emptySearch(), okDrives(), okRoot()];
+  const base = [...emptyDiscovery(), okDrives()];
   await t.step("configured drive in the default site: Projects exists => leaf POST under it", async () => {
     await run(newWorld({ graph: [...base,
       gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
@@ -359,12 +362,12 @@ Deno.test("AC-M365DOC-069 default drive is bound to the default site and parents
   });
   await t.step("foreign configured drive, paginated membership, page cap and missing root all refuse before any write", async () => {
     const cases: Array<[string, ReturnType<typeof newWorld>["graph"]]> = [
-      ["foreign drive", [emptySearch(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [{ id: "someone-else" }] }))]],
-      ["membership refused", [emptySearch(), gget(`/sites/${SITE}/drives`, () => graphError(403, "accessDenied"))]],
-      ["membership cap", [emptySearch(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [], "@odata.nextLink": `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(SITE)}/drives?$top=100&$skiptoken=${Math.random()}` }))]],
-      ["root missing", [emptySearch(), okDrives(), gget(`/drives/${DRIVE}/root`, () => notFound())]],
-      ["root in another drive", [emptySearch(), okDrives(), gget(`/drives/${DRIVE}/root`, () => jsonResponse({ id: ROOT, folder: {}, parentReference: { driveId: "other" } }))]],
-      ["file named Projects", [...base, gget(child(ROOT, "Projects"), () => jsonResponse({ ...folderItem("projects-id", "Projects", ROOT), folder: undefined, file: {} }))]],
+      ["foreign drive", [...emptyDiscovery(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [{ id: "someone-else" }] }))]],
+      ["membership refused", [...emptyDiscovery(), gget(`/sites/${SITE}/drives`, () => graphError(403, "accessDenied"))]],
+      ["membership cap", [...emptyDiscovery(), gget(`/sites/${SITE}/drives`, () => jsonResponse({ value: [], "@odata.nextLink": `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(SITE)}/drives?$top=100&$skiptoken=${Math.random()}` }))]],
+      ["root missing", [okDrives(), gget(`/drives/${DRIVE}/root`, () => notFound())]],
+      ["root in another drive", [okDrives(), gget(`/drives/${DRIVE}/root`, () => jsonResponse({ id: ROOT, folder: {}, parentReference: { driveId: "other" } }))]],
+      ["file named Projects", [okRoot(), okDrives(), gget(child(ROOT, "Projects"), () => jsonResponse({ ...folderItem("projects-id", "Projects", ROOT), folder: undefined, file: {} }))]],
     ];
     for (const [label, graph] of cases) {
       await run(newWorld({ graph }), async ({ call, calls }) => {
@@ -375,26 +378,27 @@ Deno.test("AC-M365DOC-069 default drive is bound to the default site and parents
       });
     }
   });
-  await t.step("a paginated membership list is followed (pinned continuation) and finds the drive on page 2", async () => {
-    let page = 0;
-    await run(newWorld({ graph: [emptySearch(),
-      gget(`/sites/${SITE}/drives`, () => {
-        page += 1;
-        return jsonResponse(page === 1
-          ? { value: [{ id: "other" }], "@odata.nextLink": `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(SITE)}/drives?$top=100&$skiptoken=s2` }
-          : { value: [{ id: DRIVE }] });
-      }),
-      okRoot(),
-      gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
-      gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
-    ] }), async ({ call }) => {
-      assertEquals((await (await call(ensureProject)).json()).state, "created");
-      assertEquals(page, 2);
+  for (const [label, link] of [
+    ["encoded", `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(SITE)}/drives?$top=100&$select=id&$skiptoken=s2`],
+    ["literal commas, as Graph may send them", `https://graph.microsoft.com/v1.0/sites/${SITE}/drives?$top=100&$select=id&$skiptoken=s2`],
+  ] as const) {
+    await t.step(`a paginated membership list is followed (pinned continuation, ${label}) and finds the drive on page 2`, async () => {
+      let page = 0;
+      await run(newWorld({ graph: [...emptyDiscovery(),
+        gget(`/sites/${SITE}/drives`, () => {
+          page += 1;
+          return jsonResponse(page === 1 ? { value: [{ id: "other" }], "@odata.nextLink": link } : { value: [{ id: DRIVE }] });
+        }),
+        gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
+      ] }), async ({ call }) => {
+        assertEquals((await (await call(ensureProject)).json()).state, "created");
+        assertEquals(page, 2);
+      });
     });
-  });
+  }
   await t.step("a default that changes between search and first write is refused with NO write", async () => {
     let reads = 0;
-    const world = newWorld({ graph: [emptySearch(), okDrives(), okRoot()] });
+    const world = newWorld({ graph: [...emptyDiscovery(), okDrives()] });
     const original = world.settings;
     Object.defineProperty(world, "settings", { get: () => (reads += 1) >= 2 ? [settingsRow({ updated_at: "2026-10-21T09:30:00+00:00" })] : original });
     await run(world, async ({ call, calls }) => {
@@ -409,7 +413,7 @@ Deno.test("AC-M365DOC-069 default drive is bound to the default site and parents
 Deno.test("AC-M365DOC-069 lazy convention ancestors are created parent-first, only when missing, with folder-only bodies", async (t) => {
   const leafName = "P-100 Synthetic project";
   await t.step("missing Projects => Projects then leaf; each 201 is audited once, existing ancestors are not", async () => {
-    await run(newWorld({ graph: [emptySearch(), okDrives(), okRoot(),
+    await run(newWorld({ graph: [emptyListing(), okDrives(), okRoot(),
       gget(child(ROOT, "Projects"), () => notFound()),
       gpost(childrenOf(ROOT), (c) => created("projects-id", postedName(c), ROOT)),
       gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
@@ -427,7 +431,7 @@ Deno.test("AC-M365DOC-069 lazy convention ancestors are created parent-first, on
     });
   });
   await t.step("procurement: missing Procurement and missing UTC year; year follows created_at in UTC", async () => {
-    await run(newWorld({ parent: [caseRow({ created_at: "2025-12-31T23:30:00-05:00" })], graph: [emptySearch(), okDrives(), okRoot(),
+    await run(newWorld({ parent: [caseRow({ created_at: "2025-12-31T23:30:00-05:00" })], graph: [emptyListing(), okDrives(), okRoot(),
       gget(child(ROOT, "Procurement"), () => notFound()),
       gpost(childrenOf(ROOT), (c) => created("proc-id", postedName(c), ROOT)),
       gget(child("proc-id", "2026"), () => notFound()),
@@ -438,12 +442,10 @@ Deno.test("AC-M365DOC-069 lazy convention ancestors are created parent-first, on
       assertEquals(body.state, "created");
       assertEquals(graphCalls(calls).filter((c) => c.method === "POST").map((c) => postedName(c)), ["Procurement", "2026", "PR-0042 Synthetic case"]);
       assertEquals(rpcBodies(calls, "m365_record_folder_created").length, 3);
-      const search = graphCalls(calls).find((c) => SEARCH.test(c.url.pathname === "" ? "" : decodeURIComponent(c.url.pathname).replace(/^\/v1\.0/, "")))!;
-      assertStringIncludes(decodeURIComponent(search.url.pathname), "q='PR-0042'"); // pr_number, not code
     });
   });
   await t.step("all ancestors present => only the leaf POST and one receipt", async () => {
-    await run(newWorld({ graph: [emptySearch(), okDrives(), okRoot(),
+    await run(newWorld({ graph: [emptyListing(), okDrives(), okRoot(),
       gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
       gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
     ] }), async ({ call, calls }) => {
@@ -455,22 +457,26 @@ Deno.test("AC-M365DOC-069 lazy convention ancestors are created parent-first, on
 });
 
 Deno.test("AC-M365DOC-069 race-safe leaf creation: one 409 re-read, never a second POST, rename or suffix", async (t) => {
-  const prelude = [emptySearch(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
+  const prelude = [emptyListing(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
   const leaf = child("projects-id", "P-100 Synthetic project");
-  await t.step("409 nameAlreadyExists on the leaf => exact-path read => linked, NOT created, no receipt", async () => {
+  await t.step("409 nameAlreadyExists on the leaf => exact-path read => linked (not created), receipt recorded for the winner (FR-073)", async () => {
     await run(newWorld({ graph: [...prelude,
       gpost(childrenOf("projects-id"), () => graphError(409, "nameAlreadyExists")),
       gget(leaf, () => jsonResponse(folderItem("winner-id", "P-100 Synthetic project", "projects-id"))),
     ] }), async ({ call, calls }) => {
       assertEquals(await (await call(ensureProject)).json(), { state: "linked", document_id: LINK_ID });
       assertEquals(graphCalls(calls).filter((c) => c.method === "POST").length, 1);
-      assertEquals(rpcBodies(calls, "m365_record_folder_created").length, 0);
+      // Our POST was refused as a conflict: we cannot tell a racing creator from a create whose answer was lost,
+      // so the folder we link still gets its creation receipt (the unique identity index dedupes repeats).
+      assertEquals(rpcBodies(calls, "m365_record_folder_created"), [
+        { p_actor_id: USER, p_kind: "project", p_record_id: PROJECT_ID, p_drive_id: DRIVE, p_item_id: "winner-id" },
+      ]);
       assertEquals((rpcBodies(calls, "m365_link_record_folder")[0]!.p_reference as { item_id: string }).item_id, "winner-id");
     });
   });
   await t.step("409 on a convention ancestor reuses the winner exactly once", async () => {
-    await run(newWorld({ graph: [emptySearch(), okDrives(), okRoot(),
-      gget(child(ROOT, "Projects"), (() => { let n = 0; return () => (n += 1) === 1 ? notFound() : jsonResponse(folderItem("projects-id", "Projects", ROOT)); })()),
+    await run(newWorld({ graph: [emptyListing(), okDrives(), okRoot(),
+      gget(child(ROOT, "Projects"), (() => { let n = 0; return () => (n += 1) <= 2 ? notFound() : jsonResponse(folderItem("projects-id", "Projects", ROOT)); })()),
       gpost(childrenOf(ROOT), () => graphError(409, "nameAlreadyExists")),
       gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
     ] }), async ({ call, calls }) => {
@@ -512,7 +518,7 @@ Deno.test("AC-M365DOC-069 race-safe leaf creation: one 409 re-read, never a seco
 });
 
 Deno.test("AC-M365DOC-073 every confirmed 201 is audited before continuing; 409, matches and failures never are", async (t) => {
-  const prelude = [emptySearch(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
+  const prelude = [emptyListing(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
   await t.step("audit RPC failure stops before the link and keeps the 201 as a safe failure", async () => {
     await run(newWorld({
       graph: [...prelude, gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id"))],
@@ -548,7 +554,7 @@ Deno.test("AC-M365DOC-073 every confirmed 201 is audited before continuing; 409,
 });
 
 Deno.test("AC-M365DOC-071 failure table: stable codes, generic denial, rate limit, spent budget and a changed default never leak or compensate", async (t) => {
-  const prelude = [emptySearch(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
+  const prelude = [emptyListing(), okDrives(), okRoot(), gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT)))];
   const assertSafe = async (response: Response, label: string, calls: { method: string; url: URL }[]) => {
     const body = await response.json();
     assertEquals(Object.keys(body).sort(), ["error", "message"], label);
@@ -572,16 +578,16 @@ Deno.test("AC-M365DOC-071 failure table: stable codes, generic denial, rate limi
       assertEquals(body.error, "CONNECTION_REVOKED");
     });
   });
-  await t.step("the 15 second Graph budget is shared: a spent budget refuses further Graph work", async () => {
+  await t.step("the 12 second deadline is shared: a spent budget refuses further Graph work", async () => {
     const time = new FakeTime();
     try {
       await run(newWorld({ graph: [
-        gget(SEARCH, () => { time.tick(16_000); return jsonResponse({ value: [] }); }),
-        okDrives(), okRoot(),
+        gget(`/drives/${DRIVE}/root`, () => { time.tick(13_000); return jsonResponse({ id: ROOT, folder: {}, parentReference: { driveId: DRIVE } }); }),
+        okDrives(),
       ] }), async ({ call, calls }) => {
         const response = await call(ensureProject);
         assertEquals(response.status, 502);
-        assertEquals(graphCalls(calls).length, 1); // the membership read was refused without a fetch
+        assertEquals(graphCalls(calls).length, 1); // the next read was refused without a fetch
         assertEquals(graphCalls(calls).filter((c) => c.method === "POST").length, 0);
       });
     } finally {
@@ -592,7 +598,7 @@ Deno.test("AC-M365DOC-071 failure table: stable codes, generic denial, rate limi
     const time = new FakeTime();
     try {
       await run(newWorld({ graph: [
-        gget(SEARCH, (call) => new Promise<Response>((_resolve, reject) => call.signal.addEventListener("abort", () => reject(new Error("aborted"))))),
+        gget(`/drives/${DRIVE}/root`, (call) => new Promise<Response>((_resolve, reject) => call.signal.addEventListener("abort", () => reject(new Error("aborted"))))),
       ] }), async ({ call, calls }) => {
         let settled = false;
         const pending = call(ensureProject).finally(() => (settled = true));
@@ -611,7 +617,7 @@ Deno.test("AC-M365DOC-069 served ensure links, creates or requests choice idempo
   // Canonical AC-M365DOC-069 table: zero / one / two matches, an existing reference, a missing year
   // folder and a name with rejected characters, all through the shipped handler.
   await t.step("zero matches creates the sanitized <code> <name> under the convention path", async () => {
-    await run(newWorld({ parent: [projectRow({ code: "P:7", name: 'Tank "A"/B*' })], graph: [emptySearch(), okDrives(), okRoot(),
+    await run(newWorld({ parent: [projectRow({ code: "P:7", name: 'Tank "A"/B*' })], graph: [emptyListing(), okDrives(), okRoot(),
       gget(child(ROOT, "Projects"), () => jsonResponse(folderItem("projects-id", "Projects", ROOT))),
       gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
     ] }), async ({ call, calls }) => {
@@ -620,11 +626,11 @@ Deno.test("AC-M365DOC-069 served ensure links, creates or requests choice idempo
     });
   });
   await t.step("one match links without any write; two matches link none", async () => {
-    await run(newWorld({ graph: [gget(SEARCH, () => jsonResponse({ value: [hit("only")] }))] }), async ({ call, calls }) => {
+    await run(newWorld({ graph: [...discoverProjects(() => jsonResponse({ value: [hit("only")] }))] }), async ({ call, calls }) => {
       assertEquals((await (await call(ensureProject)).json()).state, "linked");
       assertEquals(graphCalls(calls).filter((c) => c.method !== "GET").length, 0);
     });
-    await run(newWorld({ graph: [gget(SEARCH, () => jsonResponse({ value: [hit("a"), hit("b", "P-100 b")] }))] }), async ({ call }) => {
+    await run(newWorld({ graph: [...discoverProjects(() => jsonResponse({ value: [hit("a"), hit("b", "P-100 b")] }))] }), async ({ call }) => {
       assertEquals((await (await call(ensureProject)).json()).state, "needs_choice");
     });
   });
@@ -635,7 +641,7 @@ Deno.test("AC-M365DOC-069 served ensure links, creates or requests choice idempo
     });
   });
   await t.step("a missing year folder is created first", async () => {
-    await run(newWorld({ parent: [caseRow()], graph: [emptySearch(), okDrives(), okRoot(),
+    await run(newWorld({ parent: [caseRow()], graph: [emptyListing(), okDrives(), okRoot(),
       gget(child(ROOT, "Procurement"), () => jsonResponse(folderItem("proc-id", "Procurement", ROOT))),
       gget(child("proc-id", "2026"), () => notFound()),
       gpost(childrenOf("proc-id"), (c) => created("year-id", postedName(c), "proc-id")),
@@ -648,7 +654,7 @@ Deno.test("AC-M365DOC-069 served ensure links, creates or requests choice idempo
 });
 
 Deno.test("AC-M365DOC-069 backend invariants: only the signed Microsoft calls, no content/storage/permission/descendant calls, no direct register or audit writes, no raw data in the result", async () => {
-  await run(newWorld({ graph: [emptySearch(), okDrives(), okRoot(),
+  await run(newWorld({ graph: [emptyListing(), okDrives(), okRoot(),
     gget(child(ROOT, "Projects"), () => notFound()),
     gpost(childrenOf(ROOT), (c) => created("projects-id", postedName(c), ROOT)),
     gpost(childrenOf("projects-id"), (c) => created("leaf-id", postedName(c), "projects-id")),
@@ -658,7 +664,8 @@ Deno.test("AC-M365DOC-069 backend invariants: only the signed Microsoft calls, n
     assertEquals(Object.keys(body).sort(), ["document_id", "state"]);
     for (const line of graphSummary(calls)) {
       assertFalse(/\/(content|versions|preview|permissions|invite|createLink|copy)/u.test(line), line);
-      assertFalse(line.startsWith("GET ") && line.endsWith("/children"), `no descendant enumeration: ${line}`);
+      assertFalse(line.includes("/search("), `no drive-wide search: ${line}`);
+      assertFalse(line.startsWith("GET ") && line.endsWith("/children"), `no listing without a convention parent: ${line}`);
     }
     assertEquals(graphSummary(calls).filter((l) => l.startsWith("POST ")).length, 2); // Projects + leaf only
     assertEquals(calls.filter((c) => c.url.pathname.startsWith("/storage/")).length, 0);
@@ -666,8 +673,25 @@ Deno.test("AC-M365DOC-069 backend invariants: only the signed Microsoft calls, n
     const restWrites = calls.filter((c) => c.url.pathname.startsWith("/rest/v1/") && !c.url.pathname.startsWith("/rest/v1/rpc/") && c.method !== "GET");
     assert(restWrites.every((c) => c.url.pathname === "/rest/v1/error_events"), "only observability rows may be written directly");
     const rpcs = new Set(calls.filter((c) => c.url.pathname.startsWith("/rest/v1/rpc/")).map((c) => c.url.pathname.split("/").pop()));
-    assertEquals([...rpcs].sort(), ["m365_link_record_folder", "m365_membership_state", "m365_record_folder_created"]);
+    assertEquals([...rpcs].sort(), ["m365_link_record_folder", "m365_membership_state", "m365_record_folder_created", "rate_limit_hit"]);
     // Only the folder's own bodies carry a name; nothing else Microsoft-bound has a body.
     assertEquals(graphCalls(calls).filter((c) => c.method === "GET" && c.bodyText).length, 0);
+  });
+});
+
+Deno.test("AC-M365DOC-069 a project with only pmo_project_number creates and matches by that identifier", async () => {
+  const only = projectRow({ code: null, pmo_project_number: "PMO-77" });
+  await run(newWorld({ parent: [only], graph: [...emptyDiscovery(), okDrives(), gpost(childrenOf(PROJECTS_ID), (c) => created("leaf-id", postedName(c), PROJECTS_ID))] }), async ({ call, calls }) => {
+    assertEquals((await (await call(ensureProject)).json()).state, "created");
+    assertEquals(postedName(graphCalls(calls).find((c) => c.method === "POST")!), "PMO-77 Synthetic project");
+  });
+  await run(newWorld({ parent: [only], graph: discoverProjects(() => jsonResponse({ value: [folderItem("m", "PMO-77 Existing", PROJECTS_ID), folderItem("n", "PMO-770 Other", PROJECTS_ID)] })) }), async ({ call, calls }) => {
+    assertEquals((await (await call(ensureProject)).json()).state, "linked");
+    assertEquals((rpcBodies(calls, "m365_link_record_folder")[0]!.p_reference as { item_id: string }).item_id, "m");
+  });
+  // code wins when both exist
+  await run(newWorld({ parent: [projectRow({ code: "P-100", pmo_project_number: "PMO-77" })], graph: [...emptyDiscovery(), okDrives(), gpost(childrenOf(PROJECTS_ID), (c) => created("leaf-id", postedName(c), PROJECTS_ID))] }), async ({ call, calls }) => {
+    await call(ensureProject);
+    assertEquals(postedName(graphCalls(calls).find((c) => c.method === "POST")!), "P-100 Synthetic project");
   });
 });

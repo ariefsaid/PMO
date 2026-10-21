@@ -86,13 +86,21 @@ export async function openCallerGraphRead(
   return { get: (request) => own.get(request), batch: own.batch };
 }
 
+const MAX_RETRY_AFTER_SECONDS = 30;
+
+/** Retry-After as whole seconds capped at 30, or undefined when absent / not a plain non-negative integer. */
+export function retryAfterSeconds(header: string | null): number | undefined {
+  if (header === null || !/^\d{1,6}$/u.test(header.trim())) return undefined;
+  return Math.min(Number(header.trim()), MAX_RETRY_AFTER_SECONDS);
+}
+
 /** Closed internal result of a folder metadata read or the single folder create. Never a raw upstream body. */
 export type FolderOutcome =
   | { kind: "ok"; item: Record<string, unknown> }
   | { kind: "not_found" }
   | { kind: "name_conflict" }
   | { kind: "forbidden" }
-  | { kind: "unavailable"; result?: HandlerResult };
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
 
 export type FolderReadTarget =
   | { kind: "root" }
@@ -103,14 +111,14 @@ export interface RecordFolderLibrary {
   drive_id: string;
 }
 
-/** Read-only capability: search / listing through the standard scope-checked GET. No write method exists on it. */
+/** Read-only capability: listings and exact-folder reads through the scope-checked GET. No write method exists on it. */
 export interface RecordFolderReadAccess {
   get(request: GraphReadRequest): Promise<HandlerResult>;
+  readFolder(target: FolderReadTarget): Promise<FolderOutcome>;
 }
 
 /** Ensure capability: reads plus exactly one mutator, `createFolder(parentId, name)`. */
 export interface RecordFolderEnsureAccess extends RecordFolderReadAccess {
-  readFolder(target: FolderReadTarget): Promise<FolderOutcome>;
   createFolder(parentId: string, name: string): Promise<FolderOutcome>;
 }
 
@@ -151,6 +159,7 @@ export async function openCallerRecordFolderAccess(
     mode === "ensure"
       ? (scopes) => scopes.some((scope) => SITES_SELECTED_SCOPES.has(scope))
       : undefined,
+    budget,
   );
   if (!("connection" in own)) return own;
   const spent: HandlerResult = {
@@ -165,16 +174,16 @@ export async function openCallerRecordFolderAccess(
         ? Promise.resolve(spent)
         : own.get(request, { timeoutMs, redact: true });
     },
-  };
-  if (mode === "match_only") return read;
-  const ensure: RecordFolderEnsureAccess = {
-    ...read,
     readFolder: (target) => {
       const timeoutMs = budget.slice();
       return timeoutMs === null
         ? Promise.resolve({ kind: "unavailable" })
         : own.readFolder(library.drive_id, target, timeoutMs);
     },
+  };
+  if (mode === "match_only") return read;
+  const ensure: RecordFolderEnsureAccess = {
+    ...read,
     createFolder: (parentId, name) => {
       const timeoutMs = budget.slice();
       return timeoutMs === null
@@ -211,6 +220,7 @@ async function openOwnConnection(
   deps: HandlerDeps,
   beforeConnection?: () => HandlerResult | null,
   requireScope?: (scopes: string[]) => boolean,
+  deadline?: GraphBudget,
 ): Promise<OwnConnection | HandlerResult> {
   const resolved = await resolveOrgOrResult(deps);
   if (typeof resolved !== "string") return resolved;
@@ -267,9 +277,17 @@ async function openOwnConnection(
   const token = async (): Promise<string | HandlerResult> => {
     if (accessToken) return accessToken;
     try {
-      accessToken = await loadFreshAccessToken(connection, deps);
+      accessToken = await loadFreshAccessToken(connection, deps, deadline);
       return accessToken;
     } catch {
+      // A refresh that ran into the invocation deadline is an outage, not a stale connection.
+      if (deadline && deadline.remaining() <= 0) {
+        return {
+          status: 502,
+          body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+          headers: GRAPH_HEADERS,
+        };
+      }
       const { data: fresh } = await serviceClient
         .from("ms_graph_connections")
         .select("status")
@@ -403,9 +421,10 @@ async function openOwnConnection(
       : `/drives/${encodeURIComponent(driveId)}/items/${
         encodeURIComponent(target.parentId)
       }:/${encodeURIComponent(target.name)}`;
-    const normalizedPath = normalizeGraphRequestPath(path);
+    // A name such as "P-1 v1..2" is legitimate: only a dot SEGMENT is a traversal (names are validated).
+    const normalizedPath = normalizeGraphRequestPath(path, true);
     if (
-      !normalizedPath || !scopeCoversPath(connection.scopes, "GET", normalizedPath)
+      !normalizedPath || !scopeCoversPath(connection.scopes, "GET", normalizedPath, true)
     ) return { kind: "unavailable" };
     const bearer = await token();
     if (typeof bearer !== "string") {
@@ -506,6 +525,9 @@ async function sendFolderRequest(
       return { kind: "name_conflict" };
     }
     if (graphRes.status === 403) return { kind: "forbidden" };
+    const retryAfter = graphRes.status === 429 || graphRes.status === 503
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
     console.error("[m365-token-custody] folder upstream failure", {
       status: graphRes.status,
       connectionId: connection.id,
@@ -515,7 +537,9 @@ async function sendFolderRequest(
       contextId: connection.id,
       orgId,
     });
-    return { kind: "unavailable" };
+    return retryAfter === undefined
+      ? { kind: "unavailable" }
+      : { kind: "unavailable", retryAfter };
   }
   if (method === "POST" ? graphRes.status !== 201 : graphRes.status !== 200) {
     return { kind: "unavailable" };
@@ -589,9 +613,15 @@ async function sendGraphRequest(
       contextId: connection.id,
       orgId,
     });
+    // Record-folder reads only: a throttled/unavailable answer may carry a bounded retry hint (seconds).
+    const retryAfter = options.redact && (graphRes.status === 429 || graphRes.status === 503)
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
     return {
       status: 502,
-      body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+      body: retryAfter === undefined
+        ? { error: "GRAPH_ERROR", message: "Graph API request failed" }
+        : { error: "GRAPH_ERROR", message: "Graph API request failed", retry_after_seconds: retryAfter },
       headers: GRAPH_HEADERS,
     };
   }
@@ -615,6 +645,7 @@ function graphUrl(path: string, query?: Record<string, string>): URL | null {
 async function loadFreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
+  deadline?: GraphBudget,
 ): Promise<string> {
   const { env, serviceClient, now } = deps;
   const nowFn = now ?? (() => new Date());
@@ -626,7 +657,9 @@ async function loadFreshAccessToken(
     !connection.access_token_ciphertext ||
     expiresAtMs < nowFn().getTime() + ACCESS_TOKEN_REFRESH_BUFFER_MS
   ) {
-    const refreshed = await refreshAccessToken(connection, deps);
+    const timeoutMs = deadline ? deadline.slice() : undefined;
+    if (timeoutMs === null) throw new Error("deadline spent");
+    const refreshed = await refreshAccessToken(connection, deps, timeoutMs);
     if (!refreshed) throw new Error("refresh failed");
     const { data: fresh, error: freshError } = await serviceClient
       .from("ms_graph_connections")
@@ -666,16 +699,31 @@ function normalizeGraphMethod(
   return GRAPH_METHODS.has(upper) ? upper as GraphProxyRequest["method"] : null;
 }
 
-function normalizeGraphRequestPath(path: unknown): string | null {
-  if (
-    typeof path !== "string" || !path.startsWith("/") ||
-    /(?:\.\.|\/\/|\?|#|\\)/.test(path)
-  ) return null;
-  if (ENCODED_UNSAFE_PATH.test(path)) return null;
-  return normalizePathForScope(path);
+/** True when any `/`-separated segment is exactly `.` or `..` (the only real traversal forms). */
+function hasDotSegment(path: string): boolean {
+  return path.split("/").some((segment) => segment === "." || segment === "..");
 }
 
-function normalizePathForScope(path: string): string | null {
+/**
+ * `dotSegmentsOnly` (server-built folder reads only): reject a `.`/`..` SEGMENT instead of any `..`
+ * substring, so a folder name like "v1..2" is not mistaken for traversal. Browser requests keep the
+ * stricter substring rule.
+ */
+function normalizeGraphRequestPath(
+  path: unknown,
+  dotSegmentsOnly = false,
+): string | null {
+  if (typeof path !== "string" || !path.startsWith("/")) return null;
+  const dotted = dotSegmentsOnly ? hasDotSegment(path) : /\.\./.test(path);
+  if (dotted || /(?:\/\/|\?|#|\\)/.test(path)) return null;
+  if (ENCODED_UNSAFE_PATH.test(path)) return null;
+  return normalizePathForScope(path, dotSegmentsOnly);
+}
+
+function normalizePathForScope(
+  path: string,
+  dotSegmentsOnly = false,
+): string | null {
   if (ENCODED_UNSAFE_PATH.test(path)) return null;
   try {
     const url = new URL(`${GRAPH_BASE}${path}`);
@@ -684,8 +732,11 @@ function normalizePathForScope(path: string): string | null {
       !url.pathname.startsWith("/v1.0/")
     ) return null;
     const normalized = url.pathname.slice("/v1.0".length);
+    const dotted = dotSegmentsOnly
+      ? hasDotSegment(normalized)
+      : /\.\./.test(normalized);
     if (
-      /(?:\.\.|\/\/|\?|#|\\)/.test(normalized) ||
+      dotted || /(?:\/\/|\?|#|\\)/.test(normalized) ||
       ENCODED_UNSAFE_PATH.test(normalized)
     ) return null;
     return normalized;
@@ -704,8 +755,9 @@ export function scopeCoversPath(
   scopes: string[],
   method: string,
   path: string,
+  dotSegmentsOnly = false,
 ): boolean {
-  const normalizedPath = normalizePathForScope(path);
+  const normalizedPath = normalizePathForScope(path, dotSegmentsOnly);
   if (!normalizedPath || !isOneDrivePath(normalizedPath)) return false;
   const normalizedMethod = normalizeGraphMethod(method);
   // Reads only: held write scopes never make a mutation permissible here (FR-M365DOC-070).

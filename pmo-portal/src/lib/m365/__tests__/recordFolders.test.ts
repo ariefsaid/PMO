@@ -50,7 +50,7 @@ describe('AC-M365DOC-071 — ensureRecordFolder transport', () => {
     expect(out).toEqual({ state: 'created', document_id: DOC });
   });
 
-  it.each(['needs_choice', 'not_found', 'default_unset', 'missing_identifier'] as const)(
+  it.each(['needs_choice', 'default_unset', 'missing_identifier'] as const)(
     'decodes the %s domain outcome',
     async (state) => {
       invoke.mockResolvedValueOnce({ data: { state }, error: null });
@@ -67,6 +67,7 @@ describe('AC-M365DOC-071 — ensureRecordFolder transport', () => {
 
   it.each([
     ['unknown state', { state: 'weird' }],
+    ['retired not_found state', { state: 'not_found' }],
     ['linked without document id', { state: 'linked' }],
     ['linked with extra key', { state: 'linked', document_id: DOC, path: '/x' }],
     ['domain state with extra key', { state: 'needs_choice', message: 'raw' }],

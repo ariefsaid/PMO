@@ -15,6 +15,8 @@
 export interface SelectFilterBuilder
   extends PromiseLike<{ data: unknown; error: unknown }> {
   eq(column: string, value: string): SelectFilterBuilder;
+  neq(column: string, value: string): SelectFilterBuilder;
+  in(column: string, values: string[]): SelectFilterBuilder;
   order(column: string, options?: { ascending?: boolean }): SelectFilterBuilder;
   limit(count: number): SelectFilterBuilder;
   single(): PromiseLike<{ data: unknown; error: unknown }>;
