@@ -1120,4 +1120,13 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     expect(await screen.findByText('2026')).toBeInTheDocument();
     expect(screen.queryByLabelText(/fiscal year/i, { selector: 'input, select, textarea' })).not.toBeInTheDocument();
   });
+
+  it('AC-M365DOC-052 mounts the Microsoft evidence panel beneath the selected version only', async () => {
+    versionsState.data = [{ ...activeVersion, line_items: [] }];
+    renderPage();
+    const mount = await screen.findByTestId('budget-evidence-mount');
+    expect(mount).toHaveAttribute('data-version', 'v-active');
+    expect(mount).toHaveAttribute('data-status', 'Active');
+    expect(screen.getAllByTestId('budget-evidence-mount')).toHaveLength(1);
+  });
 });

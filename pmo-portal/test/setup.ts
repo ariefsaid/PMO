@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
+import { createElement } from 'react';
 import { vi } from 'vitest';
 
 // Projects page suites predating the collection-money query intentionally render
@@ -7,6 +8,19 @@ import { vi } from 'vitest';
 // dedicated collection-hook and Projects behavior tests exercise the real hook.
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({
   useProjectsMoneyCollection: () => ({ data: undefined, isPending: true, isError: false }),
+}));
+
+// The org default-library card reads auth + a Microsoft connection query that the many Integrations
+// view suites do not provide (and which they do not test). Its own suite un-mocks it with
+// `vi.unmock`; the view suites need only to know it is mounted on the page.
+// Same for the budget evidence panel (it needs a QueryClient + auth the page suites do not provide);
+// ProjectBudget.test.tsx asserts the mount through this stub's data attributes.
+vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
+  BudgetDocumentLinks: ({ versionId, status }: { versionId: string; status: string }) =>
+    createElement('div', { 'data-testid': 'budget-evidence-mount', 'data-version': versionId, 'data-status': status }),
+}));
+vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
+  M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
 
 // Some local Node/Vitest combinations expose jsdom but do not install a usable

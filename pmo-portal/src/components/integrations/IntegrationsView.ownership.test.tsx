@@ -51,6 +51,8 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
     wrapWithRole('Admin', <IntegrationsView />);
     expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
+    // AC-M365DOC-055: the org default-library card is mounted on the admin surface (its own suite covers behavior).
+    expect(within(screen.getByTestId('integrations-connect-cards')).getByTestId('m365-default-library-stub')).toBeInTheDocument();
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
     expect(screen.getAllByText('Not connected')).toHaveLength(2);

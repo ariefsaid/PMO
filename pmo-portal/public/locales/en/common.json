@@ -4972,6 +4972,45 @@
       "refNumber": "Reference number (optional)",
       "refDate": "Date (optional)",
       "createFailed": "Could not add this reference."
+    },
+    "budget": {
+      "connectHint": "Connect Microsoft 365 in My integrations to link documents.",
+      "empty": "No evidence documents are linked to this version.",
+      "heading": "Evidence documents",
+      "link": "Link Microsoft document",
+      "loadError": "Evidence documents could not be loaded",
+      "loadErrorSub": "The budget figures are not affected. Try again.",
+      "readOnly": "Evidence is read-only on this version.",
+      "remove": "Remove",
+      "removeDescription": "The link to {{name}} is removed from this version. The Microsoft file is not changed.",
+      "removeNamed": "Remove link to {{name}}",
+      "removeTitle": "Remove this link?",
+      "unavailable": "This link is unavailable."
+    },
+    "defaultLibrary": {
+      "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
+      "choose": "Choose default library",
+      "clear": "Clear default",
+      "clearDescription": "The document picker will start from the location chooser. Existing links are not changed.",
+      "clearFailed": "Could not clear the default library.",
+      "clearTitle": "Clear the default library?",
+      "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
+      "current": "Current default:",
+      "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
+      "disabledReason": "Choose a site and a library to save.",
+      "heading": "Default document library",
+      "library": "Library",
+      "loading": "Loading…",
+      "modalSub": "Pick a SharePoint site, then one of its document libraries.",
+      "modalTitle": "Choose default library",
+      "none": "No default library is set.",
+      "pickLibrary": "Select a library",
+      "pickSite": "Select a site",
+      "save": "Save default",
+      "saveFailed": "Could not save the default library.",
+      "site": "Site",
+      "unavailable": "The default library could not be read",
+      "unavailableSub": "The current setting is unchanged. Try again."
     }
   }
 }

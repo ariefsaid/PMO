@@ -30,6 +30,7 @@ import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/typ
 import { repositories } from '@/src/lib/repositories';
 import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
+import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -416,6 +417,9 @@ export const IntegrationsView: React.FC = () => {
             credential-and-health model it does not have. The card self-gates Admin-only on the FE;
             the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
         <M365OrgApprovalCard />
+        {/* Org default document library — an org setting, deliberately separate from the personal
+            connection and from the org approval above (it grants no access to anything). */}
+        <M365DefaultLibraryCard />
         {TIERS.map((tier) => {
           const binding = isError ? undefined : getBinding(tier);
           const isConnected = binding?.status === 'active';
