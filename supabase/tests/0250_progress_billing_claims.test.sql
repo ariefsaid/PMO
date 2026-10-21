@@ -29,11 +29,13 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('07660000-0000-0000-0000-0000000000d1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'PB WO issued', 'Issued', 500000, 'exclusive', 0),
   ('07660000-0000-0000-0000-0000000000d2', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'PB WO draft', 'Draft', 500000, 'exclusive', 0);
-insert into boq_items (id, org_id, project_id, work_order_id, item_code, description, unit, quantity, rate) values
-  ('07660000-0000-0000-0000-0000000000e1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', null, 'SURVEY', 'Route survey', 'km', 10, 50000),
-  ('07660000-0000-0000-0000-0000000000e2', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', '07660000-0000-0000-0000-0000000000d1', 'STATION', 'Station build', 'unit', 5, 100000),
-  ('07660000-0000-0000-0000-0000000000e3', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c2', null, 'CABLE', 'Cable pull', 'km', 10, 50000),
-  ('07660000-0000-0000-0000-0000000000e4', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c3', null, 'POLE', 'Pole set', 'unit', 10, 10000);
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('07660000-0000-0000-0000-0000000000e1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'SURVEY', 'Route survey', 'km', 10, 50000),
+  ('07660000-0000-0000-0000-0000000000e2', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'STATION', 'Station build', 'unit', 5, 100000),
+  ('07660000-0000-0000-0000-0000000000e3', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c2', 'CABLE', 'Cable pull', 'km', 10, 50000),
+  ('07660000-0000-0000-0000-0000000000e4', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c3', 'POLE', 'Pole set', 'unit', 10, 10000);
+insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
+ ('07660000-0000-0000-0000-000000000001','07660000-0000-0000-0000-0000000000d1','07660000-0000-0000-0000-0000000000e2',5);
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -95,10 +97,10 @@ select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000
 select lives_ok($$ select public.create_progress_claim('07660000-0000-0000-0000-0000000000c1', 'progress', p_work_order_id => '07660000-0000-0000-0000-0000000000d1', p_lines => '[{"boq_item_id":"07660000-0000-0000-0000-0000000000e2","quantity":1}]'::jsonb) $$,
   'AC-PB-004 a claim scoped to an issued work order bills that work order''s lines');                            -- 20
 select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000-0000000000c1', 'progress', p_work_order_id => '07660000-0000-0000-0000-0000000000d1', p_lines => '[{"boq_item_id":"07660000-0000-0000-0000-0000000000e1","quantity":1}]'::jsonb) $$,
-  '23514', 'every line must be a bill of quantities line of this project and of the claim''s work order (or of no work order when the claim names none)',
+  '23514', 'every line must be allocated to the selected work order, or have no allocation for a project-level claim',
   'AC-PB-004 a work-order claim cannot bill a contract-level line');                                           -- 21
 select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000-0000000000c1', 'progress', p_lines => '[{"boq_item_id":"07660000-0000-0000-0000-0000000000e3","quantity":1}]'::jsonb) $$,
-  '23514', 'every line must be a bill of quantities line of this project and of the claim''s work order (or of no work order when the claim names none)',
+  '23514', 'every line must be allocated to the selected work order, or have no allocation for a project-level claim',
   'AC-PB-004 a claim cannot bill another project''s line');                                                     -- 22
 select throws_ok($$ select public.create_progress_claim('07660000-0000-0000-0000-0000000000c1', 'progress', p_work_order_id => '07660000-0000-0000-0000-0000000000d2', p_lines => '[{"boq_item_id":"07660000-0000-0000-0000-0000000000e1","quantity":1}]'::jsonb) $$,
   'P0001', 'only an issued or closed work order can be billed — this one is Draft', 'AC-PB-004 a Draft work order cannot be billed'); -- 23

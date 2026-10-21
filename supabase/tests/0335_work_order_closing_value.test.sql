@@ -1,0 +1,15 @@
+begin;
+create extension if not exists pgtap;
+select plan(5);
+insert into organizations(id,name) values ('33530000-0000-0000-0000-000000000001','CQ Org');
+insert into auth.users(id,email) values ('33530000-0000-0000-0000-000000000011','cq-finance@example.invalid');
+insert into profiles(id,org_id,full_name,email,role,status) values ('33530000-0000-0000-0000-000000000011','33530000-0000-0000-0000-000000000001','CQ Finance','cq-finance@example.invalid','Finance','active');
+insert into projects(id,org_id,name,status,contract_value,tax_treatment,tax_amount) values ('33530000-0000-0000-0000-000000000021','33530000-0000-0000-0000-000000000001','CQ Project','Ongoing Project',10000,'exclusive',0);
+insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatment,tax_amount) values ('33530000-0000-0000-0000-000000000031','33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000021','CQ WO','Issued',10000,'exclusive',0);
+select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='work_orders' and column_name='closing_value'),'AC-CQ-006 closing value is a first-class net money field');
+select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='work_orders' and column_name='closing_acceptance_id'),'AC-CQ-006 closing value retains its acceptance identity');
+select throws_ok($$update work_orders set closing_value=1,closing_acceptance_id='33530000-0000-0000-0000-000000000041' where id='33530000-0000-0000-0000-000000000031'$$,'42501','closing value may only be written by final acceptance confirmation','AC-CQ-006 only final confirmation can stamp closing money');
+select ok(exists(select 1 from pg_constraint where conrelid='public.work_orders'::regclass and conname='work_orders_closing_pair'),'AC-CQ-006 closing value and acceptance form a required pair');
+select is((select closing_value from work_orders where id='33530000-0000-0000-0000-000000000031'),null::numeric,'AC-CQ-006 failed writes leave original closing state absent');
+select * from finish();
+rollback;
