@@ -54,10 +54,23 @@ export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
 
 const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
 // One malformed field must not fail the whole batch every tick: an unparseable value is stored as unknown.
-const money = (v: unknown): string | null => { const t = str(v); return t !== null && /^-?\d+(\.\d+)?$/.test(t) ? t : null; };
-const date = (v: unknown): string | null => { const t = str(v); return t !== null && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null; };
+const money = (v: unknown): string | null => {
+  const t = str(v);
+  if (t === null || !/^-?\d+(\.\d{1,2})?$/.test(t)) return null;
+  const whole = t.replace(/^-/, '').split('.')[0].replace(/^0+/, '') || '0';
+  return whole.length <= 16 ? t : null;
+};
+const date = (v: unknown): string | null => {
+  const t = str(v);
+  if (t === null || !/^(\d{4})-(\d{2})-(\d{2})$/.test(t)) return null;
+  const [, year, month, day] = t.match(/^(\d{4})-(\d{2})-(\d{2})$/)!;
+  const parsed = new Date(`${t}T00:00:00.000Z`);
+  return parsed.getUTCFullYear() === Number(year) && parsed.getUTCMonth() + 1 === Number(month) && parsed.getUTCDate() === Number(day) ? t : null;
+};
 
-export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, unknown>): PurchaseMirrorRow {
+export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, unknown>): PurchaseMirrorRow | null {
+  const status = Number(d.docstatus);
+  if (status !== 1 && status !== 2) return null;
   const isPi = doctype === 'Purchase Invoice';
   return {
     erp_doctype: doctype,
@@ -71,7 +84,7 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
     grand_total: money(d.grand_total),
     outstanding_amount: isPi ? money(d.outstanding_amount) : null,
     erp_status: str(d.status),
-    erp_docstatus: Number(d.docstatus),
+    erp_docstatus: status,
     is_return: Boolean(d.is_return),
     erp_project: str(d.project),
     erp_modified: String(d.modified),
@@ -115,10 +128,15 @@ export async function feedPurchaseMirror(
     let next: string | null = null;
     for (const d of result.docs) {
       const row = toPurchaseMirrorRow(doctype, d);
-      const key = `${doctype}\u0000${row.erp_name}`;
-      const seen = latest.get(key);
-      if (!seen || row.erp_modified > seen.erp_modified) latest.set(key, row);
-      if (next === null || row.erp_modified > next) next = row.erp_modified;
+      if (row) {
+        const key = `${doctype}\u0000${row.erp_name}`;
+        const seen = latest.get(key);
+        if (!seen || row.erp_modified > seen.erp_modified) latest.set(key, row);
+      }
+      // Even a quarantined row must not wedge traversal forever; it is deliberately excluded from
+      // the mirror but its valid source ordering key remains safe to checkpoint.
+      const modified = String(d.modified);
+      if (next === null || modified > next) next = modified;
     }
     fetched.push({ doctype, prev, next });
   }

@@ -79,6 +79,24 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(wm?.watermark_cursor).toBe('2026-02-03 00:00:00');
   });
 
+  it('keeps valid documents flowing when ERP returns unsupported status or overflowing money values', async () => {
+    const h = harness({ 'Purchase Invoice': [
+      { ...PI, name: 'ACC-PINV-BAD-STATUS', docstatus: 3 },
+      { ...PI, name: 'ACC-PINV-OVERFLOW', grand_total: '10000000000000000.00', due_date: '2026-02-30' },
+      { ...PI, name: 'ACC-PINV-VALID' },
+    ] });
+
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+    expect(h.rpc.mock.calls[0][1].p_rows).toEqual([
+      expect.objectContaining({ erp_name: 'ACC-PINV-OVERFLOW', grand_total: null, due_date: null }),
+      expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }),
+    ]);
+    expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
+      domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified,
+    }));
+  });
+
   it('refuses to run without a company', async () => {
     const h = harness({});
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: ' ' })).rejects.toThrow(/company/);
