@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(29);
+select plan(31);
 insert into organizations(id,name) values ('33530000-0000-0000-0000-000000000001','CQ Org');
 insert into auth.users(id,email) values ('33530000-0000-0000-0000-000000000011','cq-finance@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values ('33530000-0000-0000-0000-000000000011','33530000-0000-0000-0000-000000000001','CQ Finance','cq-finance@example.invalid','Finance','active');
@@ -39,6 +39,7 @@ select lives_ok($$select set_config('cq.open',public.prepare_work_order_acceptan
 set local request.jwt.claims='{"sub":"33530000-0000-0000-0000-000000000011","role":"authenticated"}';
 select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.over')::uuid)$$,'BW001',null,'AC-CQ-007 one cent over the order net is refused');
 select throws_like($$select public.confirm_work_order_acceptance(current_setting('cq.over')::uuid)$$,'closing value 10000.01 exceeds work-order net 10000.00','AC-CQ-007 the refusal names both the closing value and the net');
+select throws_matching($$select public.confirm_work_order_acceptance(current_setting('cq.over')::uuid)$$,'^closing value 10000\.01 exceeds work-order net 10000\.00$','AC-CQ-007 BW001 over-cap text matches exactly: both closing value and order net');
 select is((select status::text from work_orders where id='33530000-0000-0000-0000-000000000032'),'Issued','AC-CQ-007 refused over-net close leaves the order Issued');
 select is((select status from work_order_acceptances where id=current_setting('cq.over')::uuid),'Draft','AC-CQ-007 refused confirmation leaves the BAST a Draft');
 set local request.jwt.claims='{"sub":"33530000-0000-0000-0000-000000000012","role":"authenticated"}';
@@ -54,6 +55,7 @@ select lives_ok($$select set_config('cq.low',public.prepare_work_order_acceptanc
 set local request.jwt.claims='{"sub":"33530000-0000-0000-0000-000000000011","role":"authenticated"}';
 select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.low')::uuid)$$,'BW001',null,'AC-CQ-007 a closing value below billed plus pending is refused');
 select throws_like($$select public.confirm_work_order_acceptance(current_setting('cq.low')::uuid)$$,'closing value 9000.00 cannot close: billed and pending work exceeds%9500.00%','AC-CQ-007 the refusal names the closing value and what is already billed or pending');
+select throws_matching($$select public.confirm_work_order_acceptance(current_setting('cq.low')::uuid)$$,'^closing value 9000\.00 cannot close: .*9500\.00','AC-CQ-007 BW001 lower-bound text matches: closing value 9000.00 and billed plus pending 9500.00');
 select is((select status::text from work_orders where id='33530000-0000-0000-0000-000000000033'),'Issued','AC-CQ-007 refused lower-bound close leaves the order Issued');
 set local request.jwt.claims='{"sub":"33530000-0000-0000-0000-000000000012","role":"authenticated"}';
 select lives_ok($$select set_config('cq.edge',public.prepare_work_order_acceptance('33530000-0000-0000-0000-000000000033',current_date,true,'[{"boq_item_id":"33530000-0000-0000-0000-000000000042","quantity":950}]'::jsonb,'33530000-0000-0000-0000-000000000051')::text,true)$$,'AC-CQ-007 PM prepares exactly billed plus pending');

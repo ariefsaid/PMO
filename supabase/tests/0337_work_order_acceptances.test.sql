@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(64);
+select plan(87);
 insert into organizations(id,name) values ('33520000-0000-0000-0000-000000000001','CQ Org');
 insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000011','cq-pm@example.invalid'),('33520000-0000-0000-0000-000000000012','cq-finance@example.invalid'),('33520000-0000-0000-0000-000000000013','cq-engineer@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values
@@ -41,6 +41,7 @@ select is((select status::text from work_orders where id='33520000-0000-0000-000
 set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
 select throws_ok($$update work_order_lines set quantity=7 where work_order_id='33520000-0000-0000-0000-000000000031'$$,'23514','allocation cannot be reduced below its latest confirmed acceptance','AC-CQ-002 allocation cannot be reduced below latest confirmed cumulative quantity');
 select lives_ok($$update work_order_lines set quantity=8 where work_order_id='33520000-0000-0000-0000-000000000031'$$,'AC-CQ-002 latest confirmed acceptance quantity remains allocatable');
+select throws_ok($$delete from work_order_lines where work_order_id='33520000-0000-0000-0000-000000000031' and boq_item_id='33520000-0000-0000-0000-000000000041'$$,'23514','an allocation with confirmed acceptance cannot be deleted','AC-CQ-002 an allocation with a confirmed acceptance quantity cannot be deleted');
 set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000012","role":"authenticated"}';
 select lives_ok($$select set_config('cq.self',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000031',current_date,false,
  '[{"boq_item_id":"33520000-0000-0000-0000-000000000041","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000051')::text,true)$$,'AC-CQ-005 Finance prepares an acceptance');
@@ -156,5 +157,54 @@ set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000015","rol
 select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.solo2')::uuid)$$,'42501',null,'AC-CQ-005 with a second active member the preparer can no longer confirm their own BAST');
 select is((select status from work_order_acceptances where id=current_setting('cq.solo2')::uuid),'Draft','AC-CQ-005 the refused self-confirmation leaves the BAST a Draft');
 reset role;
+-- AC-CQ-004/005 refusal matrix: fixtures (a fully allocated order with a lump-sum line, a Draft order, a disabled Finance user).
+insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000017','cq-disabled-fin@example.invalid');
+insert into profiles(id,org_id,full_name,email,role,status) values ('33520000-0000-0000-0000-000000000017','33520000-0000-0000-0000-000000000001','CQ Disabled Finance','cq-disabled-fin@example.invalid','Finance','disabled');
+insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate,earning_basis) values
+ ('33520000-0000-0000-0000-000000000046','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','LS','Lump line','lot',1,1000,'lump_sum');
+insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatment,tax_amount) values
+ ('33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','CQ WO refusals','Issued',20000,'exclusive',0),
+ ('33520000-0000-0000-0000-000000000036','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','CQ WO draft','Draft',20000,'exclusive',0);
+insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
+ ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000042',10),
+ ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000043',10),
+ ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000046',1);
+insert into project_documents(id,org_id,project_id,category,title,status,file_path) values
+ ('33520000-0000-0000-0000-000000000055','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Draft evidence','Draft','draft.pdf');
+insert into project_documents(id,org_id,project_id,category,title,status) values
+ ('33520000-0000-0000-0000-000000000056','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Fileless evidence','Issued');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1},{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":2}]'::jsonb)$$,'23514','each contract line may appear once in an acceptance','AC-CQ-004 a repeated line is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000044","quantity":1}]'::jsonb)$$,'23514','every acceptance line must be allocated to this work order','AC-CQ-004 a line not allocated to the work order is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":-1}]'::jsonb)$$,'23514','acceptance quantities must be finite, nonnegative and have at most 3 decimals','AC-CQ-004 a negative quantity is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1.2345}]'::jsonb)$$,'23514','acceptance quantities must be finite, nonnegative and have at most 3 decimals','AC-CQ-004 a 4-decimal quantity is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000046","quantity":2}]'::jsonb)$$,'23514','lump-sum acceptance quantity cannot exceed one','AC-CQ-004 a lump-sum quantity above one is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,true,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb)$$,'23514','a final acceptance must include every allocated contract line','AC-CQ-004 a final acceptance omitting an allocated line is refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[]'::jsonb)$$,'23502','acceptance date and at least one quantity are required','AC-CQ-004 empty lines are refused');
+select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000036',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb)$$,'42501','only an issued work order can prepare an acceptance','AC-CQ-004 a non-Issued work order cannot prepare a BAST');
+select is((select count(*)::int from work_order_acceptances where work_order_id in ('33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000036')),0,'AC-CQ-004 every refused preparation left no header');
+-- Drafts that differ only by evidence: absent, Draft-status, fileless, and (forged post-prepare) another project's document.
+select lives_ok($$select set_config('cq.absent',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb)::text,true)$$,'AC-CQ-005 PM prepares a BAST without a document');
+select lives_ok($$select set_config('cq.draftdoc',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000055')::text,true)$$,'AC-CQ-005 PM prepares a BAST citing a Draft-status document');
+select lives_ok($$select set_config('cq.nofile',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000056')::text,true)$$,'AC-CQ-005 PM prepares a BAST citing a document with no file');
+select lives_ok($$select set_config('cq.foreign',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000052')::text,true)$$,'AC-CQ-005 PM prepares a BAST citing a valid document (later forged to a foreign one)');
+select lives_ok($$select set_config('cq.ok',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000035',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000052')::text,true)$$,'AC-CQ-005 PM prepares a valid BAST for actor refusals');
+reset role;
+update work_order_acceptances set document_id='33520000-0000-0000-0000-000000000053' where id=current_setting('cq.foreign')::uuid;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000012","role":"authenticated"}';
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.absent')::uuid)$$,'23514','confirmation requires an Issued or Approved project document with a file','AC-CQ-005 confirm fails with an absent document');
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.draftdoc')::uuid)$$,'23514','confirmation requires an Issued or Approved project document with a file','AC-CQ-005 confirm fails with a Draft-status document');
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.nofile')::uuid)$$,'23514','confirmation requires an Issued or Approved project document with a file','AC-CQ-005 confirm fails with a document that has no file');
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.foreign')::uuid)$$,'23514','confirmation requires an Issued or Approved project document with a file','AC-CQ-005 confirm fails with another project''s document');
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.ok')::uuid)$$,'42501','only Admin or Finance may confirm an acceptance','AC-CQ-005 a Project Manager cannot confirm');
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000017","role":"authenticated"}';
+select throws_matching($$select public.confirm_work_order_acceptance(current_setting('cq.ok')::uuid)$$,'not an active member','AC-CQ-005 a disabled Finance user cannot confirm');
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000015","role":"authenticated"}';
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.ok')::uuid)$$,'P0002','acceptance not found','AC-CQ-005 another organization''s Finance cannot confirm');
+reset role;
+select is((select count(*)::int from work_order_acceptances where work_order_id='33520000-0000-0000-0000-000000000035' and status='Draft'),5,'AC-CQ-005 every refused confirmation left its BAST a Draft');
 select * from finish();
 rollback;
