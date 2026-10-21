@@ -103,7 +103,7 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   type Block = { content?: Array<{ text?: string }>; children: unknown[]; type: string };
   const Stub = React.forwardRef<
-    { insertActionItem: (id: string) => void },
+    { insertActionItem: (id: string) => void; getDocument: () => Block[] },
     {
       initialBlocks: Block[];
       editable: boolean;
@@ -113,7 +113,9 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
       onRequestAction: (line: string) => void;
     }
   >(function Stub({ initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction }, ref) {
-    React.useImperativeHandle(ref, () => ({ insertActionItem }), []);
+    // The live document: Save reads it through the handle, not the (deferred) onChange copy.
+    const doc = React.useRef<Block[]>(initialBlocks);
+    React.useImperativeHandle(ref, () => ({ insertActionItem, getDocument: () => doc.current }), []);
     React.useEffect(() => onReady(initialBlocks), []); // eslint-disable-line react-hooks/exhaustive-deps
     return (
       <div data-testid="stub-editor" data-editable={String(editable)} data-tasks-external={String(tasksExternal)}>
@@ -124,14 +126,24 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
           <button
             type="button"
             data-testid="stub-type"
-            onClick={() =>
-              onChange([
-                ...initialBlocks,
-                { type: 'paragraph', content: [{ text: 'by Friday' }], children: [] },
-              ])
-            }
+            onClick={() => {
+              doc.current = [...initialBlocks, { type: 'paragraph', content: [{ text: 'by Friday' }], children: [] }];
+              onChange(doc.current);
+            }}
           >
             type
+          </button>
+        )}
+        {editable && (
+          // A keystroke whose change notification has not committed yet.
+          <button
+            type="button"
+            data-testid="stub-type-pending"
+            onClick={() => {
+              doc.current = [...doc.current, { type: 'paragraph', content: [{ text: 'last words' }], children: [] }];
+            }}
+          >
+            type pending
           </button>
         )}
         {editable && !tasksExternal && (
@@ -417,6 +429,18 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     expect(call.patch.notes[0]).toMatchObject({ type: 'paragraph', content: [{ text: 'Discussed the pipeline schedule' }] });
     expect(call.patch.notes[2]).toMatchObject({ type: 'paragraph', content: [{ text: 'by Friday' }] });
     expect(call.patch).not.toHaveProperty('notes_text');
+  });
+
+  it('AC-MRT-001 Save persists the live editor document, including an edit whose change notification is still pending', async () => {
+    renderPage('Engineer');
+    await screen.findByTestId('stub-editor');
+    await userEvent.click(screen.getByTestId('stub-type'));
+    await userEvent.click(screen.getByTestId('stub-type-pending'));
+    await userEvent.click(screen.getByTestId('minutes-save'));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const notes = mutations.update.mutateAsync.mock.calls[0][0].patch.notes;
+    expect(notes).toHaveLength(4);
+    expect(notes[3]).toMatchObject({ content: [{ text: 'last words' }] });
   });
 
   // DD-MTG-8: /action is an INFORMED authoring act — the modal, never a silent copy. The task

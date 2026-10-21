@@ -231,9 +231,11 @@ const MeetingDetail: React.FC = () => {
 
   const onSaveMinutes = async () => {
     try {
-      if (!blocks) return;
-      await update.mutateAsync({ id: meeting.id, patch: { notes: blocks } });
-      setBaseline(JSON.stringify(blocks));
+      const doc = editorRef.current?.getDocument() ?? blocks;
+      if (!doc) return;
+      await update.mutateAsync({ id: meeting.id, patch: { notes: doc } });
+      setBlocks(doc);
+      setBaseline(JSON.stringify(doc));
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       onMutationError(err);
