@@ -62,6 +62,7 @@ import {
   createMicrosoftProcurementDocument,
   linkMicrosoftProcurementDocument,
   unlinkMicrosoftProcurementDocument,
+  clearProcurementDocumentLink,
   deleteProcurementDocument,
 } from './procurementCrud';
 import { ProcurementError } from './procurementLifecycle';
@@ -257,6 +258,23 @@ describe('AC-M365DOC-051/062 procurement Microsoft references', () => {
       link: null, source: null, ms_drive_id: null, ms_item_id: null, ms_item_name: null, ms_item_kind: null,
     });
     expect(h.calls.eq).toEqual([['id', 'doc-1'], ['id', 'doc-1']]);
+  });
+});
+
+describe('AC-M365DOC-062/063 legacy plain-link clear', () => {
+  it('clears only `link`, only on a row with no Microsoft source, retaining all other metadata', async () => {
+    h.calls.update.length = 0; h.calls.eq.length = 0; h.calls.is.length = 0;
+    h.result.value = { data: [{ id: 'doc-1' }], error: null };
+    await clearProcurementDocumentLink('doc-1');
+    expect(h.calls.from).toContain('procurement_documents');
+    expect(h.calls.update).toEqual([{ link: null }]);
+    expect(h.calls.eq).toEqual([['id', 'doc-1']]);
+    expect(h.calls.is).toEqual([['source', null]]);
+  });
+
+  it('a zero-row (denied or already-Microsoft) clear is a 42501 write failure, not silent success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(clearProcurementDocumentLink('doc-1')).rejects.toMatchObject({ code: '42501' });
   });
 });
 

@@ -14,6 +14,7 @@
  *     (canWriteDocs gates them, same as Draft→Issued and Approved→Closed).
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -72,6 +73,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import DocumentsTab from '../DocumentsTab';
+// The register mounts RecordFolderAction, which reads the query cache (#1020).
+const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 // Rejected document authored by pm-1.
 const rejectedDoc = {
@@ -93,11 +96,11 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1') => {
   realRole = role;
   currentUserId = uid;
   return render(
-    <ToastProvider>
+    <QueryClientProvider client={testQueryClient}><ToastProvider>
       <MemoryRouter>
         <DocumentsTab projectId="p1" />
       </MemoryRouter>
-    </ToastProvider>,
+    </ToastProvider></QueryClientProvider>,
   );
 };
 

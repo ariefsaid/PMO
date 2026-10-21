@@ -55,6 +55,12 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput, MicrosoftLibraryDefault } from '@/src/lib/m365/reference';
+import type {
+  RecordFolderBackfillPage,
+  RecordFolderCursor,
+  RecordFolderOutcome,
+  RecordFolderTarget,
+} from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -357,6 +363,7 @@ export interface DocumentRepository {
     parentId: string,
     input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
     authorId: string | null,
+    microsoft?: MicrosoftReferenceInput,
   ): Promise<ProjectDocumentRow>;
   /** Get the child (successor) document for lineage display. */
   getChild(parentId: string): Promise<ProjectDocumentRow | null>;
@@ -447,6 +454,8 @@ export interface ProcurementRepository {
   ): Promise<ProcurementDocumentRow>;
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   unlinkMicrosoftDocument(id: string): Promise<void>;
+  /** Clear a legacy plain link only (no Microsoft source); other metadata is retained. */
+  clearDocumentLink(id: string): Promise<void>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
   // ── New ERP-canonical record creators (Slice 5.4) ──
@@ -838,9 +847,17 @@ export interface M365DocumentSettingsRepository {
   setDefaultLibrary(value: MicrosoftLibraryDefault | null): Promise<void>;
 }
 
+export interface M365RecordFoldersRepository {
+  /** Link or create the record's SharePoint folder (server-side; the browser never writes to Graph). */
+  ensure(target: RecordFolderTarget): Promise<RecordFolderOutcome>;
+  /** One match-only page of the Admin backfill sweep. */
+  linkExisting(cursor?: RecordFolderCursor): Promise<RecordFolderBackfillPage>;
+}
+
 export interface Repositories {
   fxRates: FxRatesRepository;
   m365DocumentSettings: M365DocumentSettingsRepository;
+  m365RecordFolders: M365RecordFoldersRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;

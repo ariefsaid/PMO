@@ -28,7 +28,14 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useRevision } from '@/src/hooks/useRevision';
+import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import { FileCell } from '@/src/components/FileCell';
+import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
+import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
+import { M365BrowseNotice } from '@/src/components/m365/M365BrowseNotice';
+import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
+import { getItem } from '@/src/lib/m365/graphClient';
+import { projectOwner, projectReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { NewRevisionModal } from '@/src/components/NewRevisionModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
@@ -44,7 +51,15 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 export interface DocumentsTabProps {
   projectId: string;
+  /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
+  projectCode?: string | null;
 }
+
+/** True for a register row that references a Microsoft folder (reference-only: never issued/approved). */
+const isMicrosoftFolder = (d: ProjectDocumentRow) => d.source === 'onedrive' && d.ms_item_kind === 'folder';
+
+/** The Microsoft entry point in flight: a new document seeded from a reference, or linking an existing Draft. */
+type MicrosoftEntryTarget = { kind: 'create' } | { kind: 'link'; doc: ProjectDocumentRow };
 
 /**
  * Per-project DOCUMENT REGISTER (metadata only — Storage is disabled, so there is no file
@@ -111,20 +126,27 @@ interface PendingTransition {
   verb: string;
 }
 
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
-  const { create, update, transition, remove } = useDocumentMutations(projectId);
+  const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const { createRevision } = useRevision(projectId);
 
   const [search, setSearch] = useState('');
 
   // Modal: null = closed; { doc: null } = create; { doc } = edit.
-  const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null } | null>(null);
+  const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>(null);
+  // At most one Microsoft entry (picker or its gate notice) is mounted; closing it precedes any next modal.
+  const [microsoftEntry, setMicrosoftEntry] = useState<MicrosoftEntryTarget | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<ProjectDocumentRow | null>(null);
+  // Latest-file revision: the metadata is re-read BEFORE the form opens so the child references
+  // what Microsoft holds now, never a copied baseline.
+  const [latestRevision, setLatestRevision] = useState<{ parent: ProjectDocumentRow; reference: MicrosoftReferenceInput } | null>(null);
+  const [latestBusy, setLatestBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectDocumentRow | null>(null);
   // The author who tried to act on their own Issued document (SoD block) — drives the
@@ -133,7 +155,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   // D12: the document shown in the read-first quick-view Drawer (the in-hand row;
   // no extra fetch). Row activation opens it; the status section + footer reuse
   // the existing statusActions gating + setPending/setFormTarget/setDeleteTarget.
-  const [drawerDoc, setDrawerDoc] = useState<ProjectDocumentRow | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
   const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
@@ -178,6 +200,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     return map;
   }, [all]);
 
+  // The Drawer resolves its row against the refreshed register, never a stale copy, so a link,
+  // unlink or check landing while it is open is reflected without losing focus or state.
+  const drawerDoc = drawerId ? (documentsById.get(drawerId) ?? null) : null;
+  const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => setDrawerId(doc?.id ?? null), []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return all;
@@ -200,6 +227,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
   // approver ≠ author (Document approval SoD): the author can never approve/reject their own doc.
   const isOwnDocument = (d: ProjectDocumentRow) =>
     !!currentUserId && d.author_id === currentUserId;
+
+  // A Microsoft reference renders through the shared read-only cell (table AND Drawer); a row whose
+  // reference is incomplete is never mistaken for one and keeps the ordinary File cell.
+  const microsoftCell = (d: ProjectDocumentRow): React.ReactNode => {
+    const reference = projectReference(d);
+    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} /> : null;
+  };
 
   const columns: Column<ProjectDocumentRow>[] = [
     {
@@ -235,9 +269,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     {
       key: 'file_path',
       header: t('projectDetail.documents.column.file', 'File'),
-      size: 112, minSize: 112, maxSize: 112,
-      colClassName: 'hidden md:table-cell w-[112px]',
-      cell: (d) => (
+      size: 176, minSize: 176, maxSize: 176,
+      colClassName: 'hidden md:table-cell w-[176px]',
+      cell: (d) => microsoftCell(d) ?? (
         <FileCell
           status={d.status}
           filePath={d.file_path}
@@ -283,6 +317,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */
   const statusActions = (d: ProjectDocumentRow): RowMenuItem[] => {
+    // A Microsoft folder is a reference only: it is never issued, approved or closed.
+    if (isMicrosoftFolder(d)) return [];
     const items: RowMenuItem[] = [];
     // Draft → Issued (a non-approval move: any document write-role).
     if (d.status === 'Draft' && canWriteDocs) {
@@ -319,9 +355,21 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
       items.push({ label: t('projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
     }
-    // SUB-E: "New revision" is a row-menu item, not a column of its own on every row.
-    if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs) {
+    // Link / unlink a Microsoft reference: Draft rows only, same author-or-Admin gate as Edit.
+    const canLink = canEditDoc(d) && d.status === 'Draft';
+    if (canLink && !d.file_path && d.source !== 'onedrive') {
+      items.push({ label: t('m365Documents.link', 'Link from Microsoft 365'), onClick: () => setMicrosoftEntry({ kind: 'link', doc: d }) });
+    }
+    if (canLink && d.source === 'onedrive') {
+      items.push({ label: t('m365Documents.unlink', 'Unlink Microsoft item'), onClick: () => setUnlinkTarget(d) });
+    }
+    // SUB-E: "New revision" is a row-menu item, not a column of its own on every row. A folder is
+    // reference-only and has no revision; a changed Microsoft file offers the latest-update variant.
+    if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs && !isMicrosoftFolder(d)) {
       items.push({ label: t('projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
+      if (d.source === 'onedrive' && d.ms_drift_state === 'drifted') {
+        items.push({ label: t('m365Documents.newRevisionFromLatest', 'Make new revision from latest file update'), onClick: () => void startLatestRevision(d) });
+      }
     }
     items.push(...statusActions(d));
     if (canDelete) items.push({ label: t('projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
@@ -442,18 +490,57 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
     }
   };
 
-  const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string }) => {
-    if (!revisionParent) return;
+  // Re-read the file's CURRENT identity from Microsoft before offering the revision form. Failure
+  // never creates anything and never discloses a raw Microsoft body (generic reviewed copy only).
+  const startLatestRevision = async (parent: ProjectDocumentRow) => {
+    const current = projectReference(parent);
+    if (!current || latestBusy) return;
+    setLatestBusy(parent.id);
+    try {
+      const item = await getItem(current);
+      if (item.item_kind !== 'file') throw new Error('not-a-file');
+      setLatestRevision({
+        parent,
+        reference: { drive_id: item.drive_id, item_id: item.item_id, web_url: item.web_url, name: item.name, item_kind: 'file' },
+      });
+    } catch {
+      toast(
+        t('m365Documents.latestFailedTitle', 'Could not read the latest file'),
+        t('m365Documents.latestFailed', 'Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.'),
+        'warning',
+      );
+    } finally {
+      setLatestBusy(null);
+    }
+  };
+
+  const onUnlinkConfirm = async () => {
+    if (!unlinkTarget) return;
+    const target = unlinkTarget;
+    try {
+      await unlink.mutateAsync(target.id);
+      toast(t('m365Documents.unlinked', 'Reference removed'), target.title, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+    setUnlinkTarget(null);
+  };
+
+  const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => {
+    const parent = latestRevision?.parent ?? revisionParent;
+    if (!parent) return;
     createRevision.mutate(
-      { parentId: revisionParent.id, ...data },
+      { parentId: parent.id, ...data },
       {
         onSuccess: () => {
           toast(
             t('projectDetail.documents.toast.revisionCreated', 'Revision created'),
-            `${revisionParent.title} ${t('projectDetail.documents.revLabel', 'Rev')} ${data.revision}`,
+            `${parent.title} ${t('projectDetail.documents.revLabel', 'Rev')} ${data.revision}`,
             'success',
           );
           setRevisionParent(null);
+          setLatestRevision(null);
         },
         onError: (err) => {
           const { headline, detail } = classifyMutationError(err);
@@ -472,6 +559,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          <RecordFolderAction target={{ kind: 'project', id: projectId }} hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')} />
           {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
               button was removed — file upload is signposted by the register subtitle copy
               ("file attachments arrive with Storage"), not a fake disabled control. */}
@@ -481,8 +569,33 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
               {t('projectDetail.documents.addDocument', 'Add document')}
             </Button>
           )}
+          {canCreate && (
+            <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
+              <Icon name="plug" />
+              {t('m365Documents.linkFromMicrosoft', 'From Microsoft 365')}
+            </Button>
+          )}
         </div>
       </div>
+
+      {microsoftEntry && (
+        <MicrosoftEntry
+          code={projectCode}
+          onClose={() => setMicrosoftEntry(null)}
+          onSelect={async (reference) => {
+            if (microsoftEntry.kind === 'link') {
+              // A failure propagates: the picker keeps the selection and shows its own persistent alert.
+              await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
+              toast(t('m365Documents.linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
+              setMicrosoftEntry(null);
+            } else {
+              // Close the picker FIRST, then open the ordinary form seeded with the reference.
+              setMicrosoftEntry(null);
+              setFormTarget({ doc: null, reference });
+            }
+          }}
+        />
+      )}
 
       {/* SoD block (approver = author): persistent inline reason for a hidden Approve/Reject. */}
       {sodBlocked && (
@@ -594,6 +707,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
           }}
           onViewDocument={setDrawerDoc}
           onDownload={handleDownload}
+          microsoftFile={microsoftCell(drawerDoc)}
         />
       )}
 
@@ -601,9 +715,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
       {formTarget && (
         <DocumentFormModal
           doc={formTarget.doc}
+          reference={formTarget.reference}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
-            await create.mutateAsync(input);
+            // One INSERT carries the reference (no empty intermediate row).
+            await create.mutateAsync(formTarget.reference ? { ...input, source: 'onedrive', microsoft: formTarget.reference } : input);
             toast(t('projectDetail.documents.toast.added', 'Document added'), input.title, 'success');
             setFormTarget(null);
           }}
@@ -629,12 +745,27 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId }) => {
         data-testid="file-input"
       />
 
-      {revisionParent && (
+      {(latestRevision ?? (revisionParent ? { parent: revisionParent, reference: null } : null)) && (
         <NewRevisionModal
-          parent={revisionParent}
+          parent={(latestRevision?.parent ?? revisionParent) as ProjectDocumentRow}
+          microsoft={latestRevision?.reference ?? null}
           onSubmit={handleCreateRevision}
-          onClose={() => setRevisionParent(null)}
+          onClose={() => { setRevisionParent(null); setLatestRevision(null); }}
           loading={createRevision.isPending}
+        />
+      )}
+
+      {/* Unlink confirm: removes only PMO's reference, never anything in Microsoft. */}
+      {unlinkTarget && (
+        <ConfirmDialog
+          open
+          tone="default"
+          title={t('m365Documents.unlinkTitle', 'Unlink {{title}}?', { title: unlinkTarget.title })}
+          description={t('m365Documents.unlinkBody', 'Only the PMO reference is removed. The Microsoft item is unchanged.')}
+          confirmLabel={t('m365Documents.unlinkConfirm', 'Unlink')}
+          loading={unlink.isPending}
+          onConfirm={onUnlinkConfirm}
+          onCancel={() => setUnlinkTarget(null)}
         />
       )}
 
@@ -802,6 +933,8 @@ interface DocumentDrawerProps {
   onDelete: () => void;
   onViewDocument: (doc: ProjectDocumentRow) => void;
   onDownload: (doc: ProjectDocumentRow) => Promise<void>;
+  /** The shared Microsoft reference cell for this row (same projection as the table), or null. */
+  microsoftFile: React.ReactNode;
 }
 
 /** Definition-list row — label (overline voice) + value. */
@@ -828,6 +961,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   onDelete,
   onViewDocument,
   onDownload,
+  microsoftFile,
 }) => {
   const { t } = useTranslation();
   const hasFooter = canEdit || canDelete;
@@ -904,7 +1038,11 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             />
           </DocField>
         )}
-        {doc.file_path && (
+        {microsoftFile ? (
+          <DocField label={t('projectDetail.documents.field.file', 'File')}>
+            {microsoftFile}
+          </DocField>
+        ) : doc.file_path && (
           <DocField label={t('projectDetail.documents.field.file', 'File')}>
             <button
               type="button"
@@ -966,6 +1104,8 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
 
 interface DocumentFormModalProps {
   doc: ProjectDocumentRow | null;
+  /** A Microsoft reference chosen first; the title is seeded from its name but stays editable. */
+  reference?: MicrosoftReferenceInput;
   onClose: () => void;
   onCreate: (input: ProjectDocumentInput) => Promise<void>;
   onUpdate: (id: string, input: ProjectDocumentInput) => Promise<void>;
@@ -974,6 +1114,7 @@ interface DocumentFormModalProps {
 
 const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   doc,
+  reference,
   onClose,
   onCreate,
   onUpdate,
@@ -985,7 +1126,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const form = useEntityForm<FormValues>({
     initialValues: {
-      title: doc?.title ?? '',
+      title: doc?.title ?? reference?.name ?? '',
       code: doc?.code ?? '',
       category: doc?.category ?? 'Drawing',
       revision: doc?.revision ?? '',
@@ -1063,7 +1204,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty}
+      dirty={form.isDirty || !!reference}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
@@ -1122,6 +1263,55 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
         </FormGrid>
       </FormSection>
     </EntityFormModal>
+  );
+};
+
+// ── Microsoft 365 entry: connection gate + picker ────────────────────────────
+
+interface MicrosoftEntryProps {
+  code: string | null;
+  onClose: () => void;
+  onSelect: (reference: MicrosoftReferenceInput) => Promise<void>;
+}
+
+/**
+ * The caller's connection decides ONLY whether browsing is offered. Mounted on demand, so the
+ * status read happens for a mutation browse entry and never for committed rows: those render and
+ * open with no connection at all. Pending/error never guess "active"; every non-active state is a
+ * secondary notice (setup link, reconnect, retry) and no picker request is made.
+ */
+const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect }) => {
+  const { t } = useTranslation();
+  const { connection, isPending, refetch } = useMicrosoftDocuments();
+  const canBrowse = connection?.connected === true && connection.status === 'active';
+
+  if (canBrowse) {
+    return <MicrosoftDocumentPicker open context={{ kind: 'project', code }} onClose={onClose} onSelect={onSelect} />;
+  }
+
+  let notice: React.ReactNode;
+  if (!connection && isPending) {
+    notice = (
+      <p role="status" className="text-[13px] text-muted-foreground">
+        {t('m365Documents.checkingConnection', 'Checking your Microsoft 365 connection…')}
+      </p>
+    );
+  } else if (!connection) {
+    // Unknown (status read failed): never assume active; offer an explicit retry next to the action.
+    notice = <M365BrowseNotice code="external-unreachable" onRetry={() => void refetch()} />;
+  } else if (!connection.connected) {
+    notice = <M365BrowseNotice code="NOT_CONNECTED" />;
+  } else {
+    notice = <M365BrowseNotice code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
+  }
+
+  return (
+    <div className="mb-3.5 space-y-2" data-testid="m365-connection-gate">
+      {notice}
+      <Button variant="ghost" size="sm" onClick={onClose}>
+        {t('projectDetail.documents.dismiss', 'Dismiss')}
+      </Button>
+    </div>
   );
 };
 

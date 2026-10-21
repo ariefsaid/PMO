@@ -1,0 +1,33 @@
+{
+  "action": {
+    "create": "Create folder in SharePoint",
+    "choose": "Choose existing folder",
+    "reconnect": "Reconnect Microsoft"
+  },
+  "status": {
+    "pending": "Creating folder…",
+    "linked": "Folder linked",
+    "savedNotLinked": "Record saved. Folder not linked."
+  },
+  "error": {
+    "additionalConsent": "The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.",
+    "notConnected": "Connect your Microsoft account, then try again.",
+    "access": "Access depends on your Microsoft permissions. Ask your Microsoft admin to check folder creation access.",
+    "defaultUnset": "Ask an Admin to choose the default document library.",
+    "missingIdentifier": "Add the record's code, then try again.",
+    "ambiguous": "More than one folder matches. Choose the existing folder.",
+    "generic": "Microsoft could not create or link this folder. Please try again."
+  },
+  "backfill": {
+    "start": "Link existing folders",
+    "stop": "Stop",
+    "continue": "Continue",
+    "progress": "Checked {{count}} so far…",
+    "stopping": "Stopping after the current batch…",
+    "uncertain": "The current batch is still running, so the counts may change.",
+    "stopped": "Stopped. {{count}} checked.",
+    "interrupted": "Stopped early. Counts so far are kept; continue to check the rest.",
+    "needsDefault": "Choose a default document library first.",
+    "summary": "Linked {{linked}} · Need a choice {{needsChoice}} · No match/code {{missing}} · Failed {{failed}} · Already linked {{skipped}}"
+  }
+}

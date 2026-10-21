@@ -12,6 +12,9 @@ const { document } = vi.hoisted(() => ({
     update: vi.fn(),
     transition: vi.fn(),
     delete: vi.fn(),
+    linkMicrosoftDocument: vi.fn(),
+    unlinkMicrosoftDocument: vi.fn(),
+    createRevision: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { document } }));
@@ -99,5 +102,38 @@ describe('useDocumentMutations', () => {
       await result.current.remove.mutateAsync('d1');
     });
     expect(document.delete).toHaveBeenCalledWith('d1');
+  });
+});
+
+describe('useDocumentMutations — Microsoft reference link/unlink (AC-M365DOC-040/041)', () => {
+  const reference = { drive_id: 'drive-1', item_id: 'item-1', web_url: 'https://example.invalid/f', name: 'Synthetic.pdf', item_kind: 'file' as const };
+
+  it('AC-M365DOC-040: link goes through the repository and refetches the org-scoped register', async () => {
+    document.linkMicrosoftDocument.mockResolvedValue(undefined);
+    const client = freshClient();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useDocumentMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.link.mutateAsync({ id: 'd1', reference }); });
+    expect(document.linkMicrosoftDocument).toHaveBeenCalledWith('d1', reference);
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', 'p1'] });
+  });
+
+  it('AC-M365DOC-041: unlink goes through the repository and refetches', async () => {
+    document.unlinkMicrosoftDocument.mockResolvedValue(undefined);
+    const client = freshClient();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useDocumentMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.unlink.mutateAsync('d1'); });
+    expect(document.unlinkMicrosoftDocument).toHaveBeenCalledWith('d1');
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', 'p1'] });
+  });
+
+  it('AC-M365DOC-063: a failed link rejects, does not invalidate (no optimistic source overwrite)', async () => {
+    document.linkMicrosoftDocument.mockRejectedValue(Object.assign(new Error('x'), { code: '23514' }));
+    const client = freshClient();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useDocumentMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await expect(result.current.link.mutateAsync({ id: 'd1', reference })).rejects.toMatchObject({ code: '23514' }); });
+    expect(spy).not.toHaveBeenCalled();
   });
 });
