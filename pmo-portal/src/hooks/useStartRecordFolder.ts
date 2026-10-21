@@ -16,6 +16,7 @@ import {
 import {
   invalidateRecordFolderRegister,
   recordFolderKey,
+  writeRecordFolderState,
   type RecordFolderState,
 } from './recordFolderState';
 
@@ -58,7 +59,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
 
       const key = recordFolderKey(orgId, userId, target);
       if ((qc.getQueryData(key) as RecordFolderState | undefined)?.status === 'pending') return;
-      qc.setQueryData<RecordFolderState>(key, { status: 'pending' });
+      writeRecordFolderState(qc, key, { status: 'pending' });
 
       const sameIdentity = () => live.current.orgId === orgId && live.current.userId === userId;
       const announce = (copy: RecordFolderCopy | null) => {
@@ -71,7 +72,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
       };
       const settle = (copy: RecordFolderCopy) => {
         try {
-          qc.setQueryData<RecordFolderState>(key, { status: 'settled', copy });
+          writeRecordFolderState(qc, key, { status: 'settled', copy });
           if (copy.ok) invalidateRecordFolderRegister(qc, orgId, target);
           announce(copy);
         } catch {

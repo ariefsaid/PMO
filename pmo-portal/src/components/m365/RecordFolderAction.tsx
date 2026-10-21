@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, GateNotice, Icon } from '@/src/components/ui';
-import { useOptionalEffectiveRole } from '@/src/auth/impersonation';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRecordFolder } from '@/src/hooks/useRecordFolder';
 import { initiateM365Connect } from '@/src/lib/m365/connectClient';
@@ -29,11 +29,12 @@ function isHttps(url: string): boolean {
 export function RecordFolderAction({ target, hasFolder, onChooseExisting }: RecordFolderActionProps) {
   const { t } = useTranslation('recordFolders');
   const may = usePermission();
-  const roles = useOptionalEffectiveRole();
+  const roles = useEffectiveRole();
   const { pending, settledCopy, ensure } = useRecordFolder(target);
   const [reconnectFailed, setReconnectFailed] = useState(false);
 
-  const allowed = !!roles && roles.realRole === roles.effectiveRole
+  // Explicit view-only gate: `usePermission` binds the REAL role but does not itself refuse impersonation.
+  const allowed = roles.realRole === roles.effectiveRole
     && may('create', target.kind === 'project' ? 'document' : 'procDoc');
   if (!allowed) return null;
 

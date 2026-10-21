@@ -13,6 +13,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import type { Role } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
+import type { RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 
 const auth = vi.hoisted(() => ({ current: { id: 'u1', org_id: 'org-1' } as { id: string; org_id: string } | null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.current }) }));
@@ -27,7 +28,7 @@ import { recordFolderKey, type RecordFolderState } from './recordFolderState';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const DOC = '22222222-2222-4222-8222-222222222222';
-const target = { kind: 'project' as const, id: ID };
+const target: RecordFolderTarget = { kind: 'project', id: ID };
 
 let qc: QueryClient;
 function wrapper(role: Role | null = 'Project Manager') {

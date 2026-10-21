@@ -4,7 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type { RecordFolderOutcome, RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 import { recordFolderErrorCopy, recordFolderOutcomeCopy } from '@/src/lib/m365/recordFolderCopy';
-import { invalidateRecordFolderRegister, recordFolderKey, type RecordFolderState } from './recordFolderState';
+import { invalidateRecordFolderRegister, recordFolderKey, writeRecordFolderState, type RecordFolderState } from './recordFolderState';
 
 /**
  * The register's view of one record's folder step (AC-M365DOC-071): the shared cache state the
@@ -33,11 +33,11 @@ export function useRecordFolder(target: RecordFolderTarget) {
     mutationFn: () => repositories.m365RecordFolders.ensure(target),
     onSuccess: (outcome) => {
       const copy = recordFolderOutcomeCopy(outcome);
-      qc.setQueryData<RecordFolderState>(key, { status: 'settled', copy });
+      writeRecordFolderState(qc, key, { status: 'settled', copy });
       if (copy.ok) invalidateRecordFolderRegister(qc, orgId, target);
     },
     onError: (error) => {
-      qc.setQueryData<RecordFolderState>(key, { status: 'settled', copy: recordFolderErrorCopy(error) });
+      writeRecordFolderState(qc, key, { status: 'settled', copy: recordFolderErrorCopy(error) });
     },
   });
 
@@ -46,7 +46,7 @@ export function useRecordFolder(target: RecordFolderTarget) {
     if (!orgId || !userId) return;
     if ((qc.getQueryData(key) as RecordFolderState | undefined)?.status === 'pending') return;
     // Mark pending synchronously so a double activation cannot start two ensures.
-    qc.setQueryData<RecordFolderState>(key, { status: 'pending' });
+    writeRecordFolderState(qc, key, { status: 'pending' });
     mutation.mutate();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `mutation.mutate` is stable; key is derived from the listed values
   }, [qc, orgId, userId, target.kind, target.id, mutation.mutate]);

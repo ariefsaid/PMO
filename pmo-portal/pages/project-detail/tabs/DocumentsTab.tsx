@@ -28,6 +28,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useRevision } from '@/src/hooks/useRevision';
+import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import { FileCell } from '@/src/components/FileCell';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
@@ -558,6 +559,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          <RecordFolderAction target={{ kind: 'project', id: projectId }} hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')} />
           {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
               button was removed — file upload is signposted by the register subtitle copy
               ("file attachments arrive with Storage"), not a fake disabled control. */}

@@ -31,3 +31,12 @@ export function invalidateRecordFolderRegister(
     void qc.invalidateQueries({ queryKey: ['procurement', orgId, target.id] });
   }
 }
+
+/** Write the per-record state. (A function updater keeps tanstack's untagged-key inference happy.) */
+export function writeRecordFolderState(
+  qc: QueryClient,
+  key: ReturnType<typeof recordFolderKey>,
+  state: RecordFolderState,
+): void {
+  qc.setQueryData<RecordFolderState>(key, () => state);
+}

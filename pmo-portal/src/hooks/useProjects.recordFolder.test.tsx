@@ -26,7 +26,7 @@ import { useProjectMutations } from './useProjects';
 
 const input = {
   name: 'Synthetic project', status: 'Leads' as const, client_id: 'c1', project_manager_id: null,
-  contract_value: 0, start_date: null, end_date: null,
+  contract_value: 0 as const, start_date: null, end_date: null,
 };
 let qc: QueryClient;
 const wrapper = (role: Role = 'Project Manager') =>
