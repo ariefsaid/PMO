@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, EntityFormModal, Icon, ListState, TextField, useEntityForm, type SubmitError } from '@/src/components/ui';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
 import {
-  browseOneDrive, getPersonalDrive, listChildren, listDrives, listSites, searchDrive,
+  browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive,
   type GraphDrive, type GraphItem, type GraphReadRequest, type GraphSite,
 } from '@/src/lib/m365/graphClient';
 import { suggestFolders, type PickerContext } from '@/src/lib/m365/folderSuggestions';
@@ -86,8 +86,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
 
   const [location, setLocation] = useState<Location>({ kind: 'chooser' });
   const [selected, setSelected] = useState<GraphItem | null>(null);
-  const [sites, setSites] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphSite[]; error: unknown }>({ status: 'loading', value: [], error: null });
-  const [libraries, setLibraries] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphDrive[]; error: unknown }>({ status: 'loading', value: [], error: null });
+  const [sites, setSites] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphSite[]; next: GraphReadRequest | null; error: unknown }>({ status: 'loading', value: [], next: null, error: null });
+  const [libraries, setLibraries] = useState<{ status: 'loading' | 'ready' | 'error'; value: GraphDrive[]; next: GraphReadRequest | null; error: unknown }>({ status: 'loading', value: [], next: null, error: null });
+  const [locationMoreBusy, setLocationMoreBusy] = useState(false);
   const [oneDrive, setOneDrive] = useState<{ status: 'loading' | 'error'; error: unknown }>({ status: 'loading', error: null });
   const [search, setSearch] = useState('');
   const [listing, setListing] = useState<Listing | null>(null);
@@ -110,6 +111,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
   const headingRef = useRef<HTMLHeadingElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const loadMoreRef = useRef<HTMLButtonElement>(null);
+  const locationCursors = useRef(new Set<string>());
 
   const drive = location.kind === 'items' ? location.drive : null;
   const path = location.kind === 'items' ? location.path : null;
@@ -200,6 +202,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     startClaimed.current = true;
     startGeneration.current += 1;
     navGeneration.current += 1;
+    setLocationMoreBusy(false);
     focusAfterNavigation.current = true;
     setStartDone(true);
     setSearch('');
@@ -220,25 +223,65 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
   async function showSites() {
     navigate({ kind: 'sites' });
     const seq = navGeneration.current;
-    setSites({ status: 'loading', value: [], error: null });
+    locationCursors.current.clear();
+    setSites({ status: 'loading', value: [], next: null, error: null });
     try {
       const result = await listSites();
-      if (seq === navGeneration.current) setSites({ status: 'ready', value: result.value, error: null });
+      if (seq === navGeneration.current) setSites({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
-      if (seq === navGeneration.current) setSites({ status: 'error', value: [], error });
+      if (seq === navGeneration.current) setSites({ status: 'error', value: [], next: null, error });
     }
   }
 
   async function showLibraries(site: GraphSite) {
     navigate({ kind: 'libraries', site });
     const seq = navGeneration.current;
-    setLibraries({ status: 'loading', value: [], error: null });
+    locationCursors.current.clear();
+    setLibraries({ status: 'loading', value: [], next: null, error: null });
     try {
       const result = await listDrives(site.id);
-      if (seq === navGeneration.current) setLibraries({ status: 'ready', value: result.value, error: null });
+      if (seq === navGeneration.current) setLibraries({ status: 'ready', value: result.value, next: result.next, error: null });
     } catch (error) {
-      if (seq === navGeneration.current) setLibraries({ status: 'error', value: [], error });
+      if (seq === navGeneration.current) setLibraries({ status: 'error', value: [], next: null, error });
     }
+  }
+
+  async function loadLocationMore() {
+    if (locationMoreBusy) return;
+    const seq = navGeneration.current;
+    setLocationMoreBusy(true);
+    try {
+      if (location.kind === 'sites' && sites.next) {
+        const cursor = JSON.stringify(sites.next);
+        if (locationCursors.current.has(cursor) || locationCursors.current.size >= 100) {
+          setSites((state) => ({ ...state, next: null }));
+          return;
+        }
+        const result = await browseSites(undefined, sites.next);
+        if (seq !== navGeneration.current) return;
+        locationCursors.current.add(cursor);
+        const existing = new Set(sites.value.map((entry) => entry.id));
+        const additions = result.value.filter((entry) => !existing.has(entry.id) && !!existing.add(entry.id));
+        setSites({ status: 'ready', value: [...sites.value, ...additions], next: JSON.stringify(result.next) === cursor ? null : result.next, error: null });
+      } else if (location.kind === 'libraries' && libraries.next) {
+        const cursor = JSON.stringify(libraries.next);
+        if (locationCursors.current.has(cursor) || locationCursors.current.size >= 100) {
+          setLibraries((state) => ({ ...state, next: null }));
+          return;
+        }
+        const result = await browseDrives(location.site.id, libraries.next);
+        if (seq !== navGeneration.current) return;
+        locationCursors.current.add(cursor);
+        const existing = new Set(libraries.value.map((entry) => entry.id));
+        const additions = result.value.filter((entry) => !existing.has(entry.id) && !!existing.add(entry.id));
+        setLibraries({ status: 'ready', value: [...libraries.value, ...additions], next: JSON.stringify(result.next) === cursor ? null : result.next, error: null });
+      }
+    } catch (error) {
+      if (seq === navGeneration.current) {
+        if (location.kind === 'sites') setSites((state) => ({ ...state, error }));
+        if (location.kind === 'libraries') setLibraries((state) => ({ ...state, error }));
+      }
+    } finally { if (seq === navGeneration.current) setLocationMoreBusy(false); }
   }
 
   async function showOneDrive() {
@@ -354,6 +397,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.sites', 'SharePoint sites'))}{changeLocation}</div>
             {sites.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {sites.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(sites.error)} onRetry={() => void showSites()} />}
+            {sites.status === 'ready' && sites.error != null && <M365BrowseNotice connection={connection} code={codeOf(sites.error)} onRetry={() => void loadLocationMore()} />}
             {sites.status === 'ready' && !sites.value.length && <ListState variant="empty" title={t('m365Documents.picker.noSites', 'No sites found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
             {sites.status === 'ready' && sites.value.length > 0 && (
               <ul aria-label={t('m365Documents.picker.sites', 'SharePoint sites')} className="max-h-72 overflow-auto">
@@ -364,6 +408,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                 ))}
               </ul>
             )}
+            {sites.next && <Button variant="outline" className="touch-target" disabled={locationMoreBusy} onClick={() => void loadLocationMore()}>{t('m365Documents.picker.loadMore', 'Load more')}</Button>}
           </section>
         )}
 
@@ -380,6 +425,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.librariesIn', 'Libraries in {{site}}', { site: location.site.name }))}{changeLocation}</div>
             {libraries.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {libraries.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(libraries.error)} onRetry={() => void showLibraries(location.site)} />}
+            {libraries.status === 'ready' && libraries.error != null && <M365BrowseNotice connection={connection} code={codeOf(libraries.error)} onRetry={() => void loadLocationMore()} />}
             {libraries.status === 'ready' && !libraries.value.length && <ListState variant="empty" title={t('m365Documents.picker.noLibraries', 'No libraries found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
             {libraries.status === 'ready' && libraries.value.length > 0 && (
               <ul aria-label={t('m365Documents.picker.libraries', 'Libraries')} className="max-h-72 overflow-auto">
@@ -390,6 +436,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                 ))}
               </ul>
             )}
+            {libraries.next && <Button variant="outline" className="touch-target" disabled={locationMoreBusy} onClick={() => void loadLocationMore()}>{t('m365Documents.picker.loadMore', 'Load more')}</Button>}
           </section>
         )}
 

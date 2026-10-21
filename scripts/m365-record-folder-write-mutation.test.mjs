@@ -14,6 +14,12 @@ export function validateGraphProxyInput(req) {
 export function scopeCoversPath(scopes, method, path) {
   if (normalizedMethod !== "GET") return false; // mutation-witness:scope-get-only
 }
+function isOneDrivePath(path) { // mutation-witness:metadata-paths
+  return false;
+}
+if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-folder-grant
+}
+return { body: metadataOnly(data) }; // mutation-witness:metadata-projection
 const createFolder = async () => {
   if (!folderWriteAllowed(request, context)) return { kind: "unavailable" };
   return await sendFolderRequest(
@@ -32,6 +38,10 @@ export function folderWriteAllowed(request, context) { // mutation-witness:allow
 `;
 
 const EXTRA = {
+  'auth.ts': 'if (!rate.exceeded) return null; // mutation-witness:metadata-quota\n',
+  'callback.ts': 'if (!tokenRes.ok || !validTokenPair(tokenData)) { // mutation-witness:callback-token-pair\n',
+  'refresh.ts': 'if (!validTokenPair(rotated)) return false; // mutation-witness:refresh-token-pair\n',
+  'microsoftTransport.ts': 'await fetchImpl(input, { ...init, redirect: "error" }); // mutation-witness:microsoft-redirect\n    }, timeoutMs); // mutation-witness:microsoft-body-timeout\n',
   'recordFolders.ts': 'matches = matches.filter((m) => !taken.has(m.item_id)); // mutation-witness:exclude-shared\n  if (!rate.exceeded) return null; // mutation-witness:rate-limit\n',
   'recordFolderSearch.ts': 'if (page === MAX_LISTING_PAGES - 1) return incomplete("page_limit"); // mutation-witness:page-cap-incomplete\n        if (!folderNameMatchesCode(folder.name, convention.term)) continue; // mutation-witness:strict-boundary\n',
   'recordFolderParents.ts': 'if (receiptOnConflict && !await onCreated(x)) { // mutation-witness:conflict-receipt\n',
@@ -39,7 +49,7 @@ const EXTRA = {
 };
 const OUTSIDE = {
   'supabase/functions/_shared/microsoftFolderConvention.ts': "return n.length === c.length || n[c.length] === ' '; // mutation-witness:space-boundary\n",
-  [`${CUSTODY}/index.ts`]: 'result = await handleInitiateConnect(authed, body); // mutation-witness:initiate-body\n',
+  [`${CUSTODY}/index.ts`]: 'result = await handleInitiateConnect(authed, body); // mutation-witness:initiate-body\nif (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline\n',
 };
 const ORIGINAL = { 'graphRead.ts': READ, 'graphFolderWrite.ts': WRITE, ...EXTRA, 'microsoftFolderConvention.ts': OUTSIDE['supabase/functions/_shared/microsoftFolderConvention.ts'], 'index.ts': OUTSIDE[`${CUSTODY}/index.ts`] };
 

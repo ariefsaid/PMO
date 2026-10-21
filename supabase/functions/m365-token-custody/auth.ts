@@ -7,6 +7,7 @@
 
 import type { M365SupabaseLike, HandlerDeps, HandlerResult } from './types.ts';
 import { M365HandlerError, errorResult } from './types.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 
 /** CORS headers, origin-narrowed by index.ts from env (never '*' — mirrors compose-view/agent-chat). */
 export function corsHeaders(allowedOrigin: string): Record<string, string> {
@@ -130,6 +131,16 @@ export async function authorizeMemberEntitled(deps: {
   }
 
   return { orgId, role };
+}
+
+/** Per-caller metadata traffic budget, separate from the authorization decision. */
+export async function microsoftReadQuota(deps: HandlerDeps): Promise<HandlerResult | null> {
+  const rate = await checkRequestRate(deps.serviceClient as never, {
+    key: `m365-token-custody:metadata:${deps.userId}`, limit: 120, windowSecs: 60,
+  });
+  if (!rate.exceeded) return null; // mutation-witness:metadata-quota
+  return { status: 429, body: { error: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' },
+    headers: { 'Retry-After': String(rate.retryAfterSeconds) } };
 }
 
 /**

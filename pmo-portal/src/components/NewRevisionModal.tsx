@@ -35,6 +35,7 @@ interface NewRevisionModalProps {
   onSubmit: (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => void;
   onClose: () => void;
   loading: boolean;
+  readOnly?: boolean;
   /**
    * The LATEST Microsoft file (re-read just before opening), when the revision is made from a
    * changed-content file. It becomes the child's own reference; the parent's pin is never inherited.
@@ -52,6 +53,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   onSubmit,
   onClose,
   loading,
+  readOnly = false,
   microsoft,
 }) => {
   const { t } = useTranslation();
@@ -65,7 +67,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (readOnly || !canSubmit) return;
     onSubmit({
       title: title.trim(),
       code: code.trim(),
@@ -90,7 +92,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       onClose={onClose}
       loading={loading}
       dirty={true}
-      submitDisabled={!canSubmit}
+      submitDisabled={readOnly || !canSubmit}
     >
       {parent.source === 'onedrive' && parent.status !== 'Draft' && parent.ms_item_kind === 'file' && (
         <div className="mb-3 flex min-w-0 flex-col gap-1" data-testid="revision-parent-summary">

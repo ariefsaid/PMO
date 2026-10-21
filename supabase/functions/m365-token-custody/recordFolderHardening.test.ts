@@ -34,6 +34,20 @@ import {
   webUrl,
 } from "./recordFolderTestKit.ts";
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
+import { createGraphBudget } from "./folderBudget.ts";
+
+Deno.test("AC-M365DOC-071 folder budget closes at the exact deadline", () => {
+  let clock = 0;
+  const budget = createGraphBudget(12_000, () => clock);
+  assertEquals(budget.slice(), 5_000);
+  clock = 11_999;
+  assertEquals(budget.slice(), 1);
+  clock = 12_000;
+  assertEquals(budget.remaining(), 0);
+  assertEquals(budget.slice(), null);
+  clock = 12_001;
+  assertEquals(budget.slice(), null);
+});
 
 const { handler, setTestJwks } = await import("./index.ts");
 const run = makeScenarioRunner(handler, setTestJwks);
@@ -44,7 +58,6 @@ const LINK_ID = "10200000-0000-0000-0000-0000000009aa";
 const created = (id: string, name: string, parentId: string) =>
   new Response(JSON.stringify(folderItem(id, name, parentId)), { status: 201, headers: { "content-type": "application/json" } });
 const postedName = (call: { bodyJson?: unknown }) => (call.bodyJson as { name: string }).name;
-const folders = (n: number, name: (i: number) => string) => Array.from({ length: n }, (_, i) => folderItem(`f${i}`, name(i), PROJECTS_ID));
 const files = (n: number, name: (i: number) => string) =>
   Array.from({ length: n }, (_, i) => ({ id: `file${i}`, name: name(i), webUrl: webUrl(`file${i}`), file: {}, parentReference: { driveId: DRIVE, id: PROJECTS_ID } }));
 const listingUrl = (parent: string, skip: string) => `https://graph.microsoft.com/v1.0/drives/${DRIVE}/items/${parent}/children?$top=200&$skiptoken=${skip}`;

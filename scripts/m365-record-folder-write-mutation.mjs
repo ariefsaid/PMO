@@ -25,7 +25,7 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CUSTODY = 'supabase/functions/m365-token-custody';
 export const TEST_FILE = `${CUSTODY}/recordFolderWrite.test.ts`;
 /** Every suite that carries a witness assertion; the harness runs them together. */
-export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`, `${CUSTODY}/initiateServed.test.ts`];
+export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`, `${CUSTODY}/initiateServed.test.ts`, `${CUSTODY}/transportServed.test.ts`, `${CUSTODY}/callbackServed.test.ts`, `${CUSTODY}/refreshServed.test.ts`];
 const ENSURE_FILE = `${CUSTODY}/recordFolders.ts`;
 const SEARCH_FILE = `${CUSTODY}/recordFolderSearch.ts`;
 const PARENTS_FILE = `${CUSTODY}/recordFolderParents.ts`;
@@ -79,11 +79,37 @@ export const MUTATIONS = [
     killedBy: 'a 409 winner we link after our own POST gets the receipt' },
   { id: 'deadline-spent', file: BUDGET_FILE, tag: 'mutation-witness:deadline-spent',
     apply: (line) => line.replace('left <= 0 ? null', 'left < 0 ? null'),
-    killedBy: 'the 12 second deadline is shared' },
+    killedBy: 'folder budget closes at the exact deadline' },
+  { id: 'metadata-paths', file: READ_FILE, tag: 'mutation-witness:metadata-paths',
+    apply: (line) => line.replace('{ // mutation-witness', '{ if (Date.now() > 0) return true; // mutation-witness'),
+    killedBy: 'served browser reads stay on the metadata surface' },
+  { id: 'metadata-projection', file: READ_FILE, tag: 'mutation-witness:metadata-projection',
+    apply: (line) => line.replace('metadataOnly(data)', 'data'),
+    killedBy: 'served metadata responses contain reference fields only' },
+  { id: 'metadata-quota', file: `${CUSTODY}/auth.ts`, tag: 'mutation-witness:metadata-quota',
+    apply: (line) => line.replace('if (!rate.exceeded)', 'if (true || !rate.exceeded)'),
+    killedBy: 'served browser metadata calls use a caller quota' },
+  { id: 'microsoft-redirect', file: `${CUSTODY}/microsoftTransport.ts`, tag: 'mutation-witness:microsoft-redirect',
+    apply: (line) => line.replace('redirect: "error"', 'redirect: "follow"'),
+    killedBy: 'served metadata transport keeps redirects local' },
+  { id: 'microsoft-body-timeout', file: `${CUSTODY}/microsoftTransport.ts`, tag: 'mutation-witness:microsoft-body-timeout',
+    apply: (line) => line.replace('}, timeoutMs);', '}, timeoutMs + 60_000);'),
+    killedBy: 'served ensure accounts for metadata body time' },
+  { id: 'folder-request-deadline', file: INDEX_FILE, tag: 'mutation-witness:folder-request-deadline',
+    apply: (line) => line.replace('scope?.limit(12_000)', 'scope?.limit(60_000)'),
+    killedBy: 'served ensure bounds a pending record read' },
+  { id: 'callback-token-pair', file: `${CUSTODY}/callback.ts`, tag: 'mutation-witness:callback-token-pair',
+    apply: (line) => line.replace('!validTokenPair(tokenData)', 'false'),
+    killedBy: 'served callback validates the token pair before persistence' },
+  { id: 'refresh-token-pair', file: `${CUSTODY}/refresh.ts`, tag: 'mutation-witness:refresh-token-pair',
+    apply: (line) => line.replace('!validTokenPair(rotated)', 'false'),
+    killedBy: 'served refresh requires a usable access token' },
+  { id: 'refreshed-folder-grant', file: READ_FILE, tag: 'mutation-witness:refreshed-folder-grant',
+    apply: (line) => line.replace('requireScope && !requireScope(connection.scopes ?? [])', 'false'),
+    killedBy: 'served refresh uses the current grant for the folder capability' },
 ];
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');
-// eslint-disable-next-line no-control-regex
 const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, '');
 
 /** Real runner: deno test of the witness file. Returns { code, output }. */
