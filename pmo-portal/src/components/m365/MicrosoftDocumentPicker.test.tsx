@@ -39,7 +39,7 @@ describe('MicrosoftDocumentPicker', () => {
     const first = Array.from({ length: 100 }, (_, i) => ({ drive_id: 'drive-1', item_id: `item-${i}`, web_url: `https://example.invalid/${i}`, name: `File ${i}`, item_kind: 'file' as const, parent_path: null, content_tag: null, sharepoint_ids: null }));
     vi.mocked(listChildren).mockResolvedValueOnce({ value: first, next: { path: '/next' }, unsupported_count: 2 });
     vi.mocked(browseOneDrive).mockResolvedValueOnce({ value: [first[99]!, { ...first[0]!, item_id: 'item-100', name: 'File 100' }], next: null });
-    const { container } = render(<MicrosoftDocumentPicker open context={{ kind: 'budget' }} onClose={vi.fn()} onSelect={vi.fn()} />);
+    render(<MicrosoftDocumentPicker open context={{ kind: 'budget' }} onClose={vi.fn()} onSelect={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
     await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
