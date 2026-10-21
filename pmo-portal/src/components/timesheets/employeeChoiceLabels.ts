@@ -13,6 +13,7 @@ export interface EmployeeChoiceLabel {
 /** Formats employee choices consistently, adding email only when it distinguishes duplicate names. */
 export function employeeChoiceLabels(
   choices: readonly EmployeeChoiceIdentity[],
+  options: { omitAmbiguous?: boolean } = {},
 ): EmployeeChoiceLabel[] {
   const normalized = choices.map((choice) => ({
     value: choice.value,
@@ -27,7 +28,7 @@ export function employeeChoiceLabels(
     }
   }
 
-  return normalized.map(({ value, name, email }) => {
+  const labels = normalized.map(({ value, name, email }) => {
     const duplicateName = name && (nameCounts.get(name.toLocaleLowerCase()) ?? 0) > 1;
     return {
       value,
@@ -35,6 +36,17 @@ export function employeeChoiceLabels(
         ? duplicateName && email ? `${name} · ${email}` : name
         : email,
       email: email || undefined,
+      duplicateName: Boolean(duplicateName),
+      hasEmail: Boolean(email),
     };
   });
+  if (!options.omitAmbiguous) return labels.map(({ value, label, email }) => ({ value, label, email }));
+
+  const labelCounts = new Map<string, number>();
+  for (const { label } of labels) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  return labels
+    .filter(({ label, duplicateName, hasEmail }) =>
+      !(duplicateName && !hasEmail) && labelCounts.get(label) === 1,
+    )
+    .map(({ value, label, email }) => ({ value, label, email }));
 }
