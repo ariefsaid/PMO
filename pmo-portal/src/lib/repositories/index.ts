@@ -232,7 +232,7 @@ import {
   listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
 } from '@/src/lib/db/progressBilling';
 import {
-  listProjectAcceptances, listWorkOrderLines, createWorkOrderLine, updateWorkOrderLine, deleteWorkOrderLine,
+  listProjectAcceptances, listWorkOrderLines, listProjectWorkOrderLines, createWorkOrderLine, updateWorkOrderLine, deleteWorkOrderLine,
   prepareWorkOrderAcceptance, withdrawWorkOrderAcceptance, confirmWorkOrderAcceptance,
 } from '@/src/lib/db/workOrderAcceptances';
 import {
@@ -929,6 +929,7 @@ const progressBilling: ProgressBillingRepository = {
 const workOrderAcceptance: WorkOrderAcceptanceRepository = {
   listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
   listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
+  listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),
   createLine: (input) => wrap(() => createWorkOrderLine(input)),
   updateLine: (id, quantity) => wrap(() => updateWorkOrderLine(id, quantity)),
   deleteLine: (id) => wrap(() => deleteWorkOrderLine(id)),

@@ -679,6 +679,8 @@ export interface WorkOrderAcceptanceRepository {
   listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
   /** The allocations of one work order. */
   listLines(workOrderId: string): Promise<WorkOrderLineRow[]>;
+  /** Every allocation on a project's work orders. */
+  listProjectLines(projectId: string): Promise<WorkOrderLineRow[]>;
   createLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow>;
   updateLine(id: string, quantity: number): Promise<void>;
   deleteLine(id: string): Promise<void>;

@@ -59,7 +59,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     initialValues: item
       ? { itemCode: item.item_code, description: item.description, unit: item.unit,
           quantity: formatMoneyInputValue(Number(item.quantity)), rate: formatMoneyInputValue(Number(item.rate)),
-          basis: item.earning_basis, lineNo: item.line_no === null ? '' : String(item.line_no) }
+          basis: item.earning_basis as EarningBasis, lineNo: item.line_no === null ? '' : String(item.line_no) }
       : { itemCode: '', description: '', unit: '', quantity: '', rate: '', basis: '', lineNo: '' },
     validate,
     idPrefix: 'boq-item',

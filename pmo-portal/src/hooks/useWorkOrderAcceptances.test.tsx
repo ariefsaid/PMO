@@ -17,7 +17,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: 
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 
-import { useProjectAcceptances, useWorkOrderAcceptanceMutations, useWorkOrderLines } from './useWorkOrderAcceptances';
+import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useWorkOrderLines } from './useWorkOrderAcceptances';
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -32,7 +32,7 @@ beforeEach(() => { vi.clearAllMocks(); auth.orgId = 'org-1'; });
 describe('contract-quantity read hooks', () => {
   it('AC-CQ-015 acceptances are one project query under an org-scoped key', async () => {
     const { client, wrapper } = setup();
-    const { result } = renderHook(() => useProjectAcceptances('p1'), { wrapper });
+    const { result } = renderHook(() => useWorkOrderAcceptances('p1'), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(h.listByProject).toHaveBeenCalledWith('p1');
     expect(client.getQueryData(['work-order-acceptances', 'org-1', 'p1'])).toEqual([{ id: 'a1', lines: [] }]);
@@ -48,7 +48,7 @@ describe('contract-quantity read hooks', () => {
   it('AC-CQ-015 nothing is fetched without an org or an id', () => {
     auth.orgId = undefined;
     const { wrapper } = setup();
-    renderHook(() => useProjectAcceptances('p1'), { wrapper });
+    renderHook(() => useWorkOrderAcceptances('p1'), { wrapper });
     renderHook(() => useWorkOrderLines('wo-1'), { wrapper });
     expect(h.listByProject).not.toHaveBeenCalled();
     expect(h.listLines).not.toHaveBeenCalled();

@@ -4,11 +4,21 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderLineInput } from '@/src/lib/db/workOrderAcceptances';
 
 /** Every acceptance on a project in ONE query (the tab groups them by work order). Keys carry org_id. */
-export function useProjectAcceptances(projectId: string) {
+export function useWorkOrderAcceptances(projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['work-order-acceptances', orgId, projectId],
     queryFn: () => repositories.workOrderAcceptance.listByProject(projectId),
+    enabled: Boolean(orgId) && Boolean(projectId),
+  });
+}
+
+/** Every allocation on a project's work orders in ONE query (grouped by work order in the tab). */
+export function useProjectWorkOrderLines(projectId: string) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-lines', orgId, 'project', projectId],
+    queryFn: () => repositories.workOrderAcceptance.listProjectLines(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }

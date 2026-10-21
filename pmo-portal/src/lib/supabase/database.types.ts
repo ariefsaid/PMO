@@ -7187,7 +7187,7 @@ export type Database = {
           boq_item_id: string
           created_at?: string
           id?: string
-          org_id: string
+          org_id?: string
           quantity: number
           work_order_id: string
         }

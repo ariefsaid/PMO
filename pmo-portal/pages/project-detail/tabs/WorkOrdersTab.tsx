@@ -35,7 +35,7 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import {
-  useWorkOrderAcceptanceMutations, useWorkOrderAcceptances, useWorkOrderLines,
+  useWorkOrderAcceptanceMutations, useWorkOrderAcceptances, useProjectWorkOrderLines,
 } from '@/src/hooks/useWorkOrderAcceptances';
 import type { WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import WorkOrderLinesModal from '../WorkOrderLinesModal';
@@ -146,7 +146,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
   const boq = useBoqItems(projectId);
   const projectBilling = useProjectBilling(projectId);
-  const lines = useWorkOrderLines(projectId);
+  const lines = useProjectWorkOrderLines(projectId);
   const acceptancesQuery = useWorkOrderAcceptances(projectId);
   const documents = useDocuments(projectId);
   const quantityMutations = useWorkOrderAcceptanceMutations(projectId);

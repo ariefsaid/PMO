@@ -75,6 +75,19 @@ export async function listWorkOrderLines(workOrderId: string): Promise<WorkOrder
   return rows;
 }
 
+/** Every allocation on a project's work orders in ONE query (the tab groups them by work order). */
+export async function listProjectWorkOrderLines(projectId: string): Promise<WorkOrderLineRow[]> {
+  const { data, error } = await supabase.from('work_order_lines').select('*, work_orders!inner(project_id)')
+    .eq('work_orders.project_id', projectId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(LIST_LIMIT);
+  if (error) fail(error);
+  const rows = (data ?? []).map(({ work_orders: _wo, ...row }) => row) as WorkOrderLineRow[];
+  refuseSaturated(rows, 'allocations');
+  return rows;
+}
+
 export async function createWorkOrderLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow> {
   const { data, error } = await supabase.from('work_order_lines').insert({
     work_order_id: input.workOrderId, boq_item_id: input.boqItemId, quantity: input.quantity,
