@@ -24,6 +24,16 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
     setValue: { mutateAsync: vi.fn(), isPending: false }, transition: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptanceMutations: () => ({}),
+}));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));

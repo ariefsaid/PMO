@@ -23,6 +23,9 @@ export interface ProgressAssessmentModalProps {
   onError: (err: unknown) => void;
 }
 
+/** Lump-sum progress is a fraction of one lot (0–1, 3 dp) entered as a percent with at most 1 decimal. */
+const fractionToPercentInput = (fraction: number): string => formatMoneyInputValue(Math.round(fraction * 1000) / 10);
+
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
@@ -31,7 +34,8 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
   const { t } = useTranslation();
   const [month, setMonth] = useState(defaultMonth);
   const [quantities, setQuantities] = useState<Record<string, string>>(() => Object.fromEntries(
-    boqItems.map((line) => [line.id, assessedByBoqItem[line.id] === undefined ? '' : formatMoneyInputValue(assessedByBoqItem[line.id])]),
+    boqItems.map((line) => [line.id, assessedByBoqItem[line.id] === undefined ? ''
+      : line.earning_basis === 'lump_sum' ? fractionToPercentInput(assessedByBoqItem[line.id]) : formatMoneyInputValue(assessedByBoqItem[line.id])]),
   ));
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -46,6 +50,15 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
     for (const line of boqItems) {
       const raw = (quantities[line.id] ?? '').trim();
       if (raw === '') { lines.push({ boqItemId: line.id, quantityToDate: 0 }); continue; }
+      if (line.earning_basis === 'lump_sum') {
+        const pct = parseMoneyInputAtScale(raw, 1);
+        if (pct === null || pct < 0 || pct > 100) {
+          errs[line.id] = t('projectTabs:contractQuantities.billing.assessment.errors.percent', 'Enter a percentage from 0 to 100 with at most 1 decimal place');
+        } else {
+          lines.push({ boqItemId: line.id, quantityToDate: Math.round(pct * 10) / 1000 });
+        }
+        continue;
+      }
       const quantity = parseMoneyInputAtScale(raw, 3);
       if (quantity === null || quantity < 0) {
         errs[line.id] = t('projectDetail.billing.assessment.errors.quantity', 'Each quantity done to date must be 0 or more with at most 3 decimal places');
@@ -85,8 +98,10 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
             value={month} onChange={setMonth} error={errors.month} />
           {boqItems.map((line) => (
             <NumberField key={line.id} id={`assessment-qty-${line.id}`}
-              label={t('projectDetail.billing.assessment.quantityToDate', '{{item}} — done to date ({{unit}})',
-                { item: `${line.item_code} — ${line.description}`, unit: line.unit })}
+              label={line.earning_basis === 'lump_sum'
+                ? t('projectTabs:contractQuantities.billing.assessment.percentToDate', '{{item}} — % done to date', { item: `${line.item_code} — ${line.description}` })
+                : t('projectDetail.billing.assessment.quantityToDate', '{{item}} — done to date ({{unit}})',
+                  { item: `${line.item_code} — ${line.description}`, unit: line.unit })}
               value={quantities[line.id] ?? ''}
               onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))}
               error={errors[line.id]} localeAware />

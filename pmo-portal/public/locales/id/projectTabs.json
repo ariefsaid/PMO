@@ -3,8 +3,159 @@
     "quantity": "Penagihan kuantitas"
   },
   "clickup": {
-    "linkedTo": "Tertaut ke daftar {{tier}} {{name}}",
     "linkedSaved": "Tertaut ke {{tier}}. {{detail}}",
+    "linkedTo": "Tertaut ke daftar {{tier}} {{name}}",
     "unlink": "Putuskan"
+  },
+  "contractQuantities": {
+    "billing": {
+      "assessment": {
+        "errors": {
+          "percent": "Isi persentase 0 sampai 100 dengan paling banyak 1 angka desimal"
+        },
+        "percentToDate": "{{item}} — % selesai s.d. saat ini"
+      },
+      "boq": {
+        "column": {
+          "accepted": "Diterima (BAST)",
+          "balance": "Belum dipesan",
+          "earned": "Diperoleh",
+          "ordered": "Dipesan"
+        },
+        "lumpSum": "Lump sum",
+        "overMeasured": "Melebihi yang dipesan",
+        "overOrdered": "Pesanan melebihi kontrak sebesar {{qty}}"
+      },
+      "boqForm": {
+        "basis": "Diperoleh menurut",
+        "basisLumpSum": "Lump sum — 1 lot, diperoleh menurut persentase",
+        "basisUnitRate": "Harga satuan — kuantitas × harga",
+        "errors": {
+          "lineNo": "Isi nomor baris berupa bilangan bulat, atau kosongkan"
+        },
+        "lineNo": "No. baris (opsional)"
+      },
+      "claimForm": {
+        "prefillBast": "Mulai dari kuantitas BAST yang diterima"
+      },
+      "summary": {
+        "earned": "Diperoleh s.d. saat ini",
+        "noAssessment": "Belum ada penilaian"
+      }
+    },
+    "workOrders": {
+      "acceptances": {
+        "confirm": "Konfirmasi BAST",
+        "confirmFinal": {
+          "body": "Mengonfirmasi BAST final menutup Work Order pada kuantitas yang diterima. Nilai PO klien tetap seperti tercatat; nilai penutupan disimpan terpisah dan kuantitas yang tidak terpakai kembali ke sisa kontrak. Tindakan ini tidak dapat diurungkan.",
+          "confirm": "Konfirmasi BAST final",
+          "title": "Konfirmasi BAST final?"
+        },
+        "confirmStage": {
+          "body": "Kuantitas yang diterima dicatat per BAST ini. Work Order tetap terbuka dan tidak ada yang ditagih.",
+          "confirm": "Konfirmasi BAST",
+          "title": "Konfirmasi BAST ini?"
+        },
+        "confirmWithdraw": {
+          "body": "Draft ditarik dan tidak dapat dikonfirmasi. Siapkan BAST baru jika klien masih menerima pekerjaannya.",
+          "confirm": "Tarik BAST",
+          "title": "Tarik draft BAST ini?"
+        },
+        "document": "BAST bertanda tangan: {{title}}",
+        "edit": "Ubah",
+        "editLabel": "Ubah draft BAST tanggal {{date}}",
+        "empty": "Belum ada BAST",
+        "error": "BAST tidak dapat dimuat",
+        "final": "Final",
+        "form": {
+          "date": "Tanggal BAST",
+          "details": "Penerimaan",
+          "document": "Dokumen BAST bertanda tangan",
+          "documentHelp": "Dari daftar dokumen proyek ini: berstatus diterbitkan atau disetujui, dengan berkas. Diperlukan untuk konfirmasi.",
+          "errors": {
+            "date": "Isi tanggal BAST",
+            "finalComplete": "BAST final mencantumkan setiap baris yang dipesan — isi kuantitas, walaupun 0",
+            "noLines": "Isi kuantitas yang diterima untuk setidaknya satu baris",
+            "quantity": "Setiap kuantitas yang diterima harus 0 atau lebih dengan paling banyak 3 angka desimal"
+          },
+          "final": "Ini BAST final",
+          "finalHelp": "Mengonfirmasi BAST final menutup Work Order pada kuantitas yang diterima.",
+          "noAllocations": "Alokasikan dulu baris kontrak ke Work Order ini.",
+          "noDocument": "Belum ada",
+          "noEligibleDocument": "Unggah dan terbitkan dulu BAST bertanda tangan di daftar dokumen proyek. Dokumen ini diperlukan untuk konfirmasi.",
+          "note": "Catatan (opsional)",
+          "noteLegend": "Catatan",
+          "ordered": "Dipesan {{qty}} {{unit}}",
+          "overMeasured": "Melebihi yang dipesan sebesar {{qty}} {{unit}} ({{item}}).",
+          "percentLine": "{{item}} — % diterima",
+          "prepare": "Siapkan BAST",
+          "quantities": "Diterima s.d. saat ini",
+          "quantityLine": "{{item}} — diterima s.d. saat ini ({{unit}})",
+          "save": "Simpan BAST",
+          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat faktur.",
+          "titleEdit": "Ubah BAST — {{wo}}",
+          "titleNew": "Siapkan BAST — {{wo}}"
+        },
+        "heading": "Penerimaan (BAST)",
+        "noDocument": "Belum ada dokumen BAST bertanda tangan yang ditautkan",
+        "prepare": "Siapkan BAST",
+        "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
+        "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
+        "stage": "Tahap",
+        "status": {
+          "confirmed": "Terkonfirmasi",
+          "draft": "Draft",
+          "withdrawn": "Ditarik"
+        },
+        "toast": {
+          "closed": "BAST final terkonfirmasi — ditutup pada {{amount}}",
+          "confirmed": "BAST terkonfirmasi",
+          "prepared": "BAST disiapkan",
+          "preparedSub": "Pihak lain mengonfirmasinya sebelum berlaku.",
+          "updated": "Draft BAST diperbarui",
+          "withdrawn": "BAST ditarik"
+        },
+        "withdraw": "Tarik",
+        "withdrawLabel": "Tarik draft BAST tanggal {{date}}"
+      },
+      "closing": {
+        "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",
+        "dpHeld": "{{amount}} uang muka masih tertahan setelah penutupan. Finance perlu memulihkan sisanya dengan tagihan progres berikutnya, atau mengembalikannya secara eksplisit — penutupan tidak menghapusnya."
+      },
+      "contractLines": {
+        "balance": "Belum dipesan {{qty}} {{unit}}",
+        "balanceUnknown": "Sisa tidak tersedia",
+        "confirmRemove": {
+          "body": "{{item}} kembali ke sisa kontrak. Baris yang sudah diterima oleh BAST terkonfirmasi tidak dapat dihapus.",
+          "confirm": "Hapus alokasi",
+          "title": "Hapus alokasi ini?"
+        },
+        "contractQty": "Kontrak {{qty}} {{unit}}",
+        "done": "Selesai",
+        "edit": "Ubah baris",
+        "errors": {
+          "quantity": "Isi kuantitas di atas 0 dengan paling banyak 3 angka desimal"
+        },
+        "frozen": "Work Order ini berstatus {{status}}: alokasinya dibekukan.",
+        "heading": "Baris kontrak",
+        "legend": "Baris bill of quantities",
+        "loadError": "Baris kontrak tidak dapat dimuat",
+        "noBoq": "Proyek ini belum memiliki baris bill of quantities.",
+        "none": "Belum ada baris kontrak yang dialokasikan",
+        "overOrdered": "Pesanan melebihi sisa kontrak sebesar {{qty}} {{unit}}.",
+        "readOnly": "Anda dapat melihat alokasi ini tetapi tidak dapat mengubahnya.",
+        "remove": "Hapus",
+        "removeRow": "Hapus {{item}}",
+        "save": "Simpan",
+        "saveRow": "Simpan {{item}}",
+        "subtitle": "Kuantitas yang diambil Work Order ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
+        "title": "Baris kontrak — {{wo}}"
+      },
+      "quantities": {
+        "counts": "{{lines}} baris · {{basts}} BAST",
+        "summary": "Baris kontrak dan BAST — {{wo}}",
+        "title": "Kuantitas kontrak"
+      }
+    }
   }
 }

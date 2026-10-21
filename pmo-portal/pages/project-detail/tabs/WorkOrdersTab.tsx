@@ -18,7 +18,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -32,6 +32,15 @@ import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
+import { useDocuments } from '@/src/hooks/useDocuments';
+import {
+  useWorkOrderAcceptanceMutations, useWorkOrderAcceptances, useWorkOrderLines,
+} from '@/src/hooks/useWorkOrderAcceptances';
+import type { WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
+import WorkOrderLinesModal from '../WorkOrderLinesModal';
+import WorkOrderAcceptanceModal from '../WorkOrderAcceptanceModal';
+import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 import {
@@ -66,6 +75,17 @@ export interface WorkOrdersTabProps {
   clientId?: string | null;
   /** A work order to bring into view on arrival (`?wo=` from a dashboard link): highlighted, scrolled to, focused. */
   focusWorkOrderId?: string | null;
+  /** Decides who may prepare a BAST (the project's own PM or Finance rank). */
+  projectManagerId?: string | null;
+}
+
+/** `closing_value` is stamped server-side by the final BAST (ADR-0090); null until then. */
+type WorkOrderWithClosing = WorkOrderRow & { closing_value?: number | null };
+
+/** `YYYY-MM-DD` in the browser's zone — only the BAST date dialog's default. */
+function todayIso(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 /** OD-BILL-1: the billing pill per derived state ('not-billable' renders a dash, no pill). Workflow family (DESIGN.md):
@@ -103,7 +123,7 @@ interface PendingTransition {
   to: WorkOrderStatus;
 }
 
-const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null }) => {
+const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -121,6 +141,41 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
+
+  // ── ADR-0090: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
+  //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
+  const boq = useBoqItems(projectId);
+  const projectBilling = useProjectBilling(projectId);
+  const lines = useWorkOrderLines(projectId);
+  const acceptancesQuery = useWorkOrderAcceptances(projectId);
+  const documents = useDocuments(projectId);
+  const quantityMutations = useWorkOrderAcceptanceMutations(projectId);
+  const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
+  const allocationsByWo = useMemo(() => {
+    const grouped = new Map<string, WorkOrderLineRow[]>();
+    for (const row of lines.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
+    return grouped;
+  }, [lines.data]);
+  const acceptancesByWo = useMemo(() => {
+    const grouped = new Map<string, WorkOrderAcceptanceWithLines[]>();
+    for (const row of acceptancesQuery.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
+    return grouped;
+  }, [acceptancesQuery.data]);
+  const [linesFor, setLinesFor] = useState<WorkOrderRow | null>(null);
+  const [bastFor, setBastFor] = useState<{ row: WorkOrderRow; draft: WorkOrderAcceptanceWithLines | null } | null>(null);
+  const [withdrawFor, setWithdrawFor] = useState<WorkOrderAcceptanceWithLines | null>(null);
+  const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
+  /** The down payment still held after a final BAST closed an order (FR-CQ-012) — persistent until reload. */
+  const [dpHeldAfterClose, setDpHeldAfterClose] = useState<number | null>(null);
+  const showQuantities = boqRows.length > 0 || (lines.data ?? []).length > 0;
+  // Close is replaced by the final BAST for any work order that has contract lines (DD-CQ-9); while the
+  // allocations are unknown it is withheld rather than guessed.
+  const closeByBast = (id: string): boolean => lines.isPending || lines.isError || allocationsByWo.has(id);
+  const dpNotice = dpHeldAfterClose ?? (
+    projectBilling.data && projectBilling.data.dpBilled - projectBilling.data.dpRecovered > 0
+      && rows.some((r) => r.status === 'Closed' && (acceptancesByWo.get(r.id) ?? []).some((a) => a.status === 'Confirmed' && a.is_final))
+      ? projectBilling.data.dpBilled - projectBilling.data.dpRecovered : null
+  );
 
   // ── OD-BILL-1 (#913): billing by work order. Read = the revenue read set; Invoice = the invoice-create authority
   //    (Admin/Finance — the same `can()` the native create's RPC enforces) with a client to invoice, in EITHER revenue
@@ -360,6 +415,53 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
+  const runPrepare = async (input: Omit<Parameters<typeof quantityMutations.prepare.mutateAsync>[0], 'workOrderId'>) => {
+    if (!bastFor) return;
+    await quantityMutations.prepare.mutateAsync({ ...input, workOrderId: bastFor.row.id });
+    toast(
+      bastFor.draft
+        ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.updated', 'BAST draft updated')
+        : t('projectTabs:contractQuantities.workOrders.acceptances.toast.prepared', 'BAST prepared'),
+      t('projectTabs:contractQuantities.workOrders.acceptances.toast.preparedSub', 'Someone else confirms it before it counts.'),
+      'success',
+    );
+    setBastFor(null);
+  };
+
+  const runWithdrawBast = async () => {
+    if (!withdrawFor) return;
+    try {
+      await quantityMutations.withdraw.mutateAsync(withdrawFor.id);
+      toast(t('projectTabs:contractQuantities.workOrders.acceptances.toast.withdrawn', 'BAST withdrawn'), undefined, 'success');
+    } catch (err) {
+      fail(err);
+    } finally {
+      setWithdrawFor(null);
+    }
+  };
+
+  /** The server's refusal (over order net, below billed, SoD, missing document) stays in the dialog. */
+  const runConfirmBast = async () => {
+    if (!confirmFor) return;
+    try {
+      const result = await quantityMutations.confirm.mutateAsync(confirmFor.acceptance.id);
+      if (result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
+      toast(
+        result && result.closingValue !== null
+          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
+            amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false },
+          })
+          : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
+        undefined,
+        'success',
+      );
+      setConfirmFor(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+      setConfirmFor({ acceptance: confirmFor.acceptance, error: detail ? `${headline} ${detail}` : headline });
+    }
+  };
+
   const columns: Column<WorkOrderRow>[] = [
     {
       key: 'number',
@@ -399,6 +501,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <span className="flex flex-col items-end tabular" data-testid={`wo-value-${row.id}`}>
           <span>{formatCurrency(row.order_value, row.currency)}</span>{' '}
           <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
+          {(row as WorkOrderWithClosing).closing_value != null && (
+            <span className="mt-0.5 whitespace-normal text-[11px] font-semibold" data-testid={`wo-closing-${row.id}`}>
+              {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
+                amount: formatCurrency(Number((row as WorkOrderWithClosing).closing_value), row.currency),
+                interpolation: { escapeValue: false },
+              })}
+            </span>
+          )}
         </span>
       ),
     },
@@ -474,7 +584,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
             ) : null}
-            {isIssued && canTransition && (
+            {isIssued && canTransition && !closeByBast(row.id) && (
               <Button variant="outline" size="sm" onClick={() => setPending({ row, to: 'Closed' })}>
                 {t('projectDetail.workOrders.action.close', 'Close')}
               </Button>
@@ -545,6 +655,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   return (
     <div className="space-y-6">
       <ProjectDrawdown projectId={projectId} />
+
+      {dpNotice !== null && (
+        <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
+          {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
+            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+            { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
+        </div>
+      )}
 
       {canViewBilling && (
         <>
@@ -652,6 +770,86 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </CardPad>
       </Card>
 
+      {showQuantities && rows.length > 0 && (
+        <Card variant="bare" data-testid="wo-quantities">
+          <CardHead level={2} className="text-base">
+            {t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities')}
+          </CardHead>
+          <CardPad>
+            {lines.isError && (
+              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
+            )}
+            <div className="flex flex-col gap-2">
+              {rows.map((row) => {
+                const mine = allocationsByWo.get(row.id) ?? [];
+                const bastList = acceptancesByWo.get(row.id) ?? [];
+                const woLabel = row.wo_number ?? row.title;
+                const editableLines = may('create', 'workOrderLine') && (row.status === 'Draft' || row.status === 'Issued');
+                return (
+                  <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
+                    <summary className="cursor-pointer rounded text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
+                      </span>
+                    </summary>
+                    <div className="mt-3 flex flex-col gap-4">
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
+                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                          {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
+                        </h3>
+                        {mine.length === 0 ? (
+                          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
+                        ) : (
+                          <ul className="flex flex-col gap-0.5 text-[13px]" data-testid={`wo-lines-${row.id}`}>
+                            {mine.map((l) => {
+                              const item = boqRows.find((b) => b.id === l.boq_item_id);
+                              return (
+                                <li key={l.id} className="tabular">
+                                  {item ? `${item.item_code} — ${item.description}` : l.boq_item_id}{' '}
+                                  <span className="font-semibold">{formatNumberExact(Number(l.quantity))}{item ? ` ${item.unit}` : ''}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                        {editableLines && (
+                          <div className="mt-2">
+                            <Button variant="outline" size="sm" onClick={() => setLinesFor(row)}>
+                              {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
+                            </Button>
+                          </div>
+                        )}
+                      </section>
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
+                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                          {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
+                        </h3>
+                        <WorkOrderAcceptances
+                          workOrder={row}
+                          boqItems={boqRows}
+                          documents={documents.data ?? []}
+                          acceptances={bastList}
+                          state={acceptancesQuery.isError ? 'error' : acceptancesQuery.isPending ? 'loading' : 'ready'}
+                          onRetry={() => void acceptancesQuery.refetch()}
+                          currentUserId={currentUser?.id ?? null}
+                          projectManagerId={projectManagerId}
+                          hasAllocations={mine.length > 0}
+                          onPrepare={() => setBastFor({ row, draft: null })}
+                          onEdit={(a) => setBastFor({ row, draft: a })}
+                          onWithdraw={setWithdrawFor}
+                          onConfirm={(a) => setConfirmFor({ acceptance: a, error: null })}
+                        />
+                      </section>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </CardPad>
+        </Card>
+      )}
+
       {formFor !== undefined && (
         <WorkOrderFormModal
           workOrder={formFor}
@@ -659,6 +857,77 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           onClose={() => setFormFor(undefined)}
           onCreate={runCreate}
           onUpdate={runUpdate}
+        />
+      )}
+
+      {linesFor && (
+        <WorkOrderLinesModal
+          workOrder={linesFor}
+          boqItems={boqRows}
+          contractLines={projectBilling.data?.contractLines ?? []}
+          allocations={allocationsByWo.get(linesFor.id) ?? []}
+          canEdit={may('create', 'workOrderLine')}
+          onClose={() => setLinesFor(null)}
+          onCreate={async (boqItemId, quantity) => { await quantityMutations.createLine.mutateAsync({ workOrderId: linesFor.id, boqItemId, quantity }); }}
+          onUpdate={async (id, quantity) => { await quantityMutations.updateLine.mutateAsync({ id, quantity }); }}
+          onDelete={async (id) => { await quantityMutations.deleteLine.mutateAsync(id); }}
+          onError={fail}
+        />
+      )}
+
+      {bastFor && (
+        <WorkOrderAcceptanceModal
+          workOrder={bastFor.row}
+          boqItems={boqRows}
+          allocations={allocationsByWo.get(bastFor.row.id) ?? []}
+          acceptances={acceptancesByWo.get(bastFor.row.id) ?? []}
+          documents={documents.data ?? []}
+          today={todayIso()}
+          draft={bastFor.draft}
+          onClose={() => setBastFor(null)}
+          onSave={runPrepare}
+          onError={fail}
+        />
+      )}
+
+      {withdrawFor && (
+        <ConfirmDialog
+          open
+          tone="destructive"
+          title={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.title', 'Withdraw this BAST draft?')}
+          description={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.body', 'The draft is withdrawn and cannot be confirmed. Prepare a new BAST if the client still accepts the work.')}
+          confirmLabel={t('projectTabs:contractQuantities.workOrders.acceptances.confirmWithdraw.confirm', 'Withdraw BAST')}
+          loading={quantityMutations.withdraw.isPending}
+          onConfirm={() => void runWithdrawBast()}
+          onCancel={() => setWithdrawFor(null)}
+        />
+      )}
+
+      {confirmFor && (
+        <ConfirmDialog
+          open
+          tone="destructive"
+          title={confirmFor.acceptance.is_final
+            ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.title', 'Confirm the final BAST?')
+            : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.title', 'Confirm this BAST?')}
+          description={
+            <div className="flex flex-col gap-2">
+              <p>
+                {confirmFor.acceptance.is_final
+                  ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.body', 'Confirming a final BAST closes the work order at the accepted quantities. The client’s PO value stays as recorded; the closing value is kept separately and unused quantity returns to the contract balance. This cannot be undone.')
+                  : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.body', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}
+              </p>
+              {confirmFor.error && (
+                <p role="alert" data-testid="bast-confirm-error" className="font-medium text-destructive-text">{confirmFor.error}</p>
+              )}
+            </div>
+          }
+          confirmLabel={confirmFor.acceptance.is_final
+            ? t('projectTabs:contractQuantities.workOrders.acceptances.confirmFinal.confirm', 'Confirm final BAST')
+            : t('projectTabs:contractQuantities.workOrders.acceptances.confirmStage.confirm', 'Confirm BAST')}
+          loading={quantityMutations.confirm.isPending}
+          onConfirm={() => void runConfirmBast()}
+          onCancel={() => setConfirmFor(null)}
         />
       )}
 

@@ -14,6 +14,7 @@ import type {
 } from '@/src/lib/db/progressBilling';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
+import { useWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import BoqItemFormModal from '../BoqItemFormModal';
@@ -48,6 +49,9 @@ function thisMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
+const percentOfLot = (fraction: number): string => `${formatNumberExact(Math.round(fraction * 1000) / 10)}%`;
+
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string }> = ({ testId, label, value, note }) => (
   <div>
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
@@ -69,6 +73,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boq = useBoqItems(projectId);
   const claims = useProjectClaims(projectId);
   const workOrders = useProjectWorkOrders(projectId);
+  const allocations = useWorkOrderLines(projectId);
   const documents = useDocuments(projectId);
   const mutations = useProgressBillingMutations(projectId);
 
@@ -90,7 +95,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
-  const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null;
+  // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
+  const claimScopeReady = !allocations.isPending && !allocations.isError;
+  const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
   const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
@@ -164,6 +171,15 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     }
   };
 
+  // Contract-quantity facts exist per BoQ line once the project has lines; until the summary loads (or if it
+  // fails) the cells say "—" — a quantity is never shown as zero because it is unknown.
+  const lineFactsById = new Map((summary?.contractLines ?? []).map((line) => [line.boqItemId, line] as const));
+  const hasLines = summary ? summary.contractLines.length > 0 : boqRows.length > 0;
+  const milliOf = (value: number): number => Math.round(value * 1000);
+  const quantityText = (row: BoqItemRow, quantity: number): string =>
+    row.earning_basis === 'lump_sum' ? percentOfLot(quantity) : `${formatNumberExact(quantity)} ${row.unit}`;
+  const lineProject = Boolean(summary && summary.contractLines.length > 0);
+
   const boqColumns: Column<BoqItemRow>[] = [
     { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
       <div className="flex flex-col">
@@ -171,14 +187,60 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <span className="text-[11px] text-muted-foreground">{row.description}</span>
       </div>
     ) },
-    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Quantity'), align: 'num',
-      cell: (row) => <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
+    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
+      cell: (row) => row.earning_basis === 'lump_sum'
+        ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
+        : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
     { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
       cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
+    ...(hasLines ? [
+      { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+        const f = lineFactsById.get(row.id);
+        return <span className="tabular" data-testid={`boq-ordered-${row.id}`}>{f ? quantityText(row, f.orderedQuantity) : '—'}</span>;
+      } },
+      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Not yet ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+        const f = lineFactsById.get(row.id);
+        return (
+          <span className="tabular" data-testid={`boq-balance-${row.id}`}>
+            {f ? quantityText(row, f.contractBalance) : '—'}
+            {f && f.contractBalance < 0 && (
+              <span className="ml-1 block text-[11px] text-destructive-text">
+                {t('projectTabs:contractQuantities.billing.boq.overOrdered', 'Over-ordered by {{qty}}', { qty: quantityText(row, -f.contractBalance) })}
+              </span>
+            )}
+          </span>
+        );
+      } },
+      { key: 'accepted', header: t('projectTabs:contractQuantities.billing.boq.column.accepted', 'Accepted (BAST)'), align: 'num' as const, cell: (row: BoqItemRow) => {
+        const f = lineFactsById.get(row.id);
+        return (
+          <span className="tabular" data-testid={`boq-accepted-${row.id}`}>
+            {f ? quantityText(row, f.acceptedQuantity) : '—'}
+            {f && milliOf(f.acceptedQuantity) > milliOf(f.orderedQuantity) && (
+              <span className="ml-1 block text-[11px] text-destructive-text">{t('projectTabs:contractQuantities.billing.boq.overMeasured', 'More than ordered')}</span>
+            )}
+          </span>
+        );
+      } },
+    ] : []),
     { key: 'assessed', header: t('projectDetail.billing.boq.column.assessed', 'Assessed'), align: 'num', cell: (row) => {
       const assessed = summary?.assessedByBoqItem[row.id];
-      return <span className="tabular" data-testid={`boq-assessed-${row.id}`}>{assessed === undefined ? '—' : formatNumberExact(assessed)}</span>;
+      return (
+        <span className="tabular" data-testid={`boq-assessed-${row.id}`}>
+          {assessed === undefined ? '—' : row.earning_basis === 'lump_sum' ? percentOfLot(assessed) : formatNumberExact(assessed)}
+        </span>
+      );
     } },
+    ...(hasLines ? [
+      { key: 'earned', header: t('projectTabs:contractQuantities.billing.boq.column.earned', 'Earned'), align: 'num' as const, cell: (row: BoqItemRow) => {
+        const f = lineFactsById.get(row.id);
+        return (
+          <span className="tabular" data-testid={`boq-earned-${row.id}`}>
+            {f ? (row.earning_basis === 'lump_sum' ? percentOfLot(f.earnedQuantity) : quantityText(row, f.earnedQuantity)) : '—'}
+          </span>
+        );
+      } },
+    ] : []),
     { key: 'claimed', header: t('projectDetail.billing.boq.column.claimed', 'Claimed'), align: 'num', cell: (row) => (
       <span className="tabular" data-testid={`boq-claimed-${row.id}`}>
         {summary ? formatNumberExact(summary.claimedByBoqItem[row.id] ?? 0) : '—'}
@@ -356,10 +418,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Figure testId="billing-contract" label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} />
               <Figure testId="billing-billed" label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} />
-              {summary.assessedToDate !== null && summary.assessedToDate !== 0 && summary.assessment && (
-                <Figure testId="billing-assessed" label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={money(summary.assessedToDate)}
-                  note={t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete',
-                    { month: monthLabel(summary.assessment.month), pct: formatNumberExact(summary.assessment.pctComplete) })} />
+              {summary.assessedToDate !== null && summary.assessedToDate !== 0 && (lineProject || summary.assessment) && (
+                <Figure testId="billing-assessed"
+                  label={lineProject
+                    ? t('projectTabs:contractQuantities.billing.summary.earned', 'Earned to date')
+                    : t('projectDetail.billing.summary.assessed', 'Assessed to date')}
+                  value={money(summary.assessedToDate)}
+                  note={summary.assessment
+                    ? t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete',
+                      { month: monthLabel(summary.assessment.month), pct: formatNumberExact(summary.assessment.pctComplete) })
+                    : undefined} />
               )}
               {summary.unbilledWork !== null && summary.unbilledWork !== 0 && (
                 <Figure testId="billing-gap" label={t('projectDetail.billing.summary.gap', 'Work done, not yet billed')} value={money(summary.unbilledWork)} />
@@ -372,6 +440,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
                 <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
               )}
             </dl>
+          )}
+          {summary && lineProject && !summary.assessment && (
+            <p className="mt-3 text-[12px] text-muted-foreground" data-testid="billing-unassessed">
+              {t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}
+            </p>
           )}
         </CardPad>
       </Card>
@@ -394,7 +467,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       )}
 
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} workOrders={workOrders.data ?? []} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
       )}
       {assessOpen && (
@@ -402,7 +475,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
       {claimFormOpen && (
-        <ProgressClaimModal boqItems={boqRows} workOrders={workOrders.data ?? []} contractNet={summary?.contractNet ?? 0}
+        <ProgressClaimModal boqItems={boqRows} workOrders={workOrders.data ?? []}
+          allocations={allocations.data ?? []} contractLines={summary?.contractLines ?? []} contractNet={summary?.contractNet ?? 0}
           currencySymbolPrefix={currencySymbol(currency)} hasDownPayment={liveDownPayment}
           claimedByBoqItem={summary?.claimedByBoqItem ?? {}} assessedByBoqItem={summary?.assessedByBoqItem ?? {}}
           assessmentMonth={summary?.assessment?.month ?? null}

@@ -7,7 +7,7 @@ import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 
 const line = (id: string, code: string, description: string, unit: string) =>
-  ({ id, org_id: 'o', project_id: 'p', work_order_id: null, item_code: code, description, unit, quantity: 10, rate: 50000, created_at: '' }) as BoqItemRow;
+  ({ id, org_id: 'o', project_id: 'p', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: code, description, unit, quantity: 10, rate: 50000, created_at: '' }) as BoqItemRow;
 const BOQ = [line('b1', 'SURVEY', 'Route survey', 'km'), line('b2', 'STATION', 'Station build', 'unit')];
 
 function renderModal() {
