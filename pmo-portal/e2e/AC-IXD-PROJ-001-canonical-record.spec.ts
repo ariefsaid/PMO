@@ -58,7 +58,7 @@ test(
     // create-flow flake under the single-DB parallel suite). See helpers.pickComboboxOption.
     await pickComboboxOption(page, page, /client company/i, 'first');
     await page.getByRole('button', { name: /^Create project$/i }).click();
-    await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
     // ── AC-IXD-PROJ-001a: the new Lead is ABSENT from the active Projects list … ──
     await page.goto('/projects');

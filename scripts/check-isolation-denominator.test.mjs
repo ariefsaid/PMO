@@ -251,23 +251,38 @@ test('validateDenominator rejects an unexpected root key (manifest is exactly fo
 });
 
 // Exercise the shipped shell entrypoints; only the HTTP transport is substituted.
-function probeFixture(mode, { full = false, override, runner = false } = {}) {
+function probeFixture(mode, { full = false, override, runner = false, missingAcceptance = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-behavior-'));
   try {
     const denominator = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
-    const rows = denominator.tables.filter(t => t.has_org).map(t => ({ table: t.table, pk: t.pk, id: randomUUID() }));
+    const rows = denominator.tables.filter(t => t.has_org && !(missingAcceptance && t.table === 'work_order_acceptances')).map(t => {
+      const row = { table: t.table, pk: t.pk, id: randomUUID() };
+      if (t.table === 'work_order_acceptances') Object.assign(row, {
+        work_order_id: randomUUID(), lines: [{ boq_item_id: randomUUID(), quantity: 1.25 }],
+      });
+      return row;
+    });
     fs.writeFileSync(path.join(dir, 'rows.json'), JSON.stringify(rows));
     const curl = `#!/usr/bin/env node
 const fs = require('node:fs');
+const { randomUUID } = require('node:crypto');
 const args = process.argv.slice(2);
 const url = args.find(a => a.includes('/auth/v1/') || a.includes('/rest/v1/')) || '';
 let code = 200, body = [];
 const mode = process.env.PROBE_TEST_MODE;
+if (url.includes('/rpc/prepare_work_order_acceptance')) {
+  const payload = JSON.parse(args[args.indexOf('-d')+1]);
+  fs.appendFileSync(process.env.PROBE_CAPTURE, JSON.stringify(payload) + '\\n');
+  if (mode === 'blind-child-leak') { code = 403; body = {code:'42501'}; }
+}
 if (url.includes('/auth/v1/user')) { code = mode === 'invalid-token' ? 401 : 200; body = {id: process.env.PROBE_USER}; }
 else if (args.some(a => a === 'apikey: service')) {
   if (url.includes('/profiles?') && url.includes('id=eq.' + process.env.PROBE_USER)) body = [{org_id: mode === 'wrong-org' ? process.env.A_ORG : process.env.B_ORG, status: 'active'}];
   else if (url.includes('/platform_operators?')) body = mode === 'operator' ? [{user_id:process.env.PROBE_USER}] : [];
   else body = [{org_id: process.env.A_ORG, email: mode === 'quoted-email' ? '"synthetic"' : 'synthetic'}];
+} else if (url.includes('/work_order_acceptance_lines?')) {
+  body = mode === 'blind-child-leak' && !url.includes('!inner')
+    ? [{acceptance_id:randomUUID(),boq_item_id:randomUUID(),quantity:1.25,acceptance:null}] : [];
 } else if (url.includes('/rpc/')) {
   const fn = url.split('/rpc/')[1];
   const entry = JSON.parse(fs.readFileSync(process.env.PROBE_DENOM)).rpcs?.find(r => r.name === fn);
@@ -290,14 +305,16 @@ process.stdout.write(String(code));
     const env = { PATH: `${dir}:${process.env.PATH}`, TMPDIR: dir, BASE: 'fixture', ANON: 'anon', SERVICE: 'service', JWT_B: 'token',
       A_ORG: randomUUID(), B_ORG: randomUUID(), PROBE_USER: randomUUID(), A_ROWS_JSON: path.join(dir, 'rows.json'),
       PROBE_A_DISPOSABLE: '1', STRICT: '1', PROBE_TEST_MODE: mode,
-      PROBE_DENOM: path.resolve('scripts/isolation-probe-denominator.json') };
+      PROBE_DENOM: path.resolve('scripts/isolation-probe-denominator.json'), PROBE_CAPTURE: path.join(dir, 'capture.jsonl') };
     if (!full && !runner) env.RPC_ONLY = '1';
     if (override !== undefined) {
       env.TABLES_JSON = override === '' ? '' : path.join(dir, 'tables.json');
       if (override !== '') fs.writeFileSync(env.TABLES_JSON, JSON.stringify(override === 'matching' ? denominator.tables : override));
     }
     if (runner) Object.assign(env, { SMOKE_EMAIL: 'synthetic', SMOKE_PASSWORD: 'synthetic' });
-    return spawnSync('bash', [runner ? 'scripts/post-deploy-probes.sh' : 'scripts/isolation-probe.sh'], {env, encoding: 'utf8', timeout: 300000});
+    const result = spawnSync('bash', [runner ? 'scripts/post-deploy-probes.sh' : 'scripts/isolation-probe.sh'], {env, encoding: 'utf8', timeout: 300000});
+    result.captured = fs.existsSync(env.PROBE_CAPTURE) ? fs.readFileSync(env.PROBE_CAPTURE, 'utf8') : '';
+    return result;
   } finally { fs.rmSync(dir, {recursive:true, force:true}); }
 }
 
@@ -346,6 +363,26 @@ test('no-org rows follow their declared none expectation', () => {
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout + r.stderr, /LEAK.*clickup_webhook_inbox/);
 });
+test('a child row without a visible parent is reported as a cross-org leak', () => {
+  const r = probeFixture('blind-child-leak', {full:true, override:'matching'});
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout + r.stderr, /work_order_acceptance_lines blind read returned foreign-parent rows/);
+});
+
+test('acceptance probes send a populated allocation fixture and absent by-id fixtures are explicit skips', () => {
+  const populated = probeFixture('baseline');
+  assert.equal(populated.status, 0, populated.stdout + populated.stderr);
+  const payload = JSON.parse(populated.captured.trim());
+  assert.ok(payload.p_lines.length > 0);
+  assert.equal(payload.p_lines[0].quantity, 1.25);
+  assert.ok(payload.p_work_order_id);
+
+  const missing = probeFixture('baseline', {missingAcceptance:true});
+  assert.equal(missing.status, 3, missing.stdout + missing.stderr);
+  assert.match(missing.stderr, /SKIPPED.*confirm_work_order_acceptance.*fixture/);
+  assert.match(missing.stderr, /SKIPPED.*withdraw_work_order_acceptance.*fixture/);
+});
+
 test('full denominator, exact override and explicit no-org N/A pass strict mode', () => {
   const r = probeFixture('baseline', {full:true, override:'matching'});
   assert.equal(r.status, 0, r.stdout + r.stderr);

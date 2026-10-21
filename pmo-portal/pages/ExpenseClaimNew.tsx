@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, FormGrid, FormSection, GateNotice, SelectField, TextField, useToast } from '@/src/components/ui';
@@ -33,6 +33,7 @@ const ExpenseClaimNew: React.FC = () => {
   const { data: projects } = useProjects();
   const { data: claims } = useExpenseClaims({ kind: 'claim' });
   const capture = useExpenseCapture();
+  const saveInFlight = useRef(false);
   const [title, setTitle] = useState('');
   const [titleEdited, setTitleEdited] = useState(false);
   const [projectId, setProjectId] = useState('');
@@ -68,9 +69,11 @@ const ExpenseClaimNew: React.FC = () => {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (saveInFlight.current) return;
     if (!title.trim() || invalidLine) {
       setError(t('expenseClaims:new.validation', 'Enter a title and complete any expense line you start.')); return;
     }
+    saveInFlight.current = true;
     setError(null); setSaving(true);
     const header = { kind: 'claim' as const, title: title.trim(), projectId: projectId || null, budgetCategory: (category || null) as BudgetCategory | null, purpose: purpose.trim() || null, advanceId: advanceId || null };
     let createdClaimId: string | null = null;
@@ -90,10 +93,16 @@ const ExpenseClaimNew: React.FC = () => {
       const savedId = failure.claimId ?? createdClaimId ?? capture.recovery?.claimId;
       const { headline, detail } = classifyMutationError(reason);
       if (savedId && (failure.draftSaved || createdClaimId || capture.recovery?.draftSaved)) {
+        createdClaimId = savedId;
+        if (receipt) {
+          void capture.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }).catch(() => undefined);
+        }
         toast(headline, detail, 'warning');
         navigate(`/expenses/${savedId}`, { replace: true });
       } else setError(`${headline}: ${detail}`);
-    } finally { setSaving(false); }
+    } finally {
+      if (!createdClaimId) { saveInFlight.current = false; setSaving(false); }
+    }
   };
 
   if (!canCreate) return <><BackBar label={t('expenses.title', 'Expenses')} onBack={() => navigate('/expenses')} /><GateNotice variant="blocked">{t('expenseClaims:new.noPermission', 'You do not have permission to create expense claims.')}</GateNotice></>;

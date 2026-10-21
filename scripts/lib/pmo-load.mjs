@@ -199,6 +199,7 @@ function validateContractLines(lines, add) {
     if (!isObject(l)) return addLine('must be an object');
     for (const k of Object.keys(l)) if (!CONTRACT_LINE_FIELDS.has(k)) addLine(`unknown field "${k}"`);
     if (!isText(l.key)) addLine('"key" is required');
+    else if ([...l.key].length > 500) addLine('"key" must be at most 500 characters');
     else if (seen.has(l.key)) addLine(`"key" "${l.key}" appears twice`);
     else seen.add(l.key);
     if (!isText(l.item_code)) addLine('"item_code" (the ERP service item) is required');
@@ -210,7 +211,10 @@ function validateContractLines(lines, add) {
     const quantityOk = isQuantity(l.quantity);
     if (!quantityOk) addLine('"quantity" must be a positive number below 100000000000 with at most 3 decimals');
     if (!isAmount(l.rate)) addLine('"rate" must be a non-negative amount with at most 2 decimals');
-    if (l.line_no !== undefined && l.line_no !== null && !Number.isInteger(l.line_no)) addLine('"line_no" must be a whole number');
+    if (l.line_no !== undefined && l.line_no !== null) {
+      if (!Number.isInteger(l.line_no)) addLine('"line_no" must be a whole number');
+      else if (l.line_no < -2147483648 || l.line_no > 2147483647) addLine('"line_no" must fit a 32-bit integer');
+    }
     const basisOk = l.basis === undefined || CONTRACT_LINE_BASES.includes(l.basis);
     if (!basisOk) addLine('"basis" must be "unit_rate" or "lump_sum"');
     if (basisOk && quantityOk && isText(l.unit) && (l.basis ?? defaultContractLineBasis(l.unit)) === 'lump_sum' && l.quantity !== 1) {

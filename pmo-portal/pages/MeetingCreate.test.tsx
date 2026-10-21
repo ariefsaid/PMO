@@ -27,10 +27,15 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
-  const EditorStub = ({ onReady, onChange }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void }) => {
-    React.useEffect(() => onReady([]), [onReady]);
-    return <button type="button" onClick={() => onChange([{ type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] }] as never[])}>Edit minutes</button>;
-  };
+  const liveDocument: never[] = [];
+  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
+    React.useEffect(() => {
+      liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
+      onReady([...liveDocument]);
+    }, [onReady]);
+    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button></>;
+  });
   return { default: EditorStub };
 });
 
@@ -73,11 +78,48 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
   });
 
+  it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('AC-MTG1-004: requires a title inline and creates nothing when left blank', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
     expect(await screen.findByText('Meeting title is required.')).toBeInTheDocument();
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-MTG1-002 saves the editor document even before its change notification arrives', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Edit pending minutes' }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      patch: { notes: expect.arrayContaining([expect.objectContaining({ content: [{ text: 'Pending minutes' }] })]) },
+    }));
+  });
+
+  it('AC-MTG1-002 keeps meeting editors disabled while attendee writes are pending', async () => {
+    let resolveAttendee!: (value: unknown) => void;
+    mutations.addAttendee.mutateAsync.mockImplementationOnce(() => new Promise((resolve) => { resolveAttendee = resolve; }));
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalled());
+    expect(screen.getByLabelText(/Title/)).toBeDisabled();
+    expect(screen.getByLabelText(/External guest/)).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit minutes' })).toBeDisabled();
+    resolveAttendee({});
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
   });
 
   it('AC-MTG1-002: retains failed minutes and attendees, then retries only those parts', async () => {
@@ -92,6 +134,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
     expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByLabelText(/Title/)).toBeDisabled();
     expect(screen.getByText('Guest One')).toBeVisible();
     expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
@@ -105,6 +148,23 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.update.mutateAsync.mock.calls[1][0]).toEqual(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
     // The typed minutes survive the failed write and are what the retry sends.
     expect(JSON.stringify(mutations.update.mutateAsync.mock.calls[1][0].patch.notes)).toContain('Minutes text');
+  });
+
+  it('AC-MTG1-002 retries attendees without re-saving minutes already acknowledged', async () => {
+    mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: /Add guest/i }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(2);
   });
 
   it('AC-MTG1-003: leaving with an unsaved draft asks before discarding and creates nothing', async () => {

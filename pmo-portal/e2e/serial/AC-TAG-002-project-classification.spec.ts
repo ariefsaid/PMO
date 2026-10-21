@@ -35,7 +35,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
       await page.getByLabel('Award type').selectOption('tender');
       await page.getByLabel('Bidding entity').selectOption('consortium');
       await page.getByRole('button', { name: 'Create project' }).click();
-      await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+      await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
       created.push(name);
     }
     await page.goto('/sales?view=table');

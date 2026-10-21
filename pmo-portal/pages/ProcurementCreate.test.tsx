@@ -64,7 +64,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mocks.createItem).toHaveBeenCalledWith({
-      procurementId: 'new-id', input: { name: 'Paper', quantity: 2, rate: 10 },
+      procurementId: 'new-id', input: expect.objectContaining({ id: expect.any(String), name: 'Paper', quantity: 2, rate: 10 }),
     }));
     expect(mocks.createRequest).toHaveBeenCalledWith({ title: 'Office supplies', projectId: null, vendorId: null });
     expect(mocks.createRequest.mock.invocationCallOrder[0]).toBeLessThan(mocks.createItem.mock.invocationCallOrder[0]);
@@ -105,7 +105,44 @@ describe('AC-PROC1 one-page request creation', () => {
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
     expect(mocks.createRequest).toHaveBeenCalledTimes(1);
     expect(mocks.createItem).toHaveBeenCalledTimes(2);
-    expect(mocks.createItem.mock.calls[1][0]).toEqual({ procurementId: 'new-id', input: { name: 'Paper', quantity: 2, rate: 10 } });
+    const firstLineId = mocks.createItem.mock.calls[0][0].input.id;
+    const retriedLineId = mocks.createItem.mock.calls[1][0].input.id;
+    expect(firstLineId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(retriedLineId).toBe(firstLineId);
+    expect(mocks.createItem.mock.calls[1][0]).toEqual({
+      procurementId: 'new-id', input: { id: firstLineId, name: 'Paper', quantity: 2, rate: 10 },
+    });
+  });
+
+  it('AC-PROC1-005 freezes saved request fields after a child write needs retry', async () => {
+    mocks.createItem.mockRejectedValueOnce(new Error('line write failed'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original request' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    expect(screen.getByLabelText(/project/i)).toBeDisabled();
+    expect(screen.getByLabelText(/vendor/i)).toBeDisabled();
+  });
+
+  it('AC-PROC1-006 disables line controls while the request is saving', async () => {
+    let resolveLine!: (value: unknown) => void;
+    mocks.createItem.mockImplementationOnce(() => new Promise((resolve) => { resolveLine = resolve; }));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.createItem).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
+    resolveLine({});
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
   });
 
   it('AC-PROC1-008 formats draft line totals in the organization currency', () => {

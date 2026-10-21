@@ -40,7 +40,7 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await pickComboboxOption(page, page, /client company/i, new RegExp(CLIENT_A));
   await page.getByLabel(/expected end/i).fill('2026-11-30');
   await page.getByRole('button', { name: /^Create project$/i }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
   await page.goto('/sales');
   await openPipelineCard(page, name);

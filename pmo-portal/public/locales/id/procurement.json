@@ -1,6 +1,10 @@
 {
   "lineItems": {
     "erpItem": "Item ERP",
+    "itemDescription": "Item / deskripsi",
+    "description": "Deskripsi",
+    "empty": "Belum ada item permintaan.",
+    "emptyEditable": "Belum ada item permintaan. Tambahkan di bawah.",
     "quantity": "Jml",
     "unitPrice": "Harga satuan",
     "lineTotal": "Total baris",
@@ -41,6 +45,7 @@
     "unsaved": {
       "title": "Permintaan belum disimpan",
       "description": "Permintaan ini belum disimpan. Tinggalkan halaman dan buang?",
+      "partialDescription": "Permintaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
       "leave": "Tinggalkan",
       "stay": "Tetap di sini"
     }

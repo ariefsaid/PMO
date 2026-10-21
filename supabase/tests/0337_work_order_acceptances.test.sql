@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(87);
+select plan(95);
 insert into organizations(id,name) values ('33520000-0000-0000-0000-000000000001','CQ Org');
 insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000011','cq-pm@example.invalid'),('33520000-0000-0000-0000-000000000012','cq-finance@example.invalid'),('33520000-0000-0000-0000-000000000013','cq-engineer@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values
@@ -206,5 +206,44 @@ set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000015","rol
 select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.ok')::uuid)$$,'P0002','acceptance not found','AC-CQ-005 another organization''s Finance cannot confirm');
 reset role;
 select is((select count(*)::int from work_order_acceptances where work_order_id='33520000-0000-0000-0000-000000000035' and status='Draft'),5,'AC-CQ-005 every refused confirmation left its BAST a Draft');
+-- Count reads while retaining the installed billing implementation and its invoker contract.
+create temporary table cq_billing_reads (n integer);
+grant select, insert on cq_billing_reads to authenticated;
+alter function public.get_project_billing(uuid) rename to cq_test_billing;
+create function public.get_project_billing(p_project_id uuid) returns jsonb
+ language plpgsql security invoker set search_path=public,pg_temp as $$
+begin
+ insert into pg_temp.cq_billing_reads values (1);
+ return public.cq_test_billing(p_project_id);
+end; $$;
+revoke all on function public.get_project_billing(uuid) from public,anon;
+grant execute on function public.get_project_billing(uuid) to authenticated;
+discard plans;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000012","role":"authenticated"}';
+select throws_ok($$select public.confirm_work_order_acceptance(current_setting('cq.conf')::uuid)$$,
+ '42501','acceptance is immutable','AC-CQ-005 a stage acceptance is confirmed only once');
+select is((select confirmed_by from work_order_acceptances where id=current_setting('cq.conf')::uuid),
+ '33520000-0000-0000-0000-000000000012'::uuid,'AC-CQ-005 a repeated confirmation preserves its confirmer');
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
+select lives_ok($$select set_config('cq.corrected',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000032',current_date,false,
+ '[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":2}]'::jsonb,'33520000-0000-0000-0000-000000000052')::text,true)$$,
+ 'AC-CQ-004 a later cumulative stage records the current accepted quantity');
+select pg_sleep(0.005);
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000012","role":"authenticated"}';
+select lives_ok($$select public.confirm_work_order_acceptance(current_setting('cq.corrected')::uuid)$$,
+ 'AC-CQ-005 distinct Finance confirms the later cumulative stage');
+select is((select count(*) from cq_billing_reads),1::bigint,
+ 'AC-CQ-005 one confirmation reads the billing summary once');
+select ok((select confirmed_at from work_order_acceptances where id=current_setting('cq.corrected')::uuid)
+ > (select confirmed_at from work_order_acceptances where id=current_setting('cq.conf')::uuid),
+ 'AC-CQ-005 confirmation timestamps reflect the time of each serialized confirmation');
+select is((select (line->>'accepted_quantity')::numeric
+ from jsonb_array_elements(public.get_project_billing('33520000-0000-0000-0000-000000000022')->'boq') line
+ where line->>'boq_item_id'='33520000-0000-0000-0000-000000000042'),2::numeric,
+ 'AC-CQ-012 billing uses the most recently confirmed cumulative stage');
+select is((select quantity from work_order_acceptance_lines where acceptance_id=current_setting('cq.conf')::uuid),3::numeric,
+ 'AC-CQ-004 a later stage preserves the previously signed quantity');
+reset role;
 select * from finish();
 rollback;

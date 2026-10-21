@@ -50,7 +50,7 @@ test(
     // a lost selection that blocks the Create-project submit; see helpers.pickComboboxOption).
     await pickComboboxOption(page, page, /client company/i, 'first');
     await page.getByRole('button', { name: /^Create project$/i }).click();
-    await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
     // GOAL ORACLE: the new Leads project is in the Pipeline (not the active Projects list).
     await page.goto('/sales');

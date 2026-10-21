@@ -1,7 +1,7 @@
 -- erp_purchase_documents.test.sql — 0335 (docs/specs/erp-purchases-readonly.spec.md).
 -- Owns AC-EPR-002..006.
 begin;
-select plan(19);
+select plan(24);
 
 insert into organizations (id, name, default_currency) values
   ('03350000-0000-0000-0000-00000000000a','EPR Org A','IDR'),
@@ -93,6 +93,23 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"03350000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is((select count(*) from erp_purchase_documents), 0::bigint,
   'AC-EPR-005 an Engineer (no org-wide procurement view) reads no ERP purchases');
+reset role;
+
+delete from external_refs where org_id='03350000-0000-0000-0000-00000000000a'
+ and domain='procurement' and pmo_record_id='pmo-pi-1';
+select is(upsert_erp_purchase_documents('03350000-0000-0000-0000-00000000000a','[]'),0,
+ 'AC-EPR-004 an ownership refresh does not insert documents');
+select ok(not (select pmo_owned from erp_purchase_documents where erp_name='PINV-PMO'),
+ 'AC-EPR-004 removing a procurement reference restores native-document visibility');
+select is(upsert_erp_purchase_documents('03350000-0000-0000-0000-00000000000a',
+ '[{"erp_doctype":"Purchase Invoice","erp_name":"PINV-CANCELLED","grand_total":42,"erp_docstatus":2,"erp_modified":"2026-02-03"}]'),1,
+ 'AC-EPR-002 the mirror records a cancelled ERP document');
+select is((select erp_docstatus::int from erp_purchase_documents where erp_name='PINV-CANCELLED'),2,
+ 'AC-EPR-002 the stored cancellation retains its ERP document status');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03350000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*) from erp_purchase_documents where erp_docstatus=1 and not pmo_owned),4::bigint,
+ 'AC-EPR-005 the visible native list includes released references and excludes cancellations');
 reset role;
 
 -- AC-EPR-006 — never part of actuals: unchanged, and nothing else reads the table.
