@@ -1,0 +1,3 @@
+# #1020 lane L1 — picker completion. Branch: `m365/l1-picker`
+Tasks: plan **2.01–2.11** (caller-scoped connection/default hooks, permission adapter, browse/degradation copy, MicrosoftDocumentPicker modal + selection commit, site/OneDrive chooser, folder select vs enter + breadcrumbs, default precedence/unavailable location, contextual prefix suggestions, bounded paging, debounce + stale-response cancellation, keyboard/empty/error/axe proof). Picker selects a FILE or a FOLDER.
+You own: `src/components/m365/MicrosoftDocumentPicker*`, `DocumentLinkPermissions*`, `M365BrowseNotice*`, `src/hooks/useMicrosoftDocuments*`. Don't touch LinkedDocument*/DocumentDriftBadge (lane L2) or pages/ (L3–L5).

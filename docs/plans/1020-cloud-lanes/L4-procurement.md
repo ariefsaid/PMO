@@ -1,0 +1,4 @@
+# #1020 lane L4 — procurement case references. Branch: `m365/l4-procurement`
+Tasks: plan **3.01–3.06** (case-reference query/mutations, case references on the actual procurement Documents tab beside the financial ledger, picker→create/link, unlink/legacy-clear retaining metadata, matching browse refresh, procurement goal regression + stage persistence). Includes overhead cases with no project. Do NOT change money transitions or the ledger.
+You own: `pages/procurement/ProcurementMicrosoftReferences.tsx` (+ tests), the minimal mount in the procurement Documents tab, procurement hooks for references, and locale keys under `m365Documents.procurement` in `public/locales/{en,id}/common.json`. Consume picker/cell via FIXED props (mock in tests).
+Note: PR #1277 edits `pages/Procurement.tsx` and `pages/project-detail/tabs/ProcurementTab.tsx` — avoid those files if at all possible.
