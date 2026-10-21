@@ -145,14 +145,14 @@ export async function feedLedgerMirrors(
   };
 }
 
-async function readWm(sc: LedgerFeedServiceClient, orgId: string, domain: string): Promise<string | null> {
+export async function readWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string): Promise<string | null> {
   const { data, error } = await sc.from('external_sync_watermarks').select('watermark_cursor')
     .eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', domain).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   return (data as { watermark_cursor?: string } | null)?.watermark_cursor ?? null;
 }
 
-async function advanceWm(sc: LedgerFeedServiceClient, orgId: string, domain: string, next: string | null, prev: string | null): Promise<string | null> {
+export async function advanceWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string, next: string | null, prev: string | null): Promise<string | null> {
   // Monotonic: never rewind. next null (no rows this feed) keeps the prior cursor.
   const value = next === null ? prev : prev !== null && prev > next ? prev : next;
   if (value === null) return null;

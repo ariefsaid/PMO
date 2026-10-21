@@ -10,5 +10,49 @@
     "amountsIn": "Jumlah dalam",
     "forThePeriod": "Untuk periode",
     "periodShown": "Periode yang ditampilkan"
+  },
+  "erpPurchases": {
+    "title": "Pembelian yang tercatat di ERPNext",
+    "countedInActuals": "Sudah dihitung dalam Realisasi. Ditampilkan sebagai referensi, tidak ditambahkan lagi.",
+    "allLink": "Semua pembelian ERP",
+    "pageDescription": "Pesanan pembelian dan faktur pemasok yang dicatat di ERPNext. Biayanya sudah masuk Realisasi setiap proyek.",
+    "backToProcurement": "Permintaan pengadaan",
+    "noAccess": "Anda tidak memiliki akses ke pembelian organisasi",
+    "error": "Gagal memuat pembelian ERP",
+    "empty": "Belum ada pembelian dari ERPNext",
+    "emptySub": "Pembelian tampil di sini setelah sinkronisasi berikutnya, begitu ERPNext terhubung.",
+    "noProject": "Tanpa proyek",
+    "shared": "Dibagi dengan proyek lain",
+    "status": {
+      "paid": "Lunas",
+      "partlyPaid": "Dibayar sebagian",
+      "unpaid": "Belum dibayar",
+      "overdue": "Lewat jatuh tempo",
+      "return": "Retur"
+    },
+    "type": {
+      "order": "Pesanan pembelian",
+      "invoice": "Faktur pemasok"
+    },
+    "column": {
+      "document": "Dokumen",
+      "supplier": "Pemasok",
+      "project": "Proyek",
+      "date": "Tanggal",
+      "billNo": "No. faktur pemasok",
+      "amount": "Jumlah",
+      "status": "Status"
+    },
+    "aging": {
+      "title": "Belum dibayar menurut umur",
+      "notDue": "Belum jatuh tempo",
+      "d1_30": "1–30 hari",
+      "d31_60": "31–60 hari",
+      "d61_90": "61–90 hari",
+      "d90Plus": "Lebih dari 90 hari",
+      "total": "Total belum dibayar",
+      "sharedExcluded_one": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini.",
+      "sharedExcluded_other": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini."
+    }
   }
 }
