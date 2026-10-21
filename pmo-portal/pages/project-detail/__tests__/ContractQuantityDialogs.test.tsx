@@ -8,6 +8,9 @@ vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ co
 import BoqItemFormModal from '../BoqItemFormModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import WorkOrderLinesModal from '../WorkOrderLinesModal';
+import WorkOrderAcceptanceModal from '../WorkOrderAcceptanceModal';
+import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
+import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 
@@ -236,5 +239,120 @@ describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
     expect(screen.getByTestId('lines-readonly-b1')).toHaveTextContent('1,000');
     expect(screen.queryByRole('button', { name: /^Save / })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-CQ-014 WorkOrderAcceptanceModal (BAST preparation)', () => {
+  const line = (id: string, code: string, unit: string, basis: 'unit_rate' | 'lump_sum', quantity: number) =>
+    ({ id, org_id: 'o', project_id: 'p', earning_basis: basis, line_no: null, import_key: null, item_code: code,
+      description: `${code} work`, unit, quantity, rate: 50000, created_at: '' }) as BoqItemRow;
+  const BOQ = [line('b1', 'SURVEY', 'km', 'unit_rate', 1900), line('b2', 'MOBILISE', 'lot', 'lump_sum', 1), line('b3', 'UNUSED', 'unit', 'unit_rate', 5)];
+  const al = (id: string, boq: string, quantity: number): WorkOrderLineRow => ({ id, org_id: 'o', work_order_id: 'wo-1', boq_item_id: boq, quantity, created_at: '' });
+  const ALLOC = [al('l1', 'b1', 1000), al('l2', 'b2', 1)];
+  const WO = { id: 'wo-1', wo_number: 'WO-001', title: 'Phase 1', status: 'Issued' };
+  const doc = (id: string, over: Partial<ProjectDocumentRow> = {}) =>
+    ({ id, org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: `Doc ${id}`, revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: `docs/${id}.pdf`, created_at: '', ...over }) as ProjectDocumentRow;
+  const DOCS = [doc('d1', { title: 'Signed BAST 1' }), doc('d2', { title: 'Draft memo', status: 'Draft' }), doc('d3', { title: 'No file', file_path: null })];
+  const header = (over: Partial<WorkOrderAcceptanceWithLines>): WorkOrderAcceptanceWithLines => ({
+    id: 'a1', org_id: 'o', project_id: 'p1', work_order_id: 'wo-1', acceptance_date: '2026-10-01', is_final: false, status: 'Confirmed',
+    prepared_by: 'u-pm', prepared_at: '', confirmed_by: 'u-fin', confirmed_at: '2026-10-02T00:00:00Z', confirm_basis: 'standard',
+    withdrawn_at: null, note: null, document_id: 'd1', lines: [{ acceptance_id: 'a1', boq_item_id: 'b1', quantity: 400 }], ...over,
+  });
+
+  function renderModal(over: Partial<React.ComponentProps<typeof WorkOrderAcceptanceModal>> = {}) {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onError = vi.fn();
+    render(<ToastProvider><WorkOrderAcceptanceModal workOrder={WO} boqItems={BOQ} allocations={ALLOC} acceptances={[]} documents={DOCS}
+      today="2026-10-21" draft={null} onClose={vi.fn()} onSave={onSave} onError={onError} {...over} /></ToastProvider>);
+    return { onSave, onError, user: userEvent.setup() };
+  }
+  const submit = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Prepare BAST' }));
+
+  it('AC-CQ-014 only this order\'s allocated lines are asked for, and the date starts today', () => {
+    renderModal();
+    expect(screen.getByLabelText(/SURVEY/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/MOBILISE.*% accepted/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/UNUSED/)).toBeNull();
+    expect(screen.getByLabelText(/BAST date/)).toHaveValue('2026-10-21');
+  });
+
+  it('AC-CQ-014 a stage BAST sends cumulative quantities, leaves blank lines out and a lump sum as a fraction', async () => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/SURVEY/), '400.5');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith({ acceptanceDate: '2026-10-21', isFinal: false, lines: [{ boqItemId: 'b1', quantity: 400.5 }], documentId: null, note: null });
+    await user.type(screen.getByLabelText(/MOBILISE/), '40.0');
+    await submit(user);
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 400.5 }, { boqItemId: 'b2', quantity: 0.4 }] }));
+  });
+
+  it('AC-CQ-014 the next stage starts from the latest confirmed cumulative quantities', () => {
+    renderModal({ acceptances: [header({ id: 'old', confirmed_at: '2026-09-01T00:00:00Z', lines: [{ acceptance_id: 'old', boq_item_id: 'b1', quantity: 100 }] }), header({})] });
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('400');
+  });
+
+  it('AC-CQ-014 a final BAST must state every allocated line', async () => {
+    const { onSave, user } = renderModal();
+    await user.click(screen.getByLabelText('This is the final BAST'));
+    await user.type(screen.getByLabelText(/SURVEY/), '997');
+    await submit(user);
+    expect((await screen.findAllByText('A final BAST states every ordered line — enter a quantity, even 0')).length).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText(/MOBILISE/), '100');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ isFinal: true, lines: [{ boqItemId: 'b1', quantity: 997 }, { boqItemId: 'b2', quantity: 1 }] }));
+  });
+
+  it.each(['-1', '1.2345'])('AC-CQ-014 an accepted quantity of %s is refused', async (value) => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/SURVEY/), value);
+    await submit(user);
+    expect((await screen.findAllByText('Each accepted quantity must be 0 or more with at most 3 decimal places')).length).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-CQ-014 40.01 percent of a lump sum is refused', async () => {
+    const { onSave, user } = renderModal();
+    await user.type(screen.getByLabelText(/MOBILISE/), '40.01');
+    await submit(user);
+    expect((await screen.findAllByText('Enter a percentage from 0 to 100 with at most 1 decimal place')).length).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-CQ-014 accepting more than was ordered is warned in words', async () => {
+    const { user } = renderModal();
+    await user.type(screen.getByLabelText(/SURVEY/), '1001');
+    expect(screen.getByText(/More than ordered by 1 km/)).toBeInTheDocument();
+  });
+
+  it('AC-CQ-014 only an issued or approved document with a file from the register can be cited', async () => {
+    const { onSave, user } = renderModal();
+    const select = screen.getByLabelText(/Signed BAST/) as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['None yet', expect.stringContaining('Signed BAST 1')]);
+    await user.selectOptions(select, 'd1');
+    await user.type(screen.getByLabelText(/SURVEY/), '10');
+    await user.type(screen.getByLabelText(/Note/), 'Site walk');
+    await submit(user);
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ documentId: 'd1', note: 'Site walk' }));
+  });
+
+  it('AC-CQ-014 editing a Draft replaces it: its id is sent and its values start the form', async () => {
+    const draft = header({ id: 'dr1', status: 'Draft', confirmed_by: null, confirmed_at: null, confirm_basis: null, is_final: false, note: 'v1', document_id: 'd1',
+      lines: [{ acceptance_id: 'dr1', boq_item_id: 'b1', quantity: 250 }] });
+    const { onSave, user } = renderModal({ draft, acceptances: [draft] });
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('250');
+    expect(screen.getByLabelText(/Note/)).toHaveValue('v1');
+    await user.click(screen.getByRole('button', { name: 'Save BAST' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ acceptanceId: 'dr1', documentId: 'd1', lines: [{ boqItemId: 'b1', quantity: 250 }] }));
+  });
+
+  it('AC-CQ-014 a refused save stays open with the inputs and the server wording, and reports the error', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('a final BAST must cover every ordered line'));
+    const { onError, user } = renderModal({ onSave });
+    await user.type(screen.getByLabelText(/SURVEY/), '10');
+    await submit(user);
+    expect(await screen.findByText(/a final BAST must cover every ordered line/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('10');
+    expect(onError).toHaveBeenCalled();
   });
 });
