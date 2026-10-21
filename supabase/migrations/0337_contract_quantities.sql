@@ -1068,7 +1068,7 @@ latest_bast as (
 ), lines as (
  select a.*,
   a.closed_final+least(greatest(coalesce(a.assessed_quantity,0)-a.closed_ordered,0),greatest(a.contract_quantity-a.closed_final,0)) earned_quantity,
-  greatest(a.contract_quantity-a.issued_ordered-a.closed_final,0) contract_balance
+  a.contract_quantity-a.issued_ordered-a.closed_final contract_balance
  from (select agg.*,coalesce((select sum(x.quantity) from allocation x join public.work_orders w on w.id=x.work_order_id where x.boq_item_id=agg.id and w.status='Closed' and w.closing_acceptance_id is not null),0) closed_ordered from agg) a
 )
 select jsonb_build_object(

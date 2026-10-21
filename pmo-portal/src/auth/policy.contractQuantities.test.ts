@@ -41,14 +41,14 @@ describe('contract quantities policy (ADR-0091)', () => {
     }
   });
 
-  it('AC-CQ-015 only Admin or Finance confirms a Draft BAST, and the preparer is not offered their own confirmation', () => {
+  it('AC-CQ-015 only Admin or Finance confirms a Draft BAST, and the preparer is offered it too (the server decides the sole-operator exception)', () => {
     const draft = { status: 'Draft', prepared_by: 'prep-1' };
     expect(can('confirm', 'workOrderAcceptance', as('Finance', draft, 'fin-1'))).toBe(true);
     expect(can('confirm', 'workOrderAcceptance', as('Admin', draft, 'adm-1'))).toBe(true);
     for (const role of ['Executive', 'Project Manager', 'Engineer'] as const) {
       expect(can('confirm', 'workOrderAcceptance', as(role, draft, 'x'))).toBe(false);
     }
-    expect(can('confirm', 'workOrderAcceptance', as('Finance', draft, 'prep-1'))).toBe(false);
+    expect(can('confirm', 'workOrderAcceptance', as('Finance', draft, 'prep-1'))).toBe(true);
     for (const status of ['Confirmed', 'Withdrawn', undefined]) {
       expect(can('confirm', 'workOrderAcceptance', as('Finance', { ...draft, status }, 'fin-1'))).toBe(false);
     }

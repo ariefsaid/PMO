@@ -14,7 +14,7 @@ import type {
 } from '@/src/lib/db/progressBilling';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
-import { useWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
+import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import BoqItemFormModal from '../BoqItemFormModal';
@@ -73,7 +73,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boq = useBoqItems(projectId);
   const claims = useProjectClaims(projectId);
   const workOrders = useProjectWorkOrders(projectId);
-  const allocations = useWorkOrderLines(projectId);
+  const allocations = useProjectWorkOrderLines(projectId);
   const documents = useDocuments(projectId);
   const mutations = useProgressBillingMutations(projectId);
 

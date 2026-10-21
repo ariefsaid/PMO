@@ -30,6 +30,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));

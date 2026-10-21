@@ -241,8 +241,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * BAST acceptances (ADR-0091). UX only — the three definer RPCs are the authority.
    *   create   (prepare)  ← `may_record_project_progress`: Finance rank and above, or the project's own PM
    *                         (`record.project_manager_id`), on an Issued work order (`record.status`).
-   *   confirm             ← Admin/Finance on a Draft acceptance (`record.status`). The preparer is not OFFERED their
-   *                         own confirmation; the server's sole-operator exception stays reachable by RPC only.
+   *   confirm             ← Admin/Finance on a Draft acceptance (`record.status`). The preparer IS offered it, with a
+   *                         hint: the server refuses same-person confirmation unless they are the organisation's sole
+   *                         operator (a one-person org must be able to close a work order); the refusal is shown.
    *   withdraw            ← the preparer, or Admin/Finance, on a Draft acceptance.
    */
   workOrderAcceptance: {
@@ -252,8 +253,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       (has(MONEY_AUTHORITY, role) ||
         (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
     confirm: (role, ctx) =>
-      ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && has(CONFIRM_BAST, role) &&
-      !(ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId),
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && has(CONFIRM_BAST, role),
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' &&
       (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId)),
