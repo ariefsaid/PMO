@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { AppError } from '@/src/lib/appError';
 import { MicrosoftDocumentPicker, type PickerContext } from './MicrosoftDocumentPicker';
-import { browseOneDrive, getPersonalDrive, listChildren, listDrives, listSites, searchDrive, type GraphItem } from '@/src/lib/m365/graphClient';
+import { browseDrives, browseOneDrive, browseSites, getPersonalDrive, listChildren, listDrives, listSites, searchDrive, type GraphItem } from '@/src/lib/m365/graphClient';
 
 const h = vi.hoisted(() => ({
   hook: {
@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/lib/m365/graphClient', () => ({
   listSites: vi.fn(),
   listDrives: vi.fn(),
+  browseSites: vi.fn(),
+  browseDrives: vi.fn(),
   getPersonalDrive: vi.fn(),
   browseOneDrive: vi.fn(),
   listChildren: vi.fn(),
@@ -68,6 +70,8 @@ beforeEach(() => {
   h.hook.connectionError = null; h.hook.defaultError = null;
   vi.mocked(listSites).mockResolvedValue(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }]));
   vi.mocked(listDrives).mockResolvedValue(page([{ id: 'drive-1', name: 'Documents', web_url: 'https://example.invalid/drive' }]));
+  vi.mocked(browseSites).mockResolvedValue(page([]));
+  vi.mocked(browseDrives).mockResolvedValue(page([]));
   vi.mocked(getPersonalDrive).mockResolvedValue({ id: 'drive-2', name: 'OneDrive', web_url: 'https://example.invalid/me' });
   vi.mocked(listChildren).mockResolvedValue(page(ROOT));
   vi.mocked(browseOneDrive).mockResolvedValue(page([]));
@@ -159,6 +163,18 @@ describe('MicrosoftDocumentPicker locations', () => {
     await user.click(await screen.findByRole('button', { name: 'Documents' }));
     expect(await screen.findByRole('button', { name: 'Select folder Folder' })).toBeInTheDocument();
     expect(listChildren).toHaveBeenCalledWith('drive-1', undefined);
+  });
+
+  it('continues sites and libraries only after an explicit Load more and de-duplicates entries', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }], { path: '/sites?skip=opaque' }));
+    vi.mocked(browseSites).mockResolvedValueOnce(page([{ id: 'site-1', name: 'Synthetic site', web_url: 'https://example.invalid/site' }, { id: 'site-2', name: 'Second site', web_url: 'https://example.invalid/site2' }]));
+    renderPicker();
+    await user.click(await screen.findByRole('button', { name: 'SharePoint sites' }));
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    expect(await screen.findByRole('button', { name: 'Second site' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Synthetic site' })).toHaveLength(1);
+    expect(browseSites).toHaveBeenCalledWith(undefined, { path: '/sites?skip=opaque' });
   });
 
   it('AC-M365DOC-054 chooser: My OneDrive reads the personal drive root and Change location returns to the chooser keeping a selection', async () => {

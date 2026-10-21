@@ -33,6 +33,7 @@ import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import { FileCell } from '@/src/components/FileCell';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
+import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { M365BrowseNotice } from '@/src/components/m365/M365BrowseNotice';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
 import { getItem } from '@/src/lib/m365/graphClient';
@@ -130,6 +131,7 @@ interface PendingTransition {
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
+  const documentLinkPermissions = useDocumentLinkPermissions();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
@@ -164,6 +166,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
+  const canCreateMicrosoftReference = documentLinkPermissions.projectCreate();
   // General document write-role (Admin·Exec·PM·Finance) — gates the non-author status moves
   // (Issue Draft→Issued, Close Approved→Closed). A-7: the metadata "Edit" action is additionally
   // AUTHOR-scoped (only the author, or Admin break-glass) — computed per row via canEditDoc().
@@ -357,7 +360,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       items.push({ label: t('projectDetail.documents.action.edit', 'Edit'), onClick: () => setFormTarget({ doc: d }) });
     }
     // Link / unlink a Microsoft reference: Draft rows only, same author-or-Admin gate as Edit.
-    const canLink = canEditDoc(d) && d.status === 'Draft';
+    const canLink = documentLinkPermissions.projectEdit(d.author_id, d.status);
     if (canLink && !d.file_path && d.source !== 'onedrive') {
       items.push({ label: t('m365Documents.link', 'Link from Microsoft 365'), onClick: () => setMicrosoftEntry({ kind: 'link', doc: d }) });
     }
@@ -516,7 +519,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   const onUnlinkConfirm = async () => {
-    if (!unlinkTarget) return;
+    if (!unlinkTarget || !documentLinkPermissions.projectEdit(unlinkTarget.author_id, unlinkTarget.status)) return;
     const target = unlinkTarget;
     try {
       await unlink.mutateAsync(target.id);
@@ -569,7 +572,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
               {t('projectDetail.documents.addDocument', 'Add document')}
             </Button>
           )}
-          {canCreate && (
+          {canCreateMicrosoftReference && (
             <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
               <Icon name="doc" />
               {t('m365Documents.link', 'Link from Microsoft 365')}
@@ -583,7 +586,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <RecordFolderAction
           target={{ kind: 'project', id: projectId }}
           hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-          onChooseExisting={() => setMicrosoftEntry({ kind: 'create' })}
+          onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
         />
       </div>
 
@@ -593,11 +596,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           onClose={() => setMicrosoftEntry(null)}
           onSelect={async (reference) => {
             if (microsoftEntry.kind === 'link') {
+              if (!documentLinkPermissions.projectEdit(microsoftEntry.doc.author_id, microsoftEntry.doc.status)) return;
               // A failure propagates: the picker keeps the selection and shows its own persistent alert.
               await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
               toast(t('m365Documents.linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
               setMicrosoftEntry(null);
             } else {
+              if (!documentLinkPermissions.projectCreate()) return;
               // Close the picker FIRST, then open the ordinary form seeded with the reference.
               setMicrosoftEntry(null);
               setFormTarget({ doc: null, reference });

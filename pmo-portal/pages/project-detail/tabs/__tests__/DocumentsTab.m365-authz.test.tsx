@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { ME, OTHER, makeDoc, makeLinkedDoc } from './m365Fixtures';
 
@@ -89,7 +89,22 @@ const SELECTED = {
   name: 'Synthetic.pdf', item_kind: 'file',
 };
 
+function ViewAsControl() {
+  const { viewAs } = useEffectiveRole();
+  return <button type="button" onClick={() => viewAs('Engineer')}>View as Engineer</button>;
+}
+
 describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040)', () => {
+  it('view-only impersonation while the picker is open prevents the pending link mutation', async () => {
+    h.docs.data = [makeDoc({ author_id: ME })];
+    render(<MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter>);
+    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'Link from Microsoft 365' }));
+    expect(screen.getByRole('dialog', { name: 'Synthetic picker' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
+    expect(h.link).not.toHaveBeenCalled();
+  });
+
   it('AC-M365DOC-011: pick first, then the ordinary form; ONE create call carries the reference (no empty intermediate row)', async () => {
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
