@@ -5,5 +5,10 @@
   },
   "actual": {
     "restrictedTag": "Dikecualikan (terbatas)"
+  },
+  "create": {
+    "accessDenied": "Anda tidak dapat membuat proyek",
+    "leave": "Keluar",
+    "stay": "Tetap di sini"
   }
 }

@@ -69,6 +69,17 @@ export function useCreateProcurement() {
   });
 }
 
+/** Create a line on a newly-created Draft through the procurement repository seam. */
+export function useCreateProcurementItem() {
+  const qc = useQueryClient();
+  const { currentUser } = useAuth();
+  return useMutation<ProcurementItemRow, AppError, { procurementId: string; input: ProcurementItemInput }>({
+    mutationFn: ({ procurementId, input }) => repositories.procurement.createItem(procurementId, input),
+    onSuccess: (_row, { procurementId }) =>
+      qc.invalidateQueries({ queryKey: procurementDetailKey(currentUser?.org_id, procurementId) }),
+  });
+}
+
 export interface UpdateItemArgs {
   id: string;
   patch: ProcurementItemPatch;

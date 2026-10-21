@@ -44,15 +44,13 @@ test(
     await expect(newBtn).toBeVisible({ timeout: 10_000 });
     await newBtn.click();
 
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 8_000 });
-    await dialog.getByLabel(/project name/i).fill(dealName);
+    await page.getByLabel(/project name/i).fill(dealName);
     // Client company FK picker (Combobox): wait for the async option list to settle, then pick the
     // first option (the bare listbox.option.first().click() races the lazy load→ready re-render →
     // a lost selection that blocks the Create-project submit; see helpers.pickComboboxOption).
-    await pickComboboxOption(dialog, page, /client company/i, 'first');
-    await dialog.getByRole('button', { name: /^Create project$/i }).click();
-    await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+    await pickComboboxOption(page, page, /client company/i, 'first');
+    await page.getByRole('button', { name: /^Create project$/i }).click();
+    await expect(page).toHaveURL(/\/projects\/[^/]+$/u, { timeout: 15_000 });
 
     // GOAL ORACLE: the new Leads project is in the Pipeline (not the active Projects list).
     await page.goto('/sales');

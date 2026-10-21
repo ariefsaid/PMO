@@ -1,7 +1,7 @@
 // @e2e-isolation: serial — clears shared Mailpit; resets pm password and restores it in afterEach.
 import { test, expect } from '@playwright/test';
 import { createClient, type User } from '@supabase/supabase-js';
-import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from '../helpers';
+import { clearMailpit, ownedContextOptions, pollMailpitForAuthLink, requireServiceRoleKey } from '../helpers';
 
 // AC-AUTHF-005 — password-reset round-trip via local Mailpit (FR-AUTHF-011/015/020/024).
 //
@@ -36,7 +36,7 @@ test.skip(!SERVICE_ROLE_KEY, 'SERVICE_ROLE_KEY not set (local) — skipping');
 test('AC-AUTHF-005: request reset → Mailpit → /update-password → set password → signed in with the new password', async ({
   page,
   browser,
-}) => {
+}, testInfo) => {
   const email = RESET_EMAIL;
   const newPassword = 'BrandNewPass1!';
 
@@ -68,7 +68,7 @@ test('AC-AUTHF-005: request reset → Mailpit → /update-password → set passw
   await expect(page.getByText('Diego Salvatierra')).toBeVisible(); // PM persona
 
   // 4. The NEW password works on a fresh context; the OLD one no longer does.
-  const fresh = await browser.newContext();
+  const fresh = await browser.newContext(ownedContextOptions(testInfo));
   const p2 = await fresh.newPage();
   await p2.goto('/login');
   await p2.getByLabel(/email/i).fill(email);
@@ -77,7 +77,7 @@ test('AC-AUTHF-005: request reset → Mailpit → /update-password → set passw
   await expect(p2).toHaveURL(/\/$/, { timeout: 15_000 });
   await fresh.close();
 
-  const fresh2 = await browser.newContext();
+  const fresh2 = await browser.newContext(ownedContextOptions(testInfo));
   const p3 = await fresh2.newPage();
   await p3.goto('/login');
   await p3.getByLabel(/email/i).fill(email);

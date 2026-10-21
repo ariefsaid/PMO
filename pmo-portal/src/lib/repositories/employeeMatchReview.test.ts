@@ -166,6 +166,17 @@ describe('listEmployeeMatchReview (AC-S30-003)', () => {
     expect(result.profiles.map(({ id }) => id)).not.toContain('profile-confirmed');
   });
 
+  it('AC-V24P-011: omits duplicate-name candidates that have no distinguishing email', async () => {
+    h.state.profiles = [
+      profile('profile-no-email', '  Jordan Reviewer  ', '  '),
+      profile('profile-with-email', 'jordan reviewer', 'jordan@example.test'),
+    ];
+
+    const result = await listEmployeeMatchReview();
+
+    expect(result.profiles.map(({ id }) => id)).toEqual(['profile-with-email']);
+  });
+
   it('AC-S30-003: keyset-pages beyond the PostgREST row cap without dropping employee rows', async () => {
     h.state.rows = Array.from({ length: 1001 }, (_, index) => {
       const id = `employee-${String(index).padStart(4, '0')}`;

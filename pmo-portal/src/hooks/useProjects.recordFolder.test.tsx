@@ -17,6 +17,8 @@ const { project, integrations, m365RecordFolders, order } = vi.hoisted(() => ({
   project: { create: vi.fn(), updateHeader: vi.fn(), archive: vi.fn(), delete: vi.fn(), setContractValue: vi.fn() },
   m365RecordFolders: { ensure: vi.fn() },
 }));
+const m365Feature = vi.hoisted(() => ({ on: true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project, integrations, m365RecordFolders } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),

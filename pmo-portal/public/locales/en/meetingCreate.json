@@ -1,0 +1,9 @@
+{
+  "cancel": "Cancel",
+  "attendeesFailed": "Attendees were not all saved.",
+  "createFailed": "Meeting could not be created.",
+  "denied": "You do not have permission to create meetings.",
+  "minutesFailed": "Minutes could not be saved.",
+  "partialSaveFailed": "Meeting saved, but some details were not saved. Save again to retry.",
+  "save": "Save meeting"
+}

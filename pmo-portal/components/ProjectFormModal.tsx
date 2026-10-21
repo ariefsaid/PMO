@@ -15,6 +15,8 @@ import {
   Combobox,
   FormSection,
   FormGrid,
+  FormActions,
+  PageHeader,
   useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
@@ -172,6 +174,13 @@ export interface ProjectFormModalProps {
   /** Edit-header handler — receives id + ProjectHeaderInput (mode="editHeader"). */
   onSave?: (id: string, input: ProjectHeaderInput) => Promise<void>;
   onError: (err: unknown) => void;
+  /**
+   * `page` renders the same form inline as a full page (the one-step create at `/projects/new`)
+   * instead of a dialog; `onClose` is then the Cancel action and the host owns the unsaved guard.
+   */
+  variant?: 'modal' | 'page';
+  /** Reports whether the form holds unsaved entries (host guards leaving). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
@@ -181,6 +190,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onSubmit,
   onSave,
   onError,
+  variant = 'modal',
+  onDirtyChange,
 }) => {
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
@@ -321,6 +332,17 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
+  // Typed entries only: the org tax default and the proposed project number are seeded, not entered,
+  // so a pristine page must not count as dirty (it would ask before leaving an empty form).
+  const v = form.values;
+  const hasEntries = v.status !== 'Leads' || [
+    v.name, v.code, v.clientId, v.endClientId, v.pmId, v.value, v.startDate, v.endDate,
+    v.serviceLine, v.sector, v.location, v.awardType, v.biddingEntity,
+  ].some(Boolean);
+  useEffect(() => {
+    onDirtyChange?.(hasEntries);
+  }, [hasEntries, onDirtyChange]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -396,23 +418,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     });
   };
 
-  return (
-    <EntityFormModal
-      open
-      title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
-      subtitle={
-        isEdit
-          ? t('projectForm.subtitle.edit', 'Update the project header details')
-          : t('projectForm.subtitle.create', 'Create a project')
-      }
-      submitLabel={isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project')}
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success')}
-      errorSummary={errorSummary.length ? errorSummary : undefined}
-    >
+  const fields = (
+    <>
       <FormSection legend={t('projectForm.section.project', 'Project')}>
         <FormGrid>
           <TextField
@@ -650,6 +657,57 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           />
         </FormGrid>
       </FormSection>
+    </>
+  );
+
+  const submitDisabled = !form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success');
+  const submitLabel = isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project');
+
+  if (variant === 'page') {
+    return (
+      <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[880px]">
+        <PageHeader name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} meta={t('projectForm.subtitle.create', 'Create a project')} />
+        <div className="rounded-lg border border-border bg-card px-5 py-4">
+          {errorSummary.length > 0 && form.hasAttemptedSubmit && (
+            <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">
+              {errorSummary.map((item) => (
+                <a key={item.message} href={`#${item.fieldId}`} className="block py-1 hover:underline">{item.message}</a>
+              ))}
+            </div>
+          )}
+          {fields}
+        </div>
+        <div className="sticky bottom-0 mt-3 border-t border-border bg-background py-3">
+          <FormActions
+            submitLabel={submitLabel}
+            cancelLabel={t('entityForm.cancel', 'Cancel')}
+            onCancel={onClose}
+            disabled={submitDisabled}
+            loading={form.isSubmitting}
+          />
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <EntityFormModal
+      open
+      title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
+      subtitle={
+        isEdit
+          ? t('projectForm.subtitle.edit', 'Update the project header details')
+          : t('projectForm.subtitle.create', 'Create a project')
+      }
+      submitLabel={submitLabel}
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      loading={form.isSubmitting}
+      dirty={form.isDirty}
+      submitDisabled={submitDisabled}
+      errorSummary={errorSummary.length ? errorSummary : undefined}
+    >
+      {fields}
     </EntityFormModal>
   );
 };

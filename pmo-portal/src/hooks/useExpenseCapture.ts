@@ -6,6 +6,7 @@ import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_BYTES } from '@/src/lib/fileConstants';
 import { RECEIPT_EXTENSIONS, receiptExtension } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseClaimInput, ExpenseLineInput } from '@/src/lib/db/expenseClaims';
 import { uploadWithProgress } from '@/src/lib/uploadTransport';
+import { repositories } from '@/src/lib/repositories';
 import {
   cleanupUnlinkedExpenseCaptureReceipt, confirmExpenseCaptureReceipt, expenseCaptureRepository,
 } from '@/src/lib/repositories/expenseCapture';
@@ -14,11 +15,12 @@ import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 export interface ExpenseCaptureInput {
   header: ExpenseClaimInput;
   firstLine: ExpenseLineInput | null;
+  additionalLines?: ExpenseLineInput[];
   receiptFile: File | null;
 }
 
 export type ExpenseCaptureAttachmentState = 'selected' | 'prepared' | 'uploaded' | 'confirmed' | 'cleanup-required';
-export type ExpenseCapturePhase = 'saving-draft' | 'draft-saved' | 'preparing-receipt' | 'uploading-receipt' | 'confirming-receipt' | 'receipt-upload-failed' | 'complete';
+export type ExpenseCapturePhase = 'saving-draft' | 'draft-saved' | 'preparing-receipt' | 'uploading-receipt' | 'confirming-receipt' | 'line-save-failed' | 'receipt-upload-failed' | 'complete';
 
 export interface ExpenseCaptureRecovery {
   claimId: string;
@@ -29,6 +31,8 @@ export interface ExpenseCaptureRecovery {
 }
 
 interface CaptureIntent extends ExpenseCaptureInput {
+  additionalLines: ExpenseLineInput[];
+  nextAdditionalLineIndex: number;
   claimId: string;
   lineId: string | null;
   fileId: string | null;
@@ -40,7 +44,8 @@ interface CaptureIntent extends ExpenseCaptureInput {
 function sameIntent(intent: CaptureIntent, input: ExpenseCaptureInput): boolean {
   return intent.receiptFile === input.receiptFile
     && JSON.stringify(intent.header) === JSON.stringify(input.header)
-    && JSON.stringify(intent.firstLine) === JSON.stringify(input.firstLine);
+    && JSON.stringify(intent.firstLine) === JSON.stringify(input.firstLine)
+    && JSON.stringify(intent.additionalLines) === JSON.stringify(input.additionalLines ?? []);
 }
 
 function snapshot(intent: CaptureIntent, phase: ExpenseCapturePhase, error: string | null = null): ExpenseCaptureRecovery {
@@ -85,6 +90,8 @@ export function useExpenseCapture() {
     if (!intent) {
       intent = {
         ...input,
+        additionalLines: input.additionalLines ?? [],
+        nextAdditionalLineIndex: 0,
         claimId: crypto.randomUUID(),
         lineId: input.firstLine ? crypto.randomUUID() : null,
         fileId: input.receiptFile ? crypto.randomUUID() : null,
@@ -105,6 +112,13 @@ export function useExpenseCapture() {
           firstLine: intent.firstLine,
         });
         intent.draftSaved = true;
+        invalidateDraftReads(intent.claimId);
+      }
+
+      while (intent.nextAdditionalLineIndex < intent.additionalLines.length) {
+        const line = intent.additionalLines[intent.nextAdditionalLineIndex];
+        await repositories.expenseClaim.addLine(intent.claimId, line);
+        intent.nextAdditionalLineIndex += 1;
         invalidateDraftReads(intent.claimId);
       }
 
@@ -148,9 +162,13 @@ export function useExpenseCapture() {
       return intent.claimId;
     } catch (error) {
       setProgress(null);
-      const phase: ExpenseCapturePhase = intent.draftSaved ? 'receipt-upload-failed' : 'saving-draft';
+      const phase: ExpenseCapturePhase = !intent.draftSaved
+        ? 'saving-draft'
+        : intent.nextAdditionalLineIndex < intent.additionalLines.length ? 'line-save-failed' : 'receipt-upload-failed';
       setRecovery(snapshot(intent, phase, error instanceof Error ? error.message : 'Expense capture failed.'));
-      throw error;
+      const failure = error instanceof Error ? error : new Error('Expense capture failed.');
+      Object.assign(failure, { claimId: intent.claimId, draftSaved: intent.draftSaved });
+      throw failure;
     }
   }, [invalidateDraftReads]);
 

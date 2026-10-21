@@ -15,6 +15,8 @@ const { procurement, m365RecordFolders } = vi.hoisted(() => ({
   procurement: { create: vi.fn(), transition: vi.fn() },
   m365RecordFolders: { ensure: vi.fn() },
 }));
+const m365Feature = vi.hoisted(() => ({ on: true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement, m365RecordFolders } }));
 vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/db/procurementLifecycle')>()),

@@ -370,8 +370,8 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
   await installWriteCustody(page, { title: savedTitle, description: lineDescription, receiptName });
   await page.goto('/expenses');
   await page.getByRole('button', { name: 'New claim' }).click();
-  const form = page.getByRole('dialog');
-  await form.getByLabel('Choose a receipt file').setInputFiles({
+  const form = page;
+  await form.getByLabel('Receipt (optional)').setInputFiles({
     name: receiptName,
     mimeType: 'application/pdf',
     buffer: PDF_BYTES,
@@ -383,7 +383,7 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
   await form.getByLabel(/^Type/).selectOption('Travel');
   await form.getByLabel(/^Date/).fill(EXPECTED_DATE);
   await form.getByLabel(/^Amount/).fill(String(EXPECTED_AMOUNT));
-  await form.getByRole('button', { name: 'Create' }).click();
+  await form.getByRole('button', { name: 'Save' }).click();
 
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { name: savedTitle })).toBeVisible();

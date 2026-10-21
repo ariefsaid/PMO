@@ -1723,15 +1723,11 @@
       }
     },
     "delete": "Hapus",
-    "edit": "Edit",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil rapat ini.",
       "title": "Gagal memuat rapat"
     },
     "form": {
-      "editSubmit": "Simpan rapat",
-      "editSubtitle": "Perbarui data rapat ini",
-      "editTitle": "Edit rapat",
       "errors": {
         "titleRequired": "Judul rapat wajib diisi.",
         "whenInvalid": "Masukkan tanggal dan waktu yang valid."
@@ -1830,23 +1826,14 @@
       "unavailableProject": "Proyek tidak tersedia"
     },
     "form": {
-      "errors": {
-        "titleRequired": "Judul rapat wajib diisi.",
-        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
-      },
       "location": {
         "label": "Lokasi",
         "placeholder": "mis. Kantor site, panggilan Teams"
       },
-      "newSubmit": "Buat rapat",
-      "newSubtitle": "Catat kapan rapat berlangsung dan mulai notulennya",
       "newTitle": "Rapat baru",
       "project": {
         "label": "Proyek",
         "none": "Tanpa proyek"
-      },
-      "sections": {
-        "details": "Detail"
       },
       "title": {
         "label": "Judul",
@@ -1975,12 +1962,6 @@
     "title": {
       "orgWide": "Pengadaan",
       "ownScoped": "Permintaan pembelian Anda"
-    },
-    "toast": {
-      "created": {
-        "detail": "Selanjutnya tambahkan rincian item dan penawaran",
-        "headline": "Permintaan dibuat"
-      }
     },
     "unknownRequester": "Tidak diketahui",
     "view": {
@@ -3346,9 +3327,6 @@
         "sub": "Coba nama atau klien lain.",
         "title": "Tidak ada proyek yang cocok dengan pencarian"
       }
-    },
-    "toast": {
-      "projectCreated": "Proyek dibuat"
     },
     "view": {
       "board": "Board",
