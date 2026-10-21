@@ -12,6 +12,14 @@ describe('employeeChoiceLabels', () => {
     ]);
   });
 
+  it('trims display identity before formatting labels and destination email', () => {
+    expect(employeeChoiceLabels([
+      { value: 'profile-trimmed', name: '  Riley Reviewer  ', email: '  riley@example.test  ' },
+    ])).toEqual([
+      { value: 'profile-trimmed', label: 'Riley Reviewer', email: 'riley@example.test' },
+    ]);
+  });
+
   it('uses email when the name is missing and preserves a name when email is missing', () => {
     expect(employeeChoiceLabels([
       { value: 'profile-email-only', name: '  ', email: 'worker@example.test' },
