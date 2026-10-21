@@ -2269,6 +2269,83 @@ export type Database = {
           },
         ]
       }
+      erp_purchase_documents: {
+        Row: {
+          bill_no: string | null
+          currency: string | null
+          doc_date: string | null
+          due_date: string | null
+          erp_docstatus: number
+          erp_doctype: string
+          erp_modified: string
+          erp_name: string
+          erp_project: string | null
+          erp_status: string | null
+          grand_total: number | null
+          id: string
+          is_return: boolean
+          org_id: string
+          outstanding_amount: number | null
+          pmo_owned: boolean
+          project_ids: string[]
+          supplier: string | null
+          supplier_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          bill_no?: string | null
+          currency?: string | null
+          doc_date?: string | null
+          due_date?: string | null
+          erp_docstatus: number
+          erp_doctype: string
+          erp_modified: string
+          erp_name: string
+          erp_project?: string | null
+          erp_status?: string | null
+          grand_total?: number | null
+          id?: string
+          is_return?: boolean
+          org_id?: string
+          outstanding_amount?: number | null
+          pmo_owned?: boolean
+          project_ids?: string[]
+          supplier?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bill_no?: string | null
+          currency?: string | null
+          doc_date?: string | null
+          due_date?: string | null
+          erp_docstatus?: number
+          erp_doctype?: string
+          erp_modified?: string
+          erp_name?: string
+          erp_project?: string | null
+          erp_status?: string | null
+          grand_total?: number | null
+          id?: string
+          is_return?: boolean
+          org_id?: string
+          outstanding_amount?: number | null
+          pmo_owned?: boolean
+          project_ids?: string[]
+          supplier?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_purchase_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_sweep_lock: {
         Row: {
           holder: string
@@ -9708,6 +9785,10 @@ export type Database = {
           p_to: Database["public"]["Enums"]["work_order_status"]
         }
         Returns: undefined
+      }
+      upsert_erp_purchase_documents: {
+        Args: { p_org_id: string; p_rows: Json }
+        Returns: number
       }
       upsert_fx_rates: { Args: { p_rows: Json }; Returns: Json }
       valid_project_classification_options: {

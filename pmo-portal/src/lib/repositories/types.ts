@@ -46,6 +46,7 @@ import type {
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
+import type { ErpPurchaseRow } from './erpPurchases';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -793,6 +794,12 @@ export interface ExpenseReceiptRepository {
 }
 
 /** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0270). */
+/** FR-EPR-006/007: ERP-native purchases, read-only (DD-XING-2). Never summed into spent/committed. */
+export interface ErpPurchaseRepository {
+  list(projectId?: string): Promise<ErpPurchaseRow[]>;
+  hasAny(): Promise<boolean>;
+}
+
 export interface ExpensePostingRepository {
   /** What one claim posted to ERPNext (FR-EXP-117). */
   listForClaim(claimId: string): Promise<ExpensePostingRow[]>;
@@ -855,6 +862,7 @@ export interface Repositories {
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
+  erpPurchases: ErpPurchaseRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;

@@ -19,6 +19,7 @@ import { financialStatementsRepository } from './financialStatements';
 import { companyCollectionsRepository } from './companyCollections';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
+import { hasErpPurchases, listErpPurchases } from './erpPurchases';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -339,6 +340,7 @@ import type {
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
   ExpensePostingRepository,
+  ErpPurchaseRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -1262,6 +1264,11 @@ const expensePostings: ExpensePostingRepository = {
   listAccountMap: () => wrap(() => listExpenseAccountMap()),
 };
 
+const erpPurchases: ErpPurchaseRepository = {
+  list: (projectId) => wrap(() => listErpPurchases(projectId)),
+  hasAny: () => wrap(() => hasErpPurchases()),
+};
+
 const reports: ReportsRepository = {
   managementPack: (range) => wrap(() => getManagementPackFacts(range)),
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
@@ -1292,6 +1299,7 @@ export const repositories: Repositories = {
   expenseClaim,
   expenseReceipts,
   expensePostings,
+  erpPurchases,
   contact,
   meeting,
   userView,

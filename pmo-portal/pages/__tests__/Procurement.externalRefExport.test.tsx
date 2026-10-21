@@ -14,6 +14,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const hoisted = vi.hoisted(() => ({ captured: [] as ArrayBuffer[] }));
 
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/export', async (orig) => {
   const actual = (await orig()) as typeof import('@/src/lib/export');

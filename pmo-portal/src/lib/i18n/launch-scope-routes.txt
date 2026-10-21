@@ -90,6 +90,7 @@
 #    and its deep-linkable panels are the same component — excluding the `:tab` route would
 #    leave a tab of English inside an otherwise gated screen.
 /procurement                   pages/Procurement.tsx pages/procurement/ProcurementListRow.tsx
+/erp-purchases                 pages/ErpPurchases.tsx pages/procurement/ErpPurchasesTable.tsx
 /procurement/:procurementId    pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
 /procurement/:procurementId/:tab  pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
 
