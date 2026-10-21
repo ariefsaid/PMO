@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — read-only: the Microsoft connection, Graph reads, the folder step and the project-documents / profile reads are page.route-mocked or rewritten with synthetic rows; nothing is written to the database or to Microsoft.
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, waitForFonts } from './helpers';
 import { PROJECT_ID } from './document-file-upload.helpers';
 
 /**
@@ -167,11 +167,13 @@ async function openDocuments(page: Page, tabName: string) {
   await page.goto(`/projects/${PROJECT_ID}`);
   await page.getByRole('tab', { name: tabName }).click();
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
+  await waitForFonts(page);
 }
 
 const registerRow = (page: Page, title: string): Locator => page.locator('table tbody tr').filter({ hasText: title }).first();
 
 async function expectInsideViewport(page: Page) {
+  await waitForFonts(page);
   const { scrollWidth, innerWidth } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
@@ -243,6 +245,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
     await picker.getByRole('button', { name: `Browse ${LONG_TOKEN}` }).first().click();
     await expect(picker.getByRole('navigation', { name: 'Microsoft location' }).getByRole('button', { name: LONG_TOKEN })).toBeVisible();
 
+    await waitForFonts(page);
     const overflowing = await picker.evaluate((dialog) => {
       const bounds = dialog.getBoundingClientRect();
       const offenders: string[] = [];
