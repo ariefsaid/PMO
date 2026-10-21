@@ -5,9 +5,11 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, formatUtcMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
-import { prefillFromAssessment, suggestedRecoveryPct } from '@/src/lib/progressBilling';
+import { prefillFromAssessment, suggestedRecoveryPct, type ContractLineFacts } from '@/src/lib/progressBilling';
+import { prefillForWorkOrder } from '@/src/lib/contractQuantityPrefill';
 import type { BoqItemRow, ProgressClaimInput } from '@/src/lib/db/progressBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
+import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 
 /**
  * Create a BILLING claim (#766, DD-PBL-7). Finance states the quantities; "start from the latest assessment" is a
@@ -18,6 +20,10 @@ export interface ProgressClaimModalProps {
   boqItems: BoqItemRow[];
   /** This project's work orders; only Issued/Closed ones are offered as a scope. */
   workOrders: WorkOrderRow[];
+  /** Every allocation on the project, any work-order status — decides which lines a scope may bill (DD-CQ-6). */
+  allocations: WorkOrderLineRow[];
+  /** Server facts per line: ordered, accepted (BAST) and claimed quantities per work order. */
+  contractLines: ContractLineFacts[];
   /** Net contract value — for the proportional-percentage hint only. */
   contractNet: number;
   currencySymbolPrefix: string;
@@ -35,7 +41,7 @@ export interface ProgressClaimModalProps {
 type Kind = ProgressClaimInput['kind'];
 
 const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
-  boqItems, workOrders, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
+  boqItems, workOrders, allocations, contractLines, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
   assessmentMonth, onClose, onSave, onError,
 }) => {
   const { t } = useTranslation();
@@ -50,8 +56,13 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const scopes = workOrders.filter((wo) => wo.status === 'Issued' || wo.status === 'Closed');
-  const inScope = boqItems.filter((line) => (line.work_order_id ?? '') === scope);
-  const prefill = prefillFromAssessment(inScope.map((line) => line.id), assessedByBoqItem, claimedByBoqItem);
+  // A scope bills only its own allocations; "no work order" bills only lines no work order ever took.
+  const allocatedElsewhere = new Set(allocations.map((row) => row.boq_item_id));
+  const allocatedHere = new Set(allocations.filter((row) => row.work_order_id === scope).map((row) => row.boq_item_id));
+  const inScope = boqItems.filter((line) => (scope === '' ? !allocatedElsewhere.has(line.id) : allocatedHere.has(line.id)));
+  const inScopeIds = inScope.map((line) => line.id);
+  const woPrefill = scope === '' ? null : prefillForWorkOrder(scope, inScopeIds, contractLines, assessedByBoqItem, claimedByBoqItem);
+  const prefill = woPrefill ? woPrefill.quantities : prefillFromAssessment(inScopeIds, assessedByBoqItem, claimedByBoqItem);
   const dpValue = parseMoneyInputAtScale(dpAmount, 2);
   const suggested = dpValue === null ? null : suggestedRecoveryPct(dpValue, contractNet);
 
@@ -151,10 +162,12 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
         </FormSection>
       ) : (
         <FormSection legend={t('projectDetail.billing.claimForm.linesLegend', 'Quantities to bill')}>
-          {assessmentMonth && Object.keys(prefill).length > 0 && (
+          {Object.keys(prefill).length > 0 && (woPrefill?.fromBast || assessmentMonth) && (
             <Button type="button" variant="outline" size="sm" className="mb-3" onClick={applyPrefill}>
-              {t('projectDetail.billing.claimForm.prefill', 'Start from the {{month}} assessment',
-                { month: formatUtcMonthYear(new Date(`${assessmentMonth}T00:00:00Z`)) })}
+              {woPrefill?.fromBast
+                ? t('projectDetail.billing.claimForm.prefillBast', 'Start from the accepted BAST quantities')
+                : t('projectDetail.billing.claimForm.prefill', 'Start from the {{month}} assessment',
+                  { month: formatUtcMonthYear(new Date(`${assessmentMonth ?? ''}T00:00:00Z`)) })}
             </Button>
           )}
           {inScope.length === 0 ? (
