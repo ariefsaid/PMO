@@ -184,6 +184,7 @@ export function listChildren(driveId: string, folderId?: string): Promise<GraphP
 }
 
 export function searchDrive(driveId: string, term: string): Promise<GraphPage<GraphItem>> {
+  segment(driveId); // Validate here; folderSearchRequest performs the one URL encoding pass.
   return readGraphPage(folderSearchRequest(driveId, term), decodeItem);
 }
 

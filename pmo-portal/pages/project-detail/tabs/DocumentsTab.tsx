@@ -371,7 +371,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     // reference-only and has no revision; a changed Microsoft file offers the latest-update variant.
     if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs && !isMicrosoftFolder(d)) {
       items.push({ label: t('projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
-      if (d.source === 'onedrive' && d.ms_drift_state === 'drifted') {
+      if (d.source === 'onedrive' && d.ms_drift_state === 'drifted' && canCreateMicrosoftReference) {
         items.push({ label: t('m365Documents.newRevisionFromLatest', 'Make new revision from latest file update'), onClick: () => void startLatestRevision(d) });
       }
     }
@@ -498,7 +498,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // never creates anything and never discloses a raw Microsoft body (generic reviewed copy only).
   const startLatestRevision = async (parent: ProjectDocumentRow) => {
     const current = projectReference(parent);
-    if (!current || latestBusy) return;
+    if (!current || latestBusy || !documentLinkPermissions.projectCreate()) return;
     setLatestBusy(parent.id);
     try {
       const item = await getItem(current);
@@ -533,7 +533,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => {
     const parent = latestRevision?.parent ?? revisionParent;
-    if (!parent) return;
+    if (!parent || (data.microsoft && !documentLinkPermissions.projectCreate())) return;
     createRevision.mutate(
       { parentId: parent.id, ...data },
       {
@@ -730,9 +730,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <DocumentFormModal
           doc={formTarget.doc}
           reference={formTarget.reference}
-          onChangeReference={() => { setFormTarget(null); setMicrosoftEntry({ kind: 'create' }); }}
+          readOnly={!!formTarget.reference && !canCreateMicrosoftReference}
+          onChangeReference={canCreateMicrosoftReference ? () => { setFormTarget(null); setMicrosoftEntry({ kind: 'create' }); } : undefined}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
+            if (formTarget.reference && !documentLinkPermissions.projectCreate()) {
+              throw Object.assign(new Error('View-only session'), { code: '42501' });
+            }
             // One INSERT carries the reference (no empty intermediate row).
             await create.mutateAsync(formTarget.reference ? { ...input, source: 'onedrive', microsoft: formTarget.reference } : input);
             toast(t('projectDetail.documents.toast.added', 'Document added'), input.title, 'success');
@@ -764,6 +768,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <NewRevisionModal
           parent={(latestRevision?.parent ?? revisionParent) as ProjectDocumentRow}
           microsoft={latestRevision?.reference ?? null}
+          readOnly={!!latestRevision && !canCreateMicrosoftReference}
           onSubmit={handleCreateRevision}
           onClose={() => { setRevisionParent(null); setLatestRevision(null); }}
           loading={createRevision.isPending}
@@ -1127,6 +1132,7 @@ interface DocumentFormModalProps {
   reference?: MicrosoftReferenceInput;
   /** Reopens the Microsoft picker so the chosen item can be swapped before saving. */
   onChangeReference?: () => void;
+  readOnly?: boolean;
   onClose: () => void;
   onCreate: (input: ProjectDocumentInput) => Promise<void>;
   onUpdate: (id: string, input: ProjectDocumentInput) => Promise<void>;
@@ -1137,6 +1143,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   doc,
   reference,
   onChangeReference,
+  readOnly = false,
   onClose,
   onCreate,
   onUpdate,
@@ -1229,7 +1236,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty || !!reference}
-      submitDisabled={!form.isComplete}
+      submitDisabled={readOnly || !form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       {reference && (

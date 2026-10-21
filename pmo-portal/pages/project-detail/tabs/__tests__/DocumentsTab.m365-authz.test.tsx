@@ -105,6 +105,17 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
     expect(h.link).not.toHaveBeenCalled();
   });
 
+  it('keeps a pending reference form read-only after a view-as change', async () => {
+    render(<MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter>);
+    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
+    const form = screen.getByRole('dialog');
+    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    expect(within(form).getByRole('button', { name: 'Add document' })).toBeDisabled();
+    await userEvent.click(within(form).getByRole('button', { name: 'Add document' }));
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
   it('AC-M365DOC-011: pick first, then the ordinary form; ONE create call carries the reference (no empty intermediate row)', async () => {
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
@@ -235,6 +246,18 @@ describe('DocumentsTab — folders are reference-only (AC-M365DOC-058/063)', () 
 
 describe('DocumentsTab — changed-content revision (AC-M365DOC-064/068)', () => {
   const drifted = () => makeLinkedDoc({ status: 'Issued', ms_drift_state: 'drifted', ms_content_tag_at_issue: 'ctag-1', ms_version_id_at_issue: '1.0' });
+
+  it('keeps a pending latest-file revision read-only after a view-as change', async () => {
+    h.docs.data = [drifted()];
+    h.getItem.mockResolvedValue({ ...SELECTED, name: 'Synthetic v2.pdf', parent_path: null, content_tag: 'ctag-2', sharepoint_ids: null });
+    render(<MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter>);
+    await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'Make new revision from latest file update' }));
+    const modal = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    expect(within(modal).getByRole('button', { name: 'Create revision' })).toBeDisabled();
+    await userEvent.click(within(modal).getByRole('button', { name: 'Create revision' }));
+    expect(h.createRevision).not.toHaveBeenCalled();
+  });
 
   it('AC-M365DOC-064: a drifted file re-reads the latest metadata, then creates ONE explicit child with that reference and no baseline', async () => {
     h.docs.data = [drifted()];

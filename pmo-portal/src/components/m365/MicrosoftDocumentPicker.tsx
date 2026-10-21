@@ -202,6 +202,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
     startClaimed.current = true;
     startGeneration.current += 1;
     navGeneration.current += 1;
+    setLocationMoreBusy(false);
     focusAfterNavigation.current = true;
     setStartDone(true);
     setSearch('');
@@ -256,9 +257,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           setSites((state) => ({ ...state, next: null }));
           return;
         }
-        locationCursors.current.add(cursor);
         const result = await browseSites(undefined, sites.next);
         if (seq !== navGeneration.current) return;
+        locationCursors.current.add(cursor);
         const existing = new Set(sites.value.map((entry) => entry.id));
         const additions = result.value.filter((entry) => !existing.has(entry.id) && !!existing.add(entry.id));
         setSites({ status: 'ready', value: [...sites.value, ...additions], next: JSON.stringify(result.next) === cursor ? null : result.next, error: null });
@@ -268,9 +269,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           setLibraries((state) => ({ ...state, next: null }));
           return;
         }
-        locationCursors.current.add(cursor);
         const result = await browseDrives(location.site.id, libraries.next);
         if (seq !== navGeneration.current) return;
+        locationCursors.current.add(cursor);
         const existing = new Set(libraries.value.map((entry) => entry.id));
         const additions = result.value.filter((entry) => !existing.has(entry.id) && !!existing.add(entry.id));
         setLibraries({ status: 'ready', value: [...libraries.value, ...additions], next: JSON.stringify(result.next) === cursor ? null : result.next, error: null });
@@ -280,7 +281,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
         if (location.kind === 'sites') setSites((state) => ({ ...state, error }));
         if (location.kind === 'libraries') setLibraries((state) => ({ ...state, error }));
       }
-    } finally { setLocationMoreBusy(false); }
+    } finally { if (seq === navGeneration.current) setLocationMoreBusy(false); }
   }
 
   async function showOneDrive() {

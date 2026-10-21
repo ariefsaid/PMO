@@ -74,6 +74,12 @@ describe('Graph metadata browse transport', () => {
     } });
   });
 
+  it('validates drive segments before a metadata search', () => {
+    invoke.mockResolvedValue({ data: { value: [] }, error: null });
+    expect(() => searchDrive('../outside', 'drawing')).toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('continues site and library metadata pages through typed decoders', async () => {
     invoke.mockResolvedValueOnce({ data: { value: [{ id: 'site-1', name: 'Site', webUrl: 'https://example.invalid/site' }], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/sites?$skiptoken=next' }, error: null });
     invoke.mockResolvedValueOnce({ data: { value: [{ id: 'site-2', name: 'Next', webUrl: 'https://example.invalid/next' }] }, error: null });
