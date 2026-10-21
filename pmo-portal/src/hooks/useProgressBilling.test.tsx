@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-const h = vi.hoisted(() => ({ withdrawClaim: vi.fn(), raiseInvoice: vi.fn(), recordAssessment: vi.fn(), createClaim: vi.fn() }));
+const h = vi.hoisted(() => ({ withdrawClaim: vi.fn(), raiseInvoice: vi.fn(), recordAssessment: vi.fn(), createClaim: vi.fn(), createBoq: vi.fn(), deleteBoq: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: {
-  withdrawClaim: h.withdrawClaim, createClaim: h.createClaim, raiseInvoice: h.raiseInvoice, recordAssessment: h.recordAssessment,
+  withdrawClaim: h.withdrawClaim, createClaim: h.createClaim, raiseInvoice: h.raiseInvoice, recordAssessment: h.recordAssessment, createBoq: h.createBoq, deleteBoq: h.deleteBoq,
 } } }));
 import { useProgressBillingMutations } from './useProgressBilling';
 
@@ -70,5 +70,19 @@ describe('useProgressBillingMutations', () => {
       await expect(result.current.raiseInvoice.mutateAsync({ claimId: 'k1', customerId: 'c1' })).rejects.toThrow('ERP unreachable');
     });
     expect(keys()).toEqual(expect.arrayContaining(WO_BILLING));
+  });
+  it('AC-CQ-015 a BoQ line write refreshes the allocations and acceptances that depend on its quantity and rate', async () => {
+    h.createBoq.mockResolvedValue({ id: 'b1' });
+    h.deleteBoq.mockResolvedValue(undefined);
+    const { result, keys } = setup();
+    const dependent = [
+      JSON.stringify(['work-order-lines', 'org-1', 'p1']),
+      JSON.stringify(['work-order-acceptances', 'org-1', 'p1']),
+      JSON.stringify(['project-billing', 'org-1', 'p1']),
+    ];
+    await act(async () => { await result.current.createBoq.mutateAsync({} as never); });
+    expect(keys()).toEqual(expect.arrayContaining(dependent));
+    await act(async () => { await result.current.deleteBoq.mutateAsync('b1'); });
+    expect(keys().filter((k) => k === dependent[0]).length).toBe(2);
   });
 });

@@ -34,6 +34,9 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProgressBillingMutations: () => h.mutations,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: h.workOrders, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 
 import BillingTab from '../tabs/BillingTab';

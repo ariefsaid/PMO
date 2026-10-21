@@ -38,16 +38,20 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProgressBillingMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 import BillingTab from '../BillingTab';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
   assessment: { month: '2026-10-01', pctComplete: 60 }, claimedByBoqItem: { b1: 5, b2: 6 }, assessedByBoqItem: { b1: 6 },
+  earnedValue: 0, contractLines: [],
 };
 const BOQ = [
-  { id: 'b1', org_id: 'o', project_id: 'p1', work_order_id: null, item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, rate: 50000, created_at: '' },
-  { id: 'b2', org_id: 'o', project_id: 'p1', work_order_id: null, item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: 5, rate: 100000, created_at: '' },
+  { id: 'b1', org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, rate: 50000, created_at: '' },
+  { id: 'b2', org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: 5, rate: 100000, created_at: '' },
 ];
 const claim = (id: string, extra: Record<string, unknown> = {}) => ({
   id, org_id: 'o', project_id: 'p1', work_order_id: null, kind: 'progress', currency: 'IDR', gross_amount: 200000,
