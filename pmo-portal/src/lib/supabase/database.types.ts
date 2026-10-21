@@ -1853,224 +1853,6 @@ export type Database = {
           },
         ]
       }
-      erp_financial_statement_report_batch: {
-        Row: {
-          batch_id: string
-          context: Json
-          dirty_revision_cutoff: number
-          effective_date: string | null
-          org_id: string
-          planning_timezone: string | null
-          started_at: string
-        }
-        Insert: {
-          batch_id: string
-          context: Json
-          dirty_revision_cutoff: number
-          effective_date?: string | null
-          org_id: string
-          planning_timezone?: string | null
-          started_at: string
-        }
-        Update: {
-          batch_id?: string
-          context?: Json
-          dirty_revision_cutoff?: number
-          effective_date?: string | null
-          org_id?: string
-          planning_timezone?: string | null
-          started_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_report_batch_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: true
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      erp_financial_statement_report_pending: {
-        Row: {
-          acquired_at: string | null
-          batch_id: string
-          current_end: string
-          current_start: string
-          normalized_report: Json | null
-          ordinal: number
-          org_id: string
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id: string | null
-          raw_response_text: string | null
-          raw_sha256: string | null
-          retained_source_snapshot_id: string | null
-          side: string
-          statement: string
-        }
-        Insert: {
-          acquired_at?: string | null
-          batch_id: string
-          current_end: string
-          current_start: string
-          normalized_report?: Json | null
-          ordinal: number
-          org_id: string
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id?: string | null
-          raw_response_text?: string | null
-          raw_sha256?: string | null
-          retained_source_snapshot_id?: string | null
-          side: string
-          statement: string
-        }
-        Update: {
-          acquired_at?: string | null
-          batch_id?: string
-          current_end?: string
-          current_start?: string
-          normalized_report?: Json | null
-          ordinal?: number
-          org_id?: string
-          period_kind?: string
-          prior_end?: string
-          prior_start?: string
-          project_id?: string | null
-          raw_response_text?: string | null
-          raw_sha256?: string | null
-          retained_source_snapshot_id?: string | null
-          side?: string
-          statement?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_report_pending_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_financial_statement_report_pending_batch_fk"
-            columns: ["org_id", "batch_id"]
-            isOneToOne: false
-            referencedRelation: "erp_financial_statement_report_batch"
-            referencedColumns: ["org_id", "batch_id"]
-          },
-        ]
-      }
-      erp_financial_statement_snapshot: {
-        Row: {
-          as_of: string
-          capture_completed_at: string | null
-          capture_started_at: string | null
-          company: string
-          currency: string
-          current_end: string
-          current_start: string
-          display_precision: number
-          display_rounding_method: string
-          filters: Json | null
-          has_activity: boolean
-          id: string
-          org_id: string
-          payload: Json
-          published_at: string | null
-          raw_reports: Json | null
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id: string | null
-          report_version: string | null
-          scope_kind: string
-          settings: Json | null
-          snapshot_id: string
-          source_generation: string
-          source_report: string | null
-          statement: string
-          view_kind: string
-        }
-        Insert: {
-          as_of: string
-          capture_completed_at?: string | null
-          capture_started_at?: string | null
-          company: string
-          currency: string
-          current_end: string
-          current_start: string
-          display_precision: number
-          display_rounding_method: string
-          filters?: Json | null
-          has_activity: boolean
-          id?: string
-          org_id?: string
-          payload: Json
-          published_at?: string | null
-          raw_reports?: Json | null
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id?: string | null
-          report_version?: string | null
-          scope_kind: string
-          settings?: Json | null
-          snapshot_id: string
-          source_generation: string
-          source_report?: string | null
-          statement: string
-          view_kind: string
-        }
-        Update: {
-          as_of?: string
-          capture_completed_at?: string | null
-          capture_started_at?: string | null
-          company?: string
-          currency?: string
-          current_end?: string
-          current_start?: string
-          display_precision?: number
-          display_rounding_method?: string
-          filters?: Json | null
-          has_activity?: boolean
-          id?: string
-          org_id?: string
-          payload?: Json
-          published_at?: string | null
-          raw_reports?: Json | null
-          period_kind?: string
-          prior_end?: string
-          prior_start?: string
-          project_id?: string | null
-          report_version?: string | null
-          scope_kind?: string
-          settings?: Json | null
-          snapshot_id?: string
-          source_generation?: string
-          source_report?: string | null
-          statement?: string
-          view_kind?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_snapshot_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_financial_statement_snapshot_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       erp_financial_statement_dirty_date: {
         Row: {
           company: string
@@ -2128,6 +1910,230 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_report_batch: {
+        Row: {
+          batch_id: string
+          context: Json
+          dirty_revision_cutoff: number
+          effective_date: string | null
+          org_id: string
+          planning_timezone: string | null
+          started_at: string
+        }
+        Insert: {
+          batch_id: string
+          context: Json
+          dirty_revision_cutoff: number
+          effective_date?: string | null
+          org_id: string
+          planning_timezone?: string | null
+          started_at: string
+        }
+        Update: {
+          batch_id?: string
+          context?: Json
+          dirty_revision_cutoff?: number
+          effective_date?: string | null
+          org_id?: string
+          planning_timezone?: string | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_report_batch_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_report_pending: {
+        Row: {
+          acquired_at: string | null
+          attempts: number
+          batch_id: string
+          current_end: string
+          current_start: string
+          last_attempt_at: string | null
+          normalized_report: Json | null
+          ordinal: number
+          org_id: string
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string | null
+          raw_response_text: string | null
+          raw_sha256: string | null
+          retained_source_snapshot_id: string | null
+          side: string
+          statement: string
+        }
+        Insert: {
+          acquired_at?: string | null
+          attempts?: number
+          batch_id: string
+          current_end: string
+          current_start: string
+          last_attempt_at?: string | null
+          normalized_report?: Json | null
+          ordinal: number
+          org_id: string
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id?: string | null
+          raw_response_text?: string | null
+          raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
+          side: string
+          statement: string
+        }
+        Update: {
+          acquired_at?: string | null
+          attempts?: number
+          batch_id?: string
+          current_end?: string
+          current_start?: string
+          last_attempt_at?: string | null
+          normalized_report?: Json | null
+          ordinal?: number
+          org_id?: string
+          period_kind?: string
+          prior_end?: string
+          prior_start?: string
+          project_id?: string | null
+          raw_response_text?: string | null
+          raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
+          side?: string
+          statement?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_report_pending_batch_fk"
+            columns: ["org_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "erp_financial_statement_report_batch"
+            referencedColumns: ["org_id", "batch_id"]
+          },
+          {
+            foreignKeyName: "erp_financial_statement_report_pending_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_snapshot: {
+        Row: {
+          as_of: string
+          capture_completed_at: string | null
+          capture_started_at: string | null
+          company: string
+          currency: string
+          current_end: string
+          current_start: string
+          display_precision: number
+          display_rounding_method: string
+          filters: Json | null
+          has_activity: boolean
+          id: string
+          org_id: string
+          payload: Json
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string | null
+          published_at: string | null
+          raw_reports: Json | null
+          report_version: string | null
+          scope_kind: string
+          settings: Json | null
+          snapshot_id: string
+          source_generation: string
+          source_report: string | null
+          statement: string
+          view_kind: string
+        }
+        Insert: {
+          as_of: string
+          capture_completed_at?: string | null
+          capture_started_at?: string | null
+          company: string
+          currency: string
+          current_end: string
+          current_start: string
+          display_precision: number
+          display_rounding_method: string
+          filters?: Json | null
+          has_activity: boolean
+          id?: string
+          org_id?: string
+          payload: Json
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id?: string | null
+          published_at?: string | null
+          raw_reports?: Json | null
+          report_version?: string | null
+          scope_kind: string
+          settings?: Json | null
+          snapshot_id: string
+          source_generation: string
+          source_report?: string | null
+          statement: string
+          view_kind: string
+        }
+        Update: {
+          as_of?: string
+          capture_completed_at?: string | null
+          capture_started_at?: string | null
+          company?: string
+          currency?: string
+          current_end?: string
+          current_start?: string
+          display_precision?: number
+          display_rounding_method?: string
+          filters?: Json | null
+          has_activity?: boolean
+          id?: string
+          org_id?: string
+          payload?: Json
+          period_kind?: string
+          prior_end?: string
+          prior_start?: string
+          project_id?: string | null
+          published_at?: string | null
+          raw_reports?: Json | null
+          report_version?: string | null
+          scope_kind?: string
+          settings?: Json | null
+          snapshot_id?: string
+          source_generation?: string
+          source_report?: string | null
+          statement?: string
+          view_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_snapshot_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_financial_statement_snapshot_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -7253,19 +7259,6 @@ export type Database = {
       }
     }
     Views: {
-      erp_financial_statement_availability: {
-        Row: {
-          calendar: Json | null
-          company_label: string | null
-          capture_completed_at: string | null
-          capture_started_at: string | null
-          delayed: boolean | null
-          last_success_at: string | null
-          snapshot_id: string | null
-          source_generation: string | null
-        }
-        Relationships: []
-      }
       budget_push_mirror_rows: {
         Row: {
           activated_at_witness: string | null
@@ -7286,6 +7279,19 @@ export type Database = {
           pushed_project_end_date: string | null
           pushed_project_start_date: string | null
           unmapped_categories: string[] | null
+        }
+        Relationships: []
+      }
+      erp_financial_statement_availability: {
+        Row: {
+          calendar: Json | null
+          capture_completed_at: string | null
+          capture_started_at: string | null
+          company_label: string | null
+          delayed: boolean | null
+          last_success_at: string | null
+          snapshot_id: string | null
+          source_generation: string | null
         }
         Relationships: []
       }
@@ -7469,6 +7475,75 @@ export type Database = {
       }
     }
     Functions: {
+      _erp_ack_statement_dirty_dates: {
+        Args: { p_company: string; p_cutoff: number; p_org_id: string }
+        Returns: undefined
+      }
+      _erp_statement_native_has_amount_rows: {
+        Args: { p_report: Json }
+        Returns: boolean
+      }
+      _erp_statement_period_matches: {
+        Args: {
+          p_context: Json
+          p_end: string
+          p_kind: string
+          p_period: Json
+          p_start: string
+        }
+        Returns: boolean
+      }
+      _erp_statement_report_context_validate: {
+        Args: { p_context: Json; p_org_id: string }
+        Returns: undefined
+      }
+      _erp_statement_report_filters: {
+        Args: { p_context: Json; p_selection: Json }
+        Returns: Json
+      }
+      _erp_statement_report_plan: {
+        Args: { p_context: Json }
+        Returns: {
+          current_end: string
+          current_start: string
+          ordinal: number
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string
+          side: string
+          statement: string
+        }[]
+      }
+      _erp_statement_report_refresh_plan: {
+        Args: {
+          p_context: Json
+          p_cutoff: number
+          p_effective_date: string
+          p_org_id: string
+        }
+        Returns: {
+          current_end: string
+          current_start: string
+          ordinal: number
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string
+          side: string
+          statement: string
+        }[]
+      }
+      _erp_statement_report_validate: {
+        Args: {
+          p_context: Json
+          p_raw_text: string
+          p_report: Json
+          p_selection: Json
+          p_started_at: string
+        }
+        Returns: string
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -7732,6 +7807,18 @@ export type Database = {
         Args: { p_erp_employee_id: string; p_profile_id: string }
         Returns: undefined
       }
+      confirm_erp_project_link: {
+        Args: {
+          p_actor_id: string
+          p_erp_project: string
+          p_expected_config: Json
+          p_expected_erp_project: string
+          p_org_id: string
+          p_project_id: string
+          p_site_url: string
+        }
+        Returns: boolean
+      }
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
@@ -7749,6 +7836,15 @@ export type Database = {
           revision: number
           slip_id: string
         }[]
+      }
+      create_expense_capture: {
+        Args: {
+          p_claim_id: string
+          p_first_line?: Json
+          p_header: Json
+          p_line_id: string
+        }
+        Returns: string
       }
       create_native_sales_invoice: {
         Args: {
@@ -8202,6 +8298,21 @@ export type Database = {
         }[]
       }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_financial_statement: {
+        Args: {
+          p_period_kind: string
+          p_period_start: string
+          p_project_id?: string
+          p_statement: string
+          p_unassigned?: boolean
+          p_view_kind?: string
+        }
+        Returns: Json
+      }
+      get_financial_statement_catalogue: {
+        Args: { p_project_id?: string }
+        Returns: Json
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -8233,17 +8344,6 @@ export type Database = {
         }[]
       }
       get_project_finances: { Args: { p_project_id: string }; Returns: Json }
-      get_projects_money_collection: {
-        Args: { p_project_ids: string[] }
-        Returns: {
-          actuals: Json
-          active_budget_amount: string | null
-          active_budget_currency: string | null
-          has_active_budget: boolean
-          ledger_basis: string
-          project_id: string
-        }[]
-      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -8276,6 +8376,17 @@ export type Database = {
           name: string
           project_id: string
           target_date: string
+        }[]
+      }
+      get_projects_money_collection: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          active_budget_amount: string
+          active_budget_currency: string
+          actuals: Json
+          has_active_budget: boolean
+          ledger_basis: string
+          project_id: string
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
@@ -8598,8 +8709,39 @@ export type Database = {
         }
         Returns: undefined
       }
+      m365_link_record_folder: {
+        Args: {
+          p_default_drive_id: string
+          p_default_site_id: string
+          p_kind: string
+          p_record_id: string
+          p_reference: Json
+          p_settings_updated_at: string
+        }
+        Returns: Json
+      }
       m365_membership_state: { Args: { p_user_id: string }; Returns: Json }
       m365_pkce_sweep_tick: { Args: never; Returns: undefined }
+      m365_record_folder_candidates: {
+        Args: { p_after?: string; p_kind: string }
+        Returns: {
+          id: string
+        }[]
+      }
+      m365_record_folder_created: {
+        Args: {
+          p_actor_id: string
+          p_drive_id: string
+          p_item_id: string
+          p_kind: string
+          p_record_id: string
+        }
+        Returns: undefined
+      }
+      m365_record_folder_default_matches: {
+        Args: { p_drive: string; p_site: string; p_updated_at: string }
+        Returns: boolean
+      }
       m365_ref_complete: {
         Args: {
           actor: string
@@ -8666,6 +8808,19 @@ export type Database = {
       mark_erp_statement_replay_for_missing_accounts: {
         Args: { p_company: string; p_org_id: string }
         Returns: boolean
+      }
+      mark_erp_statement_report_attempt: {
+        Args: {
+          p_batch_id: string
+          p_holder: string
+          p_org_id: string
+          p_selection: Json
+        }
+        Returns: undefined
+      }
+      mark_erp_statement_report_refresh_attempt: {
+        Args: { p_binding: Json; p_holder: string; p_org_id: string }
+        Returns: undefined
       }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
@@ -8786,6 +8941,10 @@ export type Database = {
         Returns: undefined
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
+      open_erp_statement_report_batch: {
+        Args: { p_context: Json; p_holder: string; p_org_id: string }
+        Returns: Json
+      }
       operator_agent_run_stats: {
         Args: { p_org_id?: string }
         Returns: {
@@ -8900,37 +9059,6 @@ export type Database = {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean
       }
-      open_erp_statement_report_batch: {
-        Args: { p_org_id: string; p_holder: string; p_context: Json }
-        Returns: Json
-      }
-      mark_erp_statement_report_refresh_attempt: {
-        Args: { p_org_id: string; p_holder: string; p_binding: Json }
-        Returns: undefined
-      }
-      stage_erp_statement_report: {
-        Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
-        Returns: undefined
-      }
-      publish_erp_financial_statements: {
-        Args: { p_org_id: string; p_holder: string; p_batch_id: string }
-        Returns: string
-      }
-      get_financial_statement: {
-        Args: {
-          p_period_kind: string
-          p_period_start: string
-          p_statement: string
-          p_project_id?: string | null
-          p_view_kind?: string
-          p_unassigned?: boolean
-        }
-        Returns: Json
-      }
-      get_financial_statement_catalogue: {
-        Args: { p_project_id?: string | null }
-        Returns: Json
-      }
       org_reads_erp_ledger: { Args: never; Returns: boolean }
       org_usage_summary: {
         Args: never
@@ -9014,6 +9142,10 @@ export type Database = {
       }
       project_number_null_insert_default: { Args: never; Returns: string }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }
+      publish_erp_financial_statements: {
+        Args: { p_batch_id: string; p_holder: string; p_org_id: string }
+        Returns: string
+      }
       purge_error_events: {
         Args: { p_retention_days?: number }
         Returns: number
@@ -9190,6 +9322,10 @@ export type Database = {
           p_week_start_date: string
         }
         Returns: string
+      }
+      search_record_references: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: Json
       }
       seed_org_defaults: { Args: { p_org_id: string }; Returns: undefined }
       select_procurement_quote: {
@@ -9449,6 +9585,15 @@ export type Database = {
           reason: string
           route: string
         }[]
+      }
+      stage_erp_statement_report: {
+        Args: {
+          p_batch_id: string
+          p_holder: string
+          p_org_id: string
+          p_report: Json
+        }
+        Returns: undefined
       }
       stage_vault_secret_for_org: {
         Args: {
