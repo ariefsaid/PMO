@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
+import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { repositories } from '@/src/lib/repositories';
@@ -87,43 +88,44 @@ export function LinkExistingRecordFolders({ defaultAvailable, disabled = false }
     let cursor = start;
     let acc = base;
     setCounts(acc);
-    try {
-      for (;;) {
+    // Pages that only fail, and errors the server marks retryable, are paced and capped: two in a row stop the run.
+    let fails = 0;
+    const pause = (ms: number) => new Promise<void>((res) => { setTimeout(res, ms); });
+    const finish = (next: Phase) => { running.current = false; setPhase(next); };
+    for (;;) {
+      try {
         const page = await repositories.m365RecordFolders.linkExisting(cursor ?? undefined);
         if (generation.current !== mine) return; // orphaned: ignore the response, schedule nothing
         acc = addPage(acc, page);
         setCounts(acc);
         if (page.linked > 0) {
           void qc.invalidateQueries({ queryKey: ['project-documents', orgId] });
-          void qc.invalidateQueries({ queryKey: ['procurement-docs', orgId] });
+          void qc.invalidateQueries({ queryKey: procurementDocumentsKey(orgId) });
         }
         const next = page.next;
         if (next && cursor && next.kind === cursor.kind && next.after === cursor.after) {
-          running.current = false;
-          setPhase({ name: 'interrupted', cursor, error: 'error.generic' }); // a non-progress cursor would loop
-          return;
+          return finish({ name: 'interrupted', cursor, error: 'error.generic' }); // a non-progress cursor would loop
         }
         cursor = next;
-        if (page.stopped) {
-          running.current = false;
-          setPhase({ name: 'interrupted', cursor, error: null });
-          return;
+        if (page.stopped) return finish({ name: 'interrupted', cursor, error: null });
+        if (!cursor) return finish({ name: 'done' });
+        const onlyFailed = page.failed > 0 && page.linked + page.needs_choice + page.missing + page.skipped === 0;
+        fails = onlyFailed ? fails + 1 : 0;
+        if (fails >= 2) return finish({ name: 'interrupted', cursor, error: 'error.generic' });
+        if (fails > 0) await pause(1000 * 2 ** (fails - 1));
+        if (generation.current !== mine) return;
+        if (stopRequested.current) return finish({ name: 'stopped', cursor });
+      } catch (error) {
+        if (generation.current !== mine) return;
+        const hint = (error as { retryAfter?: unknown } | null)?.retryAfter;
+        fails += 1;
+        if (typeof hint === 'number' && hint > 0 && fails < 2 && !stopRequested.current) {
+          await pause(Math.min(hint, 60) * 1000);
+          if (generation.current !== mine) return;
+          continue;
         }
-        if (!cursor) {
-          running.current = false;
-          setPhase({ name: 'done' });
-          return;
-        }
-        if (stopRequested.current) {
-          running.current = false;
-          setPhase({ name: 'stopped', cursor });
-          return;
-        }
+        return finish({ name: 'interrupted', cursor, error: recordFolderErrorCopy(error).key });
       }
-    } catch (error) {
-      if (generation.current !== mine) return;
-      running.current = false;
-      setPhase({ name: 'interrupted', cursor, error: recordFolderErrorCopy(error).key });
     }
   }, [qc, orgId]);
 

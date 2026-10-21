@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import type { Role } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
@@ -20,13 +20,19 @@ const m365Feature = vi.hoisted(() => ({ on: true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.current }) }));
 
+const toastSpy = vi.hoisted(() => vi.fn());
+vi.mock('@/src/components/ui/Toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/components/ui/Toast')>()),
+  useOptionalToast: () => ({ toast: toastSpy }),
+}));
+
 const ensure = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/repositories', () => ({
   repositories: { m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } },
 }));
 
 import { useStartRecordFolder } from './useStartRecordFolder';
-import { recordFolderKey, type RecordFolderState } from './recordFolderState';
+import { recordFolderKey, resetRecordFolderToastSession, type RecordFolderState } from './recordFolderState';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const DOC = '22222222-2222-4222-8222-222222222222';
@@ -60,6 +66,8 @@ function SaveHarness() {
 beforeEach(() => {
   m365Feature.on = true;
   ensure.mockReset();
+  toastSpy.mockReset();
+  resetRecordFolderToastSession();
   auth.current = { id: 'u1', org_id: 'org-1' };
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
@@ -93,7 +101,7 @@ describe('AC-M365DOC-071 coordinator — useStartRecordFolder', () => {
     const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
     act(() => result.current({ kind: 'procurement', id: ID }));
     await waitFor(() => expect(state({ kind: 'procurement', id: ID })?.status).toBe('settled'));
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-docs', 'org-1', ID] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-documents', 'org-1', ID] });
   });
 
   it.each([
@@ -197,3 +205,114 @@ describe('AC-M365DOC-071 coordinator — useStartRecordFolder', () => {
     expect(state(target, 'org-2', 'u2')).toBeUndefined();
   });
 });
+
+
+describe('RF-5 the folder start is silent; only an abnormal failure may warn, once, late', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('RF-5 a start toasts nothing while pending and nothing on success', async () => {
+    ensure.mockResolvedValue({ state: 'created', document_id: DOC });
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    expect(toastSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(state()?.status).toBe('settled'));
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['needs_choice outcome', { state: 'needs_choice' }, false],
+    ['default_unset outcome', { state: 'default_unset' }, false],
+    ['missing_identifier outcome', { state: 'missing_identifier' }, false],
+    ['SCOPE_INSUFFICIENT', new AppError('x', 'SCOPE_INSUFFICIENT'), true],
+    ['NOT_CONNECTED', new AppError('x', 'NOT_CONNECTED'), true],
+    ['FORBIDDEN', new AppError('x', 'FORBIDDEN'), true],
+  ])('RF-5 an expected state (%s) never toasts, even after the quiet period', async (_n, outcome, rejects) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    if (rejects) ensure.mockRejectedValue(outcome); else ensure.mockResolvedValue(outcome);
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(state()?.status).toBe('settled');
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it('RF-5 an abnormal failure warns once, plainly, only after the create toast had its time', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    ensure.mockRejectedValue(new AppError('synthetic-raw-secret', 'GRAPH_ERROR'));
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(toastSpy).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(toastSpy).toHaveBeenCalledTimes(1);
+    expect(toastSpy.mock.calls[0]).toContainEqual('warning');
+    expect(JSON.stringify(toastSpy.mock.calls)).not.toContain('synthetic-raw-secret');
+  });
+
+  it('RF-5 the same cause warns once per session; a different cause may warn again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    ensure.mockRejectedValue(new AppError('x', 'GRAPH_ERROR'));
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+    act(() => result.current({ kind: 'project', id: DOC }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+    expect(toastSpy).toHaveBeenCalledTimes(1);
+    ensure.mockRejectedValue(new AppError('x', 'external-unreachable'));
+    act(() => result.current({ kind: 'project', id: '33333333-3333-4333-8333-333333333333' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+    expect(toastSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('H20 a timed-out ensure re-checks the register', () => {
+  it('H20 an unavailable/timeout result refreshes the register so a folder that did get linked clears the notice', async () => {
+    ensure.mockRejectedValue(new AppError('timeout', 'external-unreachable'));
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    await waitFor(() => expect(state()?.status).toBe('settled'));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', ID] });
+  });
+
+  it('H20 an expected state (forbidden) does not refetch the register', async () => {
+    ensure.mockRejectedValue(new AppError('x', 'FORBIDDEN'));
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => result.current(target));
+    await waitFor(() => expect(state()?.status).toBe('settled'));
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('RF-5 one ensure per activation', () => {
+  it('RF-5 two starts in one tick and one after start exactly one ensure; a settled failure allows one explicit retry', async () => {
+    ensure.mockRejectedValueOnce(new AppError('x', 'GRAPH_ERROR'));
+    const { result } = renderHook(() => useStartRecordFolder(), { wrapper: wrapper() });
+    act(() => { result.current(target); result.current(target); });
+    act(() => result.current(target));
+    expect(ensure).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(state()?.status).toBe('settled'));
+    ensure.mockReturnValue(new Promise(() => {}));
+    act(() => { result.current(target); result.current(target); });
+    expect(ensure).toHaveBeenCalledTimes(2);
+  });
+
+  it('RF-5 view-only impersonation starts nothing', () => {
+    const { result } = renderHook(() => useStartRecordFolder(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={qc}>
+          <ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ViewAsEngineer />{children}</ImpersonationProvider>
+        </QueryClientProvider>
+      ),
+    });
+    act(() => result.current(target));
+    expect(ensure).not.toHaveBeenCalled();
+  });
+});
+
+function ViewAsEngineer() {
+  const { viewAs } = useEffectiveRole();
+  React.useEffect(() => viewAs('Engineer'), [viewAs]);
+  return null;
+}

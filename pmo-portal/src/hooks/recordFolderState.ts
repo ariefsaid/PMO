@@ -18,6 +18,10 @@ export const recordFolderKey = (
   target: RecordFolderTarget,
 ) => ['m365-record-folder', orgId ?? null, userId ?? null, target.kind, target.id] as const;
 
+/** The case References register (the list that decides `hasFolder`). The one key shared with its reader. */
+export const procurementDocumentsKey = (orgId: string | null | undefined, id?: string) =>
+  (id === undefined ? ['procurement-documents', orgId] : ['procurement-documents', orgId, id]) as readonly unknown[];
+
 /** Refresh the register that shows this record's folder reference. */
 export function invalidateRecordFolderRegister(
   qc: QueryClient,
@@ -27,7 +31,7 @@ export function invalidateRecordFolderRegister(
   if (target.kind === 'project') {
     void qc.invalidateQueries({ queryKey: ['project-documents', orgId, target.id] });
   } else {
-    void qc.invalidateQueries({ queryKey: ['procurement-docs', orgId, target.id] });
+    void qc.invalidateQueries({ queryKey: procurementDocumentsKey(orgId, target.id) });
     void qc.invalidateQueries({ queryKey: ['procurement', orgId, target.id] });
   }
 }
@@ -40,3 +44,14 @@ export function writeRecordFolderState(
 ): void {
   qc.setQueryData<RecordFolderState>(key, () => state);
 }
+
+/** Causes already warned about in this browser session (module scope = one per page load). */
+const warnedCauses = new Set<string>();
+/** True the first time a cause is seen; false afterwards. */
+export const claimRecordFolderWarning = (cause: string): boolean => {
+  if (warnedCauses.has(cause)) return false;
+  warnedCauses.add(cause);
+  return true;
+};
+/** Test seam only. */
+export const resetRecordFolderToastSession = (): void => warnedCauses.clear();

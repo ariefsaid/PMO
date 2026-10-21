@@ -106,7 +106,7 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     expect(linkExisting.mock.calls.map((c) => c[0])).toEqual([undefined, { kind: 'project', after: A }, { kind: 'procurement', after: null }]);
     expect(ensure).not.toHaveBeenCalled();
     expect(spy).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1'] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-docs', 'org-1'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['procurement-documents', 'org-1'] });
     // done: the action is available again for a later explicit run
     expect(start()).toBeTruthy();
   });
@@ -163,6 +163,43 @@ describe('AC-M365DOC-072 LinkExistingRecordFolders — run', () => {
     await user.click(cont);
     await screen.findByText(/Linked: 2 · Need your choice: 1/);
     expect(linkExisting).toHaveBeenLastCalledWith({ kind: 'project', after: A });
+  });
+
+  it('H19 two consecutive pages that only fail stop the sweep with a plain message, backing off 1 s before the second', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const failing = page({ scanned: 2, linked: 0, needs_choice: 0, failed: 2, next: { kind: 'project', after: A } });
+      linkExisting
+        .mockResolvedValueOnce(failing)
+        .mockResolvedValueOnce({ ...failing, next: { kind: 'project', after: B } })
+        .mockResolvedValue(page());
+      mount();
+      await act(async () => { start().click(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(linkExisting).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Could not finish checking existing folders/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('H19 a failure that carries a retryAfter hint waits that long, retries once, then stops on a second failure', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      linkExisting.mockRejectedValue(Object.assign(new AppError('x', 'external-unreachable'), { retryAfter: 7 }));
+      mount();
+      await act(async () => { start().click(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(linkExisting).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+    } finally { vi.useRealTimers(); }
   });
 
   it('a non-progress next cursor fails instead of looping', async () => {

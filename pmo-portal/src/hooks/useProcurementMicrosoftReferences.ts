@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { procurementDocumentsKey } from '@/src/hooks/recordFolderState';
 import { procurementReference } from '@/src/lib/m365/reference';
 import { repositories } from '@/src/lib/repositories';
 import type { ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
@@ -46,7 +47,7 @@ export function useProcurementMicrosoftReferences(procurementId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const queryKey = ['procurement-documents', orgId, procurementId] as const;
+  const queryKey = procurementDocumentsKey(orgId, procurementId);
   const invalidate = () => qc.invalidateQueries({ queryKey });
 
   const query = useQuery<ProcurementDocumentRow[]>({

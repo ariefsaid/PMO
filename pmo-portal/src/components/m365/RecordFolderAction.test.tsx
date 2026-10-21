@@ -13,6 +13,8 @@ import type { Role } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
 import { axeViolations } from '@/src/components/__tests__/axe';
 
+const m365Feature = vi.hoisted(() => ({ on: true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'm365_integration' || m365Feature.on }));
 const ensure = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/repositories', () => ({ repositories: { m365RecordFolders: { ensure: (...a: unknown[]) => ensure(...a) } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
@@ -48,6 +50,7 @@ function ViewAs({ role }: { role: Role }) {
 const createBtn = () => screen.queryAllByRole('button', { name: 'Create folder in SharePoint' });
 
 beforeEach(() => {
+  m365Feature.on = true;
   ensure.mockReset();
   initiate.mockReset();
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -85,6 +88,31 @@ describe('AC-M365DOC-071 RecordFolderAction — gating', () => {
     rerender(<QueryClientProvider client={qc}><ImpersonationProvider realRole="Project Manager"><RecordFolderAction target={project} hasFolder={false} /></ImpersonationProvider></QueryClientProvider>);
     await act(async () => { await qc.invalidateQueries(); });
     expect(ensure).not.toHaveBeenCalled();
+  });
+});
+
+describe('RF-7 / RF-4 / adversarial text', () => {
+  it.each([['project', project], ['case', proc]])('RF-7 hides the Create-folder action for a %s register when Microsoft 365 is off', (_n, target) => {
+    m365Feature.on = false;
+    mount(<RecordFolderAction target={target} hasFolder={false} />, 'Admin');
+    expect(screen.queryByTestId('record-folder-action')).toBeNull();
+    expect(createBtn()).toHaveLength(0);
+  });
+
+  it('RF-4 a project without a code is told, only in the register notice, to add a project code', async () => {
+    ensure.mockResolvedValue({ state: 'missing_identifier' });
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    await userEvent.setup().click(createBtn()[0]);
+    const region = await screen.findByTestId('record-folder-failure');
+    expect(region.textContent).toContain('Add a project code to create its folder.');
+  });
+
+  it('no raw upstream text reaches the DOM from any failure', async () => {
+    ensure.mockRejectedValue(new AppError('synthetic-raw-secret', 'GRAPH_ERROR'));
+    mount(<RecordFolderAction target={project} hasFolder={false} />);
+    await userEvent.setup().click(createBtn()[0]);
+    await screen.findByTestId('record-folder-failure');
+    expect(document.body.textContent).not.toContain('synthetic-raw-secret');
   });
 });
 
@@ -144,7 +172,7 @@ describe('AC-M365DOC-071 RecordFolderAction — outcomes', () => {
 
   it.each([
     ['default_unset', 'Ask an Admin to choose the default document library.'],
-    ['missing_identifier', "Add the record's code, then try again."],
+    ['missing_identifier', 'Add a project code to create its folder.'],
   ])('%s shows its reviewed copy', async (state, copy) => {
     ensure.mockResolvedValue({ state });
     mount(<RecordFolderAction target={project} hasFolder={false} />);

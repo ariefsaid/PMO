@@ -7,8 +7,9 @@
   "status": {
     "pending": "Creating folder…",
     "linked": "Folder linked",
-    "savedNotLinked": "Record saved. Folder not linked.",
-    "notLinked": "Folder not linked."
+    "savedNotLinked": "Folder not created",
+    "notLinked": "Folder not linked.",
+    "unavailable": "Microsoft is not responding. Create the folder later from Documents."
   },
   "error": {
     "additionalConsent": "The connection needs additional permissions. Ask your Microsoft admin to approve them, then reconnect.",
@@ -17,7 +18,8 @@
     "defaultUnset": "Ask an Admin to choose the default document library.",
     "missingIdentifier": "Add the record's code, then try again.",
     "ambiguous": "More than one folder matches. Choose the existing folder.",
-    "generic": "Microsoft could not create or link this folder. Please try again."
+    "generic": "Microsoft could not create or link this folder. Please try again.",
+    "missingProjectCode": "Add a project code to create its folder."
   },
   "backfill": {
     "start": "Link existing folders",

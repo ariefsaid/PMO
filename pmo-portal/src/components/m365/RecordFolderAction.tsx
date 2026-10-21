@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useFeature } from '@/src/auth/useFeature';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRecordFolder } from '@/src/hooks/useRecordFolder';
 import { initiateM365Connect } from '@/src/lib/m365/connectClient';
@@ -31,10 +32,11 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
   const may = usePermission();
   const roles = useEffectiveRole();
   const { pending, settledCopy, ensure } = useRecordFolder(target);
+  const m365 = useFeature('m365_integration');
   const [reconnectFailed, setReconnectFailed] = useState(false);
 
   // Explicit view-only gate: `usePermission` binds the REAL role but does not itself refuse impersonation.
-  const allowed = roles.realRole === roles.effectiveRole
+  const allowed = m365 && roles.realRole === roles.effectiveRole
     && may('create', target.kind === 'project' ? 'document' : 'procDoc');
   if (!allowed) return null;
 
@@ -69,7 +71,9 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
           <Icon name="info" className="mt-px size-[17px] shrink-0 text-muted-foreground" />
           <div className="min-w-0 break-words">
             <b className="font-semibold">{t('status.notLinked', 'Folder not linked.')}</b>{' '}
-            {recordFolderText(t, failed.key)}
+            {failed.key === 'error.missingIdentifier' && target.kind === 'project'
+              ? t('error.missingProjectCode', 'Add a project code to create its folder.')
+              : recordFolderText(t, failed.key)}
           </div>
         </div>
       )}

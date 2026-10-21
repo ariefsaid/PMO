@@ -34,10 +34,12 @@ export function useRecordFolder(target: RecordFolderTarget) {
     onSuccess: (outcome) => {
       const copy = recordFolderOutcomeCopy(outcome);
       writeRecordFolderState(qc, key, { status: 'settled', copy });
-      if (copy.ok) invalidateRecordFolderRegister(qc, orgId, target);
+      if (copy.ok || copy.key === 'error.generic') invalidateRecordFolderRegister(qc, orgId, target);
     },
     onError: (error) => {
-      writeRecordFolderState(qc, key, { status: 'settled', copy: recordFolderErrorCopy(error) });
+      const copy = recordFolderErrorCopy(error);
+      writeRecordFolderState(qc, key, { status: 'settled', copy });
+      if (copy.key === 'error.generic') invalidateRecordFolderRegister(qc, orgId, target);
     },
   });
 

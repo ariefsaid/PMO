@@ -11,15 +11,18 @@ import type { RecordFolderOutcome, RecordFolderTarget } from '@/src/lib/m365/rec
 import {
   recordFolderErrorCopy,
   recordFolderOutcomeCopy,
-  recordFolderText,
   type RecordFolderCopy,
 } from '@/src/lib/m365/recordFolderCopy';
 import {
+  claimRecordFolderWarning,
   invalidateRecordFolderRegister,
   recordFolderKey,
   writeRecordFolderState,
   type RecordFolderState,
 } from './recordFolderState';
+
+/** How long after a create the (single-slot) toast stays free for the record-created message. */
+const CREATE_TOAST_QUIET_MS = 5000;
 
 /** `useEffectiveRole` throws outside its provider; a hook run in isolation must deny, not crash. */
 function useRoles(): ReturnType<typeof useEffectiveRole> | null {
@@ -74,25 +77,32 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
       writeRecordFolderState(qc, key, { status: 'pending' });
 
       const sameIdentity = () => live.current.orgId === orgId && live.current.userId === userId;
-      const announce = (copy: RecordFolderCopy | null) => {
-        if (!sameIdentity()) return;
-        const { toast, t: tr } = live.current;
-        if (!toast) return;
-        if (copy === null) toast(tr('status.pending', 'Creating folder…'), 'info');
-        else if (copy.ok) toast(tr('status.linked', 'Folder linked'), 'success');
-        else toast(tr('status.savedNotLinked', 'Record saved. Folder not linked.'), recordFolderText(tr, copy.key), 'warning');
+      const startedAt = Date.now();
+      // Only a Microsoft-side failure is abnormal; every expected state is shown by the register's
+      // folder notice and never toasted. The toast is single-slot, so it waits until the record-created
+      // toast has had its time, and the same cause is raised at most once per browser session.
+      const warn = (cause: string) => {
+        setTimeout(() => {
+          if (!sameIdentity() || !claimRecordFolderWarning(cause)) return;
+          const { toast, t: tr } = live.current;
+          toast?.(
+            tr('status.savedNotLinked', 'Folder not created'),
+            tr('status.unavailable', 'Microsoft is not responding. Create the folder later from Documents.'),
+            'warning',
+          );
+        }, Math.max(0, CREATE_TOAST_QUIET_MS - (Date.now() - startedAt)));
       };
-      const settle = (copy: RecordFolderCopy) => {
+      const settle = (copy: RecordFolderCopy, cause: string) => {
         try {
           writeRecordFolderState(qc, key, { status: 'settled', copy });
-          if (copy.ok) invalidateRecordFolderRegister(qc, orgId, target);
-          announce(copy);
+          // A timeout/unavailable answer may still have linked a folder server-side: re-check the register.
+          if (copy.ok || copy.key === 'error.generic') invalidateRecordFolderRegister(qc, orgId, target);
+          if (copy.key === 'error.generic') warn(cause);
         } catch {
           /* a failure to report must never surface as an unhandled rejection */
         }
       };
 
-      announce(null);
       let pending: Promise<RecordFolderOutcome>;
       try {
         pending = Promise.resolve(repositories.m365RecordFolders.ensure(target));
@@ -100,8 +110,8 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
         pending = Promise.reject(error);
       }
       pending.then(
-          (outcome) => settle(recordFolderOutcomeCopy(outcome)),
-          (error: unknown) => settle(recordFolderErrorCopy(error)),
+          (outcome) => settle(recordFolderOutcomeCopy(outcome), `outcome:${String(outcome?.state)}`),
+          (error: unknown) => settle(recordFolderErrorCopy(error), `error:${String((error as { code?: unknown } | null)?.code ?? 'unknown')}`),
         );
     } catch {
       /* start() is fire-and-forget: nothing here may throw into a save-success path */
