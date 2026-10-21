@@ -217,8 +217,9 @@ describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
     const { onError, user } = renderModal({ onCreate });
     await user.type(screen.getByLabelText(/STATION —/), '2');
     await user.click(screen.getByRole('button', { name: 'Save STATION' }));
-    const rowError = (await screen.findAllByRole('alert')).find((node) => node.textContent?.includes('closed'));
-    expect(rowError).toBeDefined();
+    const dialogError = (await screen.findAllByRole('alert')).find((node) => node.textContent?.includes('STATION'));
+    expect(dialogError).toBeDefined();
+    expect(dialogError).toHaveTextContent('closed');
     expect(screen.getByLabelText(/STATION —/)).toHaveValue('2');
     expect(onError).toHaveBeenCalled();
   });

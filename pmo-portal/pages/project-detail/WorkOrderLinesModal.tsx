@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, EntityFormModal, FieldError, FormSection, NumberField } from '@/src/components/ui';
+import { Button, ConfirmDialog, EntityFormModal, FieldError, FormSection, NumberField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
@@ -41,6 +41,8 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   ));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // A rejected save/remove is shown in the dialog's own persistent error region (focus returns there).
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const [removeFor, setRemoveFor] = useState<{ item: BoqItemRow; row: WorkOrderLineRow } | null>(null);
 
   const editable = canEdit && (workOrder.status === 'Draft' || workOrder.status === 'Issued');
@@ -51,9 +53,9 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       if (message === null) delete next[id]; else next[id] = message;
       return next;
     });
-  const fail = (id: string, err: unknown) => {
+  const fail = (item: BoqItemRow, err: unknown) => {
     const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
-    setError(id, detail ? `${headline} ${detail}` : headline);
+    setSaveError({ headline: `${item.item_code}: ${headline}`, detail });
     onError(err);
   };
 
@@ -72,12 +74,13 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       return;
     }
     setError(item.id, null);
+    setSaveError(null);
     setBusy(item.id);
     try {
       const row = own.get(item.id);
       if (row) await onUpdate(row.id, quantity); else await onCreate(item.id, quantity);
     } catch (err) {
-      fail(item.id, err);
+      fail(item, err);
     } finally {
       setBusy(null);
     }
@@ -86,13 +89,14 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   const runRemove = async () => {
     if (!removeFor) return;
     const { item, row } = removeFor;
+    setSaveError(null);
     setBusy(item.id);
     try {
       await onDelete(row.id);
       setValues((current) => { const next = { ...current }; delete next[item.id]; return next; });
       setError(item.id, null);
     } catch (err) {
-      fail(item.id, err);
+      fail(item, err);
     } finally {
       setBusy(null);
       setRemoveFor(null);
@@ -107,6 +111,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       subtitle={t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
       onSubmit={(e) => { e.preventDefault(); onClose(); }}
+      submitError={saveError}
       onClose={onClose}
     >
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.contractLines.legend', 'Bill of quantities lines')}>
