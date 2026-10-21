@@ -33,6 +33,15 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
   useMeetingsSpy: vi.fn(),
 }));
 
+vi.mock('@/src/components/meetings/MinutesEditor', async () => {
+  const React = await import('react');
+  const EditorStub = ({ onReady, onChange }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void }) => {
+    React.useEffect(() => onReady([]), [onReady]);
+    return <button type="button" onClick={() => onChange([])}>Minutes editor</button>;
+  };
+  return { default: EditorStub };
+});
+
 vi.mock('@/src/hooks/useMeetings', () => ({
   useMeetings: (params: { projectId?: string; search?: string } = {}) => {
     useMeetingsSpy(params);
@@ -66,6 +75,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Meetings from './Meetings';
+import MeetingCreate from './MeetingCreate';
 
 const seed = [
   {
@@ -96,6 +106,11 @@ const seed = [
 
 // list-working-set-return (#683): reads the REAL router location so tests can assert the URL
 // (filter/search round-trip) and the record-open return-context `location.state`.
+const RouteContent: React.FC = () => {
+  const location = useLocation();
+  return location.pathname === '/meetings/new' ? <MeetingCreate /> : <Meetings />;
+};
+
 const LocationProbe: React.FC = () => {
   const location = useLocation();
   return (
@@ -115,7 +130,7 @@ const renderPage = (role: Role = 'Admin', initialPath = '/meetings') => {
     <ToastProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <LocationProbe />
-        <Meetings />
+        <RouteContent />
       </MemoryRouter>
     </ToastProvider>,
   );
@@ -143,6 +158,7 @@ beforeEach(() => {
     m.mutateAsync.mockResolvedValue(undefined);
     m.isPending = false;
   });
+  mutations.create.mutateAsync.mockResolvedValue({ id: 'm-new' });
   useMeetingsSpy.mockClear();
   realRole = 'Admin';
 });
@@ -267,15 +283,15 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
   it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    const when = screen.getByLabelText(/When/i, { selector: 'input, select, textarea' }) as HTMLInputElement;
+    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
   it('submitting the unedited default keeps the same instant', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    await userEvent.type(screen.getByLabelText(/Title/i), 'Standup');
-    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
+    await userEvent.type(screen.getByLabelText(/Title/), 'Standup');
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
     await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
     const [input] = mutations.create.mutateAsync.mock.calls[0];
     expect(input.occurred_at).toBe('2026-06-14T14:15:00.000Z');
@@ -288,8 +304,8 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
     const when = screen.getByLabelText(/When/i, { selector: 'input, select, textarea' }) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);
-    await userEvent.click(screen.getByRole('button', { name: /Create meeting/ }));
-    // Shown twice by design: the inline field error and the dialog's error summary banner.
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    // The field error is shown inline.
     expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -383,9 +399,8 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     mutations.create.mutateAsync.mockResolvedValue({ id: 'm-new' });
     renderPage('Admin', '/meetings?q=kickoff');
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/^Title/), 'Design review');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Create meeting/i }));
+    await userEvent.type(screen.getByLabelText(/^Title/), 'Design review');
+    await userEvent.click(screen.getByRole('button', { name: /Save meeting/i }));
     await waitFor(() => {
       const probe = screen.getByTestId('location-probe');
       expect(probe.dataset.pathname).toBe('/meetings/m-new');

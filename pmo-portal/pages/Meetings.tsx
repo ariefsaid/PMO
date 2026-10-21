@@ -1,22 +1,15 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import {
   ListPage,
   SearchMini,
+  SelectField,
   ListState,
   DataTable,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  SelectField,
-  FormSection,
-  FormGrid,
-  useEntityForm,
   useToast,
   Button,
   Icon,
-  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -29,8 +22,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
-import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
+import { formatDateTime } from '@/src/lib/format';
+import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 
 /**
  * Meetings — the reverse-chronological list (#526, FR-MTG-028..030).
@@ -41,26 +34,6 @@ import type { MeetingWithRefs, MeetingInput } from '@/src/lib/db/meetings';
  * Search runs server-side over the `notes_search` projection (DD-MTG-5 — notes are the primary
  * find mechanism, so a client-side title filter would fail the ticket).
  */
-
-interface FormValues {
-  title: string;
-  occurredAt: string; // datetime-local input value
-  location: string;
-  projectId: string; // '' = no project
-}
-
-const makeValidate =
-  (t: TFunction) =>
-  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.title.trim())
-      errors.title = t('meetings.form.errors.titleRequired', 'Meeting title is required.');
-    // A meeting's time is required (#684): a cleared or unparseable "When" must block the save,
-    // never silently default — `zonedDatetimeLocalToInstant` returns null for both cases.
-    if (!zonedDatetimeLocalToInstant(v.occurredAt))
-      errors.occurredAt = t('meetings.form.errors.whenInvalid', 'Enter a valid date and time.');
-    return errors;
-  };
 
 const Meetings: React.FC = () => {
   const { t } = useTranslation();
@@ -95,9 +68,7 @@ const Meetings: React.FC = () => {
     contentReady: !isPending && !isError && !isPlaceholderData,
   });
   const { data: projects } = useProjects();
-  const { create, archive, remove } = useMeetingMutations();
-
-  const [createOpen, setCreateOpen] = useState(false);
+  const { archive, remove } = useMeetingMutations();
   const [archiveTarget, setArchiveTarget] = useState<MeetingWithRefs | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MeetingWithRefs | null>(null);
 
@@ -240,7 +211,7 @@ const Meetings: React.FC = () => {
       )}
       primaryAction={
         canCreate && (
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
             <Icon name="plus" />
             {t('meetings.actions.new', 'New meeting')}
           </Button>
@@ -306,7 +277,7 @@ const Meetings: React.FC = () => {
             canCreate
               ? {
                   label: t('meetings.actions.new', 'New meeting'),
-                  onClick: () => setCreateOpen(true),
+                  onClick: () => openRecord('/meetings/new'),
                 }
               : undefined
           }
@@ -330,25 +301,6 @@ const Meetings: React.FC = () => {
           emptySub={t('meetings.table.emptySub', 'Try a different project or clear the search.')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         tableId="meetings-table" />
-      )}
-
-      {createOpen && (
-        <MeetingFormModal
-          projectOptions={projectOptions.filter((o) => o.value !== 'All')}
-          onClose={() => setCreateOpen(false)}
-          onCreate={async (input) => {
-            const row = await create.mutateAsync(input);
-            toast(t('meetings.toast.created', 'Meeting created'), input.title, 'success');
-            setCreateOpen(false);
-            // Through the return seam, like a row open: the new meeting's Back keeps this list's
-            // filter/search (AC-LRC-008).
-            openRecord(`/meetings/${row.id}`);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
       )}
 
       <ConfirmDialog
@@ -391,135 +343,6 @@ const Meetings: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </ListPage>
-  );
-};
-
-// ── Create form modal ───────────────────────────────────────────────────────
-
-interface MeetingFormModalProps {
-  projectOptions: { value: string; label: string }[];
-  onClose: () => void;
-  onCreate: (input: MeetingInput) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const MeetingFormModal: React.FC<MeetingFormModalProps> = ({
-  projectOptions,
-  onClose,
-  onCreate,
-  onError,
-}) => {
-  const { t } = useTranslation();
-  const validate = useMemo(() => makeValidate(t), [t]);
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      title: '',
-      occurredAt: instantToZonedDatetimeLocal(new Date()),
-      location: '',
-      projectId: '',
-    },
-    validate,
-    idPrefix: 'meeting-form',
-    requiredFields: ['title'],
-    module: 'meetings',
-  });
-
-  const titleField = form.fieldProps('title');
-  const occurredField = form.fieldProps('occurredAt');
-  const locationField = form.fieldProps('location');
-  const projectField = form.fieldProps('projectId');
-
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const errorSummary = [
-    form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
-    form.errors.occurredAt ? { fieldId: occurredField.id, message: form.errors.occurredAt } : null,
-  ].filter((item): item is { fieldId: string; message: string } => item !== null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      // `validate` already blocked submit when this is null (#684) — never reached with a
-      // cleared/unparseable value.
-      const instant = zonedDatetimeLocalToInstant(values.occurredAt)!;
-      const input: MeetingInput = {
-        title: values.title.trim(),
-        occurred_at: instant.toISOString(),
-        location: values.location.trim() || null,
-        project_id: values.projectId || null,
-      };
-      try {
-        await onCreate(input);
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'meetings',
-          operation: 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={t('meetings.form.newTitle', 'New meeting')}
-      subtitle={t('meetings.form.newSubtitle', 'Record when it happened and start the minutes')}
-      submitLabel={t('meetings.form.newSubmit', 'Create meeting')}
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={errorSummary}
-      submitError={saveError}
-    >
-      <FormSection legend={t('meetings.form.sections.details', 'Details')}>
-        <FormGrid>
-          <TextField
-            id={titleField.id}
-            label={t('meetings.form.title.label', 'Title')}
-            required
-            value={titleField.value}
-            onChange={titleField.onChange}
-            onBlur={titleField.onBlur}
-            error={titleField.error}
-            placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')}
-            fullWidth
-          />
-          <TextField
-            id={occurredField.id}
-            label={t('meetings.form.when.label', 'When')}
-            type="datetime-local"
-            value={occurredField.value}
-            onChange={occurredField.onChange}
-            onBlur={occurredField.onBlur}
-            error={occurredField.error}
-          />
-          <TextField
-            id={locationField.id}
-            label={t('meetings.form.location.label', 'Location')}
-            value={locationField.value}
-            onChange={locationField.onChange}
-            onBlur={locationField.onBlur}
-            placeholder={t('meetings.form.location.placeholder', 'e.g. Site office, Teams call')}
-          />
-          <SelectField
-            id={projectField.id}
-            label={t('meetings.form.project.label', 'Project')}
-            value={projectField.value}
-            onChange={(v) => projectField.onChange(v)}
-            onBlur={projectField.onBlur}
-            options={[
-              { value: '', label: t('meetings.form.project.none', 'No project') },
-              ...projectOptions,
-            ]}
-          />
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

@@ -82,12 +82,10 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
       .getByTestId('list-page-header')
       .getByRole('button', { name: 'New meeting' })
       .click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    // The visible label carries the required marker ("Title*"); the textbox's ACCESSIBLE name
-    // is "Title" — locate by role+name, not label text.
-    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(meetingTitle);
-    await dialog.getByRole('button', { name: 'Create meeting' }).click();
+    await page.waitForURL('**/meetings/new');
+    // The visible label carries the required marker; the textbox's accessible name is Title.
+    await page.getByRole('textbox', { name: 'Title', exact: true }).fill(meetingTitle);
+    await page.getByRole('button', { name: 'Save meeting' }).click();
 
     // Creation lands on the detail route — capture the id for cleanup.
     await page.waitForURL(/\/meetings\/[0-9a-f-]{36}/);
