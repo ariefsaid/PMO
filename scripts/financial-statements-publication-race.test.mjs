@@ -36,14 +36,15 @@ const context = {
   projectMap: {},
   language: 'en',
   presentation: {
-    metadata,
+    metadata: { ...metadata, roundingMethod: 'erpnext_report_output' },
     context: {
       requestLanguage: 'en',
-      currencyPrecisionBranch: 'db_default',
-      floatPrecisionBranch: 'db_default',
-      bsOpeningPrecisionBranch: 'db_default',
-      numberFormatBranch: 'native_default',
-      raw: {},
+      currencyPrecisionBranch: 'currency_fraction_units',
+      raw: {
+        company: { name: company, currency: 'IDR', defaultFinanceBook: null },
+        accountsSettings: { ignoreOpeningCheck: false, ignoreAccountClosingBalance: false },
+        currency: { fractionUnits: 100, numberFormat: null },
+      },
     },
   },
   filterProfile: 'erpnext-v16-standard-statements-v1',
@@ -53,8 +54,17 @@ function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+let refreshContextSequence = 0;
 function prepareBatchSql() {
-  return `select public.b3_prepare_native_batch(${sqlLiteral(org)}::uuid,${sqlLiteral(holder)}::uuid,${sqlLiteral(JSON.stringify(context))}::jsonb);`;
+  const activatedAt = `2026-10-18T08:${String(++refreshContextSequence).padStart(2, '0')}:00Z`;
+  const refreshContext = {
+    ...context,
+    binding: { ...context.binding, activatedAt },
+  };
+  return `begin;
+update public.external_org_bindings set activated_at=${sqlLiteral(activatedAt)}::timestamptz where id=${sqlLiteral(binding)}::uuid;
+select public.b3_prepare_native_batch(${sqlLiteral(org)}::uuid,${sqlLiteral(holder)}::uuid,${sqlLiteral(JSON.stringify(refreshContext))}::jsonb);
+commit;`;
 }
 
 function publisherSql(batchId, holderId = holder, barrier = false) {
@@ -70,7 +80,7 @@ function psqlSync(sql) {
     maxBuffer: 16 * 1024 * 1024,
   });
   if (result.error) throw result.error;
-  return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+  return { status: result.status, stdout: result.stdout ?? '', output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
 }
 
 function startPsql(sql, leaveOpen = false) {
@@ -105,7 +115,7 @@ async function until(description, predicate, timeoutMs = 12_000) {
 function waitEventSql(needle) {
   const result = psqlSync(`select count(*) from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query ilike ${sqlLiteral(`%${needle}%`)};`);
   assert.equal(result.status, 0, result.output);
-  return Number(result.output.trim().split('\n').at(-1));
+  return Number(result.stdout.trim().split('\n').at(-1));
 }
 
 async function waitForActivity(needle, count = 1) {
@@ -120,7 +130,7 @@ select jsonb_build_object(
   'statement',public.get_financial_statement('month','2025-08-01','profit_and_loss')
 )::text; commit;`);
   assert.equal(result.status, 0, result.output);
-  return JSON.parse(result.output.trim().split('\n').at(-1));
+  return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
 
 function withoutDelayed(envelopes) {
@@ -139,7 +149,7 @@ function readGeneration() {
     'captureStartedAt',min(capture_started_at)::text,'captureCompletedAt',max(capture_completed_at)::text
   )::text from public.erp_financial_statement_snapshot where org_id=${sqlLiteral(org)}::uuid and company=${sqlLiteral(company)};`);
   assert.equal(result.status, 0, result.output);
-  return JSON.parse(result.output.trim().split('\n').at(-1));
+  return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
 
 function cleanupSql() {
@@ -277,7 +287,10 @@ function updateSourceSql(asOf, expiry = "'2099-12-31T23:59:59Z'::timestamptz") {
 function prepareBatch() {
   const result = psqlSync(prepareBatchSql());
   assert.equal(result.status, 0, result.output);
-  return result.output.trim().split('\n').at(-1);
+  // stdout only: psql NOTICEs (e.g. "schema pg_temp does not exist, skipping") go to stderr and must not be read as the uuid.
+  const batch = result.stdout.trim().split('\n').at(-1);
+  assert.match(batch, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, `prepared batch id: ${result.output}`);
+  return batch;
 }
 
 async function setupFixture() {

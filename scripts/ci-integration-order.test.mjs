@@ -8,6 +8,31 @@ const packageJson = JSON.parse(
   readFileSync(new URL('../pmo-portal/package.json', import.meta.url), 'utf8'),
 );
 
+test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
+  const scriptTests = readdirSync(new URL('../scripts/', import.meta.url))
+    .filter((file) => file.endsWith('.test.mjs'));
+  const databaseTests = [
+    'financial-statements-publication-race.test.mjs',
+    'financial-statements-rollback.test.mjs',
+  ];
+  const nonDatabase = workflow.match(/find scripts[^\n]+/);
+  assert.ok(nonDatabase, 'CI must discover non-database script tests by glob');
+  for (const file of scriptTests) {
+    if (databaseTests.includes(file)) {
+      assert.ok(workflow.includes(`scripts/${file}`), `${file} must run after Supabase starts`);
+      assert.match(nonDatabase[0], new RegExp(`! -name '${file}'`), `${file} must not be run before Supabase starts`);
+    }
+  }
+  const provesCoverage = (text) => {
+    assert.match(text, /find scripts -maxdepth 1 -name '\*\.test\.mjs'/);
+    for (const file of databaseTests) assert.ok(text.includes(`scripts/${file}`), `${file} is missing from CI`);
+  };
+  provesCoverage(workflow);
+  assert.throws(() => provesCoverage(workflow.replace(/scripts\/financial-statements-rollback\.test\.mjs/g, '')),
+    /financial-statements-rollback\.test\.mjs is missing from CI/);
+
+});
+
 test('AC-BSH-003 integration owns two Chromium artifacts with run/attempt/revision provenance and runs diagnostics after shard failures', () => {
   const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration:'));
   assert.match(browser, /shard: \[1, 2\]/);

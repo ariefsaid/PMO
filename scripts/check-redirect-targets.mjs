@@ -165,7 +165,7 @@ function selfTest() {
     if (!auditRedirectTargets(root).length) throw new Error('headers.set Location fixture passed');
     writeFileSync(join(root, 'supabase/functions/good/index.ts'), "const h = new Headers(); h.set('Location', '/safe');");
     if (auditRedirectTargets(root).length) throw new Error('headers.set Location good fixture failed');
-    console.log('check-redirect-targets self-test OK: literal + imperative-header, good and bad fixtures');
+    console.log('check-redirect-targets self-test OK: literal + imperative-header; known-good and known-bad fixtures');
   } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
