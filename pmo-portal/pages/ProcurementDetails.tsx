@@ -42,7 +42,6 @@ import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
 import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
-import { useProcurementMicrosoftReferences } from '@/src/hooks/useProcurementMicrosoftReferences';
 import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
 import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
 import {
@@ -296,7 +295,6 @@ const ProcurementDetails: React.FC = () => {
   const detailQuery = useProcurementDetail(procurementId);
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
-  const caseReferences = useProcurementMicrosoftReferences(procurementId ?? '').query;
   const erpItems = useErpItemOptions('purchase');
   const [recordSlipInvoice, setRecordSlipInvoice] = useState<ProcurementDetail['invoices'][number] | null>(null);
   const [slipHistoryInvoiceId, setSlipHistoryInvoiceId] = useState<string | null>(null);
@@ -878,10 +876,9 @@ const ProcurementDetails: React.FC = () => {
   // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
   // row count (all 7 record types, one row each, as built by buildLedgerRows).
   const ledgerRows = buildLedgerRows(p);
-  // Register references (Microsoft + legacy links) are counted with the ledger rows; they never enter
-  // the ledger itself, so its totals and filters are untouched.
-  const caseReferenceCount = caseReferences.data?.length ?? 0;
-  const documentsCount = ledgerRows.length + caseReferenceCount;
+  // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
+  // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
+  const documentsCount = ledgerRows.length;
   const procTabs: TabItem<ProcTab>[] = [
     { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
     {
