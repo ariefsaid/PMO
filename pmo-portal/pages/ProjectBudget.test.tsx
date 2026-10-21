@@ -50,6 +50,13 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// The Microsoft evidence panel has its own suite (BudgetDocumentLinks.test.tsx) and reads through a
+// QueryClient this page suite does not provide; here only its mount under the selected version matters.
+vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
+  BudgetDocumentLinks: ({ versionId, status }: { versionId: string; status: string }) => (
+    <div data-testid="budget-evidence-mount" data-version={versionId} data-status={status} />
+  ),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -1119,5 +1126,14 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     renderPage();
     expect(await screen.findByText('2026')).toBeInTheDocument();
     expect(screen.queryByLabelText(/fiscal year/i, { selector: 'input, select, textarea' })).not.toBeInTheDocument();
+  });
+
+  it('AC-M365DOC-052 mounts the Microsoft evidence panel beneath the selected version only', async () => {
+    versionsState.data = [{ ...activeVersion, line_items: [] }];
+    renderPage();
+    const mount = await screen.findByTestId('budget-evidence-mount');
+    expect(mount).toHaveAttribute('data-version', 'v-active');
+    expect(mount).toHaveAttribute('data-status', 'Active');
+    expect(screen.getAllByTestId('budget-evidence-mount')).toHaveLength(1);
   });
 });
