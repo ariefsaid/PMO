@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390">
+<title>Sales pipeline cards — proposed — 390</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .srow { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 8px; border-radius: calc(var(--radius) - 2px); }
+  .srow + .srow { border-top: 1px solid hsl(var(--border) / 0.7); border-radius: 0; }
+  .srow[aria-pressed="true"] { background: hsl(var(--primary) / 0.06); }
+  .srow[aria-pressed="true"] .stage-name { color: hsl(var(--primary-text)); }
+</style>
+</head>
+<body>
+<div class="frame-390">
+  <header class="topbar"><span>Menu</span><b>Sales pipeline</b><div class="search" aria-label="Search">Find</div></header>
+  <main class="page">
+    <div class="anno"><b>Phone: one stage picker drives one list</b> (keeps UX-047's direction). The five-stage band becomes a compact list of stages; tapping a stage filters the list below. Each line holds the stage, its full exact amount and the weighted amount, so there's no sideways scrolling.</div>
+    <div class="head"><div><h1 class="h1">Sales pipeline</h1><p class="sub">19 open · weighted IDR 75,185,000,000</p></div><button class="btn btn-primary btn-sm">New project</button></div>
+
+    <section class="card" aria-label="Pipeline by stage">
+      <div class="card-head"><h2>By stage</h2><span class="caption">Value · weighted</span></div>
+      <div style="padding:6px 8px">
+        <div class="srow" role="button" tabindex="0" aria-pressed="false"><span class="stage-name" style="font-weight:600">Leads <span class="caption">· 7 · 10%</span></span><span class="amt">IDR 38,200,000,000</span><span></span><span class="caption tabular" style="text-align:right">IDR 3,820,000,000</span></div>
+        <div class="srow" role="button" tabindex="0" aria-pressed="false"><span class="stage-name" style="font-weight:600">Pre-Qual <span class="caption">· 4 · 25%</span></span><span class="amt">IDR 26,500,000,000</span><span></span><span class="caption tabular" style="text-align:right">IDR 6,625,000,000</span></div>
+        <div class="srow" role="button" tabindex="0" aria-pressed="true"><span class="stage-name" style="font-weight:600">Quotation <span class="caption">· 5 · 40%</span></span><span class="amt">IDR 54,900,000,000</span><span></span><span class="caption tabular" style="text-align:right">IDR 21,960,000,000</span></div>
+        <div class="srow" role="button" tabindex="0" aria-pressed="false"><span class="stage-name" style="font-weight:600">Tender <span class="caption">· 3 · 60%</span></span><span class="amt">IDR 71,300,000,000</span><span></span><span class="caption tabular" style="text-align:right">IDR 42,780,000,000</span></div>
+        <div class="srow caption">Negotiation · no opportunities</div>
+      </div>
+    </section>
+
+    <ul class="cards" aria-label="Quotation opportunities">
+      <li><div style="font-weight:600">Pembangunan Gedung Parkir Bertingkat dan Fasilitas Penunjang Bandara Wilayah Timur</div><span class="caption">PT Angkasa Prima Sarana · <span class="mono">PMO-2026-031</span></span>
+        <dl><dt>Value</dt><dd>IDR 24,600,000,000</dd><dt>Weighted</dt><dd>IDR 9,840,000,000</dd></dl></li>
+      <li><div style="font-weight:600">Renovasi Interior Kantor Pusat Lantai 3–7</div><span class="caption">PT Bank Sejahtera Daerah</span>
+        <dl><dt>Value</dt><dd>IDR 12,450,000,000</dd><dt>Weighted</dt><dd>IDR 4,980,000,000</dd></dl></li>
+    </ul>
+  </main>
+</div>
+</body>
+</html>
