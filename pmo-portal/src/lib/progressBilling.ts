@@ -1,4 +1,5 @@
 import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
+import { formatMoneyInputValue, formatNumberExact } from '@/src/lib/format';
 
 /**
  * #766 — pure progress-billing arithmetic for the Billing tab. Figures arrive from `get_project_billing` net
@@ -60,7 +61,13 @@ export interface ProjectBillingSummary extends ProjectBillingFacts {
   unbilledWork: number | null;
 }
 
-const milli = (value: number): number => Math.round(value * 1000);
+/** Integer milli-units: quantities are 3 dp, so all comparisons and sums run on integers. */
+export const milli = (value: number): number => Math.round(value * 1000);
+
+/** Lump-sum quantity is a fraction of one lot (0–1, 3 dp) shown as a percent with at most 1 decimal (DD-CQ-1). */
+export const fractionToPercentInput = (fraction: number): string => formatMoneyInputValue(Math.round(fraction * 1000) / 10);
+export const percentToFraction = (percent: number): number => Math.round(percent * 10) / 1000;
+export const percentOfLot = (fraction: number): string => `${formatNumberExact(Math.round(fraction * 1000) / 10)}%`;
 
 export function summarizeBilling(facts: ProjectBillingFacts): ProjectBillingSummary {
   const assessedCents = facts.contractLines.length > 0
@@ -102,27 +109,6 @@ export function prefillFromAssessment(
     if (assessed[id] === undefined) continue;
     const left = milli(assessed[id]) - milli(claimed[id] ?? 0);
     if (left > 0) fill[id] = left / 1000;
-  }
-  return fill;
-}
-
-/**
- * Pre-fill for a work-order claim (DD-CQ-6), over that work order's allocations, in integer milli-quantities.
- * With a confirmed BAST: accepted − claimed on this work order. Without one: the smaller of assessed − claimed on
- * all live claims and allocated − claimed on this work order. Non-positive values are omitted. Editable, not a cap.
- */
-export function prefillWorkOrderClaim(
-  allocations: readonly AllocationFacts[],
-  assessed: Record<string, number>,
-  claimedAll: Record<string, number>,
-): Record<string, number> {
-  const fill: Record<string, number> = {};
-  for (const a of allocations) {
-    const claimedHere = milli(a.claimedQuantity);
-    const suggested = a.acceptedQuantity !== null
-      ? milli(a.acceptedQuantity) - claimedHere
-      : Math.min(milli(assessed[a.boqItemId] ?? 0) - milli(claimedAll[a.boqItemId] ?? 0), milli(a.quantity) - claimedHere);
-    if (suggested > 0) fill[a.boqItemId] = suggested / 1000;
   }
   return fill;
 }

@@ -5,7 +5,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
-import type { ContractLineFacts } from '@/src/lib/progressBilling';
+import { milli, type ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
  * Contract lines ordered on one work order (ADR-0091, OD-CQ-2). Each BoQ line is allocated, changed or removed
@@ -28,7 +28,6 @@ export interface WorkOrderLinesModalProps {
   onError: (err: unknown) => void;
 }
 
-const milli = (value: number): number => Math.round(value * 1000);
 
 const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   workOrder, boqItems, contractLines, allocations, canEdit, onClose, onCreate, onUpdate, onDelete, onError,

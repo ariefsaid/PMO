@@ -1,4 +1,4 @@
-import type { ContractLineFacts } from '@/src/lib/progressBilling';
+import { milli, type ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
  * Claim quantity suggestions per work order (ADR-0091 DD-CQ-6, AC-CQ-013). A pre-fill, never a rule: the person
@@ -9,7 +9,6 @@ import type { ContractLineFacts } from '@/src/lib/progressBilling';
  *
  * `acceptedQuantity === null` means no confirmed BAST; a BAST of zero is a BAST. Non-positive results are omitted.
  */
-const milli = (value: number): number => Math.round(value * 1000);
 
 export interface WorkOrderPrefill {
   quantities: Record<string, number>;

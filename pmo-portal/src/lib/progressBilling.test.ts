@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
-import { claimNet, prefillFromAssessment, prefillWorkOrderClaim, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
-import type { AllocationFacts, ContractLineFacts } from './progressBilling';
+import { claimNet, prefillFromAssessment, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
+import type { ContractLineFacts } from './progressBilling';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 200_000, dpBilled: 200_000,
@@ -83,33 +83,5 @@ describe('progress billing helpers', () => {
 
   it('AC-CQ-012 earned value subtracts billed work in exact cents', () => {
     expect(summarizeBilling({ ...FACTS, workBilled: 0.1, earnedValue: 0.3, contractLines: [LINE] }).unbilledWork).toBe(0.2);
-  });
-});
-
-describe('work-order claim pre-fill (AC-CQ-013)', () => {
-  const alloc = (over: Partial<AllocationFacts>): AllocationFacts => ({
-    workOrderId: 'wo-1', boqItemId: 'b1', quantity: 10, claimedQuantity: 0, acceptedQuantity: null, final: false, ...over,
-  });
-
-  it('AC-CQ-013 with a confirmed BAST the suggestion is accepted less claimed on this work order', () => {
-    expect(prefillWorkOrderClaim([alloc({ acceptedQuantity: 8.125, claimedQuantity: 3 })], {}, {})).toEqual({ b1: 5.125 });
-  });
-
-  it('AC-CQ-013 a BAST of zero is a BAST: it suggests nothing even where assessment is higher', () => {
-    expect(prefillWorkOrderClaim([alloc({ acceptedQuantity: 0 })], { b1: 9 }, {})).toEqual({});
-  });
-
-  it('AC-CQ-013 without a BAST the suggestion is the smaller of assessed-less-claimed-everywhere and allocated-less-claimed-here', () => {
-    expect(prefillWorkOrderClaim([alloc({ claimedQuantity: 2 })], { b1: 9 }, { b1: 4 })).toEqual({ b1: 5 });
-    expect(prefillWorkOrderClaim([alloc({ claimedQuantity: 2 })], { b1: 9 }, { b1: 0 })).toEqual({ b1: 8 });
-  });
-
-  it('AC-CQ-013 an unmeasured line counts as zero assessed and is omitted', () => {
-    expect(prefillWorkOrderClaim([alloc({})], {}, {})).toEqual({});
-  });
-
-  it('AC-CQ-013 non-positive suggestions are omitted and arithmetic is exact in milli-units', () => {
-    const rows = [alloc({ boqItemId: 'b1', acceptedQuantity: 1, claimedQuantity: 2 }), alloc({ boqItemId: 'b2', acceptedQuantity: 0.3, claimedQuantity: 0.1 })];
-    expect(prefillWorkOrderClaim(rows, {}, {})).toEqual({ b2: 0.2 });
   });
 });

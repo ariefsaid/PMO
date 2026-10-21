@@ -8,7 +8,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrencyCents, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
-import { claimNet, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
+import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -50,7 +50,6 @@ function thisMonth(): string {
 }
 
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
-const percentOfLot = (fraction: number): string => `${formatNumberExact(Math.round(fraction * 1000) / 10)}%`;
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string }> = ({ testId, label, value, note }) => (
   <div>

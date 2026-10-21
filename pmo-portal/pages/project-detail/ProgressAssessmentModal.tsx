@@ -6,6 +6,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BoqItemRow, ProgressAssessmentInput } from '@/src/lib/db/progressBilling';
+import { fractionToPercentInput, percentToFraction } from '@/src/lib/progressBilling';
 
 /**
  * Record a progress ASSESSMENT (#766, DD-PBL-2/3): the quantity done to date on every BoQ line for one month.
@@ -23,8 +24,6 @@ export interface ProgressAssessmentModalProps {
   onError: (err: unknown) => void;
 }
 
-/** Lump-sum progress is a fraction of one lot (0–1, 3 dp) entered as a percent with at most 1 decimal. */
-const fractionToPercentInput = (fraction: number): string => formatMoneyInputValue(Math.round(fraction * 1000) / 10);
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -55,7 +54,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
         if (pct === null || pct < 0 || pct > 100) {
           errs[line.id] = t('projectTabs:contractQuantities.billing.assessment.errors.percent', 'Enter a percentage from 0 to 100 with at most 1 decimal place');
         } else {
-          lines.push({ boqItemId: line.id, quantityToDate: Math.round(pct * 10) / 1000 });
+          lines.push({ boqItemId: line.id, quantityToDate: percentToFraction(pct) });
         }
         continue;
       }

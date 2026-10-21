@@ -6,6 +6,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
+import { fractionToPercentInput, milli, percentToFraction } from '@/src/lib/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type {
   PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow,
@@ -35,8 +36,6 @@ export interface WorkOrderAcceptanceModalProps {
 }
 
 const EVIDENCE_STATUSES = new Set(['Issued', 'Approved']);
-const milli = (value: number): number => Math.round(value * 1000);
-const fractionToPercentInput = (fraction: number): string => formatMoneyInputValue(Math.round(fraction * 1000) / 10);
 
 /** The latest confirmed cumulative header: newest confirmation, then id — never a sum over history. */
 function latestConfirmed(acceptances: WorkOrderAcceptanceWithLines[]): WorkOrderAcceptanceWithLines | null {
@@ -99,7 +98,7 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
         if (pct === null || pct < 0 || pct > 100) {
           errs[item.id] = t('projectTabs:contractQuantities.billing.assessment.errors.percent', 'Enter a percentage from 0 to 100 with at most 1 decimal place');
         } else {
-          lines.push({ boqItemId: item.id, quantity: Math.round(pct * 10) / 1000 });
+          lines.push({ boqItemId: item.id, quantity: percentToFraction(pct) });
         }
         continue;
       }
