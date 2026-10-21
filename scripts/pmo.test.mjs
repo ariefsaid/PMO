@@ -1116,6 +1116,12 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
 });
 
+test('AC-CQ-018: contract lines are in the load tier only, never the ordinary allow-list', () => {
+  assert.ok(LOAD_TABLES.includes('boq_items'));
+  assert.equal(ALLOWED_TABLES.includes('boq_items'), false);
+  assert.equal(Object.hasOwn(READ_ONLY_TABLES, 'boq_items'), false);
+});
+
 test('AC-CSD-014: the CLI load tier matches the guard admin tier', () => {
   assert.deepEqual(guardList('admin_write_tables'), [...LOAD_TABLES].sort());
   assert.deepEqual(guardList('admin_rpcs'), [...LOAD_RPCS].sort());
@@ -1179,11 +1185,18 @@ test('AC-CSD-016: get/create/rpc refuse the load tier before any request and poi
       ['rpc', 'set_project_contract_value', '{}'],
       ['create', 'budget_versions', '{}'],
       ['get', 'budget_line_items'],
+      // AC-CQ-018: contract lines (boq_items) are load-only too — no generic get/create/update.
+      ['get', 'boq_items'],
+      ['create', 'boq_items', '{}'],
+      ['update', 'boq_items', '--filter', 'id=eq.1', '{}'],
     ]) {
       const r = await runCli([...argv, '--url', fake.url], { configDir });
       assert.equal(r.code, 2, argv.join(' '));
       assert.match(r.errJson.error.message, /not available/i);
       assert.match(r.errJson.error.message, /pmo load/);
+      if (/boq_items|budget_/.test(argv[1] ?? '') && !argv[0].startsWith('rpc')) {
+        assert.match(r.errJson.error.message, /draft budgets and contract lines/);
+      }
     }
     assert.equal(fake.requests.length, 0);
   } finally {
