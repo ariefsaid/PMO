@@ -287,6 +287,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createPurchaseRequest',
         'createQuotation',
         'createReceipt',
+        'clearDocumentLink',
         'createRfq',
         'deleteDocument',
         'deleteItem',
