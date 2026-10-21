@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -394,6 +394,18 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     expect(notice).toHaveTextContent('recover the rest');
     expect(notice).toHaveTextContent('refund');
     expect(screen.getByTestId('wo-dp-held-notice')).toBeInTheDocument();
+  });
+
+  it('AC-CQ-015 a stage BAST confirm shows no down-payment-after-closing banner, even if the server reports a held amount', async () => {
+    h.acceptances = [bast('a2', { is_final: false, document_id: 'd1', lines: [{ acceptance_id: 'a2', boq_item_id: 'b1', quantity: 400 }] })];
+    h.acc.confirm.mutateAsync.mockResolvedValue({ closingValue: null, dpHeld: 2_000_000 });
+    const user = renderWorkOrders();
+    await openDisclosure(user);
+    await user.click(confirmButton());
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm BAST' }));
+    expect(h.acc.confirm.mutateAsync).toHaveBeenCalledWith('a2');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(screen.queryByTestId('wo-dp-held-notice')).toBeNull();
   });
 
   it('AC-CQ-015 Close is hidden for a work order with allocations (its final BAST closes it) and kept for one without', () => {

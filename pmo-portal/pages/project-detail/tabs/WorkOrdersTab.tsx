@@ -79,9 +79,6 @@ export interface WorkOrdersTabProps {
   projectManagerId?: string | null;
 }
 
-/** `closing_value` is stamped server-side by the final BAST (ADR-0091); null until then. */
-type WorkOrderWithClosing = WorkOrderRow & { closing_value?: number | null };
-
 /** `YYYY-MM-DD` in the browser's zone — only the BAST date dialog's default. */
 function todayIso(): string {
   const now = new Date();
@@ -445,7 +442,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     if (!confirmFor) return;
     try {
       const result = await quantityMutations.confirm.mutateAsync(confirmFor.acceptance.id);
-      if (result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
+      if (confirmFor.acceptance.is_final && result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
       toast(
         result && result.closingValue !== null
           ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
@@ -501,10 +498,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <span className="flex flex-col items-end tabular" data-testid={`wo-value-${row.id}`}>
           <span>{formatCurrency(row.order_value, row.currency)}</span>{' '}
           <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
-          {(row as WorkOrderWithClosing).closing_value != null && (
+          {row.closing_value != null && (
             <span className="mt-0.5 whitespace-normal text-[11px] font-semibold" data-testid={`wo-closing-${row.id}`}>
               {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
-                amount: formatCurrency(Number((row as WorkOrderWithClosing).closing_value), row.currency),
+                amount: formatCurrency(Number(row.closing_value), row.currency),
                 interpolation: { escapeValue: false },
               })}
             </span>
