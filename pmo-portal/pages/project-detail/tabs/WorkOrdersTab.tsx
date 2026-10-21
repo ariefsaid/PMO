@@ -784,7 +784,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 const mine = allocationsByWo.get(row.id) ?? [];
                 const bastList = acceptancesByWo.get(row.id) ?? [];
                 const woLabel = row.wo_number ?? row.title;
-                const editableLines = may('create', 'workOrderLine') && (row.status === 'Draft' || row.status === 'Issued');
+                const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
                 return (
                   <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
                     <summary className="cursor-pointer rounded text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
@@ -866,7 +866,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           boqItems={boqRows}
           contractLines={projectBilling.data?.contractLines ?? []}
           allocations={allocationsByWo.get(linesFor.id) ?? []}
-          canEdit={may('create', 'workOrderLine')}
+          canEdit={may('create', 'workOrderLine', { record: { status: linesFor.status } })}
           onClose={() => setLinesFor(null)}
           onCreate={async (boqItemId, quantity) => { await quantityMutations.createLine.mutateAsync({ workOrderId: linesFor.id, boqItemId, quantity }); }}
           onUpdate={async (id, quantity) => { await quantityMutations.updateLine.mutateAsync({ id, quantity }); }}

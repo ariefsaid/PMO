@@ -41,7 +41,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   const may = usePermission();
   const itemOf = new Map(boqItems.map((b) => [b.id, b]));
   const canPrepare = workOrder.status === 'Issued' && hasAllocations
-    && may('create', 'workOrderAcceptance', { currentUserId, record: { project_manager_id: projectManagerId } });
+    && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
   const sorted = [...acceptances].sort((a, b) => b.acceptance_date.localeCompare(a.acceptance_date) || b.prepared_at.localeCompare(a.prepared_at));
 
   const statusLabel = (status: WorkOrderAcceptanceWithLines['status']): string =>
@@ -74,9 +74,9 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
             const draft = a.status === 'Draft';
             const preparedByMe = Boolean(currentUserId) && a.prepared_by === currentUserId;
             const canEdit = draft && workOrder.status === 'Issued'
-              && may('create', 'workOrderAcceptance', { currentUserId, record: { project_manager_id: projectManagerId } });
-            const canWithdraw = draft && may('withdraw', 'workOrderAcceptance', { currentUserId, record: { prepared_by: a.prepared_by } });
-            const canConfirm = draft && may('confirm', 'workOrderAcceptance', { currentUserId });
+              && may('create', 'workOrderAcceptance', { currentUserId, record: { status: workOrder.status, project_manager_id: projectManagerId } });
+            const canWithdraw = draft && may('withdraw', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
+            const canConfirm = draft && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
             return (
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">
