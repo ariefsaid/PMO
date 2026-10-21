@@ -1327,3 +1327,122 @@ test('AC-TAG-003: CLI sends all five classifications on project create and updat
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+// ── contract lines through pmo load (AC-CQ-016..018) ─────────────────────────────────────────────
+
+const CLI_LINE = (over = {}) => ({ key: 'L-1', item_code: 'SVC-001', description: 'Survey service', unit: 'm2', quantity: 100, rate: 25000, ...over });
+const CLI_LINES_FILE = (lines) => ({
+  companies: [{ name: 'Client Legal A' }],
+  projects: [{ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', contract_lines: lines }],
+});
+
+/** Empty database for GETs as `role`; creating rows answers an id so dependent writes can follow. */
+const idsDbAs = (role, status = 'active') => (ctx) => {
+  if (ctx.req.method === 'POST' && ctx.url.pathname.startsWith('/rest/v1/') && !ctx.url.pathname.includes('/rpc/')) {
+    ctx.send(201, [{ id: `${ctx.url.pathname.split('/').pop()}-id`, ...JSON.parse(ctx.body || '{}') }]);
+    return true;
+  }
+  return emptyDbAs(role, status)(ctx);
+};
+
+test('AC-CQ-016: pmo load validates every contract-line row before any request', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const bad = CLI_LINES_FILE([CLI_LINE({ item_code: '' }), CLI_LINE({ quantity: 0 }), CLI_LINE({ key: 'L-2', unit: 'LS', quantity: 2 })]);
+    const r = await runCli(['load', writeLoadFile(configDir, bad), '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.deepEqual(r.errJson.error.details.map((d) => d.replace(/^.*contract_lines/, 'contract_lines')), [
+      'contract_lines[0]: "item_code" (the ERP service item) is required',
+      'contract_lines[1]: "key" "L-1" appears twice',
+      'contract_lines[1]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+      'contract_lines[2]: a lump-sum line must have quantity 1',
+    ]);
+    assert.equal(fake.requests.length, 0);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CQ-016: loading contract lines is for an active Admin only, before any write', async () => {
+  for (const [role, status] of [['Finance', 'active'], ['Admin', 'disabled']]) {
+    const fake = await fakeSupabase({ handler: emptyDbAs(role, status) });
+    const configDir = tmpDir();
+    try {
+      seedCredentials(configDir, fake.url);
+      const r = await runCli(['load', writeLoadFile(configDir, CLI_LINES_FILE([CLI_LINE()])), '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, r.err);
+      assert.match(r.errJson.error.message, /active Admin/);
+      assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => q.path), []);
+    } finally {
+      await fake.close();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('AC-CQ-016: a dry run plans the lines with reads only and reports counts', async () => {
+  const fake = await fakeSupabase({ handler: emptyDbAs('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, CLI_LINES_FILE([CLI_LINE({ key: 'A' }), CLI_LINE({ key: 'B', unit: 'lot', quantity: 1 })]));
+    const r = await runCli(['load', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.json.dry_run, true);
+    assert.equal(r.json.counts['contract_line.create'], 2);
+    assert.deepEqual(r.json.actions.filter((a) => a.kind === 'contract_line.create').map((a) => a.line_key), ['A', 'B']);
+    assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CQ-017: pmo load POSTs each new line to boq_items with the created project id and no org_id', async () => {
+  const fake = await fakeSupabase({ handler: idsDbAs('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, CLI_LINES_FILE([CLI_LINE({ key: 'A', line_no: 1 }), CLI_LINE({ key: 'B', unit: 'LS', quantity: 1, basis: undefined })]));
+    const r = await runCli(['load', file, '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.json.counts['contract_line.create'], 2);
+    const posted = fake.requests.filter((q) => q.method === 'POST' && q.path === '/rest/v1/boq_items').map((q) => JSON.parse(q.body));
+    assert.deepEqual(posted.map((b) => [b.project_id, b.import_key, b.earning_basis, 'org_id' in b]), [
+      ['projects-id', 'A', 'unit_rate', false], ['projects-id', 'B', 'lump_sum', false],
+    ]);
+    assert.equal(fake.requests.some((q) => q.method === 'PATCH' || q.method === 'DELETE'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CQ-017: a refused contract-line write ends pmo load with exit 1 and the done / failed report', async () => {
+  const handler = (ctx) => {
+    if (ctx.req.method === 'POST' && ctx.url.pathname === '/rest/v1/boq_items' && JSON.parse(ctx.body).import_key === 'B') {
+      ctx.send(403, { code: '42501', message: 'not authorized' });
+      return true;
+    }
+    return idsDbAs('Admin')(ctx);
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, CLI_LINES_FILE([CLI_LINE({ key: 'A' }), CLI_LINE({ key: 'B' }), CLI_LINE({ key: 'C' })]));
+    const r = await runCli(['load', file, '--url', fake.url], { configDir });
+    assert.equal(r.code, 1, r.err);
+    assert.equal(r.errJson.error.code, '42501');
+    assert.deepEqual(r.errJson.error.details.failed, { kind: 'contract_line.create', key: 'ORG-001', line_key: 'B' });
+    assert.deepEqual(r.errJson.error.details.done.filter((a) => a.kind === 'contract_line.create').map((a) => a.line_key), ['A']);
+    assert.equal(fake.requests.filter((q) => q.path === '/rest/v1/boq_items' && q.method === 'POST').length, 2, 'C never attempted');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
