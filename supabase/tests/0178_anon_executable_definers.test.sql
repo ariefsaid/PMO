@@ -107,6 +107,7 @@ insert into client_callable_rpc_names (proname) values
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
   ('confirm_erp_employee_link'),
+  ('confirm_work_order_acceptance'),
   ('create_native_sales_invoice'),
   ('create_payment'),
   ('create_procurement_invoice'),
@@ -116,6 +117,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
   ('create_progress_claim'),
+  ('prepare_work_order_acceptance'),
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
@@ -165,7 +167,8 @@ insert into client_callable_rpc_names (proname) values
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
-  ('withdraw_progress_claim');
+  ('withdraw_progress_claim'),
+  ('withdraw_work_order_acceptance');
 
 select ok(
   not exists (
@@ -187,8 +190,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  70,
-  'AC-ACL-002 all 70 retained client-callable RPC names still have a public function');
+  73,
+  'AC-ACL-002 all 73 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -197,8 +200,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  70,
-  'AC-ACL-003 all 70 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  73,
+  'AC-ACL-003 all 73 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

@@ -3,7 +3,7 @@
 -- Cast (org A): a1 Admin · a2 Finance · a4 PM · a5 Engineer · a6 Finance (disabled) · b1 Admin of org B.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(18);
 
 insert into organizations (id, name) values
   ('07660000-0000-0000-0000-000000000001', 'PB Org'),
@@ -38,13 +38,16 @@ select lives_ok($$ insert into boq_items (id, project_id, item_code, description
   'AC-PB-001 a PM adds a bill of quantities line without stating the org');
 select is((select org_id from boq_items where id = '07660000-0000-0000-0000-0000000000e1'),
   '07660000-0000-0000-0000-000000000001'::uuid, 'AC-PB-001 the line is stamped with the caller''s org');
-select lives_ok($$ insert into boq_items (id, project_id, work_order_id, item_code, description, unit, quantity, rate)
-  values ('07660000-0000-0000-0000-0000000000e2', '07660000-0000-0000-0000-0000000000c1', '07660000-0000-0000-0000-0000000000d1', 'STATION', 'Station build', 'unit', 5, 100000) $$,
-  'AC-PB-001 a line may name a work order on the same project');
-select throws_ok($$ insert into boq_items (project_id, work_order_id, item_code, description, unit, quantity, rate)
-  values ('07660000-0000-0000-0000-0000000000c1', '07660000-0000-0000-0000-0000000000d9', 'X', 'X', 'km', 1, 1) $$,
-  '23514', 'the work order must be on the same project as the bill of quantities line',
-  'AC-PB-001 a line cannot name another project''s work order');
+select lives_ok($$ insert into boq_items (id, project_id, item_code, description, unit, quantity, rate)
+  values ('07660000-0000-0000-0000-0000000000e2', '07660000-0000-0000-0000-0000000000c1', 'STATION', 'Station build', 'unit', 5, 100000) $$,
+  'AC-PB-001 contract lines are independent of work-order allocation');
+select lives_ok($$ insert into work_order_lines (work_order_id, boq_item_id, quantity)
+  values ('07660000-0000-0000-0000-0000000000d1','07660000-0000-0000-0000-0000000000e2',5) $$,
+  'AC-CQ-002 a contract line can be allocated to a same-project work order');
+select throws_ok($$ insert into work_order_lines (work_order_id, boq_item_id, quantity)
+  values ('07660000-0000-0000-0000-0000000000d9','07660000-0000-0000-0000-0000000000e2',1) $$,
+  '23514', 'the work order and contract line must belong to the same project',
+  'AC-CQ-002 an allocation cannot point across projects');
 select throws_ok($$ insert into boq_items (project_id, item_code, description, unit, quantity, rate)
   values ('07660000-0000-0000-0000-0000000000c1', 'X', 'X', 'km', 0, 1) $$,
   '23514', 'new row for relation "boq_items" violates check constraint "boq_items_quantity_check"',

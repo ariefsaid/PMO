@@ -69,10 +69,10 @@ export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 /**
  * The ACTIVE-ADMIN tier (#796, ADR-0074), used only by `pmo load` — never by get/create/update/rpc.
  * The database guard (migration 0239) allows these only to an active Admin's OAuth token: POST on the
- * RPCs, GET/POST on the tables. The RPCs keep their own org, role, SoD and audit rules.
+ * RPCs, GET/POST on the tables (budgets and contract lines; never PATCH/DELETE). The RPCs keep their own org, role, SoD and audit rules.
  */
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);
-export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items']);
+export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
 export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load']);
@@ -199,7 +199,7 @@ function assertTable(table, mode) {
     throw usage(`${table} is read-only from the CLI. Change it in the app.`);
   }
   if (LOAD_TABLES.includes(table)) {
-    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets). Change budgets in the app.`);
+    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets and contract lines). Change them in the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
     throw usage(
@@ -698,7 +698,7 @@ const USAGE = `usage:
   pmo create <table> <json | @file | ->
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
-  pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets)
+  pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)

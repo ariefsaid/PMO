@@ -2198,7 +2198,7 @@
           "assessed": "Assessed",
           "claimed": "Claimed",
           "item": "Item",
-          "quantity": "Quantity",
+          "quantity": "Contract",
           "rate": "Rate",
           "remaining": "Left to claim"
         },
@@ -2229,15 +2229,13 @@
         },
         "item": "ERP item",
         "legend": "Line",
-        "noWorkOrder": "None — the whole contract",
         "quantity": "Quantity",
         "rate": "Rate (excl. PPN)",
         "save": "Save line",
-        "subtitle": "Rates exclude tax. A line may belong to one work order on this project.",
+        "subtitle": "Rates exclude tax. Work orders take quantities from a line when you allocate it.",
         "titleEdit": "Edit bill of quantities line",
         "titleNew": "Add a bill of quantities line",
-        "unit": "Unit",
-        "workOrder": "Work order"
+        "unit": "Unit"
       },
       "claimForm": {
         "dpAmount": "Down payment amount (excl. PPN)",

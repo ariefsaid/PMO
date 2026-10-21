@@ -44,4 +44,22 @@ describe('progressBilling repository', () => {
     expect(await repositories.progressBilling.recordAssessment({ projectId: 'proj-1', month: '2026-09-01', quantities: [], note: null })).toBe(40);
     expect(dispatchDomainCommand).not.toHaveBeenCalled();
   });
+
+  it('AC-CQ-012 BoQ create and update delegate the basis and line number exactly, with no work order', async () => {
+    const input = { itemCode: 'A-1', description: 'Cable', unit: 'km', quantity: 1900, rate: 50, earningBasis: 'unit_rate' as const, lineNo: 2 };
+    vi.mocked(dal.createBoqItem).mockResolvedValue({ id: 'b1' } as never);
+    await repositories.progressBilling.createBoq('proj-1', input);
+    expect(dal.createBoqItem).toHaveBeenCalledWith('proj-1', input);
+    await repositories.progressBilling.updateBoq('b1', { ...input, earningBasis: 'lump_sum', quantity: 1, lineNo: null });
+    expect(dal.updateBoqItem).toHaveBeenCalledWith('b1', { ...input, earningBasis: 'lump_sum', quantity: 1, lineNo: null });
+  });
+
+  it('AC-CQ-012 the summary returns the earned-value facts untouched, and null for an invisible project', async () => {
+    const facts = { earnedValue: 450_000, contractLines: [] } as never;
+    vi.mocked(dal.getProjectBilling).mockResolvedValueOnce(facts);
+    expect(await repositories.progressBilling.summary('proj-1')).toBe(facts);
+    vi.mocked(dal.getProjectBilling).mockResolvedValueOnce(null);
+    expect(await repositories.progressBilling.summary('proj-1')).toBeNull();
+    expect(dal.getProjectBilling).toHaveBeenCalledWith('proj-1');
+  });
 });
