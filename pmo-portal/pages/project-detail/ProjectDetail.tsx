@@ -257,6 +257,7 @@ const ProjectDetail: React.FC = () => {
             currency={project.currency}
             clientId={project.client_id ?? null}
             focusWorkOrderId={new URLSearchParams(location.search).get('wo')}
+            projectManagerId={project.project_manager_id ?? null}
           />
         )}
         {tab === 'billing' && canSeeBilling && (
