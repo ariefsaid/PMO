@@ -16,6 +16,8 @@ const mock = vi.hoisted(() => ({
   listDrives: vi.fn(),
   refetch: vi.fn(),
 }));
+// The card mounts LinkExistingRecordFolders (own coverage: LinkExistingRecordFolders.test).
+vi.mock('@/src/components/m365/LinkExistingRecordFolders', () => ({ LinkExistingRecordFolders: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'admin-1', org_id: 'org-1' } }) }));
 vi.mock('@/src/components/m365/DocumentLinkPermissions', () => ({ useDocumentLinkPermissions: () => ({ manageDefault: () => mock.manage }) }));
 vi.mock('@/src/hooks/useMicrosoftDocuments', () => ({

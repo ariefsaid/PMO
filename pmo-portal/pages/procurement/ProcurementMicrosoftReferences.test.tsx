@@ -37,6 +37,8 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
     return props.open ? <div role="dialog" aria-label="picker" /> : null;
   },
 }));
+// The case register mounts RecordFolderAction (own coverage: RecordFolderAction.test / useStartRecordFolder tests).
+vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
 vi.mock('@/src/lib/m365/graphClient', () => ({ refreshMicrosoftReferences: h.refresh }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }) }));
 

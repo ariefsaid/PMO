@@ -1,3 +1,4 @@
+import { LinkExistingRecordFolders } from '@/src/components/m365/LinkExistingRecordFolders';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -89,6 +90,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
               {t('m365Documents.defaultLibrary.clear', 'Clear default')}
             </Button>
           )}
+          <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary) && !readFailed} />
           {children}
         </div>
       )}

@@ -1,3 +1,4 @@
+import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -217,12 +218,15 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         <h3 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {t('m365Documents.procurement.heading', 'Case references')}
         </h3>
+        <div className="flex items-center gap-2">
+        <RecordFolderAction target={{ kind: 'procurement', id: procurementId }} hasFolder={rows.some((r) => r.source === 'onedrive' && r.ms_item_kind === 'folder')} />
         {canCreate && (
           <Button variant="outline" size="sm" className="touch-target" onClick={(e) => openPicker({ kind: 'new' }, e.currentTarget)}>
             <Icon name="plug" />
             {t('m365Documents.procurement.link', 'Link from Microsoft 365')}
           </Button>
         )}
+        </div>
       </div>
       <p className="mt-1 px-1 text-[12px] text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
