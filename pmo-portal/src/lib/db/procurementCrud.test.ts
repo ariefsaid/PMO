@@ -4,7 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // spy for the select-quote RPC path. Each terminal (awaited) call resolves `result.value`; we assert
 // the recorded calls.
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown } };
+  const result = {
+    value: { data: null as unknown, error: null as unknown },
+    queue: [] as { data: unknown; error: unknown }[],
+  };
   const rpcResult = { value: { data: null as unknown, error: null as unknown } };
   const calls = {
     from: [] as unknown[],
@@ -16,11 +19,12 @@ const h = vi.hoisted(() => {
     update: [] as unknown[],
     delete: 0,
     single: 0,
+    maybeSingle: 0,
     rpc: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
-    if (name === 'delete' || name === 'single') {
+    if (name === 'delete' || name === 'single' || name === 'maybeSingle') {
       (calls[name] as number)++;
     } else {
       (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
@@ -35,7 +39,8 @@ const h = vi.hoisted(() => {
   builder.update = chain('update');
   builder.delete = chain('delete');
   builder.single = chain('single');
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
+  builder.maybeSingle = chain('maybeSingle');
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.queue.shift() ?? result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
     return builder;
@@ -76,6 +81,7 @@ beforeEach(() => {
     else (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  h.result.queue.length = 0;
   h.rpcResult.value = { data: null, error: null };
 });
 
@@ -182,6 +188,77 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
     expect(insert.amount).toBeUndefined();
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
     expect(row.id).toBe('it1');
+  });
+
+  it('AC-PROC-003 retry converges after a committed insert response is lost', async () => {
+    const stableId = '1caab0c8-b1d7-45a3-8b80-1dfd441fbf55';
+    const savedRow = {
+      id: stableId, procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '86.00', description: null,
+    };
+    h.result.queue.push(
+      { data: null, error: { message: 'connection lost', code: 'FETCH_ERROR' } },
+      { data: null, error: { message: 'duplicate key', code: '23505' } },
+      { data: savedRow, error: null },
+    );
+    const input = { id: stableId, name: 'Wire', quantity: 24.004, rate: 86 };
+
+    await expect(createProcurementItem('pr1', input)).rejects.toMatchObject({ code: 'FETCH_ERROR' });
+    await expect(createProcurementItem('pr1', input)).resolves.toEqual(savedRow);
+
+    expect(h.calls.insert).toEqual([
+      { procurement_id: 'pr1', name: 'Wire', quantity: 24.004, rate: 86, id: stableId },
+      { procurement_id: 'pr1', name: 'Wire', quantity: 24.004, rate: 86, id: stableId },
+    ]);
+    expect(h.calls.eq).toContainEqual(['id', stableId]);
+    expect(h.calls.eq).toContainEqual(['procurement_id', 'pr1']);
+  });
+
+  it.each([
+    ['a different parent', { id: 'stable-id', procurement_id: 'pr2', name: 'Wire', quantity: '24.00', rate: '86.00', description: null }],
+    ['a different name', { id: 'stable-id', procurement_id: 'pr1', name: 'Cable', quantity: '24.00', rate: '86.00', description: null }],
+    ['a different quantity', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '25.00', rate: '86.00', description: null }],
+    ['a different rate', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '87.00', description: null }],
+    ['a different description', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '86.00', description: 'other' }],
+  ])('AC-PROC-003 does not treat a duplicate ID with %s as success', async (_case, row) => {
+    h.result.queue.push(
+      { data: null, error: { message: 'duplicate key', code: '23505' } },
+      { data: row, error: null },
+    );
+    await expect(createProcurementItem('pr1', {
+      id: 'stable-id', name: 'Wire', quantity: 24, rate: 86,
+    })).rejects.toThrow(/open the saved request to reconcile/i);
+  });
+
+  it('AC-PROC-003 refuses a duplicate ID not visible under RLS and the same parent filter', async () => {
+    h.result.queue.push(
+      { data: null, error: { message: 'duplicate key', code: '23505' } },
+      { data: null, error: null },
+    );
+    await expect(createProcurementItem('pr1', {
+      id: 'stable-id', name: 'Wire', quantity: 24, rate: 86,
+    })).rejects.toThrow(/open the saved request to reconcile/i);
+    expect(h.calls.eq).toContainEqual(['id', 'stable-id']);
+    expect(h.calls.eq).toContainEqual(['procurement_id', 'pr1']);
+  });
+
+  it('AC-PROC-003 does not acknowledge when the reconciliation read fails', async () => {
+    h.result.queue.push(
+      { data: null, error: { message: 'duplicate key', code: '23505' } },
+      { data: null, error: { message: 'read unavailable', code: '503' } },
+    );
+    await expect(createProcurementItem('pr1', {
+      id: 'stable-id', name: 'Wire', quantity: 24, rate: 86,
+    })).rejects.toMatchObject({ code: '503' });
+  });
+
+  it('AC-PROC-003 does not perform a reconciliation read for a non-duplicate insert error', async () => {
+    h.result.value = { data: null, error: { message: 'temporarily unavailable', code: '503' } };
+    await expect(createProcurementItem('pr1', {
+      id: 'stable-id', name: 'Wire', quantity: 24, rate: 86,
+    })).rejects.toMatchObject({ code: '503' });
+    expect(h.calls.from).toEqual(['procurement_items']);
+    expect(h.calls.insert).toHaveLength(1);
+    expect(h.calls.eq).toHaveLength(0);
   });
 
   it('AC-PROC-003: updateProcurementItem patches name/quantity/rate by id, never amount/org_id', async () => {

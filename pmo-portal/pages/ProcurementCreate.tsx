@@ -61,7 +61,7 @@ export default function ProcurementCreate() {
       ...current,
       {
         ...line,
-        id: `draft-${crypto.randomUUID()}`,
+        id: crypto.randomUUID(),
         amount,
         description: null,
       },
@@ -110,7 +110,7 @@ export default function ProcurementCreate() {
       try {
         await createItem.mutateAsync({
           procurementId: savedId,
-          input: { name: line.name, quantity: line.quantity, rate: line.rate },
+          input: { id: line.id, name: line.name, quantity: line.quantity, rate: line.rate },
         });
       } catch {
         failedLines.push(line);

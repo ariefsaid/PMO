@@ -64,7 +64,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mocks.createItem).toHaveBeenCalledWith({
-      procurementId: 'new-id', input: { name: 'Paper', quantity: 2, rate: 10 },
+      procurementId: 'new-id', input: expect.objectContaining({ id: expect.any(String), name: 'Paper', quantity: 2, rate: 10 }),
     }));
     expect(mocks.createRequest).toHaveBeenCalledWith({ title: 'Office supplies', projectId: null, vendorId: null });
     expect(mocks.createRequest.mock.invocationCallOrder[0]).toBeLessThan(mocks.createItem.mock.invocationCallOrder[0]);
@@ -105,7 +105,13 @@ describe('AC-PROC1 one-page request creation', () => {
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
     expect(mocks.createRequest).toHaveBeenCalledTimes(1);
     expect(mocks.createItem).toHaveBeenCalledTimes(2);
-    expect(mocks.createItem.mock.calls[1][0]).toEqual({ procurementId: 'new-id', input: { name: 'Paper', quantity: 2, rate: 10 } });
+    const firstLineId = mocks.createItem.mock.calls[0][0].input.id;
+    const retriedLineId = mocks.createItem.mock.calls[1][0].input.id;
+    expect(firstLineId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(retriedLineId).toBe(firstLineId);
+    expect(mocks.createItem.mock.calls[1][0]).toEqual({
+      procurementId: 'new-id', input: { id: firstLineId, name: 'Paper', quantity: 2, rate: 10 },
+    });
   });
 
   it('AC-PROC1-005 freezes saved request fields after a child write needs retry', async () => {
