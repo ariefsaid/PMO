@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, EntityFormModal, ListState } from '@/src/components/ui';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
-import { buildVersionHistoryUrl, type MicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';
 import { formatInstantDate } from '@/src/lib/format';
 import { M365BrowseNotice } from './M365BrowseNotice';
 
 const codeOf = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
-
-/** The five fields Graph reads need; the stored name/URL are never sent as a claim of verification. */
-export function toReferenceInput(reference: MicrosoftReference): MicrosoftReferenceInput {
-  return { drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url, name: reference.name, item_kind: reference.item_kind };
-}
 
 interface VersionsModalProps {
   reference: MicrosoftReference;

@@ -1,5 +1,5 @@
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { MicrosoftItemKind, MicrosoftReference } from '../../../../supabase/functions/_shared/microsoftDocumentReference';
+import type { MicrosoftItemKind, MicrosoftReference, MicrosoftReferenceInput } from '../../../../supabase/functions/_shared/microsoftDocumentReference';
 export {
   assertMicrosoftReference,
   itemKind,
@@ -14,6 +14,14 @@ export type {
 
 import { validMicrosoftBrowserUrl } from '../../../../supabase/functions/_shared/microsoftDocumentReference';
 import type { GraphItem } from './graphClient';
+
+/** Statuses that read as an approval: Closed/Superseded are historic approvals (ADR-0071). */
+export const APPROVED_STATUSES: ReadonlySet<string> = new Set(['Approved', 'Closed', 'Superseded']);
+
+/** The five fields Graph reads need; the stored name/URL are never sent as a claim of verification. */
+export function toReferenceInput(reference: MicrosoftReference): MicrosoftReferenceInput {
+  return { drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url, name: reference.name, item_kind: reference.item_kind };
+}
 
 export function buildVersionHistoryUrl(item: Pick<GraphItem, 'web_url' | 'sharepoint_ids'>): string | null {
   const identifiers = item.sharepoint_ids;

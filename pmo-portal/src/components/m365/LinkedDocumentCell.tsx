@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Icon } from '@/src/components/ui';
-import { microsoftProvenance, validMicrosoftBrowserUrl, type MicrosoftReference, type ReferenceOwner } from '@/src/lib/m365/reference';
-import { APPROVED_STATUSES, DocumentDriftBadge } from './DocumentDriftBadge';
+import { APPROVED_STATUSES, microsoftProvenance, validMicrosoftBrowserUrl, type MicrosoftReference, type ReferenceOwner } from '@/src/lib/m365/reference';
+import { DocumentDriftBadge } from './DocumentDriftBadge';
 import { ApprovedVersionHistory, LinkedDocumentVersionsModal } from './LinkedDocumentVersions';
 
 export interface LinkedDocumentCellProps {
@@ -47,7 +47,7 @@ export function LinkedDocumentCell({ reference, title, owner }: LinkedDocumentCe
         <span className="min-w-0 break-words">{`${provenance} ${noun}`}</span>
       </span>
       {reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
-      {project && isFolder && <span className="text-[12px] text-muted-foreground">Reference only</span>}
+      {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">Folder reference — contents are not issued or approved</span>}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" className="min-w-0" aria-label={`${openText}: ${label}`} onClick={openReference}>
           <Icon name="eye" />

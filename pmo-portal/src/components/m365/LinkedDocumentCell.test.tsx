@@ -85,9 +85,10 @@ describe('LinkedDocumentCell direct open', () => {
     expect(screen.getByText('SharePoint folder')).toBeInTheDocument();
     expect(screen.getByText('Opens in Microsoft. Access depends on your Microsoft permissions on this folder.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Versions/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/approv|issued version|Not verified|Unchanged since|Changed since/i)).not.toBeInTheDocument();
-    if (kind === 'project') expect(screen.getByText('Reference only')).toBeInTheDocument();
-    else expect(screen.queryByText('Reference only')).not.toBeInTheDocument();
+    expect(screen.queryByText(/approv|issued version|Not verified|Unchanged since|Changed since/i, { ignore: '[data-folder-reference]' })).not.toBeInTheDocument();
+    const note = 'Folder reference — contents are not issued or approved';
+    if (kind === 'project') expect(screen.getByText(note)).toBeInTheDocument();
+    else expect(screen.queryByText(note)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Open folder in SharePoint/ }));
     expect(open).toHaveBeenCalledWith('https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Project', '_blank', 'noopener,noreferrer');
     expect(getItem).not.toHaveBeenCalled();
@@ -138,7 +139,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Versions' })).getAllByRole('listitem')).toHaveLength(3));
     expect(listVersions).toHaveBeenLastCalledWith(expect.objectContaining({ item_id: 'item-1' }), { path: '/versions-next' });
     expect(open).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByText('Close', { selector: 'button' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Versions/ })).toHaveFocus();
   });
@@ -156,7 +157,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage([]));
     await user.click(screen.getByRole('button', { name: /^Versions/ }));
     expect(await screen.findByText('No versions listed')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByText('Close', { selector: 'button' }));
 
     vi.mocked(listVersions).mockRejectedValueOnce(new AppError('raw-synthetic-error', 'GRAPH_ERROR')).mockResolvedValueOnce(versionsPage(['9.0']));
     await user.click(screen.getByRole('button', { name: /^Versions/ }));
@@ -172,7 +173,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     view(ref(), budget);
     await user.click(screen.getByRole('button', { name: /^Versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect Microsoft 365 first to browse documents.');
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByText('Close', { selector: 'button' }));
     await user.click(screen.getByRole('button', { name: /^Open in SharePoint/ }));
     expect(open).toHaveBeenCalledWith(SP_URL, '_blank', 'noopener,noreferrer');
   });

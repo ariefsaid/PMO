@@ -1,8 +1,6 @@
 import { Icon, StatusPill } from '@/src/components/ui';
 import { formatInstantDate } from '@/src/lib/format';
-
-/** Statuses that read as an approval: Closed/Superseded are historic approvals (ADR-0071). */
-export const APPROVED_STATUSES: ReadonlySet<string> = new Set(['Approved', 'Closed', 'Superseded']);
+import { APPROVED_STATUSES } from '@/src/lib/m365/reference';
 
 export interface DocumentDriftBadgeProps {
   status: string;
