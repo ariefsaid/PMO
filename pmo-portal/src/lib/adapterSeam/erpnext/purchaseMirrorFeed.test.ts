@@ -331,6 +331,25 @@ describe('erpnext/purchaseMirrorFeed', () => {
     }
   });
 
+  it('observes a late database rejection after its deadline has already answered', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const h = harness({ 'Purchase Order': [PO] });
+      let rejectLater!: (reason: Error) => void;
+      h.rpc.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectLater = reject; }));
+      const result = expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('Purchase mirror pass deadline exceeded');
+      await vi.advanceTimersByTimeAsync(25000);
+      await result;
+      rejectLater(new Error('late database failure'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
+      expect(h.rpc).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('refuses to run without a company', async () => {
     const h = harness({});
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: ' ' })).rejects.toThrow(/company/);

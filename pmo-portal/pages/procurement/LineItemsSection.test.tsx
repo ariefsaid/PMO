@@ -116,6 +116,13 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('AC-PROC-003: a read-only empty section does not invite unavailable editing', () => {
+    renderSection({ items: [], editable: false });
+    expect(screen.getByText('No line items yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/Add one below/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('line-item-add-row')).not.toBeInTheDocument();
+  });
+
   it('AC-PROC-003: derives exact line and section totals from quantity × rate', () => {
     renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
     expect(screen.getAllByText('$0.3').length).toBeGreaterThanOrEqual(1);
