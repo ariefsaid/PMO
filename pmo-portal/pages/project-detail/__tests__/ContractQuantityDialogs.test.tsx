@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: vi.fn() }) }));
 import BoqItemFormModal from '../BoqItemFormModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
+import WorkOrderLinesModal from '../WorkOrderLinesModal';
+import type { ContractLineFacts } from '@/src/lib/progressBilling';
+import type { WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 
 /**
  * AC-CQ-014 — the contract-quantity dialogs (ADR-0090): BoQ line basis, percent assessment, allocation,
@@ -100,7 +103,7 @@ describe('AC-CQ-014 ProgressAssessmentModal lump-sum percent', () => {
   it('AC-CQ-014 40.0 percent is sent as the 0.400 fraction and unit-rate lines keep quantities', async () => {
     const { onSave, user } = renderModal();
     await user.type(screen.getByLabelText(/MOBILISE/), '40.0');
-    await user.type(screen.getByLabelText(/SURVEY/), '2.5');
+    await user.type(screen.getByLabelText(/SURVEY —/), '2.5');
     await submit(user);
     expect(onSave).toHaveBeenCalledWith({
       month: '2026-10-01',
@@ -133,5 +136,105 @@ describe('AC-CQ-014 ProgressAssessmentModal lump-sum percent', () => {
     await submit(user);
     expect((await screen.findAllByText('Enter a percentage from 0 to 100 with at most 1 decimal place')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-CQ-014 WorkOrderLinesModal allocation editor', () => {
+  const line = (id: string, code: string, unit: string, quantity: number) =>
+    ({ id, org_id: 'o', project_id: 'p', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: code,
+      description: `${code} work`, unit, quantity, rate: 50000, created_at: '' }) as BoqItemRow;
+  const BOQ = [line('b1', 'SURVEY', 'km', 1900), line('b2', 'STATION', 'unit', 5)];
+  const facts = (id: string, balance: number): ContractLineFacts => ({
+    boqItemId: id, earningBasis: 'unit_rate', lineNo: null, orderedQuantity: 0, acceptedQuantity: 0, closedFinal: 0,
+    earnedQuantity: 0, contractBalance: balance, allocations: [],
+  });
+  const FACTS = [facts('b1', 900), facts('b2', 5)];
+  const own: WorkOrderLineRow = { id: 'l1', org_id: 'o', work_order_id: 'wo-1', boq_item_id: 'b1', quantity: 1000, created_at: '' };
+  const WO = { id: 'wo-1', wo_number: 'WO-001', title: 'Phase 1', status: 'Issued' };
+
+  function renderModal(over: Partial<React.ComponentProps<typeof WorkOrderLinesModal>> = {}) {
+    const fns = {
+      onCreate: vi.fn().mockResolvedValue(undefined), onUpdate: vi.fn().mockResolvedValue(undefined),
+      onDelete: vi.fn().mockResolvedValue(undefined), onError: vi.fn(), onClose: vi.fn(),
+    };
+    render(<ToastProvider><WorkOrderLinesModal workOrder={WO} boqItems={BOQ} contractLines={FACTS} allocations={[own]} canEdit
+      {...fns} {...over} /></ToastProvider>);
+    return { ...fns, user: userEvent.setup() };
+  }
+
+  it('AC-CQ-014 each line shows its contract balance and this order\'s quantity', () => {
+    renderModal();
+    expect(screen.getByLabelText(/SURVEY —/)).toHaveValue('1,000');
+    expect(screen.getByLabelText(/STATION —/)).toHaveValue('');
+    expect(screen.getByTestId('lines-balance-b1')).toHaveTextContent('900');
+    expect(screen.getByTestId('lines-balance-b2')).toHaveTextContent('5');
+  });
+
+  it('AC-CQ-014 a new allocation is created one row at a time and an existing one is updated', async () => {
+    const { onCreate, onUpdate, user } = renderModal();
+    await user.type(screen.getByLabelText(/STATION —/), '2');
+    await user.click(screen.getByRole('button', { name: 'Save STATION' }));
+    expect(onCreate).toHaveBeenCalledWith('b2', 2);
+    const survey = screen.getByLabelText(/SURVEY —/);
+    await user.clear(survey);
+    await user.type(survey, '950');
+    await user.click(screen.getByRole('button', { name: 'Save SURVEY' }));
+    expect(onUpdate).toHaveBeenCalledWith('l1', 950);
+    expect(onCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-CQ-014 over-ordering is warned in words but still saves', async () => {
+    const { onCreate, user } = renderModal();
+    await user.type(screen.getByLabelText(/STATION —/), '6');
+    expect(screen.getByText(/Over-ordered by 1 unit/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save STATION' }));
+    expect(onCreate).toHaveBeenCalledWith('b2', 6);
+  });
+
+  it('AC-CQ-014 an Issued order\'s own allocation counts as available to itself', async () => {
+    renderModal();
+    const survey = screen.getByLabelText(/SURVEY —/);
+    await userEvent.setup().clear(survey);
+    await userEvent.setup().type(survey, '1,900');
+    expect(screen.queryByText(/Over-ordered/)).not.toBeInTheDocument();
+  });
+
+  it.each(['0', '1.2345', ''])('AC-CQ-014 a quantity of "%s" is refused without a call', async (value) => {
+    const { onCreate, onUpdate, user } = renderModal();
+    const station = screen.getByLabelText(/STATION —/);
+    if (value) await user.type(station, value);
+    await user.click(screen.getByRole('button', { name: 'Save STATION' }));
+    expect(await screen.findByText('Enter a quantity above 0 with at most 3 decimal places')).toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('AC-CQ-014 a refused save stays on the row with the typed value and the server wording', async () => {
+    const onCreate = vi.fn().mockRejectedValue(new Error('this work order is closed'));
+    const { onError, user } = renderModal({ onCreate });
+    await user.type(screen.getByLabelText(/STATION —/), '2');
+    await user.click(screen.getByRole('button', { name: 'Save STATION' }));
+    const rowError = (await screen.findAllByRole('alert')).find((node) => node.textContent?.includes('closed'));
+    expect(rowError).toBeDefined();
+    expect(screen.getByLabelText(/STATION —/)).toHaveValue('2');
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it('AC-CQ-014 removing an allocation asks first, then deletes that row only', async () => {
+    const { onDelete, user } = renderModal();
+    await user.click(screen.getByRole('button', { name: 'Remove SURVEY' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove allocation' }));
+    expect(onDelete).toHaveBeenCalledWith('l1');
+  });
+
+  it.each([
+    ['without permission', { canEdit: false }],
+    ['on a closed work order', { workOrder: { ...WO, status: 'Closed' } }],
+  ])('AC-CQ-014 %s the editor is read-only', (_name, over) => {
+    renderModal(over as never);
+    expect(screen.getByTestId('lines-readonly-b1')).toHaveTextContent('1,000');
+    expect(screen.queryByRole('button', { name: /^Save / })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument();
   });
 });
