@@ -384,6 +384,22 @@ export async function unlinkMicrosoftProcurementDocument(id: string): Promise<vo
 }
 
 /**
+ * Clears a LEGACY plain link (no Microsoft source) and nothing else: type/status/reference/date are
+ * retained. The `source IS NULL` guard means this can never be used to strip a Microsoft reference
+ * (that is `unlinkMicrosoftProcurementDocument`), and it never reclassifies the URL as Microsoft.
+ */
+export async function clearProcurementDocumentLink(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('procurement_documents')
+    .update({ link: null })
+    .eq('id', id)
+    .is('source', null)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
+/**
  * Removes a document-metadata row by id (AC-PROC-005). org_id is NEVER sent.
  */
 export async function deleteProcurementDocument(id: string): Promise<void> {

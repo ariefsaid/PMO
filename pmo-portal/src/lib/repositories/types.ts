@@ -4,6 +4,9 @@ import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
+import type {
+  ConfirmWorkOrderAcceptanceResult, PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineInput, WorkOrderLineRow,
+} from '@/src/lib/db/workOrderAcceptances';
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 /**
@@ -43,6 +46,7 @@ import type {
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
+import type { ErpPurchaseRow } from './erpPurchases';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -51,6 +55,12 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput, MicrosoftLibraryDefault } from '@/src/lib/m365/reference';
+import type {
+  RecordFolderBackfillPage,
+  RecordFolderCursor,
+  RecordFolderOutcome,
+  RecordFolderTarget,
+} from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
 import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -353,6 +363,7 @@ export interface DocumentRepository {
     parentId: string,
     input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
     authorId: string | null,
+    microsoft?: MicrosoftReferenceInput,
   ): Promise<ProjectDocumentRow>;
   /** Get the child (successor) document for lineage display. */
   getChild(parentId: string): Promise<ProjectDocumentRow | null>;
@@ -443,6 +454,8 @@ export interface ProcurementRepository {
   ): Promise<ProcurementDocumentRow>;
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   unlinkMicrosoftDocument(id: string): Promise<void>;
+  /** Clear a legacy plain link only (no Microsoft source); other metadata is retained. */
+  clearDocumentLink(id: string): Promise<void>;
   /** Remove a document-metadata row. */
   deleteDocument(id: string): Promise<void>;
   // ── New ERP-canonical record creators (Slice 5.4) ──
@@ -667,6 +680,27 @@ export interface ProgressBillingRepository {
   summary(projectId: string): Promise<ProjectBillingFacts | null>;
 }
 
+/**
+ * Contract quantities (ADR-0091): allocations of contract lines to a work order (plain table writes) and BAST
+ * acceptances (definer RPCs only). Nothing here dispatches to an ERP.
+ */
+export interface WorkOrderAcceptanceRepository {
+  /** Every acceptance on a project with its lines, newest first; refuses a saturated list. */
+  listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  /** The allocations of one work order. */
+  listLines(workOrderId: string): Promise<WorkOrderLineRow[]>;
+  /** Every allocation on a project's work orders. */
+  listProjectLines(projectId: string): Promise<WorkOrderLineRow[]>;
+  createLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow>;
+  updateLine(id: string, quantity: number): Promise<void>;
+  deleteLine(id: string): Promise<void>;
+  /** Creates a Draft, or replaces the Draft named by `acceptanceId`; returns the acceptance id. */
+  prepare(input: PrepareWorkOrderAcceptanceInput): Promise<string>;
+  withdraw(id: string): Promise<void>;
+  /** Confirms; a final one closes the work order. Figures come only from this response. */
+  confirm(id: string): Promise<ConfirmWorkOrderAcceptanceResult>;
+}
+
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
@@ -769,6 +803,12 @@ export interface ExpenseReceiptRepository {
 }
 
 /** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0270). */
+/** FR-EPR-006/007: ERP-native purchases, read-only (DD-XING-2). Never summed into spent/committed. */
+export interface ErpPurchaseRepository {
+  list(projectId?: string): Promise<ErpPurchaseRow[]>;
+  hasAny(): Promise<boolean>;
+}
+
 export interface ExpensePostingRepository {
   /** What one claim posted to ERPNext (FR-EXP-117). */
   listForClaim(claimId: string): Promise<ExpensePostingRow[]>;
@@ -807,9 +847,17 @@ export interface M365DocumentSettingsRepository {
   setDefaultLibrary(value: MicrosoftLibraryDefault | null): Promise<void>;
 }
 
+export interface M365RecordFoldersRepository {
+  /** Link or create the record's SharePoint folder (server-side; the browser never writes to Graph). */
+  ensure(target: RecordFolderTarget): Promise<RecordFolderOutcome>;
+  /** One match-only page of the Admin backfill sweep. */
+  linkExisting(cursor?: RecordFolderCursor): Promise<RecordFolderBackfillPage>;
+}
+
 export interface Repositories {
   fxRates: FxRatesRepository;
   m365DocumentSettings: M365DocumentSettingsRepository;
+  m365RecordFolders: M365RecordFoldersRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
@@ -826,10 +874,12 @@ export interface Repositories {
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
+  erpPurchases: ErpPurchaseRepository;
   contact: ContactRepository;
   meeting: MeetingRepository;
   userView: UserViewRepository;

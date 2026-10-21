@@ -50,6 +50,17 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 // OD-BILL-1: the tab now reads work-order billing through react-query. These specs predate it and mount without a
 // QueryClientProvider, so the hook is held in its loading state and contributes no figures; billing is covered in
 // WorkOrdersTab.billing.test.tsx.
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptanceMutations: () => ({}),
+}));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useWorkOrderBilling: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));

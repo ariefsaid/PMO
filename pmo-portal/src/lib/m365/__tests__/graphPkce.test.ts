@@ -165,8 +165,31 @@ describe('buildAdminConsentUrl (step 2 — org approval)', () => {
   it('AC-M365SEP-013: includes the Graph-qualified Phase-1 data scopes, excluding OIDC protocol scopes', () => {
     const url = new URL(buildAdminConsentUrl(baseParams));
     expect(url.searchParams.get('scope')).toBe(
-      'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All',
+      'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/Sites.Selected',
     );
+  });
+
+  it('AC-M365DOC-070: personal and Admin consent request the same data scopes, Sites.Selected included, never a broad write', () => {
+    expect(M365_PHASE1_DATA_SCOPES).toContain('Sites.Selected');
+    expect(M365_PHASE1_DATA_SCOPES).toEqual(expect.arrayContaining(['Files.Read', 'Files.Read.All', 'Sites.Read.All']));
+    expect(M365_PHASE1_DATA_SCOPES.filter((scope) => scope === 'Sites.Selected')).toHaveLength(1);
+    expect(M365_PHASE1_DATA_SCOPES.some((scope) => /ReadWrite/u.test(scope))).toBe(false);
+    const personal = new URL(buildAuthorizeUrl({
+      tenant: baseParams.tenant,
+      clientId: baseParams.clientId,
+      redirectUri: baseParams.redirectUri,
+      state: baseParams.state,
+      codeChallenge: 'test-challenge-value',
+      scopes: [...M365_PHASE1_DATA_SCOPES, 'offline_access'],
+    }));
+    const personalScopes = (personal.searchParams.get('scope') ?? '').split(' ');
+    const adminScopes = (new URL(buildAdminConsentUrl(baseParams)).searchParams.get('scope') ?? '')
+      .split(' ').map((scope) => scope.replace('https://graph.microsoft.com/', ''));
+    for (const scope of M365_PHASE1_DATA_SCOPES) {
+      expect(personalScopes).toContain(scope);
+      expect(adminScopes).toContain(scope);
+    }
+    expect(adminScopes).toHaveLength(M365_PHASE1_DATA_SCOPES.length);
   });
 
   it('AC-M365SEP-013: derives consent scopes from the shared data-scope list', () => {

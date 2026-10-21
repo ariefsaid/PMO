@@ -275,6 +275,28 @@ describe('AC-DOC-052 createDocumentRevision', () => {
     expect(insert.parent_document_id).toBe('d1');
     expect(insert.author_id).toBe('author-2');
     expect(insert.status).toBe('Draft');
+    expect(insert).not.toHaveProperty('source');
+  });
+
+  const revInput = { title: 'T', code: 'C', category: 'Drawing', revision: 'B', doc_date: '' };
+  const ref = { drive_id: 'drive-1', item_id: 'item-1', web_url: 'https://example.invalid/f', name: 'Synthetic.pdf', item_kind: 'file' as const };
+
+  it('AC-M365DOC-068: a Microsoft reference rides the single child INSERT, with no inherited pin/baseline', async () => {
+    h.result.value = { data: { id: 'child-1', project_id: 'p1' }, error: null };
+    await createDocumentRevision('d1', revInput, 'author-2', ref);
+    expect(h.calls.insert).toHaveLength(1);
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert).toMatchObject({
+      status: 'Draft', parent_document_id: 'd1', source: 'onedrive',
+      ms_drive_id: 'drive-1', ms_item_id: 'item-1', ms_web_url: ref.web_url, ms_item_name: 'Synthetic.pdf', ms_item_kind: 'file',
+    });
+    expect(Object.keys(insert).filter((k) => /content_tag|version_id|drift|verified/.test(k))).toEqual([]);
+  });
+
+  it('AC-M365DOC-062: an invalid reference is refused before any write', async () => {
+    await expect(createDocumentRevision('d1', revInput, 'a', { ...ref, web_url: 'http://example.invalid/f' }))
+      .rejects.toMatchObject({ code: '23514', details: 'm365-reference-invalid' });
+    expect(h.calls.insert).toHaveLength(0);
   });
 });
 

@@ -190,7 +190,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
+      // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
+      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -208,6 +209,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
     expect(Object.keys(repositories.m365DocumentSettings).sort()).toEqual(['getDefaultLibrary', 'setDefaultLibrary']);
+  });
+
+  it('m365RecordFolders exposes ensure and linkExisting (#1020)', () => {
+    expect(Object.keys(repositories.m365RecordFolders).sort()).toEqual(['ensure', 'linkExisting']);
   });
 
   it('expensePostings exposes the two read methods (#775 phase B, ADR-0017)', () => {
@@ -287,6 +292,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createPurchaseRequest',
         'createQuotation',
         'createReceipt',
+        'clearDocumentLink',
         'createRfq',
         'deleteDocument',
         'deleteItem',

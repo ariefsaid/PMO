@@ -41,6 +41,7 @@ const seed = [
 ];
 
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
 // Project/vendor picker options are cached hooks; stub them so the index test
 // needs no QueryClient.

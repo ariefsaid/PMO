@@ -1,0 +1,28 @@
+# ADR-0089 — Server-built Microsoft record-folder creation
+
+- **Status:** Accepted by the Director 2026-10-21; implements the owner-signed 2026-10-21 scope, not permission to execute a Microsoft grant or deploy.
+- **Date:** 2026-10-21
+- **Related:** [Signed specification §3.9](../specs/m365-onedrive-doc-linking.spec.md#39-record-folders-amendment-2026-10-21--owner-signed), [token custody](0060-microsoft-graph-token-custody.md), [integration architecture](0063-microsoft-365-integration-architecture.md), [read batches](0086-m365-server-generated-read-batches.md), [implementation plan](../plans/2026-10-21-m365-record-folders.md).
+
+## Context
+
+The signed amendment permits one new Microsoft operation: ensure a project or procurement case's reference-only folder in the org default SharePoint library. The existing metadata picker, document lifecycle, personal connections and direct-open model remain authoritative. A general Graph writer is unnecessary. Folder creation changes the consent and external-mutation boundary, so this warrants an ADR rather than an undocumented extension of read batching.
+
+## Decision
+
+1. Add delegated `Sites.Selected` to the shared data-consent set used by personal authorization and Microsoft admin consent. Retain existing read scopes; request no `Files.ReadWrite*` or tenant-wide write. The owner separately grants the app `write` on the selected site using a dry-run-default script with explicit site/app arguments. An agent never runs the live grant. Microsoft intersects app and signed-in-user authority.
+2. Expose `ensure_record_folder` with only a typed record kind and UUID. Load the parent, existing folder references and default library under the caller JWT. Resolve only that caller's connection. The server derives the name, convention ancestors, drive, parent and folder-only POST. The browser `graph_proxy` remains GET-only. Keep a distinct tested folder-write allowlist and preserve ADR-0086's internal GET-only batch adapter.
+3. A pre-existing folder reference is a no-op before any Microsoft call. Search at most three pages, at most 100 entries each. Only a complete successful zero-match search authorizes creation; refusal, malformed paging and exhaustion are not evidence of absence. One match links it, several require the existing picker. Match-only administrative backfill cannot obtain a creation capability.
+4. Use `conflictBehavior: fail`. A precise `409 nameAlreadyExists` permits one metadata re-read of the exact server-computed path, never rename-on-conflict, POST retry, upload or replacement. Convention ancestors are created lazily only when needed. No other child folders are provisioned.
+5. Serialize the final check-and-insert in a caller-executed SECURITY INVOKER RPC using a transaction-scoped record advisory lock. Recheck all existing folder references and insert into the existing typed register. Existing RLS, stamps and link-audit triggers execute normally. This prevents two ensure callers from inserting two reference rows; it does not impose a unique-folder constraint on deliberate manual linking. No database lock spans a Microsoft request.
+6. After each confirmed Microsoft folder creation, call a dedicated service-only audit RPC. It derives actor/org from the verified actor and typed parent, emits `m365.folder_created` through internal `log_audit`, and deduplicates by org/drive/item. No client audit writer, name, path, URL or arbitrary audit JSON is introduced. Convention ancestors created by this operation are also audited, attributed to the initiating record. Link audit remains transactional with the register insert.
+7. Start the foreground best-effort step immediately after successful FE parent creation; never await it as part of saving the record. Keep visible pending/result/recovery on the record, no timers/jobs/background retry. Editors receive one Create folder action; Admin receives bounded, foreground match-only backfill with counts and cancellation.
+
+## Consequences
+
+- External writes stay inside existing credential custody and caller-owned token refresh; neither browser nor Postgres performs arbitrary Graph writes.
+- Older personal connections retain read linking. Ensure reports additional-consent recovery until the person reconnects; a missing site grant is a Microsoft access failure, not something reconnect alone promises to repair.
+- A nullable legacy/missing case code or project code uses manual recovery rather than inventing a new identifier or changing purchasing/project numbering. Case `code` and `title` are the case-level request identity/subject; stage PR numbers are not folder identity.
+- There is no distributed transaction between Graph and Postgres. A confirmed external create remains true if later PMO linking fails. Explicit retry discovers the folder; PMO never compensates by deleting it. A crash between Graph success and audit persistence is an operational reconciliation boundary, not an exactly-once claim. Such live evidence stays private.
+- Two requests sharing a canonical name converge via Graph conflict handling and the final DB insert guard. Concurrent record renaming/default changes can leave an unlinked external folder; final settings fencing prevents linking it to the wrong current default. Automatic cleanup, durable external-work queues and global uniqueness of Microsoft folders are outside this amendment.
+- The additive migration and router/UI additions are reversible without deleting Microsoft folders, references or historical audit events. The owner grant has a separate Microsoft administrative lifecycle; code rollback does not revoke it automatically.

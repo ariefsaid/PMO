@@ -21,7 +21,10 @@ import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
  * expected tenant (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access`
  * yields a durable refresh token; `Files.Read` is the OneDrive read scope. `Files.Read.All` +
  * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
- * only the signed-in user's OneDrive, not shared sites). All three are read scopes (ADR-0060 §1/§5).
+ * only the signed-in user's OneDrive, not shared sites). Those three are read scopes (ADR-0060 §1/§5).
+ * `Sites.Selected` (ADR-0089) lets the server create ONE record folder on a site an admin explicitly
+ * granted the app `write` on; it is delegated (intersected with the user's own rights), never
+ * `Files.ReadWrite*`, and is shared with the admin-consent URL through M365_PHASE1_DATA_SCOPES.
  */
 export const M365_PHASE1_SCOPES = [
   ...M365_PHASE1_DATA_SCOPES,

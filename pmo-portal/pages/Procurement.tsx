@@ -34,6 +34,8 @@ import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcur
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useHasErpPurchases } from '@/src/hooks/useErpPurchases';
+import { Link } from 'react-router';
 import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
 
@@ -114,6 +116,7 @@ const ProcurementPage: React.FC = () => {
       navigate(`/procurement/new${query.size ? `?${query}` : ''}`, { replace: true });
     }
   }, [location.search, navigate]);
+  const { t: tf } = useTranslation('finance');
   const statusLabel = useProcurementStatusLabel();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
@@ -131,6 +134,8 @@ const ProcurementPage: React.FC = () => {
   // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const { data, isPending, isError, refetch } = useProcurements({ withRefs: true });
+  // FR-EPR-007: link the ERP-native purchases list only when the org has any to show.
+  const { data: hasErpPurchases } = useHasErpPurchases({ enabled: !ownScoped && may('view', 'procurement') });
   const { data: projectOptions = [] } = useProjectOptions();
   const { data: vendorOptions = [] } = useVendorOptions();
 
@@ -351,7 +356,19 @@ const ProcurementPage: React.FC = () => {
       description={
         ownScoped
           ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
-          : t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')
+          : (
+            <>
+              {t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')}
+              {hasErpPurchases && (
+                <>
+                  {' '}
+                  <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
+                    {tf('erpPurchases.title', 'Purchases recorded in ERPNext')}
+                  </Link>
+                </>
+              )}
+            </>
+          )
       }
       primaryAction={
         canCreate && (

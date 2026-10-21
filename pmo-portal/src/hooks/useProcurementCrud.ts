@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
@@ -53,8 +54,17 @@ export function useProcurementDocuments(id: string | undefined) {
 export function useCreateProcurement() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
+  const startRecordFolder = useStartRecordFolder();
   return useMutation<Tables<'procurements'>, AppError, NewProcurementInput>({
-    mutationFn: (input) => repositories.procurement.create(input, currentUser?.id ?? ''),
+    mutationFn: async (input) => {
+      const row = await repositories.procurement.create(input, currentUser?.id ?? '');
+      // #1020: link/create the case's SharePoint folder. The folder name needs the case's request
+      // number (`pr_number`, else the imported `code`), so a number-less Draft starts nothing here —
+      // it gets its folder when it is submitted to Requested (useProcurementMutations.transition).
+      // Fire-and-forget: the saved case is returned unchanged whatever the folder does.
+      if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
+      return row;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['procurements'] }),
   });
 }

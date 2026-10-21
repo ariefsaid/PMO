@@ -1,0 +1,278 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
+
+const h = vi.hoisted(() => ({
+  rows: [] as Array<Record<string, unknown>>,
+  state: { isPending: false, isError: false },
+  perms: { create: true, edit: true },
+  hook: {
+    create: { mutateAsync: vi.fn(), isPending: false },
+    link: { mutateAsync: vi.fn(), isPending: false },
+    unlink: { mutateAsync: vi.fn(), isPending: false },
+    clearLegacy: { mutateAsync: vi.fn(), isPending: false },
+    invalidate: vi.fn(),
+  },
+  picker: { props: null as null | { open: boolean; context: unknown; onClose: () => void; onSelect: (r: unknown) => Promise<void> } },
+  refresh: vi.fn(),
+}));
+
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useProcurementMicrosoftReferences')>()),
+  useProcurementMicrosoftReferences: () => ({
+    query: { data: h.rows, isPending: h.state.isPending, isError: h.state.isError, refetch: vi.fn() },
+    ...h.hook,
+  }),
+}));
+vi.mock('@/src/components/m365/DocumentLinkPermissions', () => ({
+  useDocumentLinkPermissions: () => ({
+    procurementCreate: () => h.perms.create,
+    procurementEdit: () => h.perms.edit,
+  }),
+}));
+vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
+  MicrosoftDocumentPicker: (props: NonNullable<typeof h.picker.props>) => {
+    h.picker.props = props;
+    return props.open ? <div role="dialog" aria-label="picker" /> : null;
+  },
+}));
+// The case register mounts RecordFolderAction (own coverage: RecordFolderAction.test / useStartRecordFolder tests).
+vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/lib/m365/graphClient', () => ({ refreshMicrosoftReferences: h.refresh }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }) }));
+
+import { ProcurementMicrosoftReferences } from './ProcurementMicrosoftReferences';
+import { matchingReferencePairs } from '@/src/hooks/useProcurementMicrosoftReferences';
+
+const msRow = (over: Record<string, unknown> = {}) => ({
+  id: 'ms-1', procurement_id: 'case-1', type: 'Microsoft reference', status: 'Draft', reference_number: 'REF-9', date: '2026-10-01',
+  link: 'https://example.invalid/sites/x/folder', source: 'onedrive', ms_drive_id: 'drive-1', ms_item_id: 'item-1',
+  ms_item_name: 'Synthetic folder', ms_item_kind: 'folder', ms_linked_by: 'user-1', ms_linked_at: '2026-10-02T00:00:00Z',
+  ms_last_verified_at: null, org_id: 'org-1', ...over,
+});
+const legacyRow = (over: Record<string, unknown> = {}) => ({
+  id: 'legacy-1', procurement_id: 'case-1', type: 'Quote', status: 'Issued', reference_number: 'Q-1', date: null,
+  link: 'https://legacy.invalid/q.pdf', source: null, ms_drive_id: null, ms_item_id: null, ms_item_name: null,
+  ms_item_kind: null, ms_linked_by: null, ms_linked_at: null, ms_last_verified_at: null, org_id: 'org-1', ...over,
+});
+const emptyRow = (over: Record<string, unknown> = {}) => legacyRow({ id: 'empty-1', type: 'Spec', link: null, ...over });
+
+const picked = { drive_id: 'drive-2', item_id: 'item-2', web_url: 'https://example.invalid/sites/y/file', name: 'Picked file', item_kind: 'file' as const };
+
+function renderIt() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <ProcurementMicrosoftReferences procurementId="case-1" requestNumber="PR-2026-001" createdAt="2026-10-01T00:00:00Z" />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.rows = [];
+  h.state.isPending = false; h.state.isError = false;
+  h.perms.create = true; h.perms.edit = true;
+  h.picker.props = null;
+  h.hook.create.mutateAsync.mockResolvedValue({ id: 'new' });
+  h.hook.link.mutateAsync.mockResolvedValue(undefined);
+  h.hook.unlink.mutateAsync.mockResolvedValue(undefined);
+  h.hook.clearLegacy.mutateAsync.mockResolvedValue(undefined);
+  h.refresh.mockResolvedValue(undefined);
+});
+
+describe('AC-M365DOC-058/059 case references on the Documents tab', () => {
+  it('shows file and folder references and a legacy plain URL for a project-less case at any stage', () => {
+    h.rows = [msRow(), msRow({ id: 'ms-2', ms_item_name: 'Synthetic file', ms_item_kind: 'file', ms_item_id: 'item-3' }), legacyRow()];
+    renderIt();
+    expect(screen.getByRole('heading', { name: 'Case references' })).toBeInTheDocument();
+    expect(screen.getByText('Synthetic folder')).toBeInTheDocument();
+    expect(screen.getByText('Synthetic file')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
+    const legacy = screen.getAllByRole('link', { name: 'Open linked document' })[0];
+    expect(legacy).toHaveAttribute('href', 'https://legacy.invalid/q.pdf');
+    expect(legacy).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getAllByText('Plain link, not from Microsoft 365').length).toBeGreaterThan(0);
+  });
+
+  it('does not render an unsafe legacy URL as a link', () => {
+    h.rows = [legacyRow({ link: 'javascript:alert(1)' })];
+    renderIt();
+    expect(screen.queryByRole('link', { name: 'Open linked document' })).toBeNull();
+    expect(screen.getAllByText('This link cannot be opened.').length).toBeGreaterThan(0);
+  });
+
+  it('shows the empty and error states', () => {
+    renderIt();
+    expect(screen.getByText('No references yet')).toBeInTheDocument();
+  });
+
+  it('exposes no money or stage command', () => {
+    h.rows = [msRow()];
+    renderIt();
+    expect(screen.queryByRole('button', { name: /approve|submit|activate|transition|push/i })).toBeNull();
+  });
+});
+
+describe('AC-M365DOC-060 permissions (real-role procDoc matrix)', () => {
+  it('hides link and unlink affordances without create/edit permission, while display and open stay', () => {
+    h.perms.create = false; h.perms.edit = false;
+    h.rows = [msRow(), legacyRow(), emptyRow()];
+    renderIt();
+    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Unlink/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Clear link/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Link .* from Microsoft 365/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
+  });
+
+  it('create without edit shows only the header link action', () => {
+    h.perms.edit = false;
+    h.rows = [msRow(), emptyRow()];
+    renderIt();
+    expect(screen.getByRole('button', { name: 'Link from Microsoft 365' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Unlink/ })).toBeNull();
+  });
+});
+
+describe('AC-M365DOC-060/062 create flow, suggestion and failure retention', () => {
+  it('passes the request number and creation date as the contextual suggestion source', () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    expect(h.picker.props?.open).toBe(true);
+    expect(h.picker.props?.context).toEqual({ kind: 'procurement', request_number: 'PR-2026-001', created_at: '2026-10-01T00:00:00Z' });
+  });
+
+  it('commits exactly one create with optional metadata after the picker selection', async () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    act(() => h.picker.props!.onClose());
+    const dialog = await screen.findByRole('dialog', { name: /Add case reference/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reference number/), { target: { value: ' REF-77 ' } });
+    fireEvent.change(within(dialog).getByLabelText(/Date/), { target: { value: '2026-10-14' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Link reference' }));
+    await waitFor(() => expect(h.hook.create.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(h.hook.create.mutateAsync).toHaveBeenCalledWith({ reference: picked, metadata: { referenceNumber: 'REF-77', date: '2026-10-14' } });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Add case reference/ })).toBeNull());
+  });
+
+  it('a failed create keeps the dialog, the selection and the typed values and shows an alert', async () => {
+    h.hook.create.mutateAsync.mockRejectedValue(Object.assign(new Error('collision'), { code: '23514' }));
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    act(() => h.picker.props!.onClose());
+    const dialog = await screen.findByRole('dialog', { name: /Add case reference/ });
+    fireEvent.change(within(dialog).getByLabelText(/Reference number/), { target: { value: 'REF-1' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Link reference' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not add this reference.');
+    expect(screen.getByRole('dialog', { name: /Add case reference/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog', { name: /Add case reference/ })).getByLabelText(/Reference number/)).toHaveValue('REF-1');
+  });
+
+  it('closing the picker without a selection creates nothing', () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    act(() => h.picker.props!.onClose());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(h.hook.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('an empty legacy row links through linkMicrosoftDocument, never create, never overwriting a URL', async () => {
+    h.rows = [emptyRow(), legacyRow()];
+    renderIt();
+    expect(screen.queryByRole('button', { name: /^Link Quote from Microsoft 365/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Link Spec from Microsoft 365' }));
+    await h.picker.props!.onSelect(picked);
+    expect(h.hook.link.mutateAsync).toHaveBeenCalledWith({ id: 'empty-1', reference: picked });
+    expect(h.hook.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-M365DOC-062/063 unlink and legacy clear retain metadata', () => {
+  it('unlink asks first, says only the PMO reference is removed, and Cancel changes nothing', async () => {
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Synthetic folder' }));
+    expect(await screen.findByText(/removes only the PMO reference/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(h.hook.unlink.mutateAsync).not.toHaveBeenCalled();
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+
+  it('confirming unlink calls only the Microsoft unlink for that row', async () => {
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Synthetic folder' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Unlink' }));
+    await waitFor(() => expect(h.hook.unlink.mutateAsync).toHaveBeenCalledWith('ms-1'));
+    expect(h.hook.clearLegacy.mutateAsync).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+
+  it('a failed unlink keeps the dialog open with an in-dialog remedy', async () => {
+    h.hook.unlink.mutateAsync.mockRejectedValue(new Error('denied'));
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Synthetic folder' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Unlink' }));
+    expect(await screen.findByText(/The reference was not changed/)).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('a legacy plain link offers an explicit clear, which calls the legacy clear and not the Microsoft unlink', async () => {
+    h.rows = [legacyRow()];
+    renderIt();
+    expect(screen.queryByRole('button', { name: /^Unlink/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear link on Quote' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Clear link' }));
+    await waitFor(() => expect(h.hook.clearLegacy.mutateAsync).toHaveBeenCalledWith('legacy-1'));
+    expect(h.hook.unlink.mutateAsync).not.toHaveBeenCalled();
+    expect(h.hook.link.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-M365DOC-059/062 matching browse refresh', () => {
+  it('matchingReferencePairs compares drive AND item, so one item id in two drives is not confused', () => {
+    const rows = [msRow({ id: 'a', ms_drive_id: 'drive-A', ms_item_id: 'same' }), msRow({ id: 'b', ms_drive_id: 'drive-B', ms_item_id: 'same' }), legacyRow()] as never;
+    expect(matchingReferencePairs([{ drive_id: 'drive-B', item_id: 'same' }], rows)).toEqual([{ drive_id: 'drive-B', item_id: 'same' }]);
+    expect(matchingReferencePairs([{ drive_id: 'drive-C', item_id: 'same' }], rows)).toEqual([]);
+  });
+
+  it('matchingReferencePairs caps a refresh at twenty identities', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => msRow({ id: `r${i}`, ms_item_id: `i${i}` })) as never;
+    const loaded = Array.from({ length: 30 }, (_, i) => ({ drive_id: 'drive-1', item_id: `i${i}` }));
+    expect(matchingReferencePairs(loaded, rows)).toHaveLength(20);
+  });
+
+  it('refreshes only rows the selected item matches, then invalidates the register on success', async () => {
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await act(async () => { await h.picker.props!.onSelect({ ...picked, drive_id: 'drive-1', item_id: 'item-1' }); });
+    expect(h.refresh).toHaveBeenCalledWith({ procurement_id: 'case-1', items: [{ drive_id: 'drive-1', item_id: 'item-1' }] });
+  });
+
+  it('does not refresh for an item that matches no case reference', async () => {
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+
+  it('a failed metadata read neither throws into the picker nor removes the reference', async () => {
+    h.refresh.mockRejectedValue(new Error('graph'));
+    h.rows = [msRow()];
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await act(async () => {
+      await expect(h.picker.props!.onSelect({ ...picked, drive_id: 'drive-1', item_id: 'item-1' })).resolves.toBeUndefined();
+    });
+    expect(h.refresh).toHaveBeenCalledTimes(1);
+    expect(h.hook.unlink.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText('Synthetic folder')).toBeInTheDocument();
+  });
+});

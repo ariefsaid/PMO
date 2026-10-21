@@ -169,7 +169,7 @@ export function validateDenominator(parsed) {
     if (typeof t.columns !== 'string' || !/^(\*|[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*)$/.test(t.columns)) {
       throw new Error(`invalid denominator: table ${t.table} columns must be an explicit SELECT list`);
     }
-    if (!['own-org-only', 'none', 'global-readable'].includes(t.b_read)) throw new Error(`invalid denominator: table ${t.table} b_read is required`);
+    if (!['own-org-only', 'parent-org-only', 'none', 'global-readable'].includes(t.b_read)) throw new Error(`invalid denominator: table ${t.table} b_read is required`);
     if (typeof t.by_id !== 'string' || !(t.by_id === 'applicable' || /^n\/a: \S.+/.test(t.by_id)) || (!t.has_org && t.by_id === 'applicable')) {
       throw new Error(`invalid denominator: table ${t.table} by_id must explain N/A for no-org tables`);
     }

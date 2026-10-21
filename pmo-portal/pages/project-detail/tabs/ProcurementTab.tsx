@@ -19,6 +19,7 @@ import {
   pillVariantForStatus,
   openPR,
 } from '../../../components/procurement';
+import { ErpPurchasesSection } from '../ErpPurchasesSection';
 
 export interface ProcurementTabProps {
   projectId: string;
@@ -130,10 +131,11 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         )}
         emptySub={t(
           'uxs19.projectEmptyScope',
-          'This list covers PMO requests. ERP-native purchases stay in the ERP.',
+          'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
         )}
       tableId="project-detail-tabs-procurementtab-table" />
 
+      <ErpPurchasesSection projectId={projectId} />
     </div>
   );
 };

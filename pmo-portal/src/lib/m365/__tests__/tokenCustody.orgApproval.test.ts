@@ -41,6 +41,11 @@ describe('AC-M365SEP-013/014 — handleInitiateOrgApproval (step 2 — org appro
       );
       expect(body.adminConsentUrl).toContain('client_id=test-client-id');
       expect(body.adminConsentUrl).toContain('redirect_uri=');
+      // AC-M365DOC-070: Admin consent carries the same Sites.Selected data scope as personal consent,
+      // and never a broad Files.ReadWrite* write.
+      const consentScopes = (new URL(body.adminConsentUrl).searchParams.get('scope') ?? '').split(' ');
+      expect(consentScopes).toContain('https://graph.microsoft.com/Sites.Selected');
+      expect(consentScopes.some((scope) => /ReadWrite/u.test(scope))).toBe(false);
       // An Admin short-circuits the gate before the platform_operators read.
       expect(service.from).not.toHaveBeenCalledWith('platform_operators');
     });

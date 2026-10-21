@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal,
   TextField,
@@ -8,6 +9,8 @@ import {
 } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
+import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { DocumentDriftBadge } from '@/src/components/m365/DocumentDriftBadge';
 
 /**
  * Auto-bump the revision mark: A→B, 3→4. If the last char is a letter or digit,
@@ -29,9 +32,14 @@ function bumpRevision(rev: string | null): string {
 
 interface NewRevisionModalProps {
   parent: ProjectDocumentRow;
-  onSubmit: (data: { title: string; code: string; category: string; revision: string; doc_date: string }) => void;
+  onSubmit: (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => void;
   onClose: () => void;
   loading: boolean;
+  /**
+   * The LATEST Microsoft file (re-read just before opening), when the revision is made from a
+   * changed-content file. It becomes the child's own reference; the parent's pin is never inherited.
+   */
+  microsoft?: MicrosoftReferenceInput | null;
 }
 
 /**
@@ -44,7 +52,9 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   onSubmit,
   onClose,
   loading,
+  microsoft,
 }) => {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(parent.title);
   const [code, setCode] = useState(parent.code ?? '');
   const [category, setCategory] = useState(parent.category);
@@ -62,6 +72,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       category: category.trim(),
       revision: revision.trim(),
       doc_date: docDate,
+      ...(microsoft ? { microsoft } : {}),
     });
   };
 
@@ -77,6 +88,24 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       dirty={true}
       submitDisabled={!canSubmit}
     >
+      {parent.source === 'onedrive' && parent.status !== 'Draft' && parent.ms_item_kind === 'file' && (
+        <div className="mb-3 flex min-w-0 flex-col gap-1" data-testid="revision-parent-summary">
+          <DocumentDriftBadge
+            status={parent.status}
+            driftState={
+              parent.ms_drift_state === 'clean' || parent.ms_drift_state === 'drifted' || parent.ms_drift_state === 'not_verified'
+                ? parent.ms_drift_state
+                : null
+            }
+            lastVerifiedAt={parent.ms_last_verified_at}
+          />
+          {microsoft && (
+            <span className="break-words text-[12px] text-muted-foreground">
+              {t('m365Documents.revisionLatestNote', 'The new revision will reference the latest Microsoft file: {{name}}.', { name: microsoft.name })}
+            </span>
+          )}
+        </div>
+      )}
       <FormSection legend="Revision details">
         <FormGrid>
           <TextField

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
+import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -1077,6 +1078,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             }}
           />
         )}
+        {selected && <BudgetDocumentLinks key={`evidence-${selected.id}`} versionId={selected.id} status={selected.status} />}
       </div>
 
       {budgetConfirm}

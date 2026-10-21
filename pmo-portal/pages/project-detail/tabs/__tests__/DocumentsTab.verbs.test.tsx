@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -74,13 +75,15 @@ vi.mock('@/src/hooks/useRevision', () => ({
 }));
 
 import DocumentsTab from '../DocumentsTab';
+// The register mounts RecordFolderAction, which reads the query cache (#1020).
+const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 const renderAsReviewer = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <ToastProvider>
+      <QueryClientProvider client={testQueryClient}><ToastProvider>
         <DocumentsTab projectId="p1" />
-      </ToastProvider>
+      </ToastProvider></QueryClientProvider>
     </ImpersonationProvider>,
   );
 
