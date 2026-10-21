@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   createRevision: vi.fn(),
 }));
 
+// The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
+vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({
     data: [makeLinkedDoc({ status: 'Issued', ms_drift_state: 'drifted', ms_last_verified_at: '2026-06-03T00:00:00Z' })],

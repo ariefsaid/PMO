@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   graph: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
 
+// The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
+vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => h.docs,
   useDocumentMutations: () => ({
