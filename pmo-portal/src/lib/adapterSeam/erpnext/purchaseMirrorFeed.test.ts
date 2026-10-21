@@ -13,13 +13,21 @@ function harness(docs: Record<string, unknown[]>) {
   const rpc = vi.fn().mockImplementation(async (_n: string, a: { p_rows: unknown[] }) => ({ data: a.p_rows.length, error: null }));
   const urls: string[] = [];
   const fetchImpl = vi.fn(async (url: string) => {
-    urls.push(decodeURIComponent(url));
+    const decoded = decodeURIComponent(url);
+    urls.push(decoded);
     const doctype = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
-    return new Response(JSON.stringify({ data: docs[doctype] ?? [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const filters = JSON.parse(new URL(url).searchParams.get('filters') ?? '[]') as Array<[string, string, unknown]>;
+    const selected = ((docs[doctype] ?? []) as Array<Record<string, unknown>>).filter((doc) => filters.every(([field, op, value]) => {
+      if (field === 'modified' && op === '=') return doc.modified === value;
+      if (field === 'modified' && op === '>') return String(doc.modified) > String(value);
+      if (field === 'name' && op === '>') return String(doc.name) > String(value);
+      return true;
+    })).sort((a, b) => String(a.modified).localeCompare(String(b.modified)) || String(a.name).localeCompare(String(b.name)));
+    return new Response(JSON.stringify({ data: selected }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   const sc = { from: (t: string) => fake.from(t), rpc } as never;
   const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
-  return { fake, rpc, urls, sc, client };
+  return { fake, rpc, urls, sc, client, fetchImpl: fetchImpl as unknown as ReturnType<typeof vi.fn> };
 }
 
 describe('erpnext/purchaseMirrorFeed', () => {
@@ -28,15 +36,18 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
     expect(result).toEqual({ fed: 2, caughtUp: true });
-    expect(h.rpc).toHaveBeenCalledTimes(1);
-    expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [expect.objectContaining({
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toEqual([expect.objectContaining({
       erp_doctype: 'Purchase Order', erp_name: 'PUR-ORD-1', supplier_name: 'Acme', doc_date: '2026-01-05', due_date: '2026-01-20',
       grand_total: '900000', outstanding_amount: null, bill_no: null, erp_status: 'To Bill', erp_project: 'ERP-A', erp_docstatus: 1 }),
     expect.objectContaining({
       erp_doctype: 'Purchase Invoice', erp_name: 'ACC-PINV-1', doc_date: '2026-02-01', due_date: '2026-03-01', bill_no: 'INV-77',
-      grand_total: '500000', outstanding_amount: '500000', erp_status: 'Unpaid', erp_project: null, is_return: false })] });
+      grand_total: '500000', outstanding_amount: '500000', erp_status: 'Unpaid', erp_project: null, is_return: false })]);
     const wm = Object.fromEntries(h.fake.rowsOf('external_sync_watermarks').map((r) => [r.domain, r.watermark_cursor]));
-    expect(wm).toEqual({ [purchaseWmDomain('Purchase Order')]: PO.modified, [purchaseWmDomain('Purchase Invoice')]: PI.modified });
+    expect(wm).toEqual({
+      'purchases::v2::Purchase Order': JSON.stringify({ version: 2, modified: PO.modified }),
+      'purchases::v2::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified }),
+    });
     // Company-scoped, drafts never listed.
     expect(h.urls.every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
   });
@@ -45,9 +56,12 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const h = harness({});
     h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
-    expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified",">=","2026-02-01 10:00:00"]');
+    expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified","=","2026-02-01 10:00:00"]');
     expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
-    expect(h.fake.rowsOf('external_sync_watermarks')[0].watermark_cursor).toBe('2026-02-01 10:00:00');
+    expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
+      domain: 'purchases::v2::Purchase Invoice',
+      watermark_cursor: JSON.stringify({ version: 2, modified: '2026-02-01 10:00:00' }),
+    }));
   });
 
   it('fails closed on a malformed ERP response without moving the watermark', async () => {
@@ -71,16 +85,17 @@ describe('erpnext/purchaseMirrorFeed', () => {
       { ...PI, name: 'ACC-PINV-2', grand_total: 'n/a', due_date: '03/01/2026', modified: '2026-02-02 00:00:00' },
     ] });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
-    const rows = h.rpc.mock.calls[0][1].p_rows as Array<Record<string, unknown>>;
+    const rows = h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<Record<string, unknown>>;
     expect(rows).toHaveLength(2);
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')).toMatchObject({ erp_status: 'Paid', outstanding_amount: '0' });
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')).toMatchObject({ grand_total: null, due_date: null });
-    const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === purchaseWmDomain('Purchase Invoice'));
-    expect(wm?.watermark_cursor).toBe('2026-02-03 00:00:00');
+    const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === 'purchases::v2::Purchase Invoice');
+    expect(wm?.watermark_cursor).toBe(JSON.stringify({ version: 2, modified: '2026-02-03 00:00:00' }));
   });
 
   it('keeps valid documents flowing when ERP returns unsupported status or overflowing money values', async () => {
     const h = harness({ 'Purchase Invoice': [
+      { ...PI, name: 'ACC-PINV-CANCELLED', docstatus: 2 },
       { ...PI, name: 'ACC-PINV-BAD-STATUS', docstatus: 3 },
       { ...PI, name: 'ACC-PINV-OVERFLOW', grand_total: '10000000000000000.00', due_date: '2026-02-30' },
       { ...PI, name: 'ACC-PINV-VALID' },
@@ -89,12 +104,121 @@ describe('erpnext/purchaseMirrorFeed', () => {
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
     expect(h.rpc.mock.calls[0][1].p_rows).toEqual([
+      expect.objectContaining({ erp_name: 'ACC-PINV-CANCELLED', erp_docstatus: 2 }),
       expect.objectContaining({ erp_name: 'ACC-PINV-OVERFLOW', grand_total: null, due_date: null }),
       expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }),
     ]);
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
-      domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified,
+      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified }),
     }));
+  });
+
+  it('streams bounded pages and resumes equal-timestamp names across ticks before replaying the boundary', async () => {
+    const names = Array.from({ length: 12503 }, (_, i) => `PO-${String(i).padStart(5, '0')}`);
+    let reads = 0;
+    const events: string[] = [];
+    const fake = new FakePostgrest({ external_sync_watermarks: [] }, { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
+    const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => { events.push('write'); return { data: args.p_rows.length, error: null }; });
+    const fetchImpl = vi.fn(async (url: string) => {
+      reads += 1;
+      events.push('read');
+      const decoded = decodeURIComponent(url);
+      const equalPhase = decoded.includes('["modified","=","2026-04-01 00:00:00"]');
+      const afterName = decoded.match(/\["name",">","([^"]+)"\]/)?.[1];
+      const laterPhase = decoded.includes('["modified",">","2026-04-01 00:00:00"]');
+      const doctype = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
+      const selected = doctype !== 'Purchase Order' ? [] : equalPhase ? names.filter((name) => !afterName || name > afterName)
+        : laterPhase ? [] : names;
+      const start = Number(new URL(url).searchParams.get('limit_start') ?? '0');
+      const rows = selected.slice(start, start + 500).map((name) => ({ ...PO, name, modified: '2026-04-01 00:00:00' }));
+      return new Response(JSON.stringify({ data: rows }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const sc = { from: (t: string) => fake.from(t), rpc } as never;
+    const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
+
+    const first = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
+    expect(first.caughtUp).toBe(false);
+    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(6000);
+    const firstCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
+    const second = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
+    expect(second.caughtUp).toBe(false);
+    const secondCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
+    expect(secondCount - firstCount).toBe(6000);
+    const third = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
+    expect(third.caughtUp).toBe(true);
+    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(12503);
+    expect(12503 - secondCount).toBe(503);
+    expect(reads).toBeGreaterThan(2);
+    expect(events.slice(0, 3)).toEqual(['read', 'write', 'read']);
+    const callUrls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => decodeURIComponent(String(call[0])));
+    expect(callUrls.some((url: string) => url.includes('/Purchase Order?') && url.includes('["modified","=","2026-04-01 00:00:00"]'))).toBe(true);
+  });
+
+  it('does not overwrite a cursor advanced by a concurrent sweep', async () => {
+    const initial = JSON.stringify({ version: 2, modified: PI.modified });
+    const winner = JSON.stringify({ version: 2, modified: '2026-03-01 00:00:00' });
+    const fake = new FakePostgrest({ external_sync_watermarks: [{ org_id: 'org-1', external_tier: 'erpnext',
+      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: initial }] },
+    { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
+    const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 }));
+    const from = (table: string) => {
+      const builder = fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
+      return { ...builder, update: (...args: unknown[]) => {
+        fake.rowsOf('external_sync_watermarks')[0].watermark_cursor = winner;
+        return builder.update(...args);
+      } };
+    };
+    const sc = { from, rpc } as never;
+    const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
+
+    await expect(feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow(/concurrently/);
+    expect(fake.rowsOf('external_sync_watermarks')[0].watermark_cursor).toBe(winner);
+  });
+
+  it('persists a complete page before a later fetch fails', async () => {
+    const rows = Array.from({ length: 500 }, (_, i) => ({ ...PO, name: `PO-${String(i).padStart(3, '0')}`, modified: '2026-04-02 00:00:00' }));
+    const fake = new FakePostgrest({ external_sync_watermarks: [] }, { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
+    const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ data: rows }), { status: 200 }))
+      .mockRejectedValueOnce(new Error('later read failed'));
+    const sc = { from: (t: string) => fake.from(t), rpc } as never;
+    const client = { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 };
+
+    await expect(feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('later read failed');
+
+    const saved = fake.rowsOf('external_sync_watermarks').find((row) => row.domain === 'purchases::v2::Purchase Order');
+    expect(JSON.parse(String(saved?.watermark_cursor))).toEqual({ version: 2, modified: rows[499].modified, name: rows[499].name });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps legacy timestamp watermarks and replays equal-boundary corrections inclusively', async () => {
+    const h = harness({ 'Purchase Invoice': [{ ...PI, modified: '2026-02-01 10:00:00', status: 'Corrected' }] });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
+    expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: PI.name, erp_status: 'Corrected' }));
+    expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
+      domain: expect.stringContaining('v2'), watermark_cursor: expect.stringContaining('2026-02-01 10:00:00'),
+    }));
+  });
+
+  it('does not repeat a remote read after a page write fails and uses a bounded no-retry transport', async () => {
+    const h = harness({ 'Purchase Order': [PO] });
+    h.client.maxRetries = 3;
+    h.fetchImpl.mockRejectedValueOnce(new Error('temporary transport failure'));
+    await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('temporary transport failure');
+    expect(h.fetchImpl).toHaveBeenCalledTimes(1);
+    expect(h.urls).toHaveLength(0);
+    const failedWrite = harness({ 'Purchase Order': [PO] });
+    failedWrite.client.maxRetries = 3;
+    failedWrite.rpc.mockResolvedValueOnce({ data: null, error: { message: 'write failed' } });
+    await expect(feedPurchaseMirror(failedWrite.sc, { client: failedWrite.client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('write failed');
+    expect(failedWrite.fetchImpl).toHaveBeenCalledTimes(1);
+    expect(failedWrite.urls).toHaveLength(1);
+    expect(failedWrite.fake.rowsOf('external_sync_watermarks')).toHaveLength(0);
   });
 
   it('refuses to run without a company', async () => {

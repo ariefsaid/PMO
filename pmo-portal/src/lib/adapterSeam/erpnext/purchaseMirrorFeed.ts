@@ -1,22 +1,18 @@
-/**
+/*
  * erpnext/purchaseMirrorFeed.ts (FR-EPR-001..004, docs/specs/erp-purchases-readonly.spec.md) — the sweep pass
  * that mirrors ERP-native Purchase Orders / Purchase Invoices into `erp_purchase_documents` (0335) for a
  * READ-ONLY list. DD-XING-2: read, never adopted — nothing here creates a PMO procurement case, and nothing
  * sums these rows into spent/committed/actuals (their cost already arrives through the GL mirror).
- *
- * Per doctype: read the `purchases::<doctype>` watermark, list submitted/cancelled docs `modified >=` it,
- * hand them to `upsert_erp_purchase_documents` (a strictly newer `modified` wins; the RPC also re-stamps
- * project attribution + the PMO-owned flag for the whole org), then advance the watermark. Drafts are never
- * listed: draft → submitted → cancelled each bump `modified`, so a document is re-read at every state it can
- * be shown in (#901's rule — never filter on a state the original can leave unseen — holds).
  */
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
-import { advanceWm, readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
+import { readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
 
 export type PurchaseDoctype = 'Purchase Order' | 'Purchase Invoice';
 export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
+const CURSOR_VERSION = 2;
+const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::v2::${doctype}`;
 
 const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
   'Purchase Order': ['name', 'supplier', 'supplier_name', 'transaction_date', 'schedule_date', 'currency',
@@ -25,7 +21,9 @@ const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
     'grand_total', 'outstanding_amount', 'status', 'docstatus', 'is_return', 'project', 'modified'],
 };
 const PAGE_SIZE = 500;
-const MAX_PAGES = 20;
+const MAX_PAGE_READS = 12;
+const PASS_BUDGET_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 5_000;
 
 export interface PurchaseFeedServiceClient extends Pick<LedgerFeedServiceClient, 'from'> {
   rpc(name: 'upsert_erp_purchase_documents', args: { p_org_id: string; p_rows: PurchaseMirrorRow[] }):
@@ -53,7 +51,6 @@ export interface PurchaseMirrorRow {
 export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
 
 const str = (v: unknown): string | null => (v === null || v === undefined || v === '' ? null : String(v));
-// One malformed field must not fail the whole batch every tick: an unparseable value is stored as unknown.
 const money = (v: unknown): string | null => {
   const t = str(v);
   if (t === null || !/^-?\d+(\.\d{1,2})?$/.test(t)) return null;
@@ -91,57 +88,125 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
   };
 }
 
-async function fetchSince(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, since: string | null) {
+interface PurchaseCursor { version: 2; modified: string; name?: string }
+function parseCursor(value: string | null): PurchaseCursor | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<PurchaseCursor>;
+    if (parsed.version === CURSOR_VERSION && typeof parsed.modified === 'string'
+      && (!parsed.name || typeof parsed.name === 'string')) return parsed as PurchaseCursor;
+  } catch { /* legacy cursors are plain Frappe timestamps */ }
+  return { version: CURSOR_VERSION, modified: value };
+}
+function encodeCursor(cursor: PurchaseCursor): string { return JSON.stringify(cursor); }
+
+async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, cursor: PurchaseCursor | null,
+  equalBoundary: boolean, offset: number, timeoutMs: number) {
   const filters: unknown[] = [['company', '=', company], ['docstatus', 'in', [1, 2]]];
-  if (since) filters.push(['modified', '>=', since]);
-  const docs: Record<string, unknown>[] = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
-      + `&limit_page_length=${PAGE_SIZE}&limit_start=${page * PAGE_SIZE}&order_by=${encodeURIComponent('modified asc, name asc')}`;
-    const body = await erpnextRequest(client, { method: 'GET', path: `/api/resource/${encodeURIComponent(doctype)}?${qs}` });
-    const rows = (body as { data?: unknown } | null)?.data;
-    if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).name === 'string'
-      && typeof (r as Record<string, unknown>).modified === 'string')) {
-      throw new AppError(`ERPNext ${doctype} list response was malformed`, 'external-unreachable');
-    }
-    docs.push(...(rows as Record<string, unknown>[]));
-    if (rows.length < PAGE_SIZE) return { docs, caughtUp: true };
+  if (cursor) {
+    if (equalBoundary) {
+      filters.push(['modified', '=', cursor.modified]);
+      if (cursor.name) filters.push(['name', '>', cursor.name]);
+    } else filters.push(['modified', '>', cursor.modified]);
   }
-  return { docs, caughtUp: false };
+  const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
+    + `&limit_page_length=${PAGE_SIZE}&limit_start=${offset}&order_by=${encodeURIComponent('modified asc, name asc')}`;
+  const body = await erpnextRequest({ ...client, timeoutMs }, { method: 'GET', path: `/api/resource/${encodeURIComponent(doctype)}?${qs}` });
+  const rows = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).name === 'string'
+    && typeof (r as Record<string, unknown>).modified === 'string')) {
+    throw new AppError(`ERPNext ${doctype} list response was malformed`, 'external-unreachable');
+  }
+  return rows as Record<string, unknown>[];
 }
 
-/** Feed both purchase doctypes for one org in ONE upsert call — the call also re-stamps attribution for the
- *  whole org, so it runs once per tick, and runs even with no rows so a project remap applies (FR-EPR-003). */
-export async function feedPurchaseMirror(
-  sc: PurchaseFeedServiceClient,
-  opts: { client: ErpClientDeps; orgId: string; company: string },
-): Promise<FeedPurchaseMirrorResult> {
-  if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
-  const fetched: Array<{ doctype: PurchaseDoctype; prev: string | null; next: string | null }> = [];
-  // Offset paging can return a document twice if it is edited mid-read; keep the newest copy only.
-  const latest = new Map<string, PurchaseMirrorRow>();
-  let caughtUp = true;
-  for (const doctype of PURCHASE_DOCTYPES) {
-    const prev = await readWm(sc, opts.orgId, purchaseWmDomain(doctype));
-    const result = await fetchSince(opts.client, doctype, opts.company, prev);
-    caughtUp &&= result.caughtUp;
-    let next: string | null = null;
-    for (const d of result.docs) {
-      const row = toPurchaseMirrorRow(doctype, d);
-      if (row) {
-        const key = `${doctype}\u0000${row.erp_name}`;
-        const seen = latest.get(key);
-        if (!seen || row.erp_modified > seen.erp_modified) latest.set(key, row);
-      }
-      // Even a quarantined row must not wedge traversal forever; it is deliberately excluded from
-      // the mirror but its valid source ordering key remains safe to checkpoint.
-      const modified = String(d.modified);
-      if (next === null || modified > next) next = modified;
+async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: string, previous: string | null, next: string): Promise<void> {
+  const table = sc.from('external_sync_watermarks');
+  if (previous === null) {
+    const { error } = await table.upsert({ org_id: orgId, external_tier: 'erpnext', domain, watermark_cursor: next },
+      { onConflict: 'org_id,external_tier,domain', ignoreDuplicates: true });
+    if (error) throw new AppError(error.message, error.code);
+  } else {
+    const { count, error } = await table.update({ watermark_cursor: next }, { count: 'exact' })
+      .eq('org_id', orgId).eq('external_tier', 'erpnext').eq('domain', domain).eq('watermark_cursor', previous);
+    if (error) throw new AppError(error.message, error.code);
+    if (count === 0) {
+      const current = await readWm(sc, orgId, domain);
+      if (current !== next) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
     }
-    fetched.push({ doctype, prev, next });
   }
-  const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()] });
-  if (error) throw new AppError(error.message, error.code);
-  for (const f of fetched) await advanceWm(sc, opts.orgId, purchaseWmDomain(f.doctype), f.next, f.prev);
-  return { fed: Number(data ?? 0), caughtUp };
+  const stored = await readWm(sc, orgId, domain);
+  if (stored !== next && stored !== previous) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
+}
+
+/** Persist each successful page before making another remote request. Cursor JSON is a v2 namespace,
+ * separate from the shared timestamp-only monotonic feeds; the legacy timestamp is read only to seed it. */
+export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { client: ErpClientDeps; orgId: string; company: string }): Promise<FeedPurchaseMirrorResult> {
+  if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
+  const deadline = Date.now() + PASS_BUDGET_MS;
+  const transport = { ...opts.client, maxRetries: 0, timeoutMs: REQUEST_TIMEOUT_MS };
+  let reads = 0;
+  let fed = 0;
+  let caughtUp = true;
+  let wroteAny = false;
+
+  for (const doctype of PURCHASE_DOCTYPES) {
+    const domain = purchaseCursorDomain(doctype);
+    let stored = await readWm(sc, opts.orgId, domain);
+    const legacy = stored === null ? await readWm(sc, opts.orgId, purchaseWmDomain(doctype)) : null;
+    let cursor = parseCursor(stored ?? legacy);
+    let equalityDone = false;
+    while (reads < MAX_PAGE_READS && Date.now() < deadline) {
+      // Inclusive replay starts from every name at the boundary; a persisted name resumes only a
+      // bounded continuation through that same timestamp before later timestamps are queried.
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) { caughtUp = false; break; }
+      const rows = await readPage(transport, doctype, opts.company, cursor, !equalityDone, 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+      reads += 1;
+      if (rows.length === 0) {
+        if (!equalityDone && cursor) { equalityDone = true; continue; }
+        if (cursor) {
+          const canonical = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
+          if (canonical !== stored) await saveCursor(sc, opts.orgId, domain, stored, canonical);
+        }
+        break;
+      }
+      const pageLatest = new Map<string, PurchaseMirrorRow>();
+      for (const source of rows) {
+        const row = toPurchaseMirrorRow(doctype, source);
+        if (!row) continue;
+        const existing = pageLatest.get(row.erp_name);
+        if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
+      }
+      const pageRows = [...pageLatest.values()];
+      const { data, error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: pageRows });
+      if (error) throw new AppError(error.message, error.code);
+      fed += Number(data ?? 0);
+      wroteAny = true;
+      const last = rows[rows.length - 1];
+      cursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
+      let nextCursor: PurchaseCursor = cursor;
+      if (rows.length < PAGE_SIZE && equalityDone) nextCursor = { version: CURSOR_VERSION, modified: cursor.modified };
+      const next = encodeCursor(nextCursor);
+      await saveCursor(sc, opts.orgId, domain, stored, next);
+      stored = next;
+      cursor = nextCursor;
+      if (rows.length < PAGE_SIZE) {
+        if (!equalityDone) { equalityDone = true; continue; }
+        const caughtCursor = encodeCursor({ version: CURSOR_VERSION, modified: cursor.modified });
+        if (caughtCursor !== stored) {
+          await saveCursor(sc, opts.orgId, domain, stored, caughtCursor);
+        }
+        break;
+      }
+      // The next iteration first drains any remaining names at this timestamp, then proceeds later.
+      equalityDone = false;
+    }
+    if (reads >= MAX_PAGE_READS || Date.now() >= deadline) caughtUp = false;
+  }
+  if (!wroteAny) {
+    const { error } = await sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] });
+    if (error) throw new AppError(error.message, error.code);
+  }
+  return { fed, caughtUp };
 }
