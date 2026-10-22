@@ -132,11 +132,11 @@ select throws_ok(
   '42501', null,
   'AC-DOC-207: a direct UPDATE of project_documents.status is denied — the column is RPC-only → 42501');
 
--- A direct UPDATE of a METADATA column (still granted) by the write-role succeeds — proving the
--- lockdown narrowed only `status`, not the whole table.
-select lives_ok(
+-- Metadata edits require the document author or Admin, even when the caller has a write role.
+select throws_ok(
   $$ update project_documents set title = 'SoD Drawing (Rev B)' where id = '00530000-0000-0000-0000-000000000030' $$,
-  'AC-DOC-207: a direct UPDATE of a metadata column still works (only status was locked to the RPC)');
+  '42501', null,
+  'AC-DOC-207: a non-author write-role cannot edit document metadata');
 
 reset role;
 
