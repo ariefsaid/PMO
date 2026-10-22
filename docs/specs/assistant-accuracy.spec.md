@@ -24,13 +24,16 @@ accuracy comes from the assistant's own loop, not the model:
 
 - **FR-ACC-001** — When `whats_overdue` returns, the handler shall give the model the fetched rows in compact form
   (tasks: project, task, owner, due date, days late; invoices: invoice, project/company, amount, due date, days late),
-  the overdue count per project, the true totals and the truncation flags, while still showing the user the same
-  server-rendered list as today.
+  the overdue count per project, the totals and the truncation flags, while still showing the user the same
+  server-rendered list as today. Counts follow the panel's existing semantics: they cover the rows the tool fetched
+  (its existing caps: 50 overdue tasks, 50 overdue invoices from a 200-row unpaid scan). When a cap truncated the
+  data, the result marks the totals and per-project counts `partial: true`, and the model-facing note says to use
+  `query_entity` with `group_by` for complete counts.
 - **FR-ACC-002** — When the user asks for something the overdue panel does not give (a table with given columns or
   sort, a grouping, "which project has the most", a follow-up about the rows), the assistant shall answer from the
   overdue rows in exactly the requested shape; otherwise it shall add at most one short sentence.
-- **FR-ACC-003** — `query_entity` shall accept the filter operators `lt`, `lte`, `gt`, `gte` (dates and numbers) in
-  addition to `eq` and `in`, and an optional `order_by: {column, direction}`.
+- **FR-ACC-003** — `query_entity` shall accept the filter operators `neq`, `lt`, `lte`, `gt`, `gte` (dates and
+  numbers for the comparisons) in addition to `eq` and `in`, and up to three filters combined with AND, and an optional `order_by: {column, direction}`.
 - **FR-ACC-004** — Where `group_by` is given (optionally with `sum: <numeric column>`), `query_entity` shall return
   `{groups: [{key, count, sum?}], rowCount, truncated}` computed over all rows the caller can read that match the
   filter, paging the caller-JWT read, up to a hard cap of **5,000 rows**. `rowCount` is the number of rows aggregated.
@@ -55,11 +58,16 @@ accuracy comes from the assistant's own loop, not the model:
 - **AC-ACC-001** — *Given* 19 overdue tasks across 4 projects, *when* the model calls `whats_overdue`, *then* the
   model-facing result contains all 19 task rows (project, task, owner, due, days late) and per-project counts, and the
   user-facing list is byte-identical to today's rendering.
+- **AC-ACC-014** — *Given* 60 overdue tasks (more than the 50-row fetch cap), *when* the model calls `whats_overdue`,
+  *then* the model-facing result carries the 50 fetched rows, per-project counts over those rows, `partial: true`,
+  and a note telling the model to use `query_entity` with `group_by` for complete counts; the user-facing list is
+  unchanged (it already shows the true count with "+").
 - **AC-ACC-002** — *Given* the overdue tool result, *when* the prompt is built, *then* it no longer instructs the model
   never to repeat the list, and it states that an explicitly requested table/grouping/follow-up is answered from the rows.
 - **AC-ACC-003** — *Given* tasks with mixed end dates, *when* `query_entity` is called with `filter
   {column:"end_date", op:"lt", value:"2026-10-22"}` and `order_by {column:"end_date", direction:"asc"}`, *then* only
-  earlier rows are returned, in ascending order. Same for `lte`, `gt`, `gte`.
+  earlier rows are returned, in ascending order. Same for `lte`, `gt`, `gte`; `neq` excludes the value; two filters
+  combine with AND (e.g. `status neq Done` AND `end_date lt today`).
 - **AC-ACC-004** — *Given* 1,200 caller-visible tasks across 3 projects, *when* `query_entity` is called with
   `group_by:"project_id"`, *then* the counts sum to 1,200, `rowCount` is 1,200 and `truncated` is false (the read
   pages past the per-response cap).
@@ -87,7 +95,7 @@ accuracy comes from the assistant's own loop, not the model:
 
 | AC | Owning test (unit unless noted) |
 |---|---|
-| AC-ACC-001, 002 | `pmo-portal/src/lib/agent/handlerOverdue.test.ts` + prompt tests |
+| AC-ACC-001, 002, 014 | `pmo-portal/src/lib/agent/handlerOverdue.test.ts` + prompt tests |
 | AC-ACC-003..007 | query_entity action/DAL unit tests (mocked client, including paging) |
 | AC-ACC-008 | pgTAP-free: unit test that the read uses the caller client; RLS itself is already covered by existing pgTAP |
 | AC-ACC-009 | `pmo-portal/src/lib/agent/prompt.experience.test.ts` |
