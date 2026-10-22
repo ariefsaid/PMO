@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(27);
 insert into auth.users(id,email) values
 ('03480000-0000-0000-0000-000000000001','metadata-author@example.com'),
 ('03480000-0000-0000-0000-000000000002','metadata-finance@example.com'),
@@ -16,6 +16,9 @@ insert into profiles(id,org_id,full_name,email,role) values
 ('03480000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000001','Manager','metadata-manager@example.com','Project Manager');
 insert into projects(id,org_id,code,name,status,project_manager_id) values
 ('03480000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','0348','Metadata guard','Ongoing Project','03480000-0000-0000-0000-000000000001');
+insert into companies(id,org_id,name,type) values
+('03480000-0000-0000-0000-000000000030','00000000-0000-0000-0000-000000000001','Guard vendor A','Vendor'),
+('03480000-0000-0000-0000-000000000031','00000000-0000-0000-0000-000000000001','Guard vendor B','Vendor');
 insert into project_documents(id,org_id,project_id,title,category,author_id) values
 ('03480000-0000-0000-0000-000000000011','00000000-0000-0000-0000-000000000001','03480000-0000-0000-0000-000000000010','Original','Drawing','03480000-0000-0000-0000-000000000001');
 insert into procurements(id,org_id,title,code,status,requested_by_id) values
@@ -42,6 +45,9 @@ select is((select title from project_documents where id='03480000-0000-0000-0000
 select throws_ok($$update procurements set title='Finance draft edit' where id='03480000-0000-0000-0000-000000000023'$$,'42501',null,'AC-SEC-202 Finance cannot edit another requester Draft header');
 select throws_ok($$update procurements set title='Finance approved edit' where id='03480000-0000-0000-0000-000000000022'$$,'42501',null,'AC-SEC-202 Finance cannot edit Approved header');
 select is((select title from procurements where id='03480000-0000-0000-0000-000000000022'),'Approved request','AC-SEC-202 denied Finance header edit leaves row unchanged');
+select lives_ok($$update procurements set vendor_id='03480000-0000-0000-0000-000000000030' where id='03480000-0000-0000-0000-000000000022' and vendor_id is null$$,'AC-SEC-202 Finance can fill a missing vendor on an Approved request');
+select is((select vendor_id from procurements where id='03480000-0000-0000-0000-000000000022'),'03480000-0000-0000-0000-000000000030'::uuid,'AC-SEC-202 filled vendor is stored');
+select throws_ok($$update procurements set vendor_id='03480000-0000-0000-0000-000000000031' where id='03480000-0000-0000-0000-000000000022'$$,'42501',null,'AC-SEC-202 a set vendor on an Approved request cannot be changed');
 
 reset role;
 set local role authenticated;

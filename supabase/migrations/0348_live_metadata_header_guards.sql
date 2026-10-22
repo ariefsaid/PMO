@@ -25,8 +25,9 @@ create or replace function public.assert_procurement_routing_inputs_frozen() ret
 begin
   if public.actor_bypasses_rls() then return new; end if;
   if auth.uid() is not null then
+    -- Filling a missing vendor is the existing set-once step (any state); changing a set vendor is a header edit.
     if (new.title is distinct from old.title or new.code is distinct from old.code
-        or new.vendor_id is distinct from old.vendor_id) then
+        or (old.vendor_id is not null and new.vendor_id is distinct from old.vendor_id)) then
       if old.status not in ('Draft','Rejected') then
         raise exception 'Procurement header is not editable in this state.' using errcode = '42501';
       end if;
