@@ -37,7 +37,8 @@ const PAYABLE_STATE = 'Vendor Invoiced';
 
 /** Structural seam for the case re-read (the refs.ts ExternalRefsFilterBuilder idiom). */
 export interface PaymentGateClient {
-  rpc(functionName: string, args: Record<string, unknown>): Promise<{ data: Array<{ ok: boolean; reason: string | null; billed_net: number }> | null; error: { message: string } | null }>;
+  /** `procurement_payment_within_ceiling` (0349) — the ONE ceiling the Paid transition also applies. */
+  rpc(functionName: string, args: Record<string, unknown>): Promise<{ data: Array<PaymentCeilingRow> | null; error: { message: string } | null }>;
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): PaymentGateFilterBuilder;
@@ -45,9 +46,20 @@ export interface PaymentGateClient {
   };
 }
 
+/** One row of `procurement_payment_within_ceiling`: pre-tax live-bill net vs the approved amount. */
+export interface PaymentCeilingRow {
+  ok: boolean;
+  reason: string | null;
+  billed_net: number | null;
+  approved_amount: number | null;
+}
+
 export interface PaymentGateFilterBuilder {
   eq(column: string, value: string): PaymentGateFilterBuilder;
-  maybeSingle(): Promise<{ data: { status: string | null; approved_by_id: string | null } | null; error: { code?: string; message: string } | null }>;
+  maybeSingle(): Promise<{
+    data: { status: string | null; approved_by_id: string | null; amount_approved_by_id?: string | null } | null;
+    error: { code?: string; message: string } | null;
+  }>;
 }
 
 export interface PaymentGateResult {
@@ -79,7 +91,7 @@ export async function enforcePaymentGate(
   callerUserId: string,
   procurementId: string,
 ): Promise<PaymentGateResult> {
-  const { data, error } = await client.from('procurements').select('status,approved_by_id').eq('org_id', orgId).eq('id', procurementId).maybeSingle();
+  const { data, error } = await client.from('procurements').select('status,approved_by_id,amount_approved_by_id').eq('org_id', orgId).eq('id', procurementId).maybeSingle();
   if (error || !data) {
     // Fail closed: a missing row (including another org's id — the read is org-filtered) or an
     // unreadable one never passes. There is no "absent ⇒ allowed" branch to fall into.
@@ -88,9 +100,14 @@ export async function enforcePaymentGate(
   if (data.status !== PAYABLE_STATE) {
     return REFUSED(422, `vendor payment: the case must be at ${PAYABLE_STATE} to pay a bill (it is at '${data.status ?? 'unknown'}')`);
   }
-  if (callerUserId && data.approved_by_id && callerUserId === data.approved_by_id) {
+  // SoD-b covers both approvals that set the ceiling: the request's approver and, when the billed amount
+  // was later approved higher (approve_procurement_amount), that amount's approver.
+  if (callerUserId && (callerUserId === data.approved_by_id || callerUserId === data.amount_approved_by_id)) {
     return REFUSED(403, 'separation of duties: approver cannot pay own procurement');
   }
+  // The approved-amount ceiling, evaluated by the same SQL helper the Paid transition uses: pre-tax
+  // net of live bills ≤ the approved amount, bills in the procurement's currency. No row or an error
+  // refuses (fail closed).
   const ceiling = await client.rpc('procurement_payment_within_ceiling', { p_procurement_id: procurementId });
   const result = ceiling.data?.[0];
   if (ceiling.error || !result) {

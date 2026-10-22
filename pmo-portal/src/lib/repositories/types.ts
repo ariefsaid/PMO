@@ -440,6 +440,10 @@ export interface ProcurementRepository {
   deleteItem(id: string): Promise<void>;
   /** Select a quotation (sets is_selected + syncs header + advances stage; RPC). */
   selectQuote(quotationId: string): Promise<void>;
+  /** Raise the approved amount of a request awaiting payment to its billed amount (approve_procurement_amount).
+   *  The server decides eligibility from the approval route and refuses the requester, the quote
+   *  selector and the bill recorder; the approver of the higher amount may not pay it. */
+  approveAmount(id: string, amount: number): Promise<void>;
   /** List the document-metadata register for a PR. */
   listDocuments(procurementId: string): Promise<ProcurementDocumentRow[]>;
   /** Add a document-metadata row (file upload deferred). */

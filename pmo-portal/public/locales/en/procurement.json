@@ -49,5 +49,15 @@
       "leave": "Leave",
       "stay": "Stay"
     }
+  },
+  "ceiling": {
+    "exceeds": "Billed amount exceeds the approved amount by {{amount}}. An approver must approve the higher amount.",
+    "approveHigher": "Approve higher amount",
+    "confirmBody": "The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this request yourself.",
+    "confirm": "Approve",
+    "approved": "Higher amount approved"
+  },
+  "quoteSelection": {
+    "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
   }
 }

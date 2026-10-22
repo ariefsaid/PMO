@@ -94,7 +94,7 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  at `Vendor Invoiced` approved by A; the bill is mirrored with the org's currency and outstanding;
  *  the caller's role (actor_authorization_state) is Finance — every gate BEFORE the SoD one passes.
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
-function routes(unexpected: FetchCall[], caller: string, ceilingOk = true): MockRoute[] {
+function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null): MockRoute[] {
   const outbox = new Map<string, Record<string, unknown>>();
   return [
     supabaseSelect('profiles', (call) =>
@@ -110,13 +110,17 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true): Mock
     supabaseSelect('organizations', () => objectResponse({ default_currency: COMPANY_CURRENCY })),
     // The case — the SoD gate's DB re-read (status + approver) AND the supplier resolution's vendor_id.
     supabaseSelect('procurements', () => objectResponse({
-      id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID, vendor_id: VENDOR_ID,
+      id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID,
+      amount_approved_by_id: amountApproverId, vendor_id: VENDOR_ID,
     })),
     // The bill — the refs pass' amount/currency gate oracle (org_id is the link-check's own read).
     supabaseSelect('procurement_invoices', () => objectResponse({
       org_id: ORG_ID, procurement_id: PROC_ID, erp_outstanding_amount: 1090000, vi_number: PI_NAME, currency: COMPANY_CURRENCY,
     })),
-    supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{ ok: ceilingOk, reason: ceilingOk ? null : 'vendor bill exceeds approved amount', billed_net: ceilingOk ? 1000000 : 1200000 }])), 
+    supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{
+      ok: ceilingOk, reason: ceilingOk ? null : 'vendor bill exceeds approved amount',
+      billed_net: ceilingOk ? 1000000 : 1200000, approved_amount: 1000000,
+    }])),
     supabaseSelect('external_refs', (call) =>
       eqParam(call, 'pmo_record_id') === VENDOR_ID
         ? objectResponse({ external_record_id: `Supplier:Demo Supplier` })
@@ -203,6 +207,19 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(result.status, 422);
     assert(result.body.includes('vendor bill exceeds approved amount'));
     assertEquals(result.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0);
+  });
+
+  it('AC-SEC-211 the approver of a raised amount is refused 403 before the outbox insert', async () => {
+    const unexpected: FetchCall[] = [];
+    const result = await withFetchMock(routes(unexpected, PAYER_ID, true, PAYER_ID), async ({ calls }) => {
+      const jwt = await auth.mintJwt({ sub: PAYER_ID });
+      const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', { method: 'POST', headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' }, body: JSON.stringify(paymentCreateCommand()) }));
+      return { status: res.status, body: await res.text(), calls };
+    });
+    assertEquals(result.status, 403, result.body);
+    assert(result.body.includes('separation of duties: approver cannot pay own procurement'));
+    assertEquals(result.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0);
+    assertEquals(result.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
   });
 
   it('AC-VPAY-003 a non-approver payer passes the gate — the dispatch completes and the Payment Entry POST carries the server-resolved allocation', async () => {

@@ -165,6 +165,13 @@ else skip "capture_vendor_invoice (procurements)"; fi
 if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
   c=$(rpc create_procurement_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_amount\":1,\"p_tax_treatment\":\"exclusive\",\"p_tax_amount\":0,\"p_withheld_amount\":0}")
 else skip "create_procurement_invoice (procurements)"; fi
+if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
+  c=$(rpc approve_procurement_amount "{\"p_procurement_id\":\"$A_PROC\",\"p_amount\":1}")
+  c=$(rpc procurement_payment_within_ceiling "{\"p_procurement_id\":\"$A_PROC\"}")
+else
+  skip "approve_procurement_amount (procurements)"
+  skip "procurement_payment_within_ceiling (procurements)"
+fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")

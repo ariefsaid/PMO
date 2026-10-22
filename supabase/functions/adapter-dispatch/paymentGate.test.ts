@@ -23,13 +23,21 @@ import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/con
 /** Fake seam: the `procurements` re-read the guard decides on. Rows carry their real org_id so a
  *  cross-org id is distinguishable from a same-org one by the id alone (the Luna B2 fixture rule). */
 function fakeClient(opts: {
-  cases?: Record<string, { org_id: string; status: string; approved_by_id: string | null }>;
+  cases?: Record<string, { org_id: string; status: string; approved_by_id: string | null; amount_approved_by_id?: string | null }>;
   readError?: { code: string; message: string };
-  ceiling?: { ok: boolean; reason: string | null; billed_net: number };
+  ceiling?: { ok: boolean; reason: string | null; billed_net: number | null; approved_amount: number | null };
+  /** The ceiling rows as returned (an empty array = the helper returned no row). */
+  ceilingRows?: Array<{ ok: boolean; reason: string | null; billed_net: number | null; approved_amount: number | null }>;
+  ceilingError?: { message: string };
+  onRpc?: (fn: string, args: Record<string, unknown>) => void;
   onRead?: (table: string, filters: Record<string, string>) => void;
 }): PaymentGateClient {
   return {
-    rpc: async () => ({ data: [opts.ceiling ?? { ok: true, reason: null, billed_net: 1000 }], error: null }),
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      opts.onRpc?.(fn, args);
+      if (opts.ceilingError) return { data: null, error: opts.ceilingError };
+      return { data: opts.ceilingRows ?? [opts.ceiling ?? { ok: true, reason: null, billed_net: 1000, approved_amount: 1000 }], error: null };
+    },
     from: (table: string) => ({
       select: (_columns: string) => {
         const filters: Record<string, string> = {};
@@ -90,10 +98,37 @@ Deno.test('AC-VPAY-003 state: a case NOT at Vendor Invoiced is refused 422 (anyo
 });
 
 Deno.test('AC-SEC-206: over-ceiling ERP payment is refused before dispatch can enqueue it', async () => {
-  const res = await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, ceiling: { ok: false, reason: 'vendor bill exceeds approved amount', billed_net: 1200 } }), 'org-1', 'user-b', 'proc-1');
+  const res = await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, ceiling: { ok: false, reason: 'vendor bill exceeds approved amount', billed_net: 1200, approved_amount: 1000 } }), 'org-1', 'user-b', 'proc-1');
   assertEquals(res.ok, false);
   assertEquals(res.status, 422);
   assert(res.message.includes('vendor bill exceeds approved amount'));
+});
+
+Deno.test('AC-SEC-206: the ceiling is read through the shared SQL helper for the gated procurement', async () => {
+  const calls: Array<[string, Record<string, unknown>]> = [];
+  await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, onRpc: (fn, args) => calls.push([fn, args]) }), 'org-1', 'user-b', 'proc-1');
+  assertEquals(calls, [['procurement_payment_within_ceiling', { p_procurement_id: 'proc-1' }]]);
+});
+
+Deno.test('AC-SEC-206 fail closed: a ceiling that returns no row refuses', async () => {
+  const res = await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, ceilingRows: [] }), 'org-1', 'user-b', 'proc-1');
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('AC-SEC-206 fail closed: a ceiling read error refuses', async () => {
+  const res = await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, ceilingError: { message: 'boom' } }), 'org-1', 'user-b', 'proc-1');
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('AC-SEC-211: the approver of a raised amount cannot dispatch its payment', async () => {
+  const res = await enforcePaymentGate(
+    fakeClient({ cases: { 'proc-1': { ...VENDOR_INVOICED_CASE, amount_approved_by_id: 'user-c' } } }),
+    'org-1', 'user-c', 'proc-1');
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 403);
+  assertEquals(res.message, 'separation of duties: approver cannot pay own procurement');
 });
 
 Deno.test('AC-VPAY-003 happy path: a Vendor Invoiced case + caller ≠ approver passes (one case re-read)', async () => {

@@ -49,5 +49,15 @@
       "leave": "Tinggalkan",
       "stay": "Tetap di sini"
     }
+  },
+  "ceiling": {
+    "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
+    "approveHigher": "Setujui jumlah lebih tinggi",
+    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar permintaan ini sendiri.",
+    "confirm": "Setujui",
+    "approved": "Jumlah lebih tinggi disetujui"
+  },
+  "quoteSelection": {
+    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
   }
 }
