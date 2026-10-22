@@ -15,6 +15,7 @@
  * (with a trailing ellipsis trimmed) when no friendlier mapping is known.
  */
 export function friendlyActivity(rawLabel: string): string {
+  if (rawLabel === 'Double-checking the answer…') return 'Double-checking the answer';
   // rawLabel is like "Looking up projects…", "Looking up crm activities…", "Logging an activity…".
   const m = rawLabel.match(/^Looking up (.+?)…$/);
   if (m) {
