@@ -193,5 +193,12 @@ export function useProcurementMutations(id: string) {
     },
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, pendingPush };
+  // 0349: approve the billed amount when it exceeds the approved amount. A PMO case-aggregate write
+  // (like `transition`), never dispatched; the server decides eligibility and separation of duties.
+  const approveAmount = useMutation<void, ProcurementError, number>({
+    mutationFn: (amount) => repositories.procurement.approveAmount(id, amount),
+    onSuccess: invalidateDetail,
+  });
+
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, approveAmount, pendingPush };
 }

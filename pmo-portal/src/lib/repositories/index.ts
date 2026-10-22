@@ -137,6 +137,7 @@ import {
   removeDependency,
 } from '@/src/lib/db/tasks';
 import { listProcurements } from '@/src/lib/db/procurements';
+import { approveProcurementAmount } from '@/src/lib/db/procurementPaymentCeiling';
 import {
   createPurchaseRequest,
   createRfq,
@@ -623,6 +624,8 @@ const procurement: ProcurementRepository = {
   updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
   deleteItem: (id) => wrap(() => deleteProcurementItem(id)),
   selectQuote: (quotationId) => wrap(() => selectProcurementQuote(quotationId)),
+  // 0349: approve the billed amount when it exceeds the approved amount (server enforces eligibility + SoD).
+  approveAmount: (id, amount) => wrap(() => approveProcurementAmount(id, amount)),
   listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),

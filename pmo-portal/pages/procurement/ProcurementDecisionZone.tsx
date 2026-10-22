@@ -113,6 +113,8 @@ export interface ProcurementDecisionZoneProps {
   gateMsg: string | null;
   /** #803 FR-APR-031: who decides this routed request, and why — shown to a viewer who may not. */
   routeNote?: string | null;
+  /** 0349: why payment is blocked by the approved amount, with the approver's action (or null). */
+  ceilingNotice?: React.ReactNode;
   isDraft: boolean;
   isRequester: boolean;
   isApprover: boolean;
@@ -144,6 +146,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   actions,
   gateMsg,
   routeNote = null,
+  ceilingNotice = null,
   isDraft,
   isRequester,
   isApprover,
@@ -203,6 +206,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {routeNote}
             </p>
           )}
+          {ceilingNotice}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
               The author (requester) is about to submit their own request; they need to know

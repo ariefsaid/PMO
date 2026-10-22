@@ -93,8 +93,8 @@
 /procurement                   pages/Procurement.tsx pages/procurement/ProcurementListRow.tsx
 /procurement/new               pages/ProcurementCreate.tsx pages/procurement/LineItemsSection.tsx
 /erp-purchases                 pages/ErpPurchases.tsx pages/procurement/ErpPurchasesTable.tsx
-/procurement/:procurementId    pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
-/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
+/procurement/:procurementId    pages/ProcurementDetails.tsx pages/procurement/PaymentCeilingNotice.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
+/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx pages/procurement/PaymentCeilingNotice.tsx pages/procurement/ProcurementLedger.tsx pages/procurement/RecordCaptureForm.tsx pages/procurement/VendorWithholdingSlipModal.tsx pages/procurement/VendorWithholdingSlipDetails.tsx src/components/procurement/VendorInvoiceIdentity.tsx src/components/procurement/vendorInvoiceIdentityLabels.ts src/components/EfakturModal.tsx
 
 # ── Pre-win stages of the SAME project record (Model B). A client working a project through to
 #    won passes through here, so leaving it out would split one journey across the gate boundary.

@@ -260,6 +260,14 @@ describe('getProcurementDetail', () => {
     expect(result).toMatchObject({ id: 'proc-1', title: 'Test Proc' });
   });
 
+  it('AC-SEC-220 (DAL): a procurement awaiting payment carries the server payment ceiling', async () => {
+    makeFromBuilder({ data: { id: 'proc-1', status: 'Vendor Invoiced', invoices: [] }, error: null });
+    makeRpcBuilder({ data: [{ ok: false, reason: 'vendor bill exceeds approved amount', billed_net: 1200, approved_amount: 1000 }], error: null });
+    const result = await getProcurementDetail('proc-1');
+    expect(mockRpc).toHaveBeenCalledWith('procurement_payment_within_ceiling', { p_procurement_id: 'proc-1' });
+    expect(result.paymentCeiling).toEqual({ ok: false, reason: 'vendor bill exceeds approved amount', billedNet: 1200, approvedAmount: 1000 });
+  });
+
   it('AC-816 (DAL): throws on PostgREST error', async () => {
     makeFromBuilder({ data: null, error: { message: 'not found' } });
     await expect(getProcurementDetail('bad-id')).rejects.toThrow('not found');

@@ -2265,3 +2265,6 @@ insert into meeting_attendees (id, meeting_id, profile_id, contact_id, display_n
   ('ee100000-0000-0000-0000-000000000002','ee000000-0000-0000-0000-000000000001',
    null,'ce000000-0000-0000-0000-000000000001',null)                                    -- Priya Mehta (contact)
 on conflict (id) do nothing;
+
+-- Approved seed procurements carry the approved amount their approval would have stamped (0349).
+select public.backfill_procurement_approved_total();

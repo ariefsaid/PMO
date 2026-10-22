@@ -1,7 +1,9 @@
 # Cloudflare Pages response headers (copied into dist/ by Vite). Proof: test/securityHeaders.test.ts.
 # No page of the app may be shown inside a frame — in particular the OAuth consent screen (#728).
 /*
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
 # Vite emits content-hashed filenames under /assets/, so a changed file always has a new URL: cache for a
 # year and skip revalidation. index.html is not matched here, so it keeps revalidating and picks up new hashes.

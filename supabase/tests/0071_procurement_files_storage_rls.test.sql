@@ -6,7 +6,7 @@
 --              an in-org non-writer (Engineer) reads an in-org object regardless of segment-2 —
 --              parity with the org-wide file-metadata SELECT (write still re-checks segment-2).
 begin;
-select plan(5);
+select plan(7);
 
 -- Fixtures (two orgs).
 insert into organizations (id, name) values
@@ -58,13 +58,21 @@ select throws_ok(
   '42501', null,
   'AC-PF-006: PM writing to a cross-org procurement-files path denied (42501)');
 
+-- Updates are intentionally unavailable to writer roles after upload.
+update storage.objects set name = '00710000-0000-0000-0000-000000000001/00710000-0000-0000-0000-000000000010/quotation/00710000-0000-0000-0000-000000000099/replaced.pdf'
+ where bucket_id = 'procurement-files' and name like '%/seed.pdf';
+select is((select count(*)::int from storage.objects where bucket_id='procurement-files' and name like '%/seed.pdf'),1,
+  'AC-SEC-204: writer role cannot replace an existing procurement file object');
 -- ── AC-PF-007: in-org PM reads the org-A objects (2 seeds + 1 write = 3) ─────
 select results_eq(
   $$ select count(*)::int from storage.objects where bucket_id = 'procurement-files' and name like '00710000-0000-0000-0000-000000000001/%' $$,
   $$ values (3) $$,
-  'AC-PF-007: in-org PM reads the org-A procurement-files objects (2 seeds + write = 3)');
+  'AC-PF-007: in-org PM reads the org-A procurement-files objects');
 
 reset role;
+select ok((select qual like '%Admin%' and qual like '%NOT%' from pg_policies
+  where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_delete'),
+  'AC-SEC-204: delete policy is Admin-only and excludes referenced paths');
 
 -- ── AC-PF-012: in-org NON-WRITER (Engineer A) reads the orphan-segment-2 object ─
 -- Storage READ is DELIBERATELY segment-1 (org) only, NOT segment-2-gated, in parity with the

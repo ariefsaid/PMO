@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
 import { attachApprovalRoutes } from './approvalRoutes';
+import { attachPaymentCeiling, type ProcurementPaymentCeiling } from './procurementPaymentCeiling';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,8 @@ export type ProcurementDetail = ProcurementWithRefs & {
   payments: Tables<'payments'>[];
   /** Transition-event log ([PD-7] / FR-PR-025) loaded from procurement_status_events. */
   statusEvents: Tables<'procurement_status_events'>[];
+  /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
+  paymentCeiling?: ProcurementPaymentCeiling | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -206,7 +209,7 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .single();
   if (error) throwRpc(error);
   const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
-  return withRoute;
+  return attachPaymentCeiling(withRoute);
 }
 
 // ---------------------------------------------------------------------------

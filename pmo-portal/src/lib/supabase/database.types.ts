@@ -4893,8 +4893,10 @@ export type Database = {
       }
       procurements: {
         Row: {
+          amount_approved_by_id: string | null
           approval_notes: string | null
           approved_by_id: string | null
+          approved_total_value: number | null
           budget_category: Database["public"]["Enums"]["budget_category"] | null
           code: string | null
           created_at: string
@@ -4917,8 +4919,10 @@ export type Database = {
           vendor_invoiced_at: string | null
         }
         Insert: {
+          amount_approved_by_id?: string | null
           approval_notes?: string | null
           approved_by_id?: string | null
+          approved_total_value?: number | null
           budget_category?:
             | Database["public"]["Enums"]["budget_category"]
             | null
@@ -4943,8 +4947,10 @@ export type Database = {
           vendor_invoiced_at?: string | null
         }
         Update: {
+          amount_approved_by_id?: string | null
           approval_notes?: string | null
           approved_by_id?: string | null
+          approved_total_value?: number | null
           budget_category?:
             | Database["public"]["Enums"]["budget_category"]
             | null
@@ -4969,6 +4975,13 @@ export type Database = {
           vendor_invoiced_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurements_amount_approved_by_id_fkey"
+            columns: ["amount_approved_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurements_approved_by_id_fkey"
             columns: ["approved_by_id"]
@@ -7717,6 +7730,10 @@ export type Database = {
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
       api_client_request_guard: { Args: never; Returns: undefined }
+      approve_procurement_amount: {
+        Args: { p_amount: number; p_procurement_id: string }
+        Returns: undefined
+      }
       approved_timesheet_for_push: {
         Args: { p_actor?: string; p_timesheet_id: string }
         Returns: {
@@ -9218,6 +9235,15 @@ export type Database = {
       withdraw_work_order_acceptance: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      procurement_payment_within_ceiling: {
+        Args: { p_procurement_id: string }
+        Returns: {
+          approved_amount: number
+          billed_net: number
+          ok: boolean
+          reason: string
+        }[]
       }
       procurement_request_amount: {
         Args: { p_procurement_id: string }
