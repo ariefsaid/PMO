@@ -63,6 +63,8 @@ export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
 
 /** Hard row cap — the effective limit is min(input.limit ?? CAP, CAP). */
 export const AGENT_READ_ROW_CAP = 50;
+export const AGENT_AGGREGATE_ROW_CAP = 5000;
+export const AGENT_AGGREGATE_PAGE_SIZE = 1000;
 
 /**
  * Agent-curated entity catalogue for the entities NOT covered by ENTITY_WHITELIST. Pure data
@@ -75,6 +77,7 @@ export const AGENT_READ_ROW_CAP = 50;
 export interface AgentCuratedEntity {
   table: string;
   allowedColumns: readonly string[];
+  numericColumns?: readonly string[];
 }
 
 export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> = Object.freeze({
@@ -82,7 +85,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   // (internal system IDs beyond the primary `code`), approval_notes/rejection_notes (sensitive
   // approver rationale), approved_by_id/vendor_invoiced_at (audit trails).
   procurements: {
-    table: 'procurements',
+    table: 'procurements', numericColumns: ['total_value'],
     allowedColumns: [
       'id', 'code', 'title', 'project_id', 'requested_by_id',
       'status', 'total_value', 'vendor_id', 'created_at',
@@ -90,7 +93,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   },
   // Project milestones (named delivery chunks). Excludes org_id (tenancy) and sort_order (internal).
   milestones: {
-    table: 'project_milestones',
+    table: 'project_milestones', numericColumns: ['weight', 'input_pct'],
     allowedColumns: ['id', 'project_id', 'name', 'target_date', 'weight', 'input_pct', 'created_at'],
   },
   // Timesheet headers (week + approval state). Excludes org_id (tenancy); approved_by is omitted to
@@ -118,23 +121,23 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   // (internal ETL plumbing); file_url/link (raw storage refs). Business doc number + status +
   // amount + date are the fields a user asks about ("where's the PO?", "was it paid?").
   purchase_requests: {
-    table: 'purchase_requests',
+    table: 'purchase_requests', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'pr_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   rfqs: {
-    table: 'rfqs',
+    table: 'rfqs', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'rfq_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   // Vendor quotations. Excludes file_url (raw storage) + org_id + import_* plumbing.
   procurement_quotations: {
-    table: 'procurement_quotations',
+    table: 'procurement_quotations', numericColumns: ['total_amount'],
     allowedColumns: [
       'id', 'procurement_id', 'rfq_id', 'vendor_id', 'vq_number', 'reference',
       'total_amount', 'received_date', 'valid_until', 'is_selected',
     ],
   },
   purchase_orders: {
-    table: 'purchase_orders',
+    table: 'purchase_orders', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'po_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   // Goods receipts (GRN). po_id links to the ordering PO.
@@ -143,16 +146,16 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
     allowedColumns: ['id', 'procurement_id', 'po_id', 'gr_number', 'reference_number', 'status', 'receipt_date', 'created_at'],
   },
   procurement_invoices: {
-    table: 'procurement_invoices',
+    table: 'procurement_invoices', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'po_id', 'vi_number', 'reference_number', 'status', 'invoice_date', 'amount', 'created_at'],
   },
   payments: {
-    table: 'payments',
+    table: 'payments', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'invoice_id', 'pay_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   // Line items within a procurement case (name/qty/rate/amount). Capped at the row cap like any read.
   procurement_items: {
-    table: 'procurement_items',
+    table: 'procurement_items', numericColumns: ['quantity', 'rate', 'amount'],
     allowedColumns: ['id', 'procurement_id', 'name', 'description', 'quantity', 'rate', 'amount'],
   },
   // Procurement status history (the case's stage transitions). Excludes `notes` (approver
@@ -165,7 +168,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   // ── Spend detail / docs / team / alerts ─────────────────────────────────────
   // Budget line items (category-level budgeted vs actual). Linked via budget_version_id.
   budget_line_items: {
-    table: 'budget_line_items',
+    table: 'budget_line_items', numericColumns: ['budgeted_amount', 'actual_amount'],
     allowedColumns: ['id', 'budget_version_id', 'category', 'description', 'budgeted_amount', 'actual_amount'],
   },
   // Project document METADATA only — never the file. Excludes file_path (raw storage), org_id,

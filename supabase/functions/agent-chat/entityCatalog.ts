@@ -31,6 +31,7 @@ export interface AgentEntityEntry {
   table: string;
   /** The only columns a query may SELECT or FILTER on (org_id never included). */
   allowedColumns: ReadonlySet<string>;
+  numericColumns: ReadonlySet<string>;
   /** When set, a filter on this column (eq or in) is mandatory (e.g. tasks.project_id). */
   requiredFilter?: string;
   /**
@@ -65,6 +66,7 @@ export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefi
     return {
       table: curated.table,
       allowedColumns: new Set(curated.allowedColumns),
+      numericColumns: new Set(curated.numericColumns ?? []),
       ...(internalFilter ? { internalFilter } : {}),
     };
   }
@@ -74,6 +76,7 @@ export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefi
     return {
       table: whitelisted.table,
       allowedColumns: whitelisted.allowedColumns,
+      numericColumns: whitelisted.numericColumns,
       ...(whitelisted.requiredFilter ? { requiredFilter: whitelisted.requiredFilter } : {}),
       ...(internalFilter ? { internalFilter } : {}),
     };

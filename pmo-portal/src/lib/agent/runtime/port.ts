@@ -66,25 +66,18 @@ export interface RunContext {
  *   .select().is().eq().limit()  (the internal hard filter, C5d/AC-CUA-002 — applied BEFORE any
  *   .select().is().in().limit()   user-supplied filter; `is()` returns the same chainable shape.)
  */
-export interface ReadQueryBuilder {
-  eq(
-    column: string,
-    value: string,
-  ): PromiseLike<{ data: unknown[] | null; error: unknown }> & {
-    limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
-  };
-  /** Direct .in() on the select builder — correct path for in-filter (not .eq().in()). */
-  in(
-    column: string,
-    values: string[],
-  ): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> };
-  limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
-  /**
-   * The internal (never model-controllable) hard filter — e.g. `tombstoned_at is null`
-   * (AC-CUA-002, C5d). Returns the same chainable shape so `.is()` composes before `.eq()`/
-   * `.in()`/`.limit()`, mirroring real supabase-js `is null` semantics.
-   */
+export interface ReadQueryBuilder extends PromiseLike<{ data: unknown[] | null; error: unknown }> {
+  eq(column: string, value: string | number): ReadQueryBuilder;
+  in(column: string, values: string[]): ReadQueryBuilder;
+  neq(column: string, value: string | number): ReadQueryBuilder;
+  lt(column: string, value: string | number): ReadQueryBuilder;
+  lte(column: string, value: string | number): ReadQueryBuilder;
+  gt(column: string, value: string | number): ReadQueryBuilder;
+  gte(column: string, value: string | number): ReadQueryBuilder;
   is(column: string, value: null): ReadQueryBuilder;
+  order(column: string, options: { ascending: boolean }): ReadQueryBuilder;
+  limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
+  range(from: number, to: number): PromiseLike<{ data: unknown[] | null; error: unknown }>;
 }
 
 export interface SupabaseLike {
