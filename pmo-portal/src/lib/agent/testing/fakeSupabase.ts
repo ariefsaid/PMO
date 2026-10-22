@@ -22,7 +22,7 @@ export function fakeSupabase(respond: Responder, invoke?: Invoker) {
         return Promise.resolve(respond(call));
       };
       const chain: Record<string, unknown> = {};
-      for (const op of ['eq', 'in', 'lt', 'is', 'ilike', 'order', 'limit']) {
+      for (const op of ['eq', 'in', 'neq', 'lt', 'lte', 'gt', 'gte', 'is', 'ilike', 'order', 'limit', 'range']) {
         chain[op] = (...args: unknown[]) => {
           ops.push([op, ...args]);
           return chain;

@@ -31,6 +31,8 @@ export interface AgentEntityEntry {
   table: string;
   /** The only columns a query may SELECT or FILTER on (org_id never included). */
   allowedColumns: ReadonlySet<string>;
+  numericColumns: ReadonlySet<string>;
+  groupableColumns?: ReadonlySet<string>;
   /** When set, a filter on this column (eq or in) is mandatory (e.g. tasks.project_id). */
   requiredFilter?: string;
   /**
@@ -40,13 +42,13 @@ export interface AgentEntityEntry {
    * removing it, so the agent's own `tasks` read must exclude tombstoned rows the same way
    * `listTasks`/`getTask`/`listMyTasks` do (C5/C5b/C5c).
    */
-  internalFilter?: { column: string; value: null };
+  internalFilters?: readonly { column: string; value: null }[];
 }
 
 /** Entities that carry an internal hard filter (C5d) — keyed independent of ENTITY_WHITELIST so
  *  this agent-only concern never leaks into compose-view's shared catalogue. */
-const INTERNAL_FILTERS: Readonly<Record<string, { column: string; value: null }>> = Object.freeze({
-  tasks: { column: 'tombstoned_at', value: null },
+const INTERNAL_FILTERS: Readonly<Record<string, readonly { column: string; value: null }[]>> = Object.freeze({
+  tasks: [{ column: 'tombstoned_at', value: null }, { column: 'archived_at', value: null }],
 });
 
 /**
@@ -58,14 +60,15 @@ const INTERNAL_FILTERS: Readonly<Record<string, { column: string; value: null }>
  * same-named ENTITY_WHITELIST key.
  */
 export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefined {
-  const internalFilter = INTERNAL_FILTERS[entityKey];
+  const internalFilters = INTERNAL_FILTERS[entityKey];
 
   const curated = AGENT_ENTITY_TABLES[entityKey];
   if (curated) {
     return {
       table: curated.table,
       allowedColumns: new Set(curated.allowedColumns),
-      ...(internalFilter ? { internalFilter } : {}),
+      numericColumns: new Set(curated.numericColumns ?? []),
+      ...(internalFilters ? { internalFilters } : {}),
     };
   }
 
@@ -74,8 +77,10 @@ export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefi
     return {
       table: whitelisted.table,
       allowedColumns: whitelisted.allowedColumns,
+      numericColumns: whitelisted.numericColumns,
+      groupableColumns: whitelisted.groupableColumns,
       ...(whitelisted.requiredFilter ? { requiredFilter: whitelisted.requiredFilter } : {}),
-      ...(internalFilter ? { internalFilter } : {}),
+      ...(internalFilters ? { internalFilters } : {}),
     };
   }
 
