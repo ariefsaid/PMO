@@ -65,6 +65,19 @@ describe('loadOverdueFacts — tasks (#787)', () => {
     expect(facts.asOf).toBe('2026-10-06');
   });
 
+  it('AC-ACC-014 exposes retained rows and marks fetched counts partial at the cap', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => ({ id: `t-${i}`, name: `Synthetic ${i}`, end_date: '2026-10-01', project_id: null, assignee_id: null }));
+    const { client } = fakeSupabase(world({ tasks: () => many }));
+    const out = await runWhatsOverdue({}, ctx('Admin', client), NOW);
+    expect(out).toMatchObject({ receipt: {
+      partial: true, tasks: expect.arrayContaining([expect.objectContaining({ name: 'Synthetic 0' })]),
+      projectCounts: [{ projectId: null, overdueTasks: 50, overdueInvoices: 0, partial: true }],
+      note: expect.stringContaining('Totals and per-project counts cover fetched rows only and are partial.'),
+    } });
+    expect((out as { receipt: { tasks: unknown[] } }).receipt.tasks).toHaveLength(50);
+    expect((out as { markdown: string }).markdown).toContain('50+ tasks');
+  });
+
   it('flags truncation past the 50-row cap', async () => {
     const many = Array.from({ length: 51 }, (_, i) => ({ id: `t-${i}`, name: 'x', end_date: '2026-10-01', project_id: null, assignee_id: null }));
     const { client } = fakeSupabase(world({ tasks: () => many }));
