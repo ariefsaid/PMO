@@ -17,7 +17,7 @@ insert into projects (id, org_id, name, status) values
   ('02344000-0000-0000-0000-000000000102','02344000-0000-0000-0000-00000000000a','Frz P2','Ongoing Project');
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, budget_category) values
   ('02344000-0000-0000-0000-000000000401','02344000-0000-0000-0000-00000000000a','Submitted','02344000-0000-0000-0000-000000000101','02344000-0000-0000-0000-0000000000a2','Requested',    100,'Materials'),
-  ('02344000-0000-0000-0000-000000000402','02344000-0000-0000-0000-00000000000a','Draft',    '02344000-0000-0000-0000-000000000101','02344000-0000-0000-0000-0000000000a2','Draft',        100,'Materials'),
+  ('02344000-0000-0000-0000-000000000402','02344000-0000-0000-0000-00000000000a','Draft',    '02344000-0000-0000-0000-000000000101','02344000-0000-0000-0000-0000000000a1','Draft',        100,'Materials'),
   ('02344000-0000-0000-0000-000000000403','02344000-0000-0000-0000-00000000000a','Quoting',  '02344000-0000-0000-0000-000000000101','02344000-0000-0000-0000-0000000000a2','Vendor Quoted',100,'Materials');
 insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount) values
   ('02344000-0000-0000-0000-0000000000c1','02344000-0000-0000-0000-00000000000a','02344000-0000-0000-0000-000000000403','02344000-0000-0000-0000-0000000000b1',250);
@@ -45,10 +45,11 @@ set local role authenticated;
 select throws_ok($$ update procurements set currency = 'EUR' where id = '02344000-0000-0000-0000-000000000401' $$,
   '42501', 'procurements.currency cannot change after the request is submitted: approval routing was decided on it',
   'AC-APR-018: the currency of a submitted request is fixed');
-select lives_ok($$ update procurements set title = 'Renamed' where id = '02344000-0000-0000-0000-000000000401' $$,
-  'AC-APR-018: a non-routing column is still editable');
+select throws_ok($$ update procurements set title = 'Renamed' where id = '02344000-0000-0000-0000-000000000401' $$,
+  '42501', 'Procurement header edit is not permitted.',
+  'AC-APR-018: a non-requester Project Manager cannot rename a Requested procurement');
 select lives_ok($$ update procurements set project_id = '02344000-0000-0000-0000-000000000102' where id = '02344000-0000-0000-0000-000000000402' $$,
-  'AC-APR-018: a Draft request''s project is still editable');
+  'AC-APR-018: the requester can still change a Draft request''s project');
 select lives_ok($$ select select_procurement_quote('02344000-0000-0000-0000-0000000000c1') $$,
   'AC-APR-018: quote selection (server path) still runs');
 reset role;

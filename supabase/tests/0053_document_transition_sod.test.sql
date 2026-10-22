@@ -9,7 +9,7 @@
 --   AC-DOC-204  illegal status hops are rejected by the legal map (Draft → Approved → P0001).
 --   AC-DOC-205  a non-write-role (Engineer) CANNOT transition a document (role gate → 42501).
 --   AC-DOC-206  cross-org transition is denied (an org-B PM cannot move an org-A document → 42501).
---   AC-DOC-207  the status column is RPC-only: a direct `update … set status` by a write-role → 42501.
+--   AC-DOC-207  the status column is RPC-only, and non-author write-role metadata edits are denied → 42501.
 begin;
 select plan(10);
 
