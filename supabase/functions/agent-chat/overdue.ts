@@ -40,6 +40,8 @@ export interface OverdueFacts {
   /** null = not shown (role may not view invoices, or Revenue is off) — DD-AIN-2. */
   invoices: OverdueInvoice[] | null;
   invoicesTruncated: boolean;
+  /** Project names already fetched for overdue task/invoice project IDs. */
+  projectNames?: ReadonlyMap<string, string>;
 }
 
 const unique = (xs: Array<string | null>): string[] => [...new Set(xs.filter((x): x is string => !!x))];
@@ -89,27 +91,11 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
   const tasksTruncated = taskRows.length > OVERDUE_TASK_CAP;
   taskRows = taskRows.slice(0, OVERDUE_TASK_CAP);
 
-  const projectIds = unique(taskRows.map((t) => t.project_id));
   const assigneeIds = unique(taskRows.map((t) => t.assignee_id));
-  const [projects, people] = await Promise.all([
-    projectIds.length
-      ? readRows<{ id: string; name: string }>(sb.from('projects').select('id, name').in('id', projectIds))
-      : Promise.resolve([] as Array<{ id: string; name: string }>),
-    assigneeIds.length
-      ? readRows<{ id: string; full_name: string | null }>(sb.from('profiles').select('id, full_name').in('id', assigneeIds))
-      : Promise.resolve([] as Array<{ id: string; full_name: string | null }>),
-  ]);
-  const projectName = new Map(projects.map((p) => [p.id, p.name]));
-  const personName = new Map(people.map((p) => [p.id, p.full_name]));
-  const tasks: OverdueTask[] = taskRows.map((t) => ({
-    id: t.id,
-    name: t.name,
-    projectId: t.project_id,
-    projectName: t.project_id ? projectName.get(t.project_id) ?? null : null,
-    assigneeName: t.assignee_id ? personName.get(t.assignee_id) ?? null : null,
-    dueDate: t.end_date,
-    daysOverdue: daysBetween(t.end_date, asOf),
-  }));
+  const people = assigneeIds.length
+    ? await readRows<{ id: string; full_name: string | null }>(sb.from('profiles').select('id, full_name').in('id', assigneeIds))
+    : [];
+  const personName = new Map(people.map((person) => [person.id, person.full_name]));
 
   // DD-AIN-2: invoices only for a role that may view them, in an org with Revenue on.
   let invoices: OverdueInvoice[] | null = null;
@@ -141,7 +127,24 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
       invoices = overdue.slice(0, OVERDUE_TASK_CAP);
     }
   }
-  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated };
+
+  // Resolve project names once for the union of overdue task and invoice project IDs.
+  // This reuses the existing project-name lookup and does not create an invoice-specific read path.
+  const projectIds = unique([...taskRows.map((task) => task.project_id), ...(invoices ?? []).map((invoice) => invoice.projectId ?? null)]);
+  const projects = projectIds.length
+    ? await readRows<{ id: string; name: string }>(sb.from('projects').select('id, name').in('id', projectIds))
+    : [];
+  const projectName = new Map(projects.map((project) => [project.id, project.name]));
+  const tasks: OverdueTask[] = taskRows.map((task) => ({
+    id: task.id,
+    name: task.name,
+    projectId: task.project_id,
+    projectName: task.project_id ? projectName.get(task.project_id) ?? null : null,
+    assigneeName: task.assignee_id ? personName.get(task.assignee_id) ?? null : null,
+    dueDate: task.end_date,
+    daysOverdue: daysBetween(task.end_date, asOf),
+  }));
+  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated, projectNames: projectName };
 }
 
 export const OVERDUE_LIST_SHOWN = 10;
@@ -172,11 +175,15 @@ export interface OverdueAnswer {
 
 export function buildOverdueModelResult(facts: OverdueFacts): OverdueModelResult {
   const partial = facts.tasksTruncated || facts.invoicesTruncated;
+  const projectNames = new Map(facts.projectNames ?? []);
+  for (const task of facts.tasks) {
+    if (task.projectId && task.projectName) projectNames.set(task.projectId, task.projectName);
+  }
   const buckets = new Map<string | null, OverdueProjectCount>();
   const bucket = (id: string | null): OverdueProjectCount => {
     let value = buckets.get(id);
     if (!value) {
-      value = { projectId: id, projectName: null, overdueTasks: 0, overdueInvoices: facts.invoices === null ? null : 0, partial };
+      value = { projectId: id, projectName: id ? projectNames.get(id) ?? null : null, overdueTasks: 0, overdueInvoices: facts.invoices === null ? null : 0, partial };
       buckets.set(id, value);
     }
     return value;
@@ -263,7 +270,7 @@ export async function runWhatsOverdue(
         overdueInvoices: facts.invoices ? facts.invoices.length : null,
         tasksTruncated: facts.tasksTruncated,
         invoicesTruncated: facts.invoicesTruncated,
-        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence.${facts.tasksTruncated || facts.invoicesTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
+        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. query_entity counts cover all tasks the user can see, which may differ from this panel's own/managed scope.${facts.tasksTruncated || facts.invoicesTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
       },
     };
   } catch {

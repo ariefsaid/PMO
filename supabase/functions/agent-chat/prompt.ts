@@ -25,6 +25,7 @@
 
 // Relative import — no @-alias (Deno has no Vite alias).
 import { resolveAgentEntity } from './entityCatalog.ts';
+import { AGENT_AGGREGATE_ROW_CAP } from './readEntities.ts';
 import type { AgentReadEntity } from './readEntities.ts';
 import { HELP_CORPUS } from './helpCorpus.ts';
 
@@ -106,7 +107,7 @@ export function buildAgentSystemPrompt(
   const overdueSkill = `
 
 ### overdue — Use when the user asks what is overdue, late, past due or behind
-Call \`whats_overdue\` (no arguments) first. ONE call covers every project the user works on plus overdue invoices — do NOT query \`tasks\` project by project for this. The panel is displayed automatically. If the user asks for a table with specific columns or sort, grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. Totals/counts are over fetched rows; when partial, say so and use query_entity with group_by for complete counts on supported entities, checking its truncated flag.`;
+Call \`whats_overdue\` (no arguments) first. ONE call covers every project the user works on plus overdue invoices — do NOT query \`tasks\` project by project for this. The panel is displayed automatically. If the user asks for a table with specific columns or sort, grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. The overdue panel may use own/managed scope; query_entity counts cover all tasks the user can see and may differ from the panel's own/managed scope. When partial, say so and use query_entity with group_by for complete counts on supported entities, checking its truncated flag.`;
 
   const invoiceSkill = invoiceDraftsEnabled
     ? `
@@ -156,14 +157,14 @@ Hard rules (binding):
 
 ${toolIndexLines}
 
-Ordinary queries return at most ${rowCap} rows. Aggregations page up to 5,000 caller-visible rows. Use group_by for counts and sum for numeric totals instead of counting a capped row list yourself; check truncated before claiming completeness. query_entity accepts:
+Ordinary queries return at most ${rowCap} rows. Aggregations page up to ${AGENT_AGGREGATE_ROW_CAP} caller-visible rows. Use group_by for counts and sum for numeric totals instead of counting a capped row list yourself; check truncated before claiming completeness. query_entity accepts:
   - entity: one of the entity keys listed below
   - columns: (optional) subset of allowed columns; omit to get all
   - filter: (optional) one filter object or an array of 1–3 ANDed filters; operators: "eq"|"in"|"neq"|"lt"|"lte"|"gt"|"gte"
   - order_by: (optional) { column, direction: "asc"|"desc" } — orders source rows
   - group_by: (optional) whitelisted column for grouped counts
   - sum: (optional) whitelisted numeric column; requires group_by
-  - limit: (optional) integer 1–${rowCap} for ordinary reads; aggregates use a 5,000-row cap
+  - limit: (optional) integer 1–${rowCap} for ordinary reads; aggregates use a ${AGENT_AGGREGATE_ROW_CAP}-row cap
   - as: (optional) "table" — render ordinary rows as an inline data table widget (see the table skill)
 
 ## Skills

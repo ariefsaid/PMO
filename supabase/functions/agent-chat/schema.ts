@@ -13,7 +13,7 @@
  * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
-import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './readEntities.ts';
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP } from './readEntities.ts';
 
 // Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
 export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema.ts';
@@ -118,16 +118,21 @@ export const QUERY_ENTITY_SCHEMA = {
         "Subset of the entity's allowed columns; omit for all allowed columns.",
     },
     filter: {
-      anyOf: [
-        { $ref: '#/$defs/filter' },
-        { type: 'array' as const, minItems: 1, maxItems: 3, items: { $ref: '#/$defs/filter' } },
-      ],
+      type: 'array' as const, minItems: 1, maxItems: 3,
+      items: {
+        type: 'object' as const, required: ['column', 'op', 'value'] as string[], additionalProperties: false,
+        properties: {
+          column: { type: 'string' as const },
+          op: { type: 'string' as const, enum: ['eq', 'in', 'neq', 'lt', 'lte', 'gt', 'gte'] },
+          value: { description: 'Scalar for comparisons; array of strings for in.' },
+        },
+      },
     },
     order_by: {
       type: 'object' as const, required: ['column', 'direction'] as string[], additionalProperties: false,
       properties: { column: { type: 'string' as const }, direction: { type: 'string' as const, enum: ['asc', 'desc'] } },
     },
-    group_by: { type: 'string' as const, description: 'Group caller-visible rows and count each group, up to the 5,000-row cap.' },
+    group_by: { type: 'string' as const, description: `Group caller-visible rows and count each group, up to the ${AGENT_AGGREGATE_ROW_CAP}-row cap and 200 returned groups.` },
     sum: { type: 'string' as const, description: 'Sum a whitelisted numeric column; requires group_by.' },
     limit: {
       type: 'integer' as const,
@@ -140,16 +145,6 @@ export const QUERY_ENTITY_SCHEMA = {
       enum: ['table'] as string[],
       description:
         'Optional presentation hint (ADR-0045 DEC-2): when "table", the handler renders the result as an inline data table widget instead of describing it in text. Omit for the default text summary.',
-    },
-  },
-  $defs: {
-    filter: {
-      type: 'object' as const, required: ['column', 'op', 'value'] as string[], additionalProperties: false,
-      properties: {
-        column: { type: 'string' as const },
-        op: { type: 'string' as const, enum: ['eq', 'in', 'neq', 'lt', 'lte', 'gt', 'gte'] },
-        value: { description: 'Scalar for comparisons; array of strings for in.' },
-      },
     },
   },
 };

@@ -111,9 +111,81 @@ it('AC-ACC-010 checks a final draft against tool evidence before emitting it', a
     .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Correct: 3.' }, usage: { completion_tokens: 5 }, model: 'm' });
   const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
   expect(create).toHaveBeenCalledTimes(2);
-  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none', temperature: 0.2 });
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], temperature: 0.2 });
+  expect(create.mock.calls[1][0]).not.toHaveProperty('tool_choice');
   expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Correct: 3.']);
   expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === 'Double-checking the answer…')).toBe(true);
+});
+
+it('AC-ACC-013 uses temperature 0.2 for loop, step-limit synthesis and answer check calls', async () => {
+  const toolResponse = {
+    finish_reason: 'tool_calls', usage: {}, model: 'm',
+    message: { role: 'assistant', content: null, tool_calls: [{ id: 'tc', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } }] },
+  };
+  const create = vi.fn();
+  for (let i = 0; i < MAX_TOOL_ROUNDS; i++) create.mockResolvedValueOnce(toolResponse);
+  create.mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Synthesized answer.' }, usage: {}, model: 'm' });
+  create.mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Checked answer.' }, usage: {}, model: 'm' });
+  await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 2);
+  expect(create.mock.calls.every(([request]) => request.temperature === 0.2)).toBe(true);
+});
+
+it('AC-ACC-010 skips the check after the 90-second turn budget and emits the draft', async () => {
+  let now = 1_000;
+  const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => now);
+  const create = vi.fn().mockImplementation(async () => {
+    now += 91_001;
+    return { finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' };
+  });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+  expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === 'Double-checking the answer…')).toBe(false);
+  dateNow.mockRestore();
+});
+
+it('AC-ACC-012 emits the draft when the check response is truncated', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' })
+    .mockResolvedValueOnce({ finish_reason: 'length', message: { role: 'assistant', content: 'Incomplete correction' }, usage: {}, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+});
+
+it('AC-ACC-012 throws and empty check replies preserve the original draft', async () => {
+  for (const checkReply of [
+    new Error('provider failure'),
+    { finish_reason: 'stop', message: { role: 'assistant', content: null }, usage: {}, model: 'm' },
+    { finish_reason: 'stop', message: { role: 'assistant', content: '   ' }, usage: {}, model: 'm' },
+  ]) {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Preserve this draft.' }, usage: {}, model: 'm' })
+      .mockImplementationOnce(() => checkReply instanceof Error ? Promise.reject(checkReply) : Promise.resolve(checkReply));
+    const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+    expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Preserve this draft.']);
+    expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+  }
+});
+
+it('AC-ACC-011 disabled verification sends no check call', async () => {
+  const create = vi.fn().mockResolvedValue({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ verifyAnswer: false, modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+});
+
+it('AC-ACC-012 check timeout falls back to the draft', async () => {
+  vi.useFakeTimers();
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' })
+    .mockImplementation(() => new Promise(() => {}));
+  const pending = collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  await vi.advanceTimersByTimeAsync(15_000);
+  const events = await pending;
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+  vi.useRealTimers();
 });
 
 it('AC-AR-002 emits a single 401 status event and never calls the model when userId is empty', async () => {
@@ -263,8 +335,9 @@ it('AC-RQL-010 forced synthesis: exhausting the loop still emits a final answer 
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
-  // The synthesis call happened with tools disabled.
-  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
+  // Synthesis and its final evidence check both have tools disabled.
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 2);
+  expect(create.mock.calls.at(-2)![0]).toMatchObject({ tools: [] });
   expect(create.mock.calls.at(-1)![0]).toMatchObject({ tools: [] });
   // A real assistant answer is emitted BEFORE the terminal step-limit status (never a bare dead-end).
   const answer = events.find((e) => e.type === 'assistant' && e.text?.includes('behind schedule'));

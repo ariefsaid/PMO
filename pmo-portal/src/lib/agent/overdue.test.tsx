@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
+import { buildOverdueModelResult, loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
 import { render } from '@testing-library/react';
 import { Markdown } from '../../components/panel/Markdown';
 import { fakeSupabase, opsOf, type FakeCall } from './testing/fakeSupabase';
@@ -24,6 +24,29 @@ function world(rows: Rows = {}) {
 }
 
 describe('loadOverdueFacts — tasks (#787)', () => {
+  it('AC-ACC-001 fills known project names on invoice-only overdue groups', () => {
+    const result = buildOverdueModelResult({
+      asOf: '2026-10-06', numberLocale: 'en-US',
+      tasks: [],
+      tasksTruncated: false,
+      invoices: [{ id: 'i1', siNumber: 'INV-1', customerName: null, outstanding: 1, currency: 'USD', taxTreatment: 'exclusive', dueDate: '2026-10-01', daysOverdue: 5, projectId: 'p-invoice' }],
+      invoicesTruncated: false,
+      projectNames: new Map([['p-invoice', 'Invoice Project']]),
+    });
+    expect(result.projectCounts).toEqual([{ projectId: 'p-invoice', projectName: 'Invoice Project', overdueTasks: 0, overdueInvoices: 1, partial: false }]);
+  });
+
+  it('AC-ACC-001 counts 19 tasks across four projects in the compact model result', () => {
+    const tasks = Array.from({ length: 19 }, (_, index) => ({
+      id: `task-${index}`, name: `Task ${index}`, projectId: `p${index % 4}`, projectName: `Project ${index % 4}`,
+      assigneeName: null, dueDate: '2026-10-01', daysOverdue: 5,
+    }));
+    const result = buildOverdueModelResult({ asOf: '2026-10-06', numberLocale: 'en-US', tasks, tasksTruncated: false, invoices: [], invoicesTruncated: false });
+    expect(result.tasks).toHaveLength(19);
+    expect(result.projectCounts.map(({ projectId, overdueTasks }) => [projectId, overdueTasks])).toEqual([
+      ['p0', 5], ['p1', 5], ['p2', 5], ['p3', 4],
+    ]);
+  });
   it('AC-AIN-004 an Engineer gets only their own open, past-due, live tasks', async () => {
     const { client, calls } = fakeSupabase(world());
     await loadOverdueFacts(ctx('Engineer', client), NOW);

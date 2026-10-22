@@ -128,7 +128,7 @@ it('AC-CV-001 includes a compose_view tool with { prompt } input schema when com
   );
 
   expect(create).toHaveBeenCalledTimes(2);
-  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none' });
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [] });
   const callArgs = create.mock.calls[0][0];
   const tools = callArgs.tools as Array<{ type: string; function: { name: string; parameters: { required?: string[] } } }>;
 

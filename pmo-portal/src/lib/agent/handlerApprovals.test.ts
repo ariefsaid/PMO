@@ -184,6 +184,6 @@ describe('conditional approval predicates', () => {
     });
     expect(update).toHaveBeenCalledWith({ status: 'Done' });
     expect(modelClient.create).toHaveBeenCalledTimes(3);
-    expect(modelClient.create.mock.calls[2][0]).toMatchObject({ tools: [], tool_choice: 'none' });
+    expect(modelClient.create.mock.calls[2][0]).toMatchObject({ tools: [] });
   });
 });

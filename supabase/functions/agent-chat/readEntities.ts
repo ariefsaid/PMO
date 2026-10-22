@@ -65,6 +65,7 @@ export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
 export const AGENT_READ_ROW_CAP = 50;
 export const AGENT_AGGREGATE_ROW_CAP = 5000;
 export const AGENT_AGGREGATE_PAGE_SIZE = 1000;
+export const AGENT_AGGREGATE_GROUP_CAP = 200;
 
 /**
  * Agent-curated entity catalogue for the entities NOT covered by ENTITY_WHITELIST. Pure data

@@ -8,7 +8,7 @@ const ctxFor = (client: unknown): DeputyContext => ({ jwt: 'caller-jwt', userId:
 describe('query_entity accuracy contracts', () => {
   it('AC-ACC-005 sums finite numeric values by group and counts null amounts as zero', async () => {
     const rows = [
-      { id: '1', procurement_id: 'p1', amount: '10.25' },
+      { id: '1', procurement_id: 'p1', amount: '10.256' },
       { id: '2', procurement_id: 'p1', amount: 2.75 },
       { id: '3', procurement_id: 'p2', amount: null },
     ];
@@ -20,7 +20,7 @@ describe('query_entity accuracy contracts', () => {
     });
     const result = await runQueryEntity({ entity: 'purchase_orders', group_by: 'procurement_id', sum: 'amount' }, ctxFor(client));
     expect(result).toEqual({ groups: [
-      { key: 'p1', count: 2, sum: 13 }, { key: 'p2', count: 1, sum: 0 },
+      { key: 'p1', count: 2, sum: 13.01 }, { key: 'p2', count: 1 },
     ], rowCount: 3, truncated: false });
     expect(calls[0].ops).toContainEqual(['range', 0, 999]);
     expect(calls[0].columns).toBe('id,procurement_id,amount');
