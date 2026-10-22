@@ -316,7 +316,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         open={!!selectTarget}
         tone="default"
         title="Select this quote?"
-        description="The selected quote sets the purchase-request value and vendor, and advances the request to Quote Selected."
+        description="The selected quote sets the purchase-request value and vendor. If it is above the approved amount, the request goes back for approval."
         confirmLabel="Select quote"
         loading={selectBusy}
         onConfirm={() => void confirmSelect()}
