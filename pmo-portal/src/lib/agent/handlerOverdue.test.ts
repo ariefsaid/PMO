@@ -27,7 +27,7 @@ describe('whats_overdue through the handler (#787)', () => {
   beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-06T03:00:00Z')); });
   afterEach(() => vi.useRealTimers());
 
-  it('AC-AIN-001 shows the overdue tasks and invoices with links; the model receives only the receipt', async () => {
+  it('AC-ACC-001 includes fetched rows and project counts while preserving the overdue panel', async () => {
     const { client } = fakeSupabase(respond);
     const create = vi.fn().mockResolvedValueOnce(toolCall('whats_overdue', {})).mockResolvedValueOnce(stop('Two things need you.'));
     const deps: HandlerDeps = {
@@ -45,8 +45,12 @@ describe('whats_overdue through the handler (#787)', () => {
 
     const toolMsg = create.mock.calls[1][0].messages.at(-1);
     expect(toolMsg.role).toBe('tool');
-    expect(JSON.parse(toolMsg.content)).toMatchObject({ ok: true, overdueTasks: 1, overdueInvoices: 1 });
-    expect(toolMsg.content).not.toContain('Pour foundation');
+    expect(JSON.parse(toolMsg.content)).toMatchObject({
+      ok: true, overdueTasks: 1, overdueInvoices: 1,
+      tasks: [{ name: 'Pour foundation', projectId: P1, projectName: 'Harbor Tower', assigneeName: 'Budi', dueDate: '2026-10-02', daysOverdue: 4 }],
+      invoices: [{ siNumber: 'ACC-SINV-2026-00012', customerName: 'PT Client', outstanding: 850000000, projectId: P1, dueDate: '2026-10-01', daysOverdue: 5 }],
+      projectCounts: [{ projectId: P1, projectName: 'Harbor Tower', overdueTasks: 1, overdueInvoices: 1, partial: false }],
+    });
     expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === "Checking what's overdue…")).toBe(true);
   });
 });

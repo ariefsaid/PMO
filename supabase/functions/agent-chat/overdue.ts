@@ -30,7 +30,7 @@ export interface OverdueTask {
 }
 export interface OverdueInvoice {
   id: string; siNumber: string | null; customerName: string | null; outstanding: number | null;
-  currency: string; taxTreatment: string; dueDate: string; daysOverdue: number;
+  currency: string; taxTreatment: string; dueDate: string; daysOverdue: number; projectId?: string | null;
 }
 export interface OverdueFacts {
   asOf: string;
@@ -133,7 +133,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
         overdue.push({
           id: row.id, siNumber: row.si_number, customerName: row.companies?.name ?? null,
           outstanding: row.erp_outstanding_amount, currency: row.currency, taxTreatment: row.tax_treatment,
-          dueDate: due, daysOverdue: daysBetween(due, asOf),
+          dueDate: due, daysOverdue: daysBetween(due, asOf), projectId: row.project_id,
         });
       }
       overdue.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
@@ -147,11 +147,54 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
 export const OVERDUE_LIST_SHOWN = 10;
 export const OVERDUE_TIMEOUT_MS = 8000;
 
+export interface OverdueProjectCount {
+  projectId: string | null;
+  projectName: string | null;
+  overdueTasks: number;
+  overdueInvoices: number | null;
+  partial: boolean;
+}
+
+export interface OverdueModelResult {
+  partial: boolean;
+  tasks: Array<Omit<OverdueTask, 'id'>>;
+  invoices: Array<Omit<OverdueInvoice, 'id'>> | null;
+  projectCounts: OverdueProjectCount[];
+}
+
 export interface OverdueAnswer {
   markdown: string;
-  receipt: {
+  receipt: OverdueModelResult & {
     ok: true; asOf: string; overdueTasks: number; overdueInvoices: number | null;
     tasksTruncated: boolean; invoicesTruncated: boolean; note: string;
+  };
+}
+
+export function buildOverdueModelResult(facts: OverdueFacts): OverdueModelResult {
+  const partial = facts.tasksTruncated || facts.invoicesTruncated;
+  const buckets = new Map<string | null, OverdueProjectCount>();
+  const bucket = (id: string | null): OverdueProjectCount => {
+    let value = buckets.get(id);
+    if (!value) {
+      value = { projectId: id, projectName: null, overdueTasks: 0, overdueInvoices: facts.invoices === null ? null : 0, partial };
+      buckets.set(id, value);
+    }
+    return value;
+  };
+  for (const task of facts.tasks) {
+    const item = bucket(task.projectId);
+    item.overdueTasks++;
+    item.projectName ??= task.projectName;
+  }
+  for (const invoice of facts.invoices ?? []) {
+    const item = bucket(invoice.projectId ?? null);
+    item.overdueInvoices = (item.overdueInvoices ?? 0) + 1;
+  }
+  return {
+    partial,
+    tasks: facts.tasks.map(({ id: _id, ...task }) => task),
+    invoices: facts.invoices?.map(({ id: _id, ...invoice }) => ({ ...invoice, projectId: invoice.projectId ?? null })) ?? null,
+    projectCounts: [...buckets.values()],
   };
 }
 
@@ -213,13 +256,14 @@ export async function runWhatsOverdue(
     return {
       markdown: renderOverdueMarkdown(facts),
       receipt: {
+        ...buildOverdueModelResult(facts),
         ok: true,
         asOf: facts.asOf,
         overdueTasks: facts.tasks.length,
         overdueInvoices: facts.invoices ? facts.invoices.length : null,
         tasksTruncated: facts.tasksTruncated,
         invoicesTruncated: facts.invoicesTruncated,
-        note: 'The overdue list is already shown to the user. Reply with at most one short sentence; do not repeat the list.',
+        note: 'The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence.',
       },
     };
   } catch {

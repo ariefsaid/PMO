@@ -230,11 +230,11 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     expect(renderOverdueMarkdown({ ...base, tasks: [], invoices: [] })).toBe('**Overdue as of 6 Oct** — nothing is overdue.\n\n');
   });
 
-  it('FR-AIN-006 run returns the markdown plus a receipt without the list', async () => {
+  it('AC-ACC-001 run returns the markdown plus compact model rows', async () => {
     const { client } = fakeSupabase(world({ tasks: () => [{ id: 't-1', name: 'Pour', end_date: '2026-10-02', project_id: P1, assignee_id: null }] }));
     const out = await runWhatsOverdue({}, ctx('Engineer', client), NOW);
     expect(out).toMatchObject({ receipt: { ok: true, overdueTasks: 1, overdueInvoices: null } });
-    expect(JSON.stringify((out as { receipt: unknown }).receipt)).not.toContain('Pour');
+    expect(JSON.stringify((out as { receipt: unknown }).receipt)).toContain('Pour');
   });
 
   it('a read failure becomes a plain error, never a partial list', async () => {
