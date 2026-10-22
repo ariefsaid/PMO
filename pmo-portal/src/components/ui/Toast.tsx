@@ -276,3 +276,7 @@ export const useToast = (): ToastApi => {
   if (!ctx) throw new Error('useToast must be used within a ToastProvider');
   return ctx;
 };
+
+/** Non-throwing `useToast` for hooks that may run outside a provider (a notice is then simply skipped). */
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
+export const useOptionalToast = (): ToastApi | null => useContext(ToastCtx) ?? null;

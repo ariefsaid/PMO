@@ -114,7 +114,8 @@ it('AC-ATC-012 context.entity grounds query_entity read', async () => {
 
   await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
 
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [] });
   const sentMessages = create.mock.calls[0][0].messages as { role: string; content: string }[];
   const systemMsg = sentMessages.find((m) => m.role === 'system');
   expect(systemMsg).toBeDefined();

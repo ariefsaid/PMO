@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -71,6 +72,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import DocumentsTab from './DocumentsTab';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+// The register mounts RecordFolderAction, which reads the query cache (#1020).
+const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 // d1 Draft (authored by pm-1), d2 Issued (authored by pm-1, awaiting approval),
 // d3 Approved (authored by admin-1), d4 Rejected (authored by pm-1).
@@ -87,11 +90,11 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1') => {
   realRole = role;
   currentUserId = uid;
   return render(
-    <ToastProvider>
+    <QueryClientProvider client={testQueryClient}><ToastProvider>
       <MemoryRouter>
         <DocumentsTab projectId="p1" />
       </MemoryRouter>
-    </ToastProvider>,
+    </ToastProvider></QueryClientProvider>,
   );
 };
 

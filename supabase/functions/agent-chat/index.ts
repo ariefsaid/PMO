@@ -25,7 +25,7 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
-import { agentChatHandler } from './handler.ts';
+import { agentChatHandler, answerVerificationEnabled } from './handler.ts';
 import { drainSseStream } from './sseStream.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
@@ -254,6 +254,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
       const deps: import('./handler.ts').HandlerDeps = {
         modelClient,
         model,
+        verifyAnswer: answerVerificationEnabled(Deno.env.get('AGENT_VERIFY_ANSWER') ?? undefined),
         // Cast: Item 3's original cast-cleanup rationale (real client structurally satisfies
         // HandlerSupabaseLike, checked fine under tsc) still holds; deno check's stricter/deeper
         // structural recursion over this large HandlerDeps literal (6 `supabase: callerClient`
@@ -276,7 +277,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
         rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient as never }) : undefined,
         // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
         // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
-        usage: { supabase: callerClient as never },
+        usage: { serviceClient: verifierClient as never },
         // Token-budget transcript compaction (deploy-tunable via AGENT_COMPACTION_* secrets; unset →
         // DEFAULT_COMPACTION). Input-only shrink of the replayed transcript — never persisted.
         compaction: compactionOptionsFromEnv({

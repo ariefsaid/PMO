@@ -411,7 +411,6 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
         p_kill_switch_enabled: killSwitchEnabled, p_ready: false, p_actor_id: userId,
       });
       if (readinessError) {
-        await serviceClient.rpc('delete_vault_secret', { p_secret_name: secretRef });
         await serviceClient.rpc('cleanup_external_connect_attempt', {
           p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
         });
@@ -428,7 +427,6 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       p_actor_id: userId,
     });
     if (finalizeError) {
-      await serviceClient.rpc('delete_vault_secret', { p_secret_name: secretRef });
       await serviceClient.rpc('cleanup_external_connect_attempt', {
         p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
       });

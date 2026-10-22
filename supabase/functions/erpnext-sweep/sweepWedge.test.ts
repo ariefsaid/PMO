@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * HIGH-A (Luna re-audit round 2, 2026-07-21) [Deno] — ONE Desk-created document must never WEDGE the
  * poll, and one doctype's failure must never abandon the org's remaining doctypes.

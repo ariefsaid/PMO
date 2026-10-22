@@ -71,7 +71,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       ms_graph_connections: [
         { data: expired, error: null },
         { data: { id: 'conn-1' }, error: null }, // update … RETURNING → the persisted row
-        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1' }, error: null },
+        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1', scopes: expired.scopes }, error: null },
       ],
     });
     const fetch = vi.fn().mockImplementation((url: string) => {
@@ -106,6 +106,36 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     }
     // Audited as refreshed.
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
+  });
+
+  it('AC-M365DOC-070: refreshing an old-consent connection requests only its stored scopes — refresh never upgrades consent to Sites.Selected', async () => {
+    const expired = await connection({
+      scopes: ['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'offline_access'],
+      access_token_expires_at: new Date(Date.now() - 1000).toISOString(),
+    });
+    const freshBlob = await encryptForTest('NEW-ACCESS-TOKEN');
+    const service = mockClient({
+      ms_graph_connections: [
+        { data: expired, error: null },
+        { data: { id: 'conn-1' }, error: null },
+        { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1', scopes: expired.scopes }, error: null },
+      ],
+    });
+    const fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === TOKEN_URL) return Promise.resolve({ ok: true, json: async () => ({ access_token: 'NEW-ACCESS-TOKEN', refresh_token: 'NEW-REFRESH', expires_in: 3600 }) });
+      return Promise.resolve({ ok: true, json: async () => ({ value: [] }) });
+    });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/drive/root/children'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch }),
+    );
+
+    expect(result.status).toBe(200);
+    const tokenCall = fetch.mock.calls.find((call) => call[0] === TOKEN_URL)!;
+    const sent = new URLSearchParams(String((tokenCall[1] as { body: URLSearchParams }).body));
+    expect(sent.get('scope')).toBe('Files.Read Files.Read.All Sites.Read.All offline_access');
+    expect(sent.get('scope')).not.toContain('Sites.Selected');
   });
 
   it('AC-M365-112: refresh invalid_grant → status=stale, audit refresh_failed, error_event M365_REFRESH_FAILED, no Graph call', async () => {
@@ -181,16 +211,18 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(graphFetch).not.toHaveBeenCalled();
   });
 
-  it('AC-M365-114 (matrix): scopeCoversPath — reads need Files.*, writes need ReadWrite*, trailing-slash safe', () => {
+  it('AC-M365-114 (matrix): scopeCoversPath — reads need Files.*, no method but GET is ever covered, trailing-slash safe', () => {
     // Reads — any Files.* scope covers OneDrive reads.
     expect(scopeCoversPath(['Files.Read', 'offline_access'], 'GET', '/me/drive/root/children')).toBe(true);
     expect(scopeCoversPath(['Files.Read'], 'GET', '/drives/x/items')).toBe(true);
     expect(scopeCoversPath(['Files.ReadWrite'], 'GET', '/me/drive/root')).toBe(true); // ReadWrite also permits read
-    // Writes (POST/PATCH/PUT/DELETE) require a Files.ReadWrite* scope (LOW-5).
+    // Signed GET-only proxy contract (FR-M365DOC-070): a held write scope never makes a mutation
+    // permissible (this STRENGTHENS the old LOW-5 matrix, which let ReadWrite scopes cover writes).
     expect(scopeCoversPath(['Files.Read', 'offline_access'], 'POST', '/me/drive/root/children')).toBe(false);
     expect(scopeCoversPath(['Files.Read'], 'PATCH', '/drives/x/items')).toBe(false);
-    expect(scopeCoversPath(['Files.ReadWrite'], 'POST', '/me/drive/root/children')).toBe(true);
-    expect(scopeCoversPath(['Files.ReadWrite.All'], 'DELETE', '/drives/x/items')).toBe(true);
+    expect(scopeCoversPath(['Files.ReadWrite'], 'POST', '/me/drive/root/children')).toBe(false);
+    expect(scopeCoversPath(['Files.ReadWrite.All'], 'DELETE', '/drives/x/items')).toBe(false);
+    expect(scopeCoversPath(['Files.ReadWrite.All', 'Sites.Selected'], 'PUT', '/drives/x/items')).toBe(false);
     // Non-OneDrive paths always rejected.
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/events')).toBe(false);
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/messages')).toBe(false);
@@ -206,8 +238,8 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive/%2Fshares/secret')).toBe(false);
   });
 
-  it('AC-M365-114 (LOW-5): a Files.Read-only connection POSTing to OneDrive is rejected SCOPE_INSUFFICIENT (no Graph call)', async () => {
-    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+  it('AC-M365-114 (LOW-5): a browser POST to OneDrive is rejected BAD_REQUEST before any connection or Graph call — even with write scopes held', async () => {
+    const conn = await connection({ scopes: ['Files.ReadWrite', 'Files.ReadWrite.All', 'offline_access'] });
     const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
     const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
 
@@ -216,7 +248,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
     );
 
-    expect(result).toMatchObject({ status: 403, body: { error: 'SCOPE_INSUFFICIENT' } });
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
     expect(graphFetch).not.toHaveBeenCalled();
   });
 

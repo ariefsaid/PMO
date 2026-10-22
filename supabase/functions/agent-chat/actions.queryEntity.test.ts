@@ -34,24 +34,22 @@ function mockCtx(rows: unknown[]): { ctx: DeputyContext; trace: unknown[][] } {
         trace.push(['is', column, value]);
         return builder;
       },
-      eq(column: string, value: string) {
+      eq(column: string, value: string | number) {
         trace.push(['eq', column, value]);
-        return Object.assign(terminal(), {
-          limit: (n: number) => {
-            trace.push(['limit', n]);
-            return terminal();
-          },
-        });
+        return builder;
       },
       in(column: string, values: string[]) {
         trace.push(['in', column, values]);
-        return {
-          limit: (n: number) => {
-            trace.push(['limit', n]);
-            return terminal();
-          },
-        };
+        return builder;
       },
+      neq(column: string, value: string | number) { trace.push(['neq', column, value]); return builder; },
+      lt(column: string, value: string | number) { trace.push(['lt', column, value]); return builder; },
+      lte(column: string, value: string | number) { trace.push(['lte', column, value]); return builder; },
+      gt(column: string, value: string | number) { trace.push(['gt', column, value]); return builder; },
+      gte(column: string, value: string | number) { trace.push(['gte', column, value]); return builder; },
+      order(column: string, options: { ascending: boolean }) { trace.push(['order', column, options]); return builder; },
+      then: terminal().then.bind(terminal()),
+      range(from: number, to: number) { trace.push(['range', from, to]); return terminal(); },
       limit(n: number) {
         trace.push(['limit', n]);
         return terminal();

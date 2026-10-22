@@ -12,7 +12,7 @@
 
 // Relative imports — no .ts extension (Deno + Node/Vitest both resolve these).
 // No @-alias (Deno has no Vite alias).
-import type { AgentAction, DeputyContext, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentAction, DeputyContext, ReadQueryBuilder, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { resolveAgentEntity } from './entityCatalog.ts';
 import {
   QUERY_ENTITY_SCHEMA,
@@ -35,7 +35,7 @@ import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types
 // to break the actions.ts ↔ schema.ts cycle that TDZ-crashed the deployed worker (see its header).
 // Imported for local use AND re-exported so existing importers (handler.ts, etc.) still resolve them
 // from actions.ts without change.
-import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP } from './readEntities.ts';
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP, AGENT_AGGREGATE_PAGE_SIZE, AGENT_AGGREGATE_GROUP_CAP } from './readEntities.ts';
 import type { AgentReadEntity } from './readEntities.ts';
 export { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP };
 export type { AgentReadEntity };
@@ -56,25 +56,15 @@ export function isDestructiveDeleteAction(name: string): boolean {
 
 // ── Validated input shape (runtime) ──────────────────────────────────────────
 
-interface QueryEntityFilter {
-  column: string;
-  op: 'eq' | 'in';
-  value: unknown;
-}
-
+type QueryFilterOp = 'eq' | 'in' | 'neq' | 'lt' | 'lte' | 'gt' | 'gte';
+type QueryEntityResult =
+  | { rowCount: number; rows: unknown[] }
+  | { groups: Array<{ key: unknown; count: number; sum?: number }>; rowCount: number; truncated: boolean; groupsTruncated?: boolean; note?: string }
+  | { error: string; code?: string; detail?: string };
+interface QueryEntityFilter { column: string; op: QueryFilterOp; value: unknown }
 interface QueryEntityInput {
-  entity: string;
-  columns?: string[];
-  filter?: QueryEntityFilter;
-  limit?: number;
-}
-
-// ── Helper: AbortController timeout ───────────────────────────────────────────
-
-function timeoutPromise<T>(ms: number): Promise<T> {
-  return new Promise<T>((_, reject) =>
-    setTimeout(() => reject(new Error('query_entity read timeout')), ms),
-  );
+  entity: string; columns?: string[]; filter?: QueryEntityFilter | QueryEntityFilter[]; limit?: number;
+  order_by?: { column: string; direction: 'asc' | 'desc' }; group_by?: string; sum?: string; as?: 'table';
 }
 
 // ── runQueryEntity (the action logic, pure + DI) ──────────────────────────────
@@ -83,123 +73,147 @@ function timeoutPromise<T>(ms: number): Promise<T> {
  * Execute a whitelisted, row-capped read through the caller-JWT supabase client.
  * Returns a structured result (never throws to the handler).
  *
- * Validation order (FR-AR-010):
- *   1. entity ∈ AGENT_READ_ENTITIES → structured error if not (AC-AR-006)
- *   2. columns ⊆ entry.allowedColumns → structured error if any unknown (AC-AR-006)
- *   3. requiredFilter check → structured error if missing (R3 / A3 entities)
- *   4. apply row cap, filter, call ctx.supabase (AC-AR-007, AC-AR-008)
+ * Validation is completed before opening the caller-JWT read: entity, columns/operators,
+ * aggregate compatibility, and required scope are checked before any query is constructed.
  */
-export async function runQueryEntity(
-  input: unknown,
-  ctx: DeputyContext,
-): Promise<
+export async function runQueryEntity(input: unknown, ctx: DeputyContext): Promise<
   | { rowCount: number; rows: unknown[] }
+  | { groups: Array<{ key: unknown; count: number; sum?: number }>; rowCount: number; truncated: boolean; groupsTruncated?: boolean; note?: string }
   | { error: string; code?: string; detail?: string }
 > {
   const inp = input as QueryEntityInput;
-
-  // ── Step 1: entity whitelist check (AC-AR-006) ────────────────────────────
-  const entityKey = inp.entity as AgentReadEntity;
-  if (!(AGENT_READ_ENTITIES as readonly string[]).includes(entityKey)) {
-    return { error: `unknown entity: ${inp.entity}` };
-  }
-
+  const entityKey = inp?.entity as AgentReadEntity;
+  if (!(AGENT_READ_ENTITIES as readonly string[]).includes(entityKey)) return { error: `unknown entity: ${inp?.entity}` };
   const entry = resolveAgentEntity(entityKey);
-  // Unreachable for a key in AGENT_READ_ENTITIES (the catalogue resolves every listed key), but
-  // defended defensively: never proceed without a resolved {table, allowedColumns}.
-  if (!entry) {
-    return { error: `unknown entity: ${inp.entity}` };
+  if (!entry) return { error: `unknown entity: ${inp?.entity}` };
+  const filters = inp.filter === undefined
+    ? []
+    : Array.isArray(inp.filter) ? inp.filter : [inp.filter];
+  if (filters.length > 3 || (Array.isArray(inp.filter) && filters.length === 0)) {
+    return { error: 'filter must contain 1 to 3 filters' };
   }
 
-  // ── Step 2: column whitelist check (AC-AR-006) ────────────────────────────
+  // Column whitelists keep untrusted model-selected names out of the PostgREST query.
   const requestedCols = inp.columns ?? [...entry.allowedColumns];
-  for (const col of requestedCols) {
-    if (!entry.allowedColumns.has(col)) {
-      return { error: `unknown column: ${col} on entity ${entityKey}` };
+  for (const column of requestedCols) {
+    if (!entry.allowedColumns.has(column)) return { error: `unknown column: ${column} on entity ${entityKey}` };
+  }
+
+  const validOps: QueryFilterOp[] = ['eq', 'in', 'neq', 'lt', 'lte', 'gt', 'gte'];
+  for (const filter of filters) {
+    if (!filter || !entry.allowedColumns.has(filter.column)) {
+      return { error: `unknown filter column: ${filter?.column} on entity ${entityKey}` };
+    }
+    if (!validOps.includes(filter.op)) return { error: `unsupported filter op: ${filter.op}` };
+    if (filter.op === 'in') {
+      if (!Array.isArray(filter.value) || !filter.value.length) {
+        return { error: 'in filter value must be a non-empty array' };
+      }
+    } else if (filter.op === 'eq') {
+      if (filter.value === null || filter.value === undefined || typeof filter.value === 'object') {
+        return { error: 'filter value must be scalar' };
+      }
+    } else if (!(typeof filter.value === 'number' && Number.isFinite(filter.value)) &&
+      !(typeof filter.value === 'string' && filter.value.trim())) {
+      return { error: 'comparison value must be a finite number or non-empty date string' };
     }
   }
 
-  // ── Step 3: filter column whitelist check (Blocker 6 / NFR-AR-SEC-004) ──────
-  // The SELECT projection is whitelisted in step 2. The FILTER column must also
-  // be in allowedColumns — otherwise a prompt-injected tool call could filter on
-  // any real column of the table (including intentionally excluded ones) and use
-  // the result rowCount as a boolean oracle to probe hidden values.
-  if (inp.filter && !entry.allowedColumns.has(inp.filter.column)) {
-    return { error: `unknown filter column: ${inp.filter.column} on entity ${entityKey}` };
+  if (inp.order_by && (!entry.allowedColumns.has(inp.order_by.column) || !['asc', 'desc'].includes(inp.order_by.direction))) {
+    return { error: 'invalid order_by column or direction' };
+  }
+  if (inp.group_by && !entry.allowedColumns.has(inp.group_by)) {
+    return { error: `unknown group_by column: ${inp.group_by}` };
+  }
+  if (inp.group_by && entry.groupableColumns && !entry.groupableColumns.has(inp.group_by)) {
+    return { error: `column is not groupable: ${inp.group_by}` };
+  }
+  if (inp.sum && !entry.allowedColumns.has(inp.sum)) return { error: `unknown sum column: ${inp.sum}` };
+  if (inp.sum && !entry.numericColumns.has(inp.sum)) return { error: `sum column is not numeric: ${inp.sum}` };
+  if (inp.sum && !inp.group_by) return { error: 'sum requires group_by' };
+  if (entry.requiredFilter && !filters.some((filter) =>
+    filter.column === entry.requiredFilter && ['eq', 'in'].includes(filter.op))) {
+    return { error: `entity ${entityKey} requires a filter on column ${entry.requiredFilter}` };
   }
 
-  // ── Step 4: requiredFilter check (R3 / built for A3) ─────────────────────
-  if (
-    entry.requiredFilter &&
-    (!inp.filter || inp.filter.column !== entry.requiredFilter)
-  ) {
-    return {
-      error: `entity ${entityKey} requires a filter on column ${entry.requiredFilter}`,
-    };
-  }
-
-  // ── Step 5: build the query (AC-AR-007, AC-AR-008) ───────────────────────
-  const effLimit = Math.min(inp.limit ?? AGENT_READ_ROW_CAP, AGENT_READ_ROW_CAP);
-  const colsStr = requestedCols.join(',');
-  const rawBuilder = ctx.supabase.from(entry.table).select(colsStr);
-  // The internal hard filter (C5d, AC-CUA-002) is applied BEFORE any user/model-supplied filter —
-  // never surfaced as a whitelisted column, never overridable. Only `tasks` carries one today
-  // (tombstoned_at is null).
-  const builder = entry.internalFilter
-    ? rawBuilder.is(entry.internalFilter.column, entry.internalFilter.value)
-    : rawBuilder;
-
-  let query: PromiseLike<{ data: unknown[] | null; error: unknown }>;
-
-  if (inp.filter) {
-    const { column, op, value } = inp.filter;
-    if (op === 'eq') {
-      query = builder.eq(column, String(value)).limit(effLimit);
-    } else if (op === 'in') {
-      const vals = Array.isArray(value)
-        ? value.map(String)
-        : [String(value)];
-      query = builder.in(column, vals).limit(effLimit);
-    } else {
-      return { error: `unsupported filter op: ${op}` };
-    }
-  } else {
-    query = builder.limit(effLimit);
-  }
-
-  // ── Step 6: race against timeout (D6) ─────────────────────────────────────
-  let result: { data: unknown[] | null; error: unknown };
-  try {
-    result = await Promise.race([
-      // Cast to Promise since PromiseLike doesn't have .finally/.catch but is awaitable
-      Promise.resolve(query),
-      timeoutPromise<{ data: unknown[] | null; error: unknown }>(READ_TIMEOUT_MS),
-    ]);
-  } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : 'query_entity read failed',
-    };
-  }
-
-  if (result.error) {
-    // Surface the DB error code + message so the model can SELF-CORRECT rather than dying on an
-    // opaque failure. The canonical case (live-loop finding 2026-07-07): `project_status` has an
-    // enum label containing a comma — "Won, Pending KoM" — so a model that splits it into "Won" +
-    // "Pending KoM" hits `22P02 invalid input value for enum project_status: "Won"`. Returning that
-    // code + message lets the next turn retry with a valid value (values are DB-authoritative — no
-    // hardcoded enum list to drift). No row data is leaked: the message only echoes the caller's own
-    // filter input and the enum/column name, both already implied by the whitelisted schema. RLS
-    // (caller JWT) remains the row-level authority.
-    const dbErr = result.error as { code?: string; message?: string };
-    return {
-      error: 'query_entity db error',
-      ...(dbErr.code ? { code: dbErr.code } : {}),
-      ...(dbErr.message ? { detail: dbErr.message } : {}),
-    };
-  }
-
-  const rows = result.data ?? [];
-  return { rowCount: rows.length, rows };
+  const aggregate = Boolean(inp.group_by);
+  const projection = aggregate ? [...new Set(['id', inp.group_by!, ...(inp.sum ? [inp.sum] : [])])] : requestedCols;
+  const groups = new Map<unknown, { key: unknown; count: number; sum?: number; hasSumValue?: boolean }>();
+  let rowCount = 0, offset = 0, truncated = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { timedOut = true; reject(new Error('query_entity read timeout')); }, READ_TIMEOUT_MS); });
+  const query = async (): Promise<QueryEntityResult> => {
+    do {
+      const size = aggregate
+        ? Math.min(AGENT_AGGREGATE_PAGE_SIZE, AGENT_AGGREGATE_ROW_CAP - rowCount)
+        : Math.min(inp.limit ?? AGENT_READ_ROW_CAP, AGENT_READ_ROW_CAP);
+      let q: ReadQueryBuilder = ctx.supabase.from(entry.table).select(projection.join(','));
+      for (const internalFilter of entry.internalFilters ?? []) {
+        q = q.is(internalFilter.column, internalFilter.value);
+      }
+      for (const filter of filters) {
+        if (filter.op === 'in') q = q.in(filter.column, (filter.value as unknown[]).map(String));
+        else q = q[filter.op](filter.column, filter.value as string | number);
+      }
+      if (inp.order_by) {
+        q = q.order(inp.order_by.column, { ascending: inp.order_by.direction === 'asc' });
+      }
+      if (aggregate) q = q.order('id', { ascending: true });
+      const result = await (aggregate
+        ? q.range(offset, offset + size - 1)
+        : q.limit(size));
+      if (result.error) {
+        const error = result.error as { code?: string; message?: string };
+        return {
+          error: 'query_entity db error',
+          ...(error.code ? { code: error.code } : {}),
+          ...(error.message ? { detail: error.message } : {}),
+        };
+      }
+      const rows = result.data ?? [];
+      if (!aggregate) return { rowCount: rows.length, rows };
+      for (const value of rows) {
+        const row = value as Record<string, unknown>, key = row[inp.group_by!];
+        let group = groups.get(key);
+        if (!group) { group = { key, count: 0, ...(inp.sum ? { sum: 0, hasSumValue: false } : {}) }; groups.set(key, group); }
+        group.count++;
+        if (inp.sum && row[inp.sum] !== null) {
+          const v = row[inp.sum], n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+          if (!Number.isFinite(n) || !Number.isFinite((group.sum ?? 0) + n)) return { error: `non-numeric value in sum column: ${inp.sum}` };
+          group.sum = (group.sum ?? 0) + n;
+          group.hasSumValue = true;
+        }
+      }
+      rowCount += rows.length; offset += rows.length;
+      if (rowCount >= AGENT_AGGREGATE_ROW_CAP) { truncated = true; break; }
+      if (rows.length === 0) break;
+    } while (aggregate && !timedOut);
+    const rankedGroups = [...groups.values()].map(({ hasSumValue, ...group }) => {
+      if (inp.sum && hasSumValue) group.sum = Math.round((group.sum ?? 0) * 100) / 100;
+      else if (inp.sum) delete group.sum;
+      return group;
+    });
+    const groupsTruncated = rankedGroups.length > AGENT_AGGREGATE_GROUP_CAP;
+    rankedGroups.sort((a, b) => inp.sum
+      ? (b.sum ?? -Infinity) - (a.sum ?? -Infinity) || b.count - a.count
+      : b.count - a.count);
+    const resultGroups = rankedGroups.slice(0, AGENT_AGGREGATE_GROUP_CAP);
+    const notes = [
+      ...(truncated ? [`Totals are partial: query_entity aggregated the first ${AGENT_AGGREGATE_ROW_CAP} matching caller-visible rows.`] : []),
+      ...(groupsTruncated ? [`Only the ${AGENT_AGGREGATE_GROUP_CAP} largest groups are returned.`] : []),
+    ];
+    return aggregate ? {
+      groups: resultGroups,
+      rowCount,
+      truncated,
+      ...(groupsTruncated ? { groupsTruncated: true } : {}),
+      ...(notes.length ? { note: notes.join(' ') } : {}),
+    } : { rowCount: 0, rows: [] };
+  };
+  try { return await Promise.race([query(), timeout]); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'query_entity read failed' }; }
+  finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
 // ── queryEntityAction — the AgentAction (FR-AR-006/008/009) ──────────────────

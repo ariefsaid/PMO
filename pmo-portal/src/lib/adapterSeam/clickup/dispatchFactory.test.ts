@@ -14,8 +14,13 @@ function serviceClient(): DispatchServiceClient {
               filters.set(column, value);
               return builder;
             },
+            is(column: string, value: null) {
+              filters.set(column, String(value));
+              return builder;
+            },
             async maybeSingle() {
               if (table === 'external_project_bindings') {
+                expect(filters.get('disconnected_at')).toBe('null');
                 return {
                   data: {
                     external_container_id: 'list-1',
@@ -52,6 +57,18 @@ function serviceClient(): DispatchServiceClient {
 }
 
 describe('resolveClickUpDispatchAdapter baseUrl seam', () => {
+  it('AC-SEC-A3 resolves only an active project binding', async () => {
+    const adapter = await resolveClickUpDispatchAdapter({
+      serviceClient: serviceClient(),
+      orgId: 'org-1',
+      command: { domain: 'tasks', operation: 'delete', record: { id: 'pmo-1', project_id: 'proj-1' } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      token: 'test-token',
+      rateLimiter: new ClickUpRateLimiter(),
+    });
+    expect(adapter).toBeDefined();
+  });
+
   it('threads an optional baseUrl override into the real adapter client', async () => {
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toBe('https://example.test/api/v2/task/cu-1');

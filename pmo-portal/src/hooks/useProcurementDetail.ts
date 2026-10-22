@@ -28,6 +28,7 @@ import {
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
+import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
@@ -88,9 +89,16 @@ export function useProcurementMutations(id: string) {
 
   // Error type is ProcurementError so consumers can read `.code` (P0001 /
   // 42501) type-safely and classify the toast (no code-dropping).
+  const startRecordFolder = useStartRecordFolder();
   const transition = useMutation<void, ProcurementError, { to: ProcurementStatus; notes?: string }>({
     mutationFn: ({ to, notes }) => repositories.procurement.transition(id, to, notes),
-    onSuccess: invalidateDetail,
+    onSuccess: (_data, { to }) => {
+      invalidateDetail();
+      // #1020: `pr_number` is stamped by the transition into Requested — it is the number the case's
+      // folder is named by. Start the (fire-and-forget) folder step now; any other target status
+      // starts nothing, and the transition result is never touched by what the folder does.
+      if (to === 'Requested') startRecordFolder({ kind: 'procurement', id });
+    },
   });
 
   const createQuotation = useMutation<
@@ -185,5 +193,12 @@ export function useProcurementMutations(id: string) {
     },
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, pendingPush };
+  // 0349: approve the billed amount when it exceeds the approved amount. A PMO case-aggregate write
+  // (like `transition`), never dispatched; the server decides eligibility and separation of duties.
+  const approveAmount = useMutation<void, ProcurementError, number>({
+    mutationFn: (amount) => repositories.procurement.approveAmount(id, amount),
+    onSuccess: invalidateDetail,
+  });
+
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, approveAmount, pendingPush };
 }

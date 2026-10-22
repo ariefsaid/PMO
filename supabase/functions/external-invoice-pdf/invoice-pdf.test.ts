@@ -415,17 +415,18 @@ describe('external-invoice-pdf — host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — no Vault read, no ERP call`, async () => {
-      await withDns(records, () =>
-        withFetchMock(
-          [profile(), actor(), invoice(), link(), binding({ site_url: `https://${HOST}` }), vault()],
-          async ({ calls }) => {
+      await withFetchMock(
+        [profile(), actor(), invoice(), link(), binding({ site_url: `https://${HOST}` }), vault()],
+        async ({ calls }) => {
+          await withDns(records, async () => {
             const res = await handleInvoicePdfRequest(await request());
             assertEquals(res.status, 422);
             assertEquals(await res.json(), { error: 'ERP_NOT_CONNECTED', message: 'The ERP connection is not active.' });
             assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 0);
             assertEquals(outboundCalls(calls).length, 0);
-          },
-        ));
+          });
+        },
+      );
     });
   }
 
@@ -451,16 +452,17 @@ describe('external-invoice-pdf — host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — no Vault read, no ERP call', async () => {
-    await withDns('failure', () =>
-      withFetchMock(
-        [profile(), actor(), invoice(), link(), binding({ site_url: `https://${HOST}` }), vault()],
-        async ({ calls }) => {
+    await withFetchMock(
+      [profile(), actor(), invoice(), link(), binding({ site_url: `https://${HOST}` }), vault()],
+      async ({ calls }) => {
+        await withDns('failure', async () => {
           const res = await handleInvoicePdfRequest(await request());
           assertEquals(res.status, 422);
           assertEquals(await res.json(), { error: 'ERP_NOT_CONNECTED', message: 'The ERP connection is not active.' });
           assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/rpc/read_vault_secret').length, 0);
           assertEquals(outboundCalls(calls).length, 0);
-        },
-      ));
+        });
+      },
+    );
   });
 });

@@ -485,7 +485,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       }
 
       // ── Credit preflight (ADR-0044 §6, FR-AAN-032/033). Balance is computed under the MINTED
-      // OWNER CLIENT (never service_role, NFR-AAN-SEC-002/SEC-006) — the preflight runs strictly
+      // OWNER CLIENT (for interactive usage calls; trusted metering uses service_role after verification) — the preflight runs strictly
       // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
       const credit = await rateGuard.check(automation.org_id, minted.client);
       if (credit.exceeded) {
@@ -518,7 +518,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // scoped to the automation's owner (never service_role). usageAction='automation'
       // (ops-admin-surface S5, FR-USE-001) so a fired run's spend is distinguishable from an
       // interactive turn in org_usage_summary()/operator_usage_summary().
-      const usageExtras = { usage: { supabase: minted.client }, usageAction: 'automation' as const };
+      const usageExtras = { usage: { serviceClient: deps.serviceClient }, usageAction: 'automation' as const };
 
       // Item 3 (reliability): timeout_s → an AbortController per automation. A coarse wall-clock
       // deadline on top of MAX_TOOL_ROUNDS — each automation gets its OWN controller so one fire's

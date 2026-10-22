@@ -23,6 +23,11 @@
 >   since approval" when they differ (ADR-0071 drift). Where `sharepointIds` are absent, the action is
 >   shown as unavailable with that reason. No version-content download, no copied bytes.
 >
+> **Amendment 2026-10-21 — SIGNED by the owner 2026-10-21 ("go ahead"):**
+> PMO creates **one folder per project and one per procurement case** in the org default library and
+> links it automatically; no subfolders, no other naming rule. This narrows FR-M365DOC-061 (read-only)
+> to a single permitted write: create-folder, on one granted site, as the signed-in user. See §3.9.
+>
 > ⚠️ **Cite ADRs by filename, not number** — three ADRs share the number 0059 and two share 0058 (a
 > known repo-wide collision, see the M365 gotchas in the backlog).
 
@@ -569,6 +574,8 @@ build must verify effective grants/policies on its migrated local DB, not infer 
   shall not create, rename, move, upload, copy or delete Microsoft files/folders. Link/unlink/delete
   are PMO-local reference mutations; no file/version bytes shall be downloaded into or cached by PMO.
   Recommended folders are created/managed in Microsoft by the organization, not this phase.
+  *(Amendment 2026-10-21, owner-signed: §3.9 FR-M365DOC-069/070 permit exactly one write, creating
+  a record's own folder; every other clause of this requirement stands.)*
 
 - **FR-M365DOC-062 (Event-driven — atomic mutations and legacy preservation).** When a caller links
   an existing register row, the system shall atomically verify permitted parent/role/lifecycle and
@@ -619,6 +626,68 @@ build must verify effective grants/policies on its migrated local DB, not infer 
 | Source collision / competing link | This entry already has a file or link; refresh and clear explicitly before relinking | Keep committed source; no false audit success |
 | Invalid metadata/URL/kind or denied DB mutation | Cannot link this item / you cannot change this record; use classified safe copy | No partial row, raw identifier or upstream message |
 | Approved version unavailable | Approved version unavailable (reviewed reason); latest is separately labelled | Never silently redirect the approved action to latest |
+
+### 3.9 Record folders (amendment 2026-10-21 — owner-signed)
+
+Owner ask: "less convention, and less rules are better UX." So PMO makes the one folder a record needs
+and links it; people never create or pick it by hand. Nothing else about Microsoft changes.
+
+- **FR-M365DOC-069 (Event-driven — one folder per record).** When a project or procurement case is
+  created, and the org has a default library (FR-M365DOC-055), the system shall ensure that record's
+  folder and link it as a reference-only folder entry in the record's own register (FR-M365DOC-057):
+  - project: `Projects/<project code> <project name>`; procurement: `Procurement/<UTC creation year>/<request number> <subject>`;
+  - it first looks for an existing folder whose name equals the record's code or the code followed by a single space (so P-1 never matches P-10, P-1-A, P-1_x or P-1.x) (FR-M365DOC-056's bounded search):
+    exactly one match → link it, create nothing; several → link none and offer the picker;
+    none → create the folder (and a missing `Procurement/<year>` parent), then link it;
+  - a record that already has a folder reference is left alone (idempotent; repeat calls are no-ops);
+  - names have characters SharePoint rejects (`" * : < > ? / \ |`, leading/trailing spaces and dots)
+    replaced by a space and are capped at 120 characters; renaming the PMO record never renames the folder;
+  - no subfolders, templates, permission changes, renames, moves, uploads or deletes.
+- **FR-M365DOC-070 (Ubiquitous — the only write, scoped to one site, as the user).** The folder is
+  created with the **creating user's own** Microsoft connection. The consent adds the delegated
+  `Sites.Selected` scope; an admin grants the app the `write` role on the org's chosen site only.
+  Microsoft intersects the app's and the user's rights, so PMO can create a folder only where that
+  person could. The server builds the one write request itself (`POST` a folder-only body to the
+  default library's drive, `conflictBehavior: fail`); the browser `graph_proxy` stays GET-only, and
+  any other write shape is refused before it reaches Microsoft. No `Files.ReadWrite*` and no
+  tenant-wide write.
+- **FR-M365DOC-071 (Unwanted — folder step never blocks the record).** If the folder step fails (no
+  connection, no write access, default library unset or unavailable, Microsoft error, several matches),
+  the record still saves, nothing is retried in the background, and users who can edit the record see
+  one **Create folder in SharePoint** action that runs the same step. Copy follows §3.8; no raw error.
+- **FR-M365DOC-072 (Event-driven — link the folders that already exist, once).** When an Admin
+  chooses **Link existing folders** on the default-library card, the system shall run FR-M365DOC-069's
+  match-only path (never create) for every project and procurement case without a folder reference,
+  link single matches and report how many were linked and how many need a choice.
+- **FR-M365DOC-073 (Ubiquitous — audit).** Each created folder emits `m365.folder_created`
+  (server-derived org/actor, record type/id, drive/item identity; no names or paths), alongside the
+  normal link event.
+
+**AC-M365DOC-069 (served handler — Deno, Graph mocked).** Given projects/cases with zero, one and two
+matching folders (a folder whose name equals the code, or the code followed by a space; a longer code such as P-10 or P-1-A, or a code followed by '-', '_' or '.', does not match P-1), an existing folder reference, a missing year folder and a name with rejected
+characters, When the ensure step runs, Then it links the single match without a write, links none for
+two, creates `<code> <name>` (sanitized) under the convention path for none, creates the year folder
+first when missing, and makes no call for a record already linked. *(Owns FR-069.)*
+
+**AC-M365DOC-070 (write allowlist — Deno, mutation-checked).** Given the shipped handler, When any
+request other than the server-built folder-create POST to the default drive is attempted (browser
+`graph_proxy` POST, file body, other drive, PATCH/DELETE), Then it is refused before any network call;
+breaking the allowlist turns the test red. *(Owns FR-070.)*
+
+**AC-M365DOC-071 (failure keeps the record — RTL).** Given folder-step failures of each §3.8 kind,
+When a project or case is created, Then the record is saved and shown, one Create folder action is
+offered to editors only, and no raw error text is rendered. *(Owns FR-071.)*
+
+**AC-M365DOC-072 (link existing — RTL + Deno).** Given records with matching, ambiguous and missing
+folders, When an Admin runs Link existing folders, Then only single matches are linked, nothing is
+created, and the counts are reported; non-Admins have no such action. *(Owns FR-072.)*
+
+**AC-M365DOC-073 (audit — pgTAP).** Given a created folder, Then exactly one `m365.folder_created`
+row with server-derived actor/org and no name/path exists; a refused or failed create emits none.
+*(Owns FR-073.)*
+
+**Owner-gated input:** the admin grant of the `write` role on the chosen site (one Graph call, scripted
+for the admin; the owner runs it, never an agent). Until granted, FR-071's fallback applies and linking keeps working read-only.
 
 ---
 

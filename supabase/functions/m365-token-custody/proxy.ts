@@ -18,12 +18,7 @@ export async function handleGraphProxy(
     () => validateGraphProxyInput(req),
   );
   if (!isSession(session)) return session;
-  return await session.get({
-    path: req.path,
-    method: req.method,
-    query: req.query,
-    body: req.body,
-  });
+  return await session.get({ path: req.path, query: req.query });
 }
 
 function isSession(

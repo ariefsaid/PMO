@@ -14,15 +14,18 @@ import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInv
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
 import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentSettings';
+import { ensureRecordFolder, linkExistingRecordFolders } from '@/src/lib/m365/recordFolders';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
 import { companyCollectionsRepository } from './companyCollections';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
+import { hasErpPurchases, listErpPurchases } from './erpPurchases';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import {
+  type M365RecordFoldersRepository,
   type IntegrationsRepository,
   type IntegrationBinding,
   type ConnectCredential,
@@ -134,6 +137,7 @@ import {
   removeDependency,
 } from '@/src/lib/db/tasks';
 import { listProcurements } from '@/src/lib/db/procurements';
+import { approveProcurementAmount } from '@/src/lib/db/procurementPaymentCeiling';
 import {
   createPurchaseRequest,
   createRfq,
@@ -168,6 +172,7 @@ import {
   createMicrosoftProcurementDocument,
   linkMicrosoftProcurementDocument,
   unlinkMicrosoftProcurementDocument,
+  clearProcurementDocumentLink,
   deleteProcurementDocument,
 } from '@/src/lib/db/procurementCrud';
 import {
@@ -231,6 +236,10 @@ import {
   listBoqItems, createBoqItem, updateBoqItem, deleteBoqItem, recordProgressAssessment,
   listProjectClaims, createProgressClaim, attachClaimEvidence, withdrawProgressClaim, getProjectBilling,
 } from '@/src/lib/db/progressBilling';
+import {
+  listProjectAcceptances, listWorkOrderLines, listProjectWorkOrderLines, createWorkOrderLine, updateWorkOrderLine, deleteWorkOrderLine,
+  prepareWorkOrderAcceptance, withdrawWorkOrderAcceptance, confirmWorkOrderAcceptance,
+} from '@/src/lib/db/workOrderAcceptances';
 import {
   listExpenseClaims, getExpenseClaim, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim,
   addExpenseLine, updateExpenseLine, removeExpenseLine, transitionExpenseClaim, recordExpenseAdvanceReturn,
@@ -330,10 +339,12 @@ import type {
   MilestoneRepository,
   WorkOrderRepository,
   ProgressBillingRepository,
+  WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,
   ExpensePostingRepository,
+  ErpPurchaseRepository,
   ContactRepository,
   MeetingRepository,
   UserViewRepository,
@@ -480,8 +491,8 @@ const document: DocumentRepository = {
   confirmUpload: (docId, path) => wrap(() => confirmUpload(docId, path)),
   cleanupObject: (filePath) => wrap(() => cleanupStorageObject(filePath)),
   getSignedUrl: (filePath, opts) => wrap(() => getSignedDownloadUrl(filePath, opts)),
-  createRevision: (parentId, input, authorId) =>
-    wrap(() => createDocumentRevision(parentId, input, authorId)),
+  createRevision: (parentId, input, authorId, microsoft) =>
+    wrap(() => createDocumentRevision(parentId, input, authorId, microsoft)),
   getChild: (parentId) => wrap(() => getChildDocument(parentId)),
 };
 
@@ -613,6 +624,8 @@ const procurement: ProcurementRepository = {
   updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
   deleteItem: (id) => wrap(() => deleteProcurementItem(id)),
   selectQuote: (quotationId) => wrap(() => selectProcurementQuote(quotationId)),
+  // 0349: approve the billed amount when it exceeds the approved amount (server enforces eligibility + SoD).
+  approveAmount: (id, amount) => wrap(() => approveProcurementAmount(id, amount)),
   listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
@@ -620,6 +633,7 @@ const procurement: ProcurementRepository = {
     wrap(() => createMicrosoftProcurementDocument(procurementId, reference, metadata)),
   linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftProcurementDocument(id, reference)),
   unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftProcurementDocument(id)),
+  clearDocumentLink: (id) => wrap(() => clearProcurementDocumentLink(id)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
   createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent, externalRef) =>
@@ -836,6 +850,11 @@ const m365DocumentSettings: M365DocumentSettingsRepository = {
   setDefaultLibrary: (value) => wrap(() => setDefaultLibrary(value)),
 };
 
+const m365RecordFolders: M365RecordFoldersRepository = {
+  ensure: (target) => wrap(() => ensureRecordFolder(target)),
+  linkExisting: (cursor) => wrap(() => linkExistingRecordFolders(cursor)),
+};
+
 const budget: BudgetRepository = {
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
@@ -918,6 +937,19 @@ const progressBilling: ProgressBillingRepository = {
         ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
+};
+
+/** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
+const workOrderAcceptance: WorkOrderAcceptanceRepository = {
+  listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
+  listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
+  listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),
+  createLine: (input) => wrap(() => createWorkOrderLine(input)),
+  updateLine: (id, quantity) => wrap(() => updateWorkOrderLine(id, quantity)),
+  deleteLine: (id) => wrap(() => deleteWorkOrderLine(id)),
+  prepare: (input) => wrap(() => prepareWorkOrderAcceptance(input)),
+  withdraw: (id) => wrap(() => withdrawWorkOrderAcceptance(id)),
+  confirm: (id) => wrap(() => confirmWorkOrderAcceptance(id)),
 };
 
 const procurementFiles: ProcurementFileRepository = {
@@ -1244,6 +1276,11 @@ const expensePostings: ExpensePostingRepository = {
   listAccountMap: () => wrap(() => listExpenseAccountMap()),
 };
 
+const erpPurchases: ErpPurchaseRepository = {
+  list: (projectId) => wrap(() => listErpPurchases(projectId)),
+  hasAny: () => wrap(() => hasErpPurchases()),
+};
+
 const reports: ReportsRepository = {
   managementPack: (range) => wrap(() => getManagementPackFacts(range)),
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
@@ -1253,6 +1290,7 @@ const reports: ReportsRepository = {
 export const repositories: Repositories = {
   fxRates: fxRatesRepository,
   m365DocumentSettings,
+  m365RecordFolders,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project,
@@ -1269,10 +1307,12 @@ export const repositories: Repositories = {
   milestone,
   workOrder,
   progressBilling,
+  workOrderAcceptance,
   procurementFiles,
   expenseClaim,
   expenseReceipts,
   expensePostings,
+  erpPurchases,
   contact,
   meeting,
   userView,
@@ -1306,6 +1346,7 @@ export type {
   MilestoneRepository,
   WorkOrderRepository,
   ProgressBillingRepository,
+  WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ExpenseReceiptRepository,

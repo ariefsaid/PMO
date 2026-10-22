@@ -11,7 +11,7 @@ insert into public.projects (id,org_id,name,status) values
  ('10200000-0000-0000-0000-000000000201','10200000-0000-0000-0000-000000000001','Synthetic project','Ongoing Project'),
  ('10200000-0000-0000-0000-000000000202','10200000-0000-0000-0000-000000000001','Second project','Ongoing Project');
 insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path,source) values
- ('10200000-0000-0000-0000-000000000301','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','Upload','Draft','10200000-0000-0000-0000-000000000102','documents/upload.pdf','upload'),
+ ('10200000-0000-0000-0000-000000000301','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','Upload','Draft','10200000-0000-0000-0000-000000000102','10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000301/upload.pdf','upload'),
  ('10200000-0000-0000-0000-000000000302','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','Metadata','Draft','10200000-0000-0000-0000-000000000102',null,null);
 insert into public.procurements (id,org_id,title,project_id,status) values
  ('10200000-0000-0000-0000-000000000203','10200000-0000-0000-0000-000000000001','Synthetic overhead',null,'Draft');
@@ -49,7 +49,7 @@ grant update(source,ms_drive_id,ms_item_id,link,ms_item_name,ms_item_kind,ms_lin
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"10200000-0000-0000-0000-000000000102","role":"authenticated"}';
 
-select lives_ok($$update public.project_documents set file_path='documents/raw-upload.pdf'
+select lives_ok($$update public.project_documents set file_path='10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000306/raw-upload.pdf'
  where id='10200000-0000-0000-0000-000000000306'$$,
  'AC-M365DOC-063 existing upload writer can still set file_path without sending source');
 select lives_ok($$update public.project_documents set file_path=null

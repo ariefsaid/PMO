@@ -3,6 +3,7 @@
 // stored copy), the approval-outbox lookup and the account map, against a recording fake client and a stubbed fetch.
 // Verify: cd supabase/functions/erpnext-sweep && deno test expenseResolveDepsLive.test.ts --config deno.json --allow-env --allow-net --allow-read
 
+import "../_shared/testing/publicErpDns.ts";
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { expenseResolveDepsLive } = await import('./index.ts');
 type OrgBinding = Parameters<typeof expenseResolveDepsLive>[1];

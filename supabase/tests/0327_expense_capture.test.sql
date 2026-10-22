@@ -1,6 +1,6 @@
 -- AC-S29-002: atomic, claimant-scoped, stable-ID creation of a Draft claim and its optional first line.
 begin;
-select plan(24);
+select plan(27);
 
 insert into organizations (id, name, default_currency) values
   ('03270000-0000-0000-0000-00000000000a','S29 Capture Org A','IDR'),
@@ -133,7 +133,17 @@ select is(public.create_expense_capture(
 )::text, '03270000-0000-0000-0000-000000000107',
   'AC-S29-002: receipt-first capture can save a header without inventing a line');
 select is((select count(*)::int from expense_claim_lines where claim_id='03270000-0000-0000-0000-000000000107'), 0,
-  'AC-S29-002: header-only capture has no synthetic line or amount');
+  'AC-S29-002: header-only capture has no synthetic line');
+select is((select amount::text from expense_claims where id='03270000-0000-0000-0000-000000000107'), '0.00',
+  'AC-S29-002: header-only capture stores the database-derived zero total, not a fabricated expense amount');
+select is(public.create_expense_capture(
+  '03270000-0000-0000-0000-000000000107',null,
+  '{"title":"Receipt first","purpose":null,"projectId":null,"budgetCategory":null,"advanceId":null}'::jsonb,
+  null::jsonb
+)::text, '03270000-0000-0000-0000-000000000107',
+  'AC-S29-002: header-only RPC retry preserves its stable claim identity');
+select is((select count(*)::int from expense_claim_lines where claim_id='03270000-0000-0000-0000-000000000107'), 0,
+  'AC-S29-002: header-only retry remains atomic and does not add lines');
 reset role;
 
 select * from finish();

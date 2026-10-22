@@ -76,6 +76,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   createReceipt: vi.fn(),
   createInvoice: vi.fn(),
 }));
+vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmount: vi.fn() }));
 vi.mock('@/src/lib/db/procurementCrud', () => ({
   createProcurement: vi.fn(),
   updateProcurementHeader: vi.fn(),
@@ -163,6 +164,7 @@ import * as usageDal from '@/src/lib/db/usage';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
+import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
 import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
@@ -190,7 +192,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // LIFECYCLE moves through set_work_order_value / transition_work_order. Believing the insert
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
-      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder'].sort(),
+      // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
+      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -208,6 +211,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
     expect(Object.keys(repositories.m365DocumentSettings).sort()).toEqual(['getDefaultLibrary', 'setDefaultLibrary']);
+  });
+
+  it('m365RecordFolders exposes ensure and linkExisting (#1020)', () => {
+    expect(Object.keys(repositories.m365RecordFolders).sort()).toEqual(['ensure', 'linkExisting']);
   });
 
   it('expensePostings exposes the two read methods (#775 phase B, ADR-0017)', () => {
@@ -277,6 +284,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
       [
+        'approveAmount',
         'create',
         'createDocument',
         'createInvoice',
@@ -287,6 +295,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createPurchaseRequest',
         'createQuotation',
         'createReceipt',
+        'clearDocumentLink',
         'createRfq',
         'deleteDocument',
         'deleteItem',
@@ -724,6 +733,15 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.deleteDocument('d1');
     expect(procCrudDal.deleteProcurementDocument).toHaveBeenCalledWith('d1');
+  });
+
+  it('AC-SEC-220: approveAmount delegates the higher approved amount to the DAL and maps a refusal to AppError', async () => {
+    vi.mocked(procCeilingDal.approveProcurementAmount).mockResolvedValue(undefined);
+    await repositories.procurement.approveAmount('proc-1', 1200);
+    expect(procCeilingDal.approveProcurementAmount).toHaveBeenCalledWith('proc-1', 1200);
+
+    vi.mocked(procCeilingDal.approveProcurementAmount).mockRejectedValue(Object.assign(new Error('separation of duties'), { code: '42501' }));
+    await expect(repositories.procurement.approveAmount('proc-1', 1200)).rejects.toMatchObject({ name: 'AppError', code: '42501' });
   });
 
   it('AC-PR-004: procurement record creators (createPurchaseRequest/createRfq/createPurchaseOrder/createPayment) delegate to procurementRecords DAL', async () => {

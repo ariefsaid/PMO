@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
+import { buildOverdueModelResult, loadOverdueFacts, renderOverdueMarkdown, runWhatsOverdue, type OverdueFacts } from '../../../../supabase/functions/agent-chat/overdue';
 import { render } from '@testing-library/react';
 import { Markdown } from '../../components/panel/Markdown';
 import { fakeSupabase, opsOf, type FakeCall } from './testing/fakeSupabase';
@@ -24,6 +24,29 @@ function world(rows: Rows = {}) {
 }
 
 describe('loadOverdueFacts — tasks (#787)', () => {
+  it('AC-ACC-001 fills known project names on invoice-only overdue groups', () => {
+    const result = buildOverdueModelResult({
+      asOf: '2026-10-06', numberLocale: 'en-US',
+      tasks: [],
+      tasksTruncated: false,
+      invoices: [{ id: 'i1', siNumber: 'INV-1', customerName: null, outstanding: 1, currency: 'USD', taxTreatment: 'exclusive', dueDate: '2026-10-01', daysOverdue: 5, projectId: 'p-invoice' }],
+      invoicesTruncated: false,
+      projectNames: new Map([['p-invoice', 'Invoice Project']]),
+    });
+    expect(result.projectCounts).toEqual([{ projectId: 'p-invoice', projectName: 'Invoice Project', overdueTasks: 0, overdueInvoices: 1, partial: false }]);
+  });
+
+  it('AC-ACC-001 counts 19 tasks across four projects in the compact model result', () => {
+    const tasks = Array.from({ length: 19 }, (_, index) => ({
+      id: `task-${index}`, name: `Task ${index}`, projectId: `p${index % 4}`, projectName: `Project ${index % 4}`,
+      assigneeName: null, dueDate: '2026-10-01', daysOverdue: 5,
+    }));
+    const result = buildOverdueModelResult({ asOf: '2026-10-06', numberLocale: 'en-US', tasks, tasksTruncated: false, invoices: [], invoicesTruncated: false });
+    expect(result.tasks).toHaveLength(19);
+    expect(result.projectCounts.map(({ projectId, overdueTasks }) => [projectId, overdueTasks])).toEqual([
+      ['p0', 5], ['p1', 5], ['p2', 5], ['p3', 4],
+    ]);
+  });
   it('AC-AIN-004 an Engineer gets only their own open, past-due, live tasks', async () => {
     const { client, calls } = fakeSupabase(world());
     await loadOverdueFacts(ctx('Engineer', client), NOW);
@@ -63,6 +86,19 @@ describe('loadOverdueFacts — tasks (#787)', () => {
     const [ops] = opsOf(calls, 'tasks');
     expect(ops.some((o) => o[1] === 'assignee_id' || o[1] === 'project_id')).toBe(false);
     expect(facts.asOf).toBe('2026-10-06');
+  });
+
+  it('AC-ACC-014 exposes retained rows and marks fetched counts partial at the cap', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => ({ id: `t-${i}`, name: `Synthetic ${i}`, end_date: '2026-10-01', project_id: null, assignee_id: null }));
+    const { client } = fakeSupabase(world({ tasks: () => many }));
+    const out = await runWhatsOverdue({}, ctx('Admin', client), NOW);
+    expect(out).toMatchObject({ receipt: {
+      partial: true, tasks: expect.arrayContaining([expect.objectContaining({ name: 'Synthetic 0' })]),
+      projectCounts: [{ projectId: null, overdueTasks: 50, overdueInvoices: 0, partial: true }],
+      note: expect.stringContaining('Totals and per-project counts cover fetched rows only and are partial.'),
+    } });
+    expect((out as { receipt: { tasks: unknown[] } }).receipt.tasks).toHaveLength(50);
+    expect((out as { markdown: string }).markdown).toContain('50+ tasks');
   });
 
   it('flags truncation past the 50-row cap', async () => {
@@ -230,11 +266,11 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     expect(renderOverdueMarkdown({ ...base, tasks: [], invoices: [] })).toBe('**Overdue as of 6 Oct** — nothing is overdue.\n\n');
   });
 
-  it('FR-AIN-006 run returns the markdown plus a receipt without the list', async () => {
+  it('AC-ACC-001 run returns the markdown plus compact model rows', async () => {
     const { client } = fakeSupabase(world({ tasks: () => [{ id: 't-1', name: 'Pour', end_date: '2026-10-02', project_id: P1, assignee_id: null }] }));
     const out = await runWhatsOverdue({}, ctx('Engineer', client), NOW);
     expect(out).toMatchObject({ receipt: { ok: true, overdueTasks: 1, overdueInvoices: null } });
-    expect(JSON.stringify((out as { receipt: unknown }).receipt)).not.toContain('Pour');
+    expect(JSON.stringify((out as { receipt: unknown }).receipt)).toContain('Pour');
   });
 
   it('a read failure becomes a plain error, never a partial list', async () => {

@@ -162,3 +162,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-history');
   });
 });
+
+// Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
+vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

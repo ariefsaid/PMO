@@ -10,6 +10,7 @@ import {
   codeChallengeS256,
   buildAuthorizeUrl,
   M365_PHASE1_DATA_SCOPES,
+  M365_FOLDER_SCOPES,
 } from './pkce.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
@@ -21,7 +22,10 @@ import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
  * expected tenant (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access`
  * yields a durable refresh token; `Files.Read` is the OneDrive read scope. `Files.Read.All` +
  * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
- * only the signed-in user's OneDrive, not shared sites). All three are read scopes (ADR-0060 §1/§5).
+ * only the signed-in user's OneDrive, not shared sites). Those three are read scopes (ADR-0060 §1/§5).
+ * Record folders (ADR-0089) are an INCREMENTAL consent: `Sites.Selected` is requested only by an explicit
+ * `folders: true` reconnect (M365_FOLDER_SCOPES); the default connect and the admin-consent URL are
+ * read-only exactly as before.
  */
 export const M365_PHASE1_SCOPES = [
   ...M365_PHASE1_DATA_SCOPES,
@@ -36,9 +40,29 @@ export const M365_PHASE1_SCOPES = [
  * navigates the user there. The tenant/redirect_uri come ONLY from env (never caller input), so a
  * malicious tenant/redirect cannot be smuggled (AC-M365-141, enforced in buildAuthorizeUrl).
  */
-export async function handleInitiateConnect(deps: HandlerDeps): Promise<HandlerResult> {
+/**
+ * Client contract (the FE reconnect button): body is exactly `{ action: 'initiate_connect' }` or
+ * `{ action: 'initiate_connect', folders: true }`; any other key, or `folders` other than boolean true, is
+ * refused with 400 BAD_REQUEST. Response is unchanged: `{ authorizeUrl, state }`.
+ */
+function parseInitiateBody(body: unknown): { folders: boolean } | null {
+  if (body === undefined) return { folders: false };
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  for (const key of Object.keys(record)) if (key !== 'action' && key !== 'folders') return null;
+  if (!('folders' in record)) return { folders: false };
+  return record.folders === true ? { folders: true } : null;
+}
+
+export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): Promise<HandlerResult> {
   const { env, serviceClient, now } = deps;
   const nowFn = now ?? (() => new Date());
+
+  const parsed = parseInitiateBody(body);
+  if (!parsed) {
+    return { status: 400, body: { error: 'BAD_REQUEST', message: 'invalid connect request' } };
+  }
+  const scopes = parsed.folders ? [...M365_PHASE1_SCOPES, ...M365_FOLDER_SCOPES] : M365_PHASE1_SCOPES;
 
   const resolved = await resolveOrgOrResult(deps);
   if (typeof resolved !== 'string') return resolved;
@@ -67,7 +91,7 @@ export async function handleInitiateConnect(deps: HandlerDeps): Promise<HandlerR
 
   await storePkceState(
     serviceClient,
-    { orgId, userId: deps.userId, codeVerifier, state, scopes: M365_PHASE1_SCOPES },
+    { orgId, userId: deps.userId, codeVerifier, state, scopes },
     nowFn,
   );
 
@@ -75,13 +99,13 @@ export async function handleInitiateConnect(deps: HandlerDeps): Promise<HandlerR
     tenant: env.m365TenantId,
     clientId: env.m365ClientId,
     redirectUri: env.m365RedirectUri,
-    scopes: M365_PHASE1_SCOPES,
+    scopes,
     state,
     codeChallenge,
   });
 
-  const body: InitiateConnectResponse = { authorizeUrl, state };
-  return { status: 200, body };
+  const response: InitiateConnectResponse = { authorizeUrl, state };
+  return { status: 200, body: response };
 }
 
 /**

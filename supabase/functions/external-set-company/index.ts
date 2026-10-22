@@ -47,7 +47,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface SetCompanyBody extends ErpSetupBody {
   tier: 'erpnext';
@@ -308,7 +308,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
       const url = new URL(binding.site_url);
       if (url.protocol !== 'https:' || await isPrivateOrReservedHost(url.hostname)) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
       return json(await applyErpSetup(body, { serviceClient, orgId: profile.org_id, actorId: userId, company, config: binding.config,
-        client: { fetchImpl: fetch, baseUrl: binding.site_url, apiKey, apiSecret } }));
+        client: { fetchImpl: guardedErpFetch(binding.site_url), baseUrl: binding.site_url, apiKey, apiSecret } }));
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'INTERNAL';
       return errorResponse(err instanceof Error ? err.message : 'ERP setup failed', code,
@@ -321,7 +321,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   let companyDoc: Record<string, unknown>;
   try {
     companyDoc = await validateErpNextCompany({
-      fetchImpl: fetch,
+      fetchImpl: guardedErpFetch(binding.site_url),
       siteUrl: binding.site_url,
       apiKey,
       apiSecret,
@@ -339,7 +339,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   let versionMajor: number;
   try {
     versionMajor = await fetchErpVersionMajor({
-      fetchImpl: fetch, creds: { apiKey, apiSecret }, siteUrl: binding.site_url,
+      fetchImpl: guardedErpFetch(binding.site_url), creds: { apiKey, apiSecret }, siteUrl: binding.site_url,
     });
   } catch (err) {
     console.error('erpnext version handshake failed', err);
@@ -374,7 +374,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   let missingReads: ReadPermFailure[];
   try {
     missingReads = await probeActivationReadPermissions({
-      fetchImpl: fetch,
+      fetchImpl: guardedErpFetch(binding.site_url),
       creds: { apiKey, apiSecret },
       siteUrl: binding.site_url,
       ownedDomains: ((owned ?? []) as Array<{ domain: string }>).map((r) => r.domain),

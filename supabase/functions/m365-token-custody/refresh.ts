@@ -15,7 +15,8 @@ import {
 } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
-import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
+import { fetchMicrosoftJson } from './microsoftTransport.ts';
+import { grantedScopes, validTokenPair } from './callback.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -32,6 +33,7 @@ const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 export async function refreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
+  timeoutMs?: number,
 ): Promise<boolean> {
   const { env, serviceClient } = deps;
   const fetchImpl = deps.fetch ?? fetch;
@@ -67,8 +69,9 @@ export async function refreshAccessToken(
     return false;
   }
   let tokenRes: Response;
+  let tokenData: Record<string, unknown>;
   try {
-    tokenRes = await fetchBounded(
+    const result = await fetchMicrosoftJson(
     fetchImpl,
     `${TOKEN_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/token`,
     {
@@ -82,7 +85,11 @@ export async function refreshAccessToken(
         scope: connection.scopes.join(' '),
       }),
     },
+    timeoutMs,
     );
+    tokenRes = result.response;
+    tokenData = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data as Record<string, unknown> : {};
   } catch {
     // Transient (deadline/network): record it and report failure WITHOUT classifying the connection —
     // a hung token endpoint says nothing about the refresh token, so it must not be marked revoked.
@@ -94,8 +101,6 @@ export async function refreshAccessToken(
     return false;
   }
 
-  const tokenData = (await tokenRes.json()) as Record<string, unknown>;
-
   if (!tokenRes.ok) {
     const errorCode = typeof tokenData.error === 'string' ? tokenData.error : 'UNKNOWN';
     // Thread the injected clock so failure-path `updated_at` is deterministic (quality #3).
@@ -104,8 +109,12 @@ export async function refreshAccessToken(
   }
 
   // 3. Success: encrypt + persist the rotated pair (AC-M365-111).
-  const newAccessToken = String(tokenData.access_token);
-  const newRefreshToken = String(tokenData.refresh_token); // rotated
+  // A refresh response may keep the existing refresh token (RFC 6749 §6).
+  const rotated: Record<string, unknown> = { ...tokenData, refresh_token: tokenData.refresh_token === undefined ? refreshToken : tokenData.refresh_token };
+  if (!validTokenPair(rotated)) return false; // mutation-witness:refresh-token-pair
+  const newAccessToken = rotated.access_token as string;
+  const newRefreshToken = rotated.refresh_token as string;
+  const scopes = tokenData.scope === undefined ? connection.scopes : grantedScopes(tokenData.scope, connection.scopes);
   const expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
 
   const kek = resolveKek(env, 'kek-v1');
@@ -117,25 +126,20 @@ export async function refreshAccessToken(
   const nowIso = nowFn().toISOString();
   const accessExpiresAt = new Date(nowFn().getTime() + expiresIn * 1000).toISOString();
 
-  // Luna round-3 (DEADLOCK): the persistence write goes through the m365_refresh_connection
-  // SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for update BEFORE the connection
-  // UPDATE — the single global lock order (see 0115 file header) — so a concurrent lifecycle
-  // disable/disentitle cannot deadlock with this write. Luna (Med): inspect BOTH the RPC error AND
-  // the returned id. Previously the update result was ignored — during a lifecycle race the BEFORE
-  // write-guard (0114) rejects this UPDATE with 42501 (user just disabled / org just disentitled)
-  // yet refresh still audited 'm365.token.refreshed' and returned true. Now: the success audit +
-  // return true are emitted ONLY after the row was actually persisted. On rejection (42501) or a
-  // null return (the row was deleted under us), record a token-free error_event and surface a typed
-  // failure (the caller surfaces CONNECTION_STALE). Mirrors the H6 pattern in revoke.ts. No token
-  // material is ever logged.
-  const { data: updated, error: persistError } = await serviceClient.rpc('m365_refresh_connection', {
+  // m365_finish_refresh preserves parent-first lock order and completes only the original active
+  // generation. A success audit requires both no RPC error and a returned row id. On a rejected or
+  // superseded completion, record a token-free error and surface the typed connection failure.
+  const { data: updated, error: persistError } = await serviceClient.rpc('m365_finish_refresh', {
     p_org_id: connection.org_id,
     p_user_id: connection.user_id,
     p_connection_id: connection.id,
+    p_expected_refresh_token_ciphertext: toByteaParam(fromByteaValue(connection.refresh_token_ciphertext)),
+    p_status: 'active',
+    p_scopes: scopes,
+    p_updated_at: nowIso,
     p_access_token_ciphertext: toByteaParam(accessBlob),
     p_refresh_token_ciphertext: toByteaParam(refreshBlob),
     p_access_token_expires_at: accessExpiresAt,
-    p_last_refresh_at: nowIso,
   });
 
   if (persistError || !updated) {
@@ -152,7 +156,7 @@ export async function refreshAccessToken(
     orgId: connection.org_id,
     actorId: connection.user_id,
     entityId: connection.id,
-    detail: { scopes: connection.scopes },
+    detail: { scopes },
   });
 
   return true;
@@ -170,19 +174,14 @@ async function classifyRefreshFailure(
 
   if (isReuseError(tokenData, errorCode)) {
     // Security event: refresh-token reuse detected → revoke the connection.
-    // Luna round-3 (DEADLOCK): route the status write through m365_set_connection_status (locks
-    // parents first). Luna round-4 (MED-3): require BOTH no error AND a non-null returned id before
-    // emitting the state-change success audit — a zero-row status RPC (the row was deleted under us,
-    // or an identity mismatch from MED-1) returns NULL, and previously the code still audited
-    // reuse_detected as if the row had been marked revoked. The reuse DETECTION is a fact (Microsoft
-    // reported it) regardless of whether we could persist the revocation, so the security event is
-    // recorded either way; but on failure to persist a REVOKE we FAIL CLOSED — emit an INTERNAL_ERROR
-    // and do NOT emit the reuse_detected audit (no successful revocation to record). Mirrors the
-    // refresh success path (refresh.ts) + revoke.ts. No token material is ever logged.
-    const { data: markedId, error: markError } = await serviceClient.rpc('m365_set_connection_status', {
+    // m365_finish_refresh classifies only the original active generation, with parent-first locks.
+    // A Microsoft-reported reuse event is recorded regardless of persistence; a state-change audit
+    // requires both no RPC error and a returned row id. Token material is never logged.
+    const { data: markedId, error: markError } = await serviceClient.rpc('m365_finish_refresh', {
       p_org_id: connection.org_id,
       p_user_id: connection.user_id,
       p_connection_id: connection.id,
+      p_expected_refresh_token_ciphertext: toByteaParam(fromByteaValue(connection.refresh_token_ciphertext)),
       p_status: 'revoked',
       p_updated_at: nowIso,
     });
@@ -216,17 +215,14 @@ async function classifyRefreshFailure(
 
   if (isInvalidGrant(errorCode)) {
     // Consent revoked / refresh expired → mark stale so the user reconnects.
-    // Luna round-3 (DEADLOCK): route the status write through m365_set_connection_status (locks
-    // parents first). Luna round-4 (MED-3): require no error AND a non-null returned id before
-    // emitting the refresh_failed state-change audit — a zero-row/error status RPC (row deleted
-    // under us, or an identity mismatch from MED-1) must NOT be audited as a stale-marking that
-    // didn't happen. On failure, record the classification (the invalid_grant is still a fact) + an
-    // INTERNAL_ERROR and return without the state-change audit. Mirrors the reuse branch + the
-    // refresh success path.
-    const { data: markedId, error: markError } = await serviceClient.rpc('m365_set_connection_status', {
+    // m365_finish_refresh applies the same generation and parent-first lock contract here.
+    // Emit the state-change audit only after a returned row id; otherwise retain the classification
+    // as an error event without claiming that the connection state changed.
+    const { data: markedId, error: markError } = await serviceClient.rpc('m365_finish_refresh', {
       p_org_id: connection.org_id,
       p_user_id: connection.user_id,
       p_connection_id: connection.id,
+      p_expected_refresh_token_ciphertext: toByteaParam(fromByteaValue(connection.refresh_token_ciphertext)),
       p_status: 'stale',
       p_updated_at: nowIso,
     });

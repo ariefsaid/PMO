@@ -596,3 +596,7 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
     expect(rejectBtn.className).not.toContain('bg-destructive');
   });
 });
+
+// Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
+vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

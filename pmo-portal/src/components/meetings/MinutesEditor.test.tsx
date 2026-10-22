@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import i18n from 'i18next';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { notesToText, type NoteBlock } from '@/src/lib/meetingNotes';
 
 const { getTask } = vi.hoisted(() => ({ getTask: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { task: { get: getTask } } }));
@@ -93,6 +94,122 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     expect(textOf(lastDoc(onChange)[0])).toBe('Order flange samples');
   });
+
+  it.each(['light', 'dark'] as const)(
+    'AC-MRT-002 stable parent retains the full heading input and baseline through %s theme',
+    async (theme) => {
+      let readyCount = 0;
+      const initialBlocks: NoteBlock[] = [para('Agenda')];
+      function StatefulMinutes() {
+        const [blocks, setBlocks] = React.useState<NoteBlock[] | null>(null);
+        const [baseline, setBaseline] = React.useState<string | null>(null);
+        const onReady = React.useCallback((doc: NoteBlock[]) => {
+          readyCount += 1;
+          setBaseline(JSON.stringify(doc));
+          setBlocks(doc);
+        }, []);
+        const onRequestAction = React.useCallback((_line: string) => {}, []);
+        return (
+          <>
+            <MinutesEditor
+              initialBlocks={initialBlocks}
+              editable
+              tasksExternal={false}
+              onReady={onReady}
+              onChange={setBlocks}
+              onRequestAction={onRequestAction}
+            />
+            <output data-testid="runtime-baseline">{baseline}</output>
+            <output data-testid="runtime-document">{JSON.stringify(blocks)}</output>
+            <output data-testid="runtime-dirty">
+              {String(blocks !== null && baseline !== null && JSON.stringify(blocks) !== baseline)}
+            </output>
+          </>
+        );
+      }
+
+      const errors: string[] = [];
+      const originalClassName = document.documentElement.className;
+      const onWindowError = (event: ErrorEvent) => errors.push(event.message);
+      window.addEventListener('error', onWindowError);
+
+      try {
+        render(
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+            <StatefulMinutes />
+          </QueryClientProvider>,
+        );
+
+        expect(readyCount).toBe(1);
+        expect(screen.getByTestId('runtime-dirty')).toHaveTextContent('false');
+        const baseline = screen.getByTestId('runtime-baseline').textContent;
+        expect(baseline).not.toBeNull();
+        expect(baseline).toContain('Agenda');
+
+        const user = userEvent.setup();
+        const editor = box();
+        await user.click(editor);
+        const textWalker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+        let lastText: Text | null = null;
+        while (textWalker.nextNode()) {
+          if (textWalker.currentNode.textContent) lastText = textWalker.currentNode as Text;
+        }
+        if (!lastText) throw new Error('Expected the initial minutes text to be present');
+        const range = document.createRange();
+        range.setStart(lastText, lastText.length);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+
+        // jsdom cannot apply Ctrl+End's default selection to BlockNote's nested block DOM.
+        // Set the equivalent DOM selection above, then let userEvent dispatch the real key sequence.
+        const preventUnsupportedEndDefault = (event: KeyboardEvent) => {
+          if (event.ctrlKey && event.key === 'End') event.preventDefault();
+        };
+        editor.addEventListener('keydown', preventUnsupportedEndDefault);
+        try {
+          await user.keyboard('{Control>}{End}{/Control}');
+        } finally {
+          editor.removeEventListener('keydown', preventUnsupportedEndDefault);
+        }
+        await user.keyboard('{Enter}');
+        await user.keyboard('# Page title');
+        await user.keyboard('{Enter}');
+        await user.keyboard('## Section heading');
+        await user.keyboard('{Enter}');
+        await user.keyboard('### Subheading');
+        await user.keyboard('{Enter}');
+        await user.keyboard(`https://example.test/${'x'.repeat(140)}`);
+
+        const expectEditedState = () => {
+          const doc = JSON.parse(screen.getByTestId('runtime-document').textContent ?? 'null') as NoteBlock[];
+          const text = notesToText(doc).join('\n');
+          expect(text).toContain('Agenda');
+          expect(text).toContain('Page title');
+          expect(text).toContain('Section heading');
+          expect(text).toContain('Subheading');
+          expect(text).toContain(`https://example.test/${'x'.repeat(140)}`);
+          expect(screen.getByTestId('runtime-dirty')).toHaveTextContent('true');
+          expect(screen.getByTestId('runtime-baseline').textContent).toBe(baseline);
+          expect(readyCount).toBe(1);
+        };
+
+        expectEditedState();
+
+        act(() => {
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+          window.dispatchEvent(new Event('themechange'));
+        });
+
+        expectEditedState();
+        expect(errors).toEqual([]);
+      } finally {
+        window.removeEventListener('error', onWindowError);
+        document.documentElement.className = originalClassName;
+      }
+    },
+  );
 
   it('read-only: the text box is not editable, shows the saved text, and typing / opens no menu', async () => {
     const user = userEvent.setup();

@@ -17,6 +17,29 @@ const ENTITIES = ['projects', 'companies'] as const;
 const ROW_CAP = 50;
 const ROLE = 'Engineer';
 
+it('AC-ACC-001 overdue guidance distinguishes query_entity scope from panel scope', () => {
+  const prompt = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, ROLE);
+  expect(prompt).toMatch(/query_entity counts cover all tasks the user can see/i);
+  expect(prompt).toMatch(/may differ from the panel's own\/managed scope/i);
+});
+
+it('AC-ACC-009 Charter grounds figures, fetches missing evidence, honors requested shape, and guides aggregation', () => {
+  const prompt = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, ROLE);
+  const charter = prompt.split('## Tools')[0];
+  expect(charter).toContain('Every figure in your final answer must come from a tool result in this turn. Recount; never estimate.');
+  expect(charter).toContain('If data needed to answer is missing, fetch it with an available tool');
+  expect(charter).toContain('Deliver the shape the user asked for: table, columns, sort and grouping.');
+  expect(prompt).toMatch(/Use group_by for counts and sum for numeric totals/);
+  expect(prompt).toMatch(/query_entity counts cover all tasks the user can see/i);
+});
+
+it('AC-ACC-002 allows the requested overdue row shape and does not forbid repeating rows', () => {
+  const prompt = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, ROLE);
+  expect(prompt).toMatch(/explicitly requests a table derived from `whats_overdue` rows/i);
+  expect(prompt).toMatch(/answer from these rows in exactly the requested shape/i);
+  expect(prompt).not.toMatch(/never repeat the list|do not repeat the list|never query_entity for this/i);
+});
+
 it('AC-AXP-007 prompt is layered, no "respond in plain text"', () => {
   const prompt = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, ROLE);
 

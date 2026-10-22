@@ -29,8 +29,10 @@ insert into work_orders (id, org_id, project_id, title, status, wo_number, order
   ('02620000-0000-0000-0000-0000000000d7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'R Seven',     'Issued',    'WO-R-7', 1000, 'exclusive', 0, null,  null),
   ('02620000-0000-0000-0000-0000000000d8', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'R Eight',     'Issued',    'WO-R-8', 1000, 'exclusive', 0, null,  null),
   ('02620000-0000-0000-0000-0000000000d9', '02620000-0000-0000-0000-000000000002', '02620000-0000-0000-0000-0000000000c9', 'X Nine',      'Issued',    'WO-X-9', 1000, 'exclusive', 0, null,  null);
-insert into boq_items (id, org_id, project_id, work_order_id, item_code, description, unit, quantity, rate) values
-  ('02620000-0000-0000-0000-0000000000e7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', '02620000-0000-0000-0000-0000000000d7', 'STATION', 'Station build', 'unit', 10, 600);
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('02620000-0000-0000-0000-0000000000e7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'STATION', 'Station build', 'unit', 10, 600);
+insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
+ ('02620000-0000-0000-0000-000000000001','02620000-0000-0000-0000-0000000000d7','02620000-0000-0000-0000-0000000000e7',10);
 -- A cancelled 300 on the Closed work order, loaded server-side (no JWT): §C revives it.
 insert into sales_invoices (id, org_id, project_id, work_order_id, invoice_date, amount, tax_treatment, tax_amount, currency, status) values
   ('02620000-0000-0000-0000-0000000005ac', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', '02620000-0000-0000-0000-0000000000d4', '2026-10-01', 300, 'exclusive', 0, 'USD', 'Cancelled');
@@ -153,7 +155,7 @@ select throws_ok($$ select public.create_progress_claim('02620000-0000-0000-0000
   'AC-BWO-002 a claim whose gross would pass the work order is refused');                                           -- 25
 reset role;
 insert into project_documents (id, org_id, project_id, category, title, status, revision, file_path) values
-  ('02620000-0000-0000-0000-0000000000a7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'Report', 'BWO evidence', 'Issued', 'A', 'e2e/bwo-evidence.pdf');
+  ('02620000-0000-0000-0000-0000000000a7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'Report', 'BWO evidence', 'Issued', 'A', '02620000-0000-0000-0000-000000000001/02620000-0000-0000-0000-0000000000c1/02620000-0000-0000-0000-0000000000a7/bwo-evidence.pdf');
 insert into progress_claim_evidence (org_id, claim_id, document_id, document_status, document_revision, attached_by) values
   ('02620000-0000-0000-0000-000000000001', current_setting('bwo.claim')::uuid, '02620000-0000-0000-0000-0000000000a7', 'Issued', 'A', '02620000-0000-0000-0000-0000000000a2');
 set local request.jwt.claims = '{"role":"service_role"}';

@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { moneyWriteReadModelContext, buildReconcileDepsLive } = await import('./index.ts');
 import { budgetAccountIdentity, budgetAccountPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';

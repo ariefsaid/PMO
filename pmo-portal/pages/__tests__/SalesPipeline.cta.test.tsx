@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+
+const { navigateSpy } = vi.hoisted(() => ({ navigateSpy: vi.fn() }));
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -25,22 +28,15 @@ import type { Role } from '@/src/auth/AuthContext';
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
+  return { ...actual, useNavigate: () => navigateSpy };
 });
+
+vi.mock('@/src/hooks/useListReturn', () => ({ useListReturn: () => ({ openRecord: navigateSpy }) }));
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useLostDeals: () => ({ data: [] }),
 }));
-// Stub the create modal (tested elsewhere).
-vi.mock('../../components/ProjectFormModal', () => ({
-  default: ({ onClose }: { onClose: () => void }) => (
-    <div role="dialog" aria-label="New project">
-      <button onClick={onClose}>Cancel</button>
-    </div>
-  ),
-}));
-
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [{ id: 'c9', name: 'Asset Owner', type: 'Client' }], isError: false }),
 }));
@@ -48,7 +44,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [], isPending: false }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
-  useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
 import SalesPipeline from '../SalesPipeline';
@@ -65,6 +60,13 @@ const renderAs = (realRole: Role) =>
   );
 
 describe('SalesPipeline — + New project CTA gating (B-3, AC-W2-IXD-005)', () => {
+  it('AC-PROJ1-001: "+ New project" opens the one-step create page through the list-return seam', async () => {
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /new project/i }));
+    expect(navigateSpy).toHaveBeenCalledWith('/projects/new', 'projects');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('AC-W2-IXD-005: a PM sees the "+ New project" CTA on the Pipeline', () => {
     renderAs('Project Manager');
     expect(

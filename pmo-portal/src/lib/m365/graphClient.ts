@@ -2,6 +2,7 @@ import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { classifyM365InvokeError } from './connectClient';
+import { folderSearchRequest, parseFolderSearchNext, type GraphReadRequest as SharedGraphReadRequest } from '../../../../supabase/functions/_shared/microsoftFolderConvention';
 import {
   validMicrosoftBrowserUrl,
   type MicrosoftReferenceInput,
@@ -16,7 +17,7 @@ export interface GraphItem extends MicrosoftReferenceInput {
   sharepoint_ids: { site_url: string; list_id: string; list_item_id: string } | null;
 }
 export interface GraphVersion { id: string; modified_at: string | null }
-export interface GraphReadRequest { path: string; query?: Record<string, string> }
+export type GraphReadRequest = SharedGraphReadRequest;
 export interface GraphPage<T> { value: T[]; next: GraphReadRequest | null; unsupported_count?: number }
 
 const FUNCTION_NAME = 'm365-token-custody';
@@ -66,34 +67,10 @@ async function readGraphPage<T>(request: GraphReadRequest, decode: Decode<T>): P
   return { value, next, unsupported_count: unsupported };
 }
 
-const ALLOWED_NEXT_QUERY_KEYS = new Set(['$top', '$skiptoken', '$skip', '$select', '$orderby', 'search']);
-
 export function parseNextLink(link: unknown, initialRequest: GraphReadRequest): GraphReadRequest {
-  if (typeof link !== 'string') throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
-  let url: URL;
-  try {
-    url = new URL(link);
-  } catch {
-    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
-  }
-  const expectedPath = `/v1.0${initialRequest.path}`;
-  if (url.protocol !== 'https:' || url.origin !== 'https://graph.microsoft.com'
-      || url.username || url.password || url.hash || url.pathname !== expectedPath
-      || /%2e|%2f|%5c/i.test(url.pathname)) {
-    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
-  }
-  const query: Record<string, string> = {};
-  for (const [key, value] of url.searchParams) {
-    if (!ALLOWED_NEXT_QUERY_KEYS.has(key) || Object.prototype.hasOwnProperty.call(query, key)) {
-      throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
-    }
-    query[key] = value;
-  }
-  if (query.$top !== undefined && query.$top !== '100') {
-    throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
-  }
-  query.$top = '100';
-  return { path: initialRequest.path, query };
+  const next = parseFolderSearchNext(link, initialRequest);
+  if (!next) throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
+  return next;
 }
 
 function readText(value: unknown): string | null {
@@ -156,7 +133,7 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
-function decodeLocation(value: unknown): GraphSite | GraphDrive | null {
+function decodeLocation(value: unknown): { id: string; name: string; web_url: string } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   const id = readText(item.id);
@@ -181,17 +158,18 @@ async function readGraphObject<T>(request: GraphReadRequest, decode: (value: unk
   return value;
 }
 
-export function listSites(search?: string): Promise<GraphPage<GraphSite>> {
-  return readGraphPage({
-    path: '/sites', query: { search: search || '*', '$top': '100' },
-  }, (value) => decodeLocation(value) as GraphSite | null);
-}
+const decodeSite = (value: unknown): GraphSite | null => decodeLocation(value);
+const decodeDrive = (value: unknown): GraphDrive | null => decodeLocation(value);
 
-export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> {
-  return readGraphPage({
-    path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' },
-  }, (value) => decodeLocation(value) as GraphDrive | null);
+export function browseSites(search?: string, next?: GraphReadRequest): Promise<GraphPage<GraphSite>> {
+  return readGraphPage(next ?? { path: '/sites', query: { search: search || '*', '$top': '100' } }, decodeSite);
 }
+export function listSites(search?: string): Promise<GraphPage<GraphSite>> { return browseSites(search); }
+
+export function browseDrives(siteId: string, next?: GraphReadRequest): Promise<GraphPage<GraphDrive>> {
+  return readGraphPage(next ?? { path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' } }, decodeDrive);
+}
+export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> { return browseDrives(siteId); }
 
 export function getPersonalDrive(): Promise<GraphDrive> {
   return readGraphObject({ path: '/me/drive' }, (value) => decodeLocation(value) as GraphDrive | null);
@@ -206,12 +184,8 @@ export function listChildren(driveId: string, folderId?: string): Promise<GraphP
 }
 
 export function searchDrive(driveId: string, term: string): Promise<GraphPage<GraphItem>> {
-  const escapedLiteral = `'${term.replace(/'/g, "''")}'`;
-  const encodedLiteral = encodeURIComponent(escapedLiteral).replace(/'/g, '%27');
-  return readGraphPage({
-    path: `/drives/${segment(driveId)}/root/search(q=${encodedLiteral})`,
-    query: { '$top': '100' },
-  }, decodeItem);
+  segment(driveId); // Validate here; folderSearchRequest performs the one URL encoding pass.
+  return readGraphPage(folderSearchRequest(driveId, term), decodeItem);
 }
 
 function decodeVersion(value: unknown): GraphVersion | null {

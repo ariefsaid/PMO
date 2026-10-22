@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 // AC-CAD handler-level proof: capture the callback registered by the shipped edge-function module.
 type ShippedHandler = (request: Request) => Response | Promise<Response>;
 let capturedHandler: ShippedHandler | undefined;
@@ -7,7 +9,7 @@ denoRuntime.serve = (handler) => {
   capturedHandler = handler;
   return { finished: Promise.resolve() };
 };
-await import('./index.ts');
+await import ('./index.ts');
 denoRuntime.serve = originalServe;
 
 type Binding = {

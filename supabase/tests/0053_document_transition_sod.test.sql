@@ -9,7 +9,7 @@
 --   AC-DOC-204  illegal status hops are rejected by the legal map (Draft → Approved → P0001).
 --   AC-DOC-205  a non-write-role (Engineer) CANNOT transition a document (role gate → 42501).
 --   AC-DOC-206  cross-org transition is denied (an org-B PM cannot move an org-A document → 42501).
---   AC-DOC-207  the status column is RPC-only: a direct `update … set status` by a write-role → 42501.
+--   AC-DOC-207  the status column is RPC-only, and non-author write-role metadata edits are denied → 42501.
 begin;
 select plan(10);
 
@@ -132,11 +132,11 @@ select throws_ok(
   '42501', null,
   'AC-DOC-207: a direct UPDATE of project_documents.status is denied — the column is RPC-only → 42501');
 
--- A direct UPDATE of a METADATA column (still granted) by the write-role succeeds — proving the
--- lockdown narrowed only `status`, not the whole table.
-select lives_ok(
+-- Metadata edits require the document author or Admin, even when the caller has a write role.
+select throws_ok(
   $$ update project_documents set title = 'SoD Drawing (Rev B)' where id = '00530000-0000-0000-0000-000000000030' $$,
-  'AC-DOC-207: a direct UPDATE of a metadata column still works (only status was locked to the RPC)');
+  '42501', null,
+  'AC-DOC-207: a non-author write-role cannot edit document metadata');
 
 reset role;
 

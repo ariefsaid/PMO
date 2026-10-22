@@ -105,7 +105,11 @@ select is((select secret_ref from external_org_bindings where org_id='a2590000-0
 select is((select config ? 'prev_binding' from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
   'AC-EAC-006 successful later rotate clears its prior-binding marker');
 delete from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup';
-select public.delete_vault_secret('a259_abandoned_2');
+-- The generic Vault-delete RPC is intentionally no longer callable by service_role (0341). Reset to
+-- the migration owner for test-fixture cleanup, then restore the role used by the test below.
+reset role;
+delete from vault.secrets where name='a259_abandoned_2';
+set local role service_role;
 
 -- Reconnect over a DISCONNECTED binding (its secret was already deleted at disconnect).
 reset role;

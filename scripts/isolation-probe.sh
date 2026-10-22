@@ -59,6 +59,7 @@ table_read(){
   case "$expectation" in
     none) jq -e 'length==0' "$BODY" >/dev/null || { flag "$name returned rows"; return; } ;;
     own-org-only) jq -e --arg org "$B_ORG" --arg key "$key" 'all(.[]; .[$key]==$org)' "$BODY" >/dev/null || { flag "$name returned foreign rows"; return; } ;;
+    parent-org-only) jq -e --arg org "$B_ORG" 'all(.[]; .acceptance.org_id==$org)' "$BODY" >/dev/null || { flag "$name returned foreign-parent rows"; return; } ;;
     global-readable) ;;
     *) probe_error "$name unknown expectation"; return ;;
   esac
@@ -74,7 +75,9 @@ table_update(){
 }
 if [ "${RPC_ONLY:-0}" != 1 ]; then
   while IFS=$'\t' read -r t has_org pk columns expectation by_id; do
-    code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$columns&limit=3")
+    select_columns=$columns
+    [ "$t" != work_order_acceptance_lines ] || select_columns='acceptance_id,acceptance:work_order_acceptances(org_id)'
+    code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$select_columns&limit=3")
     org_key=org_id; [ "$has_org" = true ] || org_key=$pk
     table_read "table $t blind read" "$code" "$expectation" "$org_key"
     if [ "$by_id" != applicable ]; then say "  N/A  $t by-id read/update — $by_id"; continue; fi
@@ -162,6 +165,13 @@ else skip "capture_vendor_invoice (procurements)"; fi
 if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
   c=$(rpc create_procurement_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_amount\":1,\"p_tax_treatment\":\"exclusive\",\"p_tax_amount\":0,\"p_withheld_amount\":0}")
 else skip "create_procurement_invoice (procurements)"; fi
+if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
+  c=$(rpc approve_procurement_amount "{\"p_procurement_id\":\"$A_PROC\",\"p_amount\":1}")
+  c=$(rpc procurement_payment_within_ceiling "{\"p_procurement_id\":\"$A_PROC\"}")
+else
+  skip "approve_procurement_amount (procurements)"
+  skip "procurement_payment_within_ceiling (procurements)"
+fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
@@ -185,10 +195,26 @@ A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
 A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")
 A_SLIP=$(jq -r '.[]|select(.table=="vendor_withholding_slips")|.id' "$A_ROWS_JSON")
 A_VENDOR_BILL=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
+A_WO=$(jq -r '.[]|select(.table=="work_orders")|.id' "$A_ROWS_JSON")
+A_ACCEPTANCE=$(jq -r '.[]|select(.table=="work_order_acceptances")|.id' "$A_ROWS_JSON")
+A_ACCEPTANCE_WORK_ORDER=$(jq -r '.[]|select(.table=="work_order_acceptances")|.work_order_id // empty' "$A_ROWS_JSON")
+A_ACCEPTANCE_LINES=$(jq -c '.[]|select(.table=="work_order_acceptances")|.lines // empty' "$A_ROWS_JSON")
 for id in A_PROJECT A_COMPANY; do value=${!id}; [ -n "$value" ] && [ "$value" != null ] || skip "create_native_sales_invoice ($id)"; done
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc create_progress_claim "{\"p_project_id\":\"$A_PROJECT\",\"p_kind\":\"down_payment\",\"p_work_order_id\":null,\"p_lines\":null,\"p_down_payment_amount\":1,\"p_recovery_pct\":1,\"p_recover_remaining\":false}")
 else skip "create_progress_claim (projects)"; fi
+if [ -n "$A_ACCEPTANCE_WORK_ORDER" ] && [ -n "$A_ACCEPTANCE_LINES" ] \
+  && [ "$A_ACCEPTANCE_LINES" != null ] \
+  && jq -e 'type=="array" and length>0 and all(.[]; (.boq_item_id|type)=="string" and (.quantity|type)=="number" and .quantity>0)' <<< "$A_ACCEPTANCE_LINES" >/dev/null; then
+  c=$(rpc prepare_work_order_acceptance "$(jq -nc --arg wo "$A_ACCEPTANCE_WORK_ORDER" --argjson lines "$A_ACCEPTANCE_LINES" '{p_work_order_id:$wo,p_acceptance_date:"2026-09-08",p_is_final:false,p_lines:$lines,p_document_id:null,p_note:null,p_acceptance_id:null}')")
+else skip "prepare_work_order_acceptance (requires work_order_acceptances.work_order_id and nonempty lines fixture)"; fi
+if [ -n "$A_ACCEPTANCE" ] && [ "$A_ACCEPTANCE" != null ]; then
+  c=$(rpc confirm_work_order_acceptance "{\"p_id\":\"$A_ACCEPTANCE\"}")
+  c=$(rpc withdraw_work_order_acceptance "{\"p_id\":\"$A_ACCEPTANCE\"}")
+else
+  skip "confirm_work_order_acceptance (work_order_acceptances fixture)"
+  skip "withdraw_work_order_acceptance (work_order_acceptances fixture)"
+fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ] && [ -n "$A_COMPANY" ] && [ "$A_COMPANY" != null ]; then
   c=$(rpc create_native_sales_invoice "{\"p_project_id\":\"$A_PROJECT\",\"p_customer_id\":\"$A_COMPANY\",\"p_lines\":[{\"description\":\"probe\",\"qty\":1,\"rate\":1}],\"p_work_order_id\":null}")
 fi

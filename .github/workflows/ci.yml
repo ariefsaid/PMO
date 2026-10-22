@@ -116,31 +116,21 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
-      # Parallel-agent infra: the flock core behind the three machine-global lock
-      # wrappers, plus the migration renumber sweep. These guard the CI SIGNAL
-      # itself, so a regression here (LOCK_EX -> LOCK_SH, or a sweep that silently
-      # no-ops) must fail the build rather than be discovered later by an agent
-      # chasing a false red. Temp dirs + temp lock paths only — no DB, no network.
-      - name: Parallel-agent infra tests
-        working-directory: .
-        run: node --test scripts/parallel-infra.test.mjs
-      # The PMO command-line client (#728): PKCE/state, allow-lists, no-delete, the DD-API-3 write
-      # guards, refresh-on-expiry and the 0600 credentials file. Fake Supabase on an ephemeral
-      # port + temp dirs only — no DB, no network.
-      - name: PMO CLI tests
-        working-directory: .
-        run: node --test scripts/pmo.test.mjs scripts/pmo-load.test.mjs scripts/register-oauth-client.test.mjs
-      # These contract tests spawn the checked-in Playwright/Vitest CLIs; install the app deps first.
+      # Install the checked-in Playwright/Vitest CLIs before repository script tests spawn them.
       - name: Install Node dependencies for repository contract tests
         working-directory: pmo-portal
         run: npm ci
+      # All repository script tests are CI-owned. The database-backed statements
+      # proofs run in pgtap after Supabase starts; every other script test runs here.
+      - name: Repository script tests (non-DB)
+        working-directory: .
+        run: |
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' -print | sort)
+          node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
         run: |
-          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs scripts/dispatch-result.test.mjs scripts/ci-e2e-coordination.test.mjs scripts/browser-test-sharding.test.mjs
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
-          node --test scripts/statement-metadata-readiness.test.mjs
-          node --test scripts/verified-post-merge-cleanup.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
@@ -241,6 +231,12 @@ jobs:
         working-directory: .
         run: bash scripts/deno-test-edge-fns.sh
 
+      # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
+      # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
+      - name: M365 folder-write mutation witness
+        working-directory: .
+        run: node scripts/m365-record-folder-write-mutation.mjs
+
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
     # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
@@ -273,6 +269,12 @@ jobs:
       # storage/inbucket — those are e2e-only concerns).
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
+
+      - name: Financial statement script tests (local Supabase required)
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
+        # Both files mutate the one local database (fixture org + migration down/up): run them serially.
+        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.

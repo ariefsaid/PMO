@@ -26,6 +26,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { runDispatchTick } from './dispatcher.ts';
+import { answerVerificationEnabled } from '../agent-chat/handler.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
@@ -177,7 +178,7 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
       rateGuard,
       now: () => new Date(),
       // The fired run gets the SAME gates as interactive: can() re-auth + compose tool.
-      handlerExtras: { can: agentCan, composeEnabled: true },
+      handlerExtras: { can: agentCan, composeEnabled: true, verifyAnswer: answerVerificationEnabled(Deno.env.get('AGENT_VERIFY_ANSWER') ?? undefined) },
       // FR-AAN-020: the fired run persists as an ordinary run under the MINTED OWNER client (owner
       // RLS — the deputy invariant, never service_role). auditMint already created the thread+run +
       // the seq-0 audit event, so this resumes that run: startSeq=1, no journaled writes yet.

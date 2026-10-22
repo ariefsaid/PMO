@@ -130,8 +130,8 @@ select is(
       ('public.agent_attachments'), ('public.agent_events'), ('public.agent_runs'),
       ('public.agent_threads'), ('public.agent_usage'), ('public.credits')) as t(rel)
     where has_any_column_privilege('authenticated', t.rel::regclass, 'INSERT')),
-  6,
-  'AC-DWG-012 authenticated KEEPS insert on all six tables that have an insert policy');
+  5,
+  'AC-DWG-012 authenticated keeps insert on the five client-write tables; agent_usage is trusted-writer only');
 
 select is(
   (select count(*)::int from (values

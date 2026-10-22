@@ -1,0 +1,214 @@
+#!/usr/bin/env node
+/**
+ * Mutation witness for the Microsoft record-folder write allowlist (ADR-0089, AC-M365DOC-070).
+ *
+ * "A suite that stays green while the handler is broken is not a suite." This harness breaks the ACTUAL
+ * shipped predicates one at a time and requires supabase/functions/m365-token-custody/recordFolderWrite.test.ts
+ * to go red on the matching ASSERTION (not on a compile error):
+ *   - folderWriteAllowed: always-true, method equality removed, default-drive equality removed
+ *   - the browser graph_proxy GET-only guard (validateGraphProxyInput) and scopeCoversPath's GET pin
+ * Each mutation is applied to an isolated run and the original bytes are restored in `finally` and on
+ * SIGINT/SIGTERM; the harness verifies byte-identical restoration by SHA-256.
+ *
+ * It also statically pins the production wiring: the allowlist is called immediately before the one
+ * folder fetch, and no credential getter / generic authenticated request is exported from graphRead.ts.
+ *
+ * Run: node scripts/m365-record-folder-write-mutation.mjs
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const CUSTODY = 'supabase/functions/m365-token-custody';
+export const TEST_FILE = `${CUSTODY}/recordFolderWrite.test.ts`;
+/** Every suite that carries a witness assertion; the harness runs them together. */
+export const TEST_FILES = [TEST_FILE, `${CUSTODY}/recordFolderHardening.test.ts`, `${CUSTODY}/recordFolders.test.ts`, `${CUSTODY}/initiateServed.test.ts`, `${CUSTODY}/transportServed.test.ts`, `${CUSTODY}/callbackServed.test.ts`, `${CUSTODY}/refreshServed.test.ts`];
+const ENSURE_FILE = `${CUSTODY}/recordFolders.ts`;
+const SEARCH_FILE = `${CUSTODY}/recordFolderSearch.ts`;
+const PARENTS_FILE = `${CUSTODY}/recordFolderParents.ts`;
+const BUDGET_FILE = `${CUSTODY}/folderBudget.ts`;
+const CONVENTION_FILE = 'supabase/functions/_shared/microsoftFolderConvention.ts';
+const INDEX_FILE = `${CUSTODY}/index.ts`;
+const WRITE_FILE = `${CUSTODY}/graphFolderWrite.ts`;
+const READ_FILE = `${CUSTODY}/graphRead.ts`;
+
+/** Each mutation neutralizes ONE tagged line; `killedBy` is the test step that must report FAILED. */
+export const MUTATIONS = [
+  { id: 'allowlist-always-true', file: WRITE_FILE, tag: 'mutation-witness:allowlist-always-true',
+    apply: (line) => line.replace('{ // mutation-witness', '{ if (Date.now() > 0) return true; // mutation-witness'),
+    killedBy: 'every other request shape is refused' },
+  { id: 'method-post', file: WRITE_FILE, tag: 'mutation-witness:method-post',
+    apply: (line) => line.replace('return false;', 'void 0;'),
+    killedBy: 'every other request shape is refused' },
+  { id: 'drive-equality', file: WRITE_FILE, tag: 'mutation-witness:drive-equality',
+    apply: (line) => line.replace('return false;', 'void 0;'),
+    killedBy: 'every other request shape is refused' },
+  { id: 'browser-get-only', file: READ_FILE, tag: 'mutation-witness:browser-get-only',
+    apply: (line) => line.replace('normalizeGraphMethod(req.method) === "GET"', 'true'),
+    killedBy: 'the browser proxy surface is GET-only and body-less' },
+  { id: 'scope-get-only', file: READ_FILE, tag: 'mutation-witness:scope-get-only',
+    apply: (line) => line.replace('return false;', 'void 0;'),
+    killedBy: 'the browser proxy surface is GET-only and body-less' },
+  // Read-path / audit / throttle / deadline rules of ensure (ADR-0089): each guards a way two records could
+  // share a folder, a folder could be created on an uncertain read, or a write could go unaudited or unbounded.
+  { id: 'exclude-shared', file: ENSURE_FILE, tag: 'mutation-witness:exclude-shared',
+    apply: (line) => line.replace('!taken.has(m.item_id)', 'true'),
+    killedBy: 'folders already linked to a DIFFERENT record are excluded from auto-link' },
+  { id: 'rate-limit', file: ENSURE_FILE, tag: 'mutation-witness:rate-limit',
+    apply: (line) => line.replace('if (!rate.exceeded)', 'if (true || !rate.exceeded)'),
+    killedBy: 'ensure is rate limited per user' },
+  { id: 'page-cap-incomplete', file: SEARCH_FILE, tag: 'mutation-witness:page-cap-incomplete',
+    apply: (line) => line.replace('return incomplete("page_limit");', 'return { complete: true, folders: [...folders.values()] };'),
+    killedBy: 'an exhausted page cap is incomplete' },
+  { id: 'strict-boundary', file: SEARCH_FILE, tag: 'mutation-witness:strict-boundary',
+    apply: (line) => line.replace('if (!folderNameMatchesCode(folder.name, convention.term))', 'if (false)'),
+    killedBy: "auto-link matches the record's code exactly" },
+  // Boundary rule: the code is followed by a single space or nothing; '-', '_' and '.' are not boundaries.
+  { id: 'space-boundary', file: CONVENTION_FILE, tag: 'mutation-witness:space-boundary',
+    apply: (line) => line.replace("n[c.length] === ' '", "[' ', '-', '_', '.'].includes(n[c.length]!)"),
+    killedBy: 'is not a match' },
+  // The served handler must hand the request body to initiate (the folders flag).
+  { id: 'initiate-body', file: INDEX_FILE, tag: 'mutation-witness:initiate-body',
+    apply: (line) => line.replace('handleInitiateConnect(authed, body)', 'handleInitiateConnect(authed)'),
+    killedBy: 'folders:true => the authorize URL carries Sites.Selected' },
+  { id: 'conflict-receipt', file: PARENTS_FILE, tag: 'mutation-witness:conflict-receipt',
+    apply: (line) => line.replace('receiptOnConflict &&', 'receiptOnConflict && Date.now() < 0 &&'),
+    killedBy: 'a 409 winner we link after our own POST gets the receipt' },
+  { id: 'deadline-spent', file: BUDGET_FILE, tag: 'mutation-witness:deadline-spent',
+    apply: (line) => line.replace('left <= 0 ? null', 'left < 0 ? null'),
+    killedBy: 'folder budget closes at the exact deadline' },
+  { id: 'metadata-paths', file: READ_FILE, tag: 'mutation-witness:metadata-paths',
+    apply: (line) => line.replace('{ // mutation-witness', '{ if (Date.now() > 0) return true; // mutation-witness'),
+    killedBy: 'served browser reads stay on the metadata surface' },
+  { id: 'metadata-projection', file: READ_FILE, tag: 'mutation-witness:metadata-projection',
+    apply: (line) => line.replace('metadataOnly(data)', 'data'),
+    killedBy: 'served metadata responses contain reference fields only' },
+  { id: 'metadata-quota', file: `${CUSTODY}/auth.ts`, tag: 'mutation-witness:metadata-quota',
+    apply: (line) => line.replace('if (!rate.exceeded)', 'if (true || !rate.exceeded)'),
+    killedBy: 'served browser metadata calls use a caller quota' },
+  { id: 'microsoft-redirect', file: `${CUSTODY}/microsoftTransport.ts`, tag: 'mutation-witness:microsoft-redirect',
+    apply: (line) => line.replace('redirect: "error"', 'redirect: "follow"'),
+    killedBy: 'served metadata transport keeps redirects local' },
+  { id: 'microsoft-body-timeout', file: `${CUSTODY}/microsoftTransport.ts`, tag: 'mutation-witness:microsoft-body-timeout',
+    apply: (line) => line.replace('}, timeoutMs);', '}, timeoutMs + 60_000);'),
+    killedBy: 'served ensure accounts for metadata body time' },
+  { id: 'folder-request-deadline', file: INDEX_FILE, tag: 'mutation-witness:folder-request-deadline',
+    apply: (line) => line.replace('scope?.limit(12_000)', 'scope?.limit(60_000)'),
+    killedBy: 'served ensure bounds a pending record read' },
+  { id: 'callback-token-pair', file: `${CUSTODY}/callback.ts`, tag: 'mutation-witness:callback-token-pair',
+    apply: (line) => line.replace('!validTokenPair(tokenData)', 'false'),
+    killedBy: 'served callback validates the token pair before persistence' },
+  { id: 'refresh-token-pair', file: `${CUSTODY}/refresh.ts`, tag: 'mutation-witness:refresh-token-pair',
+    apply: (line) => line.replace('!validTokenPair(rotated)', 'false'),
+    killedBy: 'served refresh requires a usable access token' },
+  { id: 'refreshed-folder-grant', file: READ_FILE, tag: 'mutation-witness:refreshed-folder-grant',
+    apply: (line) => line.replace('requireScope && !requireScope(connection.scopes ?? [])', 'false'),
+    killedBy: 'served refresh uses the current grant for the folder capability' },
+];
+
+const sha = (text) => createHash('sha256').update(text).digest('hex');
+const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, '');
+
+/** Real runner: deno test of the witness file. Returns { code, output }. */
+export function denoRunner(root) {
+  return () => {
+    const result = spawnSync('deno', [
+      'test', '--config', `${CUSTODY}/deno.json`, '--allow-env', '--allow-net', '--allow-read', ...TEST_FILES,
+    ], { cwd: root, encoding: 'utf8', timeout: 240_000 });
+    return { code: result.status ?? 1, output: stripAnsi(`${result.stdout ?? ''}\n${result.stderr ?? ''}`) };
+  };
+}
+
+/** Static wiring pins (cannot be observed by behaviour alone). Returns a list of problems. */
+export function staticWiringProblems(readSource, writeSource) {
+  const problems = [];
+  const create = readSource.indexOf('const createFolder = async');
+  const allow = readSource.indexOf('folderWriteAllowed(request, context)', create);
+  const send = readSource.indexOf('sendFolderRequest(', allow);
+  if (create < 0 || allow < 0 || send < 0 || !(create < allow && allow < send)) {
+    problems.push('createFolder must call folderWriteAllowed(request, context) before sendFolderRequest');
+  }
+  const between = allow >= 0 && send >= 0 ? readSource.slice(allow, send) : '';
+  if (/await\s+fetch|fetchBounded/u.test(between)) problems.push('a network call sits between the allowlist and the folder transport');
+  if ((readSource.match(/sendFolderRequest\(\s*\n?\s*url,\s*\n?\s*"POST"/gu) ?? []).length !== 1) {
+    problems.push('exactly one POST folder transport call is allowed in graphRead.ts');
+  }
+  for (const banned of ['sendFolderRequest', 'sendGraphRequest', 'loadFreshAccessToken', 'openOwnConnection', 'token']) {
+    if (new RegExp(`export\\s+(async\\s+)?(function|const)\\s+${banned}\\b`, 'u').test(readSource)) {
+      problems.push(`graphRead.ts must not export ${banned}`);
+    }
+  }
+  if (/\bfetch\w*\s*\(|export\s+(async\s+)?function\s+\w*(send|post|fetch)\w*\(/iu.test(writeSource)) {
+    problems.push('graphFolderWrite.ts must stay pure (no transport)');
+  }
+  return problems;
+}
+
+/**
+ * Runs the witness. `run` returns { code, output } for the current on-disk sources.
+ * Throws (after restoring every file) if the baseline is red, a mutant survives or dies of the wrong cause.
+ */
+export function runMutationWitness({ root = REPO, run = denoRunner(root), log = console.log } = {}) {
+  const files = [...new Set(MUTATIONS.map((m) => m.file))];
+  const original = new Map(files.map((file) => [file, readFileSync(resolve(root, file), 'utf8')]));
+  const hashes = new Map([...original].map(([file, text]) => [file, sha(text)]));
+  const restore = () => { for (const [file, text] of original) writeFileSync(resolve(root, file), text); };
+  const onSignal = (signal) => { restore(); process.exit(signal === 'SIGINT' ? 130 : 143); };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+  const failures = [];
+  try {
+    const wiring = staticWiringProblems(original.get(READ_FILE), original.get(WRITE_FILE));
+    failures.push(...wiring);
+
+    const baseline = run();
+    if (baseline.code !== 0) throw new Error(`baseline must pass before mutating:\n${baseline.output.slice(-2000)}`);
+    log('baseline: green');
+
+    for (const mutation of MUTATIONS) {
+      const text = original.get(mutation.file);
+      const lines = text.split('\n');
+      const index = lines.findIndex((line) => line.includes(mutation.tag));
+      if (index < 0) { failures.push(`${mutation.id}: tag ${mutation.tag} not found in ${mutation.file}`); continue; }
+      const mutated = mutation.apply(lines[index]);
+      if (mutated === lines[index]) { failures.push(`${mutation.id}: mutation did not change the tagged line`); continue; }
+      lines[index] = mutated;
+      try {
+        writeFileSync(resolve(root, mutation.file), lines.join('\n'));
+        const result = run();
+        const killedOnAssertion = result.code !== 0
+          && !/Type checking failed|TS\d{4}|error: Uncaught|SyntaxError/u.test(result.output)
+          && result.output.split('\n').some((line) => line.includes(mutation.killedBy) && /\bFAILED\b/u.test(line));
+        if (!killedOnAssertion) {
+          failures.push(result.code === 0
+            ? `${mutation.id}: SURVIVED — tests stayed green with the guard broken`
+            : `${mutation.id}: died for the wrong reason (expected "${mutation.killedBy}" to fail on an assertion)`);
+        } else log(`mutant ${mutation.id}: killed by "${mutation.killedBy}"`);
+      } finally {
+        restore();
+      }
+    }
+  } finally {
+    restore();
+    process.removeListener('SIGINT', onSignal);
+    process.removeListener('SIGTERM', onSignal);
+  }
+  for (const [file, hash] of hashes) {
+    if (sha(readFileSync(resolve(root, file), 'utf8')) !== hash) failures.push(`${file}: NOT restored byte-identical`);
+  }
+  if (failures.length) throw new Error(`mutation witness failed:\n- ${failures.join('\n- ')}`);
+  return { mutants: MUTATIONS.length };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    const { mutants } = runMutationWitness();
+    console.log(`✓ record-folder write allowlist: baseline green, ${mutants}/${mutants} mutants killed on assertions, sources restored`);
+  } catch (error) {
+    console.error(String(error instanceof Error ? error.message : error));
+    process.exit(1);
+  }
+}

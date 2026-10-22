@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { FinancialStatementsSection } from './FinancialStatementsSection';
 import { NativeStatementPair } from './NativeStatementPair';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';
@@ -133,6 +134,10 @@ const labels = {
   forThePeriod: 'For the period',
   amountsIn: 'Amounts in',
   periodShown: 'Period shown',
+  collapseGroup: (group: string) => `Collapse ${group}`,
+  expandGroup: (group: string) => `Expand ${group}`,
+  collapseAll: 'Collapse all',
+  expandAll: 'Expand all',
 };
 
 const presentation = { precision: 2, roundingMethod: 'Commercial Rounding' };
@@ -256,6 +261,103 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(within(table).getByText('Prior-only Account')).toBeInTheDocument();
     expect(within(table).queryByText('Current-only Expense')).not.toBeInTheDocument();
     expect(cellsOf(rowFor(table, 'Prior-only Account'))).toEqual(['901.00', '902.00', '903.00', '904.00', '905.00', '906.00']);
+  });
+
+  it('AC-FSC-001: collapses descendants until the next peer or computed total; nested state restores independently', () => {
+    const nested = pairWithUnusableAccountUnion([
+      { account: 'Parent group', account_name: 'Parent group', indent: 0, is_group: true, closing_debit: '90' },
+      { account: 'Nested group', account_name: 'Nested group', indent: 1, is_group: true, closing_debit: '60' },
+      { account: 'Nested child', indent: 2, closing_debit: '60' },
+      { account: 'Parent child', indent: 1, closing_debit: '30' },
+      { account: 'Computed total', closing_debit: '90' },
+      { account: 'Next group', indent: 0, is_group: true, closing_debit: '2' },
+      { account: 'Next child', indent: 1, closing_debit: '2' },
+    ], []);
+    renderPair(nested);
+    const table = screen.getByRole('table');
+    const parent = screen.getByRole('button', { name: 'Collapse Parent group' });
+    fireEvent.click(parent);
+    expect(parent).toHaveAttribute('aria-expanded', 'false');
+    expect(within(table).queryByText('Nested group')).not.toBeInTheDocument();
+    expect(within(table).queryByText('Nested child')).not.toBeInTheDocument();
+    expect(within(table).queryByText('Parent child')).not.toBeInTheDocument();
+    expect(within(table).getByText('Computed total')).toBeInTheDocument();
+    expect(within(table).getByText('Next child')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Parent group' }));
+    const nestedButton = screen.getByRole('button', { name: 'Collapse Nested group' });
+    fireEvent.click(nestedButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Parent group' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Parent group' }));
+    expect(screen.getByRole('button', { name: 'Expand Nested group' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(table).queryByText('Nested child')).not.toBeInTheDocument();
+  });
+
+  it('AC-FSC-002: starts fully expanded with unchanged group totals and child rows', () => {
+    renderPair(plPair(), 'Profit and loss');
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('4110 - Service revenue')).toBeInTheDocument();
+    expect(within(table).getAllByText('1,500.00').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Collapse Income' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('AC-FSC-003: one statement-level control collapses and expands all eligible groups', () => {
+    renderPair(plPair(), 'Profit and loss');
+    expect(screen.getAllByRole('button', { name: 'Collapse all' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument();
+    expect(screen.queryByText('4110 - Service revenue')).not.toBeInTheDocument();
+    expect(screen.queryByText('5110 - Rent')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+    expect(screen.getByText('4110 - Service revenue')).toBeInTheDocument();
+  });
+
+  it('AC-FSC-004: disclosure uses keyboard-operable buttons and keeps focus on activation', async () => {
+    renderPair(plPair(), 'Profit and loss');
+    const button = screen.getByRole('button', { name: 'Collapse Income' });
+    button.focus();
+    await userEvent.setup().keyboard('{Enter}');
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('4110 - Service revenue')).not.toBeInTheDocument();
+    const expand = screen.getByRole('button', { name: 'Expand Income' });
+    expand.focus();
+    await userEvent.setup().keyboard(' ');
+    expect(expand).toHaveFocus();
+    expect(screen.getByText('4110 - Service revenue')).toBeInTheDocument();
+  });
+
+  it('AC-FSC-005: collapsing preserves figures, totals, double underline and trial-balance period switching', () => {
+    renderPair(plPair(), 'Profit and loss');
+    const profit = rowFor(screen.getByRole('table'), 'Profit for the period');
+    expect(profit.querySelector('td')).toHaveClass('border-double');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Income' }));
+    expect(cellsOf(rowFor(screen.getByRole('table'), '^Income$'))).toEqual(['1,500.00', '1,000.00']);
+    expect(rowFor(screen.getByRole('table'), 'Total Income')).toHaveAttribute('data-row-kind', 'total');
+    cleanup();
+    const { unmount } = renderPair(pairWithUnusableAccountUnion([
+      { account: 'Asset group', account_name: 'Asset group', indent: 0, is_group_account: true, closing_debit: '5' },
+      { account: 'Asset child', indent: 1, closing_debit: '5' },
+    ], [
+      { account: 'Prior group', account_name: 'Prior group', indent: 0, is_group: true, closing_debit: '7' },
+      { account: 'Prior child', indent: 1, closing_debit: '7' },
+    ]));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Asset group' }));
+    expect(screen.queryByText('Asset child')).not.toBeInTheDocument();
+    const previous = screen.getByRole('button', { name: 'Previous period' });
+    fireEvent.click(previous);
+    expect(previous).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Collapse Prior group' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    unmount();
+  });
+
+  it('AC-FSC-006: hidden descendants are omitted while the statement remains a printable semantic table', () => {
+    renderPair(plPair(), 'Profit and loss');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Income' }));
+    const table = screen.getByRole('table');
+    expect(within(table).queryByText('4110 - Service revenue')).not.toBeInTheDocument();
+    expect(within(table).getByText('Total Income (Credit)')).toBeInTheDocument();
+    expect(cellsOf(rowFor(table, '^Income$'))).toEqual(['1,500.00', '1,000.00']);
   });
 
   it('keeps an empty period local: no-activity for that period, the other period still reachable', () => {

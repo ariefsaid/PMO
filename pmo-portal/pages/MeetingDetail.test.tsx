@@ -103,7 +103,7 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   type Block = { content?: Array<{ text?: string }>; children: unknown[]; type: string };
   const Stub = React.forwardRef<
-    { insertActionItem: (id: string) => void },
+    { insertActionItem: (id: string) => void; getDocument: () => Block[] },
     {
       initialBlocks: Block[];
       editable: boolean;
@@ -113,7 +113,9 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
       onRequestAction: (line: string) => void;
     }
   >(function Stub({ initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction }, ref) {
-    React.useImperativeHandle(ref, () => ({ insertActionItem }), []);
+    // The live document: Save reads it through the handle, not the (deferred) onChange copy.
+    const doc = React.useRef<Block[]>(initialBlocks);
+    React.useImperativeHandle(ref, () => ({ insertActionItem, getDocument: () => doc.current }), []);
     React.useEffect(() => onReady(initialBlocks), []); // eslint-disable-line react-hooks/exhaustive-deps
     return (
       <div data-testid="stub-editor" data-editable={String(editable)} data-tasks-external={String(tasksExternal)}>
@@ -124,14 +126,24 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
           <button
             type="button"
             data-testid="stub-type"
-            onClick={() =>
-              onChange([
-                ...initialBlocks,
-                { type: 'paragraph', content: [{ text: 'by Friday' }], children: [] },
-              ])
-            }
+            onClick={() => {
+              doc.current = [...initialBlocks, { type: 'paragraph', content: [{ text: 'by Friday' }], children: [] }];
+              onChange(doc.current);
+            }}
           >
             type
+          </button>
+        )}
+        {editable && (
+          // A keystroke whose change notification has not committed yet.
+          <button
+            type="button"
+            data-testid="stub-type-pending"
+            onClick={() => {
+              doc.current = [...doc.current, { type: 'paragraph', content: [{ text: 'last words' }], children: [] }];
+            }}
+          >
+            type pending
           </button>
         )}
         {editable && !tasksExternal && (
@@ -419,6 +431,18 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     expect(call.patch).not.toHaveProperty('notes_text');
   });
 
+  it('AC-MRT-001 Save persists the live editor document, including an edit whose change notification is still pending', async () => {
+    renderPage('Engineer');
+    await screen.findByTestId('stub-editor');
+    await userEvent.click(screen.getByTestId('stub-type'));
+    await userEvent.click(screen.getByTestId('stub-type-pending'));
+    await userEvent.click(screen.getByTestId('minutes-save'));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    const notes = mutations.update.mutateAsync.mock.calls[0][0].patch.notes;
+    expect(notes).toHaveLength(4);
+    expect(notes[3]).toMatchObject({ content: [{ text: 'last words' }] });
+  });
+
   // DD-MTG-8: /action is an INFORMED authoring act — the modal, never a silent copy. The task
   // name lands in org-wide `tasks_select`, outside the attendance-keyed read model, so the
   // author must consciously publish exactly the text they choose.
@@ -660,9 +684,40 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
-  it('AC-MTG-029: a non-Admin author gets Edit + Archive but not Delete', () => {
+  it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {
     renderPage('Engineer');
-    expect(screen.getByTestId('meeting-edit')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    const title = screen.getByLabelText(/Title/) as HTMLInputElement;
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Changed title');
+    expect(screen.getByTestId('meeting-header-save')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-header-save'));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', patch: expect.objectContaining({ title: 'Changed title' }) })));
+  });
+
+  it('AC-MTG1-005: a meeting refetch does not overwrite a dirty header draft', async () => {
+    const view = renderPage('Engineer');
+    const title = screen.getByLabelText(/Title/) as HTMLInputElement;
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Typed title in progress');
+    meetingState.data = { ...baseMeeting, title: 'Refetched server title' };
+    view.rerender(<ToastProvider><MemoryRouter initialEntries={['/meetings/m1']}><MeetingDetail /></MemoryRouter></ToastProvider>);
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Typed title in progress');
+  });
+
+  it('AC-MTG1-005: Cancel restores the original inline header values', async () => {
+    renderPage('Engineer');
+    const title = screen.getByLabelText(/Title/) as HTMLInputElement;
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Changed title');
+    await userEvent.click(screen.getByTestId('meeting-header-cancel'));
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
+    expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+  });
+
+  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', () => {
+    renderPage('Engineer');
+    expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
   });
@@ -686,15 +741,14 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
     renderPage('Engineer');
-    expect(screen.getByText(/09:15\s?PM/i)).toBeInTheDocument(); // header, profile-zone wall time
-    await userEvent.click(screen.getByTestId('meeting-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
-  it('submitting the unedited default keeps the same instant', async () => {
+  it('editing another header value keeps the occurrence instant in the profile timezone', async () => {
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('meeting-edit'));
+    await userEvent.clear(screen.getByLabelText(/Location/));
+    await userEvent.type(screen.getByLabelText(/Location/), 'Updated room');
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const call = mutations.update.mutateAsync.mock.calls[0][0];
@@ -703,7 +757,6 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('meeting-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
     when.focus();
@@ -718,13 +771,11 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
     renderPage('Engineer');
-    await userEvent.click(screen.getByTestId('meeting-edit'));
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
-    // Shown twice by design: the inline field error and the dialog's error summary banner.
-    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/valid date and time/i)).toBeInTheDocument();
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
   });
 });

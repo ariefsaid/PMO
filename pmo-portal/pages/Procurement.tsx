@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -8,7 +8,6 @@ import {
   LifecycleStepper,
   Button,
   Icon,
-  useToast,
   ProjectNameLink,
   MobileToolbarDisclosure,
   type Column,
@@ -20,14 +19,12 @@ import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { NewProcurementModal } from './procurement/NewProcurementModal';
 import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
 import { formatCurrency } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -37,6 +34,8 @@ import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcur
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useHasErpPurchases } from '@/src/hooks/useErpPurchases';
+import { Link } from 'react-router';
 import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
 
@@ -108,6 +107,16 @@ function matchesWorkingSetStatus(
 
 const ProcurementPage: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.get('create') === '1') {
+      query.delete('create');
+      navigate(`/procurement/new${query.size ? `?${query}` : ''}`, { replace: true });
+    }
+  }, [location.search, navigate]);
+  const { t: tf } = useTranslation('finance');
   const statusLabel = useProcurementStatusLabel();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
@@ -124,8 +133,9 @@ const ProcurementPage: React.FC = () => {
   // B-2 (D5): Finance/PM/Exec/Admin can approve procurement requests (Requested → Approved).
   // Show a "Needs approval" segment so they can quickly surface actionable Requested PRs.
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
-  const { toast } = useToast();
   const { data, isPending, isError, refetch } = useProcurements({ withRefs: true });
+  // FR-EPR-007: link the ERP-native purchases list only when the org has any to show.
+  const { data: hasErpPurchases } = useHasErpPurchases({ enabled: !ownScoped && may('view', 'procurement') });
   const { data: projectOptions = [] } = useProjectOptions();
   const { data: vendorOptions = [] } = useVendorOptions();
 
@@ -154,7 +164,6 @@ const ProcurementPage: React.FC = () => {
     [vendorRefs],
   );
 
-  const create = useCreateProcurement();
   // list-working-set-return (#682): `status`/`q`/`view` are URL-owned. The codec's own
   // exact/group status distinction (AC-IXD-DASH-W5-C2A dashboard drills) is preserved by
   // `matchesWorkingSetStatus`; the role gate on which segments are OFFERED (FILTERS below)
@@ -174,7 +183,6 @@ const ProcurementPage: React.FC = () => {
     writeProcurementView(v);
     setWorkingSet((ws) => ({ ...ws, view: v }));
   };
-  const [showNew, setShowNew] = useState(false);
   const [showCycleImport, setShowCycleImport] = useState(false);
 
   // B-2: "Needs approval" prepended for approver roles.
@@ -348,11 +356,23 @@ const ProcurementPage: React.FC = () => {
       description={
         ownScoped
           ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
-          : t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')
+          : (
+            <>
+              {t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')}
+              {hasErpPurchases && (
+                <>
+                  {' '}
+                  <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
+                    {tf('erpPurchases.title', 'Purchases recorded in ERPNext')}
+                  </Link>
+                </>
+              )}
+            </>
+          )
       }
       primaryAction={
         canCreate && (
-          <Button variant="primary" onClick={() => setShowNew(true)}>
+          <Button variant="primary" onClick={() => navigate('/procurement/new')}>
             <Icon name="plus" />
             {t('procurement.raiseRequest', 'Raise request')}
           </Button>
@@ -476,7 +496,7 @@ const ProcurementPage: React.FC = () => {
           module="procurement"
           action={
             canCreate
-              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => setShowNew(true) }
+              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => navigate('/procurement/new') }
               : undefined
           }
         />
@@ -525,26 +545,6 @@ const ProcurementPage: React.FC = () => {
         )
       )}
 
-      {/* Raise a new PR → on success, land on its detail page to add line items. */}
-      {showNew && (
-        <NewProcurementModal
-          onClose={() => setShowNew(false)}
-          onCreate={(input) => create.mutateAsync(input)}
-          onCreated={(id) => {
-            setShowNew(false);
-            toast(
-              t('procurement.toast.created.headline', 'Request created'),
-              t('procurement.toast.created.detail', 'Add line items and quotations next'),
-              'success',
-            );
-            openRecord(`/procurement/${id}`);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
-      )}
 
       {/* ADR-0035: procurement-cycle bulk import wizard (PR→Payment, case-grouped). */}
       {showCycleImport && userId && (

@@ -36,6 +36,7 @@ const { procurement } = vi.hoisted(() => ({
     createQuotation: vi.fn().mockResolvedValue({ id: 'quote-1' }),
     createReceipt: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     createInvoice: vi.fn().mockResolvedValue({ id: 'invoice-1' }),
+    approveAmount: vi.fn().mockResolvedValue(undefined),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
@@ -97,6 +98,17 @@ describe('useProcurementMutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearOwnershipCache();
+  });
+
+  it('AC-SEC-220 (hook): approveAmount sends the billed amount through the repository and refreshes the detail', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.approveAmount.mutateAsync(1200);
+    });
+    expect(procurement.approveAmount).toHaveBeenCalledWith('proc-1', 1200);
+    expect(invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0])).some((c) => c.includes('"proc-1"'))).toBe(true);
   });
 
   it('AC-816 (hook): useProcurementMutations.transition calls repositories.procurement.transition and invalidates the detail key on success', async () => {

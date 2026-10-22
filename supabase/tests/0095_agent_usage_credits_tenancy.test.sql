@@ -7,7 +7,7 @@
 -- (bypassing RLS), then `set local role authenticated` + `set local request.jwt.claims`.
 -- Fixture namespace: 00950000-…. Org A = default '00000000-…-0001'; Org B = '00950000-…-0002'.
 begin;
-select plan(22);
+select plan(23);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ───────────────────────
 insert into organizations (id, name) values
@@ -140,13 +140,15 @@ select throws_ok(
   $$ insert into agent_usage (owner_id, model, cost) values ('00950000-0000-0000-0000-0000000000a1', 'test-model', 1) $$,
   '42501', null,
   'AC-AUC-008 Bob inserting agent_usage with a spoofed owner_id (Ann) is denied');
-select lives_ok(
+select throws_ok(
   $$ insert into agent_usage (owner_id, model, cost) values ('00950000-0000-0000-0000-0000000000a2', 'test-model', 1) $$,
-  'AC-AUC-008 Bob inserting agent_usage with his own owner_id succeeds');
-select lives_ok(
+  '42501', null,
+  'AC-AUC-008 authenticated direct usage insertion is denied');
+select throws_ok(
   $$ insert into agent_usage (owner_id, run_id, model, cost) values
       ('00950000-0000-0000-0000-0000000000a2','00950000-0000-0000-0000-000000000021','test-model', 1) $$,
-  'AC-AUC-008 Bob inserting agent_usage with a run_id of a run he owns succeeds');
+  '42501', null,
+  'AC-AUC-008 authenticated direct usage insertion with an owned run is denied');
 select throws_ok(
   $$ insert into agent_usage (owner_id, run_id, model, cost) values
       ('00950000-0000-0000-0000-0000000000a2','00950000-0000-0000-0000-000000000020','test-model', 1) $$,
@@ -209,6 +211,13 @@ select is(
      where tablename = 'credits' and cmd = 'INSERT' and with_check ilike '%is_operator()%'),
   1,
   'AC-AUC-007 credits INSERT gates on is_operator() (Operator-only)');
+
+select is(
+  (select count(*)::int from information_schema.role_table_grants
+    where grantee = 'authenticated' and table_schema = 'public' and table_name = 'agent_usage'
+      and privilege_type in ('INSERT', 'UPDATE', 'DELETE')),
+  0,
+  'AC-AUC-008 authenticated has no usage ledger write grants');
 
 select * from finish();
 rollback;

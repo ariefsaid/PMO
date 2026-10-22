@@ -50,6 +50,9 @@ select set_eq(
             -- 0292: project_documents now has multiple profile references. The DAL currently uses
             -- unqualified row reads only and has no profile embed from this register.
             ('project_documents -> profiles'),
+            -- 0342 adds a composite self-FK beside the existing parent FK. DAL reads are unembedded;
+            -- any future parent-document embed must name the intended constraint.
+            ('project_documents -> project_documents'),
             ('task_dependencies -> tasks'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the
@@ -71,6 +74,9 @@ select set_eq(
             -- 0250 (#766): progress_claims carries created_by and withdrawn_by -> profiles. No DAL code embeds
             -- profiles from progress_claims today; whatever ships first MUST qualify it with !constraint_name.
             ('progress_claims -> profiles'),
+            -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
+            -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('work_order_acceptances -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),

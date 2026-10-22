@@ -5,12 +5,14 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({
   create: vi.fn(),
+  addLine: vi.fn(),
   prepare: vi.fn(),
   objectExists: vi.fn(),
   confirm: vi.fn(),
   cleanup: vi.fn(),
   upload: vi.fn(),
 }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim: { addLine: h.addLine } } }));
 vi.mock('@/src/lib/repositories/expenseCapture', () => ({
   expenseCaptureRepository: { create: h.create, prepareReceipt: h.prepare, objectExists: h.objectExists },
   confirmExpenseCaptureReceipt: h.confirm,
@@ -51,6 +53,7 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
   beforeEach(() => {
     for (const fn of Object.values(h)) fn.mockReset();
     h.create.mockImplementation(async (command: { claimId: string }) => command.claimId);
+    h.addLine.mockResolvedValue({});
     h.prepare.mockResolvedValue({ signedUrl: 'https://upload.invalid/signed', path: 'org-29/00000000-0000-4000-8000-000000000029/00000000-0000-4000-8000-000000000031/taxi.pdf' });
     h.objectExists.mockResolvedValue(false);
     h.confirm.mockResolvedValue({ id: '00000000-0000-4000-8000-000000000031', claim_id: '00000000-0000-4000-8000-000000000029', file_path: 'org-29/00000000-0000-4000-8000-000000000029/00000000-0000-4000-8000-000000000031/taxi.pdf' });
@@ -86,6 +89,90 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     for (const root of EXPENSE_QUERY_ROOTS) expect(invalidate).toHaveBeenCalledWith({ queryKey: [root] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['expense-receipts', 'org-29', '00000000-0000-4000-8000-000000000029'] });
     uuid.mockRestore();
+  });
+
+  it('AC-EXP1-002 saves every additional line before receipt upload and does not duplicate lines on receipt retry', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000049')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000050')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000051');
+    h.upload.mockRejectedValueOnce(new Error('network response lost'));
+    h.objectExists.mockResolvedValue(false);
+    const { result } = setup();
+    const input = { ...captureInput, additionalLines: [{ expenseDate: '2026-10-08', expenseType: 'Meals' as const, description: 'Lunch', amount: 18000 }] };
+
+    await act(async () => { await expect(result.current.capture(input)).rejects.toThrow('network response lost'); });
+    expect(h.addLine).toHaveBeenCalledTimes(1);
+    expect(h.addLine).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000049', input.additionalLines[0]);
+    expect(h.addLine.mock.invocationCallOrder[0]).toBeLessThan(h.prepare.mock.invocationCallOrder[0]);
+    await act(async () => { await expect(result.current.capture(input)).resolves.toBe('00000000-0000-4000-8000-000000000049'); });
+    expect(h.addLine).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-EXP1-002 resumes after a line failure without duplicating earlier saved lines', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce('00000000-0000-4000-8000-000000000059').mockReturnValueOnce('00000000-0000-4000-8000-000000000060');
+    h.addLine.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('line save failed')).mockResolvedValueOnce({});
+    const { result } = setup();
+    const input = {
+      ...captureInput,
+      receiptFile: null,
+      additionalLines: [
+        { expenseDate: '2026-10-08', expenseType: 'Meals' as const, description: 'Lunch', amount: 18000 },
+        { expenseDate: '2026-10-09', expenseType: 'Travel' as const, description: 'Bus fare', amount: 5000 },
+      ],
+    };
+    await act(async () => { await expect(result.current.capture(input)).rejects.toThrow('line save failed'); });
+    expect(result.current.recovery).toMatchObject({ phase: 'line-save-failed', draftSaved: true });
+    await act(async () => { await expect(result.current.capture(input)).resolves.toBe('00000000-0000-4000-8000-000000000059'); });
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.addLine).toHaveBeenCalledTimes(3);
+    expect(h.addLine.mock.calls.filter(([, line]) => line.description === 'Lunch')).toHaveLength(1);
+    expect(h.addLine.mock.calls.filter(([, line]) => line.description === 'Bus fare')).toHaveLength(2);
+  });
+
+  it.each(['uploaded', 'confirmed'] as const)('AC-S29-003 preserves a %s receipt during automatic cleanup', async (state) => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    if (state === 'uploaded') h.confirm.mockRejectedValueOnce(new Error('confirmation response lost'));
+    const { result } = setup();
+    await act(async () => {
+      if (state === 'uploaded') await expect(result.current.capture(captureInput)).rejects.toThrow('confirmation response lost');
+      else await result.current.capture(captureInput);
+    });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.cleanup).not.toHaveBeenCalled();
+    expect(result.current.recovery?.attachment).toMatchObject({ state, path: expect.any(String) });
+  });
+
+  it('AC-S29-003 retains the confirmation history when a later retry fails earlier', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    h.confirm.mockRejectedValueOnce(new Error('confirmation response lost'));
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('confirmation response lost'); });
+    h.objectExists.mockRejectedValueOnce(new Error('retry read failed'));
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('retry read failed'); });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(h.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('AC-S29-003 cleans up an abandoned upload before receipt confirmation has started', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000030')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000031');
+    h.upload.mockRejectedValueOnce(new Error('upload failed'));
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('upload failed'); });
+    await act(async () => { await result.current.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }); });
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(h.cleanup).toHaveBeenCalledTimes(1);
+    expect(result.current.recovery?.attachment).toMatchObject({ state: 'selected', path: null });
   });
 
   it('AC-S29-003 creates one stable line without receipt storage work', async () => {

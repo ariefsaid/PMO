@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { searchDrive, browseOneDrive } = vi.hoisted(() => ({ searchDrive: vi.fn(), browseOneDrive: vi.fn() }));
 vi.mock('../graphClient', () => ({ searchDrive, browseOneDrive }));
 
-import { suggestFolders } from '../folderSuggestions';
+import { normalizeFolderParentPath, suggestFolders } from '../folderSuggestions';
 import type { GraphItem, GraphPage } from '../graphClient';
 
 const library = { site_id: 'site-1', site_name: 'Synthetic site', drive_id: 'drive-1', drive_name: 'Synthetic library' };
@@ -16,6 +16,14 @@ const page = (value: GraphItem[], next: GraphPage<GraphItem>['next'] = null): Gr
 beforeEach(() => { searchDrive.mockReset(); browseOneDrive.mockReset(); });
 
 describe('bounded convention folder suggestions', () => {
+  it('AC-M365DOC-069 normalizes only safe paths in the configured drive', () => {
+    expect(normalizeFolderParentPath('/drives/foreign/root:/Projects', 'drive-1')).toBeNull();
+    expect(normalizeFolderParentPath('/drives/drive-1/root:/Projects/%2e%2e/Else', 'drive-1')).toBeNull();
+    expect(normalizeFolderParentPath('/drive/root:/Projects/a%2Fb', 'drive-1')).toBeNull();
+    expect(normalizeFolderParentPath('/drive/root:/Projects/a%00b', 'drive-1')).toBeNull();
+    expect(normalizeFolderParentPath('/drive/root:/Projects', 'drive-1')).toBe('/drive/root:/Projects');
+  });
+
   it('AC-M365DOC-057 filters by full prefix, folder facet, matching drive and exact convention path', async () => {
     searchDrive.mockResolvedValue(page([
       folder('PRJ-A Design', '/drives/drive-1/root:/Projects'),

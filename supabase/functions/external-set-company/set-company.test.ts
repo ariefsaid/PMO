@@ -862,8 +862,8 @@ describe('external-set-company — host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — nothing is activated`, async () => {
-      await withDns(records, () =>
-        withFetchMock(routes(), async ({ calls }) => {
+      await withFetchMock(routes(), async ({ calls }) =>
+        withDns(records, async () => {
           const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
           assertEquals(res.status, 422);
           assertEquals(await res.json(), {
@@ -900,8 +900,8 @@ describe('external-set-company — host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — nothing is activated', async () => {
-    await withDns('failure', () =>
-      withFetchMock(routes(), async ({ calls }) => {
+    await withFetchMock(routes(), async ({ calls }) =>
+      withDns('failure', async () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 422);
         assertEquals(await res.json(), {

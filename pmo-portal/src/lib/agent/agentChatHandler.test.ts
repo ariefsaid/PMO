@@ -105,6 +105,89 @@ function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 
 // ── Task 10: AC-AR-002 + AC-AR-003 (gates before any model call) ──────────────
 
+it('AC-ACC-010 checks a final draft against tool evidence before emitting it', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Wrong: 2.' }, usage: { completion_tokens: 4 }, model: 'm' })
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Correct: 3.' }, usage: { completion_tokens: 5 }, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], temperature: 0.2 });
+  expect(create.mock.calls[1][0]).not.toHaveProperty('tool_choice');
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Correct: 3.']);
+  expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === 'Double-checking the answer…')).toBe(true);
+});
+
+it('AC-ACC-013 uses temperature 0.2 for loop, step-limit synthesis and answer check calls', async () => {
+  const toolResponse = {
+    finish_reason: 'tool_calls', usage: {}, model: 'm',
+    message: { role: 'assistant', content: null, tool_calls: [{ id: 'tc', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } }] },
+  };
+  const create = vi.fn();
+  for (let i = 0; i < MAX_TOOL_ROUNDS; i++) create.mockResolvedValueOnce(toolResponse);
+  create.mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Synthesized answer.' }, usage: {}, model: 'm' });
+  create.mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Checked answer.' }, usage: {}, model: 'm' });
+  await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 2);
+  expect(create.mock.calls.every(([request]) => request.temperature === 0.2)).toBe(true);
+});
+
+it('AC-ACC-010 skips the check after the 90-second turn budget and emits the draft', async () => {
+  let now = 1_000;
+  const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => now);
+  const create = vi.fn().mockImplementation(async () => {
+    now += 91_001;
+    return { finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' };
+  });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+  expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === 'Double-checking the answer…')).toBe(false);
+  dateNow.mockRestore();
+});
+
+it('AC-ACC-012 emits the draft when the check response is truncated', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' })
+    .mockResolvedValueOnce({ finish_reason: 'length', message: { role: 'assistant', content: 'Incomplete correction' }, usage: {}, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+});
+
+it('AC-ACC-012 throws and empty check replies preserve the original draft', async () => {
+  for (const checkReply of [
+    new Error('provider failure'),
+    { finish_reason: 'stop', message: { role: 'assistant', content: null }, usage: {}, model: 'm' },
+    { finish_reason: 'stop', message: { role: 'assistant', content: '   ' }, usage: {}, model: 'm' },
+  ]) {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Preserve this draft.' }, usage: {}, model: 'm' })
+      .mockImplementationOnce(() => checkReply instanceof Error ? Promise.reject(checkReply) : Promise.resolve(checkReply));
+    const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+    expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Preserve this draft.']);
+    expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+  }
+});
+
+it('AC-ACC-011 disabled verification sends no check call', async () => {
+  const create = vi.fn().mockResolvedValue({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ verifyAnswer: false, modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+});
+
+it('AC-ACC-012 check timeout falls back to the draft', async () => {
+  vi.useFakeTimers();
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' })
+    .mockImplementation(() => new Promise(() => {}));
+  const pending = collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  await vi.advanceTimersByTimeAsync(15_000);
+  const events = await pending;
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Draft answer.']);
+  vi.useRealTimers();
+});
+
 it('AC-AR-002 emits a single 401 status event and never calls the model when userId is empty', async () => {
   const create = vi.fn();
   const events = await collect(
@@ -149,16 +232,13 @@ it('emits a 429 RATE_LIMITED terminal status and never calls the model when the 
 });
 
 it('rateGuard absent ⇒ proceeds to the model', async () => {
-  const create = vi.fn().mockResolvedValue({
-    finish_reason: 'stop',
-    message: { role: 'assistant', content: 'Done.' },
-    usage: {},
-    model: 'deepseek/deepseek-v4-flash',
-  });
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Done.' }, usage: {}, model: 'deepseek/deepseek-v4-flash' })
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Done.' }, usage: {}, model: 'deepseek/deepseek-v4-flash' });
   const events = await collect(
     agentChatHandler(REQ, baseDeps({ modelClient: { create } })),
   );
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 });
 
@@ -196,10 +276,11 @@ it('AC-MC-008 tool-use loop parity: happy read path, same event order (OpenRoute
   // (payload.kind==='step'); it rides the same stream (persistence skips it, the panel intercepts
   // it into the indicator). So the happy read path is: user → status(step) → tool → assistant →
   // status(completed).
-  expect(events.map((e) => e.type)).toEqual(['user', 'status', 'tool', 'assistant', 'status']);
+  expect(events.map((e) => e.type)).toEqual(['user', 'status', 'tool', 'status', 'assistant', 'status']);
+  expect(events[3]).toMatchObject({ type: 'status', payload: { kind: 'step', label: 'Double-checking the answer…' } });
   expect(events[1]).toMatchObject({ type: 'status', payload: { kind: 'step' } });
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
 });
 
 it('AC-MC-009 MAX_TOOL_ROUNDS unchanged after the provider swap', async () => {
@@ -254,8 +335,9 @@ it('AC-RQL-010 forced synthesis: exhausting the loop still emits a final answer 
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
-  // The synthesis call happened with tools disabled.
-  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
+  // Synthesis and its final evidence check both have tools disabled.
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 2);
+  expect(create.mock.calls.at(-2)![0]).toMatchObject({ tools: [] });
   expect(create.mock.calls.at(-1)![0]).toMatchObject({ tools: [] });
   // A real assistant answer is emitted BEFORE the terminal step-limit status (never a bare dead-end).
   const answer = events.find((e) => e.type === 'assistant' && e.text?.includes('behind schedule'));
@@ -296,7 +378,7 @@ it('parallelizes multiple read tool calls in one round (both execute, both resul
   // Both reads ran in the SAME round → two tool events, then one more model round to answer.
   const toolEvents = events.filter((e) => e.type === 'tool');
   expect(toolEvents).toHaveLength(2);
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 
   // Round 2's transcript answers BOTH tool_call_ids (the API pairing invariant).
@@ -334,7 +416,7 @@ it('never parallelizes a write: a read+write round runs only the read and DEFERS
   // (the read). The write is deferred — the loop continues to a second model round.
   expect(events.some((e) => e.type === 'status' && (e as { payload?: { status?: string } }).payload?.status === 'needs-approval')).toBe(false);
   expect(events.filter((e) => e.type === 'tool')).toHaveLength(1);
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
 
   // Round 2's transcript answers BOTH ids: the real read result + a deferred marker for the write,
   // so the assistant(tool_calls)→tool(result) pairing stays valid.
@@ -408,8 +490,8 @@ it('terminates on finish_reason stop even when a tool_calls entry is accidentall
   });
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
-  // Must complete after 1 SDK call — do not dispatch tool on stop
-  expect(create).toHaveBeenCalledTimes(1);
+  // One final-answer call plus its tools-disabled check; do not dispatch the spurious tool.
+  expect(create).toHaveBeenCalledTimes(2);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 });
 
@@ -549,6 +631,12 @@ it('malformed tool arguments (main loop) → error tool_result appended, run rec
       message: { role: 'assistant', content: 'You have 2 active projects.' },
       usage: {},
       model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'You have 2 active projects.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }, { id: '2' }], error: null }));
@@ -556,7 +644,7 @@ it('malformed tool arguments (main loop) → error tool_result appended, run rec
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
   // Run must NOT fail as UPSTREAM_ERROR — it must recover and complete normally.
-  expect(create).toHaveBeenCalledTimes(3);
+  expect(create).toHaveBeenCalledTimes(4);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   expect(events.find((e) => (e.payload as { error?: string })?.error === 'UPSTREAM_ERROR')).toBeUndefined();
   // A real tool event is still emitted for the successful (round 2) call.

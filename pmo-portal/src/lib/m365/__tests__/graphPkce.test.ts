@@ -12,6 +12,7 @@ import {
   buildAuthorizeUrl,
   buildAdminConsentUrl,
   M365_PHASE1_DATA_SCOPES,
+  M365_FOLDER_SCOPES,
 } from '../graphPkce';
 
 // RFC 7636 §4.1 unreserved charset: ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -167,6 +168,33 @@ describe('buildAdminConsentUrl (step 2 — org approval)', () => {
     expect(url.searchParams.get('scope')).toBe(
       'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Files.Read.All https://graph.microsoft.com/Sites.Read.All',
     );
+  });
+
+  it('AC-M365DOC-070: Sites.Selected is a SEPARATE opt-in scope; the default data scopes are read-only exactly as before', () => {
+    expect(M365_FOLDER_SCOPES).toEqual(['Sites.Selected']);
+    expect(M365_PHASE1_DATA_SCOPES).toEqual(['Files.Read', 'Files.Read.All', 'Sites.Read.All']);
+    expect(M365_PHASE1_DATA_SCOPES).not.toContain('Sites.Selected');
+  });
+
+  it('AC-M365DOC-070: personal and Admin consent request the same read-only data scopes, never a broad write', () => {
+    expect(M365_PHASE1_DATA_SCOPES).toEqual(expect.arrayContaining(['Files.Read', 'Files.Read.All', 'Sites.Read.All']));
+    expect(M365_PHASE1_DATA_SCOPES.some((scope) => /ReadWrite/u.test(scope))).toBe(false);
+    const personal = new URL(buildAuthorizeUrl({
+      tenant: baseParams.tenant,
+      clientId: baseParams.clientId,
+      redirectUri: baseParams.redirectUri,
+      state: baseParams.state,
+      codeChallenge: 'test-challenge-value',
+      scopes: [...M365_PHASE1_DATA_SCOPES, 'offline_access'],
+    }));
+    const personalScopes = (personal.searchParams.get('scope') ?? '').split(' ');
+    const adminScopes = (new URL(buildAdminConsentUrl(baseParams)).searchParams.get('scope') ?? '')
+      .split(' ').map((scope) => scope.replace('https://graph.microsoft.com/', ''));
+    for (const scope of M365_PHASE1_DATA_SCOPES) {
+      expect(personalScopes).toContain(scope);
+      expect(adminScopes).toContain(scope);
+    }
+    expect(adminScopes).toHaveLength(M365_PHASE1_DATA_SCOPES.length);
   });
 
   it('AC-M365SEP-013: derives consent scopes from the shared data-scope list', () => {

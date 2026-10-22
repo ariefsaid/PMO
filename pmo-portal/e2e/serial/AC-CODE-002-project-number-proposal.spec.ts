@@ -55,18 +55,17 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
     await page.goto('/projects');
     await expect(page.getByTestId('projects-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: /new project/i }).click();
-    const projectDialog = page.getByRole('dialog');
-    await projectDialog.getByLabel(/project name/i).fill(projectName);
-    await projectDialog.getByLabel(/origination stage/i).selectOption('Internal Project');
-    await pickComboboxOption(projectDialog, page, /client company/i, new RegExp(companyName));
+    await page.getByLabel(/project name/i).fill(projectName);
+    await page.getByLabel(/origination stage/i).selectOption('Internal Project');
+    await pickComboboxOption(page, page, /client company/i, new RegExp(companyName));
 
-    const pmoNumber = projectDialog.getByLabel('PMO Project Number');
+    const pmoNumber = page.getByLabel('PMO Project Number');
     await expect(pmoNumber).toHaveValue(new RegExp(`^E2E-${clientSegment}-\\d{2}-\\d{4,}$`), { timeout: 15_000 });
     // The Admin-defined token pattern is expanded, while the proposed value remains editable.
     await pmoNumber.fill(chosenNumber);
-    await projectDialog.getByLabel('Client Project Code').fill(clientCode);
-    await projectDialog.getByRole('button', { name: /^Create project$/i }).click();
-    await expect(projectDialog).not.toBeVisible({ timeout: 15_000 });
+    await page.getByLabel('Client Project Code').fill(clientCode);
+    await page.getByRole('button', { name: /^Create project$/i }).click();
+    await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
     await expect(page.getByRole('heading', { name: projectName })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('PMO Project Number', { exact: true }).locator('..')).toContainText(chosenNumber);

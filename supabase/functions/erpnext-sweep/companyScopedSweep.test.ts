@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * WIRE 3 / round-7 B4 [Deno] — the SWEEP must be scoped to the binding's ERP Company. CROSS-TENANT.
  *

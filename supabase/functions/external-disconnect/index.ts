@@ -9,13 +9,10 @@
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
  * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
- * 4. Load external_org_bindings row for (org_id, tier)
- * 5. Call delete_vault_secret RPC with secret_ref
- * 6. Call deactivate_external_binding RPC — ONE statement: status='disconnected', disconnected_at,
- *    and CLEARS activated_at / version_major / config.company (FR-EAC-108, #650)
- * 7. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'release', p_actor_id)
- * 8. Emit log_audit('integration.disconnect', org, actor, null, detail) — fixed arg shape (AC-EAC-118)
- * 9. Return { ok: true }
+ * 4. Call disconnect_external_integration — current standing, vault deletion and binding revocation
+ *    are checked and applied in one transaction.
+ * 5. Emit log_audit('integration.disconnect', org, actor, null, detail)
+ * 6. Return { ok: true }
  *
  * Errors:
  * - 401: missing/invalid JWT
@@ -123,7 +120,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   // 3. Load caller profile (role + org_id)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
@@ -145,9 +142,10 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Internal error', 'INTERNAL', 500);
   }
 
+  const isActiveProfile = profile.status === 'active';
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
-  if (!isAdmin && !isPlatformOperator) {
+  if (!isActiveProfile || (!isAdmin && !isPlatformOperator)) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
@@ -164,64 +162,20 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
   }
 
-  // 6. Load binding row
-  const { data: binding, error: bindingError } = await serviceClient
-    .from('external_org_bindings')
-    .select('secret_ref, webhook_secret_ref')
-    .eq('org_id', profile.org_id)
-    .eq('external_tier', tier)
-    .single();
-
-  if (bindingError || !binding) {
-    return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
-  }
-
-  // 7. Delete Vault secret via RPC
-  const { error: deleteError } = await serviceClient.rpc('delete_vault_secret', {
-    p_secret_name: binding.secret_ref,
-  });
-  if (deleteError) {
-    console.error('delete_vault_secret failed', deleteError);
-    return errorResponse('Failed to delete Vault secret', 'INTERNAL', 500);
-  }
-
-  // 8. FR-EAC-108 — soft-archive AND un-activate in ONE statement. The sweep's employ predicates
-  // (erpnext-sweep listEmployingOrgsLive, org_has_active_erpnext_binding mig 0160) read `activated_at`
-  // and never read `status`, so leaving the stamp kept a disconnected org "employing".
-  const { data: touched, error: deactivateError } = await serviceClient.rpc('deactivate_external_binding', {
+  // 6. The definer transaction re-checks actor standing and role before touching either credential or binding.
+  const { data: touched, error: disconnectError } = await serviceClient.rpc('disconnect_external_integration', {
     p_org_id: profile.org_id,
     p_external_tier: tier,
     p_actor_id: userId,
   });
-  if (deactivateError) {
-    console.error('deactivate_external_binding failed', deactivateError);
-    return errorResponse('Failed to update binding', 'INTERNAL', 500);
+  if (disconnectError) {
+    console.error('disconnect_external_integration failed', disconnectError);
+    const denied = disconnectError.code === '42501';
+    return errorResponse('Failed to disconnect integration', denied ? 'FORBIDDEN' : 'INTERNAL', denied ? 403 : 500);
   }
-  if (touched === 0) {
-    return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
-  }
+  if (touched === 0) return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
 
-  // 9. For ClickUp, release domain ownership via NEW definer RPC (gates on p_actor_id)
-  if (tier === 'clickup') {
-    const { error: ownershipError } = await serviceClient.rpc(
-      'admin_change_domain_ownership',
-      {
-        p_org_id: profile.org_id,
-        p_external_tier: 'clickup',
-        p_domain: 'tasks',
-        p_action: 'release',
-        p_actor_id: userId,
-      }
-    );
-    if (ownershipError) {
-      // Log but don't fail — binding is already disconnected
-      console.error('admin_change_domain_ownership release failed', ownershipError);
-    }
-    // Note: audit event for domain ownership release is emitted by the RPC itself
-    // (integration.domain_ownership.release). No separate log_audit call needed here.
-  }
-
-  // 10. Emit audit event for the disconnect
+  // 7. Emit audit event for the disconnect
   const { error: auditError } = await serviceClient.rpc('log_audit', {
     p_action: 'integration.disconnect',
     p_org_id: profile.org_id,

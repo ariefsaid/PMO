@@ -1,0 +1,63 @@
+{
+  "lineItems": {
+    "erpItem": "Item ERP",
+    "itemDescription": "Item / deskripsi",
+    "description": "Deskripsi",
+    "empty": "Belum ada item permintaan.",
+    "emptyEditable": "Belum ada item permintaan. Tambahkan di bawah.",
+    "quantity": "Jml",
+    "unitPrice": "Harga satuan",
+    "lineTotal": "Total baris",
+    "rowActions": "Tindakan baris",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "edit": "Ubah",
+    "heading": "Item permintaan",
+    "formula": "jumlah × harga satuan → total baris",
+    "estimatedTotal": "Perkiraan total",
+    "selectItem": "Pilih atau cari item…",
+    "newItemDescription": "Deskripsi item baru",
+    "describeItem": "Jelaskan pekerjaan atau barang…",
+    "addItemPlaceholder": "Tambahkan item…",
+    "newItemQuantity": "Jumlah item baru",
+    "newItemUnitPrice": "Harga satuan item baru",
+    "newLineTotal": "Total baris baru",
+    "addLineItem": "Tambah item",
+    "add": "Tambah",
+    "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
+    "removeItem": "Hapus item",
+    "searchItem": "Cari kode atau nama item…"
+  },
+  "create": {
+    "heading": "Permintaan pembelian baru",
+    "save": "Simpan",
+    "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
+    "requestDetails": "Rincian permintaan",
+    "titleField": "Judul",
+    "titleRequired": "Judul permintaan wajib diisi.",
+    "linesFailed": "Permintaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
+    "project": "Proyek",
+    "selectProject": "Pilih proyek…",
+    "vendor": "Pemasok",
+    "selectVendor": "Opsional — pilih pemasok…",
+    "budgetCategory": "Kategori anggaran",
+    "denied": "Anda tidak memiliki izin untuk membuat permintaan pembelian.",
+    "unsaved": {
+      "title": "Permintaan belum disimpan",
+      "description": "Permintaan ini belum disimpan. Tinggalkan halaman dan buang?",
+      "partialDescription": "Permintaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
+      "leave": "Tinggalkan",
+      "stay": "Tetap di sini"
+    }
+  },
+  "ceiling": {
+    "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
+    "approveHigher": "Setujui jumlah lebih tinggi",
+    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar permintaan ini sendiri.",
+    "confirm": "Setujui",
+    "approved": "Jumlah lebih tinggi disetujui"
+  },
+  "quoteSelection": {
+    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
+  }
+}

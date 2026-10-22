@@ -60,10 +60,12 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
 const Projects = React.lazy(() => import('./pages/Projects'));
+const ProjectNew = React.lazy(() => import('./pages/ProjectNew'));
 const ProjectDetail = React.lazy(() => import('./pages/project-detail/ProjectDetail'));
 const SalesPipeline = React.lazy(() => import('./pages/SalesPipeline'));
 const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
+const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
@@ -81,11 +83,14 @@ const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
 const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
 const MeetingsPage = React.lazy(() => import('./pages/Meetings'));
 const MeetingDetailPage = React.lazy(() => import('./pages/MeetingDetail'));
+const MeetingCreatePage = React.lazy(() => import('./pages/MeetingCreate'));
 const ExpenseClaimsPage = React.lazy(() => import('./pages/ExpenseClaims'));
+const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
 const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
+const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
 const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
@@ -131,12 +136,15 @@ export const appRouteConfig: RouteObject[] = [
   // B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are deep-linkable symmetrically
   //   (budget is just another :tab value). Both routes render ProjectDetail; the component reads
   //   :tab and defaults to 'overview'. A backward-compat alias keeps old /budget links working.
+  // One-step create (#806): a static segment, so it outranks `:projectId` below.
+  { path: '/projects/new', element: <ProjectNew /> },
   { path: '/projects/:projectId/:tab', element: <ProjectDetail /> },
   { path: '/projects/:projectId', element: <ProjectDetail /> },
   { path: '/sales', element: <SalesPipeline /> },
   // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
   { path: '/sales/:opportunityId', element: <SalesDetailRedirect /> },
   { path: '/procurement', element: <ProcurementPage /> },
+  { path: '/procurement/new', element: <ProcurementCreate /> },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: <ProcurementDetails /> },
@@ -160,9 +168,11 @@ export const appRouteConfig: RouteObject[] = [
   //   Reads are RLS-scoped (attendance ∪ author ∪ grant ∪ Admin, migration 0205), so the routes
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.
   { path: '/meetings', element: <MeetingsPage /> },
+  { path: '/meetings/new', element: <MeetingCreatePage /> },
   { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
   // #775: expense claims and cash advances.
   { path: '/expenses', element: <ExpenseClaimsPage /> },
+  { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
   { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
@@ -183,6 +193,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  { path: '/erp-purchases', element: <ErpPurchasesPage /> },
   { path: '/financial-statements', element: <FinancialStatementsPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —

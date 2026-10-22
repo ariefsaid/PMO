@@ -10,6 +10,9 @@ import { describe, it, expect } from 'vitest';
 import { friendlyActivity } from './activityLabel';
 
 describe('friendlyActivity', () => {
+  it('AC-ACC-010 recognizes the final-answer verification step', () => {
+    expect(friendlyActivity('Double-checking the answer…')).toBe('Double-checking the answer');
+  });
   it('maps known query_entity targets to friendlier copy', () => {
     expect(friendlyActivity('Looking up projects…')).toBe('Checking your projects');
     expect(friendlyActivity('Looking up crm activities…')).toBe('Looking for CRM activity');

@@ -4,7 +4,7 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
 import {
-  browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren,
+  browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, browseSites, browseDrives,
   parseNextLink, searchDrive, listVersions, getItem, issueMicrosoftDocument,
   checkMicrosoftDocuments, refreshMicrosoftReferences,
 } from '../graphClient';
@@ -65,13 +65,34 @@ describe('Graph metadata browse transport', () => {
     expect(() => listChildren('drive%2Fmail')).toThrow();
   });
 
-  it('AC-M365DOC-057 escapes OData search terms and keeps paging query separate', async () => {
+  it('AC-M365DOC-057 escapes OData search terms and encodes opaque drive ids once', async () => {
     invoke.mockResolvedValue({ data: { value: [] }, error: null });
-    await searchDrive('drive-id', "O'Brien");
+    await searchDrive('drive=opaque!id', "O'Brien");
     expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: {
-      action: 'graph_proxy', method: 'GET', path: "/drives/drive-id/root/search(q=%27O%27%27Brien%27)",
+      action: 'graph_proxy', method: 'GET', path: "/drives/drive%3Dopaque!id/root/search(q=%27O%27%27Brien%27)",
       query: { '$top': '100' },
     } });
+  });
+
+  it('validates drive segments before a metadata search', () => {
+    invoke.mockResolvedValue({ data: { value: [] }, error: null });
+    expect(() => searchDrive('../outside', 'drawing')).toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('continues site and library metadata pages through typed decoders', async () => {
+    invoke.mockResolvedValueOnce({ data: { value: [{ id: 'site-1', name: 'Site', webUrl: 'https://example.invalid/site' }], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/sites?$skiptoken=next' }, error: null });
+    invoke.mockResolvedValueOnce({ data: { value: [{ id: 'site-2', name: 'Next', webUrl: 'https://example.invalid/next' }] }, error: null });
+    const firstSites = await browseSites();
+    expect(firstSites.value).toEqual([{ id: 'site-1', name: 'Site', web_url: 'https://example.invalid/site' }]);
+    expect(firstSites.next).not.toBeNull();
+    await browseSites(undefined, firstSites.next!);
+    expect(invoke.mock.calls[1][1].body.path).toBe('/sites');
+    expect(invoke.mock.calls[1][1].body.query).toEqual({ '$top': '100', '$skiptoken': 'next' });
+
+    invoke.mockReset();
+    invoke.mockResolvedValue({ data: { value: [{ id: 'drive-1', name: 'Library', webUrl: 'https://example.invalid/library' }] }, error: null });
+    expect((await browseDrives('site-1')).value).toEqual([{ id: 'drive-1', name: 'Library', web_url: 'https://example.invalid/library' }]);
   });
 
   it('AC-M365DOC-065 reads metadata versions and item facets without requesting bytes', async () => {

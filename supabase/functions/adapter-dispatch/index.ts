@@ -56,6 +56,7 @@ import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
+import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -77,6 +78,7 @@ import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
@@ -249,7 +251,7 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     command: ctx.command,
-    fetchImpl: fetch,
+    fetchImpl: guardedErpFetch(binding.site_url),
     apiKey,
     apiSecret,
     rateLimiter: erpRateLimiter,
@@ -309,7 +311,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // quarantine window — so the claim winner could finish probing only after its row had been
   // reclaimed and REISSUED, and then still POST a second money document. `dispatch.ts`'s claim budget
   // refuses that POST; this stops the probe eating the budget in the first place.
-  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url });
+  const client = withProbeBudget({ fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url });
   const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
 
   // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced
@@ -558,7 +560,7 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
   let res: Response;
   try {
     res = await fetchWithDeadline(
-      fetch,
+      guardedErpFetch(binding.site_url),
       url.toString(),
       // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
@@ -836,6 +838,15 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  if (command.domain === CLICKUP_TASKS_DOMAIN) {
+    const taskAuthorization = await authorizeClickUpTaskCommand(serviceClient as never, orgId, userId, command);
+    if (!taskAuthorization.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: taskAuthorization.message }), {
+        status: 403,
+        headers,
+      });
+    }
+  }
   const erpAuth = createErpAuthPairCache();
 
   // ── P3b FR-TSP-056 — an approved sheet with NO chargeable hours is a SKIP, not a push. ERP rejects

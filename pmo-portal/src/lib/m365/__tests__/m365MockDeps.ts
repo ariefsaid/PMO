@@ -241,7 +241,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       });
       return popConnId('ms_graph_connections');
     }
-    if (fn === 'm365_refresh_connection' && args) {
+    if ((fn === 'm365_refresh_connection' || (fn === 'm365_finish_refresh' && args?.p_status === 'active')) && args) {
       writes.push({
         table: 'ms_graph_connections', kind: 'update', eqs: [['id', args.p_connection_id]],
         payload: {
@@ -249,12 +249,13 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
           access_token_ciphertext: args.p_access_token_ciphertext,
           refresh_token_ciphertext: args.p_refresh_token_ciphertext,
           access_token_expires_at: args.p_access_token_expires_at,
-          last_refresh_at: args.p_last_refresh_at,
+          last_refresh_at: args.p_last_refresh_at ?? args.p_updated_at,
+          ...(args.p_scopes ? { scopes: args.p_scopes } : {}),
         },
       });
       return popConnId('ms_graph_connections');
     }
-    if (fn === 'm365_set_connection_status' && args) {
+    if ((fn === 'm365_set_connection_status' || fn === 'm365_finish_refresh') && args) {
       writes.push({
         table: 'ms_graph_connections', kind: 'update', eqs: [['id', args.p_connection_id]],
         payload: { status: args.p_status, updated_at: args.p_updated_at },

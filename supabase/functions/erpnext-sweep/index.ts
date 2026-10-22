@@ -25,6 +25,7 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  *   native statement batch refresh — after the doctype walk and independently of legacy raw readiness;
  *   (3) the ledger-mirror feed (feedLedgerMirrors, 8.6b — populates erp_gl_entry_mirror/
  *       erp_payment_ledger_mirror);
+ *   (3b) the read-only ERP purchases list (feedPurchaseMirror, FR-EPR-001 — visibility only, never actuals);
  *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror);
  *   (5) P3c — reconcileOrgBudgetPushes, the budget push's sweep backstop (FR-BUD-141,
  *       AC-BUD-023, `budgetBackstop.ts`) — re-drives the mirror's own (org_id, push_state) work queue,
@@ -87,6 +88,7 @@ import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/ada
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
+import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
 import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
 import {
   refreshStatementReportBatch,
@@ -120,6 +122,7 @@ import {
   type BudgetVersionGateRow,
   type FiscalYearRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
+import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
@@ -600,6 +603,8 @@ export interface ErpSweepCycleDeps {
    *  existing cycle tests stay byte-for-byte; the live wiring always supplies it. */
   repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
   feedOrgLedgers: (org: OrgBinding) => Promise<OrgLedgerFeedResult>;
+  /** (3b) FR-EPR-001: the read-only ERP purchases list (purchaseMirrorFeed.ts). Never feeds actuals. */
+  feedOrgPurchases?: (org: OrgBinding) => Promise<{ fed: number; error?: string }>;
   refreshOrgAccounting: (org: OrgBinding) => Promise<{ error?: string }>;
   /** P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's SECOND originator: re-drive the mirror's
    *  own work queue (`budget_version_erp_mirror`), re-asserting the SAME still-Active gate the
@@ -722,6 +727,15 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
       if (r.statementError) errors.push(`statement:${r.statementError}`);
     } catch (err) {
       errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
+    }
+    // (3b) the read-only ERP purchases list — AFTER the ledger feed, so a PI attributes through fresh GL rows.
+    if (deps.feedOrgPurchases) {
+      try {
+        const r = await deps.feedOrgPurchases(org);
+        if (r.error) errors.push(`purchases:${r.error}`);
+      } catch (err) {
+        errors.push(`purchases:${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
     if (!ledger || ledger.glCaughtUp === false || ledger.pleCaughtUp === false) {
@@ -1091,7 +1105,7 @@ async function erpClientForOrg(
   cache?: ErpAuthPairCache,
 ): Promise<ErpClientDeps> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
+  return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
 /** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
@@ -1855,6 +1869,18 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  * for the budget push and every timesheet entry (`resolveErpProjectName`) — one mapping, consumed
  * inverted, never a second one invented here.
  */
+export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
+  try {
+    const client = await erpClientForOrg(serviceClient, org, cache);
+    const r = await feedPurchaseMirror(serviceClient as unknown as PurchaseFeedServiceClient, { client, orgId: org.orgId, company: org.company });
+    // A bounded backfill is progress, not a failure — warn like the ledger feed does.
+    if (!r.caughtUp) console.warn(`[erpnext-sweep] org ${org.orgId}: purchase feed backfill continues next tick`);
+    return { fed: r.fed };
+  } catch (err) {
+    return { fed: 0, error: errorMessage(err) };
+  }
+}
+
 export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ error?: string }> {
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
@@ -2666,7 +2692,7 @@ export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBi
   const client = async (): Promise<ErpClientDeps> => {
     if (!erpClient) {
       const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-      erpClient = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
+      erpClient = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
     }
     return erpClient;
   };
@@ -3032,6 +3058,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
+    feedOrgPurchases: (org) => feedOrgPurchasesLive(serviceClient, org, erpAuth),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
@@ -3154,13 +3181,13 @@ export async function buildMoneyWriteDepsLive(
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
-  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
+  const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
 
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
     command,
-    fetchImpl: fetch,
+    fetchImpl: guardedErpFetch(org.siteUrl),
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
@@ -3371,6 +3398,7 @@ async function readErpFiscalYearsLive(
   cache?: ErpAuthPairCache,
 ): Promise<FiscalYearRow[]> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
+  if (!(await isPermittedErpSiteUrl(org.siteUrl))) throw new AppError('ERPNext destination is not permitted', 'external-unreachable');
   const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0');
@@ -3380,7 +3408,7 @@ async function readErpFiscalYearsLive(
   let res: Response;
   try {
     res = await fetchWithDeadline(
-      fetch,
+      guardedErpFetch(org.siteUrl),
       url.toString(),
       // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },

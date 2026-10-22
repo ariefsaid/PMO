@@ -135,6 +135,8 @@ export async function withFetchMock<T>(
   run: (ctx: FetchMockContext) => Promise<T>,
 ): Promise<T> {
   const calls: FetchCall[] = [];
+  const originalResolveDns = Deno.resolveDns;
+  Deno.resolveDns = (async (_hostname: string, _recordType: string) => ['203.0.113.10']) as typeof Deno.resolveDns;
 
   const fetchStub = stub(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(String(input), init);
@@ -166,6 +168,7 @@ export async function withFetchMock<T>(
     return await run({ calls });
   } finally {
     fetchStub.restore();
+    Deno.resolveDns = originalResolveDns;
   }
 }
 

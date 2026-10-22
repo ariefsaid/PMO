@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 import { contactDb } from "../_shared/erpnextContacts.fixtures.ts";
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({
   finished: Promise.resolve(),

@@ -360,7 +360,15 @@ export async function createDocumentRevision(
   parentId: string,
   input: Pick<ProjectDocumentInput, 'title' | 'code' | 'category' | 'revision' | 'doc_date'>,
   authorId: string | null,
+  microsoft?: MicrosoftReferenceInput,
 ): Promise<ProjectDocumentRow> {
+  if (microsoft) {
+    try {
+      assertMicrosoftReference(microsoft);
+    } catch {
+      throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
+    }
+  }
   const parent = await getProjectDocument(parentId);
   if (!parent) throw new AppError('Parent document not found');
 
@@ -376,6 +384,15 @@ export async function createDocumentRevision(
       status: 'Draft',
       author_id: authorId,
       parent_document_id: parentId,
+      // One child INSERT carries the reference; the old pin/baseline is never inherited.
+      ...(microsoft ? {
+        source: 'onedrive' as const,
+        ms_drive_id: microsoft.drive_id,
+        ms_item_id: microsoft.item_id,
+        ms_web_url: microsoft.web_url,
+        ms_item_name: microsoft.name,
+        ms_item_kind: microsoft.item_kind,
+      } : {}),
     })
     .select()
     .single();

@@ -245,14 +245,11 @@ select is(
   (select regexp_replace(with_check, E'\\s+', ' ', 'g') from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_project_doc_write'),
   '((bucket_id = ''project-documents''::text) AND (auth.uid() IS NOT NULL) AND (split_part(name, ''/''::text, 1) = (auth_org_id())::text) AND (array_length(string_to_array(name, ''/''::text), 1) = 4) AND (auth_role() = ANY (ARRAY[''Admin''::user_role, ''Executive''::user_role, ''Project Manager''::user_role, ''Finance''::user_role])) AND (EXISTS ( SELECT 1 FROM project_documents pd WHERE (((pd.id)::text = split_part(objects.name, ''/''::text, 3)) AND (pd.org_id = auth_org_id()) AND ((pd.project_id)::text = split_part(objects.name, ''/''::text, 2)) AND (pd.status = ''Draft''::doc_status)))))',
   'AC-DSR-006 project FOR ALL WITH CHECK definition matches the captured baseline');
-select is(
-  (select regexp_replace(qual, E'\\s+', ' ', 'g') from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_write'),
-  '((bucket_id = ''procurement-files''::text) AND (auth.uid() IS NOT NULL) AND (split_part(name, ''/''::text, 1) = (auth_org_id())::text) AND (array_length(string_to_array(name, ''/''::text), 1) = 5) AND (auth_role() = ANY (ARRAY[''Admin''::user_role, ''Executive''::user_role, ''Project Manager''::user_role, ''Finance''::user_role])) AND (EXISTS ( SELECT 1 FROM procurements p WHERE (((p.id)::text = split_part(objects.name, ''/''::text, 2)) AND (p.org_id = auth_org_id())))))',
-  'AC-DSR-006 procurement FOR ALL USING definition matches the captured baseline');
-select is(
-  (select regexp_replace(with_check, E'\\s+', ' ', 'g') from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_write'),
-  '((bucket_id = ''procurement-files''::text) AND (auth.uid() IS NOT NULL) AND (split_part(name, ''/''::text, 1) = (auth_org_id())::text) AND (array_length(string_to_array(name, ''/''::text), 1) = 5) AND (auth_role() = ANY (ARRAY[''Admin''::user_role, ''Executive''::user_role, ''Project Manager''::user_role, ''Finance''::user_role])) AND (EXISTS ( SELECT 1 FROM procurements p WHERE (((p.id)::text = split_part(objects.name, ''/''::text, 2)) AND (p.org_id = auth_org_id())))))',
-  'AC-DSR-006 procurement FOR ALL WITH CHECK definition matches the captured baseline');
+select is((select cmd from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_insert'), 'INSERT',
+  'AC-DSR-006 procurement file writer policy permits INSERT only');
+select ok((select with_check like '%procurement-files%' and with_check like '%auth_role()%' and with_check like '%procurements%'
+  from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_insert'),
+  'AC-DSR-006 procurement insert policy retains bucket, role, and parent checks');
 
 select * from finish();
 rollback;

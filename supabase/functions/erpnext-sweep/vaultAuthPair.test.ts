@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * AC-ENA-080 / AC-ENA-081 / AC-ENA-082 (#651) [Deno unit] — the ERPNext auth pair the SHIPPED sweep
  * actually SENDS. The oracle is the outgoing `Authorization` header, not the resolver's return value:

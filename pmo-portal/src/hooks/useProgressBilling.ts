@@ -42,9 +42,15 @@ export function useProgressBillingMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
   };
-  const createBoq = useMutation({ mutationFn: (input: BoqItemInput) => repositories.progressBilling.createBoq(projectId, input), onSuccess: invalidate });
-  const updateBoq = useMutation({ mutationFn: ({ id, input }: { id: string; input: BoqItemInput }) => repositories.progressBilling.updateBoq(id, input), onSuccess: invalidate });
-  const deleteBoq = useMutation({ mutationFn: (id: string) => repositories.progressBilling.deleteBoq(id), onSuccess: invalidate });
+  // ADR-0091: a BoQ line's quantity/rate/basis feeds the allocations and BAST quantities that cite it.
+  const invalidateBoq = () => {
+    invalidate();
+    void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
+    void qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
+  };
+  const createBoq = useMutation({ mutationFn: (input: BoqItemInput) => repositories.progressBilling.createBoq(projectId, input), onSuccess: invalidateBoq });
+  const updateBoq = useMutation({ mutationFn: ({ id, input }: { id: string; input: BoqItemInput }) => repositories.progressBilling.updateBoq(id, input), onSuccess: invalidateBoq });
+  const deleteBoq = useMutation({ mutationFn: (id: string) => repositories.progressBilling.deleteBoq(id), onSuccess: invalidateBoq });
   const recordAssessment = useMutation({
     mutationFn: (input: Omit<ProgressAssessmentInput, 'projectId'>) => repositories.progressBilling.recordAssessment({ ...input, projectId }),
     onSuccess: () => { invalidate(); void qc.invalidateQueries({ queryKey: ['managementPack'] }); },

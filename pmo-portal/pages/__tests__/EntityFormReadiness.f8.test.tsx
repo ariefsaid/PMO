@@ -26,8 +26,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
  *   3. A submit attempt with a non-blank-but-invalid field surfaces the inline
  *      error AND moves focus to that field (error summary focus-management).
  *
- * Covered on the reference CRUD slice (Companies), ProjectFormModal, and
- * NewProcurementModal.
+ * Covered on the reference CRUD slice (Companies) and ProjectFormModal.
  */
 
 vi.mock('react-router', async (orig) => {
@@ -69,7 +68,6 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 
 import Companies from '../Companies';
 import ProjectFormModal from '../../components/ProjectFormModal';
-import { NewProcurementModal } from '../procurement/NewProcurementModal';
 
 const renderCompanies = () =>
   render(
@@ -171,47 +169,6 @@ describe('AC-IXD-FORM-F8: ProjectFormModal (new project) readiness', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     // The inline error surfaces and focus moves to the offending field.
     await waitFor(() => expect(valueInput).toHaveFocus());
-  });
-});
-
-describe('AC-IXD-FORM-F8: NewProcurementModal readiness', () => {
-  it('AC-IXD-FORM-F8: a fresh New-procurement modal is clean on open (no eager error banner) and submit is DISABLED', async () => {
-    const user = userEvent.setup();
-    const onCreate = vi.fn().mockResolvedValue({ id: 'pr-1' });
-    render(
-      <StrictMode>
-        <ToastProvider>
-          <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={vi.fn()} />
-        </ToastProvider>
-      </StrictMode>,
-    );
-    await flushMountEffects();
-    const submit = screen.getByRole('button', { name: 'Create request' });
-    expect(submit).toBeDisabled();
-    expect(screen.queryByText(/Fix \d+ field/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('A request title is required.')).not.toBeInTheDocument();
-    await user.click(submit);
-    expect(onCreate).not.toHaveBeenCalled();
-  });
-
-  it('AC-IXD-FORM-F8: filling the required title ENABLES submit and fires onCreate once', async () => {
-    const user = userEvent.setup();
-    const onCreate = vi.fn().mockResolvedValue({ id: 'pr-1' });
-    const onCreated = vi.fn();
-    render(
-      <StrictMode>
-        <ToastProvider>
-          <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onError={vi.fn()} onCreated={onCreated} />
-        </ToastProvider>
-      </StrictMode>,
-    );
-    await flushMountEffects();
-    const submit = screen.getByRole('button', { name: 'Create request' });
-    await user.type(screen.getByLabelText(/^Title/), 'Welding consumables');
-    expect(submit).toBeEnabled();
-    await user.click(submit);
-    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
-    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'Welding consumables' }));
   });
 });
 

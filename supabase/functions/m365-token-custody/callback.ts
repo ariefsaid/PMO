@@ -10,8 +10,9 @@ import { consumePkceState } from './stateStore.ts';
 import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaParam } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { readM365MembershipState } from './auth.ts';
-import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
-import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { isValidTenant, M365_FOLDER_SCOPES } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
+import { FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { fetchMicrosoftJson } from './microsoftTransport.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -123,8 +124,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   // Exchange the auth code for tokens (confidential client + PKCE verifier).
   let tokenRes: Response;
+  let tokenData: Record<string, unknown>;
   try {
-    tokenRes = await fetchBounded(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
+    const result = await fetchMicrosoftJson(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -136,6 +138,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
       redirect_uri: env.m365RedirectUri,
     }),
     });
+    tokenRes = result.response;
+    tokenData = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data as Record<string, unknown> : {};
   } catch (err) {
     // A hung or unreachable Microsoft token endpoint (deadline or network) takes the same path as a
     // rejected exchange — never an unhandled throw that leaves the consent redirect hanging.
@@ -146,9 +151,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Connection failed. Please try again.');
   }
 
-  const tokenData = (await tokenRes.json()) as Record<string, unknown>;
-
-  if (!tokenRes.ok) {
+  if (!tokenRes.ok || !validTokenPair(tokenData)) { // mutation-witness:callback-token-pair
     // AC-M365-140: log ONLY the sanitized Microsoft error code — never the code/verifier/secret.
     const sanitizedError = typeof tokenData.error === 'string' ? tokenData.error : 'UNKNOWN';
     console.error('[m365-token-custody] token exchange failed', { error: sanitizedError });
@@ -245,6 +248,9 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'This connection is no longer allowed. Please contact your administrator.');
   }
 
+  // What the connection may do is what Microsoft GRANTED, never what we asked for.
+  const stored = grantedScopes(tokenData.scope, pkce.scopes);
+
   // Encrypt BOTH tokens at rest (ADR-0060 §3). No partial store on any failure below this point.
   const kek = resolveKek(env, 'kek-v1');
   const accessEnvelope = await encryptToken(String(tokenData.access_token), kek);
@@ -269,7 +275,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     p_user_id: pkce.userId,
     p_entra_tenant_id: claims.tid,
     p_entra_user_object_id: claims.oid,
-    p_scopes: pkce.scopes,
+    p_scopes: stored,
     p_refresh_token_ciphertext: toByteaParam(refreshBlob),
     p_access_token_ciphertext: toByteaParam(accessBlob),
     p_access_token_expires_at: accessExpiresAt,
@@ -316,10 +322,34 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     orgId: pkce.orgId,
     actorId: pkce.userId,
     entityId: connId as string,
-    detail: { scopes: pkce.scopes, entra_tenant_id: claims.tid },
+    detail: { scopes: stored, entra_tenant_id: claims.tid },
   });
 
   return redirectToFeSuccess(env);
+}
+
+export function validTokenPair(data: Record<string, unknown>): boolean {
+  return typeof data.access_token === 'string' && data.access_token.trim().length > 0 &&
+    typeof data.refresh_token === 'string' && data.refresh_token.trim().length > 0 &&
+    (data.expires_in === undefined || (typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0 && data.expires_in <= 86400));
+}
+
+const PROTOCOL_SCOPES = ['offline_access', 'openid', 'profile'];
+const GRAPH_SCOPE_PREFIX = /^https:\/\/graph\.microsoft\.com\//iu;
+
+/**
+ * The scopes to store: the `scope` string of the token response (bare or Graph-qualified names tolerated),
+ * normalised and limited to the scopes we requested; the protocol scopes we asked for (`offline_access`,
+ * `openid`, `profile`) are always kept so refresh still rotates the refresh token. An absent or unusable string falls back to the requested
+ * set WITHOUT the folder scopes — a write capability is never assumed, only proven by the grant.
+ */
+export function grantedScopes(tokenScope: unknown, requested: string[]): string[] {
+  const asked = new Set(requested);
+  const granted = typeof tokenScope === 'string'
+    ? [...new Set(tokenScope.split(/\s+/u).map((s) => s.replace(GRAPH_SCOPE_PREFIX, '')).filter((s) => asked.has(s)))]
+    : [];
+  if (granted.length === 0) return requested.filter((s) => !M365_FOLDER_SCOPES.includes(s));
+  return [...new Set([...granted, ...requested.filter((s) => PROTOCOL_SCOPES.includes(s))])];
 }
 
 /**

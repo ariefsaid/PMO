@@ -289,4 +289,14 @@ describe('AC-BFY-009 — org scoping', () => {
     for (const insert of outboxInserts(calls)) assertEquals(insert.org_id, ORG_ID);
     for (const mirror of mirrorUpserts(calls)) assertEquals(mirror.org_id, ORG_ID);
   });
+
+  it('AC-BFY-009: a stored private ERP destination is refused before any outbound request', async () => {
+    const { routes } = servedRoutes(twoYearPhasedSeed(), 15, 'https://127.0.0.1');
+    await withFetchMock(routes, async ({ calls }) => {
+      const response = await dispatchBudget();
+      assert(response.status >= 400, 'the served dispatch refuses the private ERP destination');
+      assertEquals(calls.filter((call) => call.url.hostname === '127.0.0.1').length, 0,
+        `no outbound request reaches the stored private destination: ${calls.map((call) => call.url.toString()).join(', ')}`);
+    });
+  });
 });

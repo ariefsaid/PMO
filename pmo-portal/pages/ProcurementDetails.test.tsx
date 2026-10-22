@@ -76,6 +76,7 @@ vi.mock('@/src/hooks/useProcurementFiles', () => ({
   })),
 }));
 
+const mockApproveAmount = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({
@@ -85,6 +86,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
+    approveAmount: { mutateAsync: mockApproveAmount, isPending: false },
   }),
 }));
 
@@ -1350,5 +1352,102 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     renderPage();
     expect(screen.queryByTestId('procurement-no-access')).toBeNull();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+});
+
+// Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
+vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
+
+describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', () => {
+  const invoicedOver = {
+    ...baseProcurement,
+    status: 'Vendor Invoiced' as const,
+    requested_by_id: 'u-other',
+    approved_by_id: 'u-approver',
+    approved_total_value: 1000,
+    paymentCeiling: { ok: false, reason: 'vendor bill exceeds approved amount', billedNet: 1200, approvedAmount: 1000 },
+  };
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    mockEffectiveRole = 'Finance';
+    mockApproveAmount.mockClear();
+    mockSelectQuote.mockClear();
+    toast.mockClear();
+  });
+
+  it('AC-SEC-220: a blocked payment explains the overage and lets an eligible approver approve the billed amount', async () => {
+    detailState.data = invoicedOver;
+    renderPage();
+    expect(screen.getByTestId('payment-ceiling-note')).toHaveTextContent('Billed amount exceeds the approved amount by');
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
+  });
+
+  it('AC-SEC-220: the requester sees the explanation but no approval action', () => {
+    detailState.data = { ...invoicedOver, requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.getByTestId('payment-ceiling-note')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+  });
+
+  it('AC-SEC-220: a role that cannot approve sees no approval action', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = invoicedOver;
+    renderPage();
+    expect(screen.getByTestId('payment-ceiling-note')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+  });
+
+  it('AC-SEC-220: a refused higher-amount approval surfaces a classified message', async () => {
+    mockApproveAmount.mockRejectedValueOnce(Object.assign(new Error('separation of duties: the bill recorder cannot approve the billed amount'), { code: '42501' }));
+    detailState.data = invoicedOver;
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'warning'));
+  });
+
+  it('AC-SEC-220: within the approved amount there is no ceiling message', () => {
+    detailState.data = { ...invoicedOver, paymentCeiling: { ok: true, reason: null, billedNet: 900, approvedAmount: 1000 } };
+    renderPage();
+    expect(screen.queryByTestId('payment-ceiling-note')).toBeNull();
+  });
+
+  const quoted = (amount: number) => ({
+    ...baseProcurement,
+    status: 'Vendor Quoted' as const,
+    requested_by_id: 'u-other',
+    approved_total_value: 1000,
+    quotations: [{
+      id: 'q9', org_id: 'org-1', procurement_id: 'proc-001', vendor_id: 'v2',
+      total_amount: amount, currency: 'USD', vq_number: 'VQ-9', is_selected: false, reference: null,
+      received_date: '2026-06-01', file_url: null,
+    }],
+  });
+  const selectFirstQuote = async () => {
+    fireEvent.click(screen.getAllByRole('button', { name: /select quote vq-9/i })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select quote' }));
+    await waitFor(() => expect(mockSelectQuote).toHaveBeenCalledWith('q9'));
+  };
+
+  it('AC-SEC-221: selecting a quote above the approved amount says the request went back for approval', async () => {
+    detailState.data = quoted(1500);
+    renderPage('proc-001', 'quotes');
+    await selectFirstQuote();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(
+      'Quote selected',
+      'The quote is above the approved amount, so the request went back for approval.',
+      'success',
+    ));
+  });
+
+  it('AC-SEC-221: selecting a quote within the approved amount still reports Quote Selected', async () => {
+    detailState.data = quoted(900);
+    renderPage('proc-001', 'quotes');
+    await selectFirstQuote();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The request advanced to Quote Selected', 'success'));
   });
 });

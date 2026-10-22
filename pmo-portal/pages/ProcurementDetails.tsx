@@ -39,8 +39,10 @@ import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
+import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
 import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
 import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
 import {
@@ -490,6 +492,27 @@ const ProcurementDetails: React.FC = () => {
     const { headline, detail } = classifyMutationError(err);
     toast(headline, detail, 'warning');
   };
+  // 0349: where payment is blocked because the billed amount exceeds the approved amount, an eligible
+  // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
+  // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
+  const canApproveAmount = canApproveReject(role) && !isRequester;
+  const approveHigherAmount = async (amount: number) => {
+    try {
+      await mutations.approveAmount.mutateAsync(amount);
+      toast(t('procurement:ceiling.approved', 'Higher amount approved'), undefined, 'success');
+    } catch (err) {
+      onMutationError(err);
+    }
+  };
+  const ceilingNotice = p.status === 'Vendor Invoiced' ? (
+    <PaymentCeilingNotice
+      ceiling={p.paymentCeiling}
+      currency={p.currency}
+      canApprove={canApproveAmount}
+      busy={mutations.approveAmount?.isPending ?? false}
+      onApprove={approveHigherAmount}
+    />
+  ) : null;
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   const gateMsg = sodGateMessage(p, role, isRequester);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
@@ -875,6 +898,8 @@ const ProcurementDetails: React.FC = () => {
   // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
   // row count (all 7 record types, one row each, as built by buildLedgerRows).
   const ledgerRows = buildLedgerRows(p);
+  // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
+  // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
   const documentsCount = ledgerRows.length;
   const procTabs: TabItem<ProcTab>[] = [
     { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
@@ -1109,6 +1134,7 @@ const ProcurementDetails: React.FC = () => {
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
+            <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} />
           </Card>
         )}
 
@@ -1139,13 +1165,23 @@ const ProcurementDetails: React.FC = () => {
               toast(t('procurementDetail.toast.quotationAdded', 'Quotation added'), undefined, 'success');
             }}
             onSelect={async (quotationId) => {
+              // The server returns the request for approval when the quote exceeds the approved
+              // amount (0349); say which outcome happened rather than always "advanced".
+              const quote = p.quotations.find((q) => q.id === quotationId);
+              const rerouted = p.approved_total_value != null && quote != null
+                && Number(quote.total_amount) > Number(p.approved_total_value);
               await crud.selectQuote.mutateAsync(quotationId);
               toast(
                 t('procurementDetail.toast.quoteSelected', 'Quote selected'),
-                t(
-                  'procurementDetail.toast.quoteSelectedDetail',
-                  'The request advanced to Quote Selected',
-                ),
+                rerouted
+                  ? t(
+                      'procurement:quoteSelection.reroutedDetail',
+                      'The quote is above the approved amount, so the request went back for approval.',
+                    )
+                  : t(
+                      'procurementDetail.toast.quoteSelectedDetail',
+                      'The request advanced to Quote Selected',
+                    ),
                 'success',
               );
             }}
@@ -1160,6 +1196,7 @@ const ProcurementDetails: React.FC = () => {
         actions={actions}
         gateMsg={gateMsg}
         routeNote={routeNote}
+        ceilingNotice={ceilingNotice}
         isDraft={isDraft}
         isRequester={isRequester}
         isApprover={isApprover}

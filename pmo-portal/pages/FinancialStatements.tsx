@@ -218,6 +218,10 @@ const FinancialStatements: React.FC = () => {
     forThePeriod: tf('statements.forThePeriod', 'For the period'),
     amountsIn: tf('statements.amountsIn', 'Amounts in'),
     periodShown: tf('statements.periodShown', 'Period shown'),
+    collapseGroup: (group: string) => tf('statements.collapseGroup', 'Collapse {{group}}', { group }),
+    expandGroup: (group: string) => tf('statements.expandGroup', 'Expand {{group}}', { group }),
+    collapseAll: tf('statements.collapseAll', 'Collapse all'),
+    expandAll: tf('statements.expandAll', 'Expand all'),
   };
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),

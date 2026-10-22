@@ -14,7 +14,6 @@ import {
   ProgressBar,
   Icon,
   AccessDenied,
-  useToast,
   type FunnelStage,
   type Column,
   TaxBasisLabel,
@@ -44,10 +43,7 @@ import {
   ATTENTION_THRESHOLD_DAYS,
   type OpenFunnelStage,
 } from '../components/salesPipeline';
-import { useProjectMutations } from '@/src/hooks/useProjects';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { ExportButton } from '@/src/components/export';
-import ProjectFormModal from '../components/ProjectFormModal';
 
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
 const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
@@ -84,9 +80,6 @@ const SalesPipeline: React.FC = () => {
   const canCreate = may('create', 'project');
 
   const { data, isPending, isError, refetch } = useSalesPipeline();
-  const { create } = useProjectMutations();
-  const { toast } = useToast();
-  const [createOpen, setCreateOpen] = useState(false);
   // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
   // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
   const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
@@ -527,12 +520,12 @@ const SalesPipeline: React.FC = () => {
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
-         pre-win projects live — not the Projects list. Reuses the same create modal +
-         mutation as Projects.tsx (no new create path). Gated on can('create','project')
+         pre-win projects live — not the Projects list. Opens the one-step
+         create page (#806; same page as Projects). Gated on can('create','project')
          = DELIVERY (Admin·Exec·PM); Finance views but cannot start projects per §C. */
       primaryAction={
         canCreate && (
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Button variant="primary" onClick={() => openRecord('/projects/new', 'projects')}>
             <Icon name="plus" />
             {t('sales.newProject', 'New project')}
           </Button>
@@ -540,21 +533,6 @@ const SalesPipeline: React.FC = () => {
       }
       banner={
         <>
-          {/* B-3: create modal (same flow as Projects.tsx — no new create path) */}
-          {createOpen && (
-            <ProjectFormModal
-              onClose={() => setCreateOpen(false)}
-              onSubmit={async (input) => {
-                const row = await create.mutateAsync(input);
-                toast(t('sales.toast.projectCreated', 'Project created'), row.erpSetup === 'pending' ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name }) : input.name, row.erpSetup === 'pending' ? 'warning' : 'success');
-                setCreateOpen(false);
-              }}
-              onError={(err) => {
-                const { headline, detail } = classifyMutationError(err);
-                toast(headline, detail, 'warning');
-              }}
-            />
-          )}
           {/* Weighted funnel summary band — the Pipeline's stage-summary, above the toolbar. */}
           {state === 'loading' && isDesktop ? (
             <div className="mb-4">

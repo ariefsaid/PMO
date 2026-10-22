@@ -25,11 +25,11 @@ insert into procurements (id, org_id, title, status, requested_by_id) values
 
 -- Procurement #2: Vendor Invoiced, requested_by = PM, approved_by = Finance-Y — for SoD-b tests.
 -- Force-insert with approved_by_id set directly (as table owner, bypassing the RPC for setup).
-insert into procurements (id, org_id, title, status, requested_by_id, approved_by_id) values
+insert into procurements (id, org_id, title, status, requested_by_id, approved_by_id, approved_total_value) values
   ('00150000-0000-0000-0000-000000000011','00150000-0000-0000-0000-000000000001',
    'SoD-b Proc','Vendor Invoiced',
    '00150000-0000-0000-0000-0000000000a1',
-   '00150000-0000-0000-0000-0000000000a2');
+   '00150000-0000-0000-0000-0000000000a2', 0);
 
 -- ── SoD-a: requester (PM X) cannot Approve their own Requested procurement ───
 set local role authenticated;

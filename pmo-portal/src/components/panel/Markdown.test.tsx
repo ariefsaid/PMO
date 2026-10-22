@@ -27,6 +27,11 @@ describe('Markdown', () => {
     expect(screen.queryByText(/^1\./)).toBeNull();
   });
 
+  it('AC-SEC-205: remote markdown image renders no image element', () => {
+    const { container } = renderMarkdown('![x](https://example.com/a.png)');
+    expect(container.querySelector('img')).toBeNull();
+  });
+
   it('AC-AXP-002 markdown pipe table renders as table', () => {
     renderMarkdown('| Project | Budget |\n|---|---|\n| Alpha | 100 |');
 

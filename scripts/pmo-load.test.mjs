@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
+import { defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -343,4 +343,218 @@ test('AC-CSD-012: the first refusal stops the load and reports what was done and
     return true;
   });
   assert.equal(writes(api).at(-1).body.p_to, 'Won, Pending KoM', 'no write after the refusal');
+});
+
+// ── contract lines (progress billing §8, DD-CQ-7) ────────────────────────────────────────────────
+
+const LINE = (over = {}) => ({
+  key: 'L-1', item_code: 'SVC-001', description: 'Survey service', unit: 'm2', quantity: 100, rate: 25000, ...over,
+});
+const projectWith = (contract_lines, over = {}) => ({ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', contract_lines, ...over });
+
+test('AC-CQ-016: validation returns every contract-line problem, row by row, when the project has no budget', () => {
+  const doc = { projects: [projectWith([
+    LINE({ key: 'A', item_code: '' }),
+    LINE({ key: 'B', quantity: 0 }),
+    LINE({ key: 'B', rate: 1.234 }),
+    LINE({ key: 'C', unit: 'LS', quantity: 2 }),
+    LINE({ key: 'D', quantity: 1.2345 }),
+    LINE({ key: 'E', basis: 'per_hour' }),
+    LINE({ key: 'F', extra: 1 }),
+    LINE({ key: ' ' }),
+    'not an object',
+  ])] };
+  assert.deepEqual(validateLoadFile(doc), [
+    'projects[0] (ORG-001): contract_lines[0]: "item_code" (the ERP service item) is required',
+    'projects[0] (ORG-001): contract_lines[1]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[2]: "key" "B" appears twice',
+    'projects[0] (ORG-001): contract_lines[2]: "rate" must be a non-negative amount with at most 2 decimals',
+    'projects[0] (ORG-001): contract_lines[3]: a lump-sum line must have quantity 1',
+    'projects[0] (ORG-001): contract_lines[4]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[5]: "basis" must be "unit_rate" or "lump_sum"',
+    'projects[0] (ORG-001): contract_lines[6]: unknown field "extra"',
+    'projects[0] (ORG-001): contract_lines[7]: "key" is required',
+    'projects[0] (ORG-001): contract_lines[8]: must be an object',
+  ]);
+});
+
+test('AC-CQ-016: contract_lines must be a list; unknown fields, lengths and line_no are checked', () => {
+  assert.deepEqual(validateLoadFile({ projects: [projectWith({})] }), ['projects[0] (ORG-001): "contract_lines" must be a list of lines']);
+  assert.deepEqual(validateLoadFile({ projects: [projectWith([LINE({
+    item_code: 'x'.repeat(141), description: 'd'.repeat(501), unit: 'u'.repeat(41), line_no: 1.5,
+  })])] }), [
+    'projects[0] (ORG-001): contract_lines[0]: "item_code" must be at most 140 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "description" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "unit" must be at most 40 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "line_no" must be a whole number',
+  ]);
+  assert.deepEqual(validateLoadFile({ projects: [projectWith([LINE({ description: undefined, unit: undefined, rate: undefined, quantity: 'a' })])] }), [
+    'projects[0] (ORG-001): contract_lines[0]: "description" is required',
+    'projects[0] (ORG-001): contract_lines[0]: "unit" is required',
+    'projects[0] (ORG-001): contract_lines[0]: "quantity" must be a positive number below 100000000000 with at most 3 decimals',
+    'projects[0] (ORG-001): contract_lines[0]: "rate" must be a non-negative amount with at most 2 decimals',
+  ]);
+});
+
+test('AC-CQ-016: rejects values outside database integer and import-key bounds during preflight', () => {
+  const problems = validateLoadFile({ projects: [projectWith([
+    LINE({ key: 'k'.repeat(501), line_no: 2147483648 }),
+    LINE({ key: 'unicode-'.repeat(70) + '界'.repeat(4_501), line_no: -2147483649 }),
+  ])] });
+  assert.deepEqual(problems, [
+    'projects[0] (ORG-001): contract_lines[0]: "key" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[0]: "line_no" must fit a 32-bit integer',
+    'projects[0] (ORG-001): contract_lines[1]: "key" must be at most 500 characters',
+    'projects[0] (ORG-001): contract_lines[1]: "line_no" must fit a 32-bit integer',
+  ]);
+});
+
+test('AC-CQ-016: valid lines pass, with a project that also has a budget; explicit basis wins over the unit default', () => {
+  const ok = projectWith([
+    LINE({ key: 'A', line_no: 1 }),
+    LINE({ key: 'B', unit: 'Lump Sum', quantity: 1, rate: 5000 }),
+    LINE({ key: 'C', unit: 'lot', quantity: 1, basis: 'lump_sum' }),
+    LINE({ key: 'D', unit: 'lot', quantity: 3, basis: 'unit_rate' }),
+    LINE({ key: 'E', quantity: 0.001 }),
+  ], { budget: [{ category: 'Labor', budgeted_amount: 1 }] });
+  assert.deepEqual(validateLoadFile({ projects: [ok] }), []);
+});
+
+test('AC-CQ-016: the default basis follows the unit, case-insensitively and trimmed', () => {
+  for (const u of ['lot', 'LOT', ' Ls ', 'lump sum', 'Lump Sum']) assert.equal(defaultContractLineBasis(u), 'lump_sum', u);
+  for (const u of ['m2', 'hari', 'unit', 'lots', '']) assert.equal(defaultContractLineBasis(u), 'unit_rate', u);
+});
+
+const LINES_DOC = (lines = [LINE({ key: 'A', line_no: 1 }), LINE({ key: 'B', unit: 'LS', quantity: 1 })], over = {}) => ({
+  projects: [projectWith(lines, { stage: 'Ongoing Project', contract_value: 1000, tax_treatment: 'exclusive', tax_amount: 0, customer_contract_ref: 'PO-1', contract_date: '2025-02-01', ...over })],
+});
+const getsOf = (api, table) => api.calls.filter((c) => c.kind === 'get' && c.target === table);
+
+test('AC-CQ-016: resolve plans lines on a project that does not exist yet, with no lookup and no write', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  const { problems, plan } = await resolveLoad(LINES_DOC(), api);
+  assert.deepEqual(problems, []);
+  const entry = plan.projects[0];
+  assert.equal(entry.id, null, 'the project is planned, not yet created');
+  assert.deepEqual(entry.contractLines.lines.map((l) => [l.line.key, l.exists]), [['A', false], ['B', false]]);
+  assert.deepEqual(getsOf(api, 'boq_items'), [], 'a planned project has nothing to look up');
+  assert.deepEqual(writes(api), []);
+});
+
+test('AC-CQ-016: resolve looks up an existing project\'s keys with one filtered GET and marks the known ones', async () => {
+  const api = fakeApi({ tables: {
+    companies: COMPANIES(), projects: [EXISTING()],
+    boq_items: [{ id: 'b-1', project_id: 'p-1', import_key: 'A' }, { id: 'b-2', project_id: 'p-other', import_key: 'B' }, { id: 'b-3', project_id: 'p-1', import_key: null }],
+  } });
+  const { problems, plan } = await resolveLoad(LINES_DOC(), api);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(plan.projects[0].contractLines.lines.map((l) => [l.line.key, l.exists]), [['A', true], ['B', false]]);
+  const [get] = getsOf(api, 'boq_items');
+  assert.equal(getsOf(api, 'boq_items').length, 1);
+  const q = new URLSearchParams(get.query);
+  assert.equal(q.get('project_id'), 'eq.p-1');
+  assert.equal(q.get('select'), 'id,import_key');
+  assert.deepEqual(writes(api), []);
+});
+
+test('AC-CQ-016: lines resolve on a project that has no budget in the file', async () => {
+  const noBudget = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()] } }));
+  assert.equal(noBudget.plan.projects[0].budget, null);
+  assert.equal(noBudget.plan.projects[0].contractLines.lines.length, 2);
+});
+
+test('AC-CQ-016: an ambiguous or unresolvable project is a preflight problem, never an invented parent', async () => {
+  const ambiguous = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING(), EXISTING({ id: 'p-2' })] } }));
+  assert.equal(ambiguous.problems.length, 1);
+  assert.match(ambiguous.problems[0], /more than one project matches/);
+  assert.deepEqual(ambiguous.plan.projects, []);
+
+  const noClient = await resolveLoad(LINES_DOC(), fakeApi());
+  assert.match(noClient.problems[0], /not a company in PMO/);
+  assert.deepEqual(noClient.plan.projects, []);
+});
+
+test('AC-CQ-016: a read that fills the 1000-row cap cannot prove a key is absent — a preflight problem', async () => {
+  const full = Array.from({ length: 1000 }, (_, i) => ({ id: `b-${i}`, project_id: 'p-1', import_key: `K-${i}` }));
+  const { problems } = await resolveLoad(LINES_DOC(), fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], boq_items: full } }));
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /ORG-001: .*too many contract lines to check/);
+});
+
+const linesLoad = (api, doc = LINES_DOC(), dryRun = false) => load(api, doc, dryRun);
+
+test('AC-CQ-017: each new line is POSTed to boq_items with the mapped columns, no org_id, after the project is created', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await linesLoad(api, LINES_DOC([
+    LINE({ key: 'A', line_no: 7 }),
+    LINE({ key: 'B', unit: 'Lump Sum', quantity: 1, rate: 5000, description: 'Mobilisation' }),
+    LINE({ key: 'C', unit: 'lot', quantity: 3, basis: 'unit_rate', line_no: null }),
+  ]));
+  const w = writes(api);
+  assert.deepEqual(w.map((c) => c.target).filter((t) => t === 'boq_items' || t === 'projects'), ['projects', 'boq_items', 'boq_items', 'boq_items']);
+  const projectIndex = w.findIndex((c) => c.target === 'projects');
+  const lastRpc = w.map((c) => c.kind).lastIndexOf('rpc');
+  assert.ok(lastRpc < w.findIndex((c) => c.target === 'boq_items'), 'lines come after the project stage walk');
+  const pid = `projects-${1 + projectIndex}`;
+  assert.deepEqual(w.filter((c) => c.target === 'boq_items').map((c) => c.body), [
+    { project_id: pid, import_key: 'A', line_no: 7, item_code: 'SVC-001', description: 'Survey service', unit: 'm2', quantity: 100, rate: 25000, earning_basis: 'unit_rate' },
+    { project_id: pid, import_key: 'B', line_no: null, item_code: 'SVC-001', description: 'Mobilisation', unit: 'Lump Sum', quantity: 1, rate: 5000, earning_basis: 'lump_sum' },
+    { project_id: pid, import_key: 'C', line_no: null, item_code: 'SVC-001', description: 'Survey service', unit: 'lot', quantity: 3, rate: 25000, earning_basis: 'unit_rate' },
+  ]);
+  for (const c of w.filter((x) => x.target === 'boq_items')) assert.equal('org_id' in c.body, false);
+});
+
+test('AC-CQ-017: known keys are skipped even when the file differs; re-running writes nothing; no PATCH ever', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Active', version: 1 }],
+    boq_items: [{ id: 'b-1', project_id: 'p-1', import_key: 'A', quantity: 1 }] } });
+  const actions = await linesLoad(api);
+  assert.deepEqual(writes(api).map((c) => [c.kind, c.body.import_key]), [['post', 'B']]);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [
+    ['contract_line.skip', 'A'], ['contract_line.create', 'B'],
+  ]);
+  assert.match(actions.find((a) => a.kind === 'contract_line.skip').reason, /correct it in the app/);
+
+  const before = writes(api).length;
+  const rerun = await linesLoad(api);
+  assert.equal(writes(api).length, before, 're-run: zero writes');
+  assert.deepEqual(new Set(rerun.filter((a) => a.kind.startsWith('contract_line')).map((a) => a.kind)), new Set(['contract_line.skip']));
+  assert.equal(api.calls.some((c) => c.kind === 'patch' && c.target === 'boq_items'), false);
+});
+
+test('AC-CQ-017: a raced 23505 is a skip, not an error; any other refusal stops and reports what was done', async () => {
+  const raced = fakeApi({ tables: { companies: COMPANIES() }, fail: (k, t, b) => t === 'boq_items' && b.import_key === 'A' && '23505' });
+  const actions = await linesLoad(raced);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [
+    ['contract_line.skip', 'A'], ['contract_line.create', 'B'],
+  ]);
+
+  const doc = LINES_DOC([LINE({ key: 'A' }), LINE({ key: 'B' }), LINE({ key: 'C' })]);
+  const stopped = fakeApi({ tables: { companies: COMPANIES() }, fail: (k, t, b) => t === 'boq_items' && b.import_key === 'B' && '42501' });
+  const { plan } = await resolveLoad(doc, stopped);
+  await assert.rejects(applyLoad(plan, stopped, { dryRun: false, batchId: 'b', importedAt: 't' }), (e) => {
+    assert.equal(e.code, '42501');
+    assert.deepEqual(e.loadReport.failed, { kind: 'contract_line.create', key: 'ORG-001', line_key: 'B' });
+    assert.deepEqual(e.loadReport.done.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [['contract_line.create', 'A']]);
+    return true;
+  });
+  assert.equal(writes(stopped).filter((c) => c.target === 'boq_items').length, 2, 'C is never attempted');
+});
+
+test('AC-CQ-017: a dry run lists the line actions and makes GETs only; no allocation or BAST is ever written', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Active', version: 1 }] } });
+  const actions = await linesLoad(api, LINES_DOC(), true);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('contract_line')).map((a) => [a.kind, a.line_key]), [['contract_line.create', 'A'], ['contract_line.create', 'B']]);
+
+  const live = fakeApi({ tables: { companies: COMPANIES() } });
+  await linesLoad(live);
+  const targets = new Set(writes(live).map((c) => c.target));
+  for (const banned of ['work_order_lines', 'work_order_acceptances', 'work_order_acceptance_lines']) assert.equal(targets.has(banned), false, banned);
+});
+
+test('AC-CQ-017: a project that diverged from the file gets no contract-line writes', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender' })] } });
+  const actions = await linesLoad(api);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(actions.map((a) => a.kind), ['project.diverged']);
 });

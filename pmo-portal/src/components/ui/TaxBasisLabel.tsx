@@ -92,9 +92,8 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
               ? t('uxs39.hideTaxDetails', 'Hide tax details')
               : t('uxs39.showTaxDetails', 'Show tax details')}
           </button>
-          {' · '}
           <span id={detailsId} aria-labelledby={triggerId} hidden={!detailsExpanded}>
-            {rateLabel}{' · '}{baseLabel}
+            {' · '}{rateLabel}{' · '}{baseLabel}
           </span>
         </>
       )}

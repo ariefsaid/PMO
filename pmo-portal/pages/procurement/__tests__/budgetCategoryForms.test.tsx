@@ -3,23 +3,27 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { MemoryRouter } from 'react-router';
+import ProcurementCreate from '../../ProcurementCreate';
 
+const createRequest = vi.fn();
+vi.mock('@/src/hooks/useProcurementCrud', () => ({
+  useCreateProcurement: () => ({ mutateAsync: createRequest, isPending: false }),
+  useCreateProcurementItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out', sub: 'PRJ-1' }] }),
   useVendorOptions: () => ({ data: [] }),
 }));
 
-import { NewProcurementModal } from '../NewProcurementModal';
 import { ProcurementHeaderEdit } from '../ProcurementHeaderEdit';
 
 function renderNew() {
-  const onCreate = vi.fn().mockResolvedValue({ id: 'pc-new' });
-  render(
-    <ToastProvider>
-      <NewProcurementModal onClose={vi.fn()} onCreate={onCreate} onCreated={vi.fn()} onError={vi.fn()} />
-    </ToastProvider>,
-  );
-  return onCreate;
+  createRequest.mockResolvedValue({ id: 'pc-new' });
+  render(<ToastProvider><MemoryRouter><ProcurementCreate /></MemoryRouter></ToastProvider>);
+  return createRequest;
 }
 
 describe('AC-APR-037 budget category on the request forms', () => {
@@ -27,7 +31,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
     const onCreate = renderNew();
     await userEvent.type(screen.getByLabelText(/title/i), 'Cable');
     await userEvent.selectOptions(screen.getByLabelText('Budget category'), 'Materials');
-    await userEvent.click(screen.getByRole('button', { name: /create request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
     expect(onCreate.mock.calls[0][0]).toMatchObject({ budgetCategory: 'Materials' });
   });
@@ -35,7 +39,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
   it('AC-APR-037: "No category" omits the field', async () => {
     const onCreate = renderNew();
     await userEvent.type(screen.getByLabelText(/title/i), 'Cable');
-    await userEvent.click(screen.getByRole('button', { name: /create request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
     expect(onCreate.mock.calls[0][0]).not.toHaveProperty('budgetCategory');
   });

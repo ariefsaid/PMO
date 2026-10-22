@@ -660,6 +660,12 @@ it('AC-AW-005 malformed args (missing contactId) → no needs-approval; error to
         message: { role: 'assistant', content: 'I need the contactId.' },
         usage: {},
         model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'I need the contactId.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
       }),
   };
 
@@ -670,8 +676,8 @@ it('AC-AW-005 malformed args (missing contactId) → no needs-approval; error to
 
   // NO needs-approval event
   expect(events.find((e) => (e.payload as { status?: string })?.status === 'needs-approval')).toBeUndefined();
-  // Loop should continue — model is called twice (once for tool, once after error result)
-  expect(modelClient.create).toHaveBeenCalledTimes(2);
+  // Tool call, final answer, then the tools-disabled answer check.
+  expect(modelClient.create).toHaveBeenCalledTimes(3);
   // No crm_activities insert
   const fromCalls = (supabaseMock.from as ReturnType<typeof vi.fn>).mock.calls;
   const activityCalls = fromCalls.filter((call) => call[0] === 'crm_activities');
@@ -823,6 +829,12 @@ it('malformed tool arguments (decision-continuation loop) → error tool_result 
       message: { role: 'assistant', content: 'Found your projects.' },
       usage: {},
       model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Found your projects.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   const supabaseMock = mockSupabase({ rowsFactory: () => ({ data: [{ id: '1' }], error: null }) });
@@ -831,7 +843,7 @@ it('malformed tool arguments (decision-continuation loop) → error tool_result 
     agentChatHandler(req, baseDeps({ modelClient: { create }, supabase: supabaseMock })),
   );
 
-  expect(create).toHaveBeenCalledTimes(3);
+  expect(create).toHaveBeenCalledTimes(4);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   expect(events.find((e) => (e.payload as { error?: string })?.error === 'UPSTREAM_ERROR')).toBeUndefined();
   expect(events.find((e) => e.type === 'tool')).toBeDefined();

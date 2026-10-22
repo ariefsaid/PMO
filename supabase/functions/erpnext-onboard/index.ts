@@ -23,6 +23,7 @@ import { ensureErpCustomFields } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { ensureErpSellingSettings } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/erpSellingSettings.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
+import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -82,7 +83,14 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
     // fail-closed on a store error) — the same path as the sweep and the outbound writers (FR-ENA-015).
     const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref });
 
-    const clientDeps: ErpClientDeps = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
+    const clientDeps: ErpClientDeps = {
+      fetchImpl: async (input, init) => {
+        return guardedErpFetch(binding.site_url)(input, init);
+      },
+      apiKey,
+      apiSecret,
+      baseUrl: binding.site_url,
+    };
 
     // #767: the site custom fields PMO's bodies write (ERPNext silently drops unknown keys). Reported
     // per field, never fatal — a missing field costs only its own value, not party onboarding.
