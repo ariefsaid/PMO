@@ -37,6 +37,7 @@ const PAYABLE_STATE = 'Vendor Invoiced';
 
 /** Structural seam for the case re-read (the refs.ts ExternalRefsFilterBuilder idiom). */
 export interface PaymentGateClient {
+  rpc(functionName: string, args: Record<string, unknown>): Promise<{ data: Array<{ ok: boolean; reason: string | null; billed_net: number }> | null; error: { message: string } | null }>;
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): PaymentGateFilterBuilder;
@@ -90,5 +91,11 @@ export async function enforcePaymentGate(
   if (callerUserId && data.approved_by_id && callerUserId === data.approved_by_id) {
     return REFUSED(403, 'separation of duties: approver cannot pay own procurement');
   }
+  const ceiling = await client.rpc('procurement_payment_within_ceiling', { p_procurement_id: procurementId });
+  const result = ceiling.data?.[0];
+  if (ceiling.error || !result) {
+    return REFUSED(422, `vendor payment: approved-amount ceiling could not be evaluated${ceiling.error ? ` (${ceiling.error.message})` : ''}`);
+  }
+  if (!result.ok) return REFUSED(422, `vendor payment: ${result.reason ?? 'approved-amount ceiling refused payment'}`);
   return { ok: true, status: 200, message: '' };
 }

@@ -1,15 +1,50 @@
 -- Preserve the server-approved spend ceiling, protect procurement evidence writes, and bind file rows to storage keys.
 
 alter table public.procurements add column approved_total_value numeric(14,2);
-update public.procurements
-   set approved_total_value = public.procurement_request_amount(id)
- where status in ('Approved','Vendor Quoted','Quote Selected','Ordered','Received','Vendor Invoiced','Paid')
-   and approved_by_id is not null;
+update public.procurements p
+   set approved_total_value = coalesce((
+     select (a.detail->>'request_amount')::numeric
+       from public.audit_events a
+      where a.action = 'procurement.approval_route' and a.entity_id = p.id
+      order by a.created_at desc limit 1
+   ), public.procurement_request_amount(p.id))
+ where p.status in ('Approved','Vendor Quoted','Quote Selected','Ordered','Received','Vendor Invoiced','Paid')
+   and p.approved_by_id is not null;
 update public.record_history_config
    set omit_cols = array_append(omit_cols, 'approved_total_value')
  where table_name = 'procurements' and not ('approved_total_value' = any (omit_cols));
 comment on column public.procurements.approved_total_value is
   'Server-stamped amount used for the latest approval decision; clients cannot write this value.';
+
+create or replace function public.procurement_payment_within_ceiling(p_procurement_id uuid)
+returns table(ok boolean, reason text, billed_net numeric)
+language plpgsql stable security definer set search_path = public, pg_catalog as $$
+declare v_currency text; v_ceiling numeric; v_net numeric; v_count integer;
+begin
+  select p.currency, p.approved_total_value into v_currency, v_ceiling
+    from public.procurements p where p.id = p_procurement_id;
+  if not found then return query select false, 'procurement not found', 0::numeric; return; end if;
+  if v_ceiling is null then return query select false, 'approved amount is missing', 0::numeric; return; end if;
+  if exists (select 1 from public.procurement_invoices i where i.procurement_id = p_procurement_id
+      and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+      and i.currency is not null and i.currency <> v_currency) then
+    return query select false, 'bill currency differs from procurement currency', 0::numeric; return;
+  end if;
+  select coalesce(sum(case when i.tax_treatment = 'exclusive' then i.amount
+                           when i.tax_treatment = 'inclusive' then i.amount - i.tax_amount
+                           else i.amount end), 0), count(*)
+    into v_net, v_count from public.procurement_invoices i
+   where i.procurement_id = p_procurement_id
+     and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     and not exists (select 1 from public.procurement_invoices replacement
+                      where replacement.erp_amended_from = i.external_ref
+                        and coalesce(replacement.erp_docstatus, 1) <> 2
+                        and replacement.erp_cancelled_at is null);
+  if v_count = 0 then v_net := (select total_value from public.procurements where id=p_procurement_id); end if;
+  return query select v_net <= v_ceiling, case when v_net <= v_ceiling then null else 'vendor bill exceeds approved amount' end, v_net;
+end; $$;
+revoke all on function public.procurement_payment_within_ceiling(uuid) from public, anon, authenticated;
+grant execute on function public.procurement_payment_within_ceiling(uuid) to service_role;
 
 create or replace function public.guard_procurement_approved_total() returns trigger
 language plpgsql set search_path = public, pg_catalog as $$
@@ -19,6 +54,13 @@ begin
     raise exception 'Approved amount is server managed.' using errcode = '42501';
   end if;
   if tg_op = 'UPDATE' and old.status = 'Requested' and new.status = 'Approved' then
+    if exists (
+      select 1 from public.procurement_status_events e
+       where e.procurement_id = old.id and e.from_status = 'Vendor Quoted'::procurement_status
+         and e.to_status = 'Requested'::procurement_status and e.actor_id = auth.uid()
+    ) then
+      raise exception 'separation of duties: quote selector cannot approve the revised amount' using errcode = '42501';
+    end if;
     new.approved_total_value := public.procurement_request_amount(new.id);
   elsif tg_op = 'UPDATE' and old.status = 'Vendor Quoted' and new.status = 'Quote Selected'
         and new.total_value > old.approved_total_value then
@@ -31,15 +73,8 @@ begin
         and old.approved_total_value is null and old.approved_by_id is not null then
     raise exception 'Cannot pay without a recorded approved amount.' using errcode = '23514';
   elsif tg_op = 'UPDATE' and new.status = 'Paid' and old.approved_total_value is not null then
-    if exists (
-      select 1 from public.procurement_invoices i
-       where i.procurement_id = old.id
-       group by i.procurement_id
-      having sum(i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount,0) else 0 end)
-             > old.approved_total_value
-    ) or (not exists (select 1 from public.procurement_invoices i where i.procurement_id = old.id)
-          and old.total_value > old.approved_total_value) then
-      raise exception 'Vendor bill exceeds the approved amount; obtain approval for the revised amount before payment.' using errcode = '23514';
+    if not (select ok from public.procurement_payment_within_ceiling(old.id)) then
+      raise exception 'Vendor bill exceeds the approved amount or its currency differs; obtain approval or correct the bill before payment.' using errcode = '23514';
     end if;
   end if;
   return new;
@@ -63,6 +98,16 @@ revoke all on function public.log_procurement_quote_reroute() from public, anon,
 create trigger procurements_quote_reroute_event
  after update of status on public.procurements
  for each row execute function public.log_procurement_quote_reroute();
+
+-- File metadata has a narrow client edit surface; storage keys remain immutable after insert.
+do $$
+declare t text;
+begin
+  foreach t in array array['procurement_quotation_files','procurement_receipt_files','procurement_invoice_files','purchase_request_files','rfq_files','purchase_order_files','payment_files'] loop
+    execute format('revoke update on public.%I from authenticated, anon', t);
+    execute format('grant update (title, archived_at) on public.%I to authenticated', t);
+  end loop;
+end $$;
 
 -- The upload path remains unique per upload; all storage mutations by ordinary writers are inserts only.
 drop policy if exists storage_objects_proc_file_write on storage.objects;
@@ -107,6 +152,9 @@ begin
        or new.org_id is distinct from public.auth_org_id()
        or coalesce(public.auth_role() not in ('Admin','Executive','Project Manager','Finance'), true)
      ) then return new; end if;
+  if tg_op = 'UPDATE' and new.file_path is distinct from old.file_path and not public.actor_bypasses_rls() then
+    raise exception 'Procurement file storage key cannot be changed.' using errcode = '42501';
+  end if;
   if new.file_path is null then return new; end if;
   if v_org is null or new.org_id is distinct from v_org
      or split_part(new.file_path, '/', 1) is distinct from v_org::text

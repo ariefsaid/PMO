@@ -269,6 +269,7 @@
     "transition_document_status(uuid,doc_status)",
     "transition_expense_claim(uuid,expense_claim_status,text,text)",
     "transition_native_sales_invoice(uuid,text)",
+    "procurement_payment_within_ceiling(uuid)",
     "transition_procurement(uuid,procurement_status,text)",
     "transition_project(uuid,project_status,text,date)",
     "transition_timesheet(uuid,timesheet_status,text)",

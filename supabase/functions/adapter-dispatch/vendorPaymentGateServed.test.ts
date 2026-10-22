@@ -94,7 +94,7 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  at `Vendor Invoiced` approved by A; the bill is mirrored with the org's currency and outstanding;
  *  the caller's role (actor_authorization_state) is Finance — every gate BEFORE the SoD one passes.
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
-function routes(unexpected: FetchCall[], caller: string): MockRoute[] {
+function routes(unexpected: FetchCall[], caller: string, ceilingOk = true): MockRoute[] {
   const outbox = new Map<string, Record<string, unknown>>();
   return [
     supabaseSelect('profiles', (call) =>
@@ -116,6 +116,7 @@ function routes(unexpected: FetchCall[], caller: string): MockRoute[] {
     supabaseSelect('procurement_invoices', () => objectResponse({
       org_id: ORG_ID, procurement_id: PROC_ID, erp_outstanding_amount: 1090000, vi_number: PI_NAME, currency: COMPANY_CURRENCY,
     })),
+    supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{ ok: ceilingOk, reason: ceilingOk ? null : 'vendor bill exceeds approved amount', billed_net: ceilingOk ? 1000000 : 1200000 }])), 
     supabaseSelect('external_refs', (call) =>
       eqParam(call, 'pmo_record_id') === VENDOR_ID
         ? objectResponse({ external_record_id: `Supplier:Demo Supplier` })
@@ -190,6 +191,18 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     // The refusal runs BEFORE the outbox insert — no money pipeline entry, no ERP call.
     assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
     assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('AC-SEC-206 an over-ceiling payment is refused before the outbox insert', async () => {
+    const unexpected: FetchCall[] = [];
+    const result = await withFetchMock(routes(unexpected, PAYER_ID, false), async ({ calls }) => {
+      const jwt = await auth.mintJwt({ sub: PAYER_ID });
+      const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', { method: 'POST', headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' }, body: JSON.stringify(paymentCreateCommand()) }));
+      return { status: res.status, body: await res.text(), calls };
+    });
+    assertEquals(result.status, 422);
+    assert(result.body.includes('vendor bill exceeds approved amount'));
+    assertEquals(result.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0);
   });
 
   it('AC-VPAY-003 a non-approver payer passes the gate — the dispatch completes and the Payment Entry POST carries the server-resolved allocation', async () => {
