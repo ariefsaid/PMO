@@ -263,7 +263,7 @@ export async function runWhatsOverdue(
         overdueInvoices: facts.invoices ? facts.invoices.length : null,
         tasksTruncated: facts.tasksTruncated,
         invoicesTruncated: facts.invoicesTruncated,
-        note: 'The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence.',
+        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence.${facts.tasksTruncated || facts.invoicesTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
       },
     };
   } catch {
