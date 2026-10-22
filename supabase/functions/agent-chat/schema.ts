@@ -118,21 +118,17 @@ export const QUERY_ENTITY_SCHEMA = {
         "Subset of the entity's allowed columns; omit for all allowed columns.",
     },
     filter: {
-      type: 'object' as const,
-      required: ['column', 'op', 'value'] as string[],
-      additionalProperties: false,
-      properties: {
-        column: { type: 'string' as const },
-        op: {
-          type: 'string' as const,
-          enum: ['eq', 'in'],
-          description: 'Filter operator: eq (equality) or in (list membership).',
-        },
-        value: {
-          description: 'eq → scalar string; in → array of strings.',
-        },
-      },
+      anyOf: [
+        { $ref: '#/$defs/filter' },
+        { type: 'array' as const, minItems: 1, maxItems: 3, items: { $ref: '#/$defs/filter' } },
+      ],
     },
+    order_by: {
+      type: 'object' as const, required: ['column', 'direction'] as string[], additionalProperties: false,
+      properties: { column: { type: 'string' as const }, direction: { type: 'string' as const, enum: ['asc', 'desc'] } },
+    },
+    group_by: { type: 'string' as const, description: 'Group caller-visible rows and count each group, up to the 5,000-row cap.' },
+    sum: { type: 'string' as const, description: 'Sum a whitelisted numeric column; requires group_by.' },
     limit: {
       type: 'integer' as const,
       minimum: 1,
@@ -144,6 +140,16 @@ export const QUERY_ENTITY_SCHEMA = {
       enum: ['table'] as string[],
       description:
         'Optional presentation hint (ADR-0045 DEC-2): when "table", the handler renders the result as an inline data table widget instead of describing it in text. Omit for the default text summary.',
+    },
+  },
+  $defs: {
+    filter: {
+      type: 'object' as const, required: ['column', 'op', 'value'] as string[], additionalProperties: false,
+      properties: {
+        column: { type: 'string' as const },
+        op: { type: 'string' as const, enum: ['eq', 'in', 'neq', 'lt', 'lte', 'gt', 'gte'] },
+        value: { description: 'Scalar for comparisons; array of strings for in.' },
+      },
     },
   },
 };
