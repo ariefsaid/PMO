@@ -105,6 +105,17 @@ function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 
 // ── Task 10: AC-AR-002 + AC-AR-003 (gates before any model call) ──────────────
 
+it('AC-ACC-010 checks a final draft against tool evidence before emitting it', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Wrong: 2.' }, usage: { completion_tokens: 4 }, model: 'm' })
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Correct: 3.' }, usage: { completion_tokens: 5 }, model: 'm' });
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none', temperature: 0.2 });
+  expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Correct: 3.']);
+  expect(events.some((e) => (e.payload as { label?: string } | undefined)?.label === 'Double-checking the answer…')).toBe(true);
+});
+
 it('AC-AR-002 emits a single 401 status event and never calls the model when userId is empty', async () => {
   const create = vi.fn();
   const events = await collect(

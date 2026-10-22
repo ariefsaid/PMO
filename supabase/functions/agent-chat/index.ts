@@ -25,7 +25,7 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
-import { agentChatHandler } from './handler.ts';
+import { agentChatHandler, answerVerificationEnabled } from './handler.ts';
 import { drainSseStream } from './sseStream.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
@@ -254,6 +254,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
       const deps: import('./handler.ts').HandlerDeps = {
         modelClient,
         model,
+        verifyAnswer: answerVerificationEnabled(Deno.env.get('AGENT_VERIFY_ANSWER') ?? undefined),
         // Cast: Item 3's original cast-cleanup rationale (real client structurally satisfies
         // HandlerSupabaseLike, checked fine under tsc) still holds; deno check's stricter/deeper
         // structural recursion over this large HandlerDeps literal (6 `supabase: callerClient`
