@@ -163,6 +163,12 @@ describe('conditional approval predicates', () => {
           message: { role: 'assistant', content: 'Marked done.' },
           usage: {},
           model: 'deepseek/deepseek-v4-flash',
+        })
+        .mockResolvedValueOnce({
+          finish_reason: 'stop',
+          message: { role: 'assistant', content: 'Marked done.' },
+          usage: {},
+          model: 'deepseek/deepseek-v4-flash',
         }),
     };
 
@@ -177,6 +183,7 @@ describe('conditional approval predicates', () => {
       },
     });
     expect(update).toHaveBeenCalledWith({ status: 'Done' });
-    expect(modelClient.create).toHaveBeenCalledTimes(2);
+    expect(modelClient.create).toHaveBeenCalledTimes(3);
+    expect(modelClient.create.mock.calls[2][0]).toMatchObject({ tools: [], tool_choice: 'none' });
   });
 });

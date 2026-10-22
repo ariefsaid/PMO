@@ -116,7 +116,8 @@ it('AC-AXP-017 grounding hint on continuation turns (answer path)', async () => 
 
   await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
 
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none' });
   const sentMessages = create.mock.calls[0][0].messages as { role: string; content: string }[];
   const systemMsg = sentMessages.find((m) => m.role === 'system');
   expect(systemMsg).toBeDefined();

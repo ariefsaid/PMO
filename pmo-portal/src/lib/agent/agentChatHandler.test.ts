@@ -160,16 +160,13 @@ it('emits a 429 RATE_LIMITED terminal status and never calls the model when the 
 });
 
 it('rateGuard absent ⇒ proceeds to the model', async () => {
-  const create = vi.fn().mockResolvedValue({
-    finish_reason: 'stop',
-    message: { role: 'assistant', content: 'Done.' },
-    usage: {},
-    model: 'deepseek/deepseek-v4-flash',
-  });
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Done.' }, usage: {}, model: 'deepseek/deepseek-v4-flash' })
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Done.' }, usage: {}, model: 'deepseek/deepseek-v4-flash' });
   const events = await collect(
     agentChatHandler(REQ, baseDeps({ modelClient: { create } })),
   );
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 });
 
@@ -207,10 +204,11 @@ it('AC-MC-008 tool-use loop parity: happy read path, same event order (OpenRoute
   // (payload.kind==='step'); it rides the same stream (persistence skips it, the panel intercepts
   // it into the indicator). So the happy read path is: user → status(step) → tool → assistant →
   // status(completed).
-  expect(events.map((e) => e.type)).toEqual(['user', 'status', 'tool', 'assistant', 'status']);
+  expect(events.map((e) => e.type)).toEqual(['user', 'status', 'tool', 'status', 'assistant', 'status']);
+  expect(events[3]).toMatchObject({ type: 'status', payload: { kind: 'step', label: 'Double-checking the answer…' } });
   expect(events[1]).toMatchObject({ type: 'status', payload: { kind: 'step' } });
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
 });
 
 it('AC-MC-009 MAX_TOOL_ROUNDS unchanged after the provider swap', async () => {
@@ -307,7 +305,7 @@ it('parallelizes multiple read tool calls in one round (both execute, both resul
   // Both reads ran in the SAME round → two tool events, then one more model round to answer.
   const toolEvents = events.filter((e) => e.type === 'tool');
   expect(toolEvents).toHaveLength(2);
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 
   // Round 2's transcript answers BOTH tool_call_ids (the API pairing invariant).
@@ -345,7 +343,7 @@ it('never parallelizes a write: a read+write round runs only the read and DEFERS
   // (the read). The write is deferred — the loop continues to a second model round.
   expect(events.some((e) => e.type === 'status' && (e as { payload?: { status?: string } }).payload?.status === 'needs-approval')).toBe(false);
   expect(events.filter((e) => e.type === 'tool')).toHaveLength(1);
-  expect(create).toHaveBeenCalledTimes(2);
+  expect(create).toHaveBeenCalledTimes(3);
 
   // Round 2's transcript answers BOTH ids: the real read result + a deferred marker for the write,
   // so the assistant(tool_calls)→tool(result) pairing stays valid.
@@ -419,8 +417,8 @@ it('terminates on finish_reason stop even when a tool_calls entry is accidentall
   });
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
-  // Must complete after 1 SDK call — do not dispatch tool on stop
-  expect(create).toHaveBeenCalledTimes(1);
+  // One final-answer call plus its tools-disabled check; do not dispatch the spurious tool.
+  expect(create).toHaveBeenCalledTimes(2);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 });
 
@@ -560,6 +558,12 @@ it('malformed tool arguments (main loop) → error tool_result appended, run rec
       message: { role: 'assistant', content: 'You have 2 active projects.' },
       usage: {},
       model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'You have 2 active projects.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
     });
 
   const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }, { id: '2' }], error: null }));
@@ -567,7 +571,7 @@ it('malformed tool arguments (main loop) → error tool_result appended, run rec
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
   // Run must NOT fail as UPSTREAM_ERROR — it must recover and complete normally.
-  expect(create).toHaveBeenCalledTimes(3);
+  expect(create).toHaveBeenCalledTimes(4);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   expect(events.find((e) => (e.payload as { error?: string })?.error === 'UPSTREAM_ERROR')).toBeUndefined();
   // A real tool event is still emitted for the successful (round 2) call.

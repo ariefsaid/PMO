@@ -103,7 +103,8 @@ it('AC-ATC-009 answer resolves same run, no new createRun', async () => {
   const userEvents = events.filter((e) => e.type === 'user');
   expect(userEvents).toHaveLength(0);
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none' });
 
   // The answer content (the chosen option's label) must reach the model as the
   // tool_result resolving the ask_user tool_use, correlated by questionId/toolId.
@@ -142,7 +143,8 @@ it('AC-ATC-010 duplicate answer is idempotent no-op', async () => {
 
   const events = await collect(agentChatHandler(req, baseDeps({ modelClient: { create } })));
 
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none' });
   // No duplicate answer/tool_result content appended — the continuation simply runs the model once.
   expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
 

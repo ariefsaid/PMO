@@ -200,5 +200,6 @@ it('RED-2 genuine reject of a real pending write still resolves at a NON-zero ba
     (e) => e.type === 'system' && (e.payload as { decision?: string } | undefined)?.decision === 'rejected',
   );
   expect(rejected).toBeDefined();
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0]).toMatchObject({ tools: [], tool_choice: 'none' });
 });
