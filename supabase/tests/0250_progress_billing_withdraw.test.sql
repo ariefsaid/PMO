@@ -23,7 +23,7 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('07660000-0000-0000-0000-0000000000e1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'SURVEY', 'Route survey', 'km', 10, 50000);
 insert into project_documents (id, org_id, project_id, category, title, status, revision, file_path) values
-  ('07660000-0000-0000-0000-00000000d0c1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'Report', 'Progress report', 'Issued', 'A', 'docs/pb/report.pdf');
+  ('07660000-0000-0000-0000-00000000d0c1', '07660000-0000-0000-0000-000000000001', '07660000-0000-0000-0000-0000000000c1', 'Report', 'Progress report', 'Issued', 'A', '07660000-0000-0000-0000-000000000001/07660000-0000-0000-0000-0000000000c1/07660000-0000-0000-0000-00000000d0c1/report.pdf');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07660000-0000-0000-0000-0000000000a2","role":"authenticated"}';

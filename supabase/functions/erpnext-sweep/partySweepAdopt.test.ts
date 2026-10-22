@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * #935 [Deno] — the SWEEP must adopt each new ERP Supplier under its OWN doctype-encoded external id.
  *

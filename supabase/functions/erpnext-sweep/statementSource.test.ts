@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 // AC-005 sweep source state is loaded from the shipped handler and remains company-scoped.
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const originalFetch = globalThis.fetch;

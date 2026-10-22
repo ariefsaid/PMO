@@ -21,12 +21,13 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   -- paid a claim as Finance, since demoted to Engineer and still active
   ('02700000-0000-0000-0000-0000000002a6','02700000-0000-0000-0000-00000000020a','G Fin Demoted','expb-g-fx@example.com','Engineer','active');
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at) values
-  ('02700000-0000-0000-0000-000000000501','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Trip',0,'Approved','EXP-2610080001','02700000-0000-0000-0000-0000000002a3','2026-10-07 18:30:00+00'),
+  ('02700000-0000-0000-0000-000000000501','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Trip',0,'Draft','EXP-2610080001','02700000-0000-0000-0000-0000000002a3','2026-10-07 18:30:00+00'),
   ('02700000-0000-0000-0000-000000000502','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Trip 2',0,'Approved','EXP-2610080002','02700000-0000-0000-0000-0000000002a5','2026-10-07 10:00:00+00');
 insert into expense_claim_lines (claim_id, expense_date, expense_type, description, amount) values
   ('02700000-0000-0000-0000-000000000501','2026-10-06','Travel','Bus',100),
   ('02700000-0000-0000-0000-000000000501','2026-10-06','Travel','Taxi',50),
   ('02700000-0000-0000-0000-000000000501','2026-10-06','Meals','Lunch',25);
+update expense_claims set status='Approved' where id='02700000-0000-0000-0000-000000000501';
 insert into expense_claims (id, org_id, kind, claimant_id, title, amount, status, claim_number, approved_by_id, approved_at,
                             paid_by_id, paid_at, paid_on) values
   ('02700000-0000-0000-0000-000000000503','02700000-0000-0000-0000-00000000020a','claim','02700000-0000-0000-0000-0000000002a1','Paid',200,'Paid','EXP-2610080003','02700000-0000-0000-0000-0000000002a3','2026-10-06 02:00:00+00','02700000-0000-0000-0000-0000000002a4','2026-10-07 02:00:00+00','2026-10-07'),

@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 import { contactDb } from "../_shared/erpnextContacts.fixtures.ts";
 import { handleOnboardRequest as handler } from "./index.ts";
 const ORG = "00000000-0000-4000-8000-000000000073";

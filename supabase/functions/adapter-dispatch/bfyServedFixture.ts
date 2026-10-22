@@ -109,7 +109,7 @@ export interface ServedRoutesResult {
  * The full route table for one served budget dispatch. Every route is a fact about the world the
  * handler reads; nothing here re-implements a handler decision.
  */
-export function servedRoutes(seed: ServedSeed, versionMajor = 15): ServedRoutesResult {
+export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_SITE_URL): ServedRoutesResult {
   const erpBudgets: ServedRoutesResult['erpBudgets'] = [];
   const accountMirrorRows: Array<Record<string, unknown>> = [];
   let mirrorSeq = 0;
@@ -132,7 +132,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15): ServedRoutesR
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
     supabaseSelect('external_org_bindings', () =>
       objectResponse({
-        site_url: ERP_SITE_URL,
+        site_url: siteUrl,
         secret_ref: SECRET_REF,
         activated_at: '2026-01-01T00:00:00+00:00',
         version_major: versionMajor,

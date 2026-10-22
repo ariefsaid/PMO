@@ -1021,8 +1021,8 @@ describe('external-link — ERPNext host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — no PATCH, no audit, no ERP call`, async () => {
-      await withDns(records, () =>
-        withFetchMock(routes(), async ({ calls }) => {
+      await withFetchMock(routes(), async ({ calls }) =>
+        withDns(records, async () => {
           const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
           assertEquals(res.status, 422);
           assertEquals(await res.json(), {
@@ -1054,8 +1054,8 @@ describe('external-link — ERPNext host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — no PATCH, no audit, no ERP call', async () => {
-    await withDns('failure', () =>
-      withFetchMock(routes(), async ({ calls }) => {
+    await withFetchMock(routes(), async ({ calls }) =>
+      withDns('failure', async () => {
         const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 422);
         assertEquals(await res.json(), {

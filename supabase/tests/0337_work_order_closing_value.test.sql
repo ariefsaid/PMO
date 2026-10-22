@@ -21,7 +21,7 @@ insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatm
 insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
  ('33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000032','33530000-0000-0000-0000-000000000042',1001),('33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000033','33530000-0000-0000-0000-000000000042',1001),('33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000034','33530000-0000-0000-0000-000000000042',1001);
 insert into project_documents(id,org_id,project_id,category,title,status,file_path) values
- ('33530000-0000-0000-0000-000000000051','33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000022','Acceptance','BAST evidence','Issued','bast.pdf');
+ ('33530000-0000-0000-0000-000000000051','33530000-0000-0000-0000-000000000001','33530000-0000-0000-0000-000000000022','Acceptance','BAST evidence','Issued','33530000-0000-0000-0000-000000000001/33530000-0000-0000-0000-000000000022/33530000-0000-0000-0000-000000000051/bast.pdf');
 create function public.cq_t_probe(p_wo uuid, p_acc uuid, p_forge boolean) returns void language plpgsql security definer set search_path=public as $f$
 begin
   if p_forge then perform set_config('pmo.confirming_work_order_acceptance','on',true); end if;

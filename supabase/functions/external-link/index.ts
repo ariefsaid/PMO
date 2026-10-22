@@ -55,7 +55,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
-import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface LinkBody {
   tier: 'clickup' | 'erpnext';
@@ -624,7 +624,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
 
     // Validate Company exists in ERPNext
     const erpNextDeps: ErpNextDeps = {
-      fetchImpl: fetch,
+      fetchImpl: guardedErpFetch(binding.site_url),
       siteUrl: binding.site_url,
       apiKey,
       apiSecret,

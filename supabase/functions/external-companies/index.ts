@@ -31,7 +31,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
@@ -251,7 +251,7 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   let companies: string[];
   try {
     companies = await fetchErpNextCompanies({
-      fetchImpl: fetch,
+      fetchImpl: guardedErpFetch(binding.site_url),
       siteUrl: binding.site_url,
       apiKey,
       apiSecret,

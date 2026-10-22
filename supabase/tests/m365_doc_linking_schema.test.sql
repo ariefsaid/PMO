@@ -36,7 +36,7 @@ insert into public.projects (id,org_id,code,name,status,project_manager_id) valu
 
 -- Legacy/plain document writes omit source; file rows default to upload while metadata-only rows remain valid.
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path)
- values ('10200000-0000-0000-0000-000000000301','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','legacy file','Draft','10200000-0000-0000-0000-000000000102','fixture/path')$$,
+ values ('10200000-0000-0000-0000-000000000301','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','legacy file','Draft','10200000-0000-0000-0000-000000000102','10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000301/fixture.pdf')$$,
  'AC-M365DOC-002 accepts a legacy file row with omitted source');
 select is((select source::text from public.project_documents where id='10200000-0000-0000-0000-000000000301'),
  'upload', 'AC-M365DOC-002 defaults an omitted source to upload');
@@ -44,13 +44,13 @@ select lives_ok($$insert into public.project_documents (id,org_id,project_id,cat
  values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','metadata upload source','Draft','10200000-0000-0000-0000-000000000102','upload')$$,
  'AC-M365DOC-002 accepts upload source without a file path');
 select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,file_path)
- values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','onedrive','fixture/path')$$,
+ values ('10200000-0000-0000-0000-000000000309','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','onedrive','10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000309/fixture.pdf')$$,
  '23514', null, 'AC-M365DOC-002 rejects Microsoft source with upload path');
 select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id)
  values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','onedrive','drive')$$,
  '23514', null, 'AC-M365DOC-002 rejects incomplete Microsoft reference');
 select throws_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,file_path,ms_drive_id)
- values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','upload','fixture/path','drive')$$,
+ values ('10200000-0000-0000-0000-000000000310','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','collision','Draft','10200000-0000-0000-0000-000000000102','upload','10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000310/fixture.pdf','drive')$$,
  '23514', null, 'AC-M365DOC-002 rejects upload with Microsoft metadata');
 
 -- Every optional reference field is forbidden in metadata-only and upload states.
@@ -77,7 +77,7 @@ select throws_ok($$insert into public.project_documents (id,org_id,project_id,ca
 
 -- Accepted metadata-only, backfilled upload, and file/folder references.
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','metadata','Draft','10200000-0000-0000-0000-000000000102')$$,'AC-M365DOC-053 accepts metadata-only row');
-select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path,source) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','upload','Draft','10200000-0000-0000-0000-000000000102','fixture/path','upload')$$,'AC-M365DOC-053 accepts upload');
+select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,file_path,source) values ('10200000-0000-0000-0000-000000000311','10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','upload','Draft','10200000-0000-0000-0000-000000000102','10200000-0000-0000-0000-000000000001/10200000-0000-0000-0000-000000000201/10200000-0000-0000-0000-000000000311/fixture.pdf','upload')$$,'AC-M365DOC-053 accepts upload');
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','file','Draft','10200000-0000-0000-0000-000000000102','onedrive','drive','item','https://EXAMPLE.invalid/x','name','file','10200000-0000-0000-0000-000000000102',now())$$,'AC-M365DOC-053 accepts complete file ref');
 select lives_ok($$insert into public.project_documents (id,org_id,project_id,category,title,status,author_id,source,ms_drive_id,ms_item_id,ms_web_url,ms_item_name,ms_item_kind,ms_linked_by,ms_linked_at) values (gen_random_uuid(),'10200000-0000-0000-0000-000000000001','10200000-0000-0000-0000-000000000201','Specification','folder','Draft','10200000-0000-0000-0000-000000000102','onedrive','drive','folder-item','https://example.invalid/folder','folder','folder','10200000-0000-0000-0000-000000000102',now())$$,'AC-M365DOC-053 accepts complete folder ref');
 

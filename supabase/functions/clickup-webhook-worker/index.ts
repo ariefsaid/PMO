@@ -226,6 +226,7 @@ export async function resolveBindingLive(
         .eq('org_id', mappedRef.org_id)
         .eq('project_id', projectId)
         .eq('external_tier', CLICKUP_TIER)
+        .is('disconnected_at', null)
         .maybeSingle();
       const row = data as { org_id: string; project_id: string; config: unknown } | null;
       if (row) return bindingFromRow(row);
@@ -241,6 +242,7 @@ export async function resolveBindingLive(
       .select('org_id, project_id, config')
       .eq('external_tier', CLICKUP_TIER)
       .eq('external_container_id', listId)
+      .is('disconnected_at', null)
       .maybeSingle();
     const row = byList as { org_id: string; project_id: string; config: unknown } | null;
     if (row) return bindingFromRow(row);

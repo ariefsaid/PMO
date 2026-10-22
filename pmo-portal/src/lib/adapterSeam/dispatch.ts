@@ -211,10 +211,11 @@ function markCommandHeldOutbox(error: AppError, outboxId: string, claimGeneratio
   return marked;
 }
 
-/** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
- *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
+/** Discriminates retryable transport failures and destination refusals (never blindly re-POSTed,
+ *  but the row is left reclaimable) from non-retryable rejections (marked `failed` immediately). */
 function isRetryableTransport(error: unknown): boolean {
-  return error instanceof AdapterError && error.code === 'external-unreachable';
+  return error instanceof AdapterError &&
+    (error.code === 'external-unreachable' || error.code === 'destination_not_permitted');
 }
 
 /** M-4 (audit): bound + scrub an error before it is PERSISTED to the outbox `last_error`. A raw ERP

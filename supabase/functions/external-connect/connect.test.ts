@@ -255,10 +255,9 @@ describe('external-connect — ClickUp branch', () => {
         // The revoking write path is never used for ClickUp: the previous secret is retained until commit.
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
         assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 1);
-        // Compensation goes through the DB (restore-to-prior), and the only secret the edge removes is the new one.
+        // The cleanup RPC restores prior state and removes only the now-unbound staged secret.
         assertEquals(rpcCall(calls, 'cleanup_external_connect_attempt').length, 1);
-        const deleted = rpcCall(calls, 'delete_vault_secret').map((c) => (c.bodyJson as Record<string, unknown>).p_secret_name);
-        assertEquals(deleted, ['clickup_new_ref']);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
       },
     );
   });
@@ -282,14 +281,13 @@ describe('external-connect — ClickUp branch', () => {
     );
   });
 
-  it('AC-653-1 when the readiness finalize RPC itself fails, the fallback removes only the new secret', async () => {
+  it('AC-653-1 when readiness finalization fails, scoped cleanup removes the staged secret', async () => {
     await withFetchMock(
       rotateMocks('clickup_new_ref', () => jsonResponse({ message: 'boom', code: 'P0001' }, { status: 400 }), null),
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 422);
-        const deleted = rpcCall(calls, 'delete_vault_secret').map((c) => (c.bodyJson as Record<string, unknown>).p_secret_name);
-        assertEquals(deleted, ['clickup_new_ref']);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
         const cleanup = rpcCall(calls, 'cleanup_external_connect_attempt').map((c) => c.bodyJson as Record<string, unknown>);
         assertEquals(cleanup.length, 1);
         assertEquals(cleanup[0].p_secret_ref, 'clickup_new_ref');
@@ -770,8 +768,8 @@ describe('external-connect — ERPNext host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a site name resolving to ${where} — no Vault write, no ERP probe`, async () => {
-      await withDns(records, () =>
-        withFetchMock(prelude(), async ({ calls }) => {
+      await withFetchMock(prelude(), async ({ calls }) =>
+        withDns(records, async () => {
           const res = await handleConnectRequest(await request());
           assertEquals(res.status, 422);
           assertEquals(await res.json(), {
@@ -786,20 +784,19 @@ describe('external-connect — ERPNext host guard (#751)', () => {
   }
 
   it('#751 accepts an IPv6-only site when A is absent and AAAA is public', async () => {
-    await withDns({ AAAA: ['2001:4860:4860::8888'] }, () =>
-      withFetchMock(
-        [
-          ...prelude(),
-          supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
-          supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
-          erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
-        ],
-        async () => {
-          const res = await handleConnectRequest(await request());
-          assertEquals(res.status, 200);
-          assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'erpnext_token_org-1_1', status: 'active' } });
-        },
-      ));
+    await withFetchMock(
+      [
+        ...prelude(),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+        erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
+      ],
+      async () => withDns({ AAAA: ['2001:4860:4860::8888'] }, async () => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'erpnext_token_org-1_1', status: 'active' } });
+      }),
+    );
   });
 
   const refusalScenarios: Array<[
@@ -812,8 +809,8 @@ describe('external-connect — ERPNext host guard (#751)', () => {
   ];
   for (const [scenario, records] of refusalScenarios) {
     it(`#751 refuses a hostname when ${scenario}`, async () => {
-      await withDns(records, () =>
-        withFetchMock(prelude(), async ({ calls }) => {
+      await withFetchMock(prelude(), async ({ calls }) =>
+        withDns(records, async () => {
           const res = await handleConnectRequest(await request());
           assertEquals(res.status, 422);
           assertEquals(await res.json(), {
@@ -843,8 +840,8 @@ describe('external-connect — ERPNext host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — no Vault write, no ERP probe', async () => {
-    await withDns('failure', () =>
-      withFetchMock(prelude(), async ({ calls }) => {
+    await withFetchMock(prelude(), async ({ calls }) =>
+      withDns('failure', async () => {
         const res = await handleConnectRequest(await request());
         assertEquals(res.status, 422);
         assertEquals(await res.json(), {

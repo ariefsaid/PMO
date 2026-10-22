@@ -122,6 +122,7 @@ import {
   type BudgetVersionGateRow,
   type FiscalYearRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
+import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
@@ -1104,7 +1105,7 @@ async function erpClientForOrg(
   cache?: ErpAuthPairCache,
 ): Promise<ErpClientDeps> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-  return { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
+  return { fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
 /** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
@@ -2691,7 +2692,7 @@ export function expenseResolveDepsLive(serviceClient: SupabaseClient, org: OrgBi
   const client = async (): Promise<ErpClientDeps> => {
     if (!erpClient) {
       const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
-      erpClient = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
+      erpClient = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
     }
     return erpClient;
   };
@@ -3180,13 +3181,13 @@ export async function buildMoneyWriteDepsLive(
   // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
   // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
-  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
+  const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
 
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
     command,
-    fetchImpl: fetch,
+    fetchImpl: guardedErpFetch(org.siteUrl),
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
@@ -3397,6 +3398,7 @@ async function readErpFiscalYearsLive(
   cache?: ErpAuthPairCache,
 ): Promise<FiscalYearRow[]> {
   const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, org, cache);
+  if (!(await isPermittedErpSiteUrl(org.siteUrl))) throw new AppError('ERPNext destination is not permitted', 'external-unreachable');
   const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0');
@@ -3406,7 +3408,7 @@ async function readErpFiscalYearsLive(
   let res: Response;
   try {
     res = await fetchWithDeadline(
-      fetch,
+      guardedErpFetch(org.siteUrl),
       url.toString(),
       // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },

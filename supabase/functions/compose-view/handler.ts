@@ -80,7 +80,7 @@ export interface HandlerDeps {
    * caller-JWT client as `deps.supabase`. Independent of any flag — usage recording
    * is unconditional when this dep is present.
    */
-  usage?: { supabase: SupabaseLike };
+  usage?: { supabase?: SupabaseLike; serviceClient?: unknown };
   /** Injectable clock for testing — defaults to () => new Date(). */
   now?: () => Date;
 }
@@ -189,7 +189,7 @@ export async function composeViewHandler(
   // ── Gate (5): compose+repair via composeSpec() (AC-AS-001,002,003) ──────────
   // composeSpec throws ComposeSpecError on exhaustion or upstream error.
   try {
-    const { spec, repairAttempts, tokensUsed } = await composeSpec(
+    const { spec, repairAttempts, tokensUsed, providerCost } = await composeSpec(
       req.prompt,
       req.orgId,
       { modelClient, userId, model },
@@ -201,13 +201,14 @@ export async function composeViewHandler(
     // ComposeViewResponse does not surface a prompt/completion split or a total_cost today
     // (see docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
     // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
-    if (deps.usage) {
+    if (deps.usage?.serviceClient) {
+      const { recordTrustedUsage } = await import('../_shared/usage.ts');
+      await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId, orgId: profileOrgId, runId: null }, {
+        model, finish_reason: 'stop', message: { role: 'assistant', content: null },
+        usage: { prompt_tokens: 0, completion_tokens: tokensUsed, total_tokens: tokensUsed, total_cost: providerCost },
+      }, 'compose');
+    } else if (deps.usage?.supabase) {
       await insertUsageRow(
-        // deps.usage.supabase (compose-view's SupabaseLike) structurally satisfies the
-        // HandlerSupabaseLike shape insertUsageRow expects — both are minimal Supabase-like
-        // interfaces over the same real client; a genuine structural mismatch (SupabaseLike
-        // lacks .insert()) requires this bridging cast, mirroring agent-chat/handler.ts's own
-        // documented SupabaseLike-vs-port cast.
         { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
         { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
       );

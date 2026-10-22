@@ -28,8 +28,8 @@ select lives_ok($$select public.prepare_work_order_acceptance('33520000-0000-000
 select is((select count(*)::int from work_order_acceptances where work_order_id='33520000-0000-0000-0000-000000000031' and status='Draft'),1,'AC-CQ-004 preparation creates one Draft header');
 select is((select quantity from work_order_acceptance_lines l join work_order_acceptances a on a.id=l.acceptance_id where a.work_order_id='33520000-0000-0000-0000-000000000031'),1::numeric,'AC-CQ-004 preparation records line quantity');
 -- Create register evidence as the project PM, then issue it as a distinct member.
-select lives_ok($$insert into project_documents(id,project_id,category,title,file_path) values
- ('33520000-0000-0000-0000-000000000051','33520000-0000-0000-0000-000000000021','Acceptance','Generic acceptance record','generic-document.pdf')$$,'AC-CQ-005 a project document is recorded with its file');
+select lives_ok($$insert into project_documents(id,org_id,project_id,category,title,file_path) values
+ ('33520000-0000-0000-0000-000000000051','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000021','Acceptance','Generic acceptance record','33520000-0000-0000-0000-000000000001/33520000-0000-0000-0000-000000000021/33520000-0000-0000-0000-000000000051/generic-document.pdf')$$,'AC-CQ-005 a project document is recorded with its file');
 set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000012","role":"authenticated"}';
 select lives_ok($$select public.transition_document_status('33520000-0000-0000-0000-000000000051','Issued')$$,'AC-CQ-005 a distinct Finance member issues the register evidence');
 set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
@@ -92,8 +92,8 @@ insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatm
 insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
  ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000032','33520000-0000-0000-0000-000000000042',10),('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000032','33520000-0000-0000-0000-000000000043',10),('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000033','33520000-0000-0000-0000-000000000044',10);
 insert into project_documents(id,org_id,project_id,category,title,status,file_path) values
- ('33520000-0000-0000-0000-000000000052','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Evidence project 2','Issued','p2.pdf'),
- ('33520000-0000-0000-0000-000000000053','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000023','Acceptance','Evidence project 3','Issued','p3.pdf');
+ ('33520000-0000-0000-0000-000000000052','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Evidence project 2','Issued','33520000-0000-0000-0000-000000000001/33520000-0000-0000-0000-000000000022/33520000-0000-0000-0000-000000000052/p2.pdf'),
+ ('33520000-0000-0000-0000-000000000053','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000023','Acceptance','Evidence project 3','Issued','33520000-0000-0000-0000-000000000001/33520000-0000-0000-0000-000000000023/33520000-0000-0000-0000-000000000053/p3.pdf');
 insert into organizations(id,name) values ('33520000-0000-0000-0000-000000000002','CQ Solo Org');
 insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000015','cq-solo@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values ('33520000-0000-0000-0000-000000000015','33520000-0000-0000-0000-000000000002','CQ Solo','cq-solo@example.invalid','Finance','active');
@@ -101,7 +101,7 @@ insert into projects(id,org_id,name,status,contract_value,tax_treatment,tax_amou
 insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate) values ('33520000-0000-0000-0000-000000000045','33520000-0000-0000-0000-000000000002','33520000-0000-0000-0000-000000000024','S1','Solo line','km',10,1000);
 insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatment,tax_amount) values ('33520000-0000-0000-0000-000000000034','33520000-0000-0000-0000-000000000002','33520000-0000-0000-0000-000000000024','CQ Solo WO','Issued',10000,'exclusive',0);
 insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values ('33520000-0000-0000-0000-000000000002','33520000-0000-0000-0000-000000000034','33520000-0000-0000-0000-000000000045',10);
-insert into project_documents(id,org_id,project_id,category,title,status,file_path) values ('33520000-0000-0000-0000-000000000054','33520000-0000-0000-0000-000000000002','33520000-0000-0000-0000-000000000024','Acceptance','Solo evidence','Issued','solo.pdf');
+insert into project_documents(id,org_id,project_id,category,title,status,file_path) values ('33520000-0000-0000-0000-000000000054','33520000-0000-0000-0000-000000000002','33520000-0000-0000-0000-000000000024','Acceptance','Solo evidence','Issued','33520000-0000-0000-0000-000000000002/33520000-0000-0000-0000-000000000024/33520000-0000-0000-0000-000000000054/solo.pdf');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000011","role":"authenticated"}';
 select throws_ok($$select public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000032',current_date,false,'[{"boq_item_id":"33520000-0000-0000-0000-000000000042","quantity":1}]'::jsonb,'33520000-0000-0000-0000-000000000053')$$,'23514',null,'AC-CQ-004 a document from another project is refused on prepare');
@@ -170,7 +170,7 @@ insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
  ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000043',10),
  ('33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000035','33520000-0000-0000-0000-000000000046',1);
 insert into project_documents(id,org_id,project_id,category,title,status,file_path) values
- ('33520000-0000-0000-0000-000000000055','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Draft evidence','Draft','draft.pdf');
+ ('33520000-0000-0000-0000-000000000055','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Draft evidence','Draft','33520000-0000-0000-0000-000000000001/33520000-0000-0000-0000-000000000022/33520000-0000-0000-0000-000000000055/draft.pdf');
 insert into project_documents(id,org_id,project_id,category,title,status) values
  ('33520000-0000-0000-0000-000000000056','33520000-0000-0000-0000-000000000001','33520000-0000-0000-0000-000000000022','Acceptance','Fileless evidence','Issued');
 set local role authenticated;

@@ -21,7 +21,7 @@ async function authed(body: unknown, sub = 'user-1') {
 }
 
 const adminProfile = () => supabaseSelect('profiles', () =>
-  jsonResponse({ org_id: 'org-1', role: 'Admin' },
+  jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' },
     { headers: { 'content-type': 'application/vnd.pgrst.object+json' } }));
 const notOperator = () => supabaseSelect('platform_operators', () =>
   new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -31,11 +31,7 @@ describe('external-disconnect', () => {
     await withFetchMock(
       [
         adminProfile(), notOperator(),
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
-            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
-        supabaseRpc('deactivate_external_binding', (call) => {
+        supabaseRpc('disconnect_external_integration', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_external_tier, 'erpnext');
           assertEquals(body.p_actor_id, 'user-1');
@@ -46,7 +42,8 @@ describe('external-disconnect', () => {
       async ({ calls }) => {
         const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'deactivate_external_binding').length, 1);
+        assertEquals(rpcCall(calls, 'disconnect_external_integration').length, 1);
+        assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
         // AC-EAC-118: log_audit(text,uuid,uuid,uuid,jsonb) — p_actor_id is REQUIRED and there is no
@@ -69,26 +66,13 @@ describe('external-disconnect', () => {
     await withFetchMock(
       [
         adminProfile(), notOperator(),
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
-            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
-        supabaseRpc('deactivate_external_binding', () => jsonResponse(1)),
-        supabaseRpc('admin_change_domain_ownership', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_org_id, 'org-1');
-          assertEquals(body.p_external_tier, 'clickup');
-          assertEquals(body.p_domain, 'tasks');
-          assertEquals(body.p_action, 'release');
-          assertEquals(body.p_actor_id, 'user-1');
-          return jsonResponse(null);
-        }),
+        supabaseRpc('disconnect_external_integration', () => jsonResponse(1)),
         supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleDisconnectRequest(await authed({ tier: 'clickup' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 1);
+        assertEquals(rpcCall(calls, 'disconnect_external_integration').length, 1);
       },
     );
 
@@ -96,11 +80,7 @@ describe('external-disconnect', () => {
     await withFetchMock(
       [
         adminProfile(), notOperator(),
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', webhook_secret_ref: null },
-            { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-        supabaseRpc('delete_vault_secret', () => jsonResponse(null)),
-        supabaseRpc('deactivate_external_binding', () => jsonResponse(1)),
+        supabaseRpc('disconnect_external_integration', () => jsonResponse(1)),
         supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
@@ -131,13 +111,12 @@ describe('external-disconnect', () => {
     await withFetchMock(
       [
         adminProfile(), notOperator(),
-        supabaseSelect('external_org_bindings', () =>
-          new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseRpc('disconnect_external_integration', () => jsonResponse(0))
       ],
       async ({ calls }) => {
         const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 404);
-        assertEquals(rpcCall(calls, 'deactivate_external_binding').length, 0);
+        assertEquals(rpcCall(calls, 'disconnect_external_integration').length, 1);
       },
     );
   });

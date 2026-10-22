@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * AC-BFY-022 (FR-BFY-075, review finding 5) — THE SWEEP RE-RUNS THE BUDGET GATE BEFORE IT POSTS.
  *

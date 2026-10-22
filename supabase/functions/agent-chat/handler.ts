@@ -218,7 +218,7 @@ export interface HandlerDeps {
    * (AC-AUC-018). In production this is the same caller-JWT client as `deps.supabase`,
    * typed/named independently so a test can enable one without the other.
    */
-  usage?: { supabase: HandlerSupabaseLike };
+  usage?: { supabase?: HandlerSupabaseLike; serviceClient?: unknown };
   /**
    * A3: injectable can() predicate. If omitted, defaults to deny-all (safe default).
    * Production: pass `can` from src/auth/policy.ts.
@@ -730,7 +730,17 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // of `persist` (persistence flag) — usage recording is unconditional; `run_id` is set
       // only when a run row exists (persist truthy), else null (FR-AUC-004).
       if (deps.usage) {
-        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat', modelMs);
+        if (deps.usage.serviceClient) {
+          const { recordTrustedUsage } = await import('../_shared/usage.ts');
+          await recordTrustedUsage({
+            serviceClient: deps.usage.serviceClient,
+            userId: deps.userId,
+            orgId,
+            runId: persist ? runId : null,
+          }, resp, deps.usageAction ?? 'chat', modelMs);
+        } else if (deps.usage.supabase) {
+          await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat', modelMs);
+        }
       }
 
       // Emit any text content as an assistant event.
@@ -1167,7 +1177,12 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         tools: [], // disable tools — the model MUST answer with text
       });
       if (deps.usage) {
-        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, synthResp, deps.usageAction ?? 'chat', Date.now() - _s0);
+        if (deps.usage.serviceClient) {
+          const { recordTrustedUsage } = await import('../_shared/usage.ts');
+          await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId: deps.userId, orgId, runId: persist ? runId : null }, synthResp, deps.usageAction ?? 'chat', Date.now() - _s0);
+        } else if (deps.usage.supabase) {
+          await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, synthResp, deps.usageAction ?? 'chat', Date.now() - _s0);
+        }
       }
       // Read ONLY the text content — never dispatch synthResp.message.tool_calls. Tools were disabled
       // (tools:[]), so a compliant model returns none; but even a non-compliant one cannot mutate state

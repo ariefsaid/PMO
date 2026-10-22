@@ -172,6 +172,7 @@
     "create_rfq(uuid,text,text,date,numeric,text,uuid,timestamp with time zone)",
     "create_vault_secret_for_org(uuid,text,text,text,uuid)",
     "deactivate_external_binding(uuid,text,uuid)",
+    "disconnect_external_integration(uuid,text,uuid)",
     "delete_vault_secret(text)",
     "erpnext_sweep_tick()",
     "fill_sales_invoice_project(uuid,uuid,uuid,text)",
@@ -274,6 +275,7 @@
     "transition_work_order(uuid,work_order_status,boolean)",
     "upsert_erp_purchase_documents(uuid,jsonb)",
     "void_vendor_withholding_slip(uuid,integer,text)",
+    "unlink_external_integration(uuid,text,uuid,uuid)",
     "withdraw_progress_claim(uuid)",
     "withdraw_work_order_acceptance(uuid)"
   ],

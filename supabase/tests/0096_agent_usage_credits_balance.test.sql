@@ -6,7 +6,7 @@
 -- the same RPC. RED-1 (negative-cost forgery) is UNCHANGED — agent_usage stays owner-pinned with
 -- the non-negative CHECK. Fixtures inserted as the table owner; namespace 00960000-….
 begin;
-select plan(6);
+select plan(9);
 
 -- ── Fixtures: org A (default) has Fay + Gus; org B has Hal. ──
 insert into organizations (id, name) values
@@ -63,23 +63,37 @@ select is(public.org_credit_balance('00960000-0000-0000-0000-000000000002'), -5:
 reset role;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- RED-1 (UNCHANGED): negative cost / negative token forgery via a direct owner-JWT RLS insert
--- is rejected by the CHECK constraint (23514), not merely relied upon the edge fn's clamp.
+-- The trusted writer migration removes direct authenticated INSERT: neither forged nor valid rows may
+-- be submitted by a caller JWT. Keep the data-integrity controls independently bound under owner
+-- execution, where the CHECK constraints themselves are reached.
 -- ════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00960000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$ insert into agent_usage (owner_id, model, cost) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', -1000000) $$,
+  '42501', 'permission denied for table agent_usage',
+  'AC-AUC-012 caller JWT cannot forge usage cost');
+select throws_ok(
+  $$ insert into agent_usage (owner_id, model, prompt_tokens, completion_tokens) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', -1, -1) $$,
+  '42501', 'permission denied for table agent_usage',
+  'AC-AUC-012 caller JWT cannot submit usage tokens');
+select throws_ok(
+  $$ insert into agent_usage (owner_id, model, prompt_tokens, completion_tokens, cost) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', 10, 20, 0.05) $$,
+  '42501', 'permission denied for table agent_usage',
+  'AC-AUC-012 caller JWT cannot directly write even valid usage rows');
+reset role;
+set local request.jwt.claims = '';
+select throws_ok(
+  $$ insert into agent_usage (owner_id, model, cost) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', -1000000) $$,
   '23514', null,
-  'RED-1 agent_usage.cost = -1000000 (forged credit) rejected by the non-negative check constraint');
+  'AC-AUC-013 trusted writers remain subject to the non-negative cost constraint');
 select throws_ok(
   $$ insert into agent_usage (owner_id, model, prompt_tokens, completion_tokens) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', -1, -1) $$,
   '23514', null,
-  'RED-1 agent_usage negative prompt_tokens/completion_tokens rejected by the non-negative check constraint');
+  'AC-AUC-013 trusted writers remain subject to the non-negative token constraint');
 select lives_ok(
   $$ insert into agent_usage (owner_id, model, prompt_tokens, completion_tokens, cost) values ('00960000-0000-0000-0000-0000000000a1', 'test-model', 10, 20, 0.05) $$,
-  'RED-1 a valid non-negative agent_usage insert still succeeds');
-reset role;
+  'AC-AUC-013 trusted writer can insert a valid usage row');
 
 select * from finish();
 rollback;

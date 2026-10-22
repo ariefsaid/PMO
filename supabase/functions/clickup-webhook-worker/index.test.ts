@@ -224,17 +224,19 @@ Deno.test('OD-INT-11: a re-GET 404 (task no longer exists) collapses to the same
   assert(applyDeps.tombstones.length === 1, 'expected exactly one tombstone');
 });
 
-function fakeBindingResolverClient() {
+function fakeBindingResolverClient(opts: { mapped?: boolean } = {}) {
   return {
     from(table: string) {
       const filters: Record<string, string> = {};
       const query: any = {
         select: () => query,
         eq: (column: string, value: string) => { filters[column] = value; return query; },
+        is: (column: string, value: null) => { filters[column] = String(value); return query; },
         maybeSingle: async () => {
-          if (table === 'external_refs') return { data: null };
+          if (table === 'external_refs') return { data: opts.mapped ? { org_id: 'org-1', pmo_record_id: 'task-1' } : null };
+          if (table === 'tasks') return { data: { project_id: 'project-only-bound' } };
           if (table === 'external_project_bindings') {
-            return filters.external_container_id === 'list-unbound'
+            return filters.external_container_id === 'list-unbound' || filters.disconnected_at !== 'null'
               ? { data: null }
               : { data: { org_id: 'org-1', project_id: 'project-only-bound', config: {} } };
           }
@@ -249,6 +251,13 @@ function fakeBindingResolverClient() {
     },
   };
 }
+
+Deno.test('AC-SEC-A3 the ClickUp binding resolution paths require an active binding', async () => {
+  const adopted = await resolveBindingLive(fakeBindingResolverClient() as never, 'task-1', 'list-bound');
+  const mapped = await resolveBindingLive(fakeBindingResolverClient({ mapped: true }) as never, 'task-1', null);
+  assert(adopted?.projectId === 'project-only-bound', 'the active List binding should resolve');
+  assert(mapped?.projectId === 'project-only-bound', 'the active mapped-task binding should resolve');
+});
 
 Deno.test('AC-IEM-014: an unbound List never leaks into the one bound project and is recorded as unresolvable', async () => {
   const applyDeps = makeApplyDeps();

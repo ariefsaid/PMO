@@ -353,8 +353,8 @@ describe('external-items — host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — no Vault read, no ERP call`, async () => {
-      await withDns(records, () =>
-        withFetchMock(routes(), async ({ calls }) => {
+      await withFetchMock(routes(), async ({ calls }) =>
+        withDns(records, async () => {
           const response = await handleItemsRequest(await request({ purpose: 'sales' }));
           assertEquals(response.status, 422);
           assertEquals(await response.json(), {
@@ -368,8 +368,8 @@ describe('external-items — host guard (#751)', () => {
   }
 
   it('#751 fails closed when the resolver errors — no Vault read, no ERP call', async () => {
-    await withDns('failure', () =>
-      withFetchMock(routes(), async ({ calls }) => {
+    await withFetchMock(routes(), async ({ calls }) =>
+      withDns('failure', async () => {
         const response = await handleItemsRequest(await request({ purpose: 'sales' }));
         assertEquals(response.status, 422);
         assertEquals(await response.json(), {

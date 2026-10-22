@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * #916 [Deno] — the doctype walk is BOUNDED per tick: a document budget AND a whole-tick time budget,
  * with the per-doctype watermark (`external_sync_watermarks`) as the persisted cursor.
