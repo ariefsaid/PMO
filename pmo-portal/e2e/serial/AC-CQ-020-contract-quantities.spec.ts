@@ -43,6 +43,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
   const documentTitle = `Signed BAST ${suffix}`;
   let projectId = '';
   const workOrderId = crypto.randomUUID();
+  const documentId = crypto.randomUUID();
 
   try {
     // --- Prerequisites by API --------------------------------------------------------------------------------
@@ -79,8 +80,8 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
 
     // The signed BAST in the project register: Issued, with a file.
     const document = await admin.from('project_documents').insert({
-      org_id: orgId, project_id: projectId, category: 'Handover', title: documentTitle, status: 'Issued',
-      file_path: `e2e/${suffix}/signed-bast.pdf`, code: `BAST-${suffix}`,
+      id: documentId, org_id: orgId, project_id: projectId, category: 'Handover', title: documentTitle, status: 'Issued',
+      file_path: `${orgId}/${projectId}/${documentId}/signed-bast.pdf`, code: `BAST-${suffix}`,
     });
     if (document.error) throw new Error('AC-CQ-020 fixture document: ' + document.error.message);
 

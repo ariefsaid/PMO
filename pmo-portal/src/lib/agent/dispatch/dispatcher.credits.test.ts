@@ -237,10 +237,9 @@ describe('runDispatchTick — AC-AAN-027 over-credit no-start plus warning notif
       expect.objectContaining({ last_fired_at: expect.any(String) }),
     );
 
-    // Usage recording is threaded to the fired run under the SAME minted owner client (the
-    // _shared/usage.ts seam consumed via HandlerDeps.usage — never service_role).
+    // Usage recording is threaded through the trusted metering writer for the verified run.
     const [, handlerDeps] = handler.mock.calls[0];
-    expect(handlerDeps.usage).toMatchObject({ supabase: minted.client });
+    expect(handlerDeps.usage).toMatchObject({ serviceClient: svc.client });
   });
 
   it("AC-USE-002 (ops-admin-surface S5): the fired run is threaded usageAction='automation'", async () => {

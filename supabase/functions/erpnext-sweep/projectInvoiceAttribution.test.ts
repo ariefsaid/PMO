@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { resolveInvoiceProjects, sweepOrgDoctypesLive } = await import('./index.ts');
 import type { SupabaseClient } from '@supabase/supabase-js';

@@ -26,6 +26,7 @@ export interface DispatchServiceClient {
 
 export interface DispatchFilterBuilder {
   eq(column: string, value: string): DispatchFilterBuilder;
+  is(column: string, value: null): DispatchFilterBuilder;
   maybeSingle(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
   single(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
@@ -58,6 +59,7 @@ export async function resolveClickUpDispatchAdapter(deps: ClickUpDispatchFactory
     .eq('org_id', deps.orgId)
     .eq('project_id', projectId)
     .eq('external_tier', CLICKUP_TIER)
+    .is('disconnected_at', null)
     .maybeSingle();
   if (bindingError || !binding) {
     throw new AppError('no external binding configured for this project', bindingError?.code ?? 'BINDING_NOT_FOUND');

@@ -196,7 +196,7 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
     userId,
     rateGuard: creditsEnforced ? createCreditRateGuard({ supabase: callerClient as never }) : undefined,
     // FR-AUC-002/015: usage recording is UNCONDITIONAL (no flag).
-    usage: { supabase: callerClient as never },
+    usage: { serviceClient: verifierClient as never },
   });
 
   // ── 7. Return JSON response ───────────────────────────────────────────────

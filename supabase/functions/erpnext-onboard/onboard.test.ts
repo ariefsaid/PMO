@@ -3,6 +3,7 @@
 // refuses instead of falling back to the env pair. Binds the SHIPPED handler (./index.ts) and mocks
 // globalThis.fetch — no new test deps (this fn's deno.lock is frozen).
 // Verify: cd supabase/functions/erpnext-onboard && deno test --config deno.json --allow-env --allow-net --allow-read onboard.test.ts
+import '../_shared/testing/publicErpDns.ts';
 import { handleOnboardRequest } from './index.ts';
 
 function assert(cond: boolean, msg: string): void { if (!cond) throw new Error(msg); }

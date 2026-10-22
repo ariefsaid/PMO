@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * AC-998 sweep failure visibility — exercises the shipped sweep wiring, not copied orchestration.
  */

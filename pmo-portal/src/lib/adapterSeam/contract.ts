@@ -27,7 +27,7 @@ export interface CommandResult {
 }
 
 /** Classified adapter errors (FR-EAS-023). */
-export type AdapterErrorCode = 'commit-rejected' | 'external-unreachable';
+export type AdapterErrorCode = 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted';
 export class AdapterError extends Error {
   readonly code: AdapterErrorCode;
   constructor(code: AdapterErrorCode, message: string) {

@@ -127,6 +127,8 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
+  if (profile.status !== 'active') return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+
   // 4. Check platform operator status
   const { data: isOperator } = await serviceClient
     .from('platform_operators')
@@ -182,7 +184,8 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
       pmProfileActive = pmProfile?.status === 'active';
     }
 
-    const allowed = isAdmin || isPlatformOperator || (isPmOfProject && pmProfileActive);
+    const allowed = isAdmin || isPlatformOperator ||
+      (profile.role === 'Project Manager' && isPmOfProject && pmProfileActive);
     if (!allowed) {
       return errorResponse(
         'Admin, Operator, or Project Manager of this project (with active profile) required',
@@ -205,16 +208,18 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
       return errorResponse('No active ClickUp binding found for this project', 'NOT_FOUND', 404);
     }
 
-    // Soft-archive: set disconnected_at = now()
-    const { error: updateError } = await serviceClient
-      .from('external_project_bindings')
-      .update({ disconnected_at: new Date().toISOString() })
-      .eq('id', binding.id);
-
+    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration', {
+      p_org_id: profile.org_id,
+      p_external_tier: 'clickup',
+      p_project_id: projectId,
+      p_actor_id: userId,
+    });
     if (updateError) {
-      console.error('external_project_bindings soft-archive failed', updateError);
-      return errorResponse('Failed to unlink project', 'INTERNAL', 500);
+      console.error('unlink_external_integration failed', updateError);
+      const denied = updateError.code === '42501';
+      return errorResponse('Failed to unlink project', denied ? 'FORBIDDEN' : 'INTERNAL', denied ? 403 : 500);
     }
+    if (touched === 0) return errorResponse('No active ClickUp binding found for this project', 'NOT_FOUND', 404);
 
     // Audit log
     const { error: auditError } = await serviceClient.rpc('log_audit', {
@@ -260,18 +265,18 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
       return errorResponse('No ERPNext company linked', 'NOT_FOUND', 404);
     }
 
-    // Clear company from config
-    const newConfig = { ...currentConfig, company: null };
-    const { error: updateError } = await serviceClient
-      .from('external_org_bindings')
-      .update({ config: newConfig })
-      .eq('org_id', profile.org_id)
-      .eq('external_tier', 'erpnext');
-
+    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration', {
+      p_org_id: profile.org_id,
+      p_external_tier: 'erpnext',
+      p_project_id: null,
+      p_actor_id: userId,
+    });
     if (updateError) {
-      console.error('external_org_bindings config clear failed', updateError);
-      return errorResponse('Failed to unlink ERPNext company', 'INTERNAL', 500);
+      console.error('unlink_external_integration failed', updateError);
+      const denied = updateError.code === '42501';
+      return errorResponse('Failed to unlink ERPNext company', denied ? 'FORBIDDEN' : 'INTERNAL', denied ? 403 : 500);
     }
+    if (touched === 0) return errorResponse('No ERPNext company linked', 'NOT_FOUND', 404);
 
     // Audit log
     const { error: auditError } = await serviceClient.rpc('log_audit', {

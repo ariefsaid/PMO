@@ -112,8 +112,9 @@ test.describe('AC-PB-003: a down payment and a billing claim post through the cu
         description: 'Route survey', unit: 'km', quantity: 10, rate: 50000 }).select('id').single();
       expect(boq.error).toBeNull();
       boqId = boq.data!.id as string;
-      const evidence = await admin.from('project_documents').insert({ org_id: ORG_ID, project_id: seeded.projectId, category: 'Report',
-        title: `Progress report ${suffix}`, status: 'Issued', revision: 'A', file_path: `e2e/${suffix}.pdf` }).select('id').single();
+      const evidenceId = crypto.randomUUID();
+      const evidence = await admin.from('project_documents').insert({ id: evidenceId, org_id: ORG_ID, project_id: seeded.projectId, category: 'Report',
+        title: `Progress report ${suffix}`, status: 'Issued', revision: 'A', file_path: `${ORG_ID}/${seeded.projectId}/${evidenceId}/${suffix}.pdf` }).select('id').single();
       expect(evidence.error).toBeNull();
       documentId = evidence.data!.id as string;
 

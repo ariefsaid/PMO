@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveErpAuthPair } from './erpAuthPair.ts';
-import { isPermittedErpSiteUrl } from './erpHostGuard.ts';
+import { guardedErpFetch, isPermittedErpSiteUrl } from './erpHostGuard.ts';
 
 export interface ErpClientForOrg {
   apiKey: string;
@@ -39,7 +39,12 @@ export async function erpClientForOrg(
   try {
     const credentials = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref });
     return {
-      client: { ...credentials, baseUrl: binding.site_url, fetchImpl: fetch, maxRetries: 0 },
+      client: {
+        ...credentials,
+        baseUrl: binding.site_url,
+        fetchImpl: guardedErpFetch(binding.site_url),
+        maxRetries: 0,
+      },
       config,
     };
   } catch {

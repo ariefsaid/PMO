@@ -155,7 +155,7 @@ select throws_ok($$ select public.create_progress_claim('02620000-0000-0000-0000
   'AC-BWO-002 a claim whose gross would pass the work order is refused');                                           -- 25
 reset role;
 insert into project_documents (id, org_id, project_id, category, title, status, revision, file_path) values
-  ('02620000-0000-0000-0000-0000000000a7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'Report', 'BWO evidence', 'Issued', 'A', 'e2e/bwo-evidence.pdf');
+  ('02620000-0000-0000-0000-0000000000a7', '02620000-0000-0000-0000-000000000001', '02620000-0000-0000-0000-0000000000c1', 'Report', 'BWO evidence', 'Issued', 'A', '02620000-0000-0000-0000-000000000001/02620000-0000-0000-0000-0000000000c1/02620000-0000-0000-0000-0000000000a7/bwo-evidence.pdf');
 insert into progress_claim_evidence (org_id, claim_id, document_id, document_status, document_revision, attached_by) values
   ('02620000-0000-0000-0000-000000000001', current_setting('bwo.claim')::uuid, '02620000-0000-0000-0000-0000000000a7', 'Issued', 'A', '02620000-0000-0000-0000-0000000000a2');
 set local request.jwt.claims = '{"role":"service_role"}';

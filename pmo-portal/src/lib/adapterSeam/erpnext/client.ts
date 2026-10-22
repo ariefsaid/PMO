@@ -20,7 +20,7 @@ import { AppError } from '../../appError.ts';
 export class ErpError extends AdapterError {
   readonly status: number;
   readonly retryable: boolean;
-  constructor(status: number, code: 'commit-rejected' | 'external-unreachable', message: string, retryable = true) {
+  constructor(status: number, code: 'commit-rejected' | 'external-unreachable' | 'destination_not_permitted', message: string, retryable = true) {
     super(code, message);
     this.name = 'ErpError';
     this.status = status;
@@ -513,6 +513,9 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       });
     } catch (err) {
       clearTimeout(deadline);
+      if (err instanceof Error && err.message === 'ERPNext destination is not permitted') {
+        throw new ErpError(0, 'destination_not_permitted', 'ERPNext destination is not permitted', false);
+      }
       if (financialMode) {
         if (err instanceof AppError && err.code !== 'external-unreachable') throw err;
         if (attempt < maxRetries) {

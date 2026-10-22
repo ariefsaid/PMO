@@ -78,7 +78,7 @@ async function callModel(
   model: string,
   system: string,
   messages: ModelMessage[],
-): Promise<{ spec: CompositionSpec; tokensUsed: number }> {
+): Promise<{ spec: CompositionSpec; tokensUsed: number; providerCost: number }> {
   const response = await modelClient.create({
     model,
     max_tokens: 4096,
@@ -106,6 +106,7 @@ async function callModel(
   return {
     spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
     tokensUsed,
+    providerCost: typeof response.usage?.total_cost === 'number' ? response.usage.total_cost : 0,
   };
 }
 
@@ -127,7 +128,7 @@ export async function composeSpec(
   prompt: string,
   orgId: string,
   deps: ComposeSpecDeps,
-): Promise<{ spec: CompositionSpec; repairAttempts: number; tokensUsed: number }> {
+): Promise<{ spec: CompositionSpec; repairAttempts: number; tokensUsed: number; providerCost?: number }> {
   const { modelClient, userId, model } = deps;
 
   const system = buildSystemPrompt(
@@ -145,16 +146,18 @@ export async function composeSpec(
 
   let repairAttempts = 0;
   let totalTokensUsed = 0;
+  let totalProviderCost = 0;
 
   try {
     while (true) {
-      const { spec, tokensUsed } = await callModel(modelClient, model, system, conversationMessages);
+      const { spec, tokensUsed, providerCost } = await callModel(modelClient, model, system, conversationMessages);
       totalTokensUsed += tokensUsed;
+      totalProviderCost += providerCost;
 
       try {
         compileCompositionSpec(spec, ctx);
         // Compile succeeded
-        return { spec, repairAttempts, tokensUsed: totalTokensUsed };
+        return { spec, repairAttempts, tokensUsed: totalTokensUsed, providerCost: totalProviderCost };
       } catch (err) {
         if (!(err instanceof ValidationError)) {
           throw err;

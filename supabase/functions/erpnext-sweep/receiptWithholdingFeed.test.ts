@@ -1,3 +1,5 @@
+import "../_shared/testing/publicErpDns.ts";
+
 /**
  * #762 [Deno] — feed robustness for receipts with tax withheld.
  *

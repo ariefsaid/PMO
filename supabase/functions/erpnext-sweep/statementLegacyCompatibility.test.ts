@@ -1,3 +1,4 @@
+import "../_shared/testing/publicErpDns.ts";
 // Compatibility tests drive the shipped sweep cycle, ERP source feeds, and legacy accounting refreshers.
 (Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const {

@@ -584,6 +584,15 @@ describe('erpnext/client', () => {
   // the body is read as a stream with a byte cap. One change in the shared client covers every
   // external-* edge function, the sweep, adapter-dispatch, dispatchFactory and ledgerFetch.
   describe('response-body bounds (#918 — the request deadline covers reading the body; bodies are read with a size cap)', () => {
+    it('keeps destination refusals distinct and does not retry or send again', async () => {
+      const deps = fetchDeps(async () => { throw new Error('ERPNext destination is not permitted'); });
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'destination_not_permitted',
+        retryable: false,
+      });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
     it('aborts at the deadline when the server sends headers and then stalls the body (the deadline covers the body read)', async () => {
       const deps = { ...withProbeBudget(fetchDeps(stalledBodyFetch())), timeoutMs: 50 };
       await expect(getDoc(deps, 'Supplier', 'X')).rejects.toMatchObject({

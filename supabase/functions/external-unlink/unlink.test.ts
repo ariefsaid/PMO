@@ -22,7 +22,7 @@ import { handleUnlinkRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
-  withFetchMock,
+  withFetchMock as withEdgeFetchMock,
   supabaseRpc,
   supabaseSelect,
   restCall,
@@ -44,6 +44,10 @@ afterAll(() => env.restore());
 async function authed(body: unknown, sub = 'user-1') {
   const jwt = await auth.mintJwt({ sub });
   return createAuthedRequest('http://edge.test/unlink', body, jwt);
+}
+
+async function withFetchMock(routes: Parameters<typeof withEdgeFetchMock>[0], run: Parameters<typeof withEdgeFetchMock>[1]) {
+  return withEdgeFetchMock([...routes, supabaseRpc('unlink_external_integration', () => jsonResponse(1))], run);
 }
 
 describe('external-unlink — ClickUp branch', () => {
@@ -73,17 +77,12 @@ describe('external-unlink — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        {
-          label: 'soft-archive binding',
-          method: 'PATCH',
-          pathname: '/rest/v1/external_project_bindings',
-          response: (call) => {
-            assertEquals(typeof call.bodyJson, 'object');
-            const body = call.bodyJson as Record<string, unknown>;
-            if (typeof body.disconnected_at !== 'string') throw new Error('missing disconnected_at');
-            return jsonResponse([]);
-          },
-        },
+        supabaseRpc('unlink_external_integration', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_external_tier, 'clickup');
+          assertEquals(body.p_project_id, 'proj-1');
+          return jsonResponse(1);
+        }),
 
         supabaseRpc('log_audit', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
@@ -97,7 +96,7 @@ describe('external-unlink — ClickUp branch', () => {
         const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true });
-        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
@@ -126,23 +125,33 @@ describe('external-unlink — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        {
-          label: 'soft-archive binding',
-          method: 'PATCH',
-          pathname: '/rest/v1/external_project_bindings',
-          response: (call) => {
-            const body = call.bodyJson as Record<string, unknown>;
-            if (typeof body.disconnected_at !== 'string') throw new Error('missing disconnected_at');
-            return jsonResponse([]);
-          },
-        },
+        supabaseRpc('unlink_external_integration', () => jsonResponse(1)),
 
         supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
+      },
+    );
+  });
+
+  it('named project manager without the Project Manager role is denied', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+        supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
+        supabaseSelect('projects', () => jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 0);
       },
     );
   });
@@ -324,7 +333,7 @@ describe('external-unlink — ERPNext branch', () => {
         const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true });
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
@@ -365,7 +374,7 @@ describe('external-unlink — ERPNext branch', () => {
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
       },
     );
   });

@@ -3,8 +3,19 @@
  * Deputy invariant by construction: takes the already-injected caller-JWT HandlerSupabaseLike;
  * never constructs a client, never references service_role.
  */
-import type { HandlerSupabaseLike } from '../agent-chat/handler.ts';
-import type { ModelResponse } from './modelClient.ts';
+export interface ModelResponse {
+  model: string;
+  finish_reason: string;
+  message: { role: string; content: string | null };
+  usage?: {
+    prompt_tokens?: unknown;
+    completion_tokens?: unknown;
+    total_tokens?: unknown;
+    total_cost?: unknown;
+    cached_tokens?: unknown;
+    reasoning_tokens?: unknown;
+  };
+}
 
 /**
  * Clamp a single provider-reported usage value: Number.isFinite(x) && x >= 0 ? x : 0.
@@ -18,8 +29,23 @@ export function clampUsageValue(x: unknown): number {
 }
 
 export interface UsageDeps {
-  supabase: HandlerSupabaseLike;
+  supabase: {
+    from(table: string): {
+      insert(row: Record<string, unknown>): {
+        select(): { single(): PromiseLike<{ data?: unknown; error: unknown }> };
+      };
+    };
+  };
   runId: string | null;
+}
+
+/** Privileged ledger writer. Identity and tenancy are supplied only by verified function paths. */
+export interface TrustedUsageDeps {
+  serviceClient: unknown;
+  userId: string;
+  orgId: string;
+  runId: string | null;
+  threadId?: string | null;
 }
 
 /** The three call-site kinds (ops-admin-surface S5, FR-USE-001) — matches the DB CHECK. */
@@ -77,6 +103,15 @@ export class UsageMeteringUnavailableError extends Error {
     super('usage metering unavailable');
     this.name = 'UsageMeteringUnavailableError';
   }
+}
+
+function recordTrustedUsageFailure(error: unknown): void {
+  consecutiveInsertFailures++;
+  console.error('[agent-usage] USAGE_INSERT_FAILED', {
+    errorCode: 'USAGE_INSERT_FAILED',
+    code: error instanceof Error ? error.name : (error as { code?: string } | null)?.code ?? 'unknown',
+  });
+  if (consecutiveInsertFailures >= FAIL_CLOSED_THRESHOLD) throw new UsageMeteringUnavailableError();
 }
 
 /**
@@ -142,12 +177,108 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
 }
 
 /**
+ * Write provider usage through the service-role client after independently checking the
+ * membership and run/thread ownership. Callers pass only provider responses, never cost fields.
+ */
+export async function recordTrustedUsage(
+  deps: TrustedUsageDeps,
+  resp: ModelResponse,
+  action: UsageAction = 'chat',
+  durationMs?: number,
+): Promise<void> {
+  const client = deps.serviceClient as {
+    from(table: string): {
+      select(columns: string): {
+        eq(column: string, value: string): {
+          single(): Promise<{ data: Record<string, unknown> | null; error: unknown }>;
+        };
+      };
+      insert(row: Record<string, unknown>): { select(): { single(): Promise<{ error: unknown }> } };
+    };
+  };
+  let profileResult: { data: Record<string, unknown> | null; error: unknown };
+  try {
+    profileResult = await client.from('profiles').select('org_id').eq('id', deps.userId).single();
+  } catch (error) {
+    recordTrustedUsageFailure(error);
+    return;
+  }
+  if (profileResult.error) {
+    recordTrustedUsageFailure(profileResult.error);
+    return;
+  }
+  if (profileResult.data?.org_id !== deps.orgId) throw new Error('usage identity not verified');
+
+  if (deps.runId) {
+    let runResult: { data: Record<string, unknown> | null; error: unknown };
+    try {
+      runResult = await client.from('agent_runs').select('id, owner_id, org_id, thread_id').eq('id', deps.runId).single();
+    } catch (error) {
+      recordTrustedUsageFailure(error);
+      return;
+    }
+    if (runResult.error) {
+      recordTrustedUsageFailure(runResult.error);
+      return;
+    }
+    const run = runResult.data;
+    if (!run || run.owner_id !== deps.userId || run.org_id !== deps.orgId ||
+      (deps.threadId && run.thread_id !== deps.threadId)) throw new Error('usage run not owned');
+    let threadResult: { data: Record<string, unknown> | null; error: unknown };
+    try {
+      threadResult = await client.from('agent_threads').select('id, owner_id, org_id').eq('id', String(run.thread_id)).single();
+    } catch (error) {
+      recordTrustedUsageFailure(error);
+      return;
+    }
+    if (threadResult.error) {
+      recordTrustedUsageFailure(threadResult.error);
+      return;
+    }
+    const thread = threadResult.data;
+    if (!thread || thread.owner_id !== deps.userId || thread.org_id !== deps.orgId) throw new Error('usage thread not owned');
+  }
+
+  const cost = clampUsageValue(resp.usage?.total_cost);
+  let insertFailed = false;
+  let insertErrorCode: string | undefined;
+  try {
+    const { error } = await client.from('agent_usage').insert({
+      owner_id: deps.userId,
+      org_id: deps.orgId,
+      run_id: deps.runId,
+      model: resp.model,
+      prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
+      completion_tokens: clampUsageValue(resp.usage?.completion_tokens),
+      cost,
+      provider_cost_usd: cost,
+      action,
+      cached_tokens: clampUsageValue(resp.usage?.cached_tokens),
+      reasoning_tokens: clampUsageValue(resp.usage?.reasoning_tokens),
+      duration_ms: clampUsageValue(durationMs),
+    }).select().single();
+    if (error) {
+      insertFailed = true;
+      insertErrorCode = (error as { code?: string }).code;
+    }
+  } catch (error) {
+    insertFailed = true;
+    insertErrorCode = error instanceof Error ? error.name : 'unknown';
+  }
+  if (!insertFailed) {
+    consecutiveInsertFailures = 0;
+    return;
+  }
+  recordTrustedUsageFailure({ code: insertErrorCode });
+}
+
+/**
  * Insert one agent_usage row for a single ModelResponse (agent-chat's model-call choke
  * point). Thin wrapper over insertUsageRow — extracts + clamps the ModelResponse.usage
  * fields into the flat shape. `action` defaults to 'chat' (agent-chat's own call-site);
  * agent-dispatch's fired-run call-site passes 'automation' explicitly.
  */
-export async function recordUsage(
+export function recordUsage(
   deps: UsageDeps,
   resp: ModelResponse,
   action?: UsageAction,

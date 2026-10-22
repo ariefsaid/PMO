@@ -11,7 +11,8 @@ function isPrivateIpv4(value: string): boolean {
   if (!ip) return false;
   const [a, b] = ip;
   return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && (b === 0 || b === 168)) ||
+    (a === 198 && (b === 18 || b === 19)) ||
     (a === 100 && b >= 64 && b <= 127) || a >= 224;
 }
 
@@ -41,27 +42,30 @@ function isPrivateAddress(value: string): boolean {
   const words = ipv6Words(bare);
   if (!words) return true;
   if (words.every((word) => word === 0) || (words.slice(0, 7).every((word) => word === 0) && words[7] === 1)) return true;
-  if ((words[0] & 0xffc0) === 0xfe80 || (words[0] & 0xfe00) === 0xfc00) return true; // link-local / unique-local
+  if ((words[0] & 0xffc0) === 0xfe80 || (words[0] & 0xfe00) === 0xfc00 || (words[0] & 0xffc0) === 0xfec0) return true;
+  const embeddedIpv4 = `${words[6] >> 8}.${words[6] & 255}.${words[7] >> 8}.${words[7] & 255}`;
+  const ipv4Compatible = words.slice(0, 6).every((word) => word === 0);
   const mapped = words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff;
-  if (mapped) return isPrivateIpv4(`${words[6] >> 8}.${words[6] & 255}.${words[7] >> 8}.${words[7] & 255}`);
+  const nat64 = words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((word) => word === 0);
+  const sixToFour = words[0] === 0x2002;
+  if (ipv4Compatible || mapped || nat64) return isPrivateIpv4(embeddedIpv4);
+  if (sixToFour) return isPrivateIpv4(`${words[1] >> 8}.${words[1] & 255}.${words[2] >> 8}.${words[2] & 255}`);
   return false;
 }
 
 let resolverFallbackWarned = false;
-
 function warnResolverFallback(): void {
   if (resolverFallbackWarned) return;
   resolverFallbackWarned = true;
   console.warn('[erp-host-guard] DNS resolution is unavailable; applying hostname-text checks only');
 }
-
 function isResolverUnavailable(error: unknown): boolean {
   const name = error instanceof Error ? error.name : '';
   return name === 'NotSupported' || name === 'PermissionDenied';
 }
 
-/** Return true on refusal. DNS failures fail closed; both A and AAAA are checked. */
-export async function isPrivateOrReservedHost(hostname: string): Promise<boolean> {
+/** Return true on refusal. Both A and AAAA are checked. */
+export async function isPrivateOrReservedHost(hostname: string, signal?: AbortSignal): Promise<boolean> {
   let host = hostname.toLowerCase();
   if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
   if (!host.includes(':')) host = host.replace(/:\d+$/, '');
@@ -70,15 +74,17 @@ export async function isPrivateOrReservedHost(hostname: string): Promise<boolean
 
   // Public address literals do not need DNS (and querying them as names would fail).
   if (ipv4Octets(host) || host.includes(':')) return false;
-  const resolver = (globalThis as typeof globalThis & { Deno?: { resolveDns?: (host: string, type: 'A' | 'AAAA') => Promise<string[]> } }).Deno?.resolveDns;
+  const resolver = (globalThis as typeof globalThis & { Deno?: { resolveDns?: (host: string, type: 'A' | 'AAAA', options?: { signal?: AbortSignal }) => Promise<string[]> } }).Deno?.resolveDns;
   if (typeof resolver !== 'function') {
     warnResolverFallback();
+    // Retain this compatibility path until hosted logs confirm DNS works in production; then fail closed.
     return false;
   }
+  if (signal?.aborted) return true;
   try {
     const resolve = async (recordType: 'A' | 'AAAA'): Promise<string[]> => {
       try {
-        return await resolver(host, recordType);
+        return await resolver(host, recordType, { signal });
       } catch (error) {
         if (error instanceof Deno.errors.NotFound) return [];
         throw error;
@@ -96,12 +102,27 @@ export async function isPrivateOrReservedHost(hostname: string): Promise<boolean
 }
 
 /** URL validation shared by ERP connection and request functions. */
-export async function isPermittedErpSiteUrl(siteUrl: string): Promise<boolean> {
+export async function isPermittedErpSiteUrl(siteUrl: string, signal?: AbortSignal): Promise<boolean> {
   let site: URL;
   try {
     site = new URL(siteUrl);
   } catch {
     return false;
   }
-  return site.protocol === 'https:' && !(await isPrivateOrReservedHost(site.hostname));
+  return site.protocol === 'https:' && !(await isPrivateOrReservedHost(site.hostname, signal));
+}
+
+/** Validates every outbound request against the configured ERP origin. */
+export function guardedErpFetch(siteUrl: string): typeof fetch {
+  let origin: string;
+  try { origin = new URL(siteUrl).origin; } catch { throw new Error('ERPNext destination is not permitted'); }
+  return async (input, init) => {
+    const request = input instanceof Request ? input : null;
+    const requestedUrl = new URL(request?.url ?? String(input), origin);
+    const signal = (init as globalThis.RequestInit | undefined)?.signal ?? request?.signal;
+    if (requestedUrl.origin !== origin || !(await isPermittedErpSiteUrl(siteUrl, signal))) {
+      throw new Error('ERPNext destination is not permitted');
+    }
+    return fetch(input, init);
+  };
 }

@@ -50,6 +50,9 @@ select set_eq(
             -- 0292: project_documents now has multiple profile references. The DAL currently uses
             -- unqualified row reads only and has no profile embed from this register.
             ('project_documents -> profiles'),
+            -- 0342 adds a composite self-FK beside the existing parent FK. DAL reads are unembedded;
+            -- any future parent-document embed must name the intended constraint.
+            ('project_documents -> project_documents'),
             ('task_dependencies -> tasks'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the

@@ -104,7 +104,7 @@ insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_num
 -- Two documents: one that will be APPROVED (the §D subject) and one that stays Draft (the control).
 insert into project_documents (id, org_id, project_id, code, category, title, revision, doc_date, author_id, file_path, status) values
   ('01710000-0000-0000-0000-0000000000d0','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
-   'DOC-SCC-1','Drawing','Benign scope of work','A','2026-02-01','01710000-0000-0000-0000-0000000000a1','scc/benign.pdf','Draft'),
+   'DOC-SCC-1','Drawing','Benign scope of work','A','2026-02-01','01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-000000000001/01710000-0000-0000-0000-0000000000b1/01710000-0000-0000-0000-0000000000d0/benign.pdf','Draft'),
   ('01710000-0000-0000-0000-0000000000d9','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
    'DOC-SCC-2','Drawing','Still a draft','A','2026-02-01','01710000-0000-0000-0000-0000000000a1',null,'Draft');
 
@@ -420,7 +420,7 @@ select lives_ok(
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
-  $$ update public.project_documents set file_path = 'scc/swapped.pdf'
+  $$ update public.project_documents set file_path = '01710000-0000-0000-0000-000000000001/01710000-0000-0000-0000-0000000000b1/01710000-0000-0000-0000-0000000000d0/swapped.pdf'
       where id = '01710000-0000-0000-0000-0000000000d0' $$,
   '42501',
   'project_documents."Benign scope of work" is Approved and its file cannot be replaced from the client: the approval in transition_document_status (nobody approves their own document) attests to the FILE THAT WAS APPROVED, so swapping it afterwards would defeat that rule on the goal rather than on the transition — raise a revision instead',
@@ -429,7 +429,7 @@ reset role;
 
 select is(
   (select file_path from public.project_documents where id = '01710000-0000-0000-0000-0000000000d0'),
-  'scc/benign.pdf',
+  '01710000-0000-0000-0000-000000000001/01710000-0000-0000-0000-0000000000b1/01710000-0000-0000-0000-0000000000d0/benign.pdf',
   'AC-SCC-041 …and the approved file is still the one that was approved');
 
 -- ⚑ PINNED, STILL OPEN, OWNER'S CALL. The metadata edit on a non-Draft document is a SHIPPED,
@@ -463,7 +463,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ update public.project_documents set file_path = 'scc/uploaded.pdf'
+  $$ update public.project_documents set file_path = '01710000-0000-0000-0000-000000000001/01710000-0000-0000-0000-0000000000b1/01710000-0000-0000-0000-0000000000d9/uploaded.pdf'
       where id = '01710000-0000-0000-0000-0000000000d9' $$,
   'AC-SCC-044 CONTROL a DRAFT document''s file is still writable — DocumentsTab renders Upload/Replace on Draft only, so the guard costs the product nothing');
 reset role;
