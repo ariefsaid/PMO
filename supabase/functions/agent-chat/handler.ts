@@ -61,6 +61,7 @@ import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets
 
 /** Hard cap on tool-use rounds per run. D7. */
 export const MAX_TOOL_ROUNDS = 8;
+export const DEFAULT_AGENT_TEMPERATURE = 0.2;
 
 /**
  * #5 hardening (audit finding 3): max read tool calls dispatched concurrently in one round. A round
@@ -348,7 +349,8 @@ function buildDataTableWidgetFromQueryResult(
   if (!toolResult || typeof toolResult !== 'object' || 'error' in toolResult) return null;
 
   const result = toolResult as { rowCount?: number; rows?: unknown[] };
-  const rows = Array.isArray(result.rows) ? (result.rows as Record<string, unknown>[]) : [];
+  if (!Array.isArray(result.rows)) return null;
+  const rows = result.rows as Record<string, unknown>[];
 
   // Columns: prefer the explicit request; else infer from the first row's keys
   // (nothing to infer from an empty result with no explicit columns → null,
@@ -711,9 +713,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
-        // 0.8 (was provider-default ~1.0) — steadier tool routing, fewer thrash rounds on
-        // multi-intent follow-ups. Latency lever tracked alongside the throughput provider sort.
-        temperature: 0.8,
+        temperature: DEFAULT_AGENT_TEMPERATURE,
         messages: modelMessages,
         tools,
       });
@@ -1165,7 +1165,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       const synthResp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
-        temperature: 0.8,
+        temperature: DEFAULT_AGENT_TEMPERATURE,
         messages: [
           ...compactTranscript(messages, deps.compaction ?? DEFAULT_COMPACTION),
           {
