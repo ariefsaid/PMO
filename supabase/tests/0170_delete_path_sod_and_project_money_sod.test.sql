@@ -111,7 +111,7 @@ insert into procurement_quotations (id, org_id, procurement_id, vendor_id, vq_nu
 -- delete — the second cascade family.
 insert into procurement_quotation_files (id, org_id, quotation_id, title, file_path, uploaded_by_id) values
   ('01700000-0000-0000-0000-0000000000d7','01700000-0000-0000-0000-000000000001','01700000-0000-0000-0000-0000000000d6',
-   'DPS quote','dps/quote.pdf','01700000-0000-0000-0000-0000000000a1');
+   'DPS quote','01700000-0000-0000-0000-000000000001/01700000-0000-0000-0000-0000000000d3/quotation/01700000-0000-0000-0000-0000000000d7/quote.pdf','01700000-0000-0000-0000-0000000000a1');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- A. budget_versions — THE CASCADE. The sharpest instance in the whole class.

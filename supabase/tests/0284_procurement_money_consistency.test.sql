@@ -27,7 +27,7 @@ insert into procurements (id,org_id,title,status,requested_by_id,total_value,cur
  ('02840000-0000-0000-0000-000000000018','02840000-0000-0000-0000-000000000001','No invoice fallback','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',420,'USD'),
  ('02840000-0000-0000-0000-000000000019','02840000-0000-0000-0000-000000000001','Null invoice fallback','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',620,'USD'),
  ('02840000-0000-0000-0000-000000000020','02840000-0000-0000-0000-000000000001','Priced among null invoices','Vendor Invoiced','02840000-0000-0000-0000-0000000000a1',900,'USD');
-update procurements set approved_by_id='02840000-0000-0000-0000-0000000000a2' where id='02840000-0000-0000-0000-000000000012';
+update procurements set approved_by_id='02840000-0000-0000-0000-0000000000a2', approved_total_value=1200 where id='02840000-0000-0000-0000-000000000012';
 insert into procurement_invoices (id,org_id,procurement_id,vi_number,invoice_date,status,amount,currency,tax_treatment,tax_amount,withheld_amount) values
  ('02840000-0000-0000-0000-000000000080','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000013','VI-PMC',current_date,'Received',1000,'USD','exclusive',110,20),
  ('02840000-0000-0000-0000-000000000081','02840000-0000-0000-0000-000000000001','02840000-0000-0000-0000-000000000019','VI-PMC-NULL',current_date,'Received',null,'USD','exclusive',0,0),

@@ -87,11 +87,11 @@ update budget_versions set status = 'Active', activated_at = timestamptz '2026-0
 
 -- Procurement cases: one Draft (the create_payment surface) and one already Vendor Invoiced with a
 -- DIFFERENT approver (so the sanctioned Finance -> Paid transition can run without tripping SoD-b).
-insert into procurements (id, org_id, title, status, requested_by_id, approved_by_id, vendor_id, total_value) values
+insert into procurements (id, org_id, title, status, requested_by_id, approved_by_id, vendor_id, total_value, approved_total_value) values
   ('01710000-0000-0000-0000-0000000000d3','01710000-0000-0000-0000-000000000001','SCC draft case','Draft',
-   '01710000-0000-0000-0000-0000000000a1',null,'01710000-0000-0000-0000-0000000000c2',1000),
+   '01710000-0000-0000-0000-0000000000a1',null,'01710000-0000-0000-0000-0000000000c2',1000,null),
   ('01710000-0000-0000-0000-0000000000d8','01710000-0000-0000-0000-000000000001','SCC invoiced case','Vendor Invoiced',
-   '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000a2','01710000-0000-0000-0000-0000000000c2',1000);
+   '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000a2','01710000-0000-0000-0000-0000000000c2',1000,1000);
 
 insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount, status) values
   ('exclusive', 0, '01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',

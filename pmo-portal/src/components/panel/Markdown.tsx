@@ -29,7 +29,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
         remarkPlugins={[remarkGfm]}
         /* no rehypePlugins — raw HTML stays inert (ADR-0054 §2) */
         urlTransform={safeUrl}
-        disallowedElements={['script', 'style', 'iframe', 'form', 'input', 'button', 'object', 'embed', 'link', 'meta']}
+        disallowedElements={['script', 'style', 'iframe', 'form', 'input', 'button', 'object', 'embed', 'link', 'meta', 'img']}
         unwrapDisallowed
         components={{
           a: ({ href, children, ...rest }) => {
