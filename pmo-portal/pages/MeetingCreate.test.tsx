@@ -21,7 +21,7 @@ const { mutations, permission } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
@@ -54,6 +54,11 @@ beforeEach(() => {
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
+  it('AC-002 #1325: new meeting project option shows alias plus contractual name on its stable UUID', () => {
+    renderPage();
+    expect(screen.getByRole('option', { name: 'North Terminal — Harbour Upgrade' })).toHaveValue('p1');
+  });
+
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
     renderPage();
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();

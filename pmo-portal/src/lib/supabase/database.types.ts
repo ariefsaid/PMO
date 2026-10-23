@@ -5741,6 +5741,7 @@ export type Database = {
           last_update: string
           location: string | null
           name: string
+          short_name: string | null
           org_id: string
           pmo_project_number: string
           project_manager_id: string | null
@@ -5781,6 +5782,7 @@ export type Database = {
           last_update?: string
           location?: string | null
           name: string
+          short_name?: string | null
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
@@ -5821,6 +5823,7 @@ export type Database = {
           last_update?: string
           location?: string | null
           name?: string
+          short_name?: string | null
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null

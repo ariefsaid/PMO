@@ -5,6 +5,7 @@ import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projec
 import type { RunContext } from '@/src/lib/agent/runtime/port';
 import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 export interface ModuleDef {
   module: string;
@@ -485,8 +486,8 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
-  projects?: { id: string; name: string }[];
-  opportunities?: { id: string; name: string }[];
+  projects?: { id: string; name: string; short_name?: string | null }[];
+  opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
   /** CW-4a: incidents — the record "name" is its `type` (there is no title column). */
   incidents?: { id: string; type: string }[];
@@ -590,54 +591,43 @@ export function recordLabelForPath(
 ): string | undefined {
   const idFrom = (prefix: string): string | undefined => {
     if (!pathname.startsWith(`${prefix}/`)) return undefined;
-    // segment after the module prefix, dropping any trailing `/budget` etc.
     return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
   };
 
-  const projectId = idFrom('/projects');
-  if (projectId) {
-    // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
-    // internal record is in the active projects list; a pre-win / lost record is in the
-    // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
-    return (
-      lists.projects?.find((p) => p.id === projectId)?.name ??
-      lists.opportunities?.find((o) => o.id === projectId)?.name
-    );
-  }
-
-  const salesId = idFrom('/sales');
-  if (salesId) return lists.opportunities?.find((o) => o.id === salesId)?.name;
+  const project = projectIdentityForPath(pathname, lists);
+  if (project) return projectDisplayName(project);
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
-
-  // CW-4a: an incident's human label is its `type` (no title column).
   const incidentId = idFrom('/incidents');
   if (incidentId) return lists.incidents?.find((i) => i.id === incidentId)?.type;
-
-  // CW-4b: a company's label is its `name`, a contact's is its `full_name`.
   const companyId = idFrom('/companies');
   if (companyId) return lists.companies?.find((c) => c.id === companyId)?.name;
-
   const contactId = idFrom('/contacts');
   if (contactId) return lists.contacts?.find((c) => c.id === contactId)?.full_name;
-
-  // #526: a meeting's label is its `title`.
   const meetingId = idFrom('/meetings');
   if (meetingId) return lists.meetings?.find((m) => m.id === meetingId)?.title;
-
-  // Expense detail breadcrumb uses its human-facing claim number, then its title.
   const expenseId = idFrom('/expenses');
   if (expenseId) {
     const claim = lists.expenses?.find((item) => item.id === expenseId);
     return claim?.claim_number || claim?.title || undefined;
   }
-
-  // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
-
   return undefined;
+}
+
+function projectIdentityForPath(pathname: string, lists: RecordLists) {
+  const projectId = pathname.startsWith('/projects/') ? pathname.slice('/projects/'.length).split('/')[0] : undefined;
+  if (projectId) return lists.projects?.find((p) => p.id === projectId) ?? lists.opportunities?.find((o) => o.id === projectId);
+  const salesId = pathname.startsWith('/sales/') ? pathname.slice('/sales/'.length).split('/')[0] : undefined;
+  if (salesId) return lists.opportunities?.find((o) => o.id === salesId);
+  return undefined;
+}
+
+/** Contractual project title for hover disclosure on project and pipeline detail crumbs. */
+export function recordContractualNameForPath(pathname: string, lists: RecordLists): string | undefined {
+  return projectIdentityForPath(pathname, lists)?.name;
 }
 
 /**

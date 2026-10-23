@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath, MODULES, RAIL_PARENT_FOR_PATH } from '../routeMatch';
+import { breadcrumbForPath, recordLabelForPath, recordContractualNameForPath, MODULES, RAIL_PARENT_FOR_PATH } from '../routeMatch';
 import {
   createListReturnContext,
   LIST_RETURN_CONTEXT_KEY,
@@ -314,6 +314,26 @@ describe('breadcrumbForPath — contextual list return', () => {
 
 // ── /views/:viewId breadcrumb and recordLabel (FR-VR-053, FR-VR-082) ─────────
 import { vi } from 'vitest';
+
+describe('AC-002 #1325 project breadcrumb identities', () => {
+  const lists = {
+    projects: [{ id: 'delivery-1', name: 'Contractual Delivery', short_name: 'Site North' }],
+    opportunities: [{ id: 'pipeline-1', name: 'Contractual Pipeline', short_name: 'Tender West' }],
+  };
+
+  it('shows cached short names and resolves contractual titles for canonical and legacy detail paths', () => {
+    expect(recordLabelForPath('/projects/delivery-1', lists)).toBe('Site North');
+    expect(recordContractualNameForPath('/projects/delivery-1/budget', lists)).toBe('Contractual Delivery');
+    expect(recordLabelForPath('/projects/pipeline-1', lists)).toBe('Tender West');
+    expect(recordContractualNameForPath('/sales/pipeline-1', lists)).toBe('Contractual Pipeline');
+  });
+
+  it('falls back to the legal name and keeps cold details free of a foreign identity', () => {
+    const noAlias = { projects: [{ id: 'plain', name: 'Contractual Only', short_name: '  ' }] };
+    expect(recordLabelForPath('/projects/plain', noAlias)).toBe('Contractual Only');
+    expect(recordContractualNameForPath('/projects/missing', noAlias)).toBeUndefined();
+  });
+});
 
 describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
   const navigate = vi.fn();

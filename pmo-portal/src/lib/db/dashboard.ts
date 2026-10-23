@@ -109,6 +109,7 @@ export interface PipelineStage {
 export interface PipelineProject extends ProjectClassification {
   id: string;
   name: string;
+  short_name: string | null;
   /** Independent PMO and organisation-owned identifiers, projected for search/display. */
   pmo_project_number?: string | null;
   code?: string | null;

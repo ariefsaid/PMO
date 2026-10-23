@@ -290,6 +290,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
           aria-labelledby={labelId}
+          title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
           aria-required={required || undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errId : undefined}

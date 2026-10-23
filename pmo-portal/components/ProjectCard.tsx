@@ -3,6 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
@@ -184,8 +185,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     // UX-019: secondary identifiers are rendered only in the disclosure above.
     <ProjectCardShell
       variant="grid"
-      initial={(project.name.trim().charAt(0) || '•').toUpperCase()}
-      name={project.name}
+      initial={(projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
+      name={projectDisplayName(project)}
+      contractualName={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
       status={

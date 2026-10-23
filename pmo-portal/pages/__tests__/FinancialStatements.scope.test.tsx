@@ -152,6 +152,7 @@ beforeEach(() => {
   projectGetSpy = vi.spyOn(repositories.project, 'get').mockImplementation(async (id) => ({
     id,
     name: id === projectId ? 'Named delivery project' : 'Other admitted project',
+    short_name: id === projectId ? 'North Terminal' : null,
     code: id === projectId ? 'PRJ-42' : 'PRJ-84',
   } as never));
   companyListSpy = vi.spyOn(repositories.company, 'list').mockResolvedValue([]);
@@ -186,7 +187,7 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(await screen.findByRole('combobox', { name: 'Scope' })).toBeInTheDocument();
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(1));
     expect(projectGetSpy).toHaveBeenCalledWith(projectId);
-    expect(screen.getByRole('option', { name: /PRJ-42 · Named delivery project/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'PRJ-42 · North Terminal — Named delivery project' })).toBeInTheDocument();
     expect(companyListSpy).not.toHaveBeenCalled();
 
     const firstInput = readSpy.mock.calls[0]?.[0];
@@ -199,7 +200,7 @@ describe('Financial statements company scope (AC-007)', () => {
     const { client } = renderPage();
     await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
-    await screen.findByRole('option', { name: /PRJ-42 · Named delivery project/ });
+    await screen.findByRole('option', { name: /PRJ-42 · North Terminal/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId, statement: 'profit_and_loss' })));
     expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId);

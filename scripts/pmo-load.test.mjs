@@ -656,3 +656,52 @@ test('AC-TVC-004: the load output lists each reclassified line and each fuel lin
     ['Crew', 'Labor'], ['BBM genset', 'Special expenses'], ['BBM mobil operasional', 'Vehicle'], ['Migas permits', 'Special expenses'],
   ]);
 });
+
+test('AC-004 #1325: project aliases validate as optional text and creation sends the trimmed alias separately', async () => {
+  const doc = { projects: [{ name: 'Legal project name', short_name: '  Depot  ', client: 'Client Legal A', stage: 'Leads' }] };
+  assert.deepEqual(validateLoadFile(doc), []);
+  assert.match(validateLoadFile({ projects: [{ ...doc.projects[0], short_name: 7 }] })[0], /"short_name" must be text/);
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, doc);
+  const created = writes(api).find((call) => call.kind === 'post' && call.target === 'projects');
+  assert.equal(created.body.name, 'Legal project name');
+  assert.equal(created.body.short_name, 'Depot');
+  assert.ok(api.calls.some((call) => call.kind === 'get' && call.target === 'projects' && call.query.includes('short_name')));
+});
+
+test('AC-004 #1325: alias backfill is resumable, fills empty only, and reports conflicting nonblank values', async () => {
+  const doc = { projects: [{ name: 'Plant upgrade', short_name: 'Depot', client: 'Client Legal A', stage: 'Leads' }] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, short_name: '  ' })] } });
+  await load(api, doc);
+  assert.deepEqual(writes(api).filter((call) => call.target === 'projects'), [
+    { kind: 'patch', target: 'projects', query: 'id=eq.p-1', body: { short_name: 'Depot' } },
+  ]);
+  const count = writes(api).length;
+  const retry = await load(api, doc);
+  assert.equal(writes(api).length, count);
+  assert.ok(retry.some((action) => action.kind === 'project.skip'));
+
+  const conflictApi = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, short_name: 'Existing alias' })] } });
+  const conflict = await load(conflictApi, doc);
+  assert.deepEqual(writes(conflictApi), []);
+  assert.ok(conflict.some((action) => action.kind === 'project.short_name_differs' && action.current === 'Existing alias' && action.file === 'Depot'));
+});
+
+test('AC-004 #1325: dry-run and zero-row refusal preserve alias-only write semantics; diverged stages remain skipped', async () => {
+  const doc = { projects: [{ name: 'Plant upgrade', short_name: 'Depot', client: 'Client Legal A', stage: 'Leads' }] };
+  const dry = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0 })] } });
+  const dryActions = await load(dry, doc, true);
+  assert.deepEqual(writes(dry), []);
+  assert.ok(dryActions.some((action) => action.kind === 'project.set_short_name'));
+
+  const zeroRows = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0 })] } });
+  const patch = zeroRows.patch.bind(zeroRows);
+  zeroRows.patch = async (...args) => args[0] === 'projects' ? [] : patch(...args);
+  const { plan } = await resolveLoad(doc, zeroRows);
+  await assert.rejects(applyLoad(plan, zeroRows, { dryRun: false, batchId: 'b', importedAt: 't' }), /short name.*database did not allow it/i);
+
+  const diverged = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender', contract_value: 0 })] } });
+  const divergedActions = await load(diverged, doc);
+  assert.deepEqual(writes(diverged), []);
+  assert.ok(divergedActions.some((action) => action.kind === 'project.diverged'));
+});

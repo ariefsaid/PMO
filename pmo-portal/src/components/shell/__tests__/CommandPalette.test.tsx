@@ -315,6 +315,21 @@ describe('CommandPalette', () => {
     expect(cachedProjectRun).not.toHaveBeenCalled();
   });
 
+  it('AC-002 #1325: an uncached reference result shows its short title with contractual context', async () => {
+    setReferenceResult({
+      data: referencePage({
+        kind: 'project', id: 'project-alias', title: 'North Terminal', context: 'Contractual terminal refurbishment',
+        reference: 'PO-ALIAS-42', aliases: ['PO-ALIAS-42'], exact: true,
+      }),
+    });
+    render(<CommandPalette open items={[]} onClose={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole('combobox'), 'PO-ALIAS-42');
+    const result = await screen.findByRole('option', { name: /North Terminal/ });
+    expect(within(result).getByText('North Terminal')).toBeInTheDocument();
+    expect(within(result).getByText(/Contractual terminal refurbishment$/)).toBeInTheDocument();
+  });
+
   it('AC-V24P-016: a server project hit already cached as a pipeline record appears once; distinct hits stay and open their canonical route', async () => {
     const hit = (id: string, title: string) => ({
       kind: 'project' as const, id, title, context: null, reference: 'REF-777', aliases: ['REF-777'], exact: true,

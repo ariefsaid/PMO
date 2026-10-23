@@ -33,6 +33,7 @@ import {
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { formatCurrency } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
@@ -107,7 +108,8 @@ interface ProjectKanbanCardProps {
 
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const { t } = useTranslation();
-  const initial = (project.name.trim().charAt(0) || '•').toUpperCase();
+  const displayName = projectDisplayName(project);
+  const initial = (displayName.trim().charAt(0) || '•').toUpperCase();
   // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
   // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — the two
   // "no name" states stay distinct across every visible Projects view (incl. Kanban).
@@ -121,7 +123,8 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
     <ProjectCardShell
       variant="kanban"
       initial={initial}
-      name={project.name}
+      name={displayName}
+      contractualName={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
       pmoProjectNumber={project.pmo_project_number}
       code={project.code}

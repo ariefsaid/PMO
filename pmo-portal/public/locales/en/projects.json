@@ -10,5 +10,11 @@
     "accessDenied": "You can't create projects",
     "leave": "Leave",
     "stay": "Stay"
+  },
+  "shortName": {
+    "label": "Short name (optional)",
+    "hint": "Used in lists and search. The contractual project name stays unchanged.",
+    "searchProject": "Project · {{name}}",
+    "searchPipeline": "Project · Pipeline · {{name}}"
   }
 }

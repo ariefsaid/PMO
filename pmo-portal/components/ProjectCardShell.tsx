@@ -11,6 +11,8 @@ export interface ProjectCardShellProps {
   initial: string;
   /** Project name — the activation target. */
   name: string;
+  /** Contractual title disclosed on hover when `name` is short-first. */
+  contractualName?: string;
   /** Customer name (em-dash fallback for a missing client). */
   client: string | null | undefined;
   /**
@@ -65,6 +67,7 @@ export interface ProjectCardShellProps {
 const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   initial,
   name,
+  contractualName,
   client,
   clientId,
   pmoProjectNumber,
@@ -102,7 +105,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           // target, so the name is plain text (no nested button in role=button).
           <div
             className="block max-w-full break-words text-[13px] font-semibold text-foreground leading-5"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </div>
@@ -111,7 +114,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
             type="button"
             onClick={onOpen}
             className="block max-w-full break-words text-left text-sm font-semibold text-foreground line-clamp-2 leading-5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </button>

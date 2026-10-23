@@ -17,7 +17,7 @@ const h = vi.hoisted(() => ({
   orgDay: { day: '2026-10-18' as string | null, isPending: false },
   mode: 'erp' as 'erp' | 'native',
   projects: [
-    { value: 'project-1', label: 'Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' },
+    { value: 'project-1', label: 'North Harbor', sub: 'Contractual Harbor Retrofit · CLIENT-PO-1', contractualName: 'Contractual Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' },
   ],
 }));
 
@@ -156,12 +156,12 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
       invoice('INV-003', { project_id: null }),
     ];
     renderAt('/sales-invoices');
-    expect(within(screen.getByRole('row', { name: /INV-001/ })).getByText(/Harbor Retrofit/)).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /INV-001/ })).getByText('Contractual Harbor Retrofit')).toBeInTheDocument();
     for (const id of ['INV-002', 'INV-003']) {
       const text = screen.getByRole('row', { name: new RegExp(id) }).textContent ?? '';
       expect(text).not.toMatch(/Project (not recorded|details)/);
     }
-    expect(screen.getAllByText(/Harbor Retrofit/)).toHaveLength(1);
+    expect(screen.getAllByText('Contractual Harbor Retrofit')).toHaveLength(1);
   });
 
   it('shows a dash for a missing customer reference and never the project reference fallback', () => {
@@ -205,12 +205,21 @@ describe('FIN-S1: project reaches the list through search and a removable chip',
     expect(screen.queryByRole('link', { name: 'INV-002' })).not.toBeInTheDocument();
   });
 
+  it('AC-002 #1325: search also matches the contractual title behind a short label', async () => {
+    h.invoices.data = [invoice('INV-001', { project_id: 'project-1' }), invoice('INV-002')];
+    const user = userEvent.setup();
+    renderAt('/sales-invoices');
+    await user.type(screen.getByRole('searchbox', { name: 'Search sales invoices' }), 'retrofit');
+    expect(screen.getByRole('link', { name: 'INV-001' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'INV-002' })).not.toBeInTheDocument();
+  });
+
   it('a ?project= link-in shows a chip that clears only the project', async () => {
     h.invoices.data = [invoice('INV-001', { project_id: 'project-1' }), invoice('INV-002')];
     const user = userEvent.setup();
     renderAt('/sales-invoices?project=project-1&q=INV');
     const chip = screen.getByTestId('project-filter');
-    expect(chip).toHaveTextContent('Harbor Retrofit');
+    expect(chip).toHaveTextContent('North Harbor');
     expect(screen.queryByRole('link', { name: 'INV-002' })).not.toBeInTheDocument();
     await user.click(within(chip).getByRole('button', { name: 'Clear project filter' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=INV');

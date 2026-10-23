@@ -1,3 +1,4 @@
+import { projectPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -77,7 +78,7 @@ const Meetings: React.FC = () => {
   const projectOptions = useMemo(
     () => [
       { value: 'All', label: t('meetings.filters.allProjects', 'All projects') },
-      ...(projects ?? []).map((p) => ({ value: p.id, label: p.name })),
+      ...(projects ?? []).map((p) => ({ value: p.id, label: projectPickerLabel(p) })),
     ],
     [projects, t],
   );

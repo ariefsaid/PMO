@@ -1,3 +1,4 @@
+import { projectPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -39,7 +40,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update } = useExpenseClaimMutations();
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectPickerLabel(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');

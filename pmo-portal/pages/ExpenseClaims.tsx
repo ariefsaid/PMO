@@ -1,3 +1,4 @@
+import { projectPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +46,7 @@ const ExpenseClaims: React.FC = () => {
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectPickerLabel(p) })), [projects]);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },

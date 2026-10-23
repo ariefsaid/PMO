@@ -58,7 +58,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade' }], isPending: false }),
+  useProjects: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -315,6 +315,11 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
 // opening a row stamps a validated Meetings return context onto the navigation's router state.
 // The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
 describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
+  it('AC-002 #1325: project filter offers the alias while retaining contractual identity and UUID', () => {
+    renderPage('Admin');
+    expect(screen.getByRole('option', { name: 'North Terminal — Harbour Upgrade' })).toHaveValue('33333333-3333-4333-8333-333333333333');
+  });
+
   it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {
     renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
     expect(useMeetingsSpy).toHaveBeenLastCalledWith(

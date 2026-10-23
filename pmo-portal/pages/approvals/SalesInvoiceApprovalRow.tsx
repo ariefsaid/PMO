@@ -18,7 +18,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
-  const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.label ?? null, [projects, inv.project_id]);
+  const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
   const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
   const net = invoiceNet(inv);

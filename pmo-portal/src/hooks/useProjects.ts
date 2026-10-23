@@ -120,6 +120,9 @@ export function useProjectMutations() {
     qc.invalidateQueries({ queryKey: ['opportunity'] });
     qc.invalidateQueries({ queryKey: ['project'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'project'] });
+    qc.invalidateQueries({ queryKey: ['fk-options', 'invoice-project'] });
+    qc.invalidateQueries({ queryKey: ['financial-statements', 'mapped-project-name'] });
+    qc.invalidateQueries({ queryKey: ['uxs40', 'references'] });
     // #758: a project write can change the end customer (and client/status), so the sales
     // pipeline and lost-deal queries must refetch or they retain a stale value after the write.
     qc.invalidateQueries({ queryKey: ['sales-pipeline'] });

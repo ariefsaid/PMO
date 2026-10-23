@@ -2,6 +2,7 @@ import ProjectClassificationFilters from '../components/ProjectClassificationFil
 import { activeClassificationCount, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
 import type { ProjectClassificationFilters as ClassificationFilterValues } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -217,6 +218,7 @@ const Projects: React.FC = () => {
         (p) =>
           !q ||
           p.name.toLowerCase().includes(q) ||
+          (p.short_name ?? '').toLowerCase().includes(q) ||
           (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
           (p.code ?? '').toLowerCase().includes(q) ||
           (p.client?.name ?? '').toLowerCase().includes(q) ||
@@ -434,7 +436,7 @@ const Projects: React.FC = () => {
               className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
               style={{ background: projectIconColor() }}
             >
-              {(p.name.trim().charAt(0) || '•').toUpperCase()}
+              {(projectDisplayName(p).trim().charAt(0) || '•').toUpperCase()}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-col items-start gap-1">
@@ -448,7 +450,7 @@ const Projects: React.FC = () => {
                   className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
                   title={p.name}
                 >
-                  {p.name}
+                  {projectDisplayName(p)}
                 </button>
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && (
@@ -1231,6 +1233,7 @@ const Projects: React.FC = () => {
             ...pickClassification(editTarget),
             id: editTarget.id,
             name: editTarget.name,
+            short_name: editTarget.short_name,
             code: editTarget.code,
             client_id: editTarget.client_id,
             project_manager_id: editTarget.project_manager_id,

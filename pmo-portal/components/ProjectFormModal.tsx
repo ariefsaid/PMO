@@ -71,6 +71,7 @@ function initialsOf(name: string): string {
 export interface ProjectFormInitial extends ProjectClassification {
   id: string;
   name: string;
+  short_name?: string | null;
   code: string | null;
   client_id: string | null;
   project_manager_id: string | null;
@@ -90,6 +91,7 @@ interface FormValues {
   awardType: string;
   biddingEntity: string;
   name: string;
+  shortName: string;
   code: string;
   pmoProjectNumber: string;
   clientId: string | null;
@@ -195,7 +197,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 }) => {
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'projects']);
   const statusLabel = useProjectStatusLabel();
   const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -214,6 +216,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       awardType: initial?.award_type ?? '',
       biddingEntity: initial?.bidding_entity ?? '',
       name: initial?.name ?? '',
+      shortName: initial?.short_name ?? '',
       code: initial?.code ?? '',
       pmoProjectNumber: '',
       clientId: initial?.client_id ?? null,
@@ -250,6 +253,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
+  const shortNameField = form.fieldProps('shortName');
   const codeField = form.fieldProps('code');
   const pmoNumberField = form.fieldProps('pmoProjectNumber');
   const statusField = form.fieldProps('status');
@@ -336,7 +340,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // so a pristine page must not count as dirty (it would ask before leaving an empty form).
   const v = form.values;
   const hasEntries = v.status !== 'Leads' || [
-    v.name, v.code, v.clientId, v.endClientId, v.pmId, v.value, v.startDate, v.endDate,
+    v.name, v.shortName, v.code, v.clientId, v.endClientId, v.pmId, v.value, v.startDate, v.endDate,
     v.serviceLine, v.sector, v.location, v.awardType, v.biddingEntity,
   ].some(Boolean);
   useEffect(() => {
@@ -358,6 +362,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           const input: ProjectHeaderInput = {
             ...classification,
             name: values.name.trim(),
+            short_name: values.shortName.trim() || null,
             code: values.code.trim() || null,
             client_id: values.clientId,
             end_client_id: values.endClientId,
@@ -371,6 +376,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           const base = {
             ...classification,
             name: values.name.trim(),
+            short_name: values.shortName.trim() || null,
             code: values.code.trim() || null,
             pmo_project_number: values.pmoProjectNumber.trim(),
             status: values.status,
@@ -432,6 +438,15 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             error={nameField.error}
             placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal — Civil Works')}
             fullWidth
+          />
+
+          <TextField
+            id={shortNameField.id}
+            label={t('projects:shortName.label', 'Short name (optional)')}
+            value={shortNameField.value}
+            onChange={shortNameField.onChange}
+            onBlur={shortNameField.onBlur}
+            helper={t('projects:shortName.hint', 'Used in lists and search. The contractual project name stays unchanged.')}
           />
 
           <Combobox

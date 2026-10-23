@@ -1,3 +1,4 @@
+import { projectPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -376,7 +377,7 @@ const MeetingDetail: React.FC = () => {
             <TextField id="meeting-header-title" label={t('meetingDetail.form.title.label', 'Title')} required value={headerDraft.title} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, title: value }))} error={!headerDraft.title.trim() ? t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.') : undefined} />
             <TextField id="meeting-header-when" label={t('meetingDetail.form.when.label', 'When')} type="datetime-local" value={headerDraft.occurredAt} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, occurredAt: value }))} error={!zonedDatetimeLocalToInstant(headerDraft.occurredAt) ? t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.') : undefined} />
             <TextField id="meeting-header-location" label={t('meetingDetail.form.location.label', 'Location')} value={headerDraft.location} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, location: value }))} />
-            <SelectField id="meeting-header-project" label={t('meetingDetail.form.project.label', 'Project')} value={headerDraft.projectId} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, projectId: value }))} options={[{ value: '', label: t('meetingDetail.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: item.name }))]} />
+            <SelectField id="meeting-header-project" label={t('meetingDetail.form.project.label', 'Project')} value={headerDraft.projectId} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, projectId: value }))} options={[{ value: '', label: t('meetingDetail.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: projectPickerLabel(item) }))]} />
           </div>
         ) : (
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">

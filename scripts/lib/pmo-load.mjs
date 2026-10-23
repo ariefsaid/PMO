@@ -78,7 +78,7 @@ export const IMPORT_VERSION_NAME = 'Imported';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
 const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
-const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', ...CLASSIFICATION_FIELDS]);
+const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
   'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines',
@@ -88,7 +88,7 @@ const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fisc
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
 const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
 const COMPANY_FIELDS = new Set(['name', 'short_name']);
-const PROJECT_SELECT = 'id,code,name,client_id,status,contract_value,pmo_project_number';
+const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
 
@@ -171,6 +171,7 @@ export function validateLoadFile(doc) {
     const add = (m) => problems.push(`projects[${i}] (${key}): ${m}`);
     for (const k of Object.keys(p)) if (!PROJECT_FIELDS.has(k)) add(`unknown field "${k}"`);
     if (p.code !== undefined && !isText(p.code)) add('"code" must be text');
+    if (p.short_name !== undefined && typeof p.short_name !== 'string') add('"short_name" must be text');
     if (!isText(p.name)) add('"name" is required');
     if (!isText(p.client)) add('"client" (the client company\'s legal name) is required');
     if (p.end_client !== undefined && !isText(p.end_client)) add('"end_client" must be a company\'s legal name');
@@ -324,7 +325,9 @@ export async function resolveLoad(doc, api) {
   }
 
   const projects = [];
-  for (const p of doc.projects ?? []) {
+  for (const source of doc.projects ?? []) {
+    // Blank aliases are an absent loader enhancement, never an implicit clearing operation.
+    const p = { ...source, ...(typeof source.short_name === 'string' ? { short_name: source.short_name.trim() || undefined } : {}) };
     const key = projectKey(p);
     const client = await companyRef(p.client, 'client', key);
     const endClient = p.end_client ? await companyRef(p.end_client, 'end customer', key) : null;
@@ -348,6 +351,8 @@ export async function resolveLoad(doc, api) {
       pmo_project_number: existing?.pmo_project_number ?? null,
       path: existing ? remainingPath(p.stage, existing.status) : [...LOAD_STAGE_PATHS[p.stage]],
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
+      shortName: !p.short_name ? 'none' : p.short_name === (existing?.short_name?.trim() || null) ? 'same' : existing?.short_name?.trim() ? 'differs' : 'set',
+      currentShortName: existing?.short_name?.trim() || null,
       budget: null,
       contractLines: null,
     };
@@ -478,6 +483,14 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
         e.pmo_project_number = row.pmo_project_number ?? null;
         return { id: e.id, pmo_project_number: e.pmo_project_number };
       });
+    }
+    if (e.existing && e.shortName === 'set') {
+      await write({ kind: 'project.set_short_name', key: e.key, id: e.id, short_name: e.input.short_name }, async () => {
+        const rows = await api.patch('projects', params({ id: eq(e.id) }), { short_name: e.input.short_name });
+        if (!rows?.length) throw Object.assign(new Error(`The short name of "${e.input.name}" was not changed — the database did not allow it`), { code: 'no_rows' });
+      });
+    } else if (e.existing && e.shortName === 'differs') {
+      note({ kind: 'project.short_name_differs', key: e.key, id: e.id, current: e.currentShortName, file: e.input.short_name });
     }
     if (e.value === 'set') {
       await write({ kind: 'project.contract_value', key: e.key, value: e.input.contract_value }, async () => {

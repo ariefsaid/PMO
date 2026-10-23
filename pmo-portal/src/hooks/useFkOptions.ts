@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -48,7 +49,10 @@ export function useProjectOptions() {
       const rows = await repositories.project.list();
       return rows
         .filter((p) => p.archived_at == null)
-        .map((p) => ({ value: p.id, label: p.name, sub: p.code ?? undefined }));
+        .map((p) => {
+          const display = projectDisplayName(p);
+          return { value: p.id, label: display, sub: [display !== p.name ? p.name : null, p.code].filter(Boolean).join(' · ') || undefined };
+        });
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
@@ -57,6 +61,8 @@ export function useProjectOptions() {
 
 /** A project as an invoice picker option, with what the invoice form needs to know about it (#784). */
 export interface InvoiceProjectOption extends ComboboxOption {
+  /** Immutable legal/contractual title for document previews and approvals. */
+  contractualName: string;
   /** The project's client — the invoice form offers only the chosen customer's projects (M-1). */
   clientId: string | null;
   /** Native invoice entry follows the authorized project's source currency, never the org default. */
@@ -81,10 +87,13 @@ export function useInvoiceProjectOptions() {
     queryKey: ['fk-options', 'invoice-project', orgId],
     queryFn: async () => {
       const rows = await repositories.project.list();
-      return rows.map((p) => ({
+      return rows.map((p) => {
+        const display = projectDisplayName(p);
+        return {
         value: p.id,
-        label: p.name,
-        sub: p.code ?? undefined,
+        label: display,
+        sub: [display !== p.name ? p.name : null, p.code].filter(Boolean).join(' · ') || undefined,
+        contractualName: p.name,
         clientId: p.client_id,
         ...(p.currency !== undefined ? { currency: p.currency } : {}),
         ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),
@@ -93,7 +102,8 @@ export function useInvoiceProjectOptions() {
         taxRate: p.tax_rate,
         customerContractRef: p.customer_contract_ref,
         archived: p.archived_at != null,
-      }));
+      };
+      });
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,

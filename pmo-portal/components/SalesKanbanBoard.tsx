@@ -4,6 +4,7 @@ import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasis
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
 import {
@@ -43,13 +44,15 @@ const DealCard: React.FC<{
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
   const statusLabel = useProjectStatusLabel();
-  const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
+  const displayName = projectDisplayName(project);
+  const initial = displayName.trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
       variant="kanban"
       selected={selected}
       initial={initial}
-      name={project.name}
+      name={displayName}
+      contractualName={project.name}
       client={project.client_name}
       pmoProjectNumber={null}
       code={null}
@@ -90,13 +93,15 @@ const CompactDealCard: React.FC<{
   hideStatus: boolean;
 }> = ({ project, onActivate, hideStatus }) => {
   const statusLabel = useProjectStatusLabel();
-  const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
+  const displayName = projectDisplayName(project);
+  const initial = displayName.trim().charAt(0).toUpperCase() || '•';
 
   return (
     <ProjectCardShell
       variant="grid"
       initial={initial}
-      name={project.name}
+      name={displayName}
+      contractualName={project.name}
       client={project.client_name}
       pmoProjectNumber={null}
       code={null}

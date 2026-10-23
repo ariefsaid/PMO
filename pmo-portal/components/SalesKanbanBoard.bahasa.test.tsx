@@ -12,7 +12,7 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
 ];
 
 describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {

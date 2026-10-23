@@ -140,8 +140,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               placeholder={projectName ?? 'Select a project…'}
               value={form.values.projectId}
               selectedOption={
-                form.values.projectId && projectName
-                  ? { value: form.values.projectId, label: projectName }
+                form.values.projectId
+                  ? projectOptions?.find((option) => option.value === form.values.projectId) ??
+                    (projectName ? { value: form.values.projectId, label: projectName } : undefined)
                   : undefined
               }
               onChange={(v) => form.setValue('projectId', v)}

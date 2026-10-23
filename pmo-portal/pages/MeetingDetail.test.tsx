@@ -50,7 +50,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }], isPending: false }),
+  useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
 }));
 
 vi.mock('@/src/hooks/useTasks', () => ({
@@ -682,6 +682,13 @@ describe('MeetingDetail — states', () => {
     renderPage('Admin');
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: meeting header project selector shows alias and contractual identity on the selected project id', () => {
+    renderPage('Engineer');
+    const select = screen.getByLabelText(/Project/);
+    expect(select).toHaveValue('p1');
+    expect(within(select).getByRole('option', { name: 'North Terminal — Harbour Upgrade' })).toHaveValue('p1');
   });
 
   it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {

@@ -13,6 +13,7 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
   id: 'p1',
   name: 'Northwind ERP',
+  short_name: null,
   client_name: 'Northwind',
   status: 'Tender Submitted',
   tax_treatment: 'exclusive',

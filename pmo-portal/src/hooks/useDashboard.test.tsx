@@ -11,7 +11,7 @@ const { mockWinRate, mockSalesPipeline } = vi.hoisted(() => ({
   },
   mockSalesPipeline: {
     stages: [{ status: 'Tender Submitted', count: 1, total_value: 500000, win_probability: 0.4, weighted_value: 200000 }],
-    projects: [{ id: 'p1', name: 'Proj A', client_name: 'Client X', status: 'Tender Submitted', contract_value: 500000, win_probability: 0.4 }],
+    projects: [{ id: 'p1', name: 'Contractual Proj A', short_name: 'Pipeline alias', client_name: 'Client X', status: 'Tender Submitted', contract_value: 500000, win_probability: 0.4 }],
   },
 }));
 
@@ -41,13 +41,13 @@ vi.mock('@/src/lib/repositories', () => ({
     project: {
       list: vi.fn().mockResolvedValue([
         {
-          id: 'lost-1', name: 'Lost Deal Delta', status: 'Loss Tender',
+          id: 'lost-1', name: 'Lost Deal Delta', short_name: 'Delta Recovery', status: 'Loss Tender',
           contract_value: 450000, currency: 'IDR', tax_treatment: 'inclusive',
           client: { name: 'Delta Co' }, end_client_id: '75800000-0000-0000-0000-0000000000a1',
           end_client: { name: 'EC Delta' }, last_update: '2026-08-01T00:00:00Z', project_manager: null,
         },
         {
-          id: 'declined-1', name: 'Declined Deal Echo', status: 'Declined',
+          id: 'declined-1', name: 'Declined Deal Echo', short_name: null, status: 'Declined',
           contract_value: 120000, currency: 'IDR', tax_treatment: 'exclusive',
           client: { name: 'Echo Co' }, end_client_id: null, end_client: null,
           last_update: '2026-09-01T00:00:00Z', project_manager: null,
@@ -159,6 +159,7 @@ describe('useSalesPipeline', () => {
     // Org-scoping confirmed by successful call through the org-gated enabled:Boolean(orgId) check.
     expect(getSalesPipeline).toHaveBeenCalled();
     expect(result.current.data).toEqual(mockSalesPipeline);
+    expect(result.current.data?.projects[0]).toMatchObject({ name: 'Contractual Proj A', short_name: 'Pipeline alias' });
   });
 });
 
@@ -171,6 +172,7 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
     // Hardcoding `tax_treatment: null` in the mapping reddens exactly here and nowhere else.
     expect(result.current.data?.find((d) => d.id === 'lost-1')).toMatchObject({
       name: 'Lost Deal Delta',
+      short_name: 'Delta Recovery',
       tax_treatment: 'inclusive',
       currency: 'IDR',
     });

@@ -52,7 +52,8 @@ vi.mock('@/src/hooks/useDashboard', () => ({
       projects: [
         {
           id: 'sp1',
-          name: 'Deal 1',
+          name: 'Contractual Deal 1',
+          short_name: 'Short Deal 1',
           client_name: 'Client A',
           status: 'Qualified',
           contract_value: 10000,
@@ -140,7 +141,8 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       (body as (string | number)[][]).map((row) => [row[0], row]),
     );
 
-    const usd = byProject.get('Deal 1') as (string | number)[];
+    const usd = byProject.get('Contractual Deal 1') as (string | number)[];
+    expect(byProject.has('Short Deal 1')).toBe(false);
     expect(usd).toBeDefined();
     expect(usd[5]).toBe('USD');
     expect(usd[4]).toBe(10000);

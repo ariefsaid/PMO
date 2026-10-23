@@ -109,6 +109,7 @@ export function useLostDeals() {
         service_line: r.service_line, sector: r.sector, location: r.location, award_type: r.award_type, bidding_entity: r.bidding_entity,
         id: r.id,
         name: r.name,
+        short_name: r.short_name,
         client_name: r.client ? companyDisplayName(r.client) : null,
         client_legal_name: r.client?.name ?? null,
         status: r.status,

@@ -1177,23 +1177,22 @@ describe('S-28: saved / unsaved state and Save (UX-063)', () => {
   });
 });
 
-describe('S-28: long project names in the add-project picker (RF-061)', () => {
+describe('AC-002 #1325: timesheet project picker preserves a long legal title beside its alias', () => {
   const longName = 'Regional Distribution Centre Phase Two Structural Retrofit and Commissioning Programme';
   beforeEach(() => {
     sessionStorage.clear();
     projectsState.data = [
-      { id: 'pL', name: longName, code: 'P-777', status: 'Ongoing Project' },
+      { id: 'pL', name: longName, short_name: 'Regional DC', code: 'P-777', status: 'Ongoing Project' },
     ];
   });
 
-  it('RF-061: the option shows code + a shortened name; the added row carries the full name', async () => {
+  it('shows the complete short-first option and keeps the added timesheet row contractual', async () => {
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
     const picker = screen.getByLabelText(/add a project/i);
-    const option = within(picker).getByRole('option', { name: /P-777/ });
-    expect(option.textContent).toMatch(/^P-777 · /);
-    expect(option.textContent!.length).toBeLessThan(longName.length);
-    expect(option.textContent).toMatch(/…$/);
+    const option = within(picker).getByRole('option', { name: `P-777 · Regional DC — ${longName}` });
+    expect(option.textContent).toBe(`P-777 · Regional DC — ${longName}`);
+    expect(option.textContent).not.toMatch(/…$/);
     await userEvent.selectOptions(picker, 'pL');
     expect(screen.getByLabelText(`${longName}, Mon hours`)).toBeInTheDocument();
   });

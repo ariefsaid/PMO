@@ -10,7 +10,7 @@ const { mockFrom, mockSelect, mockEq, mockMaybeSingle } = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
 
-import { getOpportunity } from './opportunity';
+import { getOpportunity, OPPORTUNITY_COLUMNS } from './opportunity';
 
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
@@ -39,13 +39,14 @@ describe('getOpportunity', () => {
   // and carry end_client_id so the pre-win detail fallback keeps end-customer parity.
   it('AC-EC-002: selects the explicit column list with FK-qualified client/end-client embeds', async () => {
     const row = {
-      id: 'o1', name: 'A Deal', status: 'Leads', client_id: 'c1', end_client_id: 'c9',
+      id: 'o1', name: 'Contractual deal', short_name: 'Pipeline alias', status: 'Leads', client_id: 'c1', end_client_id: 'c9',
       project_manager_id: null, contract_value: 100, currency: 'USD',
       client: { name: 'Main Contractor' }, end_client: { name: 'Asset Owner' },
       pm: { full_name: null },
     };
     makeBuilder({ data: row, error: null });
     const result = await getOpportunity('o1');
+    expect(OPPORTUNITY_COLUMNS).toContain('short_name');
     expect(mockFrom).toHaveBeenCalledWith('projects');
     expect(mockEq).toHaveBeenCalledWith('id', 'o1');
     // The FK-qualified SELECT string (pins the embed strings so a revert is caught here).
@@ -56,11 +57,16 @@ describe('getOpportunity', () => {
       expect.stringContaining('end_client:companies!projects_end_client_id_fkey(name, short_name)'),
     );
     expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining('short_name'),
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('end_client_id'),
     );
     expect(mockSelect).toHaveBeenCalledWith(
       expect.stringContaining('pmo_project_number'),
     );
+    expect(result?.name).toBe('Contractual deal');
+    expect(result?.short_name).toBe('Pipeline alias');
     expect(result?.end_client?.name).toBe('Asset Owner');
   });
 

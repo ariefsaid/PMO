@@ -1,3 +1,4 @@
+import { projectPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Button,
@@ -62,15 +63,6 @@ const formatDate = (date: Date): string => {
 // Timesheet status pill comes from the single status registry (`workflowVariant`):
 // Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
 // Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
-
-// RF-061: recognizable code + short name in the picker; the added row shows the full name.
-// ponytail: native <option> has no title/aria slot in the shared SelectField, so the full identity
-// lands on the row, not the option.
-const PICKER_NAME_MAX = 36;
-const pickerLabel = (code: string | null, name: string): string => {
-  const short = name.length > PICKER_NAME_MAX ? `${name.slice(0, PICKER_NAME_MAX - 1).trimEnd()}…` : name;
-  return code ? `${code} · ${short}` : short;
-};
 
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -773,7 +765,7 @@ const TimesheetsPage: React.FC = () => {
                     if (value) addProject(value);
                   }}
                   disabled={pickerOptions.length === 0}
-                  options={pickerOptions.map((p) => ({ value: p.id, label: pickerLabel(p.code, p.name) }))}
+                  options={pickerOptions.map((p) => ({ value: p.id, label: p.code ? `${p.code} · ${projectPickerLabel(p)}` : projectPickerLabel(p) }))}
                   placeholder={
                     pickerOptions.length === 0
                       ? t('timesheets.picker.none', 'No projects to add')

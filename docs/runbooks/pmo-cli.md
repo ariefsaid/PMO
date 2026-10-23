@@ -113,6 +113,13 @@ cat tasks.json | pmo create tasks -
 # update — at least one --filter; one object
 pmo update projects --filter id=eq.<uuid> '{"name":"Depot Expansion Phase 1"}'
 
+# optional display alias; name stays contractual and is still required
+pmo get projects --select id,name,short_name --filter id=eq.<uuid>
+pmo update projects --filter id=eq.<uuid> '{"short_name":"Depot"}'
+pmo update projects --filter id=eq.<uuid> '{"short_name":null}' # explicit clear
+# one common value may be patched across multiple IDs; distinct values need one PATCH per ID
+pmo update projects --filter 'id=in.(<uuid-1>,<uuid-2>)' '{"short_name":"Depot"}'
+
 # rpc — allow-listed read helpers, plus the active-Admin tier
 pmo rpc get_project_milestones '{"p_project_id":"<uuid>"}'
 pmo rpc recategorise_budget_lines '{"p_line_ids":["<line uuid>","<line uuid>"],"p_category":"Vehicle"}'
@@ -197,6 +204,41 @@ violates row-level security policy").
    ⚑ Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.
 5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
    work orders are created by the client's users.
+
+### Optional project short names
+
+`projects.name` remains the required contractual identity. `projects.short_name` is an optional PMO display
+alias used in lists and search; invoices, statements, exports and ERPNext Project creation continue to use
+`name` or the established ERP mapping. Read both explicitly with
+`node scripts/pmo.mjs get projects --select id,name,short_name`.
+
+For API/CLI updates, omitted `short_name` means leave it unchanged; whitespace-only text, empty text, or
+`null` explicitly clears it. PATCH a common value across IDs with one filtered request, as above. For a
+backfill where every project needs a distinct alias, issue one filtered `pmo update projects --filter
+id=eq.<uuid> '{"short_name":"<alias>"}'` per project; do not send an array of PATCH values or use
+upsert. This keeps each update tied to a stable project UUID and leaves `name` alone.
+
+A load file may carry both identities:
+
+```json
+{
+  "projects": [
+    {
+      "name": "Contractual Depot Expansion",
+      "short_name": "Depot",
+      "client": "Synthetic Client",
+      "stage": "Leads"
+    }
+  ]
+}
+```
+
+`pmo load` trims nonblank aliases, includes them when creating a project, and on an existing project fills
+an empty alias, skips an identical alias, and reports a different nonblank alias without overwriting it.
+Blank aliases in a load file mean “no enhancement supplied,” not “clear the stored value.” A project that
+has diverged from its load-file stage is still skipped for stage movement; use the generic filtered
+`pmo update` command to backfill its alias separately. Re-running a successful load does not repeat the
+alias write.
 
 Re-runs never overwrite: a different stored value, stage or short name is reported, not changed. A
 contract line whose `key` already exists is skipped even if its quantity or rate in the file differs

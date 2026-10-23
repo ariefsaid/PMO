@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 // Type-only import from the component file (not the barrel) — keeps the
@@ -48,7 +49,7 @@ export function useRecordSearch(
 ): RecordSearch {
   // #840: the six lists load only while the palette is open (`enabled`), not on every cold page;
   // anything an index page already cached is still searched.
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'projects']);
   const enabled = opts?.enabled !== false;
   const projects = useProjects({ enabled });
   const procurements = useProcurements({ enabled });
@@ -86,8 +87,10 @@ export function useRecordSearch(
       out.push({
         id: `projects:${p.id}`,
         group: 'Records',
-        title: p.name,
-        sub: t('shell.palette.recordProject', 'Project'),
+        title: projectDisplayName(p),
+        sub: projectDisplayName(p) !== p.name
+          ? t('projects:shortName.searchProject', { name: p.name, defaultValue: 'Project · {{name}}' })
+          : t('shell.palette.recordProject', 'Project'),
         code: [
           p.pmo_project_number ? `PMO Project Number: ${p.pmo_project_number}` : null,
           p.code ? `Client Project Code: ${p.code}` : null,
@@ -110,8 +113,10 @@ export function useRecordSearch(
         out.push({
           id: `sales:${o.id}`,
           group: 'Records',
-          title: o.name,
-          sub: t('shell.palette.projectPipeline', 'Project · Pipeline'),
+          title: projectDisplayName(o),
+          sub: projectDisplayName(o) !== o.name
+            ? t('projects:shortName.searchPipeline', { name: o.name, defaultValue: 'Project · Pipeline · {{name}}' })
+            : t('shell.palette.projectPipeline', 'Project · Pipeline'),
           code: [
             o.pmo_project_number ? `PMO Project Number: ${o.pmo_project_number}` : null,
             o.code ? `Client Project Code: ${o.code}` : null,

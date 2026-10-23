@@ -21,6 +21,12 @@ function facts(over: Partial<ManagementPackFacts> = {}): ManagementPackFacts {
 }
 
 describe('AC-MMP-006 planned revenue (DD-MMP-2)', () => {
+  it('AC-003 #1325: report rows keep the contractual name when a display alias exists', () => {
+    const aliasProject = { ...P1, short_name: 'North Terminal' };
+    const row = buildManagementPack(facts({ projects: [aliasProject] })).rows[0];
+    expect(row.projectName).toBe('Alpha');
+    expect(row.projectName).not.toBe('North Terminal');
+  });
   it('AC-MMP-006: spreads the net contract straight-line by calendar day', () => {
     const months = ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01'];
     expect(months.map((m) => plannedForMonth(c(1_200_000), '2026-01-01', '2026-04-30', m)))
