@@ -99,7 +99,10 @@ select set_eq(
             ('sales_invoices -> users'),
             -- 0281 (#911): a slip header references profiles as both creator and void actor. The new slip
             -- repository must qualify profile embeds with the intended constraint name.
-            ('vendor_withholding_slips -> profiles') $$,
+            ('vendor_withholding_slips -> profiles'),
+            -- 0364 (#1319 AC-13): erp_purchase_document_marks carries set_aside_by and updated_by -> profiles.
+            -- No DAL code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('erp_purchase_document_marks -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
