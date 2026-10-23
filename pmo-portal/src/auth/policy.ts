@@ -74,6 +74,7 @@ export type Entity =
   | 'userView'
   | 'salesInvoice'
   | 'procurementInvoice'
+  | 'erpPurchaseLink'
   | 'vendorWithholdingSlip'
   | 'incomingPayment'
   | 'externalBinding'
@@ -544,6 +545,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
+  },
+  erpPurchaseLink: {
+    // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an
+    // Engineer reads no ERP purchase documents (0350). Unlink (FR-PFE-031) is Admin/Finance. UX only — the
+    // link/unlink RPCs are the enforcement authority.
+    create: allow(MASTER_DATA),
+    delete: allow(REVENUE_WRITE),
   },
   vendorWithholdingSlip: {
     // Every role except Engineer, who reads no payment records (owner ruling 2026-10-23, migration 0350);

@@ -363,7 +363,7 @@ const ProcurementPage: React.FC = () => {
                 <>
                   {' '}
                   <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
-                    {tf('erpPurchases.title', 'Purchases recorded in ERPNext')}
+                    {tf('erpLinks.bannerLink', 'ERPNext documents not in a purchase')}
                   </Link>
                 </>
               )}

@@ -8,12 +8,15 @@ const { purchasesMock, mayMock } = vi.hoisted(() => ({ purchasesMock: vi.fn(), m
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: purchasesMock }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => mayMock }));
 vi.mock('@/src/lib/efaktur', () => ({ localToday: () => '2026-03-15' }));
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [] }) }));
 
 import { ErpPurchasesSection } from './ErpPurchasesSection';
 
 const row = (over: Partial<ErpPurchaseRow>): ErpPurchaseRow => ({
   id: over.name ?? 'x', doctype: 'Purchase Invoice', name: 'PINV', supplier: 'Acme', docDate: '2026-01-10', dueDate: '2026-04-01',
-  billNo: null, currency: 'IDR', grandTotal: 1000, outstanding: 1000, erpStatus: 'Unpaid', isReturn: false, projectIds: ['p1'], ...over,
+  billNo: null, currency: 'IDR', grandTotal: 1000, netTotal: null, outstanding: 1000, erpStatus: 'Unpaid', isReturn: false, projectIds: ['p1'],
+  procurementId: null, linkId: null, ...over,
 });
 const renderSection = () => render(<MemoryRouter><ErpPurchasesSection projectId="p1" /></MemoryRouter>);
 
@@ -23,7 +26,7 @@ beforeEach(() => {
 });
 
 describe('ErpPurchasesSection', () => {
-  it('AC-EPR-007 lists paid, overdue and shared ERP invoices, says they are already in Actuals, and ages only the unshared', () => {
+  it('AC-EPR-007 / FR-PFE-041 lists the ERP documents not in a purchase, says they are already in Actuals, and ages only the unshared', () => {
     purchasesMock.mockReturnValue({ data: [
       row({ name: 'PINV-PAID', supplier: 'Paid Supplier', outstanding: 0, grandTotal: 400 }),
       row({ name: 'PINV-LATE', supplier: 'Late Supplier', outstanding: 250, grandTotal: 250, dueDate: '2026-03-01' }),
@@ -31,22 +34,50 @@ describe('ErpPurchasesSection', () => {
     ] });
     renderSection();
 
-    expect(screen.getByRole('heading', { name: 'Purchases recorded in ERPNext' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
     expect(screen.getByText(/Already counted in Actuals/)).toBeInTheDocument();
     for (const name of ['PINV-PAID', 'PINV-LATE', 'PINV-SHARED']) expect(screen.getAllByText(name).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Paid').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Shared with other projects/).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /^Link to purchase/ })).toHaveLength(3);
 
     const aging = screen.getByLabelText(/Unpaid by age · IDR/);
     const total = within(aging).getByText('Unpaid total').nextElementSibling!;
     expect(total.textContent).toMatch(/250/);
     expect(total.textContent).not.toMatch(/1[.,]?150/);
     expect(screen.getByText(/1 unpaid invoices? shared with other projects/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'All ERP purchases' })).toHaveAttribute('href', '/erp-purchases');
+    expect(screen.getByRole('link', { name: 'All unlinked ERPNext documents' })).toHaveAttribute('href', '/erp-purchases');
   });
 
-  it('renders nothing for a project with no ERP purchases, or for a role without the procurement view', () => {
+  it('FR-PFE-042: a linked invoice still counts in the aging but is not listed', () => {
+    purchasesMock.mockReturnValue({ data: [
+      row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' }),
+      row({ name: 'PINV-ORPHAN', outstanding: 200, grandTotal: 200 }),
+    ] });
+    renderSection();
+    expect(screen.queryByText('PINV-LINKED')).toBeNull();
+    expect(screen.getAllByText('PINV-ORPHAN').length).toBeGreaterThan(0);
+    const total = within(screen.getByLabelText(/Unpaid by age · IDR/)).getByText('Unpaid total').nextElementSibling!;
+    expect(total.textContent).toMatch(/500/);
+  });
+
+  it('FR-PFE-042: with every unpaid invoice linked, the aging still shows and no list does', () => {
+    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
+    renderSection();
+    expect(screen.getByLabelText(/Unpaid by age · IDR/)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('without link rights the documents are listed read-only', () => {
+    mayMock.mockImplementation((action: string) => action === 'view');
+    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-ORPHAN' })] });
+    renderSection();
+    expect(screen.getAllByText('PINV-ORPHAN').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /Link to purchase/ })).toBeNull();
+  });
+
+  it('renders nothing for a project with no ERP purchases, only paid linked ones, or for a role without the procurement view', () => {
+    purchasesMock.mockReturnValue({ data: [row({ outstanding: 0, procurementId: 'x', linkId: 'l1' })] });
+    renderSection().unmount();
+    expect(screen.queryByRole('heading')).toBeNull();
     purchasesMock.mockReturnValue({ data: [] });
     const { container, unmount } = renderSection();
     expect(container).toBeEmptyDOMElement();

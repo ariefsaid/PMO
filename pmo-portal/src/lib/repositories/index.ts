@@ -20,7 +20,9 @@ import { financialStatementsRepository } from './financialStatements';
 import { companyCollectionsRepository } from './companyCollections';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
-import { hasErpPurchases, listErpPurchases } from './erpPurchases';
+import {
+  hasErpPurchases, linkErpPurchaseDocuments, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
+} from './erpPurchases';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -290,6 +292,8 @@ import {
   setOrgProjectNumberPattern,
   getOrgWithholdingAccount,
   getOrgDownPaymentItem,
+  getOrgProcurementGates,
+  setOrgProcurementGates,
   setOrgDownPaymentItem,
   setOrgWithholdingAccount,
   getOrgVendorTaxAccounts,
@@ -1048,6 +1052,8 @@ const orgSettings: OrgSettingsRepository = {
   getVendorTaxAccounts: () => wrap(() => getOrgVendorTaxAccounts()),
   setVendorTaxAccounts: (input) => wrap(() => setOrgVendorTaxAccounts(input)),
   getDownPaymentItem: () => wrap(() => getOrgDownPaymentItem()),
+  getProcurementGates: () => wrap(() => getOrgProcurementGates()),
+  setProcurementGates: (patch) => wrap(() => setOrgProcurementGates(patch)),
   setDownPaymentItem: (item) => wrap(() => setOrgDownPaymentItem(item)),
   getProjectNumberPattern: () => wrap(() => getOrgProjectNumberPattern()),
   getProjectNumberTimezone: () => wrap(() => getOrgProjectNumberTimezone()),
@@ -1279,6 +1285,9 @@ const expensePostings: ExpensePostingRepository = {
 const erpPurchases: ErpPurchaseRepository = {
   list: (projectId) => wrap(() => listErpPurchases(projectId)),
   hasAny: () => wrap(() => hasErpPurchases()),
+  listLinked: (procurementId) => wrap(() => listLinkedErpDocuments(procurementId)),
+  link: (rows, dryRun) => wrap(() => linkErpPurchaseDocuments(rows, dryRun ?? false)),
+  unlink: (linkId) => wrap(() => unlinkErpPurchaseDocument(linkId)),
 };
 
 const reports: ReportsRepository = {
