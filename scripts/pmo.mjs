@@ -33,7 +33,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
-import { MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, validateLinkRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, validateLinkRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -124,6 +124,14 @@ class CliError extends Error {
   }
 }
 const usage = (message) => new CliError(message, { exit: 2 });
+
+/** A result printed on stdout with a non-zero exit (e.g. a link report with refused rows). */
+class Reported {
+  constructor(result, exit) {
+    this.result = result;
+    this.exit = exit;
+  }
+}
 
 // ── PKCE ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -868,15 +876,27 @@ async function purchases(ctx, positionals, flags) {
   }
   if (sub === 'link') {
     if (!arg) throw usage('purchases link needs a file: pmo purchases link <file.json|file.csv|-> [--dry-run]');
-    const rows = Boolean(flags.csv) || /\.csv$/i.test(arg)
-      ? rowsFromCsv(await readText(ctx, arg))
-      : await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
-    const problems = validateLinkRows(rows);
-    if (problems.length > 0) {
-      throw new CliError(`The link file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_link_file', details: problems });
+    const invalid = (problems) =>
+      new CliError(`The link file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_link_file', details: problems });
+    let rows;
+    if (Boolean(flags.csv) || /\.csv$/i.test(arg)) {
+      try {
+        rows = rowsFromCsv(await readText(ctx, arg));
+      } catch (e) {
+        if (e instanceof LinkFileError) throw invalid(e.problems);
+        throw e;
+      }
+    } else {
+      rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
     }
+    const problems = validateLinkRows(rows);
+    if (problems.length > 0) throw invalid(problems);
+    const dryRun = Boolean(flags['dry-run']);
     const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
-    return runLink(api, rows, { dryRun: Boolean(flags['dry-run']) });
+    const report = await runLink(api, rows, { dryRun });
+    // Exit 1 when a call failed, or a real run refused a row (as `pmo load` does for a refused write).
+    const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
+    return failed ? new Reported(report, 1) : report;
   }
   if (sub === 'link-file') {
     const body = await readPayload(ctx, arg);
@@ -931,6 +951,10 @@ export async function run(argv, io = {}) {
       ...resolveTarget(env, flags),
     };
     const result = await dispatch(ctx, command, positionals, flags);
+    if (result instanceof Reported) {
+      stdout.write(`${JSON.stringify(result.result, null, 2)}\n`);
+      return result.exit;
+    }
     stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
   } catch (e) {

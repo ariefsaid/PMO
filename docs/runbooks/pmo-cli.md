@@ -216,12 +216,28 @@ erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_dr
 - In JSON the SharePoint item is `"sharepoint": {"drive_id","item_id","web_url","name","kind"}`.
 
 **Dry run first, always.** `--dry-run` sends the identical rows to the same database function with
-`p_dry_run = true`: every check runs and the whole batch is rolled back, so nothing is written. The report
-lists every row as `link`, `skip` or `refused` with a reason, plus counts; a new purchase shows
+`p_dry_run = true`: every check runs and each call is rolled back, so nothing is written. The report lists
+every row as `link`, `skip` or `refused` with a reason, plus counts; a new purchase shows
 `procurement_id: null` in a dry run. Fix the refused rows, dry-run again, then run without `--dry-run`. The
-real run reports the same outcomes. Re-running is safe: rows already linked report `skip` /
-`already_linked` with the existing purchase id. Rows go in batches of 500 per call; row numbers in the
-report are the file's.
+real run reports the same outcomes.
+
+**Batches and groups.** Rows go to the database in calls of at most 500. Rows that make one new purchase (same
+project and `group`) always travel in the same call, so **one group must have 500 rows or fewer**; a larger
+group is refused before anything is sent. Row numbers in the report are always the file's.
+
+**The CLI refuses the file, sending nothing (exit 2), when:** a CSV column is not one of the header names above
+(a misspelt `procurement_id` would otherwise create a new purchase); a CSV row has more cells than the header;
+a quote is not closed; a JSON row has a field not in the header; `erp_name` is missing; a row names both
+`procurement_id` and `project_id`; a SharePoint item is incomplete; **the same ERP document is listed twice**;
+or a group exceeds 500 rows. Every problem is listed.
+
+**Exit codes.** Exit 0: every row linked or skipped (or any dry run that completed). Exit 1: a real run refused at
+least one row, or a call failed. The report is printed either way. When a call fails, the report holds what the
+earlier calls saved, plus `failed_at_row` (the first row of the failed call), `not_saved_rows` and `error`; the
+failed call itself saved nothing.
+
+**Re-running is safe.** After fixing refused rows (or after a failed call), run the whole file again: rows already
+linked report `skip` / `already_linked` with their purchase id, and only the rest are linked.
 
 **Reason codes** (`refused`):
 
@@ -240,8 +256,6 @@ report are the file's.
 | `gate_request_before_order`, `gate_approval_before_order`, `gate_receipt_before_invoice`, `gate_approval_before_payment` | an organisation procurement gate refuses that step |
 | any other sentence | a guard refused the resulting status (e.g. "separation of duties: approver cannot pay own procurement") |
 
-A file with a shape problem (missing `erp_name`, both ids, an incomplete SharePoint item) is refused by the
-CLI with every problem listed and exit 2; nothing is sent.
 
 ---
 

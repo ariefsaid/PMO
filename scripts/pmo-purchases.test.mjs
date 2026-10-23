@@ -91,3 +91,76 @@ test('parseCsv handles CRLF and escaped quotes', () => {
   assert.deepEqual(parseCsv('a,b\nc,d'), [['a', 'b'], ['c', 'd']], 'no trailing newline');
   assert.deepEqual(rowsFromCsv(''), []);
 });
+
+// ── review round: batching keeps groups whole, duplicates, mid-run failure, strict CSV ───────────
+
+/** A fake RPC that records each call's erp_names and answers 'link' per row, echoing erp_name by position. */
+const recordingApi = (calls, { failOnCall } = {}) => ({
+  rpc: async (_n, body) => {
+    calls.push(body.p_rows.map((r) => r.erp_name));
+    if (failOnCall === calls.length) throw Object.assign(new Error('upstream timeout'), { status: 504 });
+    return { dry_run: body.p_dry_run, counts: { link: body.p_rows.length, skip: 0, refused: 0 },
+      results: body.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: 'link', reason: null })) };
+  },
+});
+const P = '11111111-1111-1111-1111-111111111111';
+
+test('AC-PFE-011: a group is never split across calls; the report keeps file row numbers', async () => {
+  // 499 single rows, then a 3-row group: cutting at 500 rows would put G-1 in call 1 and G-2, G-3 in call 2.
+  const rows = [
+    ...Array.from({ length: MAX_BATCH - 1 }, (_, i) => ({ erp_name: `PINV-${i}`, project_id: P })),
+    { erp_name: 'G-1', project_id: P, group: 'G' }, { erp_name: 'G-2', project_id: P, group: 'G' }, { erp_name: 'G-3', project_id: P, group: 'G' },
+  ];
+  const calls = [];
+  const out = await runLink(recordingApi(calls), rows, { dryRun: true });
+  const callOf = (name) => calls.findIndex((c) => c.includes(name));
+  assert.equal(callOf('G-1'), callOf('G-2'));
+  assert.equal(callOf('G-1'), callOf('G-3'));
+  assert.ok(calls.every((c) => c.length <= MAX_BATCH));
+  assert.equal(out.results.length, rows.length);
+  out.results.forEach((r, i) => { assert.equal(r.row, i + 1); assert.equal(r.erp_name, rows[i].erp_name); });
+  assert.equal(out.counts.link, rows.length);
+});
+
+test('AC-PFE-011: rows of one group scattered through the file are sent in one call', async () => {
+  const rows = [{ erp_name: 'A-1', group: 'A', project_id: P }, { erp_name: 'B-1', group: 'B', project_id: P }, { erp_name: 'A-2', group: 'A', project_id: P }];
+  const calls = [];
+  const out = await runLink(recordingApi(calls), rows, { dryRun: true });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(out.results.map((r) => [r.row, r.erp_name]), [[1, 'A-1'], [2, 'B-1'], [3, 'A-2']]);
+});
+
+test('AC-PFE-011: a group larger than one call is refused before anything is sent', () => {
+  const rows = Array.from({ length: MAX_BATCH + 1 }, (_, i) => ({ erp_name: `PINV-${i}`, project_id: P, group: 'BIG' }));
+  assert.deepEqual(validateLinkRows(rows), [`group 'BIG' (project ${P}) has ${MAX_BATCH + 1} rows; one group must fit in one call of ${MAX_BATCH} rows`]);
+});
+
+test('AC-PFE-011: the same ERP document listed twice is refused', () => {
+  assert.deepEqual(validateLinkRows([
+    { erp_name: 'PINV-1', project_id: P }, { erp_name: 'PINV-2' }, { erp_name: ' PINV-1 ', erp_doctype: 'Purchase Invoice' },
+    { erp_name: 'X', erp_doctype: 'Purchase Order' }, { erp_name: 'X', erp_doctype: 'Purchase Invoice' },
+  ]), ['row 3: ERP document PINV-1 is already listed on row 1']);
+});
+
+test('AC-PFE-011: an unknown field in a JSON row is refused (a typo must not create a purchase)', () => {
+  assert.deepEqual(validateLinkRows([{ erp_name: 'PINV-1', procurment_id: 'p' }]), ["row 1: unknown field 'procurment_id'"]);
+});
+
+test('AC-PFE-011: a failed call keeps the report of the calls before it', async () => {
+  const rows = [
+    ...Array.from({ length: MAX_BATCH }, (_, i) => ({ erp_name: `A-${i}`, project_id: P, group: 'A' })),
+    { erp_name: 'B-1', project_id: P, group: 'B' }, { erp_name: 'B-2', project_id: P, group: 'B' },
+  ];
+  const out = await runLink(recordingApi([], { failOnCall: 2 }), rows, { dryRun: false });
+  assert.equal(out.results.length, MAX_BATCH);
+  assert.equal(out.counts.link, MAX_BATCH);
+  assert.equal(out.failed_at_row, MAX_BATCH + 1);
+  assert.deepEqual(out.not_saved_rows, [MAX_BATCH + 1, MAX_BATCH + 2]);
+  assert.deepEqual(out.error, { message: 'upstream timeout', status: 504 });
+});
+
+test('AC-PFE-011: CSV with an unterminated quote, an over-long row or an unknown column is refused', () => {
+  assert.throws(() => parseCsv('a,b\n"x,y\n'), /unterminated quote/);
+  assert.throws(() => rowsFromCsv('erp_name,project_id\nPINV-1,p,extra\n'), /row 1 has 3 cells; the header has 2/);
+  assert.throws(() => rowsFromCsv('erp_name,procurment_id\nPINV-1,p\n'), /unknown column 'procurment_id'/);
+});
