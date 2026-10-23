@@ -134,3 +134,14 @@ Deno.test('local bench: guarded fetch reaches the bench but still refuses anothe
     globalThis.fetch = originalFetch;
   }
 });
+
+Deno.test('local bench: look-alike Supabase URLs and non-web origins are refused', async () => {
+  for (const supabaseUrl of ['http://kong.:8000', 'http://localhost.evil.com:54321', 'http://kong@evil.com:8000', '']) {
+    await withEnv({ ERPNEXT_ALLOW_LOCAL_BENCH: '1', SUPABASE_URL: supabaseUrl }, async () => {
+      assertEquals(isLocalBenchSite(BENCH), false, `bench under ${supabaseUrl || '(unset)'}`);
+    });
+  }
+  await withEnv({ ERPNEXT_ALLOW_LOCAL_BENCH: '1', SUPABASE_URL: LOCAL_SERVED, ERPNEXT_LOCAL_BENCH_ORIGINS: 'file:///tmp/x' }, async () => {
+    assertEquals(isLocalBenchSite('data:text/plain,hi'), false, 'a listed file: URL never matches a data: site');
+  });
+});

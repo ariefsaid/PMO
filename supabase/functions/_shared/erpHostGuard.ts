@@ -115,7 +115,9 @@ function readEnv(name: string): string | undefined {
 
 function originOf(value: string): string | null {
   try {
-    return new URL(value.trim()).origin;
+    const url = new URL(value.trim());
+    // Only web origins: file:/data: URLs all report the origin "null" and would match each other.
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
   } catch {
     return null;
   }
