@@ -203,11 +203,18 @@ select throws_ok($$ select public.record_native_receipt((select id from public.s
   '42501', 'only Finance or an Admin can record a customer receipt', 'AC-NAR-007 an Executive cannot record a receipt'); -- 39
 select throws_ok($$ select public.cancel_native_receipt((select id from public.incoming_payments where pmo_native and amount = 500000)) $$,
   '42501', 'only Finance or an Admin can cancel a customer receipt', 'AC-NAR-007 an Executive cannot cancel a receipt'); -- 40
+-- An Engineer reads no sales invoices or receipts (0350), so the ids are captured first and passed as literals:
+-- the refusal under test is the role gate, reached even by a caller who holds the exact ids.
+do $$ begin
+  perform set_config('nar.invoice_id', (select id::text from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), true);
+  perform set_config('nar.invoice_date', (select invoice_date::text from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'), true);
+  perform set_config('nar.receipt_id', (select id::text from public.incoming_payments where pmo_native and amount = 500000), true);
+end $$;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000000a7","role":"authenticated"}';
-select throws_ok($$ select public.record_native_receipt((select id from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]'),
-  p_amount => 10, p_date => (select invoice_date from public.sales_invoices where native_lines @> '[{"description":"Receipt invoice"}]')) $$,
+select throws_ok($$ select public.record_native_receipt(current_setting('nar.invoice_id')::uuid,
+  p_amount => 10, p_date => current_setting('nar.invoice_date')::date) $$,
   '42501', 'only Finance or an Admin can record a customer receipt', 'AC-NAR-007 an Engineer cannot record a receipt'); -- 41
-select throws_ok($$ select public.cancel_native_receipt((select id from public.incoming_payments where pmo_native and amount = 500000)) $$,
+select throws_ok($$ select public.cancel_native_receipt(current_setting('nar.receipt_id')::uuid) $$,
   '42501', 'only Finance or an Admin can cancel a customer receipt', 'AC-NAR-007 an Engineer cannot cancel a receipt'); -- 42
 
 -- ── another org's Finance or Admin, holding a LITERAL id (read here as the owner), is refused ─────────────────

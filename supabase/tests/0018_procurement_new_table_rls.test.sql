@@ -1,6 +1,6 @@
 -- 0018_procurement_new_table_rls.test.sql
 -- AC-813: new-table RLS on procurement_receipts / procurement_invoices.
---   • Engineer SELECT in-org → allowed (returns rows).
+--   • Engineer SELECT → the receipt under their own request; no vendor bills (owner ruling 2026-10-23, 0350).
 --   • Engineer direct INSERT into procurement_receipts → 42501 (4-role gate).
 --   • Finance INSERT a receipt whose procurement_id is an org-B procurement → 42501 (parent-org guard).
 begin;
@@ -19,10 +19,10 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('00180000-0000-0000-0000-0000000000a1','00180000-0000-0000-0000-000000000001','Eng RLS','eng-rls@example.com','Engineer'),
   ('00180000-0000-0000-0000-0000000000a2','00180000-0000-0000-0000-000000000001','Fin RLS','fin-rls@example.com','Finance');
 
--- Org-A procurement (belongs to org-A; parent for valid in-org writes).
-insert into procurements (id, org_id, title, status) values
+-- Org-A procurement (belongs to org-A; parent for valid in-org writes), raised by the Engineer.
+insert into procurements (id, org_id, title, status, requested_by_id) values
   ('00180000-0000-0000-0000-000000000010','00180000-0000-0000-0000-000000000001',
-   'RLS Proc Org A','Ordered');
+   'RLS Proc Org A','Ordered','00180000-0000-0000-0000-0000000000a1');
 
 -- Org-B procurement (belongs to org-B; used for parent-org guard test).
 insert into procurements (id, org_id, title, status) values
@@ -39,21 +39,21 @@ insert into procurement_invoices (id, org_id, procurement_id, status, tax_treatm
   ('00180000-0000-0000-0000-000000000030','00180000-0000-0000-0000-000000000001',
    '00180000-0000-0000-0000-000000000010','Received', 'exclusive', 0);
 
--- ── T1: Engineer SELECT in-org → rows returned (read allowed) ────────────────
+-- ── T1: Engineer SELECT → own request's receipt returned; vendor bills never ────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00180000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-813: Engineer can SELECT procurement_receipts in org.
+-- AC-813: Engineer can SELECT the procurement_receipts of a request they raised.
 select is(
   (select count(*)::int from procurement_receipts),
   1,
-  'AC-813: Engineer can SELECT procurement_receipts in org (read allowed)');
+  'AC-813: Engineer can SELECT procurement_receipts of their own request (read allowed)');
 
--- AC-813: Engineer can SELECT procurement_invoices in org.
+-- AC-813: Engineer reads no procurement_invoices, even on their own request.
 select is(
   (select count(*)::int from procurement_invoices),
-  1,
-  'AC-813: Engineer can SELECT procurement_invoices in org (read allowed)');
+  0,
+  'AC-813: Engineer reads no procurement_invoices (vendor bills are not an Engineer read)');
 
 -- AC-813: Engineer direct INSERT into procurement_receipts → 42501 (4-role write gate).
 select throws_ok(

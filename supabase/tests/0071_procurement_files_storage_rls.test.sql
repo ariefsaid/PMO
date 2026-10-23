@@ -74,18 +74,18 @@ select ok((select qual like '%Admin%' and qual like '%NOT%' from pg_policies
   where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_delete'),
   'AC-SEC-204: delete policy is Admin-only and excludes referenced paths');
 
--- ── AC-PF-012: in-org NON-WRITER (Engineer A) reads the orphan-segment-2 object ─
--- Storage READ is DELIBERATELY segment-1 (org) only, NOT segment-2-gated, in parity with the
--- org-wide file-metadata SELECT. The Engineer (a non-writer) still reads the in-org object
--- whose segment-2 points at a non-existent procurement → read is not per-procurement scoped.
+-- ── AC-PF-012: in-org NON-WRITER (Engineer A) does not read the orphan-segment-2 object ─
+-- An Engineer reads procurement-files objects only under a request they raised (0350), so an
+-- in-org object whose segment-2 names no procurement is not theirs to read. The org-wide read of
+-- the roles that see every request (AC-PF-007) is unchanged.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select results_eq(
   $$ select count(*)::int from storage.objects
      where bucket_id = 'procurement-files'
        and name like '00710000-0000-0000-0000-000000000001/00710000-0000-0000-0000-0000000000ff/%' $$,
-  $$ values (1) $$,
-  'AC-PF-012: in-org Engineer (non-writer) reads an in-org object regardless of segment-2 (storage read = org-segment-1 only, deliberate parity)');
+  $$ values (0) $$,
+  'AC-PF-012: in-org Engineer (non-writer) reads no object outside a request they raised');
 reset role;
 
 -- ── AC-PF-007: anon cannot read procurement-files objects ────────────────────
