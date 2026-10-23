@@ -1,6 +1,6 @@
--- erp_purchase_orphans.test.sql — 0360/0361. Owns AC-PFE-016, AC-PFE-017.
+-- erp_purchase_orphans.test.sql — 0360/0361. Owns AC-PFE-016, AC-PFE-017; I-4 (Engineer file scope, 0350 narrowed).
 begin;
-select plan(6);
+select plan(8);
 insert into organizations (id, name, default_currency) values
   ('03630000-0000-0000-0000-00000000000a','PFO A','IDR'), ('03630000-0000-0000-0000-00000000000b','PFO B','IDR');
 insert into auth.users (id, email) values
@@ -24,6 +24,14 @@ insert into procurements (id, org_id, title, requested_by_id, currency, total_va
   ('03630000-0000-0000-0000-0000000000e2','03630000-0000-0000-0000-00000000000a','P2','03630000-0000-0000-0000-0000000000a1','IDR',1,'Draft');
 insert into procurement_erp_links (org_id, procurement_id, erp_purchase_document_id)
   select '03630000-0000-0000-0000-00000000000a','03630000-0000-0000-0000-0000000000e1', id from erp_purchase_documents where erp_name = 'PI-LINKED';
+-- I-4: an Engineer's own request with a purchase-level file and a file on its vendor bill.
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03630000-0000-0000-0000-0000000000e3','03630000-0000-0000-0000-00000000000a','ENG','03630000-0000-0000-0000-0000000000a2','IDR',1,'Vendor Invoiced');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, tax_amount, tax_treatment, currency) values
+  ('03630000-0000-0000-0000-0000000000f3','03630000-0000-0000-0000-0000000000e3','03630000-0000-0000-0000-00000000000a','Received',1,0,'exclusive','IDR');
+insert into procurement_documents (org_id, procurement_id, type, link, record_kind, record_id) values
+  ('03630000-0000-0000-0000-00000000000a','03630000-0000-0000-0000-0000000000e3','Spec','https://example.test/spec',null,null),
+  ('03630000-0000-0000-0000-00000000000a','03630000-0000-0000-0000-0000000000e3','Bill','https://example.test/bill','vendor_invoice','03630000-0000-0000-0000-0000000000f3');
 insert into purchase_orders (id, procurement_id, org_id, status) values
   ('03630000-0000-0000-0000-0000000000f2','03630000-0000-0000-0000-0000000000e2','03630000-0000-0000-0000-00000000000a','Issued');
 
@@ -41,6 +49,10 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03630000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is((select count(*) from erp_purchase_orphans), 0::bigint, 'AC-PFE-016 an Engineer reads no orphans');
+select is((select count(*) from procurement_documents where procurement_id = '03630000-0000-0000-0000-0000000000e3' and record_kind is null), 1::bigint,
+  'I-4 an Engineer still reads the purchase-level files of their own request');
+select is((select count(*) from procurement_documents where procurement_id = '03630000-0000-0000-0000-0000000000e3' and record_kind is not null), 0::bigint,
+  'I-4 an Engineer reads no file attached to a bill on their own request');
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03630000-0000-0000-0000-0000000000b1","role":"authenticated"}';

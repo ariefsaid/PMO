@@ -77,8 +77,8 @@ select is((select count(*) from procurement_documents where record_kind = 'erp_d
 -- AC-PFE-013 link path: the approver may not link the payment that pays their own approval.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03610000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select matches(link_erp_purchase_documents('[{"erp_name":"PE-1","procurement_id":"03610000-0000-0000-0000-0000000000e4"}]') #>> '{results,0,reason}',
-  'separation of duties', 'AC-PFE-013 approver cannot move their approved purchase to Paid by linking');
+select is(link_erp_purchase_documents('[{"erp_name":"PE-1","procurement_id":"03610000-0000-0000-0000-0000000000e4"}]') #>> '{results,0,reason}',
+  'separation_of_duties', 'AC-PFE-013 approver cannot move their approved purchase to Paid by linking');
 reset role;
 
 -- AC-PFE-003 link path.

@@ -124,7 +124,8 @@ select ok(
                      and p.proname not in ('upsert_erp_purchase_documents','guard_procurement_erp_link_org',
                        'procurement_evidenced_step','procurement_gate_violation','procurement_ledger_held',
                        'refresh_erp_linked_purchase_total','link_erp_purchase_documents','unlink_erp_purchase_document',
-                       'guard_procurement_document_record'))
+                       'guard_procurement_document_record',
+                       'procurement_payment_within_ceiling'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only the named link/commitment readers touch the table');

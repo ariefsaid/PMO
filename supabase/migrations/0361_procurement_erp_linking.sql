@@ -37,6 +37,16 @@ revoke all on function public.guard_procurement_document_record() from public, a
 create trigger procurement_documents_record_guard before insert or update of record_kind, record_id, procurement_id
   on public.procurement_documents for each row execute function public.guard_procurement_document_record();
 grant insert (record_kind, record_id) on public.procurement_documents to authenticated;
+-- I-4: 0350 Engineer scope (HEAD body from pg_policies) narrowed — a file attached to a bill, a payment or an
+-- ERP document is invoice/payment money; outside the four roles only purchase-level and request-side files.
+alter policy procurement_documents_engineer_read_scope on public.procurement_documents
+  using ((select public.is_active_member())
+         and ((select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
+              or ((record_kind is null
+                   or record_kind in ('purchase_request', 'rfq', 'quotation', 'purchase_order', 'goods_receipt'))
+                  and exists (select 1 from public.procurements p
+                               where p.id = procurement_documents.procurement_id
+                                 and p.requested_by_id = (select auth.uid())))));
 
 -- §3 No double count (FR-PFE-035..037). Ledger-held = pre-tax ERP purchase invoices on the ledger.
 create function public.procurement_ledger_held(p_procurement_id uuid) returns numeric
@@ -75,6 +85,139 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
 $$;
 revoke all on function public.project_committed_spend(uuid) from public, anon;
 grant execute on function public.project_committed_spend(uuid) to authenticated;
+
+-- §3b The ERP orders a purchase invoice bills (I-2) and cancelled linked documents (M-1). 0360's upsert, plus
+-- purchase_orders and the total refresh (the only changes).
+alter table public.erp_purchase_documents add column purchase_orders text[] not null default '{}';
+comment on column public.erp_purchase_documents.purchase_orders is
+  'Purchase Invoice / Receipt: the ERPNext Purchase Orders its items reference (sent by the mirror feed). Used to keep an invoice in its order''s purchase.';
+create or replace function public.upsert_erp_purchase_documents(p_org_id uuid, p_rows jsonb)
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_written integer;
+begin
+  insert into public.erp_purchase_documents as d (
+    org_id, erp_doctype, erp_name, supplier, supplier_name, doc_date, due_date, bill_no, currency,
+    grand_total, net_total, outstanding_amount, erp_status, erp_docstatus, is_return, erp_project, erp_modified, purchase_orders)
+  select p_org_id, r.erp_doctype, r.erp_name, r.supplier, r.supplier_name, r.doc_date, r.due_date, r.bill_no,
+         r.currency, r.grand_total, r.net_total, r.outstanding_amount, r.erp_status, r.erp_docstatus,
+         coalesce(r.is_return, false), r.erp_project, r.erp_modified, coalesce(r.purchase_orders, '{}')
+    from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) as r(
+      erp_doctype text, erp_name text, supplier text, supplier_name text, doc_date date, due_date date,
+      bill_no text, currency text, grand_total numeric, net_total numeric, outstanding_amount numeric, erp_status text,
+      erp_docstatus smallint, is_return boolean, erp_project text, erp_modified text, purchase_orders text[])
+  on conflict (org_id, erp_doctype, erp_name) do update set
+    supplier = excluded.supplier, supplier_name = excluded.supplier_name, doc_date = excluded.doc_date,
+    due_date = excluded.due_date, bill_no = excluded.bill_no, currency = excluded.currency,
+    grand_total = excluded.grand_total, net_total = excluded.net_total, outstanding_amount = excluded.outstanding_amount,
+    erp_status = excluded.erp_status, erp_docstatus = excluded.erp_docstatus, is_return = excluded.is_return,
+    erp_project = excluded.erp_project, erp_modified = excluded.erp_modified, purchase_orders = excluded.purchase_orders,
+    updated_at = now()
+  where excluded.erp_modified > d.erp_modified;
+  get diagnostics v_written = row_count;
+
+  with map as (
+    select m.value as erp_name, min(m.key)::uuid as project_id
+      from public.external_org_bindings b, jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) m
+     where b.org_id = p_org_id and b.external_tier = 'erpnext' and b.activated_at is not null
+       and m.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' and m.value <> ''
+     group by m.value having count(*) = 1
+  ), names as (
+    select d.id, d.erp_project as erp_name from public.erp_purchase_documents d
+     where d.org_id = p_org_id and d.erp_project is not null
+    union
+    select d.id, g.project from public.erp_purchase_documents d
+      join public.erp_gl_entry_mirror g
+        on g.org_id = d.org_id and g.voucher_type = d.erp_doctype and g.voucher_no = d.erp_name
+     where d.org_id = p_org_id and d.erp_doctype = 'Purchase Invoice'
+       and g.project is not null and not g.is_cancelled
+  ), stamped as (
+    select d.id,
+           coalesce(array_agg(distinct p.id order by p.id) filter (where p.id is not null), '{}') as project_ids,
+           exists (select 1 from public.external_refs x
+                    where x.org_id = p_org_id and x.domain = 'procurement' and x.external_tier = 'erpnext'
+                      and x.external_record_id = d.erp_name) as pmo_owned
+      from public.erp_purchase_documents d
+      left join names n on n.id = d.id
+      left join map on map.erp_name = n.erp_name
+      left join public.projects p on p.id = map.project_id and p.org_id = p_org_id
+     where d.org_id = p_org_id
+     group by d.id, d.erp_name
+  )
+  update public.erp_purchase_documents d
+     set project_ids = s.project_ids, pmo_owned = s.pmo_owned
+    from stamped s
+   where d.id = s.id and (d.project_ids is distinct from s.project_ids or d.pmo_owned is distinct from s.pmo_owned);
+
+  -- 0361 M-1: a linked document that ERPNext cancels stops counting in its purchase's total (ledger-held and
+  -- evidence already filter erp_docstatus = 1).
+  perform public.refresh_erp_linked_purchase_total(x.procurement_id)
+     from (select distinct l.procurement_id
+             from public.procurement_erp_links l
+             join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+            where d.org_id = p_org_id
+              and d.erp_name in (select r->>'erp_name' from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) r)) x;
+
+  return v_written;
+end $$;
+revoke all on function public.upsert_erp_purchase_documents(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.upsert_erp_purchase_documents(uuid, jsonb) to service_role;
+
+-- §3c The approved-amount ceiling counts linked ERP invoices (I-1). HEAD body (0350, = 0349 + the role clause) plus the lines marked 0361.
+create or replace function public.procurement_payment_within_ceiling(p_procurement_id uuid)
+returns table(ok boolean, reason text, billed_net numeric, approved_amount numeric)
+language plpgsql stable security definer set search_path = public, pg_catalog as $$
+declare
+  v_org uuid; v_currency text; v_ceiling numeric; v_total numeric; v_net numeric; v_count integer;
+begin
+  select p.org_id, p.currency, p.approved_total_value, p.total_value
+    into v_org, v_currency, v_ceiling, v_total
+    from public.procurements p where p.id = p_procurement_id;
+  if not found then return; end if;
+  if auth.uid() is not null
+     and (v_org is distinct from public.auth_org_id() or not public.is_active_member()
+          or not coalesce(public.auth_role() in ('Admin', 'Executive', 'Project Manager', 'Finance'), false)) then
+    return;
+  end if;
+  if exists (select 1 from public.procurement_invoices i
+              where i.procurement_id = p_procurement_id
+                and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+                and i.currency is distinct from v_currency)
+     -- 0361 I-1: a linked, submitted ERP purchase invoice is a bill too.
+     or exists (select 1 from public.procurement_erp_links l
+                  join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+                 where l.procurement_id = p_procurement_id and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1
+                   and d.currency is distinct from v_currency) then
+    return query select false, 'bill currency differs from procurement currency', null::numeric, v_ceiling;
+    return;
+  end if;
+  select coalesce(sum(case when i.tax_treatment = 'inclusive' then i.amount - i.tax_amount else i.amount end), 0),
+         count(*)
+    into v_net, v_count
+    from public.procurement_invoices i
+   where i.procurement_id = p_procurement_id
+     and i.amount is not null
+     and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     and not (i.vi_number is not null and exists (
+       select 1 from public.procurement_invoices successor
+        where successor.procurement_id = i.procurement_id
+          and successor.erp_amended_from = i.vi_number
+          and coalesce(successor.erp_docstatus, 1) <> 2 and successor.erp_cancelled_at is null));
+  -- 0361 I-1: linked, submitted ERP purchase invoices count at their pre-tax total.
+  select v_net + coalesce(sum(coalesce(d.net_total, d.grand_total)), 0), v_count + count(*)
+    into v_net, v_count
+    from public.procurement_erp_links l
+    join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+   where l.procurement_id = p_procurement_id and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1;
+  if v_count = 0 then v_net := v_total; end if;
+  if v_ceiling is null then
+    return query select false, 'approved amount is missing', v_net, null::numeric;
+    return;
+  end if;
+  return query select v_net <= v_ceiling,
+                      case when v_net <= v_ceiling then null else 'vendor bill exceeds approved amount' end,
+                      v_net, v_ceiling;
+end; $$;
 
 -- §4 Total of a purchase created from ERP documents (FR-PFE-027).
 create function public.refresh_erp_linked_purchase_total(p_procurement_id uuid) returns void
@@ -139,12 +282,29 @@ begin
          for update;
         if v_doc.erp_docstatus <> 1 then raise exception using errcode = 'PFE02', message = 'document_cancelled'; end if;
         if v_doc.pmo_owned then raise exception using errcode = 'PFE02', message = 'document_recorded_by_pmo'; end if;
+        -- M-2: the pmo_owned stamp is set by the mirror; a push after the last sweep is caught here.
+        if exists (select 1 from public.external_refs x
+                    where x.org_id = v_org and x.domain = 'procurement' and x.external_tier = 'erpnext'
+                      and x.external_record_id = v_doc.erp_name) then
+          raise exception using errcode = 'PFE02', message = 'document_recorded_by_pmo';
+        end if;
+        -- M-6: returns / debit notes are not linked.
+        if v_doc.is_return then raise exception using errcode = 'PFE02', message = 'document_is_return'; end if;
 
         v_target  := nullif(btrim(v_row->>'procurement_id'), '')::uuid;
         v_project := nullif(btrim(v_row->>'project_id'), '')::uuid;
         select l.procurement_id into v_existing from public.procurement_erp_links l where l.erp_purchase_document_id = v_doc.id;
         if found then
           if v_target is null or v_target = v_existing then
+            -- FR-PFE-028 re-runs: a row that named no purchase re-joins its group's existing linked purchase,
+            -- so a fixed sibling row in the same group links there instead of creating a second purchase.
+            -- (Variables survive the PFE03 rollback below; only data changes are undone.)
+            if v_target is null and exists (select 1 from public.procurements p
+                                             where p.id = v_existing and p.origin = 'erp_link'
+                                               and p.project_id is not distinct from v_project) then
+              v_groups := v_groups || jsonb_build_object(
+                coalesce(v_project::text, '-') || '|' || coalesce(nullif(btrim(v_row->>'group'), ''), v_doc.erp_name), v_existing);
+            end if;
             v_target := v_existing; v_reason := 'already_linked';
             raise exception using errcode = 'PFE03', message = 'skip';
           end if;
@@ -181,6 +341,10 @@ begin
            and (v_proc.project_id is null or not (v_proc.project_id = any (v_doc.project_ids))) then
           raise exception using errcode = 'PFE02', message = 'project_mismatch';
         end if;
+        -- I-3: an invoice with no project in ERPNext would lower this project's commitment while its actuals miss it.
+        if v_doc.erp_doctype = 'Purchase Invoice' and cardinality(v_doc.project_ids) = 0 and v_proc.project_id is not null then
+          raise exception using errcode = 'PFE02', message = 'document_has_no_project';
+        end if;
         if exists (select 1 from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
                     where l.procurement_id = v_proc.id and d.supplier is distinct from v_doc.supplier) then
           raise exception using errcode = 'PFE02', message = 'supplier_mismatch';
@@ -198,6 +362,20 @@ begin
             end if;
           end if;
         end if;
+        -- I-2: an invoice and the ERP order it bills sit in one purchase (else the order stays committed in
+        -- one purchase while the ledger holds its invoice under another — a double count).
+        if v_doc.erp_doctype = 'Purchase Invoice' and exists (
+             select 1 from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+              where d.org_id = v_org and d.erp_doctype = 'Purchase Order' and d.erp_name = any (v_doc.purchase_orders)
+                and l.procurement_id <> v_proc.id) then
+          raise exception using errcode = 'PFE02', message = 'order_linked_to_another_purchase';
+        end if;
+        if v_doc.erp_doctype = 'Purchase Order' and exists (
+             select 1 from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+              where d.org_id = v_org and d.erp_doctype = 'Purchase Invoice' and v_doc.erp_name = any (d.purchase_orders)
+                and l.procurement_id <> v_proc.id) then
+          raise exception using errcode = 'PFE02', message = 'invoice_linked_to_another_purchase';
+        end if;
         v_step := case v_doc.erp_doctype when 'Purchase Order' then 'Ordered' when 'Purchase Receipt' then 'Received'
                     when 'Purchase Invoice' then 'Vendor Invoiced' else 'Paid' end;
         v_gate := public.procurement_gate_violation(v_proc.id, v_step);
@@ -209,7 +387,7 @@ begin
         -- that guard only covers amount_approved_by_id (0362 widens it); the check stays as defence in depth.
         if v_proc.status::text <> 'Paid' and public.procurement_evidenced_step(v_proc.id) = 'Paid'
            and v_uid is not null and (v_uid = v_proc.approved_by_id or v_uid = v_proc.amount_approved_by_id) then
-          raise exception using errcode = 'PFE02', message = 'separation of duties: approver cannot pay own procurement';
+          raise exception using errcode = 'PFE02', message = 'separation_of_duties';
         end if;
         if v_proc.vendor_id is null then
           update public.procurements p set vendor_id = x.pmo_record_id::uuid
@@ -237,8 +415,16 @@ begin
         when sqlstate 'PFE03' then v_outcome := 'skip';
         when sqlstate 'PFE02' then v_outcome := 'refused'; v_reason := sqlerrm; v_target := null;
         when invalid_text_representation then v_outcome := 'refused'; v_reason := 'invalid_id'; v_target := null;
-        when insufficient_privilege or check_violation then v_outcome := 'refused'; v_reason := sqlerrm; v_target := null;
-        when others then v_outcome := 'refused'; v_reason := 'error: ' || sqlerrm; v_target := null;
+        -- M-6: reasons are codes; raw error text never leaves the function (it goes to the server log).
+        when insufficient_privilege then v_outcome := 'refused'; v_target := null;
+          v_reason := case when sqlerrm like 'separation of duties%' then 'separation_of_duties' else 'not_permitted' end;
+        when check_violation then v_outcome := 'refused'; v_target := null;
+          v_reason := case when sqlerrm like 'Cannot pay without a recorded approved amount%' then 'approval_missing'
+                           when sqlerrm like 'Vendor bill exceeds the approved amount%' then 'exceeds_approved_amount'
+                           else 'rule_violation' end;
+          raise log 'link_erp_purchase_documents row %: % %', v_n, sqlstate, sqlerrm;
+        when others then v_outcome := 'refused'; v_target := null; v_reason := 'internal_error';
+          raise log 'link_erp_purchase_documents row %: % %', v_n, sqlstate, sqlerrm;
       end;
       v_results := v_results || jsonb_build_array(jsonb_build_object(
         'row', v_n, 'erp_doctype', v_doc.erp_doctype, 'erp_name', coalesce(v_doc.erp_name, v_row->>'erp_name'),
