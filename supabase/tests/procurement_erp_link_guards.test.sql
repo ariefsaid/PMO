@@ -37,6 +37,8 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
   ('03640000-0000-0000-0000-0000000000e5','03640000-0000-0000-0000-00000000000a','NP','03640000-0000-0000-0000-0000000000a1','03640000-0000-0000-0000-0000000000d1','IDR',100,'Ordered',null,null),
   ('03640000-0000-0000-0000-0000000000e6','03640000-0000-0000-0000-00000000000a','CEIL','03640000-0000-0000-0000-0000000000a1','03640000-0000-0000-0000-0000000000d1','IDR',500,'Ordered','03640000-0000-0000-0000-0000000000a2',500),
   ('03640000-0000-0000-0000-0000000000e7','03640000-0000-0000-0000-00000000000a','PAY','03640000-0000-0000-0000-0000000000a1','03640000-0000-0000-0000-0000000000d1','IDR',100,'Vendor Invoiced',null,null);
+-- AMENDED BY 0362 (FR-PFE-017): PAY has a request number, so it entered approval; without one 0362 lets it be paid with no approval.
+update procurements set pr_number = 'PR-PAY' where id = '03640000-0000-0000-0000-0000000000e7';
 -- PINV-PUSHED is pushed by PMO after the last mirror sweep: its pmo_owned stamp is still false.
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
   ('03640000-0000-0000-0000-00000000000a','procurement','pmo-late','erpnext','PINV-PUSHED');

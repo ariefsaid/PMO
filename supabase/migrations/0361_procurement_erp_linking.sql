@@ -420,6 +420,7 @@ begin
           v_reason := case when sqlerrm like 'separation of duties%' then 'separation_of_duties' else 'not_permitted' end;
         when check_violation then v_outcome := 'refused'; v_target := null;
           v_reason := case when sqlerrm like 'Cannot pay without a recorded approved amount%' then 'approval_missing'
+                           when sqlerrm like 'This purchase is awaiting approval%' then 'awaiting_approval'  -- 0362 (Requested never derives)
                            when sqlerrm like 'Vendor bill exceeds the approved amount%' then 'exceeds_approved_amount'
                            else 'rule_violation' end;
           raise log 'link_erp_purchase_documents row %: % %', v_n, sqlstate, sqlerrm;
