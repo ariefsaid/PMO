@@ -7,7 +7,7 @@
  *
  * The sets mirror the RBAC matrix in policy.ts for the two v1 agent write actions:
  *   create_activity → MASTER_DATA roles (Admin·Exec·PM·Finance)
- *   update_task_status → DELIVERY roles + Engineer (RLS enforces own-task for Engineer)
+ *   update_task_status → DELIVERY roles + Engineer + Finance (RLS enforces own-task for both)
  *
  * ADR-0016: this is a UX-preflight (can() check); RLS/SoD is the enforcement authority.
  *
@@ -24,14 +24,16 @@ export const AGENT_MASTER_DATA_ROLES: string[] = [
 ];
 
 /**
- * Roles allowed to call update_task_status.
- * DELIVERY (Admin·Exec·PM) may update any task; Engineer may update their OWN task
- * (RLS tasks_update_own_status enforces the ownership; can() check is the UX preflight).
+ * Roles allowed to call update_task_status (taskStatus.edit in policy.ts).
+ * DELIVERY (Admin·Exec·PM) may update any task; Engineer and Finance may update a task ASSIGNED to
+ * them (migration 0355 scopes Finance like Engineer). RLS tasks_update_own_status enforces the
+ * ownership; this is the UX preflight.
  */
-export const AGENT_DELIVERY_WITH_ENGINEER_ROLES: string[] = [
+export const AGENT_TASK_STATUS_ROLES: string[] = [
   'Admin',
   'Executive',
   'Project Manager',
+  'Finance',
   'Engineer',
 ];
 

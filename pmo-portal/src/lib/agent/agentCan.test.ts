@@ -11,6 +11,10 @@ it('the two shipped rules are unchanged; anything else is denied', () => {
   expect(agentCan('create', 'contactActivity', { realRole: 'Project Manager' })).toBe(true);
   expect(agentCan('create', 'contactActivity', { realRole: 'Engineer' })).toBe(false);
   expect(agentCan('edit', 'taskStatus', { realRole: 'Engineer' })).toBe(true);
-  expect(agentCan('edit', 'taskStatus', { realRole: 'Finance' })).toBe(false);
   expect(agentCan('transition', 'salesInvoice', { realRole: 'Finance' })).toBe(false);
+});
+it('AC-TASK-FIN-001 taskStatus edit admits Finance like Engineer (RLS scopes to own assigned task)', () => {
+  expect(agentCan('edit', 'taskStatus', { realRole: 'Finance' })).toBe(true);
+  expect(agentCan('edit', 'taskStatus', { realRole: 'Engineer' })).toBe(true);
+  expect(agentCan('edit', 'taskStatus', { realRole: null })).toBe(false);
 });
