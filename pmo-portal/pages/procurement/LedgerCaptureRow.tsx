@@ -67,6 +67,8 @@ export interface LedgerCaptureRowProps {
   busy?: boolean;
   /** The case approver cannot pay on an ERP-owned org (server SoD gate). */
   isApprover?: boolean;
+  /** FR-PFE-001: the document this purchase was started at (empty Draft ledger only). */
+  startAt?: RecordKind | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,14 +84,24 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   canWrite,
   busy = false,
   isApprover = false,
+  startAt = null,
 }) => {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
-  const nextKind = nextExpectedType(status, existingTypes);
+  const nextKind = nextExpectedType(status, existingTypes, startAt);
 
   // Honest doorway: hide when canWrite=false OR terminal status
-  if (!canWrite || nextKind === null) return null;
+  if (!canWrite) return null;
+  // ADR-0093: the server refuses documents on a purchase awaiting approval — say so instead of offering a dead action.
+  if (status === 'Requested') {
+    return (
+      <p data-testid="ledger-awaiting-approval" className="mt-3 text-[13px] text-muted-foreground">
+        {t('procurement:ledger.awaitingApproval', 'Waiting for approval. Documents can be recorded once it is approved.')}
+      </p>
+    );
+  }
 
+  if (nextKind === null) return null;
   const label = nextKind === 'purchase_request' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
     : nextKind === 'rfq' ? t('procurementLedger.types.rfq', 'RFQ')
       : nextKind === 'purchase_order' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')

@@ -42,6 +42,8 @@ import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
+import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
 import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
 import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
 import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
@@ -86,6 +88,10 @@ const canApproveReject = (role: string) =>
   can('transition', 'procurement', { realRole: role as never });
 const canSource = (role: string) => can('create', 'quotation', { realRole: role as never });
 const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
+/** The ledger row type -> the `procurement_documents.record_kind` it attaches as (0361). */
+const LEDGER_KIND = {
+  PR: 'purchase_request', RFQ: 'rfq', Quote: 'quotation', PO: 'purchase_order', GR: 'goods_receipt', Invoice: 'vendor_invoice', Payment: 'payment',
+} as const;
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 // ---------------------------------------------------------------------------
@@ -168,6 +174,8 @@ function allowedActions(
   t: TFunction,
   /** #803: false when the request is routed to named approvers who do not include the viewer. */
   routeAllows: boolean = true,
+  /** FR-PFE-005: a payment was recorded at an earlier step (payment-first). */
+  hasPaymentRecord: boolean = false,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -236,6 +244,12 @@ function allowedActions(
     actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
   }
 
+  // FR-PFE-005 payment-first: a recorded (scheduled) payment can be paid from an earlier step. Same role and SoD rule as above.
+  if (hasPaymentRecord && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received'].includes(status)
+      && INVOICE_PAY_ROLES.has(role) && !isApprover) {
+    actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
+  }
+
   // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page
   // action reads "Cancel request" (verb + object) so it never reads as a bare
   // "Cancel" that could be mistaken for dismissing the screen (polish #2).
@@ -292,8 +306,12 @@ const ProcurementDetails: React.FC = () => {
   const bupotParams = new URLSearchParams(location.search);
   const bupotId = bupotParams.get('bupot');
   const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
+  // FR-PFE-001: the first document chosen on the create page (read only while the ledger is empty, in the capture row).
+  const startAtParam = bupotParams.get('startAt');
+  const startAt = (['purchase_order', 'goods_receipt', 'vendor_invoice', 'payment'] as const).find((k) => k === startAtParam) ?? null;
 
   const detailQuery = useProcurementDetail(procurementId);
+  const linkedDocs = useLinkedErpDocuments(procurementId).data;
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
@@ -446,7 +464,7 @@ const ProcurementDetails: React.FC = () => {
     p.approvalRoute && !routeAllows && !isRequester
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t, realRole)
       : null;
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows));
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -904,6 +922,13 @@ const ProcurementDetails: React.FC = () => {
   // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
   // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
   const documentsCount = ledgerRows.length;
+  // FR-PFE-038: a SharePoint link can be attached to any record of the purchase or a linked ERP document.
+  const attachTargets = [
+    ...ledgerRows.map((r) => ({
+      value: `${LEDGER_KIND[r.type]}:${r.recordId}`, label: r.systemNumber ?? r.id, recordKind: LEDGER_KIND[r.type], recordId: r.recordId,
+    })),
+    ...(linkedDocs ?? []).map((d) => ({ value: `erp_document:${d.id}`, label: d.name, recordKind: 'erp_document' as const, recordId: d.id })),
+  ];
   const procTabs: TabItem<ProcTab>[] = [
     { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
     {
@@ -1098,6 +1123,7 @@ const ProcurementDetails: React.FC = () => {
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
               isApprover={isApprover}
+              startAt={startAt}
             />
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
@@ -1137,7 +1163,8 @@ const ProcurementDetails: React.FC = () => {
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
-            <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} />
+            <LinkedErpDocuments procurementId={p.id} />
+            <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} targets={attachTargets} />
           </Card>
         )}
 

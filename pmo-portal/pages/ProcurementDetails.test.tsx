@@ -864,6 +864,40 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
+  it('FR-PFE-005 payment-first: a Draft purchase with a recorded payment shows Mark as Paid to Finance, not to its approver', () => {
+    const withPayment = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other', payments: [{ id: 'pay-1', status: 'Scheduled', amount: 100 }] };
+    detailState.data = { ...withPayment, approved_by_id: 'u-someone-else' };
+    const first = renderPage();
+    expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+    first.unmount();
+    detailState.data = { ...withPayment, approved_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
+  });
+
+  it('a Draft purchase with no payment recorded offers no Mark as Paid', () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other', payments: [] };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
+  });
+
+  it('ADR-0093: the Documents tab of a Requested purchase offers no record action, only waiting-for-approval text', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage('proc-001', 'documents');
+    expect(screen.getByText(/waiting for approval\. documents can be recorded once it is approved/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
+  });
+
+  it('AC-PFE-010: ?startAt=vendor_invoice on a new Draft purchase offers the vendor invoice capture', () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    render(
+      <MemoryRouter initialEntries={['/procurement/proc-001/documents?startAt=vendor_invoice']}>
+        <Routes><Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: /capture vendor invoice/i })).toBeInTheDocument();
+  });
+
   it('Quote Selected status shows Generate Purchase Order for Finance', () => {
     detailState.data = { ...baseProcurement, status: 'Quote Selected', requested_by_id: 'u-other' };
     renderPage();
@@ -1356,6 +1390,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
 

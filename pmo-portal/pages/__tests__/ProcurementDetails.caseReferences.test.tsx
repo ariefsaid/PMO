@@ -103,6 +103,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({
   useProcurementMicrosoftReferences: () => ({ query: { data: refs.rows } }),
 }));

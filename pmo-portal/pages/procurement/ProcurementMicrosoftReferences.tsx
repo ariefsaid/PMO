@@ -2,7 +2,7 @@ import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog, Icon, ListState } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, ListState, SelectField } from '@/src/components/ui';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
@@ -11,13 +11,18 @@ import { useAuth } from '@/src/auth/useAuth';
 import { formatInstantDate } from '@/src/lib/format';
 import { refreshMicrosoftReferences } from '@/src/lib/m365/graphClient';
 import { procurementReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
-import type { ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
+import type { DocumentTarget, ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
 
 export interface ProcurementMicrosoftReferencesProps {
   procurementId: string;
   /** The case's purchase-request number (`procurements.pr_number`); only a picker search hint. */
   requestNumber: string | null;
   createdAt: string;
+  /**
+   * FR-PFE-038: what a new link can be attached to besides the purchase itself — its records and linked ERP documents.
+   * `value` is `<recordKind>:<recordId>`. Rows already attached to one show under its label.
+   */
+  targets?: Array<DocumentTarget & { value: string; label: string }>;
 }
 
 /** A legacy plain link is opened as an ordinary external link only when it is a plain http(s) URL. */
@@ -40,7 +45,7 @@ type Confirm = { kind: 'unlink' | 'clear'; row: ProcurementDocumentRow };
  * link is not repeated here. Works for overhead cases with no project and at any stage. It never
  * changes a money transition or a ledger total.
  */
-export function ProcurementMicrosoftReferences({ procurementId, requestNumber, createdAt }: ProcurementMicrosoftReferencesProps) {
+export function ProcurementMicrosoftReferences({ procurementId, requestNumber, createdAt, targets = [] }: ProcurementMicrosoftReferencesProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { currentUser } = useAuth();
@@ -56,6 +61,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [attachTo, setAttachTo] = useState('');
   const pickerOpener = useRef<HTMLElement | null>(null);
 
   /** Matching browse refresh: only for rows the picker itself surfaced, never for absent results. */
@@ -73,7 +79,8 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   /** A failed create rejects out of here, so the picker keeps the selection and reports it. */
   async function onPickerSelect(selected: MicrosoftReferenceInput) {
     await refreshMatches(selected);
-    await create.mutateAsync({ reference: selected });
+    const target = targets.find((x) => x.value === attachTo);
+    await create.mutateAsync(target ? { reference: selected, target: { recordKind: target.recordKind, recordId: target.recordId } } : { reference: selected });
   }
 
   function openPicker(opener?: HTMLElement | null) {
@@ -129,6 +136,32 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     );
   }
 
+  function renderItem(row: ProcurementDocumentRow) {
+    const reference = procurementReference(row);
+    return (
+      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
+        {canEdit && (
+          <Button
+            variant="ghost" size="sm" className="touch-target shrink-0"
+            aria-label={reference
+              ? t('m365Documents.procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
+              : t('m365Documents.procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
+            onClick={() => { setConfirmError(null); setConfirm({ kind: reference ? 'unlink' : 'clear', row }); }}
+          >
+            {reference ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
+          </Button>
+        )}
+      </li>
+    );
+  }
+
+  // A link attached to one of the purchase's records shows under that record; one whose record is gone stays in the plain list.
+  const targetKey = (row: ProcurementDocumentRow) => `${row.record_kind}:${row.record_id}`;
+  const groups = targets
+    .map((x) => ({ ...x, rows: rows.filter((row) => row.record_kind && targetKey(row) === x.value) }))
+    .filter((g) => g.rows.length > 0);
+  const plain = rows.filter((row) => !groups.some((g) => g.value === targetKey(row)));
   const listName = t('m365Documents.procurement.heading', 'SharePoint links for this case');
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
@@ -155,6 +188,20 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
       <p className="mt-1 px-1 text-[12px] text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
+      {canCreate && targets.length > 0 && (
+        <div className="mt-2 max-w-xs px-1">
+          <SelectField
+            id="proc-case-attach-to"
+            label={t('procurement:documents.attachTo', 'Attach to')}
+            value={attachTo}
+            onChange={setAttachTo}
+            options={[
+              { value: '', label: t('procurement:documents.thisPurchase', 'This purchase') },
+              ...targets.map((x) => ({ value: x.value, label: x.label })),
+            ]}
+          />
+        </div>
+      )}
       <div className="mt-2">
         {query.isPending ? (
           <ListState variant="loading" rows={2} />
@@ -173,27 +220,15 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
             className="py-6"
           />
         ) : (
-          <ul aria-label={listName} className="divide-y divide-border">
-            {rows.map((row) => {
-              const reference = procurementReference(row);
-              return (
-                <li key={row.id} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
-                  {canEdit && (
-                    <Button
-                      variant="ghost" size="sm" className="touch-target shrink-0"
-                      aria-label={reference
-                        ? t('m365Documents.procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
-                        : t('m365Documents.procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
-                      onClick={() => { setConfirmError(null); setConfirm({ kind: reference ? 'unlink' : 'clear', row }); }}
-                    >
-                      {reference ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {plain.length > 0 && <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>}
+            {groups.map((g) => (
+              <div key={g.value} role="group" aria-label={g.label} className="mt-3">
+                <p className="px-1 text-[12px] font-semibold text-muted-foreground">{g.label}</p>
+                <ul className="divide-y divide-border">{g.rows.map(renderItem)}</ul>
+              </div>
+            ))}
+          </>
         )}
       </div>
 

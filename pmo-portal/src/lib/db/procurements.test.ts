@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom, mockRange, mockEq } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange, mockEq, rpcSpy } = vi.hoisted(() => {
+  const rpcSpy = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockFrom = vi.fn();
   const mockRange = vi.fn();
-  return { mockSelect, mockFrom, mockRange, mockEq };
+  return { mockSelect, mockFrom, mockRange, mockEq, rpcSpy };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: rpcSpy } }));
 
 import {
   listProcurements,
@@ -51,7 +52,7 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)',
+      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');
@@ -107,34 +108,31 @@ function makeChainedBuilder(resolved: { data: unknown; error: unknown }) {
   return { mockEq, mockIn };
 }
 
+// FR-PFE-037: the committed figure is SQL's `project_committed_spend` (one definition). The shipped tests here asserted the
+// old `.from('procurements').in('status', …)` client sum, which is the duplicate logic this change removes.
 describe('getProjectCommittedSpend', () => {
-  it('sums total_value over Ordered..Paid PRs for the project (OD-W5-4 committed basis)', async () => {
-    const { mockEq, mockIn } = makeChainedBuilder({
-      data: [{ total_value: 120000 }, { total_value: 30000 }, { total_value: 50000 }],
-      error: null,
-    });
-    const total = await getProjectCommittedSpend('proj-1');
-    expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith('total_value');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
-    // The exact dashboard basis (0009): Ordered / Received / Vendor Invoiced / Paid.
-    expect(mockIn).toHaveBeenCalledWith('status', ['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
-    expect(total).toBe(200000);
+  beforeEach(() => rpcSpy.mockReset());
+
+  it('FR-PFE-037: committed spend is the server open commitment, not a client sum', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: 400, error: null });
+    await expect(getProjectCommittedSpend('p1')).resolves.toBe(400);
+    expect(rpcSpy).toHaveBeenCalledWith('project_committed_spend', { p_project_id: 'p1' });
+    expect(mockFrom).not.toHaveBeenCalledWith('procurements');
   });
 
-  it('returns 0 when there are no committed POs', async () => {
-    makeChainedBuilder({ data: [], error: null });
+  it('returns 0 when the server returns nothing', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: null, error: null });
     await expect(getProjectCommittedSpend('proj-1')).resolves.toBe(0);
   });
 
   it('sends no org_id (RLS scopes it)', async () => {
-    makeChainedBuilder({ data: [], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: 0, error: null });
     await getProjectCommittedSpend('proj-1');
-    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+    expect(JSON.stringify(rpcSpy.mock.calls)).not.toContain('org_id');
   });
 
   it('throws on PostgREST error', async () => {
-    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    rpcSpy.mockResolvedValueOnce({ data: null, error: { message: 'kaboom' } });
     await expect(getProjectCommittedSpend('proj-1')).rejects.toThrow('kaboom');
   });
 });

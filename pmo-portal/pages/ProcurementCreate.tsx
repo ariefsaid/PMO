@@ -14,6 +14,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './procurement/budgetCategoryOptions';
+import type { RecordKind } from './procurement/RecordCaptureForm';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 interface DraftLine {
@@ -41,13 +42,15 @@ export default function ProcurementCreate() {
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
+  const [startAt, setStartAt] = useState<'' | RecordKind>('');
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [errors, setErrors] = useState<{ title?: string; save?: string }>({});
   const [saving, setSaving] = useState(false);
   const [savedRequestId, setSavedRequestId] = useState<string | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-  const dirty = !saving && (title !== '' || vendorId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId);
+  const canStartLater = may('create', 'procFile'); // the record-writer roles; an Engineer only requests
+  const dirty = !saving && (title !== '' || startAt !== '' || vendorId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId);
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: holdLeave });
 
@@ -125,7 +128,7 @@ export default function ProcurementCreate() {
       setSaving(false);
       return;
     }
-    navigate(`/procurement/${savedId}`, { replace: true });
+    navigate(startAt ? `/procurement/${savedId}?startAt=${startAt}` : `/procurement/${savedId}`, { replace: true });
   };
 
   if (!may('create', 'procurement')) {
@@ -184,6 +187,22 @@ export default function ProcurementCreate() {
               options={BUDGET_CATEGORY_OPTIONS}
               helper={BUDGET_CATEGORY_HELPER}
             />
+            {canStartLater && (
+              <SelectField
+                id="procurement-create-start-at"
+                label={t('procurement:create.startAt', 'First document')}
+                value={startAt}
+                onChange={(v) => setStartAt(v as '' | RecordKind)}
+                options={[
+                  { value: '', label: t('procurement:create.startAtOptions.request', 'Request (approval first)') },
+                  { value: 'purchase_order', label: t('procurement:create.startAtOptions.purchase_order', 'Order') },
+                  { value: 'goods_receipt', label: t('procurement:create.startAtOptions.goods_receipt', 'Goods receipt') },
+                  { value: 'vendor_invoice', label: t('procurement:create.startAtOptions.vendor_invoice', 'Vendor invoice') },
+                  { value: 'payment', label: t('procurement:create.startAtOptions.payment', 'Payment') },
+                ]}
+                helper={t('procurement:create.startAtHelper', 'Start from the document you already have. Your organization’s purchase rules still apply.')}
+              />
+            )}
           </FormGrid>
           </fieldset>
         </section>

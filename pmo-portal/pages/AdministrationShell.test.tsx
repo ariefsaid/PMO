@@ -157,6 +157,7 @@ vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approve
 vi.mock('./admin/OrgWithholdingAccount', () => ({ default: () => <h2 id="withholding-account-heading" tabIndex={-1}>Receipt withholding</h2> }));
 vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Vendor bill tax accounts</h2> }));
 vi.mock('./admin/OrgDownPaymentItem', () => ({ default: () => <h2 id="down-payment-item-heading" tabIndex={-1}>Down payments</h2> }));
+vi.mock('./admin/OrgProcurementGates', () => ({ default: () => <h2 id="procurement-gates-heading" tabIndex={-1}>Purchase rules</h2> }));
 vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
   panelMounts.accounting += 1;
   return <div id="budget-account-map" tabIndex={-1}>Budget account map panel</div>;
@@ -344,6 +345,7 @@ describe('Administration route-backed shell', () => {
       ['Receipt withholding', 'withholding-account-heading'],
       ['Vendor bill tax accounts', 'vendor-tax-accounts-heading'],
       ['Down payments', 'down-payment-item-heading'],
+      ['Purchase rules', 'procurement-gates-heading'],
       ['Budget account map', 'budget-account-map'],
       ['Expense account map', 'expense-account-map'],
     ] as const;

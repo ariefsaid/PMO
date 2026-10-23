@@ -428,12 +428,13 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
-  it('Requested with NO PR row yet (degenerate): capture row still offers Purchase Request', () => {
-    // Without a captured PR the case spine is missing, so the row legitimately
-    // offers Purchase Request even at Requested.
+  it('Requested with NO PR row yet (degenerate): offers no capture, only waiting-for-approval text (ADR-0093)', () => {
+    // Deliberate change (owner/ADR-0093, migration 0362): the server refuses documents on a Requested purchase
+    // ("awaiting approval"), so the row used to offer Purchase Request here and now says why nothing is offered.
     detailState.data = { ...BASE, status: 'Requested', purchase_requests: [] };
     renderPage('proc-001', 'documents');
-    assertCaptureRowLabel('Purchase Request');
+    expect(screen.queryByTestId('ledger-capture-open')).toBeNull();
+    expect(screen.getByTestId('ledger-awaiting-approval')).toHaveTextContent('Waiting for approval');
   });
 
   it('Approved: capture row pre-selects RFQ', () => {
@@ -771,5 +772,6 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

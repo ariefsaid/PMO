@@ -48,6 +48,15 @@
       "partialDescription": "Your request is saved. Any remaining line items will be lost if you leave.",
       "leave": "Leave",
       "stay": "Stay"
+    },
+    "startAt": "First document",
+    "startAtHelper": "Start from the document you already have. Your organization’s purchase rules still apply.",
+    "startAtOptions": {
+      "request": "Request (approval first)",
+      "purchase_order": "Order",
+      "goods_receipt": "Goods receipt",
+      "vendor_invoice": "Vendor invoice",
+      "payment": "Payment"
     }
   },
   "ceiling": {
@@ -61,6 +70,22 @@
     "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
   },
   "ledger": {
-    "billsHiddenForRole": "Vendor bills and payments are not shown for your role."
+    "billsHiddenForRole": "Vendor bills and payments are not shown for your role.",
+    "awaitingApproval": "Waiting for approval. Documents can be recorded once it is approved."
+  },
+  "gates": {
+    "heading": "Purchase rules",
+    "intro": "All off: a purchase can start at any step. Turn a rule on only when your accounting needs it.",
+    "loadError": "Couldn’t load purchase rules",
+    "onlyAdmin": "Only an Admin can change this.",
+    "request_before_order": "Request required before order",
+    "approval_before_order": "Approval required before order",
+    "receipt_before_invoice": "Receipt required before invoice",
+    "approval_before_payment": "Approval required before payment"
+  },
+  "documents": {
+    "attachTo": "Attach to",
+    "thisPurchase": "This purchase",
+    "openFolder": "Open folder"
   }
 }

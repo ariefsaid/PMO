@@ -359,10 +359,17 @@ export async function createProcurementDocument(
   return data as ProcurementDocumentRow;
 }
 
+/** What a reference is attached to (FR-PFE-038): one of the purchase's records or a linked ERP document. */
+export interface DocumentTarget {
+  recordKind: 'purchase_request' | 'rfq' | 'quotation' | 'purchase_order' | 'goods_receipt' | 'vendor_invoice' | 'payment' | 'erp_document';
+  recordId: string;
+}
+
 export async function createMicrosoftProcurementDocument(
   procurementId: string,
   reference: MicrosoftReferenceInput,
   metadata?: { referenceNumber?: string | null; date?: string | null },
+  target?: DocumentTarget,
 ): Promise<ProcurementDocumentRow> {
   try {
     assertMicrosoftReference(reference);
@@ -383,6 +390,7 @@ export async function createMicrosoftProcurementDocument(
       ms_item_kind: reference.item_kind,
       ...(metadata?.referenceNumber !== undefined ? { reference_number: metadata.referenceNumber } : {}),
       ...(metadata?.date !== undefined ? { date: metadata.date } : {}),
+      ...(target ? { record_kind: target.recordKind, record_id: target.recordId } : {}),
     })
     .select()
     .single();

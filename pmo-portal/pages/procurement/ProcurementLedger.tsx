@@ -231,6 +231,8 @@ export interface ProcurementLedgerProps {
   targetInvoiceId?: string;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
+  /** FR-PFE-001: first document chosen on the create page (drives the capture offer on an empty Draft). */
+  startAt?: RecordKind | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +261,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onWithholdingHistory,
   targetInvoiceId,
   isApprover = false,
+  startAt = null,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
@@ -496,6 +499,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           invoices={invoices}
           invoiceIdentityContext={invoiceIdentityContext}
           isApprover={isApprover}
+          startAt={startAt}
           busy={captureBusy}
           onCreate={handleCreate}
         />

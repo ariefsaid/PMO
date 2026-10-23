@@ -633,8 +633,8 @@ const procurement: ProcurementRepository = {
   listDocuments: (procurementId) => wrap(() => listProcurementDocuments(procurementId)),
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
-  createMicrosoftDocument: (procurementId, reference, metadata) =>
-    wrap(() => createMicrosoftProcurementDocument(procurementId, reference, metadata)),
+  createMicrosoftDocument: (procurementId, reference, metadata, target) =>
+    wrap(() => createMicrosoftProcurementDocument(procurementId, reference, metadata, target)),
   linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftProcurementDocument(id, reference)),
   unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftProcurementDocument(id)),
   clearDocumentLink: (id) => wrap(() => clearProcurementDocumentLink(id)),

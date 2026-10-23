@@ -48,6 +48,15 @@
       "partialDescription": "Permintaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
       "leave": "Tinggalkan",
       "stay": "Tetap di sini"
+    },
+    "startAt": "Dokumen pertama",
+    "startAtHelper": "Mulai dari dokumen yang sudah Anda miliki. Aturan pembelian organisasi Anda tetap berlaku.",
+    "startAtOptions": {
+      "request": "Permintaan (persetujuan dulu)",
+      "purchase_order": "Pesanan",
+      "goods_receipt": "Penerimaan barang",
+      "vendor_invoice": "Faktur vendor",
+      "payment": "Pembayaran"
     }
   },
   "ceiling": {
@@ -61,6 +70,22 @@
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
   },
   "ledger": {
-    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda."
+    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui."
+  },
+  "gates": {
+    "heading": "Aturan pembelian",
+    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "loadError": "Aturan pembelian tidak dapat dimuat",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "request_before_order": "Wajib permintaan sebelum pesanan",
+    "approval_before_order": "Wajib persetujuan sebelum pesanan",
+    "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
+    "approval_before_payment": "Wajib persetujuan sebelum pembayaran"
+  },
+  "documents": {
+    "attachTo": "Lampirkan ke",
+    "thisPurchase": "Pembelian ini",
+    "openFolder": "Buka folder"
   }
 }

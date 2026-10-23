@@ -89,6 +89,7 @@ import type {
   ProcurementItemRow,
   ProcurementDocumentInput,
   ProcurementDocumentRow,
+  DocumentTarget,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
@@ -456,6 +457,7 @@ export interface ProcurementRepository {
     procurementId: string,
     reference: MicrosoftReferenceInput,
     metadata?: { referenceNumber?: string | null; date?: string | null },
+    target?: DocumentTarget,
   ): Promise<ProcurementDocumentRow>;
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   unlinkMicrosoftDocument(id: string): Promise<void>;
