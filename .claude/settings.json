@@ -29,6 +29,11 @@
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/ci-e2e-gate.sh\"",
             "statusMessage": "Checking CI fair-use caps\u2026"
+          },
+          {
+            "type": "command",
+            "command": "f=\"$(git rev-parse --show-toplevel)/.claude/hooks/prod-db-path-gate.sh\"; [ -f \"$f\" ] && bash \"$f\" || exit 0",
+            "statusMessage": "Checking production DB path\u2026"
           }
         ]
       }
