@@ -138,6 +138,8 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
       const settings = world.settings;
       return Array.isArray(settings) ? rows(settings) : jsonResponse(settings.error, { status: 403 });
     }),
+    table("m365_record_folder_sweeps", () => rows([])),
+    { label: "save-sweep-summary", method: "POST", pathname: "/rest/v1/m365_record_folder_sweeps", response: (call) => rows([call.bodyJson]) },
     table("ms_graph_connections", () =>
       world.connectionMissing
         ? jsonResponse({ message: "none" }, { status: 406 })

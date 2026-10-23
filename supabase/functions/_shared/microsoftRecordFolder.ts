@@ -20,6 +20,7 @@ export interface RecordFolderBackfillPage {
   missing: number;
   failed: number;
   skipped: number;
+  unmatched: string[];
   next: RecordFolderCursor | null;
   stopped?: 'connection' | 'default_changed' | 'unavailable';
   /** Capped whole seconds Microsoft asked us to wait, present only with `stopped: 'unavailable'`. */

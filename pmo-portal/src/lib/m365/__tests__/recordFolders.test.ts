@@ -35,7 +35,7 @@ async function capture(fn: () => Promise<unknown>): Promise<AppError> {
 }
 
 const page = (over: Record<string, unknown> = {}) => ({
-  scanned: 3, linked: 1, needs_choice: 1, missing: 1, failed: 0, skipped: 0, next: null, ...over,
+  scanned: 3, linked: 1, needs_choice: 1, missing: 1, failed: 0, skipped: 0, unmatched: [], next: null, ...over,
 });
 
 beforeEach(() => invoke.mockReset());

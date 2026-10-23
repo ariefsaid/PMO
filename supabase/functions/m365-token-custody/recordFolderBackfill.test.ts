@@ -104,7 +104,7 @@ function sweepWorld(fx: Fixture): World {
 
 interface Page {
   scanned: number; linked: number; needs_choice: number; missing: number; failed: number; skipped: number;
-  next: { kind: string; after: string | null } | null; stopped?: string;
+  unmatched: string[]; next: { kind: string; after: string | null } | null; stopped?: string;
 }
 const page = async (response: Response) => (await response.json()) as Page;
 const sum = (p: Page) => p.linked + p.needs_choice + p.missing + p.failed + p.skipped;
@@ -119,7 +119,7 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
     });
     await run(world, async ({ call, calls, token }) => {
       const body = await page(await call(sweep));
-      assertEquals(body, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1, next: { kind: "procurement", after: null } });
+      assertEquals(body, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1, unmatched: [projectId(3), projectId(4)], next: { kind: "procurement", after: null } });
       assertEquals(sum(body), body.scanned);
       // match-only: every Graph call is a GET (no create); the Projects listing is read ONCE for the whole page.
       assert(graphSummary(calls).every((line) => line.startsWith("GET ")), graphSummary(calls).join("\n"));
@@ -133,6 +133,12 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
       assertEquals(links[0]!.p_kind, "project");
       const linkCall = calls.find((c) => c.url.pathname.endsWith("m365_link_record_folder"))!;
       assertEquals(linkCall.headers.get("authorization"), `Bearer ${token}`);
+      // The page's counts and unmatched record ids are saved for `pmo m365 status` (first page: nothing to add to).
+      const [saved] = tableCalls(calls, "m365_record_folder_sweeps").filter((c) => c.method === "POST");
+      const row = saved!.bodyJson as Record<string, unknown>;
+      assertEquals(row.state, "in_progress");
+      assertEquals(row.counts, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1 });
+      assertEquals(row.unmatched, [projectId(3), projectId(4)]);
       // Candidate paging is by keyset on the caller client, never by offset.
       const [firstPage] = rpcBodies(calls, "m365_record_folder_candidates");
       assertEquals(firstPage, { p_kind: "project", p_after: null });
@@ -143,7 +149,7 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
     const world = sweepWorld({ projects: [], cases: [1, 2] });
     await run(world, async ({ call, calls }) => {
       const body = await page(await call({ ...sweep, cursor: { kind: "procurement", after: null } }));
-      assertEquals(body, { scanned: 2, linked: 2, needs_choice: 0, missing: 0, failed: 0, skipped: 0, next: null });
+      assertEquals(body, { scanned: 2, linked: 2, needs_choice: 0, missing: 0, failed: 0, skipped: 0, unmatched: [], next: null });
       assertEquals(rpcBodies(calls, "m365_link_record_folder").map((b) => b.p_kind), ["procurement", "procurement"]);
       const first = rpcBodies(calls, "m365_link_record_folder")[0]!;
       assertEquals((first.p_reference as { item_id: string }).item_id, "found-case-C-1");
@@ -228,7 +234,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
       assertEquals(body.next, null);
     });
     await run(sweepWorld({ projects: [], cases: [] }), async ({ call }) => {
-      assertEquals(await page(await call(sweep)), { scanned: 0, linked: 0, needs_choice: 0, missing: 0, failed: 0, skipped: 0, next: null });
+      assertEquals(await page(await call(sweep)), { scanned: 0, linked: 0, needs_choice: 0, missing: 0, failed: 0, skipped: 0, unmatched: [], next: null });
     });
   });
 

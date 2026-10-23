@@ -68,6 +68,7 @@ export async function applyErpSetup(
   if (body.setupAction === "list-projects") {
     return await listErpProjects(body, ctx);
   }
+  if (body.setupAction === "verify-links") return await verifyErpProjectLinks(ctx);
   if (body.setupAction === "ensure-project") {
     return await ensureErpProject(body, ctx);
   }
@@ -542,6 +543,36 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
   assertErpProject(target, ctx.company);
   await saveProjectMap(ctx, project.id, target.name as string);
   return { ok: true, erpProject: target.name };
+}
+
+async function verifyErpProjectLinks(ctx: ErpSetupContext) {
+  const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
+  const projects = await fetchAllRowsByKeyset<{ id: string; name: string; code: string | null }>(
+    (after, limit) => {
+      let query = ctx.serviceClient.from("projects").select("id,name,code")
+        .eq("org_id", ctx.orgId).is("archived_at", null).order("id").limit(limit);
+      if (after) query = query.gt("id", after);
+      return query as never;
+    },
+  );
+  const mismatches: Array<Record<string, unknown>> = [];
+  for (const project of projects) {
+    const erpName = typeof projectMap[project.id] === "string" ? String(projectMap[project.id]).trim() : "";
+    if (!erpName) {
+      mismatches.push({ project_id: project.id, code: project.code, name: project.name, reason: "unmapped" });
+      continue;
+    }
+    try {
+      const erp = await getDoc(ctx.client, "Project", erpName) as Record<string, unknown>;
+      assertErpProject(erp, ctx.company);
+      if (erp.name !== (project.code || erpName) || erp.project_name !== project.name) {
+        mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason: "code_or_name_mismatch" });
+      }
+    } catch {
+      mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" });
+    }
+  }
+  return { checked: projects.length, mismatches };
 }
 
 async function listErpProjects(body: ErpSetupBody, ctx: ErpSetupContext) {

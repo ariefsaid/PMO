@@ -1426,6 +1426,22 @@ Deno.test("AC-EXP-120 an Admin maps project_direct_cost to an Expense account; a
   assertEquals(restCall(cleared.calls, "expense_account_map", "DELETE")[0].url.searchParams.get("account_key"), "eq.project_direct_cost");
 });
 
+Deno.test("pmo erp verify-links checks both ERP project code and name for every mapped project", async () => {
+  const result = await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse([{ id: "project-1", name: "PMO Project", code: "ERP-PROJECT-1" }])),
+    erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () => jsonResponse({ data: {
+      name: "ERP-PROJECT-1", project_name: "Different ERP Name", company: "Example Company", is_active: "Yes",
+    } })),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    return { status: response.status, body: await response.json(), calls };
+  });
+  assertEquals(result.status, 200);
+  assertEquals(result.body.checked, 1);
+  assertEquals(result.body.mismatches[0].reason, "code_or_name_mismatch");
+});
+
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard
 // `EXPENSES_EMPLOYABLE`, bound to the shipped GL fetch by expenseEnablement.test.ts); until then it refuses cleanly.
 Deno.test("AC-EXP-128 employ-domain expenses: refused before #901 with nothing probed or written; once open, probes then records", async () => {

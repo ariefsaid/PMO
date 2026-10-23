@@ -15,6 +15,9 @@
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
+ *   pmo erp readiness | list-projects | verify-links
+ *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
+ *   pmo m365 status
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -34,7 +37,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -60,6 +63,12 @@ export const READ_ONLY_TABLES = Object.freeze({
   profiles: Object.freeze(['id', 'full_name', 'role', 'title', 'status']),
   // #796: `pmo load` reads whether ERPNext owns companies — the rows the app shows on Integrations.
   external_domain_ownership: Object.freeze(['domain', 'external_tier']),
+  budget_category_account_map: Object.freeze(['category', 'erp_account']),
+  erp_gl_entry_mirror: Object.freeze(['id', 'project', 'account', 'cost_center', 'fiscal_year', 'posting_date', 'debit', 'credit', 'voucher_type', 'voucher_no', 'is_cancelled']),
+  project_documents: Object.freeze(['id', 'project_id', 'code', 'category', 'title', 'revision', 'doc_date', 'status', 'source', 'ms_drive_id', 'ms_item_id', 'ms_web_url', 'ms_item_name', 'ms_item_kind', 'created_at']),
+  org_m365_document_settings: Object.freeze(['default_site_id', 'default_site_name', 'default_drive_id', 'default_drive_name', 'updated_at']),
+  budget_versions: Object.freeze(['id', 'project_id', 'version', 'name', 'status', 'created_at']),
+  budget_line_items: Object.freeze(['id', 'budget_version_id', 'category', 'description', 'budgeted_amount', 'actual_amount', 'fiscal_year']),
 });
 
 /**
@@ -68,6 +77,7 @@ export const READ_ONLY_TABLES = Object.freeze({
  * Never a money, transition or budget-activation RPC (DD-API-3).
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
+export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link_m365_documents_batch']);
 
 /**
  * The ACTIVE-ADMIN tier (#796, ADR-0074), used only by `pmo load` — never by get/create/update/rpc.
@@ -86,7 +96,7 @@ export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items'
 export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -218,6 +228,7 @@ function assertTable(table, mode) {
     throw usage(`${table} is read-only from the CLI. Change it in the app.`);
   }
   if (LOAD_TABLES.includes(table)) {
+    if (mode === 'read' && (table === 'budget_versions' || table === 'budget_line_items')) return;
     throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets and contract lines). Change them in the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
@@ -231,8 +242,8 @@ function assertRpc(name) {
   if (LOAD_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
-  if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name)) {
-    throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}`);
+  if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name) && !OPERATOR_READ_RPCS.includes(name)) {
+    throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}; read-only: ${OPERATOR_READ_RPCS.join(', ')}`);
   }
 }
 
@@ -370,6 +381,7 @@ function sessionFrom(ctx, tokens, clientId, user) {
     refresh_token: tokens.refresh_token,
     expires_at: nowSeconds(ctx) + Number(tokens.expires_in ?? 3600),
     user,
+    publishable_key: tokens.publishable_key,
   };
 }
 
@@ -393,7 +405,7 @@ async function refresh(ctx, creds) {
       code: e.code,
     });
   }
-  const next = sessionFrom(ctx, r.data, creds.client_id, creds.user);
+  const next = sessionFrom(ctx, { ...r.data, publishable_key: creds.publishable_key }, creds.client_id, creds.user);
   writeCredentials(ctx.env, ctx.supabaseUrl, next);
   return next;
 }
@@ -605,7 +617,7 @@ async function login(ctx, flags) {
       });
       if (!user.ok) throw apiError(user);
       const who = { id: user.data.id, email: user.data.email };
-      writeCredentials(ctx.env, ctx.supabaseUrl, sessionFrom(ctx, r.data, clientId, who));
+      writeCredentials(ctx.env, ctx.supabaseUrl, sessionFrom(ctx, { ...r.data, publishable_key: ctx.key }, clientId, who));
       await sendSignInPage(response, 200, renderSignInPage({ variant: 'success', email: who.email }));
       return { signed_in: true, url: ctx.supabaseUrl, user: who };
     } catch (error) {
@@ -702,7 +714,7 @@ function resolveTarget(env, flags) {
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && loopback)) {
     throw usage(`The Supabase URL must use https (plain http is allowed only for the local stack): '${raw}'`);
   }
-  const key = flags.key ?? env.PMO_SUPABASE_KEY;
+  const key = flags.key ?? env.PMO_SUPABASE_KEY ?? readCredentials(env, raw)?.publishable_key;
   if (!key) {
     throw usage("Set PMO_SUPABASE_KEY to the project's publishable (anon) key — for the local stack, `supabase status` prints it");
   }
@@ -724,6 +736,9 @@ const USAGE = `usage:
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
   pmo purchases link-file <json | @file | ->
+  pmo erp readiness | list-projects | verify-links
+  pmo documents list --project <id> | link <json|csv|-> [--dry-run]
+  pmo m365 status
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -845,6 +860,12 @@ async function dispatch(ctx, command, positionals, flags) {
     }
     case 'purchases':
       return purchases(ctx, positionals, flags);
+    case 'erp':
+      return erp(ctx, positionals);
+    case 'documents':
+      return documents(ctx, positionals, flags);
+    case 'm365':
+      return m365(ctx, positionals);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -871,6 +892,64 @@ async function readText(ctx, arg) {
  * `pmo purchases` (#1319, FR-PFE-060..063). Every check is the database's: the link RPC decides link / skip /
  * refused per row, and --dry-run runs that same RPC with p_dry_run = true (it rolls back every write).
  */
+async function erp(ctx, positionals) {
+  const [action] = positionals;
+  if (!['readiness', 'list-projects', 'verify-links'].includes(action)) throw usage('Use pmo erp readiness, list-projects or verify-links.');
+  const invoke = (setupAction) => authed(ctx, 'POST', '/functions/v1/external-set-company', {
+    body: { tier: 'erpnext', setupAction },
+  });
+  if (action === 'readiness') return invoke('readiness');
+  if (action === 'list-projects') return invoke('list-projects');
+  return invoke('verify-links');
+}
+
+const DOCUMENT_COLUMNS = ['project_id', 'budget_version_id', 'procurement_id', 'drive_id', 'item_id', 'web_url', 'name', 'kind'];
+async function documents(ctx, positionals, flags) {
+  const [sub, arg] = positionals;
+  if (sub === 'list') {
+    if (!flags.project || !UUID.test(String(flags.project))) throw usage('documents list requires --project <uuid>');
+    const q = new URLSearchParams({ select: READ_ONLY_TABLES.project_documents.join(','), project_id: `eq.${flags.project}`, order: 'created_at.desc' });
+    return authed(ctx, 'GET', `/rest/v1/project_documents?${q}`);
+  }
+  if (sub !== 'link' || !arg) throw usage('Use pmo documents list --project <id> or documents link <json|csv|-> [--dry-run].');
+  let rows;
+  if (Boolean(flags.csv) || /\.csv$/i.test(arg)) {
+    const parsed = parseCsv(await readText(ctx, arg));
+    const [header, ...body] = parsed;
+    if (!header) throw usage('The document link file has no rows');
+    const names = header.map((x) => x.trim());
+    const problems = names.filter((x) => !DOCUMENT_COLUMNS.includes(x)).map((x) => `unknown column '${x}'`);
+    if (new Set(names).size !== names.length) problems.push('duplicate CSV column');
+    body.forEach((cells, i) => { if (cells.length > names.length) problems.push(`row ${i + 1} has more cells than the header`); });
+    if (problems.length) throw new CliError(`The link file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_document_links', details: problems });
+    rows = body.map((cells) => Object.fromEntries(names.map((n, i) => [n, (cells[i] ?? '').trim()]).filter(([, v]) => v)));
+  } else rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+  if (!Array.isArray(rows) || !rows.length || rows.length > MAX_BATCH) throw usage(`Document link file must contain 1 to ${MAX_BATCH} rows`);
+  const problems = [];
+  rows.forEach((r, i) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { problems.push(`row ${i + 1}: expected object`); return; }
+    const targets = ['project_id','budget_version_id','procurement_id'].filter((k) => typeof r[k] === 'string' && r[k]);
+    if (targets.length !== 1) problems.push(`row ${i + 1}: specify exactly one project_id, budget_version_id or procurement_id`);
+    for (const k of Object.keys(r)) if (!DOCUMENT_COLUMNS.includes(k)) problems.push(`row ${i + 1}: unknown field '${k}'`);
+    for (const k of [...targets, 'drive_id','item_id','web_url','name']) if (typeof r[k] !== 'string' || !r[k].trim()) problems.push(`row ${i + 1}: ${k} is required`);
+    if (!['file','folder'].includes(r.kind)) problems.push(`row ${i + 1}: kind must be file or folder`);
+  });
+  if (problems.length) throw new CliError(`The link file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_document_links', details: problems });
+  const dryRun = Boolean(flags['dry-run']);
+  const result = await authed(ctx, 'POST', '/rest/v1/rpc/link_m365_documents_batch', { body: { p_rows: rows, p_dry_run: dryRun } });
+  return result;
+}
+
+async function m365(ctx, positionals) {
+  if (positionals[0] !== 'status') throw usage('Use pmo m365 status.');
+  const [settings, sweeps, connection] = await Promise.all([
+    authed(ctx, 'GET', '/rest/v1/org_m365_document_settings?select=default_site_id,default_site_name,default_drive_id,default_drive_name,updated_at'),
+    authed(ctx, 'GET', '/rest/v1/m365_record_folder_sweeps?select=state,counts,unmatched,updated_at'),
+    authed(ctx, 'POST', '/functions/v1/m365-token-custody', { body: { action: 'connection_status' } }),
+  ]);
+  return { default_library: settings?.[0] ?? null, connection, last_folder_sweep: sweeps?.[0] ?? null };
+}
+
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
   if (sub === 'orphans') {

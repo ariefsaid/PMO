@@ -111,6 +111,7 @@ export async function handleLinkExistingRecordFolders(
     missing: 0,
     failed: 0,
     skipped: 0,
+    unmatched: [],
     next: null,
   };
   let kind: Kind = request.cursor.kind;
@@ -192,6 +193,7 @@ export async function handleLinkExistingRecordFolders(
       }
       page.scanned += 1;
       page[done.bucket] += 1;
+      if (done.bucket === "missing") page.unmatched.push(id);
       lastProcessed = id;
       graphFailures = done.graphFailed ? graphFailures + 1 : 0;
       if (graphFailures >= 2) {
@@ -215,5 +217,21 @@ export async function handleLinkExistingRecordFolders(
   } else {
     page.next = null;
   }
+  const firstPage = request.cursor.kind === "project" && request.cursor.after === null;
+  let prior: { counts?: Record<string, number>; unmatched?: string[] } | null = null;
+  if (!firstPage) {
+    const { data, error } = await deps.serviceClient.from("m365_record_folder_sweeps")
+      .select("counts,unmatched").eq("org_id", caller.orgId).maybeSingle();
+    if (error) return failure(500, "INTERNAL_ERROR", "Could not save the folder-sweep summary.");
+    prior = data as { counts?: Record<string, number>; unmatched?: string[] } | null;
+  }
+  const countKeys = ["scanned", "linked", "needs_choice", "missing", "failed", "skipped"] as const;
+  const counts = Object.fromEntries(countKeys.map((key) => [key, (prior?.counts?.[key] ?? 0) + page[key]]));
+  const unmatched = [...(prior?.unmatched ?? []), ...page.unmatched];
+  const { error: saveError } = await deps.serviceClient.from("m365_record_folder_sweeps").upsert({
+    org_id: caller.orgId, actor_id: deps.userId, state: page.next ? "in_progress" : "complete",
+    counts, unmatched, updated_at: (deps.now?.() ?? new Date()).toISOString(),
+  }, { onConflict: "org_id" }).select("org_id").single();
+  if (saveError) return failure(500, "INTERNAL_ERROR", "Could not save the folder-sweep summary.");
   return { status: 200, body: page, headers: HEADERS };
 }
