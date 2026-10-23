@@ -41,8 +41,10 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('03100067-0000-0000-0000-000000000020', '03100067-0000-0000-0000-000000000001', 'DSR-PRJ', 'DSR Project', 'Ongoing Project', '03100067-0000-0000-0000-0000000000a1');
 insert into project_documents (id, org_id, project_id, code, category, title, status, author_id) values
   ('03100067-0000-0000-0000-000000000030', '03100067-0000-0000-0000-000000000001', '03100067-0000-0000-0000-000000000020', 'DSR-D', 'Drawing', 'DSR Draft', 'Draft', '03100067-0000-0000-0000-0000000000a1');
-insert into procurements (id, org_id, title, status) values
-  ('03100071-0000-0000-0000-000000000010', '03100071-0000-0000-0000-000000000001', 'DSR Procurement', 'Vendor Quoted');
+-- The procurement Engineer raised this request: an Engineer reads procurement files only under their own
+-- requests (0350), so every-role read proofs below use the requester as the Engineer.
+insert into procurements (id, org_id, title, status, requested_by_id) values
+  ('03100071-0000-0000-0000-000000000010', '03100071-0000-0000-0000-000000000001', 'DSR Procurement', 'Vendor Quoted', '03100071-0000-0000-0000-0000000000a2');
 
 insert into storage.buckets (id, name, public)
 values ('dsr-other-bucket', 'dsr-other-bucket', false);
@@ -218,14 +220,16 @@ set local request.jwt.claims = '{"sub":"03100067-0000-0000-0000-0000000000a9","r
 select is((select count(*)::int from storage.objects where id='03100071-0000-0000-0000-000000000090'), 0, 'AC-DSR-004 authenticated user without a profile sees no procurement object');
 reset role;
 
--- AC-DSR-005: parent visibility and the intentional procurement orphan read stay intact.
+-- AC-DSR-005: parent visibility and the intentional procurement orphan read stay intact for the roles that
+-- read every request; an Engineer reads only files under their own requests (0350), so not an orphan.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03100067-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select count(*)::int from project_documents where id='03100067-0000-0000-0000-000000000030' and status='Draft'), 1, 'AC-DSR-005 active writer sees the Draft parent of the project object');
 set local request.jwt.claims = '{"sub":"03100071-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((select count(*)::int from procurements where id='03100071-0000-0000-0000-000000000010'), 1, 'AC-DSR-005 active writer sees the procurement parent');
+select results_eq($$select id from storage.objects where id='03100071-0000-0000-0000-000000000091'$$, $$values ('03100071-0000-0000-0000-000000000091'::uuid)$$, 'AC-DSR-005 active Project Manager retains org-wide read of procurement orphan segment');
 set local request.jwt.claims = '{"sub":"03100071-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select results_eq($$select id from storage.objects where id='03100071-0000-0000-0000-000000000091'$$, $$values ('03100071-0000-0000-0000-000000000091'::uuid)$$, 'AC-DSR-005 active Engineer retains org-wide read of procurement orphan segment');
+select is((select count(*)::int from storage.objects where id='03100071-0000-0000-0000-000000000091'), 0, 'AC-DSR-005 active Engineer does not read a procurement orphan segment');
 reset role;
 
 -- AC-DSR-006: preserve the existing SELECT policy attributes and both FOR ALL definitions.

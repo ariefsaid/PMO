@@ -25,7 +25,7 @@ import { createClient } from '@supabase/supabase-js';
 import { composeViewHandler } from './handler.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
-import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv } from '../_shared/openRouterModelClient.ts';
 import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
@@ -146,7 +146,7 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
     );
   }
 
-  // Build the vendor-neutral model client (OpenRouter transport, deepseek-v4-flash default).
+  // Build the vendor-neutral model client (OpenRouter transport, DEFAULT_MODEL).
   // Same privacy-first backend routing policy as agent-chat (providerPolicyFromEnv).
   const modelClient = new OpenRouterModelClient({
     apiKey,
@@ -158,6 +158,7 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
       AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS') ?? undefined,
       AGENT_PROVIDER_DATA_COLLECTION: Deno.env.get('AGENT_PROVIDER_DATA_COLLECTION') ?? undefined,
     }),
+    fallbackModels: fallbackModelsFromEnv(Deno.env.get('AGENT_MODEL_FALLBACKS') ?? undefined),
   });
   const model = resolveComposeModel({
     AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined,

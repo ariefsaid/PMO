@@ -6,7 +6,8 @@
  * Pure: takes a plain object, not Deno.env — importable in Vitest (ADR-0039 dec 7).
  */
 
-export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+// DeepSeek v4.1 Flash (1017): best accuracy and speed on the PMO model comparison (2026-10-22).
+export const DEFAULT_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 
 export interface ModelEnv {
   AGENT_MODEL_DEFAULT?: string;

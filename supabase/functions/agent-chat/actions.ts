@@ -35,7 +35,8 @@ import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types
 // to break the actions.ts ↔ schema.ts cycle that TDZ-crashed the deployed worker (see its header).
 // Imported for local use AND re-exported so existing importers (handler.ts, etc.) still resolve them
 // from actions.ts without change.
-import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP, AGENT_AGGREGATE_PAGE_SIZE, AGENT_AGGREGATE_GROUP_CAP } from './readEntities.ts';
+import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP, AGENT_AGGREGATE_PAGE_SIZE, AGENT_AGGREGATE_GROUP_CAP, AGENT_MONEY_READ_ENTITIES } from './readEntities.ts';
+import { AGENT_MONEY_READ_ROLES } from '../../../pmo-portal/src/auth/agentRoles.ts';
 import type { AgentReadEntity } from './readEntities.ts';
 export { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP };
 export type { AgentReadEntity };
@@ -86,6 +87,11 @@ export async function runQueryEntity(input: unknown, ctx: DeputyContext): Promis
   if (!(AGENT_READ_ENTITIES as readonly string[]).includes(entityKey)) return { error: `unknown entity: ${inp?.entity}` };
   const entry = resolveAgentEntity(entityKey);
   if (!entry) return { error: `unknown entity: ${inp?.entity}` };
+  // Migration 0350: only the four money roles read bills and payments. Say so rather than return RLS's empty list,
+  // which the model would report as "there are none". An unknown role is refused too (allow-list).
+  if (AGENT_MONEY_READ_ENTITIES.has(entityKey) && !AGENT_MONEY_READ_ROLES.includes(ctx.role ?? '')) {
+    return { error: `${entityKey} is not available for your role`, code: 'NOT_AVAILABLE_FOR_ROLE' };
+  }
   const filters = inp.filter === undefined
     ? []
     : Array.isArray(inp.filter) ? inp.filter : [inp.filter];

@@ -14,9 +14,10 @@ insert into projects (id, org_id, name, status) values
   ('a1111111-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','Project A1','Ongoing Project'),
   ('a1111111-0000-0000-0000-000000000002','aaaaaaaa-0000-0000-0000-000000000001','Project A2','Leads');
 
-insert into procurements (id, org_id, title, status) values
-  ('a2222222-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','Proc A1','Draft'),
-  ('a2222222-0000-0000-0000-000000000002','aaaaaaaa-0000-0000-0000-000000000001','Proc A2','Ordered');
+-- Proc A1 is the Engineer's own request; Proc A2 was raised by someone else.
+insert into procurements (id, org_id, title, status, requested_by_id) values
+  ('a2222222-0000-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','Proc A1','Draft','a0000000-0000-0000-0000-0000000000e1'),
+  ('a2222222-0000-0000-0000-000000000002','aaaaaaaa-0000-0000-0000-000000000001','Proc A2','Ordered',null);
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-0000000000e1","role":"authenticated"}';
@@ -26,10 +27,11 @@ select is(
   (select count(*)::int from projects where org_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 2,
   'AC-407: Engineer reads all in-org projects (RLS read path)');
 
--- AC-508: an Engineer reads all in-org procurements via procurements_select.
-select is(
-  (select count(*)::int from procurements where org_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 2,
-  'AC-508: Engineer reads all in-org procurements (RLS read path)');
+-- AC-508: an Engineer reads the in-org procurements they raised (owner ruling 2026-10-23, migration 0350).
+select results_eq(
+  $$select id from procurements where org_id = 'aaaaaaaa-0000-0000-0000-000000000001'$$,
+  $$values ('a2222222-0000-0000-0000-000000000001'::uuid)$$,
+  'AC-508: Engineer reads only the in-org procurements they raised (RLS read path)');
 
 reset role;
 select * from finish();

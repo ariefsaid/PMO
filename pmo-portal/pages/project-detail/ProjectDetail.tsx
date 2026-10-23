@@ -100,8 +100,15 @@ const ProjectDetail: React.FC = () => {
     [t, canSeeBilling, isPipelineRecord],
   );
 
-  const committedSpendQuery = useProjectCommittedSpend(projectId || null, true);
-  const { data: committedSpend, commitmentSource = 'unavailable', ledgerBasis = 'unavailable' } = committedSpendQuery;
+  // Committed spend sums every request on the project. A role that reads only the requests it raised
+  // (Engineer, migration 0350) would get a partial sum, so it gets no project-wide figure at all.
+  const readsProjectWideSpend = may('view', 'procurement');
+  const committedSpendQuery = useProjectCommittedSpend(readsProjectWideSpend ? projectId || null : null, readsProjectWideSpend);
+  const committedSpend = readsProjectWideSpend ? committedSpendQuery.data : undefined;
+  const commitmentSource = (readsProjectWideSpend && committedSpendQuery.commitmentSource) || 'unavailable';
+  const ledgerBasis = (readsProjectWideSpend && committedSpendQuery.ledgerBasis) || 'unavailable';
+  const commitmentPending = readsProjectWideSpend && committedSpendQuery.isPending;
+  const commitmentError = readsProjectWideSpend && committedSpendQuery.isError;
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
@@ -225,8 +232,8 @@ const ProjectDetail: React.FC = () => {
               committedSpend={committedSpend}
               commitmentSource={commitmentSource}
               ledgerBasis={ledgerBasis}
-              commitmentPending={committedSpendQuery.isPending}
-              commitmentError={committedSpendQuery.isError}
+              commitmentPending={commitmentPending}
+              commitmentError={commitmentError}
               setTab={setTab}
               // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
               // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
@@ -295,8 +302,8 @@ const ProjectDetail: React.FC = () => {
             committedSpend={committedSpend}
             commitmentSource={commitmentSource}
             ledgerBasis={ledgerBasis}
-            commitmentPending={committedSpendQuery.isPending}
-            commitmentError={committedSpendQuery.isError}
+            commitmentPending={commitmentPending}
+            commitmentError={commitmentError}
             onEditProject={openEditProject}
           />
 
@@ -331,8 +338,8 @@ const ProjectDetail: React.FC = () => {
               committedSpend={committedSpend}
               commitmentSource={commitmentSource}
               ledgerBasis={ledgerBasis}
-              commitmentPending={committedSpendQuery.isPending}
-              commitmentError={committedSpendQuery.isError}
+              commitmentPending={commitmentPending}
+              commitmentError={commitmentError}
               onEditProject={openEditProject}
             />
             <ProjectDetailRail project={project} onEditProject={openEditProject} />

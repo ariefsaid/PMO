@@ -12,7 +12,7 @@
  * RLS/SoD is the enforcement authority.
  */
 import { describe, it, expect } from 'vitest';
-import { AGENT_MASTER_DATA_ROLES, AGENT_DELIVERY_WITH_ENGINEER_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES } from './agentRoles';
+import { AGENT_MASTER_DATA_ROLES, AGENT_DELIVERY_WITH_ENGINEER_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES, AGENT_MONEY_READ_ROLES } from './agentRoles';
 import { moneyWriteRolesForDomain } from '../../../supabase/functions/adapter-dispatch/authGuard';
 import { can } from './policy';
 import type { Role } from './AuthContext';
@@ -55,5 +55,13 @@ describe('agentRoles — revenue sets (#787)', () => {
     const allow = ALL_ROLES.filter((r) => can('create', 'salesInvoice', { realRole: r }));
     expect(AGENT_REVENUE_WRITE_ROLES.slice().sort()).toEqual(allow.slice().sort());
     expect(AGENT_REVENUE_WRITE_ROLES.slice().sort()).toEqual([...moneyWriteRolesForDomain('revenue')].sort());
+  });
+});
+
+describe('agentRoles — money record reads (migration 0350)', () => {
+  it('AC-SEC-233 AGENT_MONEY_READ_ROLES matches policy view procurementInvoice (Admin·Exec·PM·Finance, no Engineer)', () => {
+    const allow = ALL_ROLES.filter((r) => can('view', 'procurementInvoice', { realRole: r }));
+    expect(AGENT_MONEY_READ_ROLES.slice().sort()).toEqual(allow.slice().sort());
+    expect(AGENT_MONEY_READ_ROLES.slice().sort()).toEqual(['Admin', 'Executive', 'Finance', 'Project Manager']);
   });
 });

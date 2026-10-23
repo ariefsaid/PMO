@@ -61,6 +61,10 @@ export const AGENT_READ_ENTITIES = [
 ] as const;
 export type AgentReadEntity = (typeof AGENT_READ_ENTITIES)[number];
 
+/** Money records (vendor bills, payments) read only by the roles in AGENT_MONEY_READ_ROLES (migration 0350). For any
+ *  other role query_entity answers "not available for your role" instead of an empty list that reads as "none". */
+export const AGENT_MONEY_READ_ENTITIES: ReadonlySet<string> = new Set<AgentReadEntity>(['procurement_invoices', 'payments']);
+
 /** Hard row cap — the effective limit is min(input.limit ?? CAP, CAP). */
 export const AGENT_READ_ROW_CAP = 50;
 export const AGENT_AGGREGATE_ROW_CAP = 5000;
