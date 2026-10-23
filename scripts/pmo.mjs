@@ -13,6 +13,7 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo purchases orphans | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -32,6 +33,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
+import { MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, validateLinkRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -75,7 +77,7 @@ export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transitio
 export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -614,8 +616,8 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv']);
 
 export function parseArgs(argv) {
   const flags = { filter: [] };
@@ -699,6 +701,10 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo purchases orphans [--project <id>] [--limit n]
+  pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
+                                                                   link sends ${MAX_BATCH} rows per call)
+  pmo purchases link-file <json | @file | ->
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -818,9 +824,70 @@ async function dispatch(ctx, command, positionals, flags) {
         throw err;
       }
     }
+    case 'purchases':
+      return purchases(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Read a whole file (or stdin for '-') as text. */
+async function readText(ctx, arg) {
+  if (arg === '-') {
+    const chunks = [];
+    for await (const c of ctx.stdin) chunks.push(c);
+    return Buffer.concat(chunks.map((c) => (typeof c === 'string' ? Buffer.from(c) : c))).toString('utf8');
+  }
+  const file = arg.replace(/^@/, '');
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    throw usage(`Could not read ${file}: ${e.code ?? e.message}`);
+  }
+}
+
+/**
+ * `pmo purchases` (#1319, FR-PFE-060..063). Every check is the database's: the link RPC decides link / skip /
+ * refused per row, and --dry-run runs that same RPC with p_dry_run = true (it rolls back every write).
+ */
+async function purchases(ctx, positionals, flags) {
+  const [sub, arg] = positionals;
+  if (sub === 'orphans') {
+    const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS.erp_purchase_orphans.join(','), order: 'doc_date.desc,id.asc' });
+    if (flags.project !== undefined) {
+      if (!UUID.test(String(flags.project))) throw usage(`--project must be a project id (uuid): got '${flags.project}'`);
+      q.set('project_ids', `cs.{${flags.project}}`);
+    }
+    if (flags.limit !== undefined) {
+      if (!/^[1-9]\d*$/.test(String(flags.limit))) throw usage(`--limit must be a positive integer: got '${flags.limit}'`);
+      q.set('limit', String(flags.limit));
+    }
+    return authed(ctx, 'GET', `/rest/v1/erp_purchase_orphans?${q}`);
+  }
+  if (sub === 'link') {
+    if (!arg) throw usage('purchases link needs a file: pmo purchases link <file.json|file.csv|-> [--dry-run]');
+    const rows = Boolean(flags.csv) || /\.csv$/i.test(arg)
+      ? rowsFromCsv(await readText(ctx, arg))
+      : await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateLinkRows(rows);
+    if (problems.length > 0) {
+      throw new CliError(`The link file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_link_file', details: problems });
+    }
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    return runLink(api, rows, { dryRun: Boolean(flags['dry-run']) });
+  }
+  if (sub === 'link-file') {
+    const body = await readPayload(ctx, arg);
+    if (!body || typeof body !== 'object' || Array.isArray(body) || !body.procurement_id || !body.item) {
+      throw usage('link-file takes {"procurement_id": "...", "record_kind": "vendor_invoice|erp_document|...", "record_id": "...", "item": {drive_id, item_id, web_url, name, kind}}');
+    }
+    return authed(ctx, 'POST', '/rest/v1/rpc/link_procurement_sharepoint_item', {
+      body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
+    });
+  }
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link or link-file.`);
 }
 
 /**
