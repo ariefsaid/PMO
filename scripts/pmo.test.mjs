@@ -1004,7 +1004,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['create', 'get', 'load', 'login', 'logout', 'rpc', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['create', 'get', 'load', 'login', 'logout', 'purchases', 'rpc', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1459,6 +1459,223 @@ test('AC-CQ-017: a refused contract-line write ends pmo load with exit 1 and the
     assert.deepEqual(r.errJson.error.details.failed, { kind: 'contract_line.create', key: 'ORG-001', line_key: 'B' });
     assert.deepEqual(r.errJson.error.details.done.filter((a) => a.kind === 'contract_line.create').map((a) => a.line_key), ['A']);
     assert.equal(fake.requests.filter((q) => q.path === '/rest/v1/boq_items' && q.method === 'POST').length, 2, 'C never attempted');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── #1319 pmo purchases (AC-PFE-011) ─────────────────────────────────────────────────────────────
+
+/** The link RPC answers every row 'link'; records each body it was sent. */
+const linkRpc = (bodies) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/link_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    send(200, { dry_run: b.p_dry_run, counts: { link: b.p_rows.length, skip: 0, refused: 0 },
+      results: b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: 'link', reason: null })) });
+    return true;
+  }
+  return false;
+};
+
+test('AC-PFE-011: pmo purchases link --dry-run posts p_dry_run true and prints the outcome per row', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: 'PINV-1', project_id: '11111111-1111-1111-1111-111111111111' }]));
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(bodies[0].p_dry_run, true);
+    assert.deepEqual(bodies[0].p_rows, [{ erp_name: 'PINV-1', project_id: '11111111-1111-1111-1111-111111111111' }]);
+    assert.match(r.out, /"outcome": "link"/);
+    assert.deepEqual(r.json.counts, { link: 1, skip: 0, refused: 0 });
+    assert.deepEqual(fake.requests.map((q) => `${q.method} ${q.path}`), ['POST /rest/v1/rpc/link_erp_purchase_documents']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: pmo purchases link of a CSV file posts the same rows with p_dry_run false (dry run differs only in the flag)', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.csv');
+    fs.writeFileSync(file, 'erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind\n'
+      + 'Purchase Invoice,PINV-1,,11111111-1111-1111-1111-111111111111,,,,,,,,\n'
+      + ',PINV-2,22222222-2222-2222-2222-222222222222,,,,,d1,f1,https://example.sharepoint.com/f,F,folder\n');
+    const dry = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    const real = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(real.code, 0, real.err);
+    assert.deepEqual(bodies.map((b) => b.p_dry_run), [true, false]);
+    assert.deepEqual(bodies[0].p_rows, bodies[1].p_rows);
+    assert.deepEqual(bodies[1].p_rows[1].sharepoint, { drive_id: 'd1', item_id: 'f1', web_url: 'https://example.sharepoint.com/f', name: 'F', kind: 'folder' });
+    assert.deepEqual(real.json.results.map((x) => [x.row, x.erp_name, x.outcome]), [[1, 'PINV-1', 'link'], [2, 'PINV-2', 'link']]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: an invalid link file lists every problem and sends nothing', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: '' }, { erp_name: 'X', procurement_id: 'p', project_id: 'q' }]));
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_link_file');
+    assert.equal(r.errJson.error.details.length, 2);
+    assert.deepEqual(fake.requests, []);
+    const missing = await runCli(['purchases', 'link', '--url', fake.url], { configDir });
+    assert.equal(missing.code, 2);
+    const unreadable = await runCli(['purchases', 'link', path.join(configDir, 'nope.csv'), '--url', fake.url], { configDir });
+    assert.equal(unreadable.code, 2);
+    assert.match(unreadable.errJson.error.message, /Could not read/);
+    const unknown = await runCli(['purchases', 'delete', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: pmo purchases link reads CSV from stdin with --csv', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const stdin = (async function* () { yield 'erp_name,project_id\nPINV-7,11111111-1111-1111-1111-111111111111\n'; })();
+    const r = await runCli(['purchases', 'link', '-', '--csv', '--dry-run', '--url', fake.url], { configDir, stdin });
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(bodies[0].p_rows, [{ erp_name: 'PINV-7', project_id: '11111111-1111-1111-1111-111111111111' }]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('FR-PFE-060: pmo purchases orphans reads the orphan view, filtered by project and limited', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['purchases', 'orphans', '--project', '11111111-1111-1111-1111-111111111111', '--limit', '20', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'GET /rest/v1/erp_purchase_orphans');
+    const params = new URLSearchParams(q.search);
+    assert.equal(params.get('project_ids'), 'cs.{11111111-1111-1111-1111-111111111111}');
+    assert.equal(params.get('limit'), '20');
+    assert.match(params.get('select'), /^id,erp_doctype,erp_name,/);
+    const bad = await runCli(['purchases', 'orphans', '--limit', '0', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2);
+    const badProject = await runCli(['purchases', 'orphans', '--project', 'x}', '--url', fake.url], { configDir });
+    assert.equal(badProject.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('FR-PFE-060: pmo purchases link-file posts one SharePoint item (a folder stays a folder)', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const item = { drive_id: 'd1', item_id: 'f1', web_url: 'https://example.sharepoint.com/f', name: 'F', kind: 'folder' };
+    const r = await runCli(['purchases', 'link-file', JSON.stringify({ procurement_id: 'p1', item }), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'POST /rest/v1/rpc/link_procurement_sharepoint_item');
+    assert.deepEqual(JSON.parse(q.body), { p_procurement_id: 'p1', p_record_kind: null, p_record_id: null, p_item: item });
+    const bad = await runCli(['purchases', 'link-file', '{"item":{}}', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+/** The link RPC refuses rows whose erp_name starts with 'BAD'; fails the call numbered `failOnCall` with a 500. */
+const linkRpcWith = (bodies, { failOnCall } = {}) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/link_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    if (failOnCall === bodies.length) { send(500, { code: 'XX000', message: 'boom' }); return true; }
+    const results = b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: r.erp_name.startsWith('BAD') ? 'refused' : 'link',
+      reason: r.erp_name.startsWith('BAD') ? 'document_not_found' : null }));
+    send(200, { dry_run: b.p_dry_run, counts: { link: results.filter((x) => x.outcome === 'link').length, skip: 0,
+      refused: results.filter((x) => x.outcome === 'refused').length }, results });
+    return true;
+  }
+  return false;
+};
+
+test('AC-PFE-011: a real run with a refused row exits 1 and prints the report; a dry run exits 0', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpcWith(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: 'PINV-1' }, { erp_name: 'BAD-2' }]));
+    const dry = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    const real = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(real.code, 1);
+    assert.deepEqual(real.json.counts, { link: 1, skip: 0, refused: 1 });
+    assert.deepEqual(real.json.results.map((r) => r.reason), [null, 'document_not_found']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: a failed call exits 1 and still prints what the earlier calls saved', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpcWith(bodies, { failOnCall: 2 }) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify(Array.from({ length: 501 }, (_, i) => ({ erp_name: `PINV-${i}` }))));
+    const r = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(r.code, 1);
+    assert.equal(r.json.results.length, 500);
+    assert.equal(r.json.counts.link, 500);
+    assert.equal(r.json.failed_at_row, 501);
+    assert.deepEqual(r.json.not_saved_rows, [501]);
+    assert.equal(r.json.error.message, 'boom');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: a CSV with a misspelt column is refused before anything is sent', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.csv');
+    fs.writeFileSync(file, 'erp_name,procurment_id\nPINV-1,22222222-2222-2222-2222-222222222222\n');
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_link_file');
+    assert.match(JSON.stringify(r.errJson.error.details), /unknown column 'procurment_id'/);
+    assert.deepEqual(fake.requests, []);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });

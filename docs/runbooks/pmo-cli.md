@@ -131,6 +131,10 @@ changed — none matched, or the database did not let you change it.
 - **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
   value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
   `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
+- **`pmo purchases`** (active Admin, Executive, Project Manager or Finance; #1319, migration `0363`): reads
+  the ERP orphan list (`erp_purchase_orphans`) and links ERPNext purchase documents and SharePoint items
+  into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
+  Unlinking stays in the app.
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -181,7 +185,81 @@ Milestones, tasks, meetings and CRM activities still use `create` (§3).
 
 ---
 
-## 5. For Claude Code
+## 5. Loading purchase history — `pmo purchases`
+
+ERPNext purchase documents (Purchase Order, Purchase Receipt, Purchase Invoice, Payment Entry) reach PMO
+through the sweep and appear as **orphans** until linked to a purchase. Linking writes nothing to
+ERPNext; a linked document is never pushed. Documents authored in PMO (which push to ERPNext) are made in
+the app, not here.
+
+```bash
+node scripts/pmo.mjs purchases orphans [--project <project id>] [--limit n]   # unlinked, submitted ERP documents
+node scripts/pmo.mjs purchases link history.csv --dry-run                     # ALWAYS first: what would happen
+node scripts/pmo.mjs purchases link history.csv                               # the same checks, for real
+node scripts/pmo.mjs purchases link-file '{"procurement_id":"…","item":{…}}'  # one SharePoint item on a purchase
+```
+
+**The link file** is JSON (a list of row objects) or CSV (`.csv`, or `--csv` for stdin `-`) with this header:
+
+```
+erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind
+```
+
+- `erp_name` (required): the ERPNext document number. `erp_doctype` is needed only when two document types
+  share the number.
+- `procurement_id` **or** `project_id`, not both. A row naming a purchase links into it. A row naming a
+  project (or nothing) creates a new Draft purchase from the document (title = `title`, else
+  "<supplier> <document number>"); rows sharing a `group` and project go into one new purchase.
+- `sp_*` (optional, all five together): a SharePoint item the operator already has the ids for — drive id,
+  item id, web URL, name, and `sp_kind` `file` or `folder`. It is attached to that document on the purchase.
+  A folder is linked as a folder. The CLI does not resolve URLs.
+- In JSON the SharePoint item is `"sharepoint": {"drive_id","item_id","web_url","name","kind"}`.
+
+**Dry run first, always.** `--dry-run` sends the identical rows to the same database function with
+`p_dry_run = true`: every check runs and each call is rolled back, so nothing is written. The report lists
+every row as `link`, `skip` or `refused` with a reason, plus counts; a new purchase shows
+`procurement_id: null` in a dry run. Fix the refused rows, dry-run again, then run without `--dry-run`. The
+real run reports the same outcomes.
+
+**Batches and groups.** Rows go to the database in calls of at most 500. Rows that make one new purchase (same
+project and `group`) always travel in the same call, so **one group must have 500 rows or fewer**; a larger
+group is refused before anything is sent. Row numbers in the report are always the file's.
+
+**The CLI refuses the file, sending nothing (exit 2), when:** a CSV column is not one of the header names above
+(a misspelt `procurement_id` would otherwise create a new purchase); a CSV row has more cells than the header;
+a quote is not closed; a JSON row has a field not in the header; `erp_name` is missing; a row names both
+`procurement_id` and `project_id`; a SharePoint item is incomplete; **the same ERP document is listed twice**;
+or a group exceeds 500 rows. Every problem is listed.
+
+**Exit codes.** Exit 0: every row linked or skipped (or any dry run that completed). Exit 1: a real run refused at
+least one row, or a call failed. The report is printed either way. When a call fails, the report holds what the
+earlier calls saved, plus `failed_at_row` (the first row of the failed call), `not_saved_rows` and `error`; the
+failed call itself saved nothing.
+
+**Re-running is safe.** After fixing refused rows (or after a failed call), run the whole file again: rows already
+linked report `skip` / `already_linked` with their purchase id, and only the rest are linked.
+
+**Reason codes** (`refused`):
+
+| Reason | Meaning |
+|---|---|
+| `erp_name_missing` | the row has no document number |
+| `document_not_found` | no such ERP document mirrored in PMO for your organisation |
+| `document_ambiguous` | the number matches more than one document type — add `erp_doctype` |
+| `document_cancelled` | the document is cancelled in ERPNext |
+| `document_recorded_by_pmo` | PMO pushed it; it is already a PMO record |
+| `document_linked_to_another_purchase` | it already belongs to a different purchase |
+| `purchase_not_found` / `purchase_closed` | the purchase does not exist in your organisation, or is Cancelled / Rejected |
+| `project_not_found` | the project does not exist in your organisation |
+| `invalid_id` | an id is not a valid uuid |
+| `supplier_mismatch` / `project_mismatch` / `currency_mismatch` | the document's supplier, project or currency differs from the purchase |
+| `gate_request_before_order`, `gate_approval_before_order`, `gate_receipt_before_invoice`, `gate_approval_before_payment` | an organisation procurement gate refuses that step |
+| any other sentence | a guard refused the resulting status (e.g. "separation of duties: approver cannot pay own procurement") |
+
+
+---
+
+## 6. For Claude Code
 
 - Run `node scripts/pmo.mjs whoami` first; if it says "Not signed in", ask the owner to run
   `node scripts/pmo.mjs login` — never try to sign in on their behalf.
