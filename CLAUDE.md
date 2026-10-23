@@ -113,7 +113,7 @@ for one client, architected to scale to millions.
 **Before asserting a fact, name the artifact that decides it and read THAT one.** A doc, a memory, a
 test name, a policy body and an exit code are all *claims about* the deciding artifact, and each has
 been wrong here: `role_table_grants` decides reachability (not the policy) · `pg_policies` at head
-decides policy (not the migrations) · `supabase migration list --linked` decides the cloud's level
+decides policy (not the migrations) · `scripts/prod-read.sh` (the runbook's read-only path, `docs/environments.md`) decides the cloud's level — never the `supabase` CLI with `--linked`
 (never memory) · the output body decides pass/fail (not `$?` through a pipe) · shipped code decides
 behaviour (not a spec default). **Never assert a negative from a grep without stating its scope** —
 "nothing reads the stamp" was three directories searched out of four. `scripts/prior-art.sh <term>`
