@@ -31,7 +31,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
-import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv, fallbackModelsFromEnv } from '../_shared/openRouterModelClient.ts';
 import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
@@ -171,6 +171,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
       AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS') ?? undefined,
       AGENT_PROVIDER_DATA_COLLECTION: Deno.env.get('AGENT_PROVIDER_DATA_COLLECTION') ?? undefined,
     }),
+    fallbackModels: fallbackModelsFromEnv(Deno.env.get('AGENT_MODEL_FALLBACKS') ?? undefined),
   });
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 

@@ -42,27 +42,36 @@ export interface OpenRouterProviderPolicy {
 }
 
 /**
- * No-train fallback order (owner decision 2026-07-10). The two green (no-RETAIN) hosts first —
- * DeepInfra, DigitalOcean — then retain-but-NOT-train hosts by jurisdiction then speed: US GMICloud,
- * then the fastest Chinese-jurisdiction hosts (Baidu, StreamLake, Alibaba), then DeepSeek-direct as
- * the last resort. `only` (below) hard-restricts routing to exactly this set so a fallback can never
- * land on a host that TRAINS on request data.
+ * No-train provider order (owner decisions 2026-07-10 privacy; 2026-10-23 cost efficiency and no
+ * China-based hosts). `only` (below) hard-restricts routing to exactly this set, so a fallback can
+ * never land on a host that TRAINS on request data. Order = measured quality, then cost per agent
+ * task (OpenRouter prices for deepseek-v4.1-flash-1017, 2026-10-23, typical cached agent turn):
+ *   Relace ~$0.0017 (best-scoring runs; passes `data_collection: 'deny'`) · DeepInfra ~$0.0017
+ *   (no retention, US) · GMICloud ~$0.0034 (US) · DigitalOcean ~$0.0056 (no retention, US) ·
+ *   OpenAI — serves only the fallback MODEL (DEFAULT_FALLBACK_MODELS), used when no host above
+ *   can serve the primary; OpenAI retains API data (up to 30 days) but does not train on it.
  *
  * ⚠ PROVIDER SLUGS — verify each against openrouter.ai/<model>/providers BEFORE a prod deploy:
  * a wrong slug in `only` silently drops that host from eligibility (worst case, if all are wrong,
- * routing fails). `deepinfra` / `deepseek` are the well-known canonical slugs; the others
- * (digitalocean, gmicloud, baidu, streamlake, alibaba) MUST be confirmed. All are overridable via
+ * routing fails). Confirmed against the deepseek-v4.1-flash-1017 and gpt-6-luna endpoint lists on
+ * 2026-10-23; re-check when either model changes. All are overridable via
  * AGENT_PROVIDER_ORDER / AGENT_PROVIDER_ONLY secrets — fix a slug without a code deploy.
  */
 export const NO_TRAIN_FALLBACK_ORDER: readonly string[] = [
+  'relace',
   'deepinfra',
-  'digitalocean',
   'gmicloud',
-  'baidu',
-  'streamlake',
-  'alibaba',
-  'deepseek',
+  'digitalocean',
+  'openai',
 ];
+
+/** Second model OpenRouter tries when the primary has no eligible host (owner 2026-10-23). */
+export const DEFAULT_FALLBACK_MODELS: readonly string[] = ['openai/gpt-6-luna'];
+
+/** AGENT_MODEL_FALLBACKS: unset → default; '' → no model fallback; comma list → replaces it. */
+export function fallbackModelsFromEnv(v: string | undefined): string[] {
+  return parseSlugList(v) ?? [...DEFAULT_FALLBACK_MODELS];
+}
 
 /**
  * Default: prefer the green hosts, cascade down the vetted no-train fallback order, and `only`-
@@ -143,6 +152,8 @@ export interface OpenRouterModelClientOptions {
   apiKey: string;
   /** Backend routing policy (default: privacy-first no-train pin). See providerPolicyFromEnv. */
   provider?: OpenRouterProviderPolicy;
+  /** Models tried after the primary (OpenRouter `models`). Default DEFAULT_FALLBACK_MODELS; [] disables. */
+  fallbackModels?: readonly string[];
   /** Test seam — override the retry backoff base (default 400ms). */
   retryBaseDelayMs?: number;
 }
@@ -189,12 +200,20 @@ function isValidChoice(choice: unknown): choice is OpenRouterChoice {
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
   private readonly provider: OpenRouterProviderPolicy;
+  private readonly fallbackModels: readonly string[];
   private readonly retryBaseDelayMs: number;
 
   constructor(options: OpenRouterModelClientOptions) {
     this.apiKey = options.apiKey;
     this.provider = options.provider ?? DEFAULT_PROVIDER_POLICY;
+    this.fallbackModels = options.fallbackModels ?? DEFAULT_FALLBACK_MODELS;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS;
+  }
+
+  /** OpenRouter `models`: the primary first, then fallbacks other than the primary; omitted when none. */
+  private modelsField(primary: string): { models?: string[] } {
+    const rest = this.fallbackModels.filter((m) => m !== primary);
+    return rest.length > 0 ? { models: [primary, ...rest] } : {};
   }
 
   /** Exponential backoff + proportional jitter: ~400ms, ~800ms at the default base. */
@@ -216,6 +235,7 @@ export class OpenRouterModelClient implements ModelClient {
         },
         body: JSON.stringify({
           model: params.model,
+          ...this.modelsField(params.model),
           max_tokens: params.max_tokens,
           messages: params.messages,
           ...(params.tools ? { tools: params.tools } : {}),
