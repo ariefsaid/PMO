@@ -1,6 +1,6 @@
 -- procurement_flexible_status.test.sql — 0362. Owns AC-PFE-002, AC-PFE-003, AC-PFE-007, AC-PFE-012, AC-PFE-013.
 begin;
-select plan(42);
+select plan(44);
 select is((select count(*) from procurement_status_events where notes like 'Derived:%'), 0::bigint, 'AC-PFE-012 nothing pre-existing was derived');
 
 insert into organizations (id, name, default_currency) values ('03620000-0000-0000-0000-0000000000f0','PFS','IDR');
@@ -150,6 +150,16 @@ select lives_ok($$ insert into procurement_invoices (procurement_id, org_id, sta
 reset request.jwt.claims;
 select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a12'), 'Requested', 'SoD the mirror never derives a purchase awaiting approval');
 select ok(exists (select 1 from audit_events where action = 'procurement.derive_skipped' and entity_id = '03620000-0000-0000-0000-000000000a12'), 'SoD the mirror skip is audited');
+-- Linking an ERP document into a purchase awaiting approval is refused with a reason code, and links nothing.
+insert into erp_purchase_documents (org_id, erp_doctype, erp_name, erp_docstatus, erp_modified, currency, supplier, supplier_name, grand_total, net_total)
+values ('03620000-0000-0000-0000-0000000000f0','Purchase Order','PO-PFS-12',1,'2026-01-01','IDR','SUP-12','Supplier 12',100,100);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select is(link_erp_purchase_documents('[{"erp_name":"PO-PFS-12","procurement_id":"03620000-0000-0000-0000-000000000a12"}]') #>> '{results,0,reason}',
+  'awaiting_approval', 'SoD linking an ERP order into a purchase awaiting approval is refused as awaiting_approval');
+reset role;
+select is((select status::text || '/' || (select count(*) from procurement_erp_links where procurement_id = '03620000-0000-0000-0000-000000000a12')::text
+             from procurements where id = '03620000-0000-0000-0000-000000000a12'), 'Requested/0', 'SoD the refused link leaves the purchase Requested and unlinked');
 
 -- Quote re-route: a quote above the approved amount sends the purchase back to Requested; no document skips it.
 set local role authenticated;
