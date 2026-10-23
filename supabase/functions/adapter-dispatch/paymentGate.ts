@@ -21,19 +21,20 @@
 //   • keyed on the command (`isProcurementPaymentCreate`): every other kind/domain passes without
 //     paying for the read (byte-for-byte).
 //
-// ORDERING MATCHES 0006: the case-state refusal (422 — only a `Vendor Invoiced` case owes a bill
-// payment) precedes the SoD-b refusal (403 — the approver may not pay), so "anyone dispatches for a
-// case at any other status" gets the 422, and the 403 is reserved for the stage where the money
-// would actually move. The message is 0006's exact SoD-b wording so the two paths are indistinguishable
-// to the client.
+// ORDERING: the closed-case refusal (422 `purchase_closed`) precedes the SoD-b refusal (403), which
+// precedes the ceiling. Since #1319 (owner AC-1) the step itself no longer gates a payment — a purchase
+// may start at payment — so SoD-b applies at every step. The message is 0006's exact SoD-b wording so
+// the two paths are indistinguishable to the client.
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
 /** The PMO procurement domain the ERPNext tier owns (a literal here so the guard stays
  *  dependency-free and Deno-importable in isolation, the same idiom as sodGuard's REVENUE_DOMAIN). */
 const PROCUREMENT_DOMAIN = 'procurement';
 
-/** The case state a bill payment releases (0006's `Vendor Invoiced → Paid` source state). */
-const PAYABLE_STATE = 'Vendor Invoiced';
+/** #1319 (owner AC-1): a purchase can start at any step, payment included, so the step no longer gates a
+ *  payment. Only a closed purchase refuses — the same `purchase_closed` the link RPC (0361) uses. Whether the
+ *  org's purchase gates allow a payment is asked upstream, by procurementGateGuard.ts (procurement_gate_violation). */
+const CLOSED_STATES = new Set(['Cancelled', 'Rejected']);
 
 /** Structural seam for the case re-read (the refs.ts ExternalRefsFilterBuilder idiom). */
 export interface PaymentGateClient {
@@ -57,14 +58,14 @@ export interface PaymentCeilingRow {
 export interface PaymentGateFilterBuilder {
   eq(column: string, value: string): PaymentGateFilterBuilder;
   maybeSingle(): Promise<{
-    data: { status: string | null; approved_by_id: string | null; amount_approved_by_id?: string | null } | null;
+    data: { status: string | null; approved_by_id: string | null; amount_approved_by_id?: string | null; approved_total_value?: number | null } | null;
     error: { code?: string; message: string } | null;
   }>;
 }
 
 export interface PaymentGateResult {
   ok: boolean;
-  /** 403 for the SoD-b refusal (mirrors 0006's 42501), 422 for the state/missing-case refusal. */
+  /** 403 for the SoD-b refusal (mirrors 0006's 42501), 422 for the closed/missing-case and ceiling refusals. */
   status: number;
   message: string;
 }
@@ -82,8 +83,9 @@ const REFUSED = (status: number, message: string): PaymentGateResult => ({ ok: f
 
 /**
  * Re-assert, from the database, that this procurement payment create may release money: the case
- * exists in the caller's org, sits at `Vendor Invoiced`, and the verified caller is not the case's
- * approver. `callerUserId` is the JWT-verified sub — NEVER a payload field.
+ * exists in the caller's org and is not closed, the verified caller is not one of its approvers, and —
+ * when an approval exists — the bills fit the approved amount. `callerUserId` is the JWT-verified sub —
+ * NEVER a payload field.
  */
 export async function enforcePaymentGate(
   client: PaymentGateClient,
@@ -91,20 +93,26 @@ export async function enforcePaymentGate(
   callerUserId: string,
   procurementId: string,
 ): Promise<PaymentGateResult> {
-  const { data, error } = await client.from('procurements').select('status,approved_by_id,amount_approved_by_id').eq('org_id', orgId).eq('id', procurementId).maybeSingle();
-  if (error || !data) {
-    // Fail closed: a missing row (including another org's id — the read is org-filtered) or an
-    // unreadable one never passes. There is no "absent ⇒ allowed" branch to fall into.
-    return REFUSED(422, `vendor payment: the procurement case for this payment was not found in this org${error ? ` (${error.message})` : ''}`);
+  const { data, error } = await client.from('procurements').select('status,approved_by_id,amount_approved_by_id,approved_total_value').eq('org_id', orgId).eq('id', procurementId).maybeSingle();
+  if (error) {
+    // Fail closed: an unreadable row never passes.
+    return REFUSED(422, `vendor payment: the procurement case could not be read (${error.message})`);
   }
-  if (data.status !== PAYABLE_STATE) {
-    return REFUSED(422, `vendor payment: the case must be at ${PAYABLE_STATE} to pay a bill (it is at '${data.status ?? 'unknown'}')`);
+  if (!data) {
+    // Fail closed: a missing row (including another org's id — the read is org-filtered). The database's
+    // own reason code (procurement_gate_violation), so every refusal of a missing purchase reads the same.
+    return REFUSED(422, 'purchase_not_found');
   }
+  if (data.status === null || CLOSED_STATES.has(data.status)) return REFUSED(422, 'purchase_closed');
   // SoD-b covers both approvals that set the ceiling: the request's approver and, when the billed amount
   // was later approved higher (approve_procurement_amount), that amount's approver.
   if (callerUserId && (callerUserId === data.approved_by_id || callerUserId === data.amount_approved_by_id)) {
     return REFUSED(403, 'separation of duties: approver cannot pay own procurement');
   }
+  // #1319 (owner AC-3, FR-PFE-017): no approval recorded = nothing to compare against, so no ceiling. The
+  // same split as the procurement update guard (0362): an approver without an approved amount still asks the
+  // helper, which refuses it ('approved amount is missing').
+  if (data.approved_by_id == null && data.approved_total_value == null) return { ok: true, status: 200, message: '' };
   // The approved-amount ceiling, evaluated by the same SQL helper the Paid transition uses: pre-tax
   // net of live bills ≤ the approved amount, bills in the procurement's currency. No row or an error
   // refuses (fail closed).

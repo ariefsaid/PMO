@@ -12,6 +12,8 @@
 //      inserted (the refusal precedes the money pipeline; nothing touches ERPNext);
 //   2. a non-approver payer → passes the gate: the dispatch completes and the one ERPNext Payment
 //      Entry POST carries the server-resolved party/allocation (money actually moves).
+//   3. #1319: the step no longer gates a payment (a Draft/Ordered case pays when no gate refuses); the org's
+//      approval_before_payment gate refuses before the outbox; SoD-b holds at any step; Cancelled refuses.
 // Mutation contract: deleting the wiring block turns test 1 RED (the approver's dispatch sails
 // through to the outbox/ERP). Verified 2026-10-08 — see the build report.
 //
@@ -94,7 +96,10 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  at `Vendor Invoiced` approved by A; the bill is mirrored with the org's currency and outstanding;
  *  the caller's role (actor_authorization_state) is Finance — every gate BEFORE the SoD one passes.
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
-function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null): MockRoute[] {
+/** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
+interface World { caseRow?: Record<string, unknown>; gateViolation?: string | null }
+
+function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}): MockRoute[] {
   const outbox = new Map<string, Record<string, unknown>>();
   return [
     supabaseSelect('profiles', (call) =>
@@ -103,7 +108,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
-    supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({
       site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
@@ -113,7 +118,8 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     // The case — the SoD gate's DB re-read (status + approver) AND the supplier resolution's vendor_id.
     supabaseSelect('procurements', () => objectResponse({
       id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID,
-      amount_approved_by_id: amountApproverId, vendor_id: VENDOR_ID,
+      amount_approved_by_id: amountApproverId, approved_total_value: 1000000, vendor_id: VENDOR_ID,
+      ...world.caseRow,
     })),
     // The bill — the refs pass' amount/currency gate oracle (org_id is the link-check's own read).
     supabaseSelect('procurement_invoices', () => objectResponse({
@@ -172,9 +178,9 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   ];
 }
 
-async function dispatchAs(caller: string) {
+async function dispatchAs(caller: string, world: World = {}) {
   const unexpected: FetchCall[] = [];
-  const result = await withFetchMock(routes(unexpected, caller), async ({ calls }) => {
+  const result = await withFetchMock(routes(unexpected, caller, true, null, world), async ({ calls }) => {
     const jwt = await auth.mintJwt({ sub: caller });
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
       method: 'POST',
@@ -241,5 +247,40 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(body.references, [
       { reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 1090000 },
     ]);
+  });
+  // #1319 (owner AC-1 / AC-3): the step no longer gates a payment; the org's purchase gates and SoD still do.
+  it('AC-PFE-001 a payment on a purchase that never reached Vendor Invoiced, with no approval recorded, dispatches — and the ceiling is not asked', async () => {
+    const r = await dispatchAs(PAYER_ID, { caseRow: { status: 'Draft', approved_by_id: null, approved_total_value: null } });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 200, r.body);
+    assert(r.calls.some((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox'), 'outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Payment%20Entry').length, 1, r.body);
+    assertEquals(r.calls.filter((c) => c.url.pathname === '/rest/v1/rpc/procurement_payment_within_ceiling').length, 0, 'no approval = no ceiling');
+  });
+
+  it('AC-PFE-003 with approval_before_payment ON and no approval, the payment is refused with the gate reason BEFORE any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Ordered', approved_by_id: null, approved_total_value: null },
+      gateViolation: 'gate_approval_before_payment',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'gate_approval_before_payment' });
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('FR-PFE-016 the approver paying a case at Ordered (step skipped) is still refused 403', async () => {
+    const r = await dispatchAs(APPROVER_ID, { caseRow: { status: 'Ordered' } });
+    assertEquals(r.status, 403, r.body);
+    assertEquals(JSON.parse(r.body).message, 'separation of duties: approver cannot pay own procurement');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+  });
+
+  it('AC-PFE-001 a Cancelled purchase is refused 422 purchase_closed before any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, { caseRow: { status: 'Cancelled' } });
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).message, 'purchase_closed');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
   });
 });

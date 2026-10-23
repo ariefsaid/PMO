@@ -25,7 +25,7 @@ export async function checkProcurementGate(client: ProcurementGateClient, orgId:
   if (typeof procurementId !== 'string' || procurementId === '') return FAILED;
   const { data: row, error: rowError } = await client.from('procurements').select('org_id').eq('id', procurementId).eq('org_id', orgId).maybeSingle();
   if (rowError) { console.error('[adapter-dispatch] procurement gate read failed:', rowError); return FAILED; }
-  if (!row) return { ok: false, status: 422, message: 'purchase-not-found' };
+  if (!row) return { ok: false, status: 422, message: 'purchase_not_found' };
   const { data, error } = await client.rpc('procurement_gate_violation', { p_procurement_id: procurementId, p_step: step });
   if (error) { console.error('[adapter-dispatch] procurement_gate_violation failed:', error); return FAILED; }
   return data === null || data === undefined ? OK : { ok: false, status: 422, message: String(data) };

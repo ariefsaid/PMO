@@ -54,7 +54,7 @@ Deno.test('other domains, kinds and operations are not this gate', async () => {
   assertEquals(c.calls.length, 0);
 });
 Deno.test('fails closed: purchase of another org, unreadable row, RPC failure, missing id', async () => {
-  assertEquals((await checkProcurementGate(fakeClient({ orgRow: null }) as never, 'o1', cmd('purchase-order'))).message, 'purchase-not-found');
+  assertEquals((await checkProcurementGate(fakeClient({ orgRow: null }) as never, 'o1', cmd('purchase-order'))).message, 'purchase_not_found');
   assertEquals((await checkProcurementGate(fakeClient({ rowError: true }) as never, 'o1', cmd('purchase-order'))).message, 'gate-check-failed');
   assertEquals((await checkProcurementGate(fakeClient({ orgRow: { org_id: 'o1' }, rpcError: true }) as never, 'o1', cmd('purchase-order'))).message, 'gate-check-failed');
   const noId = { domain: 'procurement', operation: 'create', record: { id: 'r1', erp_doc_kind: 'purchase-order' } };
