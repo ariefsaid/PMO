@@ -2,9 +2,10 @@
 -- AC-ENA-CAD-004 [pgTAP]: with the sweep ticking every minute, a rejected (`failed`) command is offered
 -- for automatic retry only after an exponential delay since its last failure — 2, 4, 8, 16 minutes
 -- after its 1st..4th attempt — so the five-attempt budget (0131) still spans about half an hour.
--- Every other 0131 bound is unchanged.
+-- Every other 0131 bound is unchanged. A row waiting out its delay is listed by `outbox_retry_pending`
+-- so the backstop passes can tell "not yet due" from "attempts exhausted" (C1).
 begin;
-select plan(16);
+select plan(24);
 
 insert into organizations (id, name) values
   ('03570000-0000-0000-0000-000000000001','0357 Backoff Org'),
@@ -70,6 +71,41 @@ select is((select count(*)::int from cands where id = '03570000-0000-0000-0000-0
   'AC-ENA-CAD-004 another org''s failed command is never in this org''s candidates');
 select ok(not has_function_privilege('authenticated', 'public.outbox_reconcile_candidates(uuid)', 'EXECUTE'),
   'AC-ENA-CAD-004 the replaced function stays service-only');
+
+-- The not-yet-due list: exactly the failed rows inside their delay, never an exhausted or terminal one.
+create temporary view pending_retry as
+  select id from public.outbox_retry_pending('03570000-0000-0000-0000-000000000001') as id;
+select is((select count(*)::int from pending_retry where id in ('03570000-0000-0000-0000-0000000000a1','03570000-0000-0000-0000-0000000000b1','03570000-0000-0000-0000-0000000000c1')), 3,
+  'AC-ENA-CAD-004 every failed command inside its delay is listed as not yet due');
+select is((select count(*)::int from pending_retry where id in ('03570000-0000-0000-0000-0000000000a2','03570000-0000-0000-0000-0000000000b2','03570000-0000-0000-0000-0000000000c2','03570000-0000-0000-0000-0000000000d1')), 0,
+  'AC-ENA-CAD-004 a due failed command is a candidate, not listed as waiting');
+select is((select count(*)::int from pending_retry where id in ('03570000-0000-0000-0000-0000000000e1','03570000-0000-0000-0000-0000000000e2','03570000-0000-0000-0000-0000000000e3')), 0,
+  'AC-ENA-CAD-004 a terminal, exhausted or too-old command is never listed as waiting (it may be held)');
+select is((select count(*)::int from pending_retry where id = '03570000-0000-0000-0000-0000000000ab'), 0,
+  'AC-ENA-CAD-004 another org''s command is never in this org''s waiting list');
+select ok(not has_function_privilege('authenticated', 'public.outbox_retry_pending(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.outbox_retry_pending(uuid)', 'EXECUTE'),
+  'AC-ENA-CAD-004 the waiting list is service-only');
+
+-- The exponent is capped, so a corrupt attempt count cannot overflow the delay.
+select ok(not public.outbox_failed_retry_due(1000000, now() - interval '1000 minutes')
+  and public.outbox_failed_retry_due(1000000, now() - interval '1025 minutes'),
+  'AC-ENA-CAD-004 the delay is capped at 2^10 minutes');
+
+-- An operator-released hold (0156) is waiting, not exhausted: the backstops must not re-hold it.
+insert into auth.users (id, email) values ('03570000-0000-0000-0000-0000000000a9','admin-0357@example.com');
+insert into profiles (id, org_id, full_name, email, role) values
+  ('03570000-0000-0000-0000-0000000000a9','03570000-0000-0000-0000-000000000001','Admin 0357','admin-0357@example.com','Admin');
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, attempt_count, last_error, updated_at)
+values ('03570000-0000-0000-0000-0000000000aa','03570000-0000-0000-0000-000000000001','timesheets','ts-0357','ts:0357:t0','erpnext','create','held',2,'held', now() - interval '1 hour');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03570000-0000-0000-0000-0000000000a9","role":"authenticated"}';
+select lives_ok($$ select release_outbox_hold('03570000-0000-0000-0000-0000000000aa'::uuid, 'approver back') $$,
+  'AC-ENA-CAD-004 an Admin releases a held command');
+reset role;
+select ok((select count(*)::int from public.outbox_retry_pending('03570000-0000-0000-0000-000000000001') as id where id = '03570000-0000-0000-0000-0000000000aa') = 1
+  and (select count(*)::int from public.outbox_reconcile_candidates('03570000-0000-0000-0000-000000000001') where id = '03570000-0000-0000-0000-0000000000aa') = 0,
+  'AC-ENA-CAD-004 a just-released hold is listed as waiting for its delay, so no pass re-holds it');
 
 select * from finish();
 rollback;

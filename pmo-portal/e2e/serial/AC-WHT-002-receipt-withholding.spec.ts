@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { runFullSweep } from './_sweepHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -10,7 +11,6 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
-const SWEEP_SECRET = process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 // Synthetic bench fixture; this is configured explicitly, never a production default.
 const PREPAID_ACCOUNT = 'Earnest Money - PSC';
@@ -94,12 +94,8 @@ test('AC-WHT-002: cash plus withheld tax fully settles the invoice in ERP and su
     const { data: beforeDigest, error: beforeDigestError } = await outbox();
     expect(beforeDigestError).toBeNull();
     expect(beforeDigest?.payload_digest).toMatch(/^[a-f0-9]{64}$/);
-    const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, { method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ mode: 'full' }),
-    });
+    const sweep = await runFullSweep(FUNCTIONS_URL, ORG_ID);
     expect([200, 202]).toContain(sweep.status);
-    await sweep.arrayBuffer();
     const { data: after, error: afterError } = await receipt();
     expect(afterError).toBeNull();
     expect(after).toEqual(before);

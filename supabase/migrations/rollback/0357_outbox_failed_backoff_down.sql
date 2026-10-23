@@ -1,4 +1,6 @@
--- Down for 0357: restore the 0131 body of outbox_reconcile_candidates (no retry backoff).
+-- Down for 0357: restore the 0131 body of outbox_reconcile_candidates (no retry backoff) and drop the
+-- helpers. Roll back 0356 (the one-minute tick) before or together with this file: a one-minute tick
+-- without the backoff spends a rejected command's five automatic retries in about five minutes.
 
 create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
   returns setof public.external_command_outbox
@@ -25,3 +27,6 @@ create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
 
 revoke all on function public.outbox_reconcile_candidates(uuid) from public;
 grant execute on function public.outbox_reconcile_candidates(uuid) to service_role;
+
+drop function if exists public.outbox_retry_pending(uuid);
+drop function if exists public.outbox_failed_retry_due(int, timestamptz);

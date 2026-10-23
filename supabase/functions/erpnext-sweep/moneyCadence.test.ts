@@ -2,7 +2,7 @@
 // hourly windows the shipped cycle runs only the outbound money passes — (1) outbox recovery,
 // (5) budget, (6) timesheets, (7) expenses — and none of the inbound/statement work.
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { runErpSweepCycle, sweepCadenceAt } = await import('./index.ts');
+const { runErpSweepCycle, sweepCadenceAt, fullSweepDue, SWEEP_FULL_INTERVAL_MS } = await import('./index.ts');
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -72,13 +72,13 @@ Deno.test('AC-ENA-CAD-003: a money-only tick releases the org lock even when a m
   assert(visited.includes('timesheet') && visited.includes('expenses'), 'one failing money pass must not stop the others');
 });
 
-Deno.test('AC-ENA-CAD-001: the hourly work runs once an hour; backfill keeps five-minute full ticks; every other tick is money-only', async () => {
+Deno.test('AC-ENA-CAD-001: the tick forces the full sweep only for a backfilling binding on a five-minute tick; otherwise each org decides', async () => {
   let reads = 0;
   const published = (value: boolean) => () => { reads += 1; return Promise.resolve(value); };
   const at = (iso: string) => Date.parse(iso);
   const cases: Array<[string, boolean, string, number]> = [
-    ['2026-10-23T07:00:00.000Z', true, 'full', 0],
-    ['2026-10-23T07:00:59.999Z', true, 'full', 0],
+    ['2026-10-23T07:00:00.000Z', true, 'money-only', 1],
+    ['2026-10-23T07:00:00.000Z', false, 'full', 1],
     ['2026-10-23T07:01:00.000Z', true, 'money-only', 0],
     ['2026-10-23T07:02:00.000Z', true, 'money-only', 0],
     ['2026-10-23T07:07:00.000Z', true, 'money-only', 0],
@@ -92,4 +92,63 @@ Deno.test('AC-ENA-CAD-001: the hourly work runs once an hour; backfill keeps fiv
     assert(cadence === expected, `${iso} (allPublished=${allPublished}) → ${cadence}, expected ${expected}`);
     assert(reads === expectedReads, `${iso}: readiness read ${reads} times, expected ${expectedReads}`);
   }
+});
+
+Deno.test('AC-ENA-CAD-006: an org whose last full run is older than 55 minutes (or unknown) is due', () => {
+  const now = Date.parse('2026-10-23T07:03:00.000Z');
+  assert(SWEEP_FULL_INTERVAL_MS === 55 * 60_000, `unexpected full-run interval ${SWEEP_FULL_INTERVAL_MS}`);
+  assert(fullSweepDue(null, now) && fullSweepDue(undefined, now) && fullSweepDue('not-a-date', now), 'an unknown last run must be due');
+  assert(fullSweepDue(new Date(now - SWEEP_FULL_INTERVAL_MS).toISOString(), now), 'exactly 55 minutes is due');
+  assert(!fullSweepDue(new Date(now - SWEEP_FULL_INTERVAL_MS + 1).toISOString(), now), 'under 55 minutes is not due');
+});
+
+Deno.test('AC-ENA-CAD-006: on a money-only tick an org due for its full run runs everything and stamps it; an org not due runs money only', async () => {
+  const visited: string[] = [];
+  const stamped: string[] = [];
+  const base = recordingDeps(visited);
+  const result = await runErpSweepCycle({
+    ...base,
+    listEmployingOrgs: () => Promise.resolve([org('org-due'), org('org-fresh')]),
+    isFullSweepDue: (o) => o.orgId === 'org-due',
+    markFullSweepDone: (o) => { stamped.push(o.orgId); return Promise.resolve(); },
+  }, undefined, 'money-only');
+  assert(JSON.stringify(result.perOrg.map((p) => [p.orgId, p.cadence])) === JSON.stringify([['org-due', 'full'], ['org-fresh', 'money-only']]),
+    `per-org cadence wrong: ${JSON.stringify(result.perOrg)}`);
+  assert(visited.filter((v) => v === 'ledger').length === 1, `only the due org may run the hourly work: ${JSON.stringify(visited)}`);
+  assert(JSON.stringify(stamped) === JSON.stringify(['org-due']), `only a completed full run is stamped: ${JSON.stringify(stamped)}`);
+});
+
+Deno.test('AC-ENA-CAD-006: a missed full run (lock held at the top of the hour) runs on the next tick that gets the lock', async () => {
+  const visited: string[] = [];
+  const stamped: string[] = [];
+  let lastFull: string | null = '2026-10-23T06:00:00.000Z';
+  const now = Date.parse('2026-10-23T07:00:00.000Z');
+  const held = new Set<string>(['org-a']);
+  const deps = {
+    ...recordingDeps(visited, held),
+    isFullSweepDue: () => fullSweepDue(lastFull, now),
+    markFullSweepDone: (o: { orgId: string }) => { stamped.push(o.orgId); lastFull = new Date(now).toISOString(); return Promise.resolve(); },
+  };
+  const missed = await runErpSweepCycle(deps, undefined, 'money-only');
+  assert(missed.perOrg[0]?.errors.includes('statement-lock-held') === true && visited.length === 0 && stamped.length === 0,
+    `the overlapped tick must do nothing and stamp nothing: ${JSON.stringify(missed.perOrg)} ${JSON.stringify(visited)}`);
+  held.clear();
+  const next = await runErpSweepCycle(deps, undefined, 'money-only');
+  assert(next.perOrg[0]?.cadence === 'full' && visited.includes('ledger') && JSON.stringify(stamped) === JSON.stringify(['org-a']),
+    `the next tick that got the lock did not run the missed full sweep: ${JSON.stringify(next.perOrg)} ${JSON.stringify(visited)}`);
+  visited.length = 0;
+  const after = await runErpSweepCycle(deps, undefined, 'money-only');
+  assert(after.perOrg[0]?.cadence === 'money-only' && !visited.includes('ledger'), 'once stamped, the org is not due again within the hour');
+});
+
+Deno.test('AC-ENA-CAD-006: a forced full tick stamps every org it ran in full; a money-only org is never stamped', async () => {
+  const stamped: string[] = [];
+  const visited: string[] = [];
+  await runErpSweepCycle({ ...recordingDeps(visited), isFullSweepDue: () => false,
+    markFullSweepDone: (o) => { stamped.push(o.orgId); return Promise.resolve(); } }, undefined, 'full');
+  assert(JSON.stringify(stamped) === JSON.stringify(['org-a']), `forced full run not stamped: ${JSON.stringify(stamped)}`);
+  stamped.length = 0;
+  await runErpSweepCycle({ ...recordingDeps(visited), isFullSweepDue: () => false,
+    markFullSweepDone: (o) => { stamped.push(o.orgId); return Promise.resolve(); } }, undefined, 'money-only');
+  assert(stamped.length === 0, 'a money-only run must not stamp a full run');
 });

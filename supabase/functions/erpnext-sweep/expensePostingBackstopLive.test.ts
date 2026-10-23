@@ -98,15 +98,20 @@ const GATE_TRUTH = {
   state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'u-pm',
 };
 
-Deno.test('AC-EXP-121 the work queue is this org\'s pending/failed, not ERP-cancelled intents, least recently attempted first, bounded', async () => {
-  const f = fakeClient({ respond: () => ({ data: [intent()], error: null }) });
+Deno.test('AC-EXP-121 the work queue is the 0358 queue (pending, and failed past their retry delay; round robin; bounded) for this org', async () => {
+  const f = fakeClient({ rpc: (fn) => (fn === 'expense_posting_queue' ? { data: [intent()], error: null } : { data: null, error: null }) });
   const rows = await deps(f.client).listPending(ORG, 200);
   assertEquals(rows.length, 1);
-  assertEquals(f.calls[0].table, 'expense_posting_erp_mirror');
-  assertEquals(f.calls[0].ops.slice(1), [
-    ['eq', 'org_id', ORG], ['in', 'push_state', ['pending', 'failed']], ['is', 'erp_cancelled_at', null],
-    ['order', 'last_attempt_at', { ascending: true, nullsFirst: true }], ['order', 'created_at', { ascending: true }], ['limit', 200],
-  ]);
+  assertEquals(f.rpcs, [['expense_posting_queue', { p_org_id: ORG, p_limit: 200 }]]);
+  assertEquals(f.calls, [], 'the queue is read only through the RPC that applies the retry delay');
+});
+
+Deno.test('AC-ENA-CAD-007 a failed outcome counts the failure, so the queue backs the posting off; other outcomes do not', async () => {
+  const f = fakeClient({ respond: (c) => (c.table === 'profiles' ? { data: [{ id: 'admin-1' }], error: null } : { data: c.op === 'select' ? [] : null, error: null }) });
+  await deps(f.client).recordOutcome(intent({ attempt_count: 2 } as never), { state: 'failed', reason: 'refused' });
+  await deps(f.client).recordOutcome(intent({ attempt_count: 2 } as never), { state: 'held', reason: 'command-held' });
+  const updates = f.calls.filter((c) => c.table === 'expense_posting_erp_mirror' && c.op === 'update');
+  assertEquals(updates.map((u) => (u.payload as Record<string, unknown>).attempt_count), [3, undefined]);
 });
 
 Deno.test('AC-EXP-121 the listed intents are stamped attempted in one org-scoped write', async () => {
@@ -145,7 +150,7 @@ Deno.test('AC-EXP-121 a replay that could post anew re-checks the recorded actor
   assertEquals(f.rpcs[0], ['expense_posting_actor_check', { p_org_id: ORG, p_mirror_id: 'mirror-1' }]);
   assertEquals(f.calls.some((c) => c.table === 'external_command_outbox'), false);
   const update = f.calls.find((c) => c.table === 'expense_posting_erp_mirror' && c.op === 'update');
-  assertEquals(update?.payload, { push_state: 'failed', push_error: 'expense-posting-actor-not-authorized' });
+  assertEquals(update?.payload, { push_state: 'failed', push_error: 'expense-posting-actor-not-authorized', attempt_count: 1 });
 });
 
 Deno.test('AC-EXP-121 finishing a committed command (no new ERP write) does not re-check the actor', async () => {
@@ -197,6 +202,14 @@ Deno.test('AC-EXP-121 an outbox row still committing or quarantined is left alon
   await deps(f.client).replay(intent(), { id: 'ob-1', state: 'committing' } as never);
   await deps(f.client).replay(intent(), { id: 'ob-2', state: 'quarantined' } as never);
   assertEquals(f.calls.length, 0);
+});
+
+Deno.test('AC-ENA-CAD-004 a failed outbox row inside its retry delay is left alone, never held', async () => {
+  const f = fakeClient();
+  const waiting = expensePostingBackstopDepsLive(f.client as never, ORG_BINDING, [], undefined, new Set(['ob-1']));
+  await waiting.replay(intent({ push_state: 'failed' }), { id: 'ob-1', state: 'failed' } as never);
+  assertEquals(f.calls, [], 'a command waiting out its retry delay must not be held or notified');
+  assertEquals(f.rpcs, [], 'nor driven');
 });
 
 Deno.test('AC-EXP-121 a pushed outcome records the ERP name and raises no notice', async () => {

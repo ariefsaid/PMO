@@ -43,9 +43,11 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  *   budget is spent once per tick, not twice.
  * Cadence (owner ruling 2026-10-23): the outbound money passes — (1), (5), (6), (7) — run on EVERY
  *   tick so postings reach ERPNext within a minute; the inbound/statement work — (2), (2b), native
- *   statements, (3), (3b), (4) — keeps #1212's hourly cadence (`sweepCadenceAt`). Such a tick answers
- *   `{ ok: true, cadence: 'money-only', ... }`; a full tick answers `cadence: 'full'`. A caller holding
- *   the sweep secret may post `{"mode":"full"}` to force the full tick (the e2e journeys do).
+ *   statements, (3), (3b), (4) — runs about hourly per org: when the org's last completed full run
+ *   (0358, stamped under its lock) is 55+ minutes old, plus #1212's five-minute backfill ticks
+ *   (`sweepCadenceAt`). Each `perOrg` entry and the top-level body carry `cadence: 'full' |
+ *   'money-only'` (top level `mixed` when orgs differ). A caller holding the sweep secret may post
+ *   `{"mode":"full"}` to force the full tick (the e2e journeys do).
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
@@ -593,6 +595,8 @@ interface OrgBinding {
   /** Holder fence for statement-source writes in this sweep tick. */
   statementLockHolder?: string;
   statementReplayNeeded?: boolean;
+  /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
+  lastFullSweepAt?: string | null;
 }
 
 export interface ErpSweepCycleDeps {
@@ -624,6 +628,10 @@ export interface ErpSweepCycleDeps {
   /** #775 phase B (ADR-0081) — pass (7), the only originator of expense postings. Optional so the existing cycle
    *  tests stay byte-for-byte; the live wiring always supplies it. */
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
+  isFullSweepDue?: (org: OrgBinding) => boolean;
+  /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
+  markFullSweepDone?: (org: OrgBinding) => Promise<void>;
 }
 
 /**
@@ -654,7 +662,7 @@ export type ErpSweepCadence = 'full' | 'money-only';
 
 export interface ErpSweepCycleResult {
   orgs: number;
-  perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
+  perOrg: Array<{ orgId: string; cadence?: ErpSweepCadence; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
 }
 
 /**
@@ -674,7 +682,6 @@ export async function runErpSweepCycle(
   cache?: ErpAuthPairCache,
   cadence: ErpSweepCadence = 'full',
 ): Promise<ErpSweepCycleResult> {
-  const hourly = cadence === 'full';
   const orgs = await deps.listEmployingOrgs();
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
@@ -695,6 +702,9 @@ export async function runErpSweepCycle(
       }
       org.statementLockHolder = lockHolder;
     }
+    // The tick forces the full sweep (an explicit request, or a backfilling binding); otherwise each org
+    // runs its hourly work when its last completed full run is stale (0358).
+    const hourly = cadence === 'full' || (deps.isFullSweepDue?.(org) ?? false);
     try {
     // (1) outbox recovery FIRST.
     let reconcile: ReconcileOrgOutboxResult | null = null;
@@ -767,6 +777,14 @@ export async function runErpSweepCycle(
           errors.push(`accounting:${err instanceof Error ? err.message : String(err)}`);
         }
       }
+      // Stamp the completed full run (0358). A tick that dies before here leaves the org due.
+      if (deps.markFullSweepDone) {
+        try {
+          await deps.markFullSweepDone(org);
+        } catch (err) {
+          errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
     }
     // (5) P3c — the budget push's sweep backstop (FR-BUD-141). AFTER everything else, in the SAME
     // try/catch shape as its siblings so one org's failure never aborts the loop.
@@ -798,7 +816,7 @@ export async function runErpSweepCycle(
         errors.push(`expenses:${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
+    perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', reconcile, sweep, ledger, errors });
     // #651 review (per-org cache scope): clear this org's entry so only the CURRENT org's pair is ever
     // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
     // resolution failure can't leave a stale org resident for a later org's passes.
@@ -884,9 +902,26 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     }
   }
 
+  // 0358: each org's last completed full run. A failed read leaves every org unknown, i.e. due — the
+  // hourly work then runs rather than silently stopping (logged).
+  const lastFullByOrg = new Map<string, string>();
+  {
+    const { data: runs, error: runsError } = await serviceClient.from('erp_sweep_full_run')
+      .select('org_id, completed_at')
+      .in('org_id', activated.map((r) => r.org_id));
+    if (runsError) {
+      console.error(`[erpnext-sweep] erp_sweep_full_run load failed: code=${runsError.code ?? 'none'} message=${runsError.message}`);
+    } else {
+      for (const row of (runs as Array<{ org_id: string; completed_at: string }> | null) ?? []) {
+        lastFullByOrg.set(row.org_id, row.completed_at);
+      }
+    }
+  }
+
   return activated.map((r) => ({
     orgId: r.org_id,
     bindingId: r.id ?? null,
+    lastFullSweepAt: lastFullByOrg.get(r.org_id) ?? null,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
     company: (r.config?.company as string | undefined) ?? '',
@@ -982,26 +1017,39 @@ function statementReportBatchMatchesBinding(
     sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
 }
 
-/** The cron ticks every minute (0356). The full sweep runs in the first minute of each UTC hour. */
-export const SWEEP_HOURLY_WINDOW_MINUTES = 1;
+/** 0358: an org's hourly work is due once its last completed full run is at least this old. */
+export const SWEEP_FULL_INTERVAL_MS = 55 * 60_000;
 /** A binding still building its first statement publication keeps the full sweep every five minutes. */
 export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
 
+/** Whether an org's hourly work is due: never run, unreadable, or completed at least 55 minutes ago. */
+export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: number): boolean {
+  const last = lastFullSweepAt ? Date.parse(lastFullSweepAt) : Number.NaN;
+  return !Number.isFinite(last) || nowMs - last >= SWEEP_FULL_INTERVAL_MS;
+}
+
 /**
- * Which work a tick does. Every tick runs the outbound money passes (owner ruling 2026-10-23). The
- * expensive inbound/statement work keeps #1212's cadence: hourly, plus every five minutes while some
- * binding still lacks its first publication (`allPublished` resolves false). The readiness read is
- * only made on the five-minute ticks that could need it.
+ * The tick-wide decision. Every tick runs the outbound money passes (owner ruling 2026-10-23). The tick
+ * forces the full sweep for every org only while some binding lacks its first statement publication,
+ * on the five-minute ticks (#1212's backfill cadence); otherwise each org runs its hourly work when its
+ * own marker says it is due (`fullSweepDue`). The readiness read is made only on five-minute ticks.
  */
+/** The body's top-level `cadence`: `full` / `money-only` when every ticked org ran the same work, else
+ *  `mixed` (each `perOrg` entry carries its own). With no org ticked it is the tick-wide decision. */
+export function tickCadenceSummary(cadence: ErpSweepCadence, cycle: ErpSweepCycleResult): ErpSweepCadence | 'mixed' {
+  const ran = new Set(cycle.perOrg.flatMap((p) => (p.cadence ? [p.cadence] : [])));
+  if (ran.size === 0) return cadence;
+  return ran.size === 1 ? [...ran][0] : 'mixed';
+}
+
 export async function sweepCadenceAt(entryMs: number, allPublished: () => Promise<boolean>): Promise<ErpSweepCadence> {
   const minute = new Date(entryMs).getUTCMinutes();
-  if (minute < SWEEP_HOURLY_WINDOW_MINUTES) return 'full';
   if (minute % SWEEP_BACKFILL_EVERY_MINUTES !== 0) return 'money-only';
   return (await allPublished()) ? 'money-only' : 'full';
 }
 
 /**
- * Outside the hourly window, the full sweep is needed only while some active binding accepted by
+ * Between an org's hourly runs, the full sweep is forced only while some active binding accepted by
  * the native collector's binding guard lacks a publication for that same company, binding
  * activation, version, and project map. A binding without its first publication keeps the
  * five-minute full cadence while its matching native report batch started within six hours or
@@ -1146,6 +1194,13 @@ async function erpClientForOrg(
 }
 
 /** The outbox-recovery listCandidates RPC wrapper (camelCase → OutboxRow). */
+/** 0357: the org's `failed` outbox rows still waiting out their retry delay (not due, not exhausted). */
+async function listRetryPendingLive(serviceClient: SupabaseClient, orgId: string): Promise<ReadonlySet<string>> {
+  const { data, error } = await serviceClient.rpc('outbox_retry_pending', { p_org_id: orgId });
+  if (error) throw new AppError(error.message, error.code);
+  return new Set(((data as unknown[] | null) ?? []).map(String));
+}
+
 function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates {
   return async (orgId: string) => {
     const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
@@ -2084,6 +2139,8 @@ export function budgetBackstopDepsLive(
    *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
    *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
   eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
+  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
+  retryPendingIds: ReadonlySet<string> = new Set(),
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
@@ -2221,7 +2278,8 @@ export function budgetBackstopDepsLive(
         // dispatch marks NOTHING so the row stays reclaimable, and the next cron tick, seconds later,
         // saw a `failed` mirror plus a not-yet-due outbox row). Leave them for a later tick; the
         // attempt/age bound itself is untouched for every state that really has run out.
-        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
+        // 0357: a `failed` row waiting out its retry delay is likewise not due — never exhausted.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined' || retryPendingIds.has(outboxRow.id)) return;
         const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row, 'budget-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-attempts-exhausted', { versionId: row.budget_version_id });
@@ -2260,7 +2318,10 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
           : null,
         budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
       }));
-    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates), { orgId: org.orgId });
+    const result = await reconcileOrgBudgetPushes(
+      budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates, await listRetryPendingLive(serviceClient, org.orgId)),
+      { orgId: org.orgId },
+    );
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
     // keeps throwing is a stuck money push and must be visible in the tick's own result.
     for (const e of result.errors) {
@@ -2519,6 +2580,8 @@ export function timesheetBackstopDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   eligibleOutboxIds: ReadonlySet<string>,
+  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
+  retryPendingIds: ReadonlySet<string> = new Set(),
 ): TimesheetBackstopDeps {
   return {
     listPendingTimesheetPushes: async (orgId, limit) => {
@@ -2675,7 +2738,8 @@ export function timesheetBackstopDepsLive(
         // dispatch marks NOTHING so the row stays reclaimable: the next tick, seconds later, sees a
         // `failed` mirror plus a not-yet-due `committing` row. Leave it; the attempt/age bound is
         // untouched for every state that really has run out.
-        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
+        // 0357: a `failed` row waiting out its retry delay is likewise not due — never exhausted.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined' || retryPendingIds.has(outboxRow.id)) return;
         const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
@@ -2702,7 +2766,7 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
         .map((c) => c.id),
     );
     const result = await reconcileOrgTimesheetPushes(
-      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds),
+      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds, await listRetryPendingLive(serviceClient, org.orgId)),
       { orgId: org.orgId },
     );
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
@@ -2817,12 +2881,16 @@ export function expensePostingBackstopDepsLive(
   org: OrgBinding,
   eligibleOutbox: readonly OutboxRow[],
   cache?: ErpAuthPairCache,
+  /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
+  retryPendingIds: ReadonlySet<string> = new Set(),
 ): ExpenseBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
   // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
   // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
   const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
     const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
+    // 0358: each failure lengthens the posting's retry delay (`expense_posting_queue`).
+    if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
     if (outcome.state === 'pushed') {
       patch.erp_name = outcome.erpName ?? null;
       patch.pushed_at = new Date().toISOString();
@@ -2844,11 +2912,9 @@ export function expensePostingBackstopDepsLive(
   };
   return {
     // Round robin (NFR-EXP-013): never-attempted first, then least recently attempted — index-served (0270 §3).
+    // 0358: a failed posting is queued again only after its retry delay (2^n minutes, capped at an hour).
     listPending: async (orgId, limit) => {
-      const { data, error } = await serviceClient.from('expense_posting_erp_mirror')
-        .select(EXPENSE_INTENT_COLUMNS)
-        .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-        .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
+      const { data, error } = await serviceClient.rpc('expense_posting_queue', { p_org_id: orgId, p_limit: limit });
       if (error) throw new AppError(error.message, error.code);
       return (data as ExpenseIntentRow[] | null) ?? [];
     },
@@ -2886,7 +2952,8 @@ export function expensePostingBackstopDepsLive(
     replay: async (row, ref) => {
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined') return; // not due yet (0131)
+        // Not due yet: a lease or quarantine window (0131), or a failed row's retry delay (0357).
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
         return;
       }
@@ -2955,7 +3022,7 @@ async function reconcileOrgExpensePostingsLive(
   try {
     const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
     const result = await reconcileOrgExpensePostings(
-      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache),
+      expensePostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache, await listRetryPendingLive(serviceClient, org.orgId)),
       { orgId: org.orgId },
     );
     for (const e of result.errors) {
@@ -3045,6 +3112,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
 
   // #1212 keeps the expensive inbound/statement work hourly; the owner ruling of 2026-10-23 keeps the
   // outbound money passes on every tick. A tick between the hourly windows is `money-only`, never a skip.
+  if (forceFull) console.info('[erpnext-sweep] full run requested explicitly ({"mode":"full"})');
   const cadence: ErpSweepCadence = forceFull
     ? 'full'
     : await sweepCadenceAt(handlerEntryMs, () => allActiveBindingsHavePublishedStatementGeneration(serviceClient));
@@ -3107,8 +3175,15 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
+    isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
+    markFullSweepDone: async (org) => {
+      if (!org.statementLockHolder) throw new Error('no sweep lock held');
+      const { data, error } = await serviceClient.rpc('mark_erp_full_sweep_done', { p_org_id: org.orgId, p_holder: org.statementLockHolder });
+      if (error) throw new Error(`full-run stamp failed: ${error.code ?? 'unknown'}`);
+      if (data !== true) throw new Error('the sweep lock lapsed before the full run was stamped');
+    },
   }, erpAuth, cadence);
-  return json({ ok: true, cadence, ...cycle });
+  return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
 });
 
 /**

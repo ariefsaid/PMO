@@ -36,6 +36,8 @@ export interface ExpenseIntentRow {
   state_stamp: string;
   push_state: string;
   push_error: string | null;
+  /** 0358: failures so far — the queue's retry delay grows with it. */
+  attempt_count?: number;
 }
 
 export interface ExpenseOutboxRef {
