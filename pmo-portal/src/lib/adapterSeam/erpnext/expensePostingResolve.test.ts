@@ -14,6 +14,8 @@ const ACCOUNTS: Record<string, ErpAccountFacts> = {
   'Project Direct Cost - PSC': { name: 'Project Direct Cost - PSC', root_type: 'Expense', account_type: 'Cost of Goods Sold', is_group: 0, disabled: 0, company: 'PMO Smoke Co', account_currency: 'IDR' },
 };
 
+// Default project is internal on purpose: the pre-0354 tests keep exercising the per-type accounts;
+// the direct-cost block below overrides it with project_is_internal: false.
 function truth(posting: ExpensePosting, over: Partial<ExpenseGateTruth> = {}): ExpenseGateTruth {
   return {
     mirror_id: 'm1', posting, posting_identity: `${CLAIM}:${posting}`, subject_id: CLAIM, claim_id: CLAIM,
