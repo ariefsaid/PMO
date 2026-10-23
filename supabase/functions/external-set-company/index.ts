@@ -47,7 +47,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { guardedErpFetch, isPermittedErpSiteUrl, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface SetCompanyBody extends ErpSetupBody {
   tier: 'erpnext';
@@ -305,8 +305,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     const company = binding.config?.company;
     if (!binding.activated_at || typeof company !== 'string' || !company) return errorResponse('Select the ERPNext Company before setup', 'config-rejected', 422);
     try {
-      const url = new URL(binding.site_url);
-      if (url.protocol !== 'https:' || await isPrivateOrReservedHost(url.hostname)) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
+      if (!(await isPermittedErpSiteUrl(binding.site_url))) throw new AppError('ERPNext site URL is not allowed', 'config-rejected');
       return json(await applyErpSetup(body, { serviceClient, orgId: profile.org_id, actorId: userId, company, config: binding.config,
         client: { fetchImpl: guardedErpFetch(binding.site_url), baseUrl: binding.site_url, apiKey, apiSecret } }));
     } catch (err) {
