@@ -15,6 +15,7 @@ import { it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   OpenRouterModelClient,
   providerPolicyFromEnv,
+  fallbackModelsFromEnv,
   DEFAULT_PROVIDER_POLICY,
 } from '../../../../supabase/functions/_shared/openRouterModelClient';
 
@@ -66,6 +67,40 @@ it('AC-MC-001 sends POST to the OpenRouter chat-completions endpoint with the ri
   expect(body.usage).toEqual({ include: true });
 });
 
+it('falls back to GPT-6 Luna as a second model by default, primary model first', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'deepseek/deepseek-v4.1-flash-1017',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+  await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'deepseek/deepseek-v4.1-flash-1017', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+  expect(body.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+  expect(body.models).toEqual(['deepseek/deepseek-v4.1-flash-1017', 'openai/gpt-6-luna']);
+});
+
+it('sends no model fallback list when fallbacks are disabled or the primary is the fallback', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'm',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+  await new OpenRouterModelClient({ apiKey: 'k', fallbackModels: [] }).create({
+    model: 'm', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).models).toBeUndefined();
+  await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'openai/gpt-6-luna', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).models).toBeUndefined();
+});
+
+it('fallbackModelsFromEnv: unset keeps the default, empty disables, a list replaces it', () => {
+  expect(fallbackModelsFromEnv(undefined)).toEqual(['openai/gpt-6-luna']);
+  expect(fallbackModelsFromEnv('')).toEqual([]);
+  expect(fallbackModelsFromEnv(' a/b , c/d ')).toEqual(['a/b', 'c/d']);
+});
+
 it('emits a caller-supplied provider policy verbatim in the request body', async () => {
   const fetchMock = mockFetchOnce({
     model: 'm',
@@ -79,7 +114,7 @@ it('emits a caller-supplied provider policy verbatim in the request body', async
   expect(body.provider).toEqual(provider);
 });
 
-const TIER = ['relace', 'deepinfra', 'gmicloud', 'digitalocean', 'baidu', 'deepseek', 'alibaba', 'streamlake'];
+const TIER = ['relace', 'deepinfra', 'gmicloud', 'digitalocean', 'openai'];
 
 it('providerPolicyFromEnv defaults to the no-train fallback tier, only-restricted', () => {
   expect(providerPolicyFromEnv({})).toEqual({
