@@ -29,11 +29,11 @@ begin
        and c.org_id = p_org and c.archived_at is null) c;
   if cardinality(v_ids) = 1 then return v_ids[1]; elsif cardinality(v_ids) > 1 then return null; end if;
   select array_agg(c.id) into v_ids from public.companies c
-   where c.org_id = p_org and c.archived_at is null and c.erp_supplier_name = p_supplier;
+   where c.org_id = p_org and c.archived_at is null and c.type = 'Vendor' and c.erp_supplier_name = p_supplier;
   if cardinality(v_ids) = 1 then return v_ids[1]; elsif cardinality(v_ids) > 1 then return null; end if;
   if v_name = '' then return null; end if;
   select array_agg(c.id) into v_ids from public.companies c
-   where c.org_id = p_org and c.archived_at is null and lower(btrim(c.name)) = v_name;
+   where c.org_id = p_org and c.archived_at is null and c.type = 'Vendor' and lower(btrim(c.name)) = v_name;
   if cardinality(v_ids) = 1 then return v_ids[1]; end if;
   return null;
 end $$;
@@ -153,7 +153,7 @@ begin
           else
             select c.name into v_vendor_name from public.companies c where c.id = v_proc.vendor_id;
             if lower(btrim(coalesce(v_vendor_name, ''))) is distinct from lower(btrim(coalesce(v_doc.supplier_name, v_doc.supplier, '')))
-               and not exists (select 1 from public.companies c where c.id = v_proc.vendor_id and c.erp_supplier_name = v_doc.supplier) then  -- 0369
+               and not exists (select 1 from public.companies c where c.id = v_proc.vendor_id and c.org_id = v_org and c.erp_supplier_name = v_doc.supplier) then  -- 0369
               raise exception using errcode = 'PFE02', message = 'supplier_mismatch';
             end if;
           end if;

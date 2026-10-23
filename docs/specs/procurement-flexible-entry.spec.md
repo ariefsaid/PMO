@@ -282,6 +282,11 @@ AC-7 → 007 · AC-8 → 008 · AC-9 → 009, 017 · AC-10 → 010 · AC-11 → 
   both and links them to that purchase, Then the purchase lists both documents.
 - **AC-PFE-023** (pgTAP) Given a linked document, When an Admin unlinks it, Then the link is gone, the document is an
   orphan again and the purchase status is unchanged; a Project Manager's unlink is refused.
+- **AC-PFE-024** (pgTAP) Given an unlinked ERP document, When it is linked as a new purchase, Then the purchase gets
+  the next `PROC-YYMMDD####` number from the org's counter and no request or order number.
+- **AC-PFE-025** (pgTAP) Given an unlinked ERP document, When it is linked as a new purchase, Then its vendor is the one
+  live Vendor company in the same org that the supplier maps to (mapping, then ERP supplier id, then exact name);
+  otherwise the vendor stays empty.
 
 ## Traceability (owning layer)
 
@@ -302,6 +307,8 @@ AC-7 → 007 · AC-8 → 008 · AC-9 → 009, 017 · AC-10 → 010 · AC-11 → 
 | AC-PFE-020 | unit `pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.test.ts` |
 | AC-PFE-021 | e2e `pmo-portal/e2e/AC-PFE-021-new-purchase-from-erp-invoice.spec.ts` |
 | AC-PFE-022 | e2e `pmo-portal/e2e/AC-PFE-022-bulk-link-orphans.spec.ts` |
+| AC-PFE-024 | pgTAP `supabase/tests/procurement_link_create_number_vendor.test.sql` |
+| AC-PFE-025 | pgTAP `supabase/tests/procurement_link_create_number_vendor.test.sql` |
 
 Superseded/updated proofs (deliberate, owner ruling 2026-10-23): AC-EPR-006's "no function other than the upsert reads
 `erp_purchase_documents`" becomes an allow-list of the readers this spec adds (the actuals assertion is unchanged);
