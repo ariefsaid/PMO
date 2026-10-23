@@ -97,7 +97,10 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     //       #805: the minutes are a BlockNote editor — the author just types into it.
     const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
     await editor.click();
+    // Type only once the editor holds focus — keys sent before BlockNote mounts are lost.
+    await expect(editor).toBeFocused();
     await page.keyboard.type(minuteLine);
+    await expect(editor).toContainText(minuteLine);
     await page.keyboard.press('Enter');
     await page.keyboard.type(actionLine);
     const save = page.getByTestId('minutes-save');
