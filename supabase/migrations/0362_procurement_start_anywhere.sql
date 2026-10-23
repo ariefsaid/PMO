@@ -3,6 +3,51 @@
 -- Derivation and record gates run for USER writes (auth.uid() set) and the ERP MIRROR (service_role JWT) only — never for
 -- direct SQL (seed, migrations, fixtures), so existing data is never re-derived (NFR-PFE-010).
 
+-- M1: lock the purchase row before the record row's FK check takes its share lock. Two concurrent records on one
+-- purchase would otherwise both hold the share lock and deadlock upgrading it in advance_procurement_status.
+create function public.lock_procurement_for_record() returns trigger
+language plpgsql security definer set search_path = public, pg_catalog as $$
+begin
+  perform 1 from public.procurements where id = new.procurement_id for update;
+  return new;
+end $$;
+revoke all on function public.lock_procurement_for_record() from public, anon, authenticated;
+create trigger a0_purchase_orders_lock_procurement before insert on public.purchase_orders
+  for each row execute function public.lock_procurement_for_record();
+create trigger a0_procurement_receipts_lock_procurement before insert on public.procurement_receipts
+  for each row execute function public.lock_procurement_for_record();
+create trigger a0_procurement_invoices_lock_procurement before insert on public.procurement_invoices
+  for each row execute function public.lock_procurement_for_record();
+create trigger a0_payments_lock_procurement before insert on public.payments
+  for each row execute function public.lock_procurement_for_record();
+
+-- 0360's advance_procurement_status plus the `0362` lines: a purchase awaiting approval (Requested — including one a
+-- quote above its approved amount sent back) never derives, so recording a document cannot skip the approval.
+-- A user write is refused; the ERP mirror's write is kept and audited as derive_skipped (advance_procurement_on_record).
+create or replace function public.advance_procurement_status(p_procurement_id uuid, p_note text)
+returns public.procurement_status language plpgsql security definer set search_path = public, pg_catalog as $$
+declare v_from public.procurement_status; v_org uuid; v_to public.procurement_status;
+begin
+  select status, org_id into v_from, v_org from public.procurements where id = p_procurement_id for update;
+  if not found or v_from::text in ('Cancelled','Rejected') then return v_from; end if;
+  v_to := public.procurement_evidenced_step(p_procurement_id);
+  if v_from = 'Requested' and v_to is not null then                                                      -- 0362
+    raise exception 'This purchase is awaiting approval. Record its documents after it is approved.'    -- 0362
+      using errcode = '23514', detail = 'awaiting_approval';                                              -- 0362
+  end if;                                                                                                 -- 0362
+  if v_to is null or public.procurement_step_rank(v_to) <= public.procurement_step_rank(v_from) then
+    return v_from;
+  end if;
+  update public.procurements
+     set status = v_to,
+         vendor_invoiced_at = case when v_to::text in ('Vendor Invoiced','Paid') then coalesce(vendor_invoiced_at, now()) else vendor_invoiced_at end,
+         updated_at = now()
+   where id = p_procurement_id;
+  insert into public.procurement_status_events (procurement_id, org_id, from_status, to_status, actor_id, notes)
+  values (p_procurement_id, v_org, v_from, v_to, auth.uid(), p_note);
+  return v_to;
+end $$;
+
 create function public.guard_procurement_record_gate() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
 declare v_reason text;
@@ -85,9 +130,15 @@ begin
     if auth.uid() is not null and (auth.uid() = old.approved_by_id or auth.uid() = old.amount_approved_by_id) then
       raise exception 'separation of duties: approver cannot pay own procurement' using errcode = '42501';
     end if;
-    -- 0362 FR-PFE-017: no recorded approval + approval_before_payment OFF = nothing to compare against.
+    -- 0362 FR-PFE-017: Paid without an approved amount only for a purchase that never entered approval (no approver,
+    -- no request number, no Requested/Approved event — so a pending or re-opened approval cannot be skipped) and only
+    -- with approval_before_payment OFF. Status is changed only by definers, so the event read is not RLS-narrowed.
     if old.approved_total_value is null then
-      if old.approved_by_id is not null or public.procurement_gate(old.org_id, 'approval_before_payment') then
+      if old.approved_by_id is not null or old.pr_number is not null
+         or exists (select 1 from public.procurement_status_events e
+                     where e.procurement_id = old.id
+                       and e.to_status in ('Requested'::procurement_status, 'Approved'::procurement_status))
+         or public.procurement_gate(old.org_id, 'approval_before_payment') then
         raise exception 'Cannot pay without a recorded approved amount.' using errcode = '23514';
       end if;
     elsif not coalesce((select c.ok from public.procurement_payment_within_ceiling(old.id) c), false) then
@@ -129,8 +180,22 @@ begin
   if v_from is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
 
-  -- 0362 FR-PFE-006: a document step the purchase already holds (e.g. derived from the record just captured) is a no-op.
-  if v_from = p_to and p_to::text in ('Ordered','Received','Vendor Invoiced','Paid') then return; end if;
+  -- 0362 FR-PFE-006: a document step the purchase already holds is a no-op — its current step, or a lower step it
+  -- has evidence for (e.g. Received, then a request for Ordered once an order is recorded).
+  if p_to::text in ('Ordered','Received','Vendor Invoiced','Paid')
+     and (v_from = p_to
+          or (public.procurement_step_rank(p_to) < public.procurement_step_rank(v_from)
+              and (exists (select 1 from public.purchase_orders x where p_to = 'Ordered' and x.procurement_id = p_id)
+                   or exists (select 1 from public.procurement_receipts x where p_to = 'Received' and x.procurement_id = p_id)
+                   or exists (select 1 from public.procurement_invoices x where p_to = 'Vendor Invoiced' and x.procurement_id = p_id
+                                and coalesce(x.erp_docstatus, 1) <> 2 and x.erp_cancelled_at is null)
+                   or exists (select 1 from public.procurement_erp_links l
+                                join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+                               where l.procurement_id = p_id and d.erp_docstatus = 1
+                                 and d.erp_doctype = case p_to::text when 'Ordered' then 'Purchase Order'
+                                                     when 'Received' then 'Purchase Receipt' else 'Purchase Invoice' end)))) then
+    return;
+  end if;
 
   if v_from = 'Vendor Quoted' and p_to = 'Quote Selected' then
     raise exception 'select a quote to move to Quote Selected' using errcode = 'P0001';

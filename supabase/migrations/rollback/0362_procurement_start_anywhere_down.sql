@@ -1,4 +1,5 @@
--- Reverses 0362: drops derivation/gate triggers; restores 0349's guard and 0284's transition_procurement.
+-- Reverses 0362: drops derivation/gate/lock triggers; restores 0360's advance_procurement_status, 0349's guard and
+-- 0284's transition_procurement.
 drop trigger if exists zz_payments_advance on public.payments;
 drop trigger if exists zz_procurement_invoices_advance on public.procurement_invoices;
 drop trigger if exists zz_procurement_receipts_advance on public.procurement_receipts;
@@ -8,6 +9,33 @@ drop trigger if exists zz_procurement_receipts_gate on public.procurement_receip
 drop trigger if exists zz_purchase_orders_gate on public.purchase_orders;
 drop function if exists public.advance_procurement_on_record();
 drop function if exists public.guard_procurement_record_gate();
+drop trigger if exists a0_payments_lock_procurement on public.payments;
+drop trigger if exists a0_procurement_invoices_lock_procurement on public.procurement_invoices;
+drop trigger if exists a0_procurement_receipts_lock_procurement on public.procurement_receipts;
+drop trigger if exists a0_purchase_orders_lock_procurement on public.purchase_orders;
+drop function if exists public.lock_procurement_for_record();
+
+-- 0360 advance_procurement_status, verbatim (supabase/migrations/0360_procurement_flexible_foundation.sql lines 258-276;
+-- `create` -> `create or replace`).
+create or replace function public.advance_procurement_status(p_procurement_id uuid, p_note text)
+returns public.procurement_status language plpgsql security definer set search_path = public, pg_catalog as $$
+declare v_from public.procurement_status; v_org uuid; v_to public.procurement_status;
+begin
+  select status, org_id into v_from, v_org from public.procurements where id = p_procurement_id for update;
+  if not found or v_from::text in ('Cancelled','Rejected') then return v_from; end if;
+  v_to := public.procurement_evidenced_step(p_procurement_id);
+  if v_to is null or public.procurement_step_rank(v_to) <= public.procurement_step_rank(v_from) then
+    return v_from;
+  end if;
+  update public.procurements
+     set status = v_to,
+         vendor_invoiced_at = case when v_to::text in ('Vendor Invoiced','Paid') then coalesce(vendor_invoiced_at, now()) else vendor_invoiced_at end,
+         updated_at = now()
+   where id = p_procurement_id;
+  insert into public.procurement_status_events (procurement_id, org_id, from_status, to_status, actor_id, notes)
+  values (p_procurement_id, v_org, v_from, v_to, auth.uid(), p_note);
+  return v_to;
+end $$;
 
 -- 0349 §3 guard_procurement_approved_total, verbatim (supabase/migrations/0349_procurement_integrity_guards.sql lines 101-143).
 create or replace function public.guard_procurement_approved_total() returns trigger

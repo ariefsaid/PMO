@@ -1,6 +1,6 @@
 -- procurement_flexible_status.test.sql — 0362. Owns AC-PFE-002, AC-PFE-003, AC-PFE-007, AC-PFE-012, AC-PFE-013.
 begin;
-select plan(24);
+select plan(42);
 select is((select count(*) from procurement_status_events where notes like 'Derived:%'), 0::bigint, 'AC-PFE-012 nothing pre-existing was derived');
 
 insert into organizations (id, name, default_currency) values ('03620000-0000-0000-0000-0000000000f0','PFS','IDR');
@@ -116,6 +116,86 @@ select lives_ok($$ insert into payments (procurement_id, org_id, status, amount)
 reset request.jwt.claims;
 select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a10'), 'Vendor Invoiced', 'FR-PFE-008 status is left unchanged');
 select ok(exists (select 1 from audit_events where action = 'procurement.derive_skipped' and entity_id = '03620000-0000-0000-0000-000000000a10'), 'FR-PFE-008 the skip is audited');
+
+-- ════ Review round (0362): a pending or re-opened approval cannot be skipped; terminal purchases never derive. ════
+insert into companies (id, org_id, name, type) values ('03620000-0000-0000-0000-0000000000c1','03620000-0000-0000-0000-0000000000f0','PFS Vendor','Vendor');
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status, approved_by_id, approved_total_value, pr_number, vendor_id, amount_approved_by_id) values
+  ('03620000-0000-0000-0000-000000000a12','03620000-0000-0000-0000-0000000000f0','Q12','03620000-0000-0000-0000-0000000000f1','IDR',100,'Requested',null,null,'PR-12',null,null),
+  ('03620000-0000-0000-0000-000000000a13','03620000-0000-0000-0000-0000000000f0','V13','03620000-0000-0000-0000-0000000000f1','IDR',100,'Vendor Quoted','03620000-0000-0000-0000-0000000000f4',100,'PR-13','03620000-0000-0000-0000-0000000000c1',null),
+  ('03620000-0000-0000-0000-000000000a14','03620000-0000-0000-0000-0000000000f0','D14','03620000-0000-0000-0000-0000000000f1','IDR',100,'Draft',null,null,'PR-14',null,null),
+  ('03620000-0000-0000-0000-000000000a15','03620000-0000-0000-0000-0000000000f0','D15','03620000-0000-0000-0000-0000000000f1','IDR',100,'Draft',null,null,null,null,null),
+  ('03620000-0000-0000-0000-000000000a16','03620000-0000-0000-0000-0000000000f0','I16','03620000-0000-0000-0000-0000000000f1','IDR',100,'Vendor Invoiced','03620000-0000-0000-0000-0000000000f4',null,null,null,null),
+  ('03620000-0000-0000-0000-000000000a17','03620000-0000-0000-0000-0000000000f0','I17','03620000-0000-0000-0000-0000000000f1','IDR',100,'Vendor Invoiced','03620000-0000-0000-0000-0000000000f4',100,null,null,'03620000-0000-0000-0000-0000000000f3'),
+  ('03620000-0000-0000-0000-000000000a18','03620000-0000-0000-0000-0000000000f0','C18','03620000-0000-0000-0000-0000000000f1','IDR',100,'Cancelled',null,null,null,null,null),
+  ('03620000-0000-0000-0000-000000000a19','03620000-0000-0000-0000-0000000000f0','R19','03620000-0000-0000-0000-0000000000f1','IDR',100,'Rejected',null,null,null,null,null),
+  ('03620000-0000-0000-0000-000000000a20','03620000-0000-0000-0000-0000000000f0','R20','03620000-0000-0000-0000-0000000000f1','IDR',100,'Received',null,null,null,null,null);
+insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date, vq_number, is_selected) values
+  ('03620000-0000-0000-0000-0000000000e1','03620000-0000-0000-0000-0000000000f0','03620000-0000-0000-0000-000000000a13','03620000-0000-0000-0000-0000000000c1',200,'2026-03-01','VQ-13',false);
+insert into procurement_status_events (procurement_id, org_id, from_status, to_status, actor_id, notes) values ('03620000-0000-0000-0000-000000000a15','03620000-0000-0000-0000-0000000000f0','Draft','Requested','03620000-0000-0000-0000-0000000000f1','fixture: entered approval once');
+
+select ok((select count(*) from pg_trigger t where not t.tgisinternal and t.tgfoid = 'public.lock_procurement_for_record()'::regprocedure
+            and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4
+            and t.tgrelid in ('public.purchase_orders'::regclass,'public.procurement_receipts'::regclass,'public.procurement_invoices'::regclass,'public.payments'::regclass)) = 4,
+  'M1 every document table locks its purchase BEFORE INSERT (ahead of the FK share lock)');
+
+-- (a) Requested never derives: a user write is refused, the mirror write is kept and audited.
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$ insert into purchase_orders (procurement_id, org_id, status) values ('03620000-0000-0000-0000-000000000a12','03620000-0000-0000-0000-0000000000f0','Issued') $$,
+  '23514', 'This purchase is awaiting approval. Record its documents after it is approved.', 'SoD recording an order on a purchase awaiting approval is refused');
+reset request.jwt.claims;
+select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a12'), 'Requested', 'SoD the purchase stays Requested');
+set local request.jwt.claims = '{"role":"service_role"}';
+select lives_ok($$ insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values ('03620000-0000-0000-0000-000000000a12','03620000-0000-0000-0000-0000000000f0','Received',100,'IDR','exclusive',0) $$,
+  'FR-PFE-008 the mirror''s invoice on a purchase awaiting approval is kept');
+reset request.jwt.claims;
+select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a12'), 'Requested', 'SoD the mirror never derives a purchase awaiting approval');
+select ok(exists (select 1 from audit_events where action = 'procurement.derive_skipped' and entity_id = '03620000-0000-0000-0000-000000000a12'), 'SoD the mirror skip is audited');
+
+-- Quote re-route: a quote above the approved amount sends the purchase back to Requested; no document skips it.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select lives_ok($$ select select_procurement_quote('03620000-0000-0000-0000-0000000000e1') $$, 'reroute Finance selects the 200 quote on a 100 approval');
+reset role;
+select is((select status::text || '/' || coalesce(approved_by_id::text, 'null') || '/' || coalesce(approved_total_value::text, 'null') from procurements where id = '03620000-0000-0000-0000-000000000a13'),
+  'Requested/null/null', 'reroute the purchase is back to Requested with its approval cleared');
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$ insert into purchase_orders (procurement_id, org_id, status) values ('03620000-0000-0000-0000-000000000a13','03620000-0000-0000-0000-0000000000f0','Issued') $$,
+  '23514', 'This purchase is awaiting approval. Record its documents after it is approved.', 'reroute recording an order cannot skip the re-approval');
+reset request.jwt.claims;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f3","role":"authenticated"}';
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a13','Paid') $$, 'P0001', null, 'reroute the re-opened purchase cannot be paid');
+
+-- (b) Paid without an approved amount only for a purchase that never entered approval.
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a14','Paid') $$, '23514', 'Cannot pay without a recorded approved amount.',
+  'FR-PFE-017 a purchase with a request number cannot be paid without an approved amount');
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a15','Paid') $$, '23514', 'Cannot pay without a recorded approved amount.',
+  'FR-PFE-017 a purchase that once entered approval cannot be paid without an approved amount');
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a16','Paid') $$, '23514', 'Cannot pay without a recorded approved amount.',
+  'FR-PFE-017 an approver but no approved amount refuses payment');
+-- FR-PFE-016 guard-only: the transition checks only the request approver; the guard stops the amount approver.
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f3","role":"authenticated"}';
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a17','Paid') $$, '42501', 'separation of duties: approver cannot pay own procurement',
+  'FR-PFE-016 the approver of a raised amount cannot pay by transition');
+reset role;
+
+-- FR-PFE-004: a Cancelled or Rejected purchase never derives.
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03620000-0000-0000-0000-000000000a18','03620000-0000-0000-0000-0000000000f0','Received',1,'IDR','exclusive',0), ('03620000-0000-0000-0000-000000000a19','03620000-0000-0000-0000-0000000000f0','Received',1,'IDR','exclusive',0);
+reset request.jwt.claims;
+select is((select string_agg(status::text, '/' order by title) from procurements where id in ('03620000-0000-0000-0000-000000000a18','03620000-0000-0000-0000-000000000a19')), 'Cancelled/Rejected',
+  'FR-PFE-004 recording a document on a Cancelled or Rejected purchase derives nothing');
+
+-- M4 / FR-PFE-006: a lower step the purchase holds evidence for is a no-op; without evidence it stays illegal.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select lives_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a11','Ordered') $$, 'FR-PFE-006 Received with an order recorded: asking for Ordered is a no-op');
+select throws_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a20','Ordered') $$, 'P0001', 'illegal transition Received -> Ordered',
+  'FR-PFE-006 Received without an order: asking for Ordered is still illegal');
+reset role;
+select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a11'), 'Received', 'FR-PFE-006 the no-op leaves the status');
 
 select * from finish();
 rollback;
