@@ -9,7 +9,7 @@ const EPOCH = '1791367200123';
 const AFTER = '2026-10-07 09:59:00';
 const t = (over: Partial<ExpenseGateTruth>): ExpenseGateTruth => ({
   mirror_id: 'm1', posting: 'approval', posting_identity: `${CLAIM}:approval`, subject_id: CLAIM, claim_id: CLAIM,
-  claim_number: 'EXP-2610070001', claimant_id: 'u-e1', project_id: 'p1', currency: 'IDR', amount: '175.00',
+  claim_number: 'EXP-2610070001', claimant_id: 'u-e1', project_id: 'p1', project_is_internal: false, currency: 'IDR', amount: '175.00',
   lines: [{ expense_type: 'Meals', amount: '25.00' }, { expense_type: 'Travel', amount: '150.00' }],
   state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'u-pm', ...over,
 });
@@ -102,6 +102,11 @@ describe('parseExpenseGateTruth (AC-EXP-117)', () => {
     expect(parseExpenseGateTruth(nulls)).toEqual(nulls);
   });
 
+  it('AC-EXP-117 keeps the gate\'s project_is_internal verbatim (FR-EXP-119 reads it, never a default)', () => {
+    expect(parseExpenseGateTruth(t({ project_is_internal: true })).project_is_internal).toBe(true);
+    expect(parseExpenseGateTruth(t({ project_id: null, project_is_internal: false })).project_is_internal).toBe(false);
+  });
+
   it.each([
     ['not an object', null],
     ['an unknown posting', { ...t({}), posting: 'refund' }],
@@ -111,6 +116,8 @@ describe('parseExpenseGateTruth (AC-EXP-117)', () => {
     ['a malformed line', { ...t({}), lines: [{ expense_type: 'Meals' }] }],
     ['lines that are not a list', { ...t({}), lines: {} }],
     ['a non-boolean approval flag', { ...t({}), approval_posting_exists: 'yes' }],
+    ['a missing internal-project flag', { ...t({}), project_is_internal: undefined }],
+    ['a non-boolean internal-project flag', { ...t({}), project_is_internal: 'false' }],
     ['a malformed posting date', { ...t({}), posting_date: '07/10/2026' }],
   ])('AC-EXP-117 refuses %s — nothing is built from an unchecked shape', (_label, data) => {
     expect(() => parseExpenseGateTruth(data)).toThrow(/expense-gate-truth-malformed/);

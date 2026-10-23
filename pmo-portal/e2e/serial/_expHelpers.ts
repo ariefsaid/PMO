@@ -15,6 +15,9 @@ export const EMPLOYEE_PAYABLE = 'PMO E2E Employee Payable - PSC';
 /** Bench Standard-COA account, re-typed Asset/Payable by the 2026-10-07 spike (§2 accounts table). */
 export const EMPLOYEE_ADVANCE = 'Employee Advances - PSC';
 export const TRAVEL_ACCOUNT = 'Travel Expenses - PSC';
+/** The bench Standard-COA `Cost of Goods Sold` ledger (root Expense, a leaf) — the journey's project direct-cost
+ *  account (OD-EXP-PB-1, FR-EXP-119). Already on the bench; nothing is created. */
+export const DIRECT_COST_ACCOUNT = 'Cost of Goods Sold - PSC';
 export const CASH_ACCOUNT = 'Cash - PSC';
 const CLAIMANT_FIRST_NAME = 'PMO E2E Expense Claimant';
 
@@ -112,6 +115,7 @@ export async function seedExp(admin: SupabaseClient, suffix: string): Promise<Ex
     { org_id: ORG_ID, account_key: 'employee_payable', erp_account: EMPLOYEE_PAYABLE },
     { org_id: ORG_ID, account_key: 'employee_advance', erp_account: EMPLOYEE_ADVANCE },
     { org_id: ORG_ID, account_key: 'Travel', erp_account: TRAVEL_ACCOUNT },
+    { org_id: ORG_ID, account_key: 'project_direct_cost', erp_account: DIRECT_COST_ACCOUNT },
   ]);
   if (mapErr) throw new Error(`seed expense_account_map failed: ${mapErr.message}`);
 

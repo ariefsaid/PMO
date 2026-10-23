@@ -1,10 +1,11 @@
 // @e2e-isolation: serial — AC-EXP-140 (#775 phase B): a field claim settled against an advance reaches the ERPNext
-// ledger through the sweep, exactly once, tagged to the project. Goal oracle = the ERP documents and the GL mirror.
+// ledger through the sweep, exactly once, on the project direct-cost account and tagged to the project (OD-EXP-PB-1).
+// Goal oracle = the ERP documents and the GL mirror.
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { benchGet, runSweep, ORG_ID, SEED_PASSWORD } from './_tspHelpers';
 import {
-  CASH_ACCOUNT, EMPLOYEE_ADVANCE, EMPLOYEE_PAYABLE, ENGINEER_EMAIL, FINANCE_EMAIL, PM_EMAIL, TRAVEL_ACCOUNT,
+  CASH_ACCOUNT, DIRECT_COST_ACCOUNT, EMPLOYEE_ADVANCE, EMPLOYEE_PAYABLE, ENGINEER_EMAIL, FINANCE_EMAIL, PM_EMAIL, TRAVEL_ACCOUNT,
   cleanupExp, createDraft, seedExp, type ExpSeed,
 } from './_expHelpers';
 import { expensePostingKey } from '../../src/lib/adapterSeam/erpnext/expensePostingKey';
@@ -43,7 +44,7 @@ const intents = async (claimId: string): Promise<Mirror[]> =>
   ((await admin.from('expense_posting_erp_mirror').select('posting, push_state, erp_name, push_error')
     .eq('claim_id', claimId).order('created_at').order('posting')).data ?? []) as Mirror[];
 
-test('AC-EXP-140 a claim settled against an advance posts once to ERPNext, tagged to the project', async () => {
+test('AC-EXP-140 a claim settled against an advance posts once to ERPNext, on the project direct-cost account, tagged to the project', async () => {
   test.setTimeout(180_000);
   const s = seed as ExpSeed;
   const engineer = await signIn(ENGINEER_EMAIL);
@@ -83,14 +84,15 @@ test('AC-EXP-140 a claim settled against an advance posts once to ERPNext, tagge
   expect(advanceIntents.map((m) => `${m.posting}:${m.push_state}`), JSON.stringify(advanceIntents)).toEqual(['advance-payment:pushed']);
   const byPosting = Object.fromEntries(claimIntents.map((m) => [m.posting, m.erp_name as string]));
 
-  // ── the approval Journal Entry: keyed, project on the expense row, Employee credit
+  // ── the approval Journal Entry: keyed, the delivery project's cost on the direct-cost account with the project, Employee credit
   const { data: claim } = await admin.from('expense_claims').select('approved_at, currency').eq('id', claimId).single();
   expect((claim as { currency: string }).currency).toBe('IDR');
   const approval = await benchGet<Record<string, unknown>>(`/api/resource/Journal%20Entry/${encodeURIComponent(byPosting.approval)}`);
   expect(approval.docstatus).toBe(1);
   expect(approval.user_remark).toBe(expensePostingKey('approval', claimId, (claim as { approved_at: string }).approved_at));
   const approvalRows = approval.accounts as Array<Record<string, unknown>>;
-  expect(approvalRows.find((r) => r.account === TRAVEL_ACCOUNT)).toMatchObject({ debit_in_account_currency: 150000, project: s.erpProject });
+  expect(approvalRows.find((r) => r.account === DIRECT_COST_ACCOUNT)).toMatchObject({ debit_in_account_currency: 150000, project: s.erpProject });
+  expect(approvalRows.some((r) => r.account === TRAVEL_ACCOUNT), 'a delivery-project claim never debits the overhead Travel account').toBe(false);
   expect(approvalRows.find((r) => r.account === EMPLOYEE_PAYABLE)).toMatchObject({ credit_in_account_currency: 150000, party_type: 'Employee', party: s.employee });
 
   // ── the cash Payment Entry: explicit accounts, references the approval
@@ -117,6 +119,6 @@ test('AC-EXP-140 a claim settled against an advance posts once to ERPNext, tagge
   const peFilter = encodeURIComponent(JSON.stringify([['reference_no', 'like', `%${claimId}%`]]));
   expect(await benchGet<unknown[]>(`/api/resource/Payment%20Entry?filters=${peFilter}&limit_page_length=0`)).toHaveLength(1);
   const { data: gl } = await admin.from('erp_gl_entry_mirror').select('account, project, debit')
-    .eq('org_id', ORG_ID).eq('voucher_no', byPosting.approval).eq('account', TRAVEL_ACCOUNT).eq('is_cancelled', false);
-  expect(gl, `second sweep tick: ${JSON.stringify(tick2.body)}`).toEqual([{ account: TRAVEL_ACCOUNT, project: s.erpProject, debit: 150000 }]);
+    .eq('org_id', ORG_ID).eq('voucher_no', byPosting.approval).eq('account', DIRECT_COST_ACCOUNT).eq('is_cancelled', false);
+  expect(gl, `second sweep tick: ${JSON.stringify(tick2.body)}`).toEqual([{ account: DIRECT_COST_ACCOUNT, project: s.erpProject, debit: 150000 }]);
 });

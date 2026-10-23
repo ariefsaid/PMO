@@ -8,5 +8,8 @@
     "discardLeave": "Leave",
     "discardStay": "Stay",
     "saving": "Saving…"
+  },
+  "accountMap": {
+    "projectDirectCost": "Project direct cost"
   }
 }
