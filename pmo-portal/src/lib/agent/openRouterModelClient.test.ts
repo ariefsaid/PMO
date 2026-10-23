@@ -79,7 +79,7 @@ it('emits a caller-supplied provider policy verbatim in the request body', async
   expect(body.provider).toEqual(provider);
 });
 
-const TIER = ['relace', 'deepinfra', 'digitalocean', 'gmicloud', 'baidu', 'streamlake', 'alibaba', 'deepseek'];
+const TIER = ['relace', 'deepinfra', 'gmicloud', 'digitalocean', 'baidu', 'deepseek', 'alibaba', 'streamlake'];
 
 it('providerPolicyFromEnv defaults to the no-train fallback tier, only-restricted', () => {
   expect(providerPolicyFromEnv({})).toEqual({
