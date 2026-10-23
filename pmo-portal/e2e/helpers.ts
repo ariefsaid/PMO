@@ -332,3 +332,12 @@ export async function stubM365StatusUnavailable(page: Page): Promise<void> {
     });
   });
 }
+
+/** Row action on an ERPNext document not in a purchase. Works whether the actions are two buttons or one "Link…" menu. */
+export async function clickOrphanAction(page: Page, row: Locator, action: 'Link to purchase' | 'New purchase from this') {
+  await expect(row).toBeVisible();
+  const direct = row.getByRole('button', { name: new RegExp(`^${action}`) });
+  if (await direct.count()) { await direct.first().click(); return; }
+  await row.getByRole('button', { name: /^Link…/ }).click();
+  await page.getByRole('menuitem', { name: new RegExp(`^${action}`) }).click();
+}
