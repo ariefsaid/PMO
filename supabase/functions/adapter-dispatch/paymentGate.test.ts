@@ -32,12 +32,18 @@ function fakeClient(opts: {
   /** The ceiling rows as returned (an empty array = the helper returned no row). */
   ceilingRows?: Array<{ ok: boolean; reason: string | null; billed_net: number | null; approved_amount: number | null }>;
   ceilingError?: { message: string };
+  /** What `procurement_payment_allowed` (0368) answers: a reason code, or null = allowed. */
+  allowed?: string | null;
+  allowedError?: { message: string };
   onRpc?: (fn: string, args: Record<string, unknown>) => void;
   onRead?: (table: string, filters: Record<string, string>) => void;
 }): PaymentGateClient {
   return {
     rpc: (fn: string, args: Record<string, unknown>) => {
       opts.onRpc?.(fn, args);
+      if (fn === 'procurement_payment_allowed') {
+        return Promise.resolve(opts.allowedError ? { data: null, error: opts.allowedError } : { data: opts.allowed ?? null, error: null });
+      }
       if (opts.ceilingError) return Promise.resolve({ data: null, error: opts.ceilingError });
       return Promise.resolve({ data: opts.ceilingRows ?? [opts.ceiling ?? { ok: true, reason: null, billed_net: 1000, approved_amount: 1000 }], error: null });
     },
@@ -93,7 +99,8 @@ Deno.test('AC-VPAY-003 SoD-b: the compare keys on the VERIFIED caller id, never 
 });
 
 Deno.test('AC-PFE-001 (owner AC-1): a payment may be recorded at any step — no Vendor Invoiced requirement', async () => {
-  for (const status of ['Draft', 'Requested', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced', 'Paid']) {
+  // Requested is not a step a payment may skip from: the shared rule refuses it (0368, the test below).
+  for (const status of ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced', 'Paid']) {
     const res = await enforcePaymentGate(
       fakeClient({ cases: { 'proc-1': { ...VENDOR_INVOICED_CASE, status } } }), 'org-1', 'user-b', 'proc-1');
     assertEquals(res, { ok: true, status: 200, message: '' }, `status ${status} must allow a payment`);
@@ -118,7 +125,7 @@ Deno.test('AC-PFE-003 (owner AC-3): no recorded approval — the payment passes 
     }),
     'org-1', 'user-b', 'proc-1');
   assertEquals(res, { ok: true, status: 200, message: '' });
-  assertEquals(calls, [], 'nothing to compare against — the ceiling helper is not called');
+  assertEquals(calls, ['procurement_payment_allowed'], 'nothing to compare against — the ceiling helper is not called');
 });
 
 Deno.test('FR-PFE-017: an approver recorded without an approved amount still asks the ceiling (and its refusal stands)', async () => {
@@ -131,7 +138,41 @@ Deno.test('FR-PFE-017: an approver recorded without an approved amount still ask
     }),
     'org-1', 'user-b', 'proc-1');
   assertEquals(res, { ok: false, status: 422, message: 'vendor payment: approved amount is missing' });
-  assertEquals(calls, ['procurement_payment_within_ceiling']);
+  assertEquals(calls, ['procurement_payment_allowed', 'procurement_payment_within_ceiling']);
+});
+
+// #1319 slice G review (C1): the payment rule is the database's ONE function, procurement_payment_allowed (0368) —
+// the same one the Paid update guard and the outbox claim ask — so a purchase awaiting approval, re-opened, or that
+// entered approval and was never approved cannot be paid through ERPNext with no approval and no ceiling.
+Deno.test('C1: Requested with no approver — the shared rule refuses it 422 awaiting_approval and the ceiling is not asked', async () => {
+  const calls: Array<[string, Record<string, unknown>]> = [];
+  const res = await enforcePaymentGate(
+    fakeClient({
+      cases: { 'proc-1': { org_id: 'org-1', status: 'Requested', approved_by_id: null, approved_total_value: null } },
+      allowed: 'awaiting_approval',
+      onRpc: (fn, args) => calls.push([fn, args]),
+    }),
+    'org-1', 'user-b', 'proc-1');
+  assertEquals(res, { ok: false, status: 422, message: 'awaiting_approval' });
+  assertEquals(calls, [['procurement_payment_allowed', { p_procurement_id: 'proc-1' }]]);
+});
+
+Deno.test('C1: a purchase that entered approval and was never approved is refused with the rule\'s reason', async () => {
+  const res = await enforcePaymentGate(
+    fakeClient({ cases: { 'proc-1': { org_id: 'org-1', status: 'Ordered', approved_by_id: null, approved_total_value: null } }, allowed: 'approval_missing' }),
+    'org-1', 'user-b', 'proc-1');
+  assertEquals(res, { ok: false, status: 422, message: 'approval_missing' });
+});
+
+Deno.test('C1 fail closed: the payment rule cannot be evaluated — refused 422 and the ceiling is not asked', async () => {
+  const calls: string[] = [];
+  const res = await enforcePaymentGate(
+    fakeClient({ cases: { 'proc-1': { org_id: 'org-1', status: 'Draft', approved_by_id: null, approved_total_value: null } },
+      allowedError: { message: 'boom' }, onRpc: (fn) => calls.push(fn) }),
+    'org-1', 'user-b', 'proc-1');
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+  assertEquals(calls, ['procurement_payment_allowed']);
 });
 
 Deno.test('FR-PFE-016: approver ≠ payer applies at any step, not only at Vendor Invoiced', async () => {
@@ -157,7 +198,7 @@ Deno.test('AC-SEC-206: an approved amount with no approver id still asks the cei
     }),
     'org-1', 'user-b', 'proc-1');
   assertEquals(res.ok, false);
-  assertEquals(calls, ['procurement_payment_within_ceiling']);
+  assertEquals(calls, ['procurement_payment_allowed', 'procurement_payment_within_ceiling']);
 });
 
 Deno.test('AC-SEC-206: over-ceiling ERP payment is refused before dispatch can enqueue it', async () => {
@@ -170,7 +211,10 @@ Deno.test('AC-SEC-206: over-ceiling ERP payment is refused before dispatch can e
 Deno.test('AC-SEC-206: the ceiling is read through the shared SQL helper for the gated procurement', async () => {
   const calls: Array<[string, Record<string, unknown>]> = [];
   await enforcePaymentGate(fakeClient({ cases: { 'proc-1': VENDOR_INVOICED_CASE }, onRpc: (fn, args) => calls.push([fn, args]) }), 'org-1', 'user-b', 'proc-1');
-  assertEquals(calls, [['procurement_payment_within_ceiling', { p_procurement_id: 'proc-1' }]]);
+  assertEquals(calls, [
+    ['procurement_payment_allowed', { p_procurement_id: 'proc-1' }],
+    ['procurement_payment_within_ceiling', { p_procurement_id: 'proc-1' }],
+  ]);
 });
 
 Deno.test('AC-SEC-206 fail closed: a ceiling that returns no row refuses', async () => {

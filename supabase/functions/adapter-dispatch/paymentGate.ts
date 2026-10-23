@@ -22,9 +22,10 @@
 //     paying for the read (byte-for-byte).
 //
 // ORDERING: the closed-case refusal (422 `purchase_closed`) precedes the SoD-b refusal (403), which
-// precedes the ceiling. Since #1319 (owner AC-1) the step itself no longer gates a payment — a purchase
-// may start at payment — so SoD-b applies at every step. The message is 0006's exact SoD-b wording so
-// the two paths are indistinguishable to the client.
+// precedes the payment rule (422, `procurement_payment_allowed`, 0368), which precedes the ceiling.
+// Since #1319 (owner AC-1) the step itself no longer gates a payment — a purchase may start at payment —
+// so SoD-b applies at every step. The message is 0006's exact SoD-b wording so the two paths are
+// indistinguishable to the client.
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
 /** The PMO procurement domain the ERPNext tier owns (a literal here so the guard stays
@@ -32,14 +33,18 @@ import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/con
 const PROCUREMENT_DOMAIN = 'procurement';
 
 /** #1319 (owner AC-1): a purchase can start at any step, payment included, so the step no longer gates a
- *  payment. Only a closed purchase refuses — the same `purchase_closed` the link RPC (0361) uses. Whether the
- *  org's purchase gates allow a payment is asked upstream, by procurementGateGuard.ts (procurement_gate_violation). */
+ *  payment. A closed purchase refuses here before any RPC — the same `purchase_closed` the link RPC (0361) uses.
+ *  Every other approval question (awaiting approval, entered approval but never approved, approval_before_payment)
+ *  is the database's ONE rule, `procurement_payment_allowed` (0368), which the Paid update guard and the outbox
+ *  claim also ask. */
 const CLOSED_STATES = new Set(['Cancelled', 'Rejected']);
 
 /** Structural seam for the case re-read (the refs.ts ExternalRefsFilterBuilder idiom). */
 export interface PaymentGateClient {
-  /** `procurement_payment_within_ceiling` (0349) — the ONE ceiling the Paid transition also applies. */
-  rpc(functionName: string, args: Record<string, unknown>): Promise<{ data: Array<PaymentCeilingRow> | null; error: { message: string } | null }>;
+  /** `procurement_payment_allowed` (0368, a reason code or null) — the ONE payment rule the Paid update guard and the
+   *  outbox claim also apply — and `procurement_payment_within_ceiling` (0349, rows of PaymentCeilingRow) — the ONE
+   *  ceiling the Paid transition also applies. */
+  rpc(functionName: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>;
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): PaymentGateFilterBuilder;
@@ -109,15 +114,21 @@ export async function enforcePaymentGate(
   if (callerUserId && (callerUserId === data.approved_by_id || callerUserId === data.amount_approved_by_id)) {
     return REFUSED(403, 'separation of duties: approver cannot pay own procurement');
   }
+  // #1319 slice G review (C1): the database's payment rule (0368). A purchase awaiting approval (Requested, including
+  // one a quote re-opened), one that entered approval and was never approved, or one the org's approval_before_payment
+  // gate holds is refused with the rule's reason code. A rule that cannot be evaluated refuses (fail closed).
+  const rule = await client.rpc('procurement_payment_allowed', { p_procurement_id: procurementId });
+  if (rule.error) return REFUSED(422, `vendor payment: the payment rule could not be evaluated (${rule.error.message})`);
+  if (rule.data !== null && rule.data !== undefined) return REFUSED(422, String(rule.data));
   // #1319 (owner AC-3, FR-PFE-017): no approval recorded = nothing to compare against, so no ceiling. The
-  // same split as the procurement update guard (0362): an approver without an approved amount still asks the
+  // same split as the procurement update guard (0362/0368): an approver without an approved amount still asks the
   // helper, which refuses it ('approved amount is missing').
   if (data.approved_by_id == null && data.approved_total_value == null) return { ok: true, status: 200, message: '' };
   // The approved-amount ceiling, evaluated by the same SQL helper the Paid transition uses: pre-tax
   // net of live bills ≤ the approved amount, bills in the procurement's currency. No row or an error
   // refuses (fail closed).
   const ceiling = await client.rpc('procurement_payment_within_ceiling', { p_procurement_id: procurementId });
-  const result = ceiling.data?.[0];
+  const result = (ceiling.data as Array<PaymentCeilingRow> | null)?.[0];
   if (ceiling.error || !result) {
     return REFUSED(422, `vendor payment: approved-amount ceiling could not be evaluated${ceiling.error ? ` (${ceiling.error.message})` : ''}`);
   }

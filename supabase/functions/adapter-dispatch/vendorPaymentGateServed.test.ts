@@ -97,7 +97,14 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  the caller's role (actor_authorization_state) is Finance — every gate BEFORE the SoD one passes.
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
 /** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
-interface World { caseRow?: Record<string, unknown>; gateViolation?: string | null }
+interface World {
+  caseRow?: Record<string, unknown>;
+  gateViolation?: string | null;
+  /** What the database's payment rule (procurement_payment_allowed, 0368) answers: a reason code, or null = allowed. */
+  paymentAllowed?: string | null;
+  /** An HTTP status the payment-rule RPC fails with (the rule cannot be evaluated). */
+  paymentAllowedStatus?: number;
+}
 
 function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}): MockRoute[] {
   const outbox = new Map<string, Record<string, unknown>>();
@@ -109,6 +116,10 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
     supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
+    // #1319 slice G review (C1): the database's one payment rule — allowed (null) unless the world says otherwise.
+    supabaseRpc('procurement_payment_allowed', () => world.paymentAllowedStatus
+      ? jsonResponse({ message: 'rule unavailable' }, { status: world.paymentAllowedStatus })
+      : jsonResponse(world.paymentAllowed ?? null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({
       site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
@@ -275,6 +286,46 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(r.status, 403, r.body);
     assertEquals(JSON.parse(r.body).message, 'separation of duties: approver cannot pay own procurement');
     assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+  });
+
+  // #1319 slice G review (C1): the database's payment rule decides whether a purchase may be paid without an approval.
+  it('C1 a Requested purchase with no approver is refused 422 BEFORE any outbox row (no approval, no ceiling, no payment)', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Requested', approved_by_id: null, approved_total_value: null },
+      gateViolation: 'awaiting_approval',
+      paymentAllowed: 'awaiting_approval',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'awaiting_approval' });
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('C1 a purchase that entered approval and was never approved (Rejected -> Draft -> Ordered) is refused by the payment rule before any outbox row', async () => {
+    // The org's gates are off, so only the payment rule can refuse it.
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Ordered', approved_by_id: null, approved_total_value: null },
+      paymentAllowed: 'approval_missing',
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message: 'approval_missing' });
+    assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/procurement_payment_allowed'), 'the payment rule was asked');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
+  });
+
+  it('C1 fail closed: the payment rule RPC answers 500 — refused 422 before any outbox row', async () => {
+    const r = await dispatchAs(PAYER_ID, {
+      caseRow: { status: 'Draft', approved_by_id: null, approved_total_value: null },
+      paymentAllowedStatus: 500,
+    });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).error, 'commit-rejected');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST).length, 0, 'nothing touched ERPNext');
   });
 
   it('AC-PFE-001 a Cancelled purchase is refused 422 purchase_closed before any outbox row', async () => {

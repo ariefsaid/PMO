@@ -126,6 +126,7 @@
     "get_procurement_gates()",
     "procurement_evidenced_step(uuid)",
     "procurement_gate_violation(uuid,procurement_status)",
+    "procurement_payment_allowed(uuid)",
     "procurement_gate(uuid,text)",
     "set_procurement_gates(jsonb)",
     "link_erp_purchase_documents(jsonb,boolean)",
