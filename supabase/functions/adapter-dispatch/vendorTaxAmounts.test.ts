@@ -72,6 +72,8 @@ function routes(unexpected: FetchCall[]): MockRoute[] {
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({
       site_url: ERP_SITE_URL, secret_ref: SECRET_REF, activated_at: '2026-01-01T00:00:00+00:00', version_major: 15,
