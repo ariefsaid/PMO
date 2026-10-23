@@ -15,6 +15,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 
 import { ProcurementOverviewTab } from './ProcurementOverviewTab';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const tiles: StatTile[] = [
   { label: 'PR value', value: '$486,000', sub: 'Meridian' },
@@ -36,6 +37,8 @@ const events: ProgressionEvent[] = [
 
 const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOverviewTab>> = {}) =>
   render(
+    // DecisionSupportPanel reads the viewer's real role (its figures are project-wide).
+    <ImpersonationProvider realRole="Project Manager">
     <MemoryRouter>
       <ProcurementOverviewTab
         tiles={tiles}
@@ -48,7 +51,8 @@ const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOvervie
         currency="USD"
         {...props}
       />
-    </MemoryRouter>,
+    </MemoryRouter>
+    </ImpersonationProvider>,
   );
 
 describe('ProcurementOverviewTab (bento)', () => {

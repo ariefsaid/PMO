@@ -10,6 +10,12 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { BahasaProvider } from '@/test/bahasa';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import enCommon from '@/public/locales/en/common.json';
+import idCommon from '@/public/locales/id/common.json';
+import enProcurement from '@/public/locales/en/procurement.json';
+import idProcurement from '@/public/locales/id/procurement.json';
 
 // ---------------------------------------------------------------------------
 // Stubs — vi.hoisted keeps mock factories before the import block
@@ -548,5 +554,42 @@ describe('AC-VWH-026: a standalone tax-exclusive bill shows net payable = amount
       taxTreatment: 'exclusive', taxAmount: 110000, withheldAmount: 20000,
     }]} />);
     expect(screen.getAllByTestId('vi-withholding-net')[0].textContent).toBe(formatCurrency(1090000, 'IDR'));
+  });
+});
+
+describe('AC-SEC-234: a role that reads no bills or payments is told so, never shown "no bill"', () => {
+  const NON_MONEY_ROWS = SAMPLE_ROWS.filter((row) => row.type !== 'Invoice' && row.type !== 'Payment');
+  const NOTE = 'Vendor bills and payments are not shown for your role.';
+
+  beforeEach(() => {
+    roleState.realRole = 'Engineer';
+    authState.currentUser = { id: 'user-eng', org_id: 'org1', role: 'Engineer' };
+  });
+
+  it.each(['Vendor Invoiced', 'Paid'] as const)('AC-SEC-234 an Engineer on their own request at %s sees that bills and payments are not shown', (status) => {
+    wrap(<ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status })} rows={NON_MONEY_ROWS} />);
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+  });
+
+  it('AC-SEC-234 no note before a bill can exist (Ordered)', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Ordered' })} rows={NON_MONEY_ROWS} />);
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it.each(['Admin', 'Executive', 'Project Manager', 'Finance'])('AC-SEC-234 %s sees no note — they read the bills', (role) => {
+    roleState.realRole = role;
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Vendor Invoiced' })} />);
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it('AC-SEC-234 the note is translated', async () => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: 'id', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common',
+      resources: { en: { common: enCommon, procurement: enProcurement }, id: { common: idCommon, procurement: idProcurement } },
+      interpolation: { escapeValue: false }, initImmediate: false, react: { useSuspense: false },
+    });
+    render(<I18nextProvider i18n={i18n}><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Paid' })} rows={NON_MONEY_ROWS} /></QueryClientProvider></MemoryRouter></I18nextProvider>);
+    expect(screen.getByText('Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
   });
 });

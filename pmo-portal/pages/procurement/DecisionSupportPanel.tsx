@@ -33,6 +33,7 @@ import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
+import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
@@ -67,14 +68,22 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   status,
   currency,
 }) => {
-  // Hooks must be called unconditionally; all are no-ops (enabled:false) when
-  // projectId is falsy, so the early returns below are safe.
-  const budget = useProjectBudget(projectId ?? '');
-  const committed = useProjectCommittedSpend(projectId);
-  const reservedQ = useProjectReservedSpend(projectId);
+  // Committed and Reserved sum every request on the project. A role that reads only the requests it
+  // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
+  // panel is not offered to it and its reads are not issued.
+  const may = usePermission();
+  const readsProjectWideSpend = may('view', 'procurement');
+  const scopedProjectId = readsProjectWideSpend ? projectId : null;
 
-  // Bail out — no project linked (takes precedence over the status gate, FR-RB-020).
-  if (!projectId) return null;
+  // Hooks must be called unconditionally; all are no-ops (enabled:false) when
+  // the project id is falsy, so the early returns below are safe.
+  const budget = useProjectBudget(scopedProjectId ?? '');
+  const committed = useProjectCommittedSpend(scopedProjectId);
+  const reservedQ = useProjectReservedSpend(scopedProjectId);
+
+  // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
+  // or a viewer whose purchasing read is limited to their own requests.
+  if (!scopedProjectId) return null;
 
   // Bail out — post-Ordered / terminal: the panel is a pre-decision tool only, and
   // hiding it here makes the legacy double-count path structurally impossible.
@@ -87,7 +96,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       </h3>
       {projectName ? (
         <ProjectNameLink
-          projectId={projectId}
+          projectId={scopedProjectId}
           name={projectName}
           className="text-[12.5px] font-medium text-foreground"
         />
@@ -230,7 +239,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             primary action owns the blue; this is a secondary navigation escape. */}
         <div className="mt-3 pt-3 border-t border-border/50">
           <Link
-            to={`/projects/${projectId}`}
+            to={`/projects/${scopedProjectId}`}
             className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
             Open project

@@ -43,12 +43,18 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
 }));
 
+const { committedArgs, reservedArgs } = vi.hoisted(() => ({ committedArgs: [] as unknown[], reservedArgs: [] as unknown[] }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectCommittedSpend: () => committedState,
-  useProjectReservedSpend: () => reservedState,
+  useProjectCommittedSpend: (projectId: unknown) => { committedArgs.push(projectId); return committedState; },
+  useProjectReservedSpend: (projectId: unknown) => { reservedArgs.push(projectId); return reservedState; },
 }));
 
 import { DecisionSupportPanel } from './DecisionSupportPanel';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import type { Role } from '@/src/auth/AuthContext';
+
+/** The viewer's real role; the panel's figures are project-wide, so the role decides whether it shows. */
+let viewerRole: Role = 'Project Manager';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,9 +67,11 @@ function renderPanel(
     Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
 ) {
   return render(
-    <MemoryRouter>
-      <DecisionSupportPanel status="Requested" currency="USD" {...props} />
-    </MemoryRouter>,
+    <ImpersonationProvider realRole={viewerRole}>
+      <MemoryRouter>
+        <DecisionSupportPanel status="Requested" currency="USD" {...props} />
+      </MemoryRouter>
+    </ImpersonationProvider>,
   );
 }
 
@@ -85,6 +93,34 @@ beforeEach(() => {
   reservedState.data = 0;
   reservedState.isPending = false;
   reservedState.isError = false;
+  viewerRole = 'Project Manager';
+  committedArgs.length = 0;
+  reservedArgs.length = 0;
+});
+
+// ---------------------------------------------------------------------------
+// AC-SEC-229: the panel sums every request on the project; a role that reads only the requests it
+// raised (Engineer) would see a partial sum, so the panel is not shown and the reads are not issued.
+// ---------------------------------------------------------------------------
+describe('AC-SEC-229 — Engineer purchasing read scope', () => {
+  it('renders nothing for an Engineer and issues no project-wide spend read', () => {
+    viewerRole = 'Engineer';
+    budgetState.data = 1200000;
+    committedState.data = 300000;
+    const { container } = renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
+    expect(container.firstChild).toBeNull();
+    expect(committedArgs.every((id) => id === null)).toBe(true);
+    expect(reservedArgs.every((id) => id === null)).toBe(true);
+  });
+
+  it.each(['Admin', 'Executive', 'Project Manager', 'Finance'] as const)('still shows the budget impact to %s', (role) => {
+    viewerRole = role;
+    budgetState.data = 1200000;
+    committedState.data = 300000;
+    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
+    expect(screen.getByText(/budget impact/i)).toBeInTheDocument();
+    expect(committedArgs).toContain('proj-1');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
   ('02700000-0000-0000-0000-00000000040a','expenses','02700000-0000-0000-0000-000000000801:approval',
    'expj:02700000-0000-0000-0000-000000000801:1791367200123','erpnext','create','pending'),
-  ('02700000-0000-0000-0000-00000000040a','procurement','pmo-proc-1','proc-key-1','erpnext','create','pending');
+  -- The other-domain command is a timesheet one: revenue and procurement commands are not an Engineer read (0350).
+  ('02700000-0000-0000-0000-00000000040a','timesheets','pmo-ts-1','ts-key-1','erpnext','create','pending');
 insert into erp_gl_entry_mirror (org_id, erp_name, account, party_type, party, voucher_type, voucher_no, debit, credit, erp_modified) values
   ('02700000-0000-0000-0000-00000000040a','GLE-1','Employee Payable - EX','Employee','HR-EMP-1','Journal Entry','ACC-JV-1',0,100,'2026-10-07'),
   ('02700000-0000-0000-0000-00000000040a','GLE-2','Creditors - EX','Supplier','SUP-1','Payment Entry','ACC-PAY-1',100,0,'2026-10-07'),
@@ -29,7 +30,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"02700000-0000-0000-0000-0000000004a1","role":"authenticated"}';
 select is((select count(id)::int from external_command_outbox where domain = 'expenses'), 0,
   'AC-EXP-104: an Engineer reads no expense posting command');
-select is((select count(id)::int from external_command_outbox where domain = 'procurement'), 1,
+select is((select count(id)::int from external_command_outbox where domain = 'timesheets'), 1,
   'AC-EXP-104: an Engineer still reads another domain''s command');
 select is((select count(*)::int from erp_gl_entry_mirror where party_type = 'Employee'), 0,
   'AC-EXP-104: an Engineer reads no Employee-party GL entry');

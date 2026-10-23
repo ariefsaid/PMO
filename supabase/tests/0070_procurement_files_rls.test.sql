@@ -36,8 +36,9 @@ insert into companies (id, org_id, name, type) values
   ('00700000-0000-0000-0000-000000000051','00700000-0000-0000-0000-000000000002','PF Vendor B','Vendor');
 
 -- Org-A procurement + quotation (the valid in-org parent).
-insert into procurements (id, org_id, title, status) values
-  ('00700000-0000-0000-0000-000000000010','00700000-0000-0000-0000-000000000001','PF Proc A','Vendor Quoted');
+-- PF Proc A was raised by Engineer A (an Engineer reads only the requests they raised, 0350).
+insert into procurements (id, org_id, title, status, requested_by_id) values
+  ('00700000-0000-0000-0000-000000000010','00700000-0000-0000-0000-000000000001','PF Proc A','Vendor Quoted','00700000-0000-0000-0000-0000000000a2');
 insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date) values
   ('00700000-0000-0000-0000-000000000020','00700000-0000-0000-0000-000000000001',
    '00700000-0000-0000-0000-000000000010','00700000-0000-0000-0000-000000000050', 1000, '2026-01-01');
@@ -99,15 +100,15 @@ select throws_ok(
   '42501', null,
   'AC-PF-003: Engineer direct INSERT into procurement_quotation_files blocked (4-role write gate 42501)');
 
--- ── AC-PF-011: in-org NON-WRITER (Engineer A) CAN list the file row ─────────
--- Same JWT (Engineer A, org A). The SELECT policy is org-wide (org_id = auth_org_id()) in
--- DELIBERATE parity with the parent procurements_select — a non-writer who can see the
--- procurement can list its files. The AC-PF-001 insert left exactly one row.
+-- ── AC-PF-011: NON-WRITER (Engineer A) CAN list the file row of a request they raised ──
+-- Same JWT (Engineer A, org A). File-row SELECT is in DELIBERATE parity with the parent
+-- procurement's read — a non-writer who can see the procurement (for an Engineer: one they
+-- raised, 0350) can list its files. The AC-PF-001 insert left exactly one row.
 select results_eq(
   $$ select count(*)::int from procurement_quotation_files
      where quotation_id = '00700000-0000-0000-0000-000000000020' $$,
   $$ values (1) $$,
-  'AC-PF-011: in-org Engineer (non-writer) CAN list procurement_quotation_files rows (org-wide SELECT parity with parent procurement)');
+  'AC-PF-011: Engineer (non-writer) CAN list procurement_quotation_files rows of the request they raised (SELECT parity with parent procurement)');
 reset role;
 
 -- ── AC-PF-005: deleting the parent quotation cascades to its file rows ───────

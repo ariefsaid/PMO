@@ -95,7 +95,8 @@ test.describe('AC-MTG-060: meeting → minute → /action → task linkage → f
     // ── 3. Minute a line. The author sees the editor (attendance-keyed read, author-keyed
     //       write — 0205); a fresh meeting starts with no lines. ──────────────────────────
     //       #805: the minutes are a BlockNote editor — the author just types into it.
-    const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
+    // Scope to the detail page's editor: the create page's editor stays on screen while the detail route loads.
+    const editor = page.getByTestId('minutes-editor').getByTestId('minutes-blocknote').locator('.bn-editor');
     await editor.click();
     // Type only once the editor holds focus — keys sent before BlockNote mounts are lost.
     await expect(editor).toBeFocused();
