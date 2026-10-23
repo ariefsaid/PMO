@@ -20,7 +20,8 @@ insert into budget_versions (id, org_id, project_id, version, name, status) valu
 insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount) values
  ('02290000-0000-0000-0000-000000000001','02292222-0000-0000-0000-000000000001','Labor',123.45);
 
-select is(enum_range(null::public.budget_category)::text[],
+-- 0366 (#1326) appends two more values; this file still owns 0229's claim: the first eight, in order.
+select is((enum_range(null::public.budget_category)::text[])[1:8],
  array['Labor','Materials','Subcontractors','Equipment','Permits & Fees','Overheads','Contingency','Special expenses'],
  'AC-CAT-001 exact eighth category is additive; seven existing values and order retained');
 set local role authenticated;

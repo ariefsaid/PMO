@@ -33,7 +33,28 @@ export const WON_STAGES = Object.freeze(['Won, Pending KoM', 'Ongoing Project', 
 /** public.budget_category — budgetLoadParity.test.ts proves it equals the generated enum (AC-CSD-011). */
 export const BUDGET_CATEGORIES = Object.freeze([
   'Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses',
+  'Travel & accommodation', 'Vehicle',
 ]);
+
+// #1326 (FR-TVC-004): SBP travel and vehicle costs have their own categories now. Whole words, English and
+// Indonesian, as the client's SBPs write them.
+const TRAVEL_WORDS = /(^|[^\p{L}])(travel|hotels?|lodging|accommodation|tickets?|per[\s-]?diem|tiket|akomodasi|penginapan|uang harian|perjalanan dinas)(?![\p{L}])/iu;
+const VEHICLE_WORDS = /(^|[^\p{L}])(vehicles?|fuel|car rental|car hire|kendaraan|sewa mobil|bbm|bahan bakar)(?![\p{L}])/iu;
+
+/**
+ * The category a file line is WRITTEN under (AC-TVC-004). A "Special expenses" line whose description names
+ * travel, hotel, tickets or per diem becomes Travel & accommodation; one naming a vehicle or fuel becomes
+ * Vehicle. One naming both, or neither, and every other category, is left as the file says — never a guess.
+ * The line's import key still uses the FILE's category, so a Draft loaded before #1326 is matched, not doubled.
+ */
+export function classifyBudgetLineCategory(category, description) {
+  if (category !== 'Special expenses') return category;
+  const text = String(description ?? '');
+  const travel = TRAVEL_WORDS.test(text);
+  const vehicle = VEHICLE_WORDS.test(text);
+  if (travel === vehicle) return category;
+  return travel ? 'Travel & accommodation' : 'Vehicle';
+}
 
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
 export const IMPORT_VERSION_NAME = 'Imported';
@@ -322,7 +343,9 @@ export async function resolveLoad(doc, api) {
 
 /** The app import's rule (DD-BIMP-7): the highest Draft, else a new one; skip once a budget was activated. */
 async function resolveBudget(api, entry, problems) {
-  const lines = entry.input.budget.map((l) => ({ ...l, import_key: lineKey(entry.key, l) }));
+  const lines = entry.input.budget.map((l) => ({
+    ...l, category: classifyBudgetLineCategory(l.category, l.description), import_key: lineKey(entry.key, l),
+  }));
   if (!entry.existing) return { state: 'new', versionId: null, lines };
   const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
   if (versions.some((v) => v.status !== 'Draft')) {

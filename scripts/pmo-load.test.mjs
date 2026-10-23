@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
+import { classifyBudgetLineCategory, defaultContractLineBasis, LOAD_STAGE_PATHS, remainingPath, validateLoadFile } from './lib/pmo-load.mjs';
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
@@ -40,7 +40,7 @@ test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
     'projects[1] (Y | A): unknown field "status"',
     'projects[1] (Y | A): "customer_contract_ref" and "contract_date" are recorded only when a project is won',
     `projects[2] (W | A): "stage" must be one of: ${Object.keys(LOAD_STAGE_PATHS).join(', ')}`,
-    'projects[3] (C-1): budget[0]: "category" must be one of: Labor, Materials, Subcontractors, Equipment, Permits & Fees, Overheads, Contingency, Special expenses',
+    'projects[3] (C-1): budget[0]: "category" must be one of: Labor, Materials, Subcontractors, Equipment, Permits & Fees, Overheads, Contingency, Special expenses, Travel & accommodation, Vehicle',
     'projects[3] (C-1): budget[0]: "budgeted_amount" must be a non-negative amount with at most 2 decimals',
     'projects[3] (C-1): budget[2]: is identical to an earlier line — give one of them a "reference" to keep both',
   ]);
@@ -557,4 +557,71 @@ test('AC-CQ-017: a project that diverged from the file gets no contract-line wri
   const actions = await linesLoad(api);
   assert.deepEqual(writes(api), []);
   assert.deepEqual(actions.map((a) => a.kind), ['project.diverged']);
+});
+
+// ── #1326 AC-TVC-004: SBP travel and vehicle lines leave Special expenses ─────────────────────────────
+
+test('AC-TVC-004: SBP travel, hotel, ticket and per-diem lines classify as Travel & accommodation', () => {
+  for (const description of [
+    'Travel & lodging (SBP: ticket + hotel, accommodation, MCU, travel expenses)',
+    'Hotel', 'Flight tickets', 'Per diem', 'per-diem site team', 'Accommodation', 'Uang harian', 'Tiket pesawat', 'Penginapan',
+  ]) {
+    assert.equal(classifyBudgetLineCategory('Special expenses', description), 'Travel & accommodation', description);
+  }
+});
+
+test('AC-TVC-004: SBP vehicle rental and fuel lines classify as Vehicle', () => {
+  for (const description of ['Vehicle (SBP: rental + fuel)', 'Fuel', 'Vehicle rental', 'Sewa kendaraan', 'BBM']) {
+    assert.equal(classifyBudgetLineCategory('Special expenses', description), 'Vehicle', description);
+  }
+});
+
+test('AC-TVC-004: everything else keeps its category — no guess on other, ambiguous or non-Special lines', () => {
+  assert.equal(classifyBudgetLineCategory('Special expenses', 'Special expenses (SBP section 4: user / Migas / social / other / GoI)'), 'Special expenses');
+  assert.equal(classifyBudgetLineCategory('Special expenses', 'Travel and fuel'), 'Special expenses', 'both kinds: never guess');
+  assert.equal(classifyBudgetLineCategory('Special expenses', 'Hotelier fees'), 'Special expenses', 'whole words only');
+  assert.equal(classifyBudgetLineCategory('Special expenses', undefined), 'Special expenses');
+  assert.equal(classifyBudgetLineCategory('Labor', 'Travel crew'), 'Labor', 'only Special expenses lines are reclassified');
+  assert.equal(classifyBudgetLineCategory('Overheads', 'Fuel for generator'), 'Overheads');
+  assert.equal(classifyBudgetLineCategory('Vehicle', 'Hotel'), 'Vehicle', 'a category the file already chose stands');
+});
+
+test('AC-TVC-004: the new categories are valid in a load file', () => {
+  assert.deepEqual(validateLoadFile({ projects: [{ name: 'X', client: 'A', stage: 'Leads', budget: [
+    { category: 'Travel & accommodation', budgeted_amount: 1 }, { category: 'Vehicle', budgeted_amount: 2 },
+  ] }] }), []);
+});
+
+const SBP_DOC = () => ({ projects: [{
+  code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads',
+  budget: [
+    { category: 'Special expenses', description: 'Travel & lodging (SBP: ticket + hotel)', budgeted_amount: 300 },
+    { category: 'Special expenses', description: 'Vehicle (SBP: rental + fuel)', budgeted_amount: 200 },
+    { category: 'Special expenses', description: 'Special expenses (SBP section 4)', budgeted_amount: 100 },
+  ],
+}] });
+
+test('AC-TVC-004: a load writes SBP travel/vehicle lines under the new categories, keyed by the file line so re-runs match', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, SBP_DOC());
+  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items').map((c) => [c.body.category, c.body.budgeted_amount, c.body.import_key]), [
+    ['Travel & accommodation', 300, 'fp:ORG-001|Special expenses|Travel & lodging (SBP: ticket + hotel)||300'],
+    ['Vehicle', 200, 'fp:ORG-001|Special expenses|Vehicle (SBP: rental + fuel)||200'],
+    ['Special expenses', 100, 'fp:ORG-001|Special expenses|Special expenses (SBP section 4)||100'],
+  ]);
+});
+
+test('AC-TVC-004: a Draft loaded before #1326 (lines still Special expenses) is not loaded twice', async () => {
+  const api = fakeApi({ tables: {
+    companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0 })],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }],
+    budget_line_items: [
+      { id: 'l-1', budget_version_id: 'v-1', category: 'Special expenses', import_key: 'fp:ORG-001|Special expenses|Travel & lodging (SBP: ticket + hotel)||300' },
+      { id: 'l-2', budget_version_id: 'v-1', category: 'Special expenses', import_key: 'fp:ORG-001|Special expenses|Vehicle (SBP: rental + fuel)||200' },
+      { id: 'l-3', budget_version_id: 'v-1', category: 'Special expenses', import_key: 'fp:ORG-001|Special expenses|Special expenses (SBP section 4)||100' },
+    ],
+  } });
+  const actions = await load(api, SBP_DOC());
+  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items'), []);
+  assert.equal(actions.find((a) => a.kind === 'budget.skip').reason, 'every line is already in the draft');
 });
