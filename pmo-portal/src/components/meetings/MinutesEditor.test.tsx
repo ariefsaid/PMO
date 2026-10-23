@@ -195,7 +195,8 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
           expect(readyCount).toBe(1);
         };
 
-        expectEditedState();
+        // onChange runs in a transition, so the last keystrokes land a tick after user.keyboard resolves.
+        await waitFor(expectEditedState);
 
         act(() => {
           document.documentElement.classList.toggle('dark', theme === 'dark');
