@@ -251,7 +251,7 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ org_id: ORG_ID }),
+      body: JSON.stringify({ mode: 'full' }),
     });
     expect([200, 202]).toContain(sweep.status);
     await sweep.arrayBuffer();

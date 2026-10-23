@@ -96,7 +96,7 @@ test('AC-WHT-002: cash plus withheld tax fully settles the invoice in ERP and su
     expect(beforeDigest?.payload_digest).toMatch(/^[a-f0-9]{64}$/);
     const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ scope: 'revenue', org_id: ORG_ID }),
+      body: JSON.stringify({ mode: 'full' }),
     });
     expect([200, 202]).toContain(sweep.status);
     await sweep.arrayBuffer();

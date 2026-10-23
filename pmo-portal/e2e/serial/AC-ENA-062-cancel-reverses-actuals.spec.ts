@@ -49,7 +49,7 @@ async function bench(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknow
 
 /** One served sweep tick; returns THIS org's per-org result (the sweep ticks every activated org). */
 async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: number; ple: number } }> {
-  type SweepBody = { perOrg?: Array<{ orgId: string; errors: string[]; ledger?: { gl: number; ple: number } }> };
+  type SweepBody = { cadence?: string; perOrg?: Array<{ orgId: string; errors: string[]; ledger?: { gl: number; ple: number } }> };
   let res: Response;
   let text: string;
   // The local edge runtime kills a tick that exceeds its CPU budget (546 WORKER_LIMIT, or a dropped
@@ -59,7 +59,7 @@ async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: 
     res = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ mode: 'full' }),
     });
     text = await res.text();
     const killed = res.status === 546 || text.trim() === '';
@@ -67,6 +67,7 @@ async function sweep(orgId: string): Promise<{ errors: string[]; ledger?: { gl: 
   }
   const body = (text ? JSON.parse(text) : {}) as SweepBody;
   expect(res.status, text.slice(0, 500)).toBe(200);
+  expect(body.cadence, `the tick must run the ledger feed, not just the money passes: ${text.slice(0, 500)}`).toBe('full');
   const mine = body.perOrg?.find((o) => o.orgId === orgId);
   expect(mine, 'the sweep ticked the throwaway org').toBeTruthy();
   return mine!;

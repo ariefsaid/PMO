@@ -126,6 +126,8 @@ async function invokeHandler(
     statementProgress?: Array<{ org_id: string; acquired_at: string }>;
     statementErpVersion?: string;
     body?: string;
+    ownedDomains?: string[];
+    authorization?: string | null;
   } = {},
 ): Promise<{ status: number; body: Record<string, unknown>; requests: RecordedRequest[]; errors: string[] }> {
   const handler = capturedHandler;
@@ -242,7 +244,7 @@ async function invokeHandler(
         return jsonResponse(rows.slice(from, to + 1));
       }
       if (table === 'external_domain_ownership') {
-        return jsonResponse([]);
+        return jsonResponse(bindings.flatMap((row) => (options.ownedDomains ?? []).map((domain) => ({ org_id: row.org_id, domain }))));
       }
       return jsonResponse([]);
     }
@@ -284,7 +286,10 @@ async function invokeHandler(
   try {
     const response = await handler(new Request('https://edge.synthetic.test/functions/v1/erpnext-sweep', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${SYNTHETIC_SECRET}`, 'Content-Type': 'application/json' },
+      headers: {
+        ...(options.authorization === null ? {} : { Authorization: options.authorization ?? `Bearer ${SYNTHETIC_SECRET}` }),
+        'Content-Type': 'application/json',
+      },
       body: options.body ?? '{}',
     }));
     let responseBody: Record<string, unknown> = {};
@@ -302,20 +307,45 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function assertNoSweepWork(requests: RecordedRequest[], label: string): void {
-  const unexpected = requests.find(({ path, origin, method }) => method !== 'GET' || origin.startsWith('https://erp-') ||
-    !(path.startsWith('/rest/v1/external_org_bindings') ||
-      path.startsWith('/rest/v1/erp_financial_statement_published_context') ||
-      path.startsWith('/rest/v1/erp_financial_statement_report_batch') ||
-      path.startsWith('/rest/v1/erp_financial_statement_report_pending')));
-  assert(!unexpected, `${label}: reached sweep work before cadence decision: ${unexpected?.method} ${unexpected?.path}`);
+// Requests a money-only tick may make: the cadence readiness reads, the org enumeration, the per-org
+// sweep lock, and the outbound money passes' own queues. Anything else (an ERP call, a statement or
+// ledger write, the doctype walk) is hourly work that leaked into a money-only tick.
+const MONEY_ONLY_READS = [
+  '/rest/v1/external_org_bindings',
+  '/rest/v1/erp_financial_statement_published_context',
+  '/rest/v1/erp_financial_statement_report_batch',
+  '/rest/v1/erp_financial_statement_report_pending',
+  '/rest/v1/external_domain_ownership',
+  '/rest/v1/external_sync_watermarks',
+  '/rest/v1/budget_version_erp_mirror',
+  '/rest/v1/budget_version_account_erp_mirror',
+  '/rest/v1/timesheet_erp_mirror',
+  '/rest/v1/timesheets?',
+  '/rest/v1/expense_posting_erp_mirror',
+];
+const MONEY_ONLY_RPCS = [
+  '/rest/v1/rpc/claim_erp_sweep_lock',
+  '/rest/v1/rpc/release_erp_sweep_lock',
+  '/rest/v1/rpc/outbox_reconcile_candidates',
+];
+
+function assertMoneyOnlyWork(requests: RecordedRequest[], label: string): void {
+  const unexpected = requests.find(({ path, origin, method }) => origin.startsWith('https://erp-') ||
+    !(method === 'GET' ? MONEY_ONLY_READS.some((prefix) => path.startsWith(prefix))
+      : method === 'POST' && MONEY_ONLY_RPCS.some((prefix) => path.startsWith(prefix))));
+  assert(!unexpected, `${label}: reached hourly work on a money-only tick: ${unexpected?.method} ${unexpected?.path}`);
+}
+
+function assertMoneyPassesRan(requests: RecordedRequest[], label: string): void {
+  assert(requests.some(({ path }) => path.startsWith('/rest/v1/rpc/outbox_reconcile_candidates')),
+    `${label}: the outbound money passes did not run`);
 }
 
 Deno.test('AC-CAD: the real handler gates all work by first native publication and UTC hourly boundary', async (t) => {
   const first = binding(ORG_A, BINDING_A, 'Synthetic Company A');
   const second = binding(ORG_B, BINDING_B, 'Synthetic Company B', '2026-10-19T07:05:00.001Z', {});
 
-  await t.step('AC-CAD-007: the no-op oracle rejects writes to allowlisted readiness paths', () => {
+  await t.step('AC-CAD-007: the money-only oracle rejects writes to allowlisted readiness paths', () => {
     const readinessMutations: RecordedRequest[] = [
       {
         origin: 'https://db.synthetic.test',
@@ -333,44 +363,46 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     for (const mutation of readinessMutations) {
       let rejection: unknown;
       try {
-        assertNoSweepWork([mutation], 'readiness mutation guard');
+        assertMoneyOnlyWork([mutation], 'readiness mutation guard');
       } catch (error) {
         rejection = error;
       }
-      assert(rejection instanceof Error && rejection.message.includes(`reached sweep work before cadence decision: ${mutation.method} ${mutation.path}`),
-        `the no-op oracle accepted ${mutation.method} on an allowlisted readiness path`);
+      assert(rejection instanceof Error && rejection.message.includes(`reached hourly work on a money-only tick: ${mutation.method} ${mutation.path}`),
+        `the money-only oracle accepted ${mutation.method} on an allowlisted readiness path`);
     }
   });
 
-  await t.step('AC-CAD-001: midhour all-published handler returns a no-op before ERP and domain work', async () => {
+  await t.step('AC-ENA-CAD-002: midhour all-published handler runs only the money passes, no ERP or statement work', async () => {
     const result = await invokeHandler('2026-10-19T07:05:00.000Z', [first], [publicationFor(first, {
       binding: { id: first.id, activatedAt: '2026-10-01T00:00:00Z', versionMajor: first.version_major },
     })]);
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped === true, `expected successful no-op, got ${result.status} ${JSON.stringify(result.body)}`);
-    assertNoSweepWork(result.requests, 'all-published midhour tick');
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only', `expected a money-only tick, got ${result.status} ${JSON.stringify(result.body)}`);
+    assertMoneyOnlyWork(result.requests, 'all-published midhour tick');
+    assertMoneyPassesRan(result.requests, 'all-published midhour tick');
   });
 
-  await t.step('AC-CAD-002: UTC minute 4 runs the cycle and minute 5 skips after publication exists', async () => {
+  await t.step('AC-CAD-002: UTC minute 0 runs the cycle and minute 5 is money-only after publication exists', async () => {
     const publicationState: PublishedContext[] = [];
-    const atMinuteFour = await invokeHandler('2026-10-19T07:04:00.000Z', [first], publicationState);
-    assert(atMinuteFour.status === 200 && atMinuteFour.body.ok === true && atMinuteFour.body.skipped !== true,
-      `minute 4 did not run the whole cycle: ${atMinuteFour.status} ${JSON.stringify(atMinuteFour.body)}`);
-    assert(atMinuteFour.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
-      'minute 4 did not reach the real per-org sweep lock');
-    assert(atMinuteFour.requests.some(({ origin }) => origin.startsWith('https://erp-')),
-      'minute 4 did not reach the real ERP-backed cycle');
-    assert(atMinuteFour.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')),
-      'minute 4 did not complete a native first publication');
+    const atMinuteZero = await invokeHandler('2026-10-19T07:00:00.000Z', [first], publicationState);
+    assert(atMinuteZero.status === 200 && atMinuteZero.body.ok === true && atMinuteZero.body.cadence === 'full',
+      `minute 0 did not run the whole cycle: ${atMinuteZero.status} ${JSON.stringify(atMinuteZero.body)}`);
+    assert(atMinuteZero.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
+      'minute 0 did not reach the real per-org sweep lock');
+    assert(atMinuteZero.requests.some(({ origin }) => origin.startsWith('https://erp-')),
+      'minute 0 did not reach the real ERP-backed cycle');
+    assert(atMinuteZero.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')),
+      'minute 0 did not complete a native first publication');
     assert(publicationState.some((row) => row.org_id === first.org_id && row.context.binding !== undefined),
       'the synthetic publisher did not persist the first current-binding generation');
 
     const afterPublication = await invokeHandler('2026-10-19T08:05:00.000Z', [first], publicationState);
-    assert(afterPublication.status === 200 && afterPublication.body.ok === true && afterPublication.body.skipped === true,
+    assert(afterPublication.status === 200 && afterPublication.body.ok === true && afterPublication.body.cadence === 'money-only',
       `a published binding did not return to hourly cadence: ${afterPublication.status} ${JSON.stringify(afterPublication.body)}`);
-    assertNoSweepWork(afterPublication.requests, 'published binding after first publication');
+    assertMoneyOnlyWork(afterPublication.requests, 'published binding after first publication');
+    assertMoneyPassesRan(afterPublication.requests, 'published binding after first publication');
 
-    const nextHour = await invokeHandler('2026-10-19T09:04:00.000Z', [first], publicationState);
-    assert(nextHour.status === 200 && nextHour.body.ok === true && nextHour.body.skipped !== true,
+    const nextHour = await invokeHandler('2026-10-19T09:00:00.000Z', [first], publicationState);
+    assert(nextHour.status === 200 && nextHour.body.ok === true && nextHour.body.cadence === 'full',
       `the next hourly window did not resume normal work: ${nextHour.status} ${JSON.stringify(nextHour.body)}`);
     assert(nextHour.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'the next hourly window did not reach the real per-org sweep lock');
@@ -381,7 +413,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [first, second], publicationState, {
       statementBatches: [statementBatchFor(second, '2026-10-19T07:10:00.000Z')],
     });
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped !== true,
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
       `an unpublished active binding failed to activate the cycle: ${result.status} ${JSON.stringify(result.body)}`);
     const claimedOrgs = result.requests
       .filter(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock'))
@@ -407,9 +439,10 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     };
     const result = await invokeHandler('2026-10-19T07:35:00.000Z',
       [first, legacy, unknownVersion, missingCompany, malformedProjectMap], [publicationFor(first)]);
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped === true,
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
       `legacy or unusable bindings blocked a published native-eligible binding: ${result.status} ${JSON.stringify(result.body)}`);
-    assertNoSweepWork(result.requests, 'published native-eligible binding with legacy or unusable neighbors');
+    assertMoneyOnlyWork(result.requests, 'published native-eligible binding with legacy or unusable neighbors');
+    assertMoneyPassesRan(result.requests, 'published native-eligible binding with legacy or unusable neighbors');
   });
 
   await t.step('AC-CAD-004: a foreign binding or stale activation/project map cannot satisfy current publication', async () => {
@@ -418,8 +451,8 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const staleActivation = publicationFor(current, { binding: { id: current.id, activatedAt: '2026-09-01T00:00:00.000Z', versionMajor: current.version_major } });
     const staleVersion = publicationFor(current, { binding: { id: current.id, activatedAt: current.activated_at, versionMajor: 15 } });
     const staleProjectMap = publicationFor(current, { projectMap: {} });
-    const result = await invokeHandler('2026-10-19T08:04:00.000Z', [current], [foreignBinding, staleActivation, staleVersion, staleProjectMap]);
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped !== true,
+    const result = await invokeHandler('2026-10-19T08:00:00.000Z', [current], [foreignBinding, staleActivation, staleVersion, staleProjectMap]);
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
       `stale or foreign generations did not trigger the hourly first-publication attempt: ${result.status} ${JSON.stringify(result.body)}`);
     assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'stale publication identity did not activate the normal cycle');
@@ -431,14 +464,15 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const midhour = await invokeHandler('2026-10-19T07:35:00.000Z', [unsupported], publicationState, {
       statementErpVersion: '16.32.0',
     });
-    assert(midhour.status === 200 && midhour.body.ok === true && midhour.body.skipped === true,
+    assert(midhour.status === 200 && midhour.body.ok === true && midhour.body.cadence === 'money-only',
       `activation age without a batch incorrectly kept five-minute cadence: ${midhour.status} ${JSON.stringify(midhour.body)}`);
-    assertNoSweepWork(midhour.requests, 'unpublished binding with no progress between hourly windows');
+    assertMoneyOnlyWork(midhour.requests, 'unpublished binding with no progress between hourly windows');
+    assertMoneyPassesRan(midhour.requests, 'unpublished binding with no progress between hourly windows');
 
-    const hourly = await invokeHandler('2026-10-19T08:04:00.000Z', [unsupported], publicationState, {
+    const hourly = await invokeHandler('2026-10-19T08:00:00.000Z', [unsupported], publicationState, {
       statementErpVersion: '16.32.0',
     });
-    assert(hourly.status === 200 && hourly.body.skipped !== true &&
+    assert(hourly.status === 200 && hourly.body.cadence === 'full' &&
       hourly.requests.some(({ path }) => path.includes('/api/method/frappe.utils.change_log.get_versions')),
     'an unpublished binding without progress did not receive its normal hourly attempt');
   });
@@ -448,9 +482,10 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [future], [], {
       statementBatches: [statementBatchFor(future, '2026-10-19T07:05:00.001Z')],
     });
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped === true,
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
       `a future activation timestamp held the fleet on five-minute sweeps: ${result.status} ${JSON.stringify(result.body)}`);
-    assertNoSweepWork(result.requests, 'future activation timestamp');
+    assertMoneyOnlyWork(result.requests, 'future activation timestamp');
+    assertMoneyPassesRan(result.requests, 'future activation timestamp');
     assert(!result.requests.some(({ origin }) => origin.startsWith('https://erp-')),
       'a future activation timestamp reached the ERP collector');
   });
@@ -461,7 +496,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const inProgress = await invokeHandler('2026-10-19T07:35:00.000Z', [oldBinding], [], {
       statementBatches: [activeBatch],
     });
-    assert(inProgress.status === 200 && inProgress.body.ok === true && inProgress.body.skipped !== true,
+    assert(inProgress.status === 200 && inProgress.body.ok === true && inProgress.body.cadence === 'full',
       `a recent batch for an existing binding did not continue on fast cadence: ${inProgress.status} ${JSON.stringify(inProgress.body)}`);
     assert(inProgress.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'a matching recent batch did not run the normal cycle');
@@ -472,9 +507,10 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const expired = await invokeHandler('2026-10-19T13:05:00.001Z', [oldBinding], [], {
       statementBatches: [activeBatch],
     });
-    assert(expired.status === 200 && expired.body.ok === true && expired.body.skipped === true,
+    assert(expired.status === 200 && expired.body.ok === true && expired.body.cadence === 'money-only',
       `a batch at the exact six-hour boundary kept five-minute cadence: ${expired.status} ${JSON.stringify(expired.body)}`);
-    assertNoSweepWork(expired.requests, 'expired recent batch window');
+    assertMoneyOnlyWork(expired.requests, 'expired recent batch window');
+    assertMoneyPassesRan(expired.requests, 'expired recent batch window');
   });
 
   await t.step('AC-1202: recent native acquisition keeps an old first-publication binding on five-minute cadence', async () => {
@@ -484,7 +520,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
       statementBatches: [oldBatch],
       statementProgress: [{ org_id: ORG_A, acquired_at: '2026-10-19T06:00:00.000Z' }],
     });
-    assert(result.body.skipped !== true, `recent report acquisition did not preserve fast cadence: ${JSON.stringify(result.body)}`);
+    assert(result.body.cadence === 'full', `recent report acquisition did not preserve fast cadence: ${JSON.stringify(result.body)}`);
     assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
       'recently progressing batch did not run the sweep');
   });
@@ -505,9 +541,10 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
         const result = await invokeHandler('2026-10-19T07:35:00.000Z', [oldBinding], [], {
           statementBatches: [{ ...stored, context: stale.context }],
         });
-        assert(result.status === 200 && result.body.ok === true && result.body.skipped === true,
+        assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
           `${stale.label} kept the old binding on five-minute cadence: ${result.status} ${JSON.stringify(result.body)}`);
-        assertNoSweepWork(result.requests, `batch with ${stale.label}`);
+        assertMoneyOnlyWork(result.requests, `batch with ${stale.label}`);
+    assertMoneyPassesRan(result.requests, `batch with ${stale.label}`);
       });
     }
   });
@@ -517,14 +554,15 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const betweenHours = await invokeHandler('2026-10-19T07:35:00.000Z', [oldBinding], [], {
       statementErpVersion: '16.32.0',
     });
-    assert(betweenHours.status === 200 && betweenHours.body.ok === true && betweenHours.body.skipped === true,
+    assert(betweenHours.status === 200 && betweenHours.body.ok === true && betweenHours.body.cadence === 'money-only',
       `an old unsupported binding without a batch kept five-minute cadence: ${betweenHours.status} ${JSON.stringify(betweenHours.body)}`);
-    assertNoSweepWork(betweenHours.requests, 'old unsupported binding between hourly windows');
+    assertMoneyOnlyWork(betweenHours.requests, 'old unsupported binding between hourly windows');
+    assertMoneyPassesRan(betweenHours.requests, 'old unsupported binding between hourly windows');
 
-    const hourlyWindow = await invokeHandler('2026-10-19T08:04:00.000Z', [oldBinding], [], {
+    const hourlyWindow = await invokeHandler('2026-10-19T08:00:00.000Z', [oldBinding], [], {
       statementErpVersion: '16.32.0',
     });
-    assert(hourlyWindow.status === 200 && hourlyWindow.body.ok === true && hourlyWindow.body.skipped !== true,
+    assert(hourlyWindow.status === 200 && hourlyWindow.body.ok === true && hourlyWindow.body.cadence === 'full',
       `an old unsupported binding did not get the next hourly attempt: ${hourlyWindow.status} ${JSON.stringify(hourlyWindow.body)}`);
     assert(hourlyWindow.requests.some(({ path }) => path.includes('/api/method/frappe.utils.change_log.get_versions')),
       'the hourly attempt did not inspect the actual ERP version');
@@ -537,24 +575,100 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [oldBinding], [], {
       statementBatchReadError: true,
     });
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped === true,
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
       `unknown old-batch state kept the fleet on five-minute cadence: ${result.status} ${JSON.stringify(result.body)}`);
     assert(result.errors.some((message) => message.includes('batch readiness')),
       `batch read failure was not logged: ${JSON.stringify(result.errors)}`);
-    assertNoSweepWork(result.requests, 'batch-read failure');
+    assertMoneyOnlyWork(result.requests, 'batch-read failure');
+    assertMoneyPassesRan(result.requests, 'batch-read failure');
   });
 
   await t.step('AC-CAD-002: UTC minute 5 is outside the hourly run window', async () => {
     const result = await invokeHandler('2026-10-19T07:05:00.000Z', [first], [publicationFor(first)]);
-    assert(result.status === 200 && result.body.skipped === true, `minute 5 unexpectedly ran: ${JSON.stringify(result.body)}`);
-    assertNoSweepWork(result.requests, 'UTC minute 5 boundary');
+    assert(result.status === 200 && result.body.cadence === 'money-only', `minute 5 was not money-only: ${JSON.stringify(result.body)}`);
+    assertMoneyOnlyWork(result.requests, 'UTC minute 5 boundary');
+    assertMoneyPassesRan(result.requests, 'UTC minute 5 boundary');
   });
 
-  await t.step('AC-CAD-002: explicit maintenance requests remain outside the cadence no-op', async () => {
+  await t.step('AC-ENA-CAD-002: minute 7 with every binding published runs all four money passes and nothing hourly', async () => {
+    const result = await invokeHandler('2026-10-19T07:07:00.000Z', [first], [publicationFor(first)], {
+      ownedDomains: ['revenue', 'timesheets', 'expenses'],
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only' && !('skipped' in result.body),
+      `a money-only tick must say so and never claim a skip: ${result.status} ${JSON.stringify(result.body)}`);
+    for (const pass of ['/rest/v1/rpc/outbox_reconcile_candidates', '/rest/v1/budget_version_erp_mirror',
+      '/rest/v1/timesheet_erp_mirror',
+  '/rest/v1/timesheets?', '/rest/v1/expense_posting_erp_mirror']) {
+      assert(result.requests.some(({ path }) => path.startsWith(pass)), `money-only tick did not reach ${pass}`);
+    }
+    assertMoneyOnlyWork(result.requests, 'minute 7 money-only tick');
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/erp_financial_statement')),
+      'minute 7 is not a five-minute tick, so it must not even read statement readiness');
+  });
+
+  await t.step('AC-ENA-CAD-002: the hourly tick runs the money passes alongside the hourly work', async () => {
+    const result = await invokeHandler('2026-10-19T08:00:00.000Z', [first], [publicationFor(first)], {
+      ownedDomains: ['revenue', 'timesheets', 'expenses'],
+    });
+    assert(result.status === 200 && result.body.cadence === 'full', `hourly tick was not full: ${JSON.stringify(result.body)}`);
+    assert(result.requests.some(({ origin }) => origin.startsWith('https://erp-')), 'hourly tick did not reach ERP');
+    for (const pass of ['/rest/v1/rpc/outbox_reconcile_candidates', '/rest/v1/budget_version_erp_mirror',
+      '/rest/v1/timesheet_erp_mirror',
+  '/rest/v1/timesheets?', '/rest/v1/expense_posting_erp_mirror']) {
+      assert(result.requests.some(({ path }) => path.startsWith(pass)), `hourly tick did not reach ${pass}`);
+    }
+  });
+
+  await t.step('AC-ENA-CAD-001: a binding mid-backfill keeps full ticks every five minutes and money-only ticks between', async () => {
+    const recent = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-18T00:00:00.000Z');
+    const batch = statementBatchFor(recent, '2026-10-19T07:05:00.001Z');
+    const fiveMinute = await invokeHandler('2026-10-19T07:35:00.000Z', [recent], [], { statementBatches: [batch] });
+    assert(fiveMinute.body.cadence === 'full', `a backfilling binding lost its five-minute full tick: ${JSON.stringify(fiveMinute.body)}`);
+    const between = await invokeHandler('2026-10-19T07:37:00.000Z', [recent], [], { statementBatches: [batch] });
+    assert(between.body.cadence === 'money-only', `a backfilling binding ran the full sweep between five-minute ticks: ${JSON.stringify(between.body)}`);
+    assertMoneyOnlyWork(between.requests, 'backfill between five-minute ticks');
+    assertMoneyPassesRan(between.requests, 'backfill between five-minute ticks');
+  });
+
+  await t.step('AC-ENA-CAD-005: an authenticated {"mode":"full"} request runs the hourly work at any minute', async () => {
+    const result = await invokeHandler('2026-10-19T07:07:00.000Z', [first], [publicationFor(first)], {
+      body: JSON.stringify({ mode: 'full' }),
+      ownedDomains: ['revenue', 'timesheets', 'expenses'],
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
+      `a full-mode request did not run the full sweep: ${result.status} ${JSON.stringify(result.body)}`);
+    assert(result.requests.some(({ origin }) => origin.startsWith('https://erp-')), 'full mode did not reach the ERP-backed hourly work');
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/timesheet_erp_mirror')), 'full mode skipped the money passes');
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/erp_financial_statement_published_context')),
+      'full mode must not consult the cadence readiness check');
+  });
+
+  await t.step('AC-ENA-CAD-005: a full-mode request without the sweep secret is refused before any work', async () => {
+    for (const authorization of [null, 'Bearer wrong-secret']) {
+      const result = await invokeHandler('2026-10-19T07:07:00.000Z', [first], [publicationFor(first)], {
+        body: JSON.stringify({ mode: 'full' }),
+        authorization,
+      });
+      assert(result.status === 401 && result.body.error === 'UNAUTHORIZED',
+        `a full-mode request with authorization=${String(authorization)} was not refused: ${result.status} ${JSON.stringify(result.body)}`);
+      assert(result.requests.length === 0, `an unauthenticated full-mode request reached ${result.requests[0]?.path}`);
+    }
+  });
+
+  await t.step('AC-ENA-CAD-005: an unknown mode or extra field is still rejected', async () => {
+    for (const body of [{ mode: 'everything' }, { mode: 'full', org_id: ORG_A }, { scope: 'revenue', org_id: ORG_A }]) {
+      const result = await invokeHandler('2026-10-19T07:07:00.000Z', [first], [publicationFor(first)], { body: JSON.stringify(body) });
+      assert(result.status === 400 && result.body.error === 'INVALID_REQUEST',
+        `${JSON.stringify(body)} was not rejected: ${result.status} ${JSON.stringify(result.body)}`);
+      assert(result.requests.length === 0, `${JSON.stringify(body)} reached ${result.requests[0]?.path}`);
+    }
+  });
+
+  await t.step('AC-CAD-002: explicit maintenance requests remain outside the cadence decision', async () => {
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [first], [publicationFor(first)], {
       body: JSON.stringify({ mode: 'repair-invoice-projects', org_id: first.org_id, after_id: null }),
     });
-    assert(result.status === 404 && result.body.error === 'ORG_NOT_ELIGIBLE' && result.body.skipped !== true,
+    assert(result.status === 404 && result.body.error === 'ORG_NOT_ELIGIBLE' && result.body.cadence === undefined,
       `maintenance request was swallowed by the cadence gate: ${result.status} ${JSON.stringify(result.body)}`);
     assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/external_domain_ownership')),
       'maintenance request did not reach its separate eligibility check');
@@ -563,7 +677,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
   await t.step('AC-CAD-002: publication-read failure is observable and runs instead of falsely skipping', async () => {
     const recentlyActivated = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-19T07:05:00.001Z');
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [recentlyActivated], [], { publicationReadError: true });
-    assert(result.status === 200 && result.body.ok === true && result.body.skipped !== true,
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
       `unknown readiness was treated as published: ${result.status} ${JSON.stringify(result.body)}`);
     assert(result.errors.some((message) => message.includes('publication readiness')),
       `publication readiness failure was not logged: ${JSON.stringify(result.errors)}`);

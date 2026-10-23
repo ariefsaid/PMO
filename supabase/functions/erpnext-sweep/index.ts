@@ -41,6 +41,11 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  * ⚑ Passes (5), (6) and (7) are the SOLE owners of the `budget`, `timesheets` and `expenses` domains: pass
  *   (1) skips all three, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt
  *   budget is spent once per tick, not twice.
+ * Cadence (owner ruling 2026-10-23): the outbound money passes — (1), (5), (6), (7) — run on EVERY
+ *   tick so postings reach ERPNext within a minute; the inbound/statement work — (2), (2b), native
+ *   statements, (3), (3b), (4) — keeps #1212's hourly cadence (`sweepCadenceAt`). Such a tick answers
+ *   `{ ok: true, cadence: 'money-only', ... }`; a full tick answers `cadence: 'full'`. A caller holding
+ *   the sweep secret may post `{"mode":"full"}` to force the full tick (the e2e journeys do).
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
@@ -640,6 +645,13 @@ export interface OrgLedgerFeedResult {
   statementError?: string;
 }
 
+/**
+ * Owner ruling 2026-10-23: money postings reach ERPNext near-instantly. `full` runs every pass;
+ * `money-only` (between the hourly statement windows) runs just the outbound money passes —
+ * (1) outbox recovery, (5) budget, (6) timesheets, (7) expenses — still under the per-org lock.
+ */
+export type ErpSweepCadence = 'full' | 'money-only';
+
 export interface ErpSweepCycleResult {
   orgs: number;
   perOrg: Array<{ orgId: string; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
@@ -657,7 +669,12 @@ export interface ErpSweepCycleResult {
  * cache SCOPING (the tick-level cache shared by the passes would otherwise accumulate every org's pair
  * for the whole cycle).
  */
-export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthPairCache): Promise<ErpSweepCycleResult> {
+export async function runErpSweepCycle(
+  deps: ErpSweepCycleDeps,
+  cache?: ErpAuthPairCache,
+  cadence: ErpSweepCadence = 'full',
+): Promise<ErpSweepCycleResult> {
+  const hourly = cadence === 'full';
   const orgs = await deps.listEmployingOrgs();
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
@@ -687,65 +704,68 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
     } catch (err) {
       errors.push(`reconcile:${err instanceof Error ? err.message : String(err)}`);
     }
-    // (2) doctype modified-poll sweep.
+    // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
+    // tick skips them and goes straight to the outbound money passes (5)–(7).
     let sweep: { applied: number } | undefined;
-    try {
-      const r = await deps.sweepOrgDoctypes(org);
-      sweep = { applied: r.applied };
-      if (r.error) errors.push(`sweep:${r.error}`);
-    } catch (err) {
-      errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
-    }
-    // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
-    //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
-    if (deps.repairOrgLinks) {
-      try {
-        const r = await deps.repairOrgLinks(org);
-        if (r.error) errors.push(`repair:${r.error}`);
-      } catch (err) {
-        errors.push(`repair:${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-    // Native report capture is independently resumable; raw ledger readiness never gates it.
-    if (deps.refreshNativeStatements) {
-      try {
-        const result = await deps.refreshNativeStatements(org);
-        if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
-      } catch {
-        errors.push('native-statement:native-refresh-failed');
-      }
-    }
-    // (3) ledger-mirror feed.
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
-    try {
-      const r = await deps.feedOrgLedgers(org);
-      ledger = {
-        gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp,
-        ...(r.statementReady === undefined ? {} : { statementReady: r.statementReady }),
-      };
-      if (r.error) errors.push(`ledger:${r.error}`);
-      if (r.statementError) errors.push(`statement:${r.statementError}`);
-    } catch (err) {
-      errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
-    }
-    // (3b) the read-only ERP purchases list — AFTER the ledger feed, so a PI attributes through fresh GL rows.
-    if (deps.feedOrgPurchases) {
+    if (hourly) {
       try {
-        const r = await deps.feedOrgPurchases(org);
-        if (r.error) errors.push(`purchases:${r.error}`);
+        const r = await deps.sweepOrgDoctypes(org);
+        sweep = { applied: r.applied };
+        if (r.error) errors.push(`sweep:${r.error}`);
       } catch (err) {
-        errors.push(`purchases:${err instanceof Error ? err.message : String(err)}`);
+        errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
       }
-    }
-    // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
-    if (!ledger || ledger.glCaughtUp === false || ledger.pleCaughtUp === false) {
-      console.warn(`[erpnext-sweep] org ${org.orgId}: accounting refresh deferred until both ledger feeds catch up`);
-    } else {
+      // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
+      //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
+      if (deps.repairOrgLinks) {
+        try {
+          const r = await deps.repairOrgLinks(org);
+          if (r.error) errors.push(`repair:${r.error}`);
+        } catch (err) {
+          errors.push(`repair:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Native report capture is independently resumable; raw ledger readiness never gates it.
+      if (deps.refreshNativeStatements) {
+        try {
+          const result = await deps.refreshNativeStatements(org);
+          if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
+        } catch {
+          errors.push('native-statement:native-refresh-failed');
+        }
+      }
+      // (3) ledger-mirror feed.
       try {
-        const r = await deps.refreshOrgAccounting(org);
-        if (r.error) errors.push(`accounting:${r.error}`);
+        const r = await deps.feedOrgLedgers(org);
+        ledger = {
+          gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp,
+          ...(r.statementReady === undefined ? {} : { statementReady: r.statementReady }),
+        };
+        if (r.error) errors.push(`ledger:${r.error}`);
+        if (r.statementError) errors.push(`statement:${r.statementError}`);
       } catch (err) {
-        errors.push(`accounting:${err instanceof Error ? err.message : String(err)}`);
+        errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
+      }
+      // (3b) the read-only ERP purchases list — AFTER the ledger feed, so a PI attributes through fresh GL rows.
+      if (deps.feedOrgPurchases) {
+        try {
+          const r = await deps.feedOrgPurchases(org);
+          if (r.error) errors.push(`purchases:${r.error}`);
+        } catch (err) {
+          errors.push(`purchases:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
+      if (!ledger || ledger.glCaughtUp === false || ledger.pleCaughtUp === false) {
+        console.warn(`[erpnext-sweep] org ${org.orgId}: accounting refresh deferred until both ledger feeds catch up`);
+      } else {
+        try {
+          const r = await deps.refreshOrgAccounting(org);
+          if (r.error) errors.push(`accounting:${r.error}`);
+        } catch (err) {
+          errors.push(`accounting:${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     // (5) P3c — the budget push's sweep backstop (FR-BUD-141). AFTER everything else, in the SAME
@@ -769,7 +789,7 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps, cache?: ErpAuthP
       }
     }
     // (7) #775 phase B — expense postings, LAST: an approval posted by this pass reaches the GL mirror on the next
-    // tick's (3). Same try/catch shape as its siblings.
+    // full tick's (3). Same try/catch shape as its siblings.
     if (deps.reconcileOrgExpensePostings) {
       try {
         const r = await deps.reconcileOrgExpensePostings(org);
@@ -962,15 +982,32 @@ function statementReportBatchMatchesBinding(
     sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
 }
 
+/** The cron ticks every minute (0356). The full sweep runs in the first minute of each UTC hour. */
+export const SWEEP_HOURLY_WINDOW_MINUTES = 1;
+/** A binding still building its first statement publication keeps the full sweep every five minutes. */
+export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
+
 /**
- * The ordinary cron has a five-minute window for the whole sweep. Between those windows it may
- * return early once each active binding accepted by the native collector's binding guard has a
- * publication for that same company, binding activation, version, and project map. A binding without
- * its first publication can keep the five-minute cadence while its matching native report batch
- * started within six hours or recorded a report acquisition within the last six hours. Other bindings
- * stay on the hourly cadence. The publication context is written
- * only by the native snapshot trigger for a committed generation; attempts and legacy status fields
- * do not establish publication.
+ * Which work a tick does. Every tick runs the outbound money passes (owner ruling 2026-10-23). The
+ * expensive inbound/statement work keeps #1212's cadence: hourly, plus every five minutes while some
+ * binding still lacks its first publication (`allPublished` resolves false). The readiness read is
+ * only made on the five-minute ticks that could need it.
+ */
+export async function sweepCadenceAt(entryMs: number, allPublished: () => Promise<boolean>): Promise<ErpSweepCadence> {
+  const minute = new Date(entryMs).getUTCMinutes();
+  if (minute < SWEEP_HOURLY_WINDOW_MINUTES) return 'full';
+  if (minute % SWEEP_BACKFILL_EVERY_MINUTES !== 0) return 'money-only';
+  return (await allPublished()) ? 'money-only' : 'full';
+}
+
+/**
+ * Outside the hourly window, the full sweep is needed only while some active binding accepted by
+ * the native collector's binding guard lacks a publication for that same company, binding
+ * activation, version, and project map. A binding without its first publication keeps the
+ * five-minute full cadence while its matching native report batch started within six hours or
+ * recorded a report acquisition within the last six hours. Other bindings stay on the hourly
+ * cadence. The publication context is written only by the native snapshot trigger for a committed
+ * generation; attempts and legacy status fields do not establish publication.
  */
 async function allActiveBindingsHavePublishedStatementGeneration(serviceClient: SupabaseClient): Promise<boolean> {
   const { data, error } = await serviceClient.from('external_org_bindings')
@@ -2948,6 +2985,9 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
   }
 
   let maintenanceRequest: { org_id: string; after_id: string | null } | null = null;
+  // `{"mode":"full"}` (behind the same sweep secret) forces the hourly work on this tick — for an
+  // operator or a test that cannot wait for the hour. The cron keeps posting `{}`.
+  let forceFull = false;
   const requestBody = await req.text();
   if (requestBody.trim()) {
     let payload: unknown;
@@ -2956,7 +2996,9 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
       ? payload as Record<string, unknown> : null;
     const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
     // The pg_cron tick (erpnext_sweep_tick) posts `{}` — an empty object is the normal sweep, not a maintenance request.
-    if (!(object && Object.keys(object).length === 0)) {
+    if (object && Object.keys(object).length === 1 && object.mode === 'full') {
+      forceFull = true;
+    } else if (!(object && Object.keys(object).length === 0)) {
       if (!object || object.mode !== 'repair-invoice-projects' || typeof object.org_id !== 'string'
           || !uuid.test(object.org_id) || !(object.after_id === null || (typeof object.after_id === 'string' && uuid.test(object.after_id)))) {
         return json({ error: 'INVALID_REQUEST' }, 400);
@@ -3001,9 +3043,11 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     return json({ ok: result.failedIds.length === 0, ...result });
   }
 
-  if (new Date(handlerEntryMs).getUTCMinutes() >= 5 && await allActiveBindingsHavePublishedStatementGeneration(serviceClient)) {
-    return json({ ok: true, skipped: true });
-  }
+  // #1212 keeps the expensive inbound/statement work hourly; the owner ruling of 2026-10-23 keeps the
+  // outbound money passes on every tick. A tick between the hourly windows is `money-only`, never a skip.
+  const cadence: ErpSweepCadence = forceFull
+    ? 'full'
+    : await sweepCadenceAt(handlerEntryMs, () => allActiveBindingsHavePublishedStatementGeneration(serviceClient));
 
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
@@ -3063,8 +3107,8 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
-  }, erpAuth);
-  return json({ ok: true, ...cycle });
+  }, erpAuth, cadence);
+  return json({ ok: true, cadence, ...cycle });
 });
 
 /**

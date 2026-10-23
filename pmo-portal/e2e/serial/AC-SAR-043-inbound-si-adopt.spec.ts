@@ -200,7 +200,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation â
       const sweepRes = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-        body: JSON.stringify({ scope: 'revenue', org_id: ORG_ID }),
+        body: JSON.stringify({ mode: 'full' }),
       });
       // Sweep may return 200 or 202; either is fine as long as it doesn't 500
       expect([200, 202]).toContain(sweepRes.status);

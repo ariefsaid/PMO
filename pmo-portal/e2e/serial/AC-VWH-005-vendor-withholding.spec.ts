@@ -210,7 +210,7 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ org_id: ORG_ID }),
+      body: JSON.stringify({ mode: 'full' }),
     });
     expect([200, 202]).toContain(sweep.status);
     await sweep.arrayBuffer();
