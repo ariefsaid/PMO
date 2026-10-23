@@ -23,20 +23,33 @@ Deno.test('AC-PFE-040 sends 2 distinct purchase orders for repeated lines, and [
     return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200 }));
   }) as unknown as typeof fetch;
   const rows: Array<{ erp_name: string; purchase_orders?: string[] }> = [];
-  const table = {
-    select: () => table, eq: () => table, maybeSingle: () => Promise.resolve({ data: null, error: null }),
-    upsert: () => Promise.resolve({ error: null }),
-    update: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ eq: () => Promise.resolve({ count: 1, error: null }) }) }) }) }),
+  // Stateful watermark table: upsert stores by domain, select/eq/maybeSingle reads it back.
+  const stored = new Map<string, string>();
+  const from = () => {
+    let domain = '';
+    const q = {
+      select: () => q,
+      eq: (col: string, v: string) => { if (col === 'domain') domain = v; return q; },
+      maybeSingle: () => Promise.resolve({ data: stored.has(domain) ? { watermark_cursor: stored.get(domain) } : null, error: null }),
+      update: (patch: { watermark_cursor: string }) => {
+        const u = {
+          eq: (col: string, v: string) => { if (col === 'domain') domain = v; return u; },
+          then: (ok: (v: unknown) => unknown) => { stored.set(domain, patch.watermark_cursor); return Promise.resolve({ count: 1, error: null }).then(ok); },
+        };
+        return u;
+      },
+      upsert: (row: { domain: string; watermark_cursor: string }) => { stored.set(row.domain, row.watermark_cursor); return Promise.resolve({ error: null }); },
+    };
+    return q;
   };
   const sc = {
-    from: () => table,
+    from,
     rpc: (_n: string, a: { p_rows: typeof rows }) => { rows.push(...a.p_rows); return Promise.resolve({ data: a.p_rows.length, error: null }); },
   };
-  try {
-    await feedPurchaseMirror(sc as never, {
-      client: { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 }, orgId: 'org-1', company: 'Example Co',
-    });
-  } catch (_e) { /* cursor persistence against the stub is not under test */ }
+  const result = await feedPurchaseMirror(sc as never, {
+    client: { fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 }, orgId: 'org-1', company: 'Example Co',
+  });
+  assertEquals(result.caughtUp, true);
   assertEquals(rows.find((r) => r.erp_name === 'PINV-1')?.purchase_orders, ['PO-1', 'PO-2']);
   assertEquals(rows.find((r) => r.erp_name === 'PINV-2')?.purchase_orders, []);
 });

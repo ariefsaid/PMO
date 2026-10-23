@@ -12,7 +12,10 @@ export type PurchaseDoctype = 'Purchase Order' | 'Purchase Receipt' | 'Purchase 
 export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'];
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
 const CURSOR_VERSION = 2;
-const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::v2::${doctype}`;
+// Orders and invoices moved to a v3 cursor namespace so rows mirrored before net_total / purchase_orders existed
+// are re-read once. A v3 namespace never falls back to the legacy timestamp (that would skip the re-read).
+const REREAD_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
+const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::${REREAD_DOCTYPES.includes(doctype) ? 'v3' : 'v2'}::${doctype}`;
 
 const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
   'Purchase Order': ['name', 'supplier', 'supplier_name', 'transaction_date', 'schedule_date', 'currency',
@@ -21,8 +24,8 @@ const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
     'grand_total', 'net_total', 'status', 'docstatus', 'is_return', 'project', 'modified'],
   'Purchase Invoice': ['name', 'supplier', 'supplier_name', 'posting_date', 'due_date', 'bill_no', 'currency',
     'grand_total', 'net_total', 'outstanding_amount', 'status', 'docstatus', 'is_return', 'project', 'modified'],
-  'Payment Entry': ['name', 'party', 'party_name', 'posting_date', 'paid_from_account_currency',
-    'paid_amount', 'status', 'docstatus', 'project', 'modified'],
+  'Payment Entry': ['name', 'party', 'party_name', 'posting_date', 'paid_to_account_currency',
+    'received_amount', 'status', 'docstatus', 'project', 'modified'],
 };
 /** Extra list filters per doctype: only supplier payments are purchase documents. */
 const EXTRA_FILTERS: Partial<Record<PurchaseDoctype, unknown[]>> = {
@@ -90,8 +93,9 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
     doc_date: date(isPo ? d.transaction_date : d.posting_date),
     due_date: isPi ? date(d.due_date) : isPo ? date(d.schedule_date) : null,
     bill_no: isPi ? str(d.bill_no) : null,
-    currency: str(isPe ? d.paid_from_account_currency : d.currency),
-    grand_total: money(isPe ? d.paid_amount : d.grand_total),
+    // Payment Entry: the supplier (payables) side, not the bank side, so a USD supplier paid from an IDR bank mirrors USD.
+    currency: str(isPe ? d.paid_to_account_currency : d.currency),
+    grand_total: money(isPe ? d.received_amount : d.grand_total),
     net_total: isPe ? null : money(d.net_total),
     outstanding_amount: isPi ? money(d.outstanding_amount) : null,
     erp_status: str(d.status),
@@ -136,31 +140,43 @@ async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company
 }
 
 const ITEM_PAGE_SIZE = 1000;
-const MAX_ITEM_PAGES = 10;
+// Per batch: 50 invoices x up to ~1000 lines each is far beyond any real invoice; still, hitting it is reported honestly.
+const MAX_ITEM_PAGES_PER_BATCH = 50;
+// 50 names keep the item URL near 1.5 KB (500 names was ~14 KB and risked rejection, wedging the pass).
+const ITEM_BATCH_SIZE = 50;
 
 /** Distinct, non-empty Purchase Order names per invoice, read from the Purchase Invoice Item child rows.
- * A failed or malformed read throws: sending an empty list would silently skip the link check. */
+ * A failed or malformed read throws: sending an empty list would silently skip the link check.
+ * Request cost: ceil(invoices / 50) item reads (more only for very long invoices) per Purchase Invoice page. */
 async function readInvoiceOrders(client: ErpClientDeps, invoiceNames: string[], deadline: number): Promise<Map<string, string[]>> {
   const orders = new Map<string, Set<string>>(invoiceNames.map((n) => [n, new Set<string>()]));
-  for (let page = 0; page < MAX_ITEM_PAGES; page += 1) {
-    const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
-    const qs = `parent=${encodeURIComponent('Purchase Invoice')}&filters=${encodeURIComponent(JSON.stringify([['parent', 'in', invoiceNames]]))}`
-      + `&fields=${encodeURIComponent(JSON.stringify(['parent', 'purchase_order']))}`
-      + `&limit_page_length=${ITEM_PAGE_SIZE}&limit_start=${page * ITEM_PAGE_SIZE}&order_by=${encodeURIComponent('parent asc, idx asc')}`;
-    const body = await erpnextRequest({ ...client, timeoutMs: Math.min(REQUEST_TIMEOUT_MS, remainingMs) },
-      { method: 'GET', path: `/api/resource/${encodeURIComponent('Purchase Invoice Item')}?${qs}` });
-    const rows = (body as { data?: unknown } | null)?.data;
-    if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).parent === 'string')) {
-      throw new AppError('ERPNext Purchase Invoice Item list response was malformed', 'external-unreachable');
+  for (let at = 0; at < invoiceNames.length; at += ITEM_BATCH_SIZE) {
+    const batch = invoiceNames.slice(at, at + ITEM_BATCH_SIZE);
+    let complete = false;
+    for (let page = 0; page < MAX_ITEM_PAGES_PER_BATCH && !complete; page += 1) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
+      const qs = `parent=${encodeURIComponent('Purchase Invoice')}&filters=${encodeURIComponent(JSON.stringify([['parent', 'in', batch]]))}`
+        + `&fields=${encodeURIComponent(JSON.stringify(['parent', 'purchase_order']))}`
+        + `&limit_page_length=${ITEM_PAGE_SIZE}&limit_start=${page * ITEM_PAGE_SIZE}&order_by=${encodeURIComponent('parent asc, idx asc')}`;
+      const body = await erpnextRequest({ ...client, timeoutMs: Math.min(REQUEST_TIMEOUT_MS, remainingMs) },
+        { method: 'GET', path: `/api/resource/${encodeURIComponent('Purchase Invoice Item')}?${qs}` });
+      const rows = (body as { data?: unknown } | null)?.data;
+      if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).parent === 'string')) {
+        throw new AppError('ERPNext Purchase Invoice Item list response was malformed', 'external-unreachable');
+      }
+      for (const r of rows as Array<{ parent: string; purchase_order?: unknown }>) {
+        const po = str(r.purchase_order);
+        if (po !== null) orders.get(r.parent)?.add(po);
+      }
+      complete = rows.length < ITEM_PAGE_SIZE;
     }
-    for (const r of rows as Array<{ parent: string; purchase_order?: unknown }>) {
-      const po = str(r.purchase_order);
-      if (po !== null) orders.get(r.parent)?.add(po);
+    if (!complete) {
+      throw new AppError(`Purchase Invoice item lines for ${batch.length} invoices exceeded ${MAX_ITEM_PAGES_PER_BATCH * ITEM_PAGE_SIZE} rows; `
+        + 'the invoice list was not mirrored (no partial purchase-order list is sent)', 'external-unreachable');
     }
-    if (rows.length < ITEM_PAGE_SIZE) return new Map([...orders].map(([k, v]) => [k, [...v]]));
   }
-  throw new AppError('Purchase Invoice item lines exceeded the page cap; resume on the next sweep', 'external-unreachable');
+  return new Map([...orders].map(([k, v]) => [k, [...v]]));
 }
 
 async function withinBudget<T>(deadline: number, operation: () => PromiseLike<T>): Promise<T> {
@@ -211,7 +227,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
-    const legacy = stored === null ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
+    const legacy = stored === null && !REREAD_DOCTYPES.includes(doctype) ? await withinBudget(deadline, () => readWm(sc, opts.orgId, purchaseWmDomain(doctype))) : null;
     const cursor = parseCursor(stored ?? legacy);
     // Every cursor resumes inclusively: name-bearing cursors replay their boundary row, while legacy
     // and name-less cursors replay the whole timestamp boundary before advancing strictly past it.
