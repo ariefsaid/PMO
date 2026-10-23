@@ -152,3 +152,20 @@ Deno.test('AC-ENA-CAD-006: a forced full tick stamps every org it ran in full; a
     markFullSweepDone: (o) => { stamped.push(o.orgId); return Promise.resolve(); } }, undefined, 'money-only');
   assert(stamped.length === 0, 'a money-only run must not stamp a full run');
 });
+
+Deno.test('AC-ENA-CAD-004: a full tick runs the money backstops BEFORE the hourly block, so an isolate death in the hourly block never starves money postings', async () => {
+  const visited: string[] = [];
+  const deps = {
+    ...recordingDeps(visited),
+    // Simulates the hourly block dying (CPU-limit kill): its first step fails and records the call first.
+    sweepOrgDoctypes: () => { visited.push('sweep'); return Promise.reject(new Error('synthetic isolate death')); },
+  };
+  await runErpSweepCycle(deps, undefined, 'full');
+  const sweepAt = visited.indexOf('sweep');
+  assert(sweepAt >= 0, `the hourly block must still run: ${JSON.stringify(visited)}`);
+  for (const pass of ['reconcile', 'budget', 'timesheet', 'expenses']) {
+    const at = visited.indexOf(pass);
+    assert(at >= 0 && at < sweepAt, `${pass} must run before the hourly sweep, got ${JSON.stringify(visited)}`);
+  }
+  assert(visited[0] === 'reconcile', `outbox recovery must stay first, got ${JSON.stringify(visited)}`);
+});
