@@ -52,7 +52,7 @@ sign-in that is no longer used expires on its own.
 | Variable | Meaning | Default |
 |---|---|---|
 | `PMO_SUPABASE_URL` | Supabase project URL (`--url`) | `http://127.0.0.1:54321` (local stack) |
-| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | the key saved by `pmo login` (set it once at login; later calls need no env var) |
+| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | the key saved by `pmo login` (set it once at login; later calls need no env var); secret keys (`sb_secret_…`, or a JWT with role `service_role`) are refused and never saved |
 | `PMO_CLIENT_ID` | the registered client id (`--client-id`), needed for `login` | none |
 | `PMO_CONFIG_DIR` | where credentials are stored | `~/.config/pmo` |
 
@@ -306,7 +306,7 @@ node scripts/pmo.mjs documents link links.json --dry-run
 node scripts/pmo.mjs documents link links.csv
 ```
 
-Link input is a JSON array or CSV with columns `project_id,budget_version_id,procurement_id,drive_id,item_id,web_url,name,kind`. Each row names exactly one target id; `kind` is `file` or `folder`. `--dry-run` uses the same org-, role- and reference-validation RPC as a real run and returns its validation plan without writes. Active Admin, Executive, Project Manager and Finance memberships can link; unlinking stays in the app. Link files are limited to 500 rows per call.
+Link input is a JSON array or CSV with columns `project_id,budget_version_id,procurement_id,drive_id,item_id,web_url,name,kind`. Each row names exactly one target id; `kind` is `file` or `folder`. `--dry-run` uses the same org-, role- and reference-validation RPC as a real run and returns its validation plan without writes. Active Admin, Executive, Project Manager and Finance memberships can link; unlinking stays in the app. Every `web_url` must be on the organisation's own SharePoint host (taken from its default library); an organisation with no default library is refused with `m365_not_configured`. A folder already linked to another project or purchase is refused. Link files are limited to 500 rows per call.
 
 ## 8. Microsoft 365 setup — `pmo m365 status`
 
@@ -314,7 +314,7 @@ Link input is a JSON array or CSV with columns `project_id,budget_version_id,pro
 node scripts/pmo.mjs m365 status
 ```
 
-Reports the configured default library, the caller's Microsoft connection status, and the latest `Link existing folders` sweep state, counts and unmatched record ids. Sweep summaries accumulate across pages and are scoped to the organization.
+Reports the configured default library, the caller's Microsoft connection status, and the latest `Link existing folders` sweep state, counts and unmatched record ids. Sweep summaries accumulate across pages and are scoped to the organization; the stored unmatched list is de-duplicated and capped at 500 (`unmatched_truncated` says when it was cut). A page whose summary could not be saved still succeeds and carries `summary_warning`.
 
 ## 9. For Claude Code
 

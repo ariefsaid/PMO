@@ -1,3 +1,5 @@
+-- Before running this file, roll back the m365-token-custody function deploy: that version saves the folder-sweep
+-- summary into the table dropped below.
 -- Rolls back 0367: restores 0364's exact guard body, drops the document batch RPC and sweep table.
 drop function if exists public.link_m365_documents_batch(jsonb,boolean);
 drop table if exists public.m365_record_folder_sweeps;

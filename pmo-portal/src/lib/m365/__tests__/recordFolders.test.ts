@@ -123,6 +123,13 @@ describe('AC-M365DOC-072 — linkExistingRecordFolders transport', () => {
     });
   });
 
+  it('passes through a summary warning and rejects a non-string one', async () => {
+    invoke.mockResolvedValueOnce({ data: page({ summary_warning: 'not saved' }), error: null });
+    expect((await linkExistingRecordFolders()).summary_warning).toBe('not saved');
+    invoke.mockResolvedValueOnce({ data: page({ summary_warning: 7 }), error: null });
+    await expect(linkExistingRecordFolders()).rejects.toBeDefined();
+  });
+
   it('passes through a stopped marker', async () => {
     invoke.mockResolvedValueOnce({ data: page({ stopped: 'connection' }), error: null });
     expect((await linkExistingRecordFolders()).stopped).toBe('connection');

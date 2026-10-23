@@ -79,6 +79,9 @@ async function fetchCandidates(
   return ids;
 }
 
+/** Most unmatched record ids kept in the stored sweep summary (the rest are flagged as truncated). */
+const UNMATCHED_STORE_CAP = 500;
+
 export async function handleLinkExistingRecordFolders(
   body: unknown,
   deps: HandlerDeps,
@@ -217,21 +220,29 @@ export async function handleLinkExistingRecordFolders(
   } else {
     page.next = null;
   }
-  const firstPage = request.cursor.kind === "project" && request.cursor.after === null;
-  let prior: { counts?: Record<string, number>; unmatched?: string[] } | null = null;
-  if (!firstPage) {
-    const { data, error } = await deps.serviceClient.from("m365_record_folder_sweeps")
-      .select("counts,unmatched").eq("org_id", caller.orgId).maybeSingle();
-    if (error) return failure(500, "INTERNAL_ERROR", "Could not save the folder-sweep summary.");
-    prior = data as { counts?: Record<string, number>; unmatched?: string[] } | null;
+  // The running summary is advisory (`pmo m365 status`): a failed save never fails a page whose links already landed.
+  try {
+    const firstPage = request.cursor.kind === "project" && request.cursor.after === null;
+    type SweepPrior = { counts?: Record<string, number>; unmatched?: string[]; unmatched_truncated?: boolean };
+    let prior = null as SweepPrior | null;
+    if (!firstPage) {
+      const { data, error } = await deps.serviceClient.from("m365_record_folder_sweeps")
+        .select("counts,unmatched,unmatched_truncated").eq("org_id", caller.orgId).maybeSingle();
+      if (error) throw error;
+      prior = data as SweepPrior | null;
+    }
+    const countKeys = ["scanned", "linked", "needs_choice", "missing", "failed", "skipped"] as const;
+    const counts = Object.fromEntries(countKeys.map((key) => [key, (prior?.counts?.[key] ?? 0) + page[key]]));
+    const all = [...new Set([...(prior?.unmatched ?? []), ...page.unmatched])];
+    const { error: saveError } = await deps.serviceClient.from("m365_record_folder_sweeps").upsert({
+      org_id: caller.orgId, actor_id: deps.userId, state: page.next ? "in_progress" : "complete",
+      counts, unmatched: all.slice(0, UNMATCHED_STORE_CAP),
+      unmatched_truncated: Boolean(prior?.unmatched_truncated) || all.length > UNMATCHED_STORE_CAP,
+      updated_at: (deps.now?.() ?? new Date()).toISOString(),
+    }, { onConflict: "org_id" }).select("org_id").single();
+    if (saveError) throw saveError;
+  } catch {
+    page.summary_warning = "The folder-sweep summary could not be saved; the links above were made.";
   }
-  const countKeys = ["scanned", "linked", "needs_choice", "missing", "failed", "skipped"] as const;
-  const counts = Object.fromEntries(countKeys.map((key) => [key, (prior?.counts?.[key] ?? 0) + page[key]]));
-  const unmatched = [...(prior?.unmatched ?? []), ...page.unmatched];
-  const { error: saveError } = await deps.serviceClient.from("m365_record_folder_sweeps").upsert({
-    org_id: caller.orgId, actor_id: deps.userId, state: page.next ? "in_progress" : "complete",
-    counts, unmatched, updated_at: (deps.now?.() ?? new Date()).toISOString(),
-  }, { onConflict: "org_id" }).select("org_id").single();
-  if (saveError) return failure(500, "INTERNAL_ERROR", "Could not save the folder-sweep summary.");
   return { status: 200, body: page, headers: HEADERS };
 }

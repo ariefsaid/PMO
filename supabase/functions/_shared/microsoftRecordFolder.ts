@@ -21,6 +21,8 @@ export interface RecordFolderBackfillPage {
   failed: number;
   skipped: number;
   unmatched: string[];
+  /** Set only when the running summary for `pmo m365 status` could not be saved; the page itself succeeded. */
+  summary_warning?: string;
   next: RecordFolderCursor | null;
   stopped?: 'connection' | 'default_changed' | 'unavailable';
   /** Capped whole seconds Microsoft asked us to wait, present only with `stopped: 'unavailable'`. */

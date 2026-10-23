@@ -18,6 +18,8 @@ import test from 'node:test';
 
 import {
   ADMIN_RPCS,
+  OPERATOR_READ_RPCS,
+  OPERATOR_READ_TABLES,
   ALLOWED_RPCS,
   ALLOWED_TABLES,
   READ_ONLY_TABLES,
@@ -935,7 +937,10 @@ test('AC-CLI-009: RPCs outside the allow-list are refused — no money, transiti
 // ── AC-CLI-014: profiles, read-only and narrowed ─────────────────────────────────────────────────
 
 test('AC-CLI-014: profiles is readable only, through a fixed set of non-sensitive columns', () => {
-  assert.deepEqual(Object.keys(READ_ONLY_TABLES), ['profiles', 'external_domain_ownership', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'budget_versions', 'budget_line_items']);
+  const sweepsOnly = ['m365_record_folder_sweeps']; // read by `pmo m365 status` with a fixed select, not through `pmo get`
+  assert.deepEqual(
+    Object.keys(READ_ONLY_TABLES).sort(),
+    ['profiles', 'external_domain_ownership', ...OPERATOR_READ_TABLES.filter((t) => !sweepsOnly.includes(t))].sort());
   assert.deepEqual(READ_ONLY_TABLES.profiles, ['id', 'full_name', 'role', 'title', 'status']);
   assert.equal(ALLOWED_TABLES.includes('profiles'), false, 'profiles is not writable');
 });
@@ -1115,8 +1120,8 @@ function guardList(name) {
 test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration defining api_client_request_guard)', () => {
   assert.deepEqual(guardList('write_tables'), [...ALLOWED_TABLES].sort());
   assert.deepEqual(guardList('read_only_tables'), ['external_domain_ownership', 'profiles']);
-  assert.deepEqual(guardList('operator_read_tables'), ['budget_category_account_map', 'budget_line_items', 'budget_versions', 'erp_gl_entry_mirror', 'm365_record_folder_sweeps', 'org_m365_document_settings', 'project_documents']);
-  assert.deepEqual(guardList('operator_read_rpcs'), ['link_m365_documents_batch', 'project_mapped_actuals']);
+  assert.deepEqual(guardList('operator_read_tables'), [...OPERATOR_READ_TABLES].sort());
+  assert.deepEqual(guardList('operator_read_rpcs'), [...OPERATOR_READ_RPCS].sort());
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
 });
 
@@ -1272,6 +1277,33 @@ test('documents link reads a CSV file, sends one batch, and rejects unknown colu
     const before = fake.requests.length;
     const refused = await runCli(['documents', 'link', bad, '--url', fake.url], { configDir });
     assert.equal(refused.code, 2); assert.equal(fake.requests.length, before);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('privileged keys are refused from every source and never saved', async () => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const serviceJwt = `${b64({ alg: 'HS256' })}.${b64({ role: 'service_role' })}.sig`;
+  const anonJwt = `${b64({ alg: 'HS256' })}.${b64({ role: 'anon' })}.sig`;
+  const fake = await fakeSupabase(); const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [label, argv, env] of [
+      ['secret key in env', ['get', 'projects'], { PMO_SUPABASE_KEY: 'sb_secret_abc' }],
+      ['service_role jwt in env', ['get', 'projects'], { PMO_SUPABASE_KEY: serviceJwt }],
+      ['service_role jwt via --key', ['get', 'projects', '--key', serviceJwt], {}],
+      ['secret key at login', ['login', '--no-browser', '--timeout', '1'], { PMO_SUPABASE_KEY: 'sb_secret_abc' }],
+    ]) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir, env });
+      assert.equal(r.code, 2, label);
+      assert.match(r.err, /secret \(service-role\) key/, label);
+    }
+    assert.equal(fake.requests.length, 0, 'nothing was sent with a privileged key');
+    seedCredentials(configDir, fake.url, { publishable_key: serviceJwt });
+    const stored = await runCli(['get', 'projects', '--url', fake.url], { configDir, env: { PMO_SUPABASE_KEY: undefined } });
+    assert.equal(stored.code, 2, 'a stored privileged key is refused too');
+    seedCredentials(configDir, fake.url);
+    const ok = await runCli(['get', 'projects', '--url', fake.url], { configDir, env: { PMO_SUPABASE_KEY: anonJwt } });
+    assert.equal(ok.code, 0, ok.err);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 

@@ -379,3 +379,40 @@ Deno.test("AC-M365DOC-072 backfill never auto-links a folder already linked to a
     assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0);
   });
 });
+
+Deno.test("AC-M365DOC-072 the running summary never fails a page: a save error becomes summary_warning", async () => {
+  const world = sweepWorld({
+    projects: [1], projectItems: [{ id: "found-C-1", name: "C-1 Synthetic" }],
+    extra: { sweepSave: () => jsonResponse({ message: "boom" }, { status: 500 }) },
+  });
+  await run(world, async ({ call }) => {
+    const response = await call(sweep);
+    assertEquals(response.status, 200);
+    const body = await page(response);
+    assertEquals(body.linked, 1);
+    assert(typeof (body as { summary_warning?: string }).summary_warning === "string");
+  });
+});
+
+Deno.test("AC-M365DOC-072 the stored unmatched list is de-duplicated, capped at 500 and flagged truncated", async () => {
+  const prior = Array.from({ length: 499 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  const world = sweepWorld({
+    projects: [], cases: [1, 2], caseItems: [],
+    extra: {
+      sweepPrior: {
+        counts: { scanned: 3, linked: 0, needs_choice: 0, missing: 3, failed: 0, skipped: 0 },
+        unmatched: [...prior, caseId(1)], unmatched_truncated: false,
+      },
+    },
+  });
+  await run(world, async ({ call, calls }) => {
+    const body = await page(await call({ ...sweep, cursor: { kind: "procurement", after: null } }));
+    assertEquals(body.unmatched, [caseId(1), caseId(2)]);
+    const [saved] = tableCalls(calls, "m365_record_folder_sweeps").filter((c) => c.method === "POST");
+    const row = saved!.bodyJson as { unmatched: string[]; unmatched_truncated: boolean; counts: Record<string, number> };
+    assertEquals(row.unmatched.length, 500);
+    assertEquals(new Set(row.unmatched).size, 500, "no duplicates");
+    assertEquals(row.unmatched_truncated, true);
+    assertEquals(row.counts.scanned, 5, "counts accumulate across pages");
+  });
+});

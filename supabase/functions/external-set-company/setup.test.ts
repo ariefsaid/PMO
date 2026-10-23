@@ -1426,6 +1426,16 @@ Deno.test("AC-EXP-120 an Admin maps project_direct_cost to an Expense account; a
   assertEquals(restCall(cleared.calls, "expense_account_map", "DELETE")[0].url.searchParams.get("account_key"), "eq.project_direct_cost");
 });
 
+Deno.test("pmo erp read actions are Admin-only: Executive, Project Manager and Finance are refused with 403", async () => {
+  for (const role of ["Executive", "Project Manager", "Finance", "Engineer"]) {
+    for (const setupAction of ["verify-links", "readiness", "list-projects"]) {
+      const status = await withFetchMock([...base(role)], async () =>
+        (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction }))).status);
+      assertEquals(status, 403, `${role} ${setupAction}`);
+    }
+  }
+});
+
 Deno.test("pmo erp verify-links checks both ERP project code and name for every mapped project", async () => {
   const result = await withFetchMock([
     ...base(),

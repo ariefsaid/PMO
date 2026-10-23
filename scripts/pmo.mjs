@@ -77,6 +77,8 @@ export const READ_ONLY_TABLES = Object.freeze({
  * Never a money, transition or budget-activation RPC (DD-API-3).
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
+/** The operator read tier (migration 0367): active Admin/Executive/PM/Finance tokens, GET only. Mirrors the guard's `operator_read_tables`. */
+export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps']);
 export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link_m365_documents_batch']);
 
 /**
@@ -718,7 +720,23 @@ function resolveTarget(env, flags) {
   if (!key) {
     throw usage("Set PMO_SUPABASE_KEY to the project's publishable (anon) key — for the local stack, `supabase status` prints it");
   }
+  assertPublishableKey(key);
   return { supabaseUrl: raw, key };
+}
+
+/** The CLI sends this key as `apikey` and persists it, so it must never be a privileged one. */
+export function assertPublishableKey(key) {
+  const refuse = () => usage('That is a secret (service-role) key, not the publishable key. The CLI never saves or uses it; use the project\'s publishable (anon) key.');
+  if (/^sb_secret_/.test(key)) throw refuse();
+  const parts = String(key).split('.');
+  if (parts.length === 3) {
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+      if (payload?.role === 'service_role') throw refuse();
+    } catch (error) {
+      if (error instanceof CliError) throw error;
+    }
+  }
 }
 
 const USAGE = `usage:
@@ -944,7 +962,7 @@ async function m365(ctx, positionals) {
   if (positionals[0] !== 'status') throw usage('Use pmo m365 status.');
   const [settings, sweeps, connection] = await Promise.all([
     authed(ctx, 'GET', '/rest/v1/org_m365_document_settings?select=default_site_id,default_site_name,default_drive_id,default_drive_name,updated_at'),
-    authed(ctx, 'GET', '/rest/v1/m365_record_folder_sweeps?select=state,counts,unmatched,updated_at'),
+    authed(ctx, 'GET', '/rest/v1/m365_record_folder_sweeps?select=state,counts,unmatched,unmatched_truncated,updated_at'),
     authed(ctx, 'POST', '/functions/v1/m365-token-custody', { body: { action: 'connection_status' } }),
   ]);
   return { default_library: settings?.[0] ?? null, connection, last_folder_sweep: sweeps?.[0] ?? null };
