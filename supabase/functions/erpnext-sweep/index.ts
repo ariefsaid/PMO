@@ -714,8 +714,39 @@ export async function runErpSweepCycle(
     } catch (err) {
       errors.push(`reconcile:${err instanceof Error ? err.message : String(err)}`);
     }
+    // (5) P3c — the budget push's sweep backstop (FR-BUD-141). The money passes (5)–(7) run right after (1) and BEFORE
+    // the hourly block: if the hourly block dies (isolate CPU kill) the org stays due, and money must not starve behind
+    // it. Same try/catch shape as its siblings so one org's failure never aborts the loop.
+    if (deps.reconcileOrgBudgetPushes) {
+      try {
+        const r = await deps.reconcileOrgBudgetPushes(org);
+        if (r.error) errors.push(`budget:${r.error}`);
+      } catch (err) {
+        errors.push(`budget:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (6) P3b — the timesheet push's sweep backstop (FR-TSP-045). Same try/catch shape as its siblings
+    // so one org's failure never aborts the loop.
+    if (deps.reconcileOrgTimesheetPushes) {
+      try {
+        const r = await deps.reconcileOrgTimesheetPushes(org);
+        if (r.error) errors.push(`timesheet:${r.error}`);
+      } catch (err) {
+        errors.push(`timesheet:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (7) #775 phase B — expense postings: an approval posted by this pass reaches the GL mirror on a later
+    // full tick's ledger feed (3). Same try/catch shape as its siblings.
+    if (deps.reconcileOrgExpensePostings) {
+      try {
+        const r = await deps.reconcileOrgExpensePostings(org);
+        if (r.error) errors.push(`expenses:${r.error}`);
+      } catch (err) {
+        errors.push(`expenses:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
-    // tick skips them and goes straight to the outbound money passes (5)–(7).
+    // tick skips them (the money passes (5)–(7) above have already run).
     let sweep: { applied: number } | undefined;
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     if (hourly) {
@@ -784,36 +815,6 @@ export async function runErpSweepCycle(
         } catch (err) {
           errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
         }
-      }
-    }
-    // (5) P3c — the budget push's sweep backstop (FR-BUD-141). AFTER everything else, in the SAME
-    // try/catch shape as its siblings so one org's failure never aborts the loop.
-    if (deps.reconcileOrgBudgetPushes) {
-      try {
-        const r = await deps.reconcileOrgBudgetPushes(org);
-        if (r.error) errors.push(`budget:${r.error}`);
-      } catch (err) {
-        errors.push(`budget:${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-    // (6) P3b — the timesheet push's sweep backstop (FR-TSP-045). Same try/catch shape as its siblings
-    // so one org's failure never aborts the loop.
-    if (deps.reconcileOrgTimesheetPushes) {
-      try {
-        const r = await deps.reconcileOrgTimesheetPushes(org);
-        if (r.error) errors.push(`timesheet:${r.error}`);
-      } catch (err) {
-        errors.push(`timesheet:${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-    // (7) #775 phase B — expense postings, LAST: an approval posted by this pass reaches the GL mirror on the next
-    // full tick's (3). Same try/catch shape as its siblings.
-    if (deps.reconcileOrgExpensePostings) {
-      try {
-        const r = await deps.reconcileOrgExpensePostings(org);
-        if (r.error) errors.push(`expenses:${r.error}`);
-      } catch (err) {
-        errors.push(`expenses:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', reconcile, sweep, ledger, errors });
