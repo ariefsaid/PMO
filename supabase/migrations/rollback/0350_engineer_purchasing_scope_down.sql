@@ -1,4 +1,4 @@
--- Reverse 0350. Drops the Engineer read-scope policies and restores verbatim the storage read policy
+-- Reverse 0350. Drops the read-scope policies and restores verbatim the storage read policy
 -- from 0310 and procurement_payment_within_ceiling from 0349.
 
 drop policy if exists procurements_engineer_read_scope on public.procurements;
@@ -24,9 +24,14 @@ drop policy if exists sales_invoice_authors_engineer_read_scope on public.sales_
 drop policy if exists sales_invoice_submit_authorizations_engineer_read_scope on public.sales_invoice_submit_authorizations;
 drop policy if exists incoming_payments_engineer_read_scope on public.incoming_payments;
 drop policy if exists vendor_withholding_slips_engineer_read_scope on public.vendor_withholding_slips;
+drop policy if exists progress_claims_engineer_read_scope on public.progress_claims;
+drop policy if exists progress_claim_lines_engineer_read_scope on public.progress_claim_lines;
+drop policy if exists progress_claim_evidence_engineer_read_scope on public.progress_claim_evidence;
 drop policy if exists erp_ap_aging_snapshot_engineer_read_scope on public.erp_ap_aging_snapshot;
 drop policy if exists erp_ar_aging_snapshot_engineer_read_scope on public.erp_ar_aging_snapshot;
 drop policy if exists external_command_outbox_engineer_read_scope on public.external_command_outbox;
+drop policy if exists external_refs_engineer_read_scope on public.external_refs;
+drop policy if exists external_ref_lineage_engineer_read_scope on public.external_ref_lineage;
 
 -- storage read -> 0310
 alter policy storage_objects_proc_file_read on storage.objects using (

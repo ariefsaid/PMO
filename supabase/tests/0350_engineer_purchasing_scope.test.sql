@@ -159,6 +159,32 @@ insert into storage.objects (id, bucket_id, name, owner) values
   ('03500051-0000-0000-0000-000000000003', 'procurement-files', '03500000-0000-0000-0000-0000000000b0/03500001-0000-0000-0000-000000000003/invoice/03500051-0000-0000-0000-000000000003/f.pdf', '03500000-0000-0000-0000-0000000000e9'),
   ('03500052-0000-0000-0000-000000000003', 'procurement-files', '03500000-0000-0000-0000-0000000000b0/03500001-0000-0000-0000-000000000003/payment/03500052-0000-0000-0000-000000000003/f.pdf', '03500000-0000-0000-0000-0000000000e9');
 
+-- Client billing: one progress claim per organisation, with a line and an evidence link.
+insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by) values
+  ('03500060-0000-0000-0000-000000000001', '03500000-0000-0000-0000-0000000000a0', '03500000-0000-0000-0000-0000000000f1', 'progress', 'IDR', 5000, '03500000-0000-0000-0000-0000000000c2'),
+  ('03500060-0000-0000-0000-000000000002', '03500000-0000-0000-0000-0000000000b0', '03500000-0000-0000-0000-0000000000f1', 'progress', 'IDR', 5000, '03500000-0000-0000-0000-0000000000e9');
+insert into progress_claim_lines (id, org_id, claim_id, boq_item_id, item_code, description, unit, quantity, rate, amount) values
+  ('03500061-0000-0000-0000-000000000001', '03500000-0000-0000-0000-0000000000a0', '03500060-0000-0000-0000-000000000001', gen_random_uuid(), 'EPS-1', 'EPS line 1', 'ea', 1, 5000, 5000),
+  ('03500061-0000-0000-0000-000000000002', '03500000-0000-0000-0000-0000000000b0', '03500060-0000-0000-0000-000000000002', gen_random_uuid(), 'EPS-2', 'EPS line 2', 'ea', 1, 5000, 5000);
+insert into progress_claim_evidence (id, org_id, claim_id, document_id, document_status, attached_by) values
+  ('03500062-0000-0000-0000-000000000001', '03500000-0000-0000-0000-0000000000a0', '03500060-0000-0000-0000-000000000001', gen_random_uuid(), 'Approved', '03500000-0000-0000-0000-0000000000c2'),
+  ('03500062-0000-0000-0000-000000000002', '03500000-0000-0000-0000-0000000000b0', '03500060-0000-0000-0000-000000000002', gen_random_uuid(), 'Approved', '03500000-0000-0000-0000-0000000000e9');
+-- ERP reference ids: one revenue, one procurement and one companies reference (and lineage row) per organisation.
+insert into external_refs (id, org_id, domain, pmo_record_id, external_tier, external_record_id) values
+  ('03500070-0000-0000-0000-000000000001', '03500000-0000-0000-0000-0000000000a0', 'revenue', 'eps-ref-1', 'erpnext', 'SINV-EPS-1'),
+  ('03500070-0000-0000-0000-000000000002', '03500000-0000-0000-0000-0000000000a0', 'procurement', 'eps-ref-2', 'erpnext', 'PINV-EPS-2'),
+  ('03500070-0000-0000-0000-000000000003', '03500000-0000-0000-0000-0000000000a0', 'companies', 'eps-ref-3', 'erpnext', 'CUST-EPS-3'),
+  ('03500070-0000-0000-0000-000000000004', '03500000-0000-0000-0000-0000000000b0', 'revenue', 'eps-ref-4', 'erpnext', 'SINV-EPS-4'),
+  ('03500070-0000-0000-0000-000000000005', '03500000-0000-0000-0000-0000000000b0', 'procurement', 'eps-ref-5', 'erpnext', 'PINV-EPS-5'),
+  ('03500070-0000-0000-0000-000000000006', '03500000-0000-0000-0000-0000000000b0', 'companies', 'eps-ref-6', 'erpnext', 'CUST-EPS-6');
+insert into external_ref_lineage (id, org_id, domain, pmo_record_id, superseded_external_record_id, reason) values
+  ('03500071-0000-0000-0000-000000000001', '03500000-0000-0000-0000-0000000000a0', 'revenue', 'eps-ref-1', 'SINV-EPS-0', 'amended'),
+  ('03500071-0000-0000-0000-000000000002', '03500000-0000-0000-0000-0000000000a0', 'procurement', 'eps-ref-2', 'PINV-EPS-0', 'amended'),
+  ('03500071-0000-0000-0000-000000000003', '03500000-0000-0000-0000-0000000000a0', 'companies', 'eps-ref-3', 'CUST-EPS-0', 'amended'),
+  ('03500071-0000-0000-0000-000000000004', '03500000-0000-0000-0000-0000000000b0', 'revenue', 'eps-ref-4', 'SINV-EPS-9', 'amended'),
+  ('03500071-0000-0000-0000-000000000005', '03500000-0000-0000-0000-0000000000b0', 'procurement', 'eps-ref-5', 'PINV-EPS-9', 'amended'),
+  ('03500071-0000-0000-0000-000000000006', '03500000-0000-0000-0000-0000000000b0', 'companies', 'eps-ref-6', 'CUST-EPS-9', 'amended');
+
 set local session_replication_role = origin;
 
 set local role authenticated;
@@ -205,6 +231,15 @@ select results_eq($$select id from storage.objects where bucket_id = 'procuremen
 
 -- AC-SEC-226: the payment-ceiling read returns no bill amounts to an Engineer, even for their own request.
 select is_empty($$select * from public.procurement_payment_within_ceiling('03500001-0000-0000-0000-000000000001')$$, 'AC-SEC-226 payment ceiling returns no row to an Engineer');
+
+-- AC-SEC-230: an Engineer reads no client billing claims (a claim shares its id and amounts with its sales invoice).
+select is_empty($$select id from public.progress_claims$$, 'AC-SEC-230 Engineer reads no progress_claims');
+select is_empty($$select id from public.progress_claim_lines$$, 'AC-SEC-230 Engineer reads no progress_claim_lines');
+select is_empty($$select id from public.progress_claim_evidence$$, 'AC-SEC-230 Engineer reads no progress_claim_evidence');
+
+-- AC-SEC-231: an Engineer reads no revenue or procurement ERP reference ids; other domains unchanged.
+select results_eq($$select domain from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('companies'::text)$$, 'AC-SEC-231 Engineer reads no revenue or procurement external_refs; other domains unchanged');
+select results_eq($$select domain from public.external_ref_lineage where id::text like '03500071%' order by 1$$, $$values ('companies'::text)$$, 'AC-SEC-231 Engineer reads no revenue or procurement external_ref_lineage; other domains unchanged');
 
 -- AC-SEC-227: Project Manager, Finance, Executive and Admin reads are unchanged.
 set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000c1","role":"authenticated"}';
@@ -328,6 +363,32 @@ select results_eq($$select domain from public.external_command_outbox order by 1
 select results_eq($$select id from storage.objects where bucket_id = 'procurement-files' and id::text like '035000%' order by 1$$, $$values ('03500050-0000-0000-0000-000000000001'::uuid), ('03500050-0000-0000-0000-000000000002'::uuid), ('03500051-0000-0000-0000-000000000001'::uuid), ('03500051-0000-0000-0000-000000000002'::uuid), ('03500052-0000-0000-0000-000000000001'::uuid), ('03500052-0000-0000-0000-000000000002'::uuid)$$, 'AC-SEC-227 Admin reads every procurement file object in the organisation');
 select is((select count(*)::int from public.procurement_payment_within_ceiling('03500001-0000-0000-0000-000000000001')), 1, 'AC-SEC-227 Admin reads the payment ceiling');
 
+-- AC-SEC-230/231: Project Manager, Finance, Executive and Admin keep their client billing and ERP reference reads.
+set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select results_eq($$select id from public.progress_claims order by 1$$, $$values ('03500060-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Project Manager reads the organisation''s progress_claims');
+select results_eq($$select id from public.progress_claim_lines order by 1$$, $$values ('03500061-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Project Manager reads the organisation''s progress_claim_lines');
+select results_eq($$select id from public.progress_claim_evidence order by 1$$, $$values ('03500062-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Project Manager reads the organisation''s progress_claim_evidence');
+select results_eq($$select domain from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Project Manager reads external_refs of every domain');
+select results_eq($$select domain from public.external_ref_lineage where id::text like '03500071%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Project Manager reads external_ref_lineage of every domain');
+set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000c2","role":"authenticated"}';
+select results_eq($$select id from public.progress_claims order by 1$$, $$values ('03500060-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Finance reads the organisation''s progress_claims');
+select results_eq($$select id from public.progress_claim_lines order by 1$$, $$values ('03500061-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Finance reads the organisation''s progress_claim_lines');
+select results_eq($$select id from public.progress_claim_evidence order by 1$$, $$values ('03500062-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Finance reads the organisation''s progress_claim_evidence');
+select results_eq($$select domain from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Finance reads external_refs of every domain');
+select results_eq($$select domain from public.external_ref_lineage where id::text like '03500071%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Finance reads external_ref_lineage of every domain');
+set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000c3","role":"authenticated"}';
+select results_eq($$select id from public.progress_claims order by 1$$, $$values ('03500060-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Executive reads the organisation''s progress_claims');
+select results_eq($$select id from public.progress_claim_lines order by 1$$, $$values ('03500061-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Executive reads the organisation''s progress_claim_lines');
+select results_eq($$select id from public.progress_claim_evidence order by 1$$, $$values ('03500062-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Executive reads the organisation''s progress_claim_evidence');
+select results_eq($$select domain from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Executive reads external_refs of every domain');
+select results_eq($$select domain from public.external_ref_lineage where id::text like '03500071%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Executive reads external_ref_lineage of every domain');
+set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000c4","role":"authenticated"}';
+select results_eq($$select id from public.progress_claims order by 1$$, $$values ('03500060-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Admin reads the organisation''s progress_claims');
+select results_eq($$select id from public.progress_claim_lines order by 1$$, $$values ('03500061-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Admin reads the organisation''s progress_claim_lines');
+select results_eq($$select id from public.progress_claim_evidence order by 1$$, $$values ('03500062-0000-0000-0000-000000000001'::uuid)$$, 'AC-SEC-230 Admin reads the organisation''s progress_claim_evidence');
+select results_eq($$select domain from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Admin reads external_refs of every domain');
+select results_eq($$select domain from public.external_ref_lineage where id::text like '03500071%' order by 1$$, $$values ('companies'::text), ('procurement'::text), ('revenue'::text)$$, 'AC-SEC-231 Admin reads external_ref_lineage of every domain');
+
 -- AC-SEC-228: tenancy — an Engineer in another organisation reads only their own request there.
 set local request.jwt.claims = '{"sub":"03500000-0000-0000-0000-0000000000e9","role":"authenticated"}';
 select results_eq($$select id from public.procurements order by 1$$, $$values ('03500001-0000-0000-0000-000000000003'::uuid)$$, 'AC-SEC-228 other-organisation Engineer reads only their own request');
@@ -335,7 +396,30 @@ select results_eq($$select id from public.procurement_items order by 1$$, $$valu
 select is_empty($$select id from public.procurement_invoices$$, 'AC-SEC-228 other-organisation Engineer reads no vendor bills');
 select results_eq($$select id from storage.objects where bucket_id = 'procurement-files' and id::text like '035000%' order by 1$$, $$values ('03500050-0000-0000-0000-000000000003'::uuid)$$, 'AC-SEC-228 other-organisation Engineer reads only their own request files');
 select is_empty($$select * from public.procurement_payment_within_ceiling('03500001-0000-0000-0000-000000000001')$$, 'AC-SEC-228 payment ceiling returns nothing across organisations');
+select is_empty($$select id from public.progress_claims$$, 'AC-SEC-228 other-organisation Engineer reads no progress_claims');
+select results_eq($$select id from public.external_refs where id::text like '03500070%' order by 1$$, $$values ('03500070-0000-0000-0000-000000000006'::uuid)$$, 'AC-SEC-228 other-organisation Engineer reads only their organisation''s non-money ERP references');
 
 reset role;
+
+-- AC-SEC-232: every read-scope policy and the payment-ceiling read admit by naming the four roles that read money
+-- records (Admin, Executive, Project Manager, Finance), never by excluding one — a role added later reads no money
+-- rows until it is named.
+select is((select count(*)::int from pg_policies where policyname like '%engineer_read_scope'), 31,
+  'AC-SEC-232 thirty-one read-scope policies are installed');
+select is_empty($$select tablename || '.' || policyname from pg_policies
+                   where policyname like '%engineer_read_scope'
+                     and not (qual like '%''Admin''%' and qual like '%''Executive''%'
+                              and qual like '%''Project Manager''%' and qual like '%''Finance''%')$$,
+  'AC-SEC-232 every read-scope policy names Admin, Executive, Project Manager and Finance');
+select is_empty($$select tablename || '.' || policyname from pg_policies
+                   where (policyname like '%engineer_read_scope' or policyname = 'storage_objects_proc_file_read')
+                     and qual like '%Engineer%'$$,
+  'AC-SEC-232 no read-scope policy admits by excluding the Engineer role');
+select ok((select qual from pg_policies where policyname = 'storage_objects_proc_file_read') like '%''Finance''%',
+  'AC-SEC-232 the procurement-files storage read names the four roles');
+select ok((select prosrc from pg_proc where oid = 'public.procurement_payment_within_ceiling(uuid)'::regprocedure) like '%''Finance''%'
+          and (select prosrc from pg_proc where oid = 'public.procurement_payment_within_ceiling(uuid)'::regprocedure) not like '%Engineer%',
+  'AC-SEC-232 the payment-ceiling read names the four roles');
+
 select * from finish();
 rollback;
