@@ -15,6 +15,11 @@ describe('erpLinkReasonText', () => {
     }
   });
 
+  it('review 2: a project refusal tells the user where to add the document instead', () => {
+    expect(erpLinkReasonText('project_mismatch', t))
+      .toBe('This document is recorded against other projects. Open one of its projects to add it there.');
+  });
+
   it('passes server sentences (e.g. the SoD refusal) through unchanged', () => {
     expect(erpLinkReasonText('separation of duties: approver cannot pay own procurement', t))
       .toBe('separation of duties: approver cannot pay own procurement');
@@ -32,3 +37,13 @@ describe('erpDoctypeLabel', () => {
       .toEqual(['Purchase order', 'Goods receipt', 'Supplier invoice', 'Supplier payment', 'Journal Entry']);
   });
 });
+
+describe('erpPreTaxAmount', () => {
+  it('decision 3: shows the pre-tax total; a payment shows its paid amount; unknown stays unknown', async () => {
+    const { erpPreTaxAmount } = await import('./erpLinkReasons');
+    expect(erpPreTaxAmount({ doctype: 'Purchase Invoice', netTotal: 1000, grandTotal: 1110 })).toBe(1000);
+    expect(erpPreTaxAmount({ doctype: 'Payment Entry', netTotal: null, grandTotal: 777 })).toBe(777);
+    expect(erpPreTaxAmount({ doctype: 'Purchase Order', netTotal: null, grandTotal: 1110 })).toBeNull();
+  });
+});
+

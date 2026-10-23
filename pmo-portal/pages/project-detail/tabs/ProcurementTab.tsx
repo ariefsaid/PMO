@@ -20,6 +20,7 @@ import {
   openPR,
 } from '../../../components/procurement';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 
 export interface ProcurementTabProps {
   projectId: string;
@@ -39,6 +40,9 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const statusLabel = useProcurementStatusLabel();
   const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
   const canCreate = may('create', 'procurement');
+  // Review 8: the empty state points "below" only when ERPNext documents are actually listed there (same cached read).
+  const erp = useErpPurchases(projectId, { enabled: may('view', 'procurement') });
+  const erpListedBelow = (erp.data ?? []).some((r) => r.procurementId === null);
 
   const rows = useMemo(
     () =>
@@ -129,10 +133,10 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           'projectDetail.procurement.empty.title',
           'No purchase requests for this project yet',
         )}
-        emptySub={t(
+        emptySub={erpListedBelow ? t(
           'uxs19.projectEmptyScope',
           'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
-        )}
+        ) : undefined}
       tableId="project-detail-tabs-procurementtab-table" />
 
       <ErpPurchasesSection projectId={projectId} />

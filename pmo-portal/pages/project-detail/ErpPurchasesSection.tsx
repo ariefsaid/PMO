@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
@@ -19,12 +20,12 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
   const may = usePermission();
   const canView = may('view', 'procurement');
   const canLink = may('create', 'erpPurchaseLink');
-  const { data } = useErpPurchases(projectId, { enabled: canView });
+  const { data, isError, refetch } = useErpPurchases(projectId, { enabled: canView });
   const today = localToday();
   const rows = useMemo(() => data ?? [], [data]);
   const orphans = useMemo(() => rows.filter((r) => r.procurementId === null), [rows]);
   const { aging, sharedOpen } = useMemo(() => projectAging(rows, today), [rows, today]);
-  if (!canView || (orphans.length === 0 && aging.length === 0)) return null;
+  if (!canView || (!isError && orphans.length === 0 && aging.length === 0)) return null;
 
   const bucketLabel: Record<AgingBucket, string> = {
     notDue: t('erpPurchases.aging.notDue', 'Not due'),
@@ -42,7 +43,7 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
             {t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {t('erpPurchases.countedInActuals', 'Already counted in Actuals. Shown for reference, not added again.')}
+            {t('erpPurchases.countedInActuals', 'Already counted in Actuals.')}
           </p>
         </div>
         <Link to="/erp-purchases" className="text-sm font-medium text-primary hover:underline">
@@ -50,25 +51,39 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
         </Link>
       </div>
 
-      {aging.map((a) => (
-        <dl key={a.currency} aria-label={`${t('erpPurchases.aging.title', 'Unpaid by age')} · ${a.currency}`}
-          className="mb-3 grid grid-cols-2 gap-x-6 gap-y-2 rounded-lg border border-border bg-card p-3 sm:grid-cols-6">
-          {AGING_BUCKETS.map((b) => (
-            <div key={b}>
-              <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
-              <dd className="tabular-nums">{formatCurrency(a.buckets[b], a.currency)}</dd>
-            </div>
+      {isError && (
+        <ListState variant="error" title={t('erpLinks.loadError', "Couldn't load the ERPNext documents not in a purchase")}
+          onRetry={() => void refetch()} />
+      )}
+
+      {aging.length > 0 && (
+        // Review 4: the aging counts every unpaid ERPNext invoice of the project, linked or not (FR-PFE-042), so it
+        // carries its own title rather than reading as a total of the list below it.
+        <section aria-labelledby="erp-aging-heading" className="mb-4">
+          <h3 id="erp-aging-heading" className="mb-2 text-[14px] font-semibold text-foreground">
+            {t('erpLinks.agingTitle', 'Unpaid ERPNext invoices (incl. linked)')}
+          </h3>
+          {aging.map((a) => (
+            <dl key={a.currency} aria-label={`${t('erpPurchases.aging.title', 'Unpaid by age')} · ${a.currency}`}
+              className="mb-3 grid grid-cols-2 gap-x-6 gap-y-2 rounded-lg border border-border bg-card p-3 sm:grid-cols-6">
+              {AGING_BUCKETS.map((b) => (
+                <div key={b}>
+                  <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
+                  <dd className="tabular-nums">{formatCurrency(a.buckets[b], a.currency)}</dd>
+                </div>
+              ))}
+              <div>
+                <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
+                <dd className="font-semibold tabular-nums">{formatCurrency(a.total, a.currency)}</dd>
+              </div>
+            </dl>
           ))}
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
-            <dd className="font-semibold tabular-nums">{formatCurrency(a.total, a.currency)}</dd>
-          </div>
-        </dl>
-      ))}
-      {sharedOpen > 0 && (
-        <p className="mb-3 text-sm text-muted-foreground">
-          {t('erpPurchases.aging.sharedExcluded', '{{count}} unpaid invoices shared with other projects are not in these figures.', { count: sharedOpen })}
-        </p>
+          {sharedOpen > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {t('erpPurchases.aging.sharedExcluded', '{{count}} unpaid invoices shared with other projects are not in these figures.', { count: sharedOpen })}
+            </p>
+          )}
+        </section>
       )}
 
       {orphans.length > 0 && (

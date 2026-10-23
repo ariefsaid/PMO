@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -37,9 +38,11 @@ describe('ErpPurchasesSection', () => {
     expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
     expect(screen.getByText(/Already counted in Actuals/)).toBeInTheDocument();
     for (const name of ['PINV-PAID', 'PINV-LATE', 'PINV-SHARED']) expect(screen.getAllByText(name).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /^Link to purchase/ })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /^Link PINV-/ })).toHaveLength(3);
+    expect(screen.queryByText(/Shown for reference, not added again/)).toBeNull();
 
     const aging = screen.getByLabelText(/Unpaid by age · IDR/);
+    expect(screen.getByRole('heading', { name: 'Unpaid ERPNext invoices (incl. linked)' })).toBeInTheDocument();
     const total = within(aging).getByText('Unpaid total').nextElementSibling!;
     expect(total.textContent).toMatch(/250/);
     expect(total.textContent).not.toMatch(/1[.,]?150/);
@@ -71,7 +74,23 @@ describe('ErpPurchasesSection', () => {
     purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-ORPHAN' })] });
     renderSection();
     expect(screen.getAllByText('PINV-ORPHAN').length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: /Link to purchase/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Link/ })).toBeNull();
+  });
+
+  it('review 4: the aging carries its own title, separate from the not-in-a-purchase list', () => {
+    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
+    renderSection();
+    const heading = screen.getByRole('heading', { name: 'Unpaid ERPNext invoices (incl. linked)' });
+    expect(heading.closest('section')).toContainElement(screen.getByLabelText(/Unpaid by age · IDR/));
+  });
+
+  it('review 6: a failed load shows an error with Retry, never a blank tab', async () => {
+    const refetch = vi.fn();
+    purchasesMock.mockReturnValue({ data: undefined, isError: true, refetch });
+    renderSection();
+    expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Retry|Try again/ }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it('renders nothing for a project with no ERP purchases, only paid linked ones, or for a role without the procurement view', () => {

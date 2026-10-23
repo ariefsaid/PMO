@@ -32,7 +32,7 @@ describe('ErpPurchases page', () => {
     expect(screen.getAllByText('Tower Retrofit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No project').length).toBeGreaterThan(0);
     expect(screen.queryByText('PUR-ORD-LINKED')).toBeNull();
-    expect(screen.getAllByRole('button', { name: /^Link to purchase/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Link PUR-ORD-/ })).toHaveLength(2);
   });
 
   it('when every ERP document is in a purchase, says so instead of an empty table', () => {
@@ -48,12 +48,16 @@ describe('ErpPurchases page', () => {
     unmount();
 
     purchasesMock.mockReturnValue({ isError: true, refetch: vi.fn() });
-    renderPage().unmount();
+    const errored = renderPage();
+    expect(screen.getByText("Couldn't load the ERPNext documents not in a purchase")).toBeInTheDocument();
+    expect(screen.queryByText(/ERP purchases/)).toBeNull();
+    errored.unmount();
 
     mayMock.mockReturnValue(false);
     purchasesMock.mockReturnValue({ data: undefined });
     renderPage();
     expect(screen.getByText("You don't have access to the organization's purchases")).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Procurement requests' })).toBeNull();
     expect(purchasesMock).toHaveBeenLastCalledWith(undefined, { enabled: false });
   });
 });

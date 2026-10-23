@@ -17,7 +17,7 @@ export function erpLinkReasonText(reason: string | null, t: T): string {
     case 'purchase_closed': return t('finance:erpLinks.reason.purchaseClosed', 'This purchase is cancelled or rejected.');
     case 'project_not_found': return t('finance:erpLinks.reason.projectNotFound', 'Project not found.');
     case 'supplier_mismatch': return t('finance:erpLinks.reason.supplier', 'The supplier differs from this purchase’s supplier.');
-    case 'project_mismatch': return t('finance:erpLinks.reason.project', 'The document belongs to a different project.');
+    case 'project_mismatch': return t('finance:erpLinks.reason.project', 'This document is recorded against other projects. Open one of its projects to add it there.');
     case 'currency_mismatch': return t('finance:erpLinks.reason.currency', 'The document’s currency differs from this purchase.');
     case 'gate_request_before_order': return t('finance:erpLinks.reason.gateRequest', 'Your organization requires a purchase request before an order.');
     case 'gate_approval_before_order': return t('finance:erpLinks.reason.gateApprovalOrder', 'Your organization requires an approval before an order.');
@@ -36,4 +36,13 @@ export function erpDoctypeLabel(t: T, doctype: string): string {
     case 'Payment Entry': return t('finance:erpPurchases.type.payment', 'Supplier payment');
     default: return doctype;
   }
+}
+
+/**
+ * Decision 3 (#1319 review): the amount PMO shows for an ERPNext document is its PRE-TAX total — the basis open commitment
+ * uses. A Payment Entry has no pre-tax total; its paid amount is its total (FR-PFE-040). Unknown stays unknown (null), never 0.
+ */
+export function erpPreTaxAmount(r: { doctype: string; netTotal: number | null; grandTotal: number | null }): number | null {
+  if (r.netTotal !== null) return r.netTotal;
+  return r.doctype === 'Payment Entry' ? r.grandTotal : null;
 }

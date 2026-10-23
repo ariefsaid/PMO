@@ -15,7 +15,7 @@ import {
 } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
-import { MODULES } from './routeMatch';
+import { MODULES, RAIL_PARENT_FOR_PATH } from './routeMatch';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -296,7 +296,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
         className={({ isActive }: { isActive: boolean }) => {
-          const active = isActive;
+          // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
+          const active = isActive || RAIL_PARENT_FOR_PATH[location.pathname] === item.to;
           return cn(
             NAV_LINK_BASE,
             active

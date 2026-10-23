@@ -225,3 +225,17 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.queryByRole('link', { name: /profile settings/i })).toBeNull();
   });
 });
+
+describe('Rail — routes that live under a module without sharing its URL', () => {
+  it('review 7: /erp-purchases highlights Procurement', () => {
+    effectiveRole = 'Finance';
+    render(
+      <MemoryRouter initialEntries={['/erp-purchases']}>
+        <Rail />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: 'Procurement' }).className).toMatch(/bg-primary\/10/);
+    expect(screen.getByRole('link', { name: 'Dashboard' }).className).not.toMatch(/bg-primary\/10/);
+  });
+});
+

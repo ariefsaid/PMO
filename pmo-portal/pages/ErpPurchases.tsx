@@ -24,12 +24,14 @@ const ErpPurchasesPage: React.FC = () => {
       title={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
       description={t('erpLinks.pageDescription', 'Orders, receipts, invoices and payments entered in ERPNext that no purchase holds yet. Their cost is already in each project\'s Actuals.')}
       count={canView && all ? orphans.length : undefined}
-      primaryAction={<Link to="/procurement" className="text-sm font-medium text-primary hover:underline">{t('erpPurchases.backToProcurement', 'Procurement requests')}</Link>}
+      primaryAction={canView
+        ? <Link to="/procurement" className="text-sm font-medium text-primary hover:underline">{t('erpPurchases.backToProcurement', 'Procurement requests')}</Link>
+        : undefined}
     >
       {!canView ? (
         <ListState variant="empty" title={t('erpPurchases.noAccess', "You don't have access to the organization's purchases")} />
       ) : purchases.isError ? (
-        <ListState variant="error" title={t('erpPurchases.error', "Couldn't load ERP purchases")} onRetry={() => purchases.refetch()} />
+        <ListState variant="error" title={t('erpLinks.loadError', "Couldn't load the ERPNext documents not in a purchase")} onRetry={() => purchases.refetch()} />
       ) : purchases.isPending ? (
         <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>
       ) : (all ?? []).length === 0 ? (
