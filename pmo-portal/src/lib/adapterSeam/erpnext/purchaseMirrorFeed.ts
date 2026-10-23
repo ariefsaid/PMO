@@ -1,24 +1,32 @@
 /*
- * erpnext/purchaseMirrorFeed.ts (FR-EPR-001..004, docs/specs/erp-purchases-readonly.spec.md) — the sweep pass
- * that mirrors ERP-native Purchase Orders / Purchase Invoices into `erp_purchase_documents` (0335) for a
- * READ-ONLY list. DD-XING-2: read, never adopted — nothing here creates a PMO procurement case, and nothing
- * sums these rows into spent/committed/actuals (their cost already arrives through the GL mirror).
+ * erpnext/purchaseMirrorFeed.ts (FR-EPR-001..004, FR-PFE-040) — the sweep pass that mirrors ERP-native
+ * Purchase Orders, Purchase Receipts, Purchase Invoices and supplier Payment Entries into
+ * `erp_purchase_documents` (0335, +net_total 0360). ADR-0093: documents are linked into purchases by
+ * `link_erp_purchase_documents`, never adopted; nothing here creates a procurement.
  */
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
 import { readWm, type LedgerFeedServiceClient } from './ledgerMirrorFeed.ts';
 
-export type PurchaseDoctype = 'Purchase Order' | 'Purchase Invoice';
-export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
+export type PurchaseDoctype = 'Purchase Order' | 'Purchase Receipt' | 'Purchase Invoice' | 'Payment Entry';
+export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'];
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
 const CURSOR_VERSION = 2;
 const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::v2::${doctype}`;
 
 const FIELDS: Record<PurchaseDoctype, readonly string[]> = {
   'Purchase Order': ['name', 'supplier', 'supplier_name', 'transaction_date', 'schedule_date', 'currency',
-    'grand_total', 'status', 'docstatus', 'project', 'modified'],
+    'grand_total', 'net_total', 'status', 'docstatus', 'project', 'modified'],
+  'Purchase Receipt': ['name', 'supplier', 'supplier_name', 'posting_date', 'currency',
+    'grand_total', 'net_total', 'status', 'docstatus', 'is_return', 'project', 'modified'],
   'Purchase Invoice': ['name', 'supplier', 'supplier_name', 'posting_date', 'due_date', 'bill_no', 'currency',
-    'grand_total', 'outstanding_amount', 'status', 'docstatus', 'is_return', 'project', 'modified'],
+    'grand_total', 'net_total', 'outstanding_amount', 'status', 'docstatus', 'is_return', 'project', 'modified'],
+  'Payment Entry': ['name', 'party', 'party_name', 'posting_date', 'paid_from_account_currency',
+    'paid_amount', 'status', 'docstatus', 'project', 'modified'],
+};
+/** Extra list filters per doctype: only supplier payments are purchase documents. */
+const EXTRA_FILTERS: Partial<Record<PurchaseDoctype, unknown[]>> = {
+  'Payment Entry': [['payment_type', '=', 'Pay'], ['party_type', '=', 'Supplier']],
 };
 const PAGE_SIZE = 500;
 const MAX_PAGE_READS = 12;
@@ -40,6 +48,7 @@ export interface PurchaseMirrorRow {
   bill_no: string | null;
   currency: string | null;
   grand_total: string | null;
+  net_total: string | null;
   outstanding_amount: string | null;
   erp_status: string | null;
   erp_docstatus: number;
@@ -69,16 +78,19 @@ export function toPurchaseMirrorRow(doctype: PurchaseDoctype, d: Record<string, 
   const status = Number(d.docstatus);
   if (status !== 1 && status !== 2) return null;
   const isPi = doctype === 'Purchase Invoice';
+  const isPo = doctype === 'Purchase Order';
+  const isPe = doctype === 'Payment Entry';
   return {
     erp_doctype: doctype,
     erp_name: String(d.name),
-    supplier: str(d.supplier),
-    supplier_name: str(d.supplier_name) ?? str(d.supplier),
-    doc_date: date(isPi ? d.posting_date : d.transaction_date),
-    due_date: date(isPi ? d.due_date : d.schedule_date),
+    supplier: str(isPe ? d.party : d.supplier),
+    supplier_name: str(isPe ? d.party_name : d.supplier_name) ?? str(isPe ? d.party : d.supplier),
+    doc_date: date(isPo ? d.transaction_date : d.posting_date),
+    due_date: isPi ? date(d.due_date) : isPo ? date(d.schedule_date) : null,
     bill_no: isPi ? str(d.bill_no) : null,
-    currency: str(d.currency),
-    grand_total: money(d.grand_total),
+    currency: str(isPe ? d.paid_from_account_currency : d.currency),
+    grand_total: money(isPe ? d.paid_amount : d.grand_total),
+    net_total: isPe ? null : money(d.net_total),
     outstanding_amount: isPi ? money(d.outstanding_amount) : null,
     erp_status: str(d.status),
     erp_docstatus: status,
@@ -103,6 +115,7 @@ function encodeCursor(cursor: PurchaseCursor): string { return JSON.stringify(cu
 async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, cursor: PurchaseCursor | null,
   equalBoundary: boolean, offset: number, timeoutMs: number) {
   const filters: unknown[] = [['company', '=', company], ['docstatus', 'in', [1, 2]]];
+  filters.push(...(EXTRA_FILTERS[doctype] ?? []));
   if (cursor) {
     if (equalBoundary) {
       filters.push(['modified', '=', cursor.modified]);

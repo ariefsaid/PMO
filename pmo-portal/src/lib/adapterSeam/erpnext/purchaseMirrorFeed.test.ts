@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { feedPurchaseMirror, purchaseWmDomain } from './purchaseMirrorFeed.ts';
+import { feedPurchaseMirror, purchaseWmDomain, toPurchaseMirrorRow } from './purchaseMirrorFeed.ts';
 import { FakePostgrest } from '@/test/postgrestFake.ts';
 
 const PO = { name: 'PUR-ORD-1', supplier: 'SUP-1', supplier_name: 'Acme', transaction_date: '2026-01-05', schedule_date: '2026-01-20',
@@ -231,7 +231,8 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     const first = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(first.caughtUp).toBe(false);
-    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(5500);
+    // 12 page reads per pass; the three idle doctypes (PR, PI, PE) spend one each, leaving 9 PO pages.
+    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(4500);
     const firstCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
     const second = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(second.caughtUp).toBe(false);
@@ -322,7 +323,8 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const h = harness({ 'Purchase Order': orders, 'Purchase Invoice': [PI] });
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(result.caughtUp).toBe(false);
-    expect(h.urls.slice(0, 2).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!))).toEqual(['Purchase Order', 'Purchase Invoice']);
+    expect(h.urls.slice(0, 4).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!)))
+      .toEqual(['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry']);
     expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toContainEqual(expect.objectContaining({ erp_doctype: 'Purchase Invoice', erp_name: PI.name }));
     expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length <= 500)).toBe(true);
   });
@@ -447,5 +449,30 @@ describe('erpnext/purchaseMirrorFeed', () => {
   it('refuses to run without a company', async () => {
     const h = harness({});
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: ' ' })).rejects.toThrow(/company/);
+  });
+});
+
+describe('AC-PFE-020 receipts and supplier payments', () => {
+  it('AC-PFE-020: maps a Purchase Receipt with net and grand totals', () => {
+    expect(toPurchaseMirrorRow('Purchase Receipt', {
+      name: 'MAT-PRE-1', supplier: 'SUP-1', supplier_name: 'Supplier One', posting_date: '2026-02-03', currency: 'IDR',
+      grand_total: 1110, net_total: 1000, status: 'To Bill', docstatus: 1, is_return: 0, project: 'ERP-A', modified: '2026-02-03 10:00:00',
+    })).toMatchObject({ erp_doctype: 'Purchase Receipt', erp_name: 'MAT-PRE-1', supplier: 'SUP-1', doc_date: '2026-02-03',
+      grand_total: '1110', net_total: '1000', erp_status: 'To Bill', erp_project: 'ERP-A', bill_no: null, outstanding_amount: null });
+  });
+  it('AC-PFE-020: maps a Pay-type supplier Payment Entry (party → supplier, paid_amount → totals)', () => {
+    expect(toPurchaseMirrorRow('Payment Entry', {
+      name: 'ACC-PAY-1', party: 'SUP-1', party_name: 'Supplier One', posting_date: '2026-02-04', paid_from_account_currency: 'IDR',
+      paid_amount: 1110, status: 'Submitted', docstatus: 1, project: 'ERP-A', modified: '2026-02-04 10:00:00',
+    })).toMatchObject({ erp_doctype: 'Payment Entry', supplier: 'SUP-1', supplier_name: 'Supplier One', currency: 'IDR',
+      grand_total: '1110', net_total: null, doc_date: '2026-02-04' });
+  });
+  it('AC-PFE-020: the feed reads all four doctypes and filters Payment Entries to supplier payments', async () => {
+    const h = harness({});
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    expect(h.urls.some((p) => p.includes('/api/resource/Purchase Receipt'))).toBe(true);
+    const pe = h.urls.find((p) => p.includes('/api/resource/Payment Entry'));
+    expect(pe).toContain('["payment_type","=","Pay"]');
+    expect(pe).toContain('["party_type","=","Supplier"]');
   });
 });
