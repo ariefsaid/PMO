@@ -55,6 +55,8 @@ export interface PurchaseMirrorRow {
   is_return: boolean;
   erp_project: string | null;
   erp_modified: string;
+  /** Purchase Invoices only: distinct ERP Purchase Order names billed by the item lines (0361 link check). */
+  purchase_orders?: string[];
 }
 
 export interface FeedPurchaseMirrorResult { fed: number; caughtUp: boolean }
@@ -133,6 +135,34 @@ async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company
   return rows as Record<string, unknown>[];
 }
 
+const ITEM_PAGE_SIZE = 1000;
+const MAX_ITEM_PAGES = 10;
+
+/** Distinct, non-empty Purchase Order names per invoice, read from the Purchase Invoice Item child rows.
+ * A failed or malformed read throws: sending an empty list would silently skip the link check. */
+async function readInvoiceOrders(client: ErpClientDeps, invoiceNames: string[], deadline: number): Promise<Map<string, string[]>> {
+  const orders = new Map<string, Set<string>>(invoiceNames.map((n) => [n, new Set<string>()]));
+  for (let page = 0; page < MAX_ITEM_PAGES; page += 1) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
+    const qs = `parent=${encodeURIComponent('Purchase Invoice')}&filters=${encodeURIComponent(JSON.stringify([['parent', 'in', invoiceNames]]))}`
+      + `&fields=${encodeURIComponent(JSON.stringify(['parent', 'purchase_order']))}`
+      + `&limit_page_length=${ITEM_PAGE_SIZE}&limit_start=${page * ITEM_PAGE_SIZE}&order_by=${encodeURIComponent('parent asc, idx asc')}`;
+    const body = await erpnextRequest({ ...client, timeoutMs: Math.min(REQUEST_TIMEOUT_MS, remainingMs) },
+      { method: 'GET', path: `/api/resource/${encodeURIComponent('Purchase Invoice Item')}?${qs}` });
+    const rows = (body as { data?: unknown } | null)?.data;
+    if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).parent === 'string')) {
+      throw new AppError('ERPNext Purchase Invoice Item list response was malformed', 'external-unreachable');
+    }
+    for (const r of rows as Array<{ parent: string; purchase_order?: unknown }>) {
+      const po = str(r.purchase_order);
+      if (po !== null) orders.get(r.parent)?.add(po);
+    }
+    if (rows.length < ITEM_PAGE_SIZE) return new Map([...orders].map(([k, v]) => [k, [...v]]));
+  }
+  throw new AppError('Purchase Invoice item lines exceeded the page cap; resume on the next sweep', 'external-unreachable');
+}
+
 async function withinBudget<T>(deadline: number, operation: () => PromiseLike<T>): Promise<T> {
   const remainingMs = deadline - Date.now();
   if (remainingMs <= 0) throw new AppError('Purchase mirror pass deadline exceeded', 'external-unreachable');
@@ -209,6 +239,10 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
       if (!row) continue;
       const existing = pageLatest.get(row.erp_name);
       if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
+    }
+    if (doctype === 'Purchase Invoice' && pageLatest.size > 0) {
+      const orders = await readInvoiceOrders(transport, [...pageLatest.keys()], deadline);
+      for (const [name, row] of pageLatest) row.purchase_orders = orders.get(name) ?? [];
     }
     if (pageLatest.size > 0) {
       const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));

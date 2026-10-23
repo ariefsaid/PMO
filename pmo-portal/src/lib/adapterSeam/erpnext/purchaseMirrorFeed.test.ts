@@ -19,6 +19,7 @@ function harness(docs: Record<string, unknown[]>) {
     const doctype = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
     const filters = JSON.parse(new URL(url).searchParams.get('filters') ?? '[]') as Array<[string, string, unknown]>;
     const selected = ((docs[doctype] ?? []) as Array<Record<string, unknown>>).filter((doc) => filters.every(([field, op, value]) => {
+      if (field === 'parent' && op === 'in') return (value as string[]).includes(String(doc.parent));
       if (field === 'modified' && op === '=') return doc.modified === value;
       if (field === 'modified' && op === '>') return String(doc.modified) > String(value);
       if (field === 'name' && op === '>') return String(doc.name) > String(value);
@@ -53,7 +54,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
       'purchases::v2::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified, name: PI.name }),
     });
     // Company-scoped, drafts never listed.
-    expect(h.urls.every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
+    expect(h.urls.filter((u) => !u.includes('Purchase Invoice Item')).every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
   });
 
   it('AC-EPR-001 resumes inclusively from the stored legacy watermark and re-stamps on idle', async () => {
@@ -258,7 +259,8 @@ describe('erpnext/purchaseMirrorFeed', () => {
       domain: 'purchases::v2::Purchase Invoice', watermark_cursor: initial }] },
     { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
     const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 }));
+    const fetchImpl = vi.fn(async (url: string) => new Response(JSON.stringify({
+      data: decodeURIComponent(url).includes('Purchase Invoice Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
     const from = (table: string) => {
       const builder = fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
       return { ...builder, update: (...args: unknown[]) => {
@@ -323,7 +325,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const h = harness({ 'Purchase Order': orders, 'Purchase Invoice': [PI] });
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(result.caughtUp).toBe(false);
-    expect(h.urls.slice(0, 4).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!)))
+    expect(h.urls.filter((u) => !u.includes('Purchase Invoice Item')).slice(0, 4).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!)))
       .toEqual(['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry']);
     expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toContainEqual(expect.objectContaining({ erp_doctype: 'Purchase Invoice', erp_name: PI.name }));
     expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length <= 500)).toBe(true);
@@ -474,5 +476,27 @@ describe('AC-PFE-020 receipts and supplier payments', () => {
     const pe = h.urls.find((p) => p.includes('/api/resource/Payment Entry'));
     expect(pe).toContain('["payment_type","=","Pay"]');
     expect(pe).toContain('["party_type","=","Supplier"]');
+  });
+
+  it('AC-PFE-040 sends the distinct item-line Purchase Orders per invoice, [] when none', async () => {
+    const PI2 = { ...PI, name: 'ACC-PINV-2', modified: '2026-02-02 10:00:00' };
+    const h = harness({ 'Purchase Invoice': [PI, PI2], 'Purchase Invoice Item': [
+      { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-1' }, { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-2' },
+      { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-1' }, { parent: 'ACC-PINV-1', purchase_order: null },
+      { parent: 'ACC-PINV-2', purchase_order: '' }, { parent: 'ACC-PINV-2' },
+    ] });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    const rows = h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ erp_name: string; purchase_orders: string[] }>;
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')!.purchase_orders).toEqual(['PUR-ORD-1', 'PUR-ORD-2']);
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')!.purchase_orders).toEqual([]);
+  });
+
+  it('AC-PFE-040 fails the pass rather than send an empty list when the item read fails', async () => {
+    const h = harness({ 'Purchase Invoice': [PI] });
+    const real = h.client.fetchImpl;
+    const client = { ...h.client, fetchImpl: (async (url: string) => decodeURIComponent(url).includes('Purchase Invoice Item')
+      ? new Response('{}', { status: 500 }) : real(url)) as unknown as typeof fetch };
+    await expect(feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toBeDefined();
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 });
