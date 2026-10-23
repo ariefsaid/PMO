@@ -353,7 +353,6 @@
         "localTransport": "Local transport",
         "meals": "Meals",
         "other": "Other",
-        "projectDirectCost": "Project direct cost",
         "travel": "Travel"
       },
       "map": "Map {{key}}",

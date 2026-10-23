@@ -60,7 +60,7 @@ const ExpenseAccountMap: React.FC = () => {
   const label = (key: ExpenseAccountKey): string => ({
     employee_payable: t('admin.expenseMap.key.employeePayable', 'Employee payable'),
     employee_advance: t('admin.expenseMap.key.employeeAdvance', 'Employee advances'),
-    project_direct_cost: t('admin.expenseMap.key.projectDirectCost', 'Project direct cost'),
+    project_direct_cost: t('expenseClaims:accountMap.projectDirectCost', 'Project direct cost'),
     Travel: t('admin.expenseMap.key.travel', 'Travel'),
     Accommodation: t('admin.expenseMap.key.accommodation', 'Accommodation'),
     Meals: t('admin.expenseMap.key.meals', 'Meals'),

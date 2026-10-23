@@ -353,7 +353,6 @@
         "localTransport": "Transportasi lokal",
         "meals": "Makan",
         "other": "Lainnya",
-        "projectDirectCost": "Biaya langsung proyek",
         "travel": "Perjalanan"
       },
       "map": "Petakan {{key}}",

@@ -8,5 +8,8 @@
     "discardLeave": "Tinggalkan",
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…"
+  },
+  "accountMap": {
+    "projectDirectCost": "Biaya langsung proyek"
   }
 }
