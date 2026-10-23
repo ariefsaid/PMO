@@ -12,7 +12,7 @@
 -- Namespaced 1326 UUIDs. begin/rollback + finish().
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(46);
 
 insert into organizations (id, name) values
   ('13260000-0000-0000-0000-000000000001','TVC Org A'),
@@ -187,22 +187,35 @@ select ok(exists (select 1 from budget_version_editors
                    where budget_version_id = '13262222-0000-0000-0000-000000000003'
                      and user_id = '13260000-0000-0000-0000-0000000000a1'),
   'AC-TVC-003 the moving Admin is recorded as an editor of the Draft (DD-BUDGET-7: an editor does not activate it)');
+select ok(
+  (select position('for update' in d) > 0 and position('for update' in d) < position('budget_version_editors' in d)
+     from (select lower(pg_get_functiondef('public.activate_budget_version(uuid)'::regprocedure)) d) f),
+  'AC-TVC-003 activate_budget_version locks the version FOR UPDATE before it reads the editor list (a racing move commits first)');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"13260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$select public.activate_budget_version('13262222-0000-0000-0000-000000000003')$$,
+  '42501', 'separation of duties: You edited this version, so someone else must activate it.',
+  'AC-TVC-003 the Admin who moved the lines cannot activate that Draft');
+reset role;
+select is((select status::text from budget_versions where id = '13262222-0000-0000-0000-000000000003'), 'Draft',
+  'AC-TVC-003 the refused activation left the Draft a Draft');
 
 -- ── AC-TVC-006: mapped actuals during the accountant's reclass ──────────────────────────────────────
 -- The old account stays under Special expenses; the three new project accounts sit under the new categories.
 -- The reclass journal moved 200 off the old account (debit 500, credit 200 ⇒ net 300) onto the new ones.
 insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values
   ('13260000-0000-0000-0000-000000000001','Special expenses','Travel expenses - TVC', true),
-  ('13260000-0000-0000-0000-000000000001','Travel & accommodation','519102 Project hotel - TVC', true),
-  ('13260000-0000-0000-0000-000000000001','Travel & accommodation','519103 Project transport and travel - TVC', false),
-  ('13260000-0000-0000-0000-000000000001','Vehicle','519104 Project vehicle rental - TVC', true);
+  ('13260000-0000-0000-0000-000000000001','Travel & accommodation','TEST-HOTEL - TVC', true),
+  ('13260000-0000-0000-0000-000000000001','Travel & accommodation','TEST-TRAVEL - TVC', false),
+  ('13260000-0000-0000-0000-000000000001','Vehicle','TEST-VEHICLE - TVC', true);
 insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state) values
   ('13260000-0000-0000-0000-000000000001','13262222-0000-0000-0000-000000000001','2026','pushed');
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id) values
   ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','Travel expenses - TVC','2026',500.00,200.00,300.00,now(),'13264444-0000-0000-0000-000000000001'),
-  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','519102 Project hotel - TVC','2026',150.00,0,150.00,now(),'13264444-0000-0000-0000-000000000001'),
-  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','519103 Project transport and travel - TVC','2026',50.00,0,50.00,now(),'13264444-0000-0000-0000-000000000001'),
-  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','519104 Project vehicle rental - TVC','2026',80.00,0,80.00,now(),'13264444-0000-0000-0000-000000000001'),
+  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','TEST-HOTEL - TVC','2026',150.00,0,150.00,now(),'13264444-0000-0000-0000-000000000001'),
+  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','TEST-TRAVEL - TVC','2026',50.00,0,50.00,now(),'13264444-0000-0000-0000-000000000001'),
+  ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','TEST-VEHICLE - TVC','2026',80.00,0,80.00,now(),'13264444-0000-0000-0000-000000000001'),
   ('13260000-0000-0000-0000-000000000001','13261111-0000-0000-0000-000000000001','Unmapped Office - TVC','2026',999.00,0,999.00,now(),'13264444-0000-0000-0000-000000000001');
 
 set local role authenticated;
@@ -232,7 +245,7 @@ select is(
 set local request.jwt.claims = '{"sub":"13260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$insert into public.budget_category_account_map (category, erp_account, is_push_target)
-      values ('Special expenses','519102 Project hotel - TVC', false)$$,
+      values ('Special expenses','TEST-HOTEL - TVC', false)$$,
   '23505', null,
   'AC-TVC-006 an account already under Travel & accommodation cannot also back Special expenses');
 select throws_ok(

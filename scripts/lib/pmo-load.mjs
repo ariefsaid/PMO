@@ -37,23 +37,40 @@ export const BUDGET_CATEGORIES = Object.freeze([
 ]);
 
 // #1326 (FR-TVC-004): SBP travel and vehicle costs have their own categories now. Whole words, English and
-// Indonesian, as the client's SBPs write them.
-const TRAVEL_WORDS = /(^|[^\p{L}])(travel|hotels?|lodging|accommodation|tickets?|per[\s-]?diem|tiket|akomodasi|penginapan|uang harian|perjalanan dinas)(?![\p{L}])/iu;
-const VEHICLE_WORDS = /(^|[^\p{L}])(vehicles?|fuel|car rental|car hire|kendaraan|sewa mobil|bbm|bahan bakar)(?![\p{L}])/iu;
+// Indonesian, as the client's SBPs write them. Fuel alone is NOT a vehicle cost (a generator burns fuel too):
+// it moves to Vehicle only when the line also names a vehicle or a rental.
+const word = (alternatives) => new RegExp(`(^|[^\\p{L}])(${alternatives})(?![\\p{L}])`, 'iu');
+const TRAVEL_WORDS = word('travel|hotels?|lodging|accommodation|tickets?|per[\\s-]?diem|tiket|akomodasi|penginapan|uang harian|perjalanan dinas');
+const VEHICLE_WORDS = word('vehicles?|cars?|trucks?|truk|mobil|kendaraan|car rental|car hire|sewa mobil');
+const RENTAL_WORDS = word('rental|sewa');
+const FUEL_WORDS = word('fuel|bbm|bahan bakar|solar|bensin');
+const KEPT_FUEL = 'fuel with no vehicle word — kept in Special expenses';
 
 /**
- * The category a file line is WRITTEN under (AC-TVC-004). A "Special expenses" line whose description names
- * travel, hotel, tickets or per diem becomes Travel & accommodation; one naming a vehicle or fuel becomes
- * Vehicle. One naming both, or neither, and every other category, is left as the file says — never a guess.
+ * How a file line's category is decided (AC-TVC-004): `{ category, reason }`. `reason` is null when the line
+ * names nothing this rule looks at (it is then not reported). Only "Special expenses" lines are considered:
+ *   • travel, hotel, tickets or per diem → Travel & accommodation;
+ *   • a vehicle word, or fuel together with a rental → Vehicle;
+ *   • fuel with no vehicle or rental word → kept, and reported so the operator sees it;
+ *   • travel AND a vehicle or fuel word → kept (never a guess), and reported.
  * The line's import key still uses the FILE's category, so a Draft loaded before #1326 is matched, not doubled.
  */
-export function classifyBudgetLineCategory(category, description) {
-  if (category !== 'Special expenses') return category;
+export function classifyBudgetLine(category, description) {
+  if (category !== 'Special expenses') return { category, reason: null };
   const text = String(description ?? '');
   const travel = TRAVEL_WORDS.test(text);
-  const vehicle = VEHICLE_WORDS.test(text);
-  if (travel === vehicle) return category;
-  return travel ? 'Travel & accommodation' : 'Vehicle';
+  const fuel = FUEL_WORDS.test(text);
+  const vehicle = VEHICLE_WORDS.test(text) || (fuel && RENTAL_WORDS.test(text));
+  if (travel && (vehicle || fuel)) return { category, reason: 'names both travel and a vehicle or fuel — kept in Special expenses' };
+  if (travel) return { category: 'Travel & accommodation', reason: 'travel' };
+  if (vehicle) return { category: 'Vehicle', reason: 'vehicle' };
+  if (fuel) return { category, reason: KEPT_FUEL };
+  return { category, reason: null };
+}
+
+/** The category a file line is WRITTEN under (see classifyBudgetLine). */
+export function classifyBudgetLineCategory(category, description) {
+  return classifyBudgetLine(category, description).category;
 }
 
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
@@ -343,9 +360,12 @@ export async function resolveLoad(doc, api) {
 
 /** The app import's rule (DD-BIMP-7): the highest Draft, else a new one; skip once a budget was activated. */
 async function resolveBudget(api, entry, problems) {
-  const lines = entry.input.budget.map((l) => ({
-    ...l, category: classifyBudgetLineCategory(l.category, l.description), import_key: lineKey(entry.key, l),
-  }));
+  const lines = entry.input.budget.map((l, row) => {
+    const { category, reason } = classifyBudgetLine(l.category, l.description);
+    const decision = reason === null ? null
+      : { row, description: l.description ?? null, from: l.category, to: category, reason };
+    return { ...l, category, import_key: lineKey(entry.key, l), decision };
+  });
   if (!entry.existing) return { state: 'new', versionId: null, lines };
   const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
   if (versions.some((v) => v.status !== 'Draft')) {
@@ -510,6 +530,8 @@ async function applyContractLines(e, api, write, note) {
 async function applyBudget(e, api, write, note, { batchId, importedAt }) {
   if (e.budget.state === 'skip') return note({ kind: 'budget.skip', key: e.key, id: e.id, reason: e.budget.reason });
   if (e.budget.lines.length === 0) return note({ kind: 'budget.skip', key: e.key, id: e.id, reason: 'every line is already in the draft' });
+  // AC-TVC-004: every line whose category the loader decided (moved, or fuel kept) is listed, in file order.
+  for (const l of e.budget.lines) if (l.decision) note({ kind: 'budget.category', key: e.key, ...l.decision });
   let versionId = e.budget.versionId;
   if (!versionId) {
     // `status` is omitted on purpose: the column default is Draft and the 0176 trigger refuses anything else.

@@ -16,13 +16,15 @@ Migration 0366. Rollback: `supabase/migrations/rollback/0366_budget_travel_vehic
   nothing, audit each moved line (`budget_line.recategorise`), and return the number moved. It is reachable
   through the REST API and `pmo rpc` (active-Admin tier of the API-client guard).
 - **FR-TVC-004** `pmo load` shall write a `Special expenses` line whose description names travel, hotel,
-  tickets or per diem as Travel & accommodation, and one naming a vehicle or fuel as Vehicle. A line naming
-  both, or neither, and every other category, is written as the file says. The line's import key still uses
-  the file's category.
+  tickets or per diem as Travel & accommodation, and one naming a vehicle (or fuel together with a vehicle or
+  rental) as Vehicle. Fuel with no vehicle word (e.g. a generator) stays Special expenses. A line naming both
+  travel and a vehicle or fuel, or none of them, and every other category, is written as the file says. Every
+  decided line (moved, or fuel kept) is listed in the load output (`budget.category`: row, from, to). The
+  line's import key still uses the file's category.
 - **FR-TVC-005** While a budget version is Active or Archived, its lines shall not be re-categorised.
 - **FR-TVC-006** *Mapped-actuals precedence.* An ERP account backs exactly one category
   (`unique (org_id, erp_account)`). During the accountant's reclass the old account stays under Special
-  expenses and the new project accounts (519102 hotel, 519103 transport and travel, 519104 vehicle rental)
+  expenses and the new project accounts (hotel, transport and travel, vehicle rental)
   sit under the new categories. Actuals sum each account's net, so a reclass journal moves the amount from one
   category to the other and the categories always add up to the mapped accounts. An account cannot be listed
   under two categories, so no tie-break is needed.
@@ -32,7 +34,7 @@ Migration 0366. Rollback: `supabase/migrations/rollback/0366_budget_travel_vehic
 | AC | Given / When / Then | Owning test |
 |---|---|---|
 | AC-TVC-001 | Given the migration, when the enum is read, then the two values follow the eight existing ones, and each has a finance-namespace label | `supabase/tests/budget_travel_vehicle_categories.test.sql`; `pmo-portal/src/lib/i18n/budgetCategoryLabel.test.ts` |
-| AC-TVC-002 | Given Accounting setup, when an Admin maps Travel & accommodation to 519102 (push) and 519103 and Vehicle to 519104, then those rows are written; when a budget is pushed, each category goes to its push account | `pmo-portal/pages/admin/BudgetAccountMap.test.tsx`; `pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.test.ts` |
+| AC-TVC-002 | Given Accounting setup (which requires the two categories only once the org budgets in them), when an Admin maps Travel & accommodation to a hotel account (push) and a transport-and-travel account, and Vehicle to a vehicle-rental account, then those rows are written; when a budget is pushed, each category goes to its push account | `pmo-portal/pages/admin/BudgetAccountMap.test.tsx`; `pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.test.ts`; `pmo-portal/src/components/integrations/erpSetupIncompleteness.test.ts` |
 | AC-TVC-003 | Given Draft Special-expenses lines, when an Admin moves one or several, then only they change category and amounts are unchanged; Finance, a disabled Admin, another org, a non-Special line, a wrong target or an empty list are refused | `supabase/tests/budget_travel_vehicle_categories.test.sql` |
 | AC-TVC-004 | Given an SBP load file, when it is loaded, then travel/hotel/ticket/per-diem lines are Travel & accommodation, vehicle/fuel lines are Vehicle, and a Draft loaded earlier is not loaded twice | `scripts/pmo-load.test.mjs` |
 | AC-TVC-005 | Given an Active version, when any move names one of its lines (alone or in a batch), then the call is refused and every line of the version is unchanged | `supabase/tests/budget_travel_vehicle_categories.test.sql` |
@@ -44,4 +46,7 @@ Migration 0366. Rollback: `supabase/migrations/rollback/0366_budget_travel_vehic
 - The move is restricted to Special expenses → the two new categories (the issue's scope); it is not a
   general category editor.
 - Moving lines makes the Admin an editor of that Draft (DD-BUDGET-7), so a different person activates it.
+  `activate_budget_version` locks the version row before reading the editor list, so an activation racing a
+  move waits for it and then refuses the mover.
 - Lines already moved stay moved on rollback: a move is authored budget content, never reverted silently.
+- Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.

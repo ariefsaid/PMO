@@ -8,6 +8,10 @@
 --    one or many in a single all-or-nothing call. An Active or Archived version is never changed.
 -- §3 the OAuth API-client guard (0364 body, verbatim, with its purchase and set-aside tiers) gains an
 --    active-Admin RPC tier so `pmo rpc` can call §2. Any later redefinition must carry every tier.
+-- §4 activate_budget_version (0298 body, verbatim) locks the version row FOR UPDATE before it reads the
+--    editor list. §2 holds the version FOR SHARE while it moves lines (which records the mover as an editor),
+--    so an activation racing a move now waits for the move to commit and then sees the mover as an editor —
+--    the mover can never activate the budget they just recomposed (DD-BUDGET-7).
 --
 -- FR-TVC-006 — mapped actuals precedence during the accountant's reclass (no schema change, documented here):
 -- an ERP account backs exactly ONE category (`unique (org_id, erp_account)`, 0137, kept by 0246). The new
@@ -204,3 +208,50 @@ $$;
 revoke all on function public.api_client_request_guard() from public;
 grant execute on function public.api_client_request_guard() to anon, authenticated, service_role;
 notify pgrst, 'reload config';
+
+-- ── §4 ────────────────────────────────────────────────────────────────────────────────────────────
+-- 0298's body verbatim except the marked FOR UPDATE.
+create or replace function public.activate_budget_version(version_id uuid)
+  returns void language plpgsql security definer set search_path = public as $$
+declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid; v_sole_operator boolean := false;
+begin
+  select project_id, org_id, status, created_by into v_project, v_org, v_status, v_drafter
+    from budget_versions where id = version_id
+    for update;  -- 0366: lock the version BEFORE the editor list is read (see §4)
+  if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if v_org is distinct from auth_org_id()
+     or auth_role() not in ('Admin','Executive','Project Manager','Finance')
+     or not public.is_active_member()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if exists (select 1 from public.budget_version_editors e
+             where e.budget_version_id = version_id and e.user_id = auth.uid()) then
+    select count(*)=1 and bool_or(p.id=auth.uid()) into v_sole_operator
+      from public.profiles p where p.org_id = v_org and public.is_active_member(p.id);
+    if not coalesce(v_sole_operator,false) then
+      raise exception 'separation of duties: You edited this version, so someone else must activate it.'
+        using errcode = '42501';
+    end if;
+  end if;
+  if v_drafter is not null and v_drafter = auth.uid() and not v_sole_operator then
+    select count(*)=1 and bool_or(p.id=auth.uid()) into v_sole_operator
+      from public.profiles p where p.org_id = v_org and public.is_active_member(p.id);
+    if not coalesce(v_sole_operator,false) then
+      raise exception 'separation of duties: the person who drafted a budget version cannot activate it'
+        using errcode = '42501';
+    end if;
+  end if;
+  if v_drafter is null and auth_role() not in ('Admin','Finance') then
+    raise exception 'a budget version with no recorded drafter can be activated by Admin or Finance only'
+      using errcode = '42501';
+  end if;
+  if v_status <> 'Draft' then raise exception 'only a Draft version can be activated' using errcode = 'P0001'; end if;
+  update budget_versions set status = 'Archived'
+    where project_id = v_project and status = 'Active';
+  update budget_versions set status = 'Active', activated_at = now(),
+    activation_basis = case when v_sole_operator then 'sole_operator' else 'standard' end where id = version_id;
+end; $$;
+
+revoke all on function public.activate_budget_version(uuid) from public, anon;
+grant execute on function public.activate_budget_version(uuid) to authenticated;

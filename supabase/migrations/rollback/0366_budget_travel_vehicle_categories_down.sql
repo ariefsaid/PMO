@@ -1,5 +1,6 @@
 -- Reverses 0366 (#1326). Roll the app back first.
 -- §3: restore the 0364 api_client_request_guard body verbatim (purchase and set-aside tiers kept) (drops the active-Admin `pmo rpc` tier).
+-- §4: restore the 0298 activate_budget_version body.
 -- §2: drop recategorise_budget_lines. Lines it already moved KEEP their new category — a move is authored
 --     money composition, never reverted silently; move them back in the app before a physical enum removal.
 -- §1: the two enum values STAY (0229's rule). Application rollback is complete without removing them.
@@ -39,6 +40,51 @@
 begin;
 
 drop function if exists public.recategorise_budget_lines(uuid[], public.budget_category);
+
+-- §4: restore the 0298 activate_budget_version body verbatim (no FOR UPDATE on the version read).
+create or replace function public.activate_budget_version(version_id uuid)
+  returns void language plpgsql security definer set search_path = public as $$
+declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid; v_sole_operator boolean := false;
+begin
+  select project_id, org_id, status, created_by into v_project, v_org, v_status, v_drafter
+    from budget_versions where id = version_id;
+  if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if v_org is distinct from auth_org_id()
+     or auth_role() not in ('Admin','Executive','Project Manager','Finance')
+     or not public.is_active_member()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if exists (select 1 from public.budget_version_editors e
+             where e.budget_version_id = version_id and e.user_id = auth.uid()) then
+    select count(*)=1 and bool_or(p.id=auth.uid()) into v_sole_operator
+      from public.profiles p where p.org_id = v_org and public.is_active_member(p.id);
+    if not coalesce(v_sole_operator,false) then
+      raise exception 'separation of duties: You edited this version, so someone else must activate it.'
+        using errcode = '42501';
+    end if;
+  end if;
+  if v_drafter is not null and v_drafter = auth.uid() and not v_sole_operator then
+    select count(*)=1 and bool_or(p.id=auth.uid()) into v_sole_operator
+      from public.profiles p where p.org_id = v_org and public.is_active_member(p.id);
+    if not coalesce(v_sole_operator,false) then
+      raise exception 'separation of duties: the person who drafted a budget version cannot activate it'
+        using errcode = '42501';
+    end if;
+  end if;
+  if v_drafter is null and auth_role() not in ('Admin','Finance') then
+    raise exception 'a budget version with no recorded drafter can be activated by Admin or Finance only'
+      using errcode = '42501';
+  end if;
+  if v_status <> 'Draft' then raise exception 'only a Draft version can be activated' using errcode = 'P0001'; end if;
+  update budget_versions set status = 'Archived'
+    where project_id = v_project and status = 'Active';
+  update budget_versions set status = 'Active', activated_at = now(),
+    activation_basis = case when v_sole_operator then 'sole_operator' else 'standard' end where id = version_id;
+end; $$;
+
+revoke all on function public.activate_budget_version(uuid) from public, anon;
+grant execute on function public.activate_budget_version(uuid) to authenticated;
 
 create or replace function public.api_client_request_guard()
   returns void

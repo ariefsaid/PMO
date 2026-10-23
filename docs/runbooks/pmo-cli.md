@@ -181,9 +181,12 @@ violates row-level security policy").
 4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
    budgets → contract lines. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
    Since #1326, a `Special expenses` line whose description names travel, hotel, tickets or per diem is
-   written as `Travel & accommodation`, and one naming a vehicle or fuel as `Vehicle` (a line naming both
-   stays `Special expenses`). Its key still uses the file's category, so re-running an older file over a
+   written as `Travel & accommodation`, and one naming a vehicle (or fuel with a vehicle or rental) as
+   `Vehicle` (a line naming both travel and a vehicle or fuel stays `Special expenses`). Its key still uses the file's category, so re-running an older file over a
    Draft it already loaded adds nothing; move those older lines with `recategorise_budget_lines`.
+   Fuel with no vehicle word (e.g. "BBM genset") stays `Special expenses`; the output lists every line whose
+   category the loader decided (`budget.category`: row, from, to).
+   ⚑ Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.
 5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
    work orders are created by the client's users.
 

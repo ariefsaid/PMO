@@ -235,9 +235,9 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
   });
 
   const PROJECT_ACCOUNTS = { source: 'mirror' as const, accounts: [
-    { account: '519102 - Project hotel', accountName: 'Project hotel', accountNumber: '519102', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
-    { account: '519103 - Project transport and travel', accountName: 'Project transport and travel', accountNumber: '519103', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
-    { account: '519104 - Project vehicle rental', accountName: 'Project vehicle rental', accountNumber: '519104', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: 'TEST-HOTEL - Project hotel', accountName: 'Project hotel', accountNumber: 'TEST-HOTEL', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: 'TEST-TRAVEL - Project transport and travel', accountName: 'Project transport and travel', accountNumber: 'TEST-TRAVEL', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: 'TEST-VEHICLE - Project vehicle rental', accountName: 'Project vehicle rental', accountNumber: 'TEST-VEHICLE', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
   ] };
 
   it('AC-TVC-002: maps Travel & accommodation to its push account', async () => {
@@ -247,24 +247,24 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     const travel = await openRowOptions(user, 'Travel & accommodation');
     await user.click(within(travel).getByRole('button', { name: 'Map Travel & accommodation' }));
     const modal = await screen.findByRole('dialog');
-    await selectCatalogueAccount(user, modal, '519102 - Project hotel');
+    await selectCatalogueAccount(user, modal, 'TEST-HOTEL - Project hotel');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', '519102 - Project hotel', true));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', 'TEST-HOTEL - Project hotel', true));
   });
 
   it('AC-TVC-002: adds a second, actuals-only account to Travel & accommodation', async () => {
     const user = userEvent.setup();
     catalogueMock.mockResolvedValue(PROJECT_ACCOUNTS);
     listMock.mockResolvedValue([
-      { id: 'm-hotel', category: 'Travel & accommodation', erpAccount: '519102 - Project hotel', isPushTarget: true },
+      { id: 'm-hotel', category: 'Travel & accommodation', erpAccount: 'TEST-HOTEL - Project hotel', isPushTarget: true },
     ]);
     renderPage();
     const travel = await openRowOptions(user, 'Travel & accommodation');
     await user.click(within(travel).getByRole('button', { name: 'Add account to Travel & accommodation' }));
     const modal = await screen.findByRole('dialog', { name: 'Add account to Travel & accommodation' });
-    await selectCatalogueAccount(user, modal, '519103 - Project transport and travel');
+    await selectCatalogueAccount(user, modal, 'TEST-TRAVEL - Project transport and travel');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', '519103 - Project transport and travel', false));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', 'TEST-TRAVEL - Project transport and travel', false));
   });
 
   it('AC-TVC-002: maps Vehicle to the vehicle rental account', async () => {
@@ -274,9 +274,9 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     const vehicle = await openRowOptions(user, 'Vehicle');
     await user.click(within(vehicle).getByRole('button', { name: 'Map Vehicle' }));
     const modal = await screen.findByRole('dialog');
-    await selectCatalogueAccount(user, modal, '519104 - Project vehicle rental');
+    await selectCatalogueAccount(user, modal, 'TEST-VEHICLE - Project vehicle rental');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
-    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Vehicle', '519104 - Project vehicle rental', true));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Vehicle', 'TEST-VEHICLE - Project vehicle rental', true));
   });
 
   it('maps a previously-unmapped category (create)', async () => {

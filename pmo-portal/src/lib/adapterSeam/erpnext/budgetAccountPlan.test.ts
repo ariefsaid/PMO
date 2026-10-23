@@ -46,11 +46,11 @@ describe('resolveV16BudgetAccounts', () => {
 });
 
 describe('resolveV16BudgetAccounts — #1326 Travel & accommodation and Vehicle', () => {
-  // The reader passes only PUSH rows (#768): 519103 is an actuals-only Travel account and never reaches here.
+  // The reader passes only PUSH rows (#768): TEST-TRAVEL is an actuals-only Travel account and never reaches here.
   const pushMap: CategoryAccountMapRow[] = [
     { category: 'Special expenses', erp_account: 'Travel expenses' },
-    { category: 'Travel & accommodation', erp_account: '519102 - Project hotel' },
-    { category: 'Vehicle', erp_account: '519104 - Project vehicle rental' },
+    { category: 'Travel & accommodation', erp_account: 'TEST-HOTEL - Project hotel' },
+    { category: 'Vehicle', erp_account: 'TEST-VEHICLE - Project vehicle rental' },
   ];
 
   it('AC-TVC-002 pushes each new category to its own mapped account, summed per category in exact cents', () => {
@@ -61,8 +61,8 @@ describe('resolveV16BudgetAccounts — #1326 Travel & accommodation and Vehicle'
       { category: 'Vehicle', budgeted_amount: '30.30' },
       { category: 'Special expenses', budgeted_amount: '40.40' },
     ], pushMap)).toEqual([
-      { account: '519102 - Project hotel', budget_amount: '100.30' },
-      { account: '519104 - Project vehicle rental', budget_amount: '80.50' },
+      { account: 'TEST-HOTEL - Project hotel', budget_amount: '100.30' },
+      { account: 'TEST-VEHICLE - Project vehicle rental', budget_amount: '80.50' },
       { account: 'Travel expenses', budget_amount: '40.40' },
     ]);
   });

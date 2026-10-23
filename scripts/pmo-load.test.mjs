@@ -571,8 +571,14 @@ test('AC-TVC-004: SBP travel, hotel, ticket and per-diem lines classify as Trave
 });
 
 test('AC-TVC-004: SBP vehicle rental and fuel lines classify as Vehicle', () => {
-  for (const description of ['Vehicle (SBP: rental + fuel)', 'Fuel', 'Vehicle rental', 'Sewa kendaraan', 'BBM']) {
+  for (const description of ['Vehicle (SBP: rental + fuel)', 'Vehicle rental', 'Sewa kendaraan', 'BBM mobil operasional', 'Fuel for site trucks', 'Rental + fuel']) {
     assert.equal(classifyBudgetLineCategory('Special expenses', description), 'Vehicle', description);
+  }
+});
+
+test('AC-TVC-004: fuel without a vehicle word stays in Special expenses (a generator is not a vehicle)', () => {
+  for (const description of ['BBM genset', 'Fuel', 'BBM', 'Bahan bakar generator']) {
+    assert.equal(classifyBudgetLineCategory('Special expenses', description), 'Special expenses', description);
   }
 });
 
@@ -624,4 +630,29 @@ test('AC-TVC-004: a Draft loaded before #1326 (lines still Special expenses) is 
   const actions = await load(api, SBP_DOC());
   assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items'), []);
   assert.equal(actions.find((a) => a.kind === 'budget.skip').reason, 'every line is already in the draft');
+});
+
+test('AC-TVC-004: the load output lists each reclassified line and each fuel line kept in Special expenses', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  const doc = { projects: [{
+    code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads',
+    budget: [
+      { category: 'Labor', description: 'Crew', budgeted_amount: 10 },
+      { category: 'Special expenses', description: 'BBM genset', budgeted_amount: 20 },
+      { category: 'Special expenses', description: 'BBM mobil operasional', budgeted_amount: 30 },
+      { category: 'Special expenses', description: 'Migas permits', budgeted_amount: 40 },
+    ],
+  }] };
+  for (const dryRun of [true, false]) {
+    const actions = await load(dryRun ? fakeApi({ tables: { companies: COMPANIES() } }) : api, doc, dryRun);
+    assert.deepEqual(actions.filter((a) => a.kind === 'budget.category'), [
+      { kind: 'budget.category', key: 'ORG-001', row: 1, description: 'BBM genset', from: 'Special expenses', to: 'Special expenses',
+        reason: 'fuel with no vehicle word — kept in Special expenses' },
+      { kind: 'budget.category', key: 'ORG-001', row: 2, description: 'BBM mobil operasional', from: 'Special expenses', to: 'Vehicle',
+        reason: 'vehicle' },
+    ], dryRun ? 'dry run' : 'load');
+  }
+  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items').map((c) => [c.body.description, c.body.category]), [
+    ['Crew', 'Labor'], ['BBM genset', 'Special expenses'], ['BBM mobil operasional', 'Vehicle'], ['Migas permits', 'Special expenses'],
+  ]);
 });

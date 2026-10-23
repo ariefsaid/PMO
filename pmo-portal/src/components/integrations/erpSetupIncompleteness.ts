@@ -10,12 +10,23 @@ export const COMPANY_DEFAULTS = [
   'cost_center',
 ] as const;
 
+/** #1326: categories an org need map only once it budgets in them (they were split out of Special expenses). */
+export const OPTIONAL_BUDGET_CATEGORIES: readonly string[] = ['Travel & accommodation', 'Vehicle'];
+
+/** The budget categories this org must map before its budget setup is complete. */
+export function requiredBudgetCategories(setup: ErpSetupReadiness): string[] {
+  const used = setup.budgetUsedOptionalCategories ?? [];
+  return Constants.public.Enums.budget_category.filter(
+    (category) => !OPTIONAL_BUDGET_CATEGORIES.includes(category) || used.includes(category),
+  );
+}
+
 export function getErpSetupIncompleteness(setup: ErpSetupReadiness) {
   return {
     domains: setup.domains.length === 0,
     company: COMPANY_DEFAULTS.some((key) => !setup.defaults[key]),
     activity: !setup.defaults.default_activity_type || !setup.defaults.default_receivable_account,
-    budget: setup.budgetMappedCategories.length < Constants.public.Enums.budget_category.length,
+    budget: requiredBudgetCategories(setup).some((category) => !setup.budgetMappedCategories.includes(category)),
     employees: setup.unlinkedEmployeeCount > 0,
     projects: setup.unmappedProjects.length > 0,
   };

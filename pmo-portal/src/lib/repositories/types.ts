@@ -1113,6 +1113,9 @@ export interface ErpSetupReadiness {
   domains: string[];
   unmappedProjects: Array<{ id: string; name: string; code: string | null }>;
   budgetMappedCategories: string[];
+  /** #1326: which of Travel & accommodation / Vehicle the org has budget lines in. Absent from an older
+   *  edge function — then neither is required. */
+  budgetUsedOptionalCategories?: string[];
   unlinkedEmployeeCount: number;
 }
 export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }
