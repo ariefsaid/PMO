@@ -81,6 +81,7 @@ import { checkErpnextCommandAuthorization, type AuthorizationClient } from './au
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
+import { checkProcurementGate } from './procurementGateGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
@@ -1070,6 +1071,17 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     if (!projectGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: projectGate.message }), {
         status: projectGate.status,
+        headers,
+      });
+    }
+  }
+
+  // FR-PFE-010 (#1319) — the org's purchase rules, before any adapter/outbox/ERP work (rejection = no outbox row).
+  {
+    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never);
+    if (!procurementGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
+        status: procurementGate.status,
         headers,
       });
     }
