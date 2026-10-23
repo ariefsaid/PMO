@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(99);
+select plan(101);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -899,7 +899,12 @@ select ok(
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 insert into procurements (id, org_id, title, status, requested_by_id, vendor_id) values
   ('01710000-0000-0000-0000-0000000000d4','01710000-0000-0000-0000-000000000001','SCC SoD case','Requested',
+   '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000c2'),
+  ('01710000-0000-0000-0000-0000000000df','01710000-0000-0000-0000-000000000001','SCC cancelled case','Cancelled',
    '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000c2');
+create temp table scc_d8_before as select
+  (select count(*) from public.payments where procurement_id = '01710000-0000-0000-0000-0000000000d8') as payments,
+  (select count(*) from public.procurement_status_events where procurement_id = '01710000-0000-0000-0000-0000000000d8') as events;
 insert into timesheets (id, org_id, user_id, week_start_date, status, submitted_at) values
   ('01710000-0000-0000-0000-0000000000d5','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000a1','2026-03-16','Submitted',now());
 insert into project_documents (id, org_id, project_id, code, category, title, revision, doc_date, author_id, status) values
@@ -915,10 +920,14 @@ select throws_ok(
   '42501', 'separation of duties: requester cannot approve/reject own procurement',
   'AC-CPS-070 transition_procurement''s requester-!=-approver SoD still fires');
 
-select throws_ok(
+-- AMENDED BY 0362 (FR-PFE-006): Paid -> Paid is an idempotent no-op that writes nothing; Cancelled -> Paid is still refused.
+select lives_ok(
   $$ select transition_procurement('01710000-0000-0000-0000-0000000000d8'::uuid,'Paid'::procurement_status) $$,
-  'P0001', 'illegal transition Paid -> Paid',
-  'AC-CPS-070 …and its transition map still refuses a re-entry into a terminal state');
+  'AC-CPS-070 …asking for Paid on a Paid purchase is a no-op (FR-PFE-006)');
+select throws_ok(
+  $$ select transition_procurement('01710000-0000-0000-0000-0000000000df'::uuid,'Paid'::procurement_status) $$,
+  'P0001', 'illegal transition Cancelled -> Paid',
+  'AC-CPS-070 …and its transition map still refuses leaving a terminal state');
 
 select throws_ok(
   $$ select transition_document_status('01710000-0000-0000-0000-0000000000d6'::uuid,'Approved'::doc_status) $$,
@@ -931,6 +940,13 @@ select throws_ok(
   'AC-CPS-070 transition_timesheet''s nobody-approves-their-own SoD still fires (even an Admin cannot)');
 
 reset role;
+select is(
+  (select (select count(*) from public.payments where procurement_id = '01710000-0000-0000-0000-0000000000d8') - b.payments
+       || '/' || (select count(*) from public.procurement_status_events where procurement_id = '01710000-0000-0000-0000-0000000000d8') - b.events
+       || '/' || (select status::text from public.procurements where id = '01710000-0000-0000-0000-0000000000d8')
+     from scc_d8_before b),
+  '0/0/Paid',
+  'AC-CPS-070 …and it writes nothing: no new payment, no status event, status unchanged');
 -- ⚑ b8 (ROW 6: no line manager, peer-PM ratifier -> REFUSED), NOT b5. b5 is deliberately WON earlier
 -- by ROW 3, so asserting it here would go red for the right reason and prove nothing about the SoD.
 -- It did exactly that on the rank ruling. Pick the deal the rule actually holds back.
