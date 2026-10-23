@@ -40,7 +40,7 @@ grant select on public.erp_purchase_document_marks to authenticated;
 create function public.clear_erp_set_aside_on_link() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
 begin
-  update public.erp_purchase_document_marks set set_aside_at = null, set_aside_by = null, updated_at = now()
+  update public.erp_purchase_document_marks set set_aside_at = null, set_aside_by = null, updated_by = null, updated_at = now()
    where erp_purchase_document_id = new.erp_purchase_document_id and set_aside_at is not null and note is not null;
   delete from public.erp_purchase_document_marks
    where erp_purchase_document_id = new.erp_purchase_document_id and set_aside_at is not null and note is null;

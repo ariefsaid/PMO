@@ -90,7 +90,8 @@
 -- ⚑ AMENDED BY 0364 (#1319 AC-13): `mark_erp_purchase_documents` joins the retained set (+1, count 79). A SECURITY
 -- DEFINER writer called under a member's JWT that re-asserts active membership, the Admin/Finance role and the
 -- caller's org, and refuses linked documents; proved by supabase/tests/procurement_erp_set_aside.test.sql (AC-13d).
--- The 0364 trigger functions have no client EXECUTE and are deliberately NOT listed.
+-- The 0364 trigger functions (org stamp, clear-on-link) have no client EXECUTE and are deliberately NOT listed; the
+-- clear-on-link effect is proved in the same file.
 --
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count

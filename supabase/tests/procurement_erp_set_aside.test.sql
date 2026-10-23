@@ -3,7 +3,7 @@
 -- (role rows), delete the assert_is_active_member() call (disabled row), drop `where not set_aside` from
 -- erp_purchase_orphans (default-list row).
 begin;
-select plan(25);
+select plan(32);
 
 insert into organizations (id, name, default_currency) values
   ('03640000-0000-0000-0000-00000000000a','SA A','IDR'), ('03640000-0000-0000-0000-00000000000b','SA B','IDR');
@@ -71,6 +71,31 @@ select is((select grand_total from erp_purchase_documents where erp_name = 'PI-R
 select is((select count(*) from erp_purchase_document_marks m join erp_purchase_documents d on d.id = m.erp_purchase_document_id
             where d.erp_name = 'PI-RENT' and m.set_aside_at is not null), 1::bigint, 'AC-13d a re-sync keeps the set-aside state');
 
+-- clear-on-link: linking a set-aside document clears the flag and keeps the note; unlinking returns it to the default list
+select upsert_erp_purchase_documents('03640000-0000-0000-0000-00000000000a',
+  '[{"erp_doctype":"Purchase Invoice","erp_name":"PI-LNK","supplier":"S","currency":"IDR","grand_total":5,"erp_docstatus":1,"erp_modified":"2026-02-01"}]');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select mark_erp_purchase_documents('[{"erp_name":"PI-LNK","note":"keep me"}]'::jsonb);
+select link_erp_purchase_documents('[{"erp_name":"PI-LNK"}]'::jsonb);
+reset role;
+select is((select set_aside_at from erp_purchase_document_marks m join erp_purchase_documents d on d.id = m.erp_purchase_document_id
+            where d.erp_name = 'PI-LNK' and d.org_id = '03640000-0000-0000-0000-00000000000a'), null::timestamptz, 'AC-13a linking a set-aside document clears the set-aside flag');
+select is((select note from erp_purchase_document_marks m join erp_purchase_documents d on d.id = m.erp_purchase_document_id
+            where d.erp_name = 'PI-LNK' and d.org_id = '03640000-0000-0000-0000-00000000000a'), 'keep me', 'AC-13b linking keeps the note');
+select is((select updated_by from erp_purchase_document_marks m join erp_purchase_documents d on d.id = m.erp_purchase_document_id
+            where d.erp_name = 'PI-LNK' and d.org_id = '03640000-0000-0000-0000-00000000000a'), null::uuid, 'AC-13a the clear leaves no stale updated_by');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$ select unlink_erp_purchase_document((select l.id from procurement_erp_links l join erp_purchase_documents d on d.id = l.erp_purchase_document_id where d.erp_name = 'PI-LNK')) $$,
+  'AC-13a Finance unlinks the document');
+select is((select note from erp_purchase_orphans where erp_name = 'PI-LNK'), 'keep me', 'AC-13a after unlinking, the document is back in the default list with its note');
+select throws_ok($$ insert into erp_purchase_document_marks (erp_purchase_document_id, org_id, note)
+  select id, org_id, 'x' from erp_purchase_documents where erp_name = 'PI-OPEN' and org_id = '03640000-0000-0000-0000-00000000000a' $$,
+  '42501', null, 'AC-13d a member cannot insert into the marks table directly');
+select throws_ok($$ update erp_purchase_document_marks set note = 'x' $$, '42501', null, 'AC-13d a member cannot update the marks table directly');
+reset role;
+
 -- Admin can too; every other reader refused
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -82,7 +107,7 @@ set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a3","r
 select throws_ok(current_setting('sa.sql_pm'), '42501', null, 'AC-13d a Project Manager is refused');
 set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok(current_setting('sa.sql_pm'), '42501', null, 'AC-13d an Executive is refused');
-select is((select count(*) from erp_purchase_orphans_all), 3::bigint, 'AC-13d an Executive reads the orphan list (audience)');
+select is((select count(*) from erp_purchase_orphans_all), 4::bigint, 'AC-13d an Executive reads the orphan list (audience)');
 set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok(current_setting('sa.sql_pm'), '42501', null, 'AC-13d an Engineer is refused');
 set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a6","role":"authenticated"}';
