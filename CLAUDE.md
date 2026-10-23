@@ -143,9 +143,11 @@ Build the three approved UX lanes in parallel with statements and money fixes; s
 priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
 Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
 
-**Post-merge browser gate (owner, 2026-10-19):** after every 2–3 slice merges to `dev`, dispatch
-one browser integration run on `dev` itself through the logged wrapper. A red dev run stops new
-merges until fixed. This supplements the lane-closing runs above; the same concurrency caps apply.
+**Dev browser run only when needed (owner, 2026-10-23; replaces the 2–3-merge cadence):** dispatch one
+browser run on `dev` (logged wrapper) only when merged work changed something only a browser proves —
+e2e specs, a UI journey, or edge-function/ERP flows unit + pgTAP can't reach — batched after the related
+merges, and before cutting a release PR to `main` if unproven browser work is on `dev`. A red dev run
+stops new merges until fixed; the same caps apply.
 
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
