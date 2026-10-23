@@ -76,6 +76,7 @@
     {"table":"procurement_doc_counters","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"procurement_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"procurement_invoice_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"procurement_erp_links","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"procurement_invoices","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"procurement_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"procurement_quotation_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -121,6 +122,12 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "advance_procurement_status(uuid,text)",
+    "get_procurement_gates()",
+    "procurement_evidenced_step(uuid)",
+    "procurement_gate_violation(uuid,procurement_status)",
+    "procurement_gate(uuid,text)",
+    "set_procurement_gates(jsonb)",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
     "_erp_statement_native_has_amount_rows(jsonb)",
     "_erp_statement_period_matches(jsonb,jsonb,text,date,date)",
