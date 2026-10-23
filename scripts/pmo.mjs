@@ -18,6 +18,8 @@
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
  *   pmo m365 status
+ *   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, PM, Finance; #1270)
+ *   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; #1270)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -37,6 +39,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
+import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
+import { activateBudget, ActivationRefused, validateSource } from './lib/pmo-budgets.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -98,7 +102,7 @@ export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items'
 export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -647,7 +651,7 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'source']);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside']);
 
 export function parseArgs(argv) {
@@ -757,6 +761,9 @@ const USAGE = `usage:
   pmo erp readiness | list-projects | verify-links
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
   pmo m365 status
+  pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, Project Manager, Finance; the
+                                                                   app's activation and separation-of-duties rules apply)
+  pmo accounts map set <category> <account...> [--dry-run]   (active Admin; the first account is the push account)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -884,6 +891,10 @@ async function dispatch(ctx, command, positionals, flags) {
       return documents(ctx, positionals, flags);
     case 'm365':
       return m365(ctx, positionals);
+    case 'budgets':
+      return budgets(ctx, positionals, flags);
+    case 'accounts':
+      return accounts(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -1041,6 +1052,65 @@ async function purchases(ctx, positionals, flags) {
     });
   }
   throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside or link-file.`);
+}
+
+/**
+ * `pmo budgets activate` (#1270 B). The database decides: the same activation RPC and separation-of-duties rules as the
+ * app. `--source` attaches the SharePoint file to the Draft version first (same row shape as `purchases link-file`).
+ */
+async function budgets(ctx, positionals, flags) {
+  const [sub, versionId] = positionals;
+  if (sub !== 'activate') throw usage(`Unknown budgets command '${sub ?? ''}'. Use activate.`);
+  if (!versionId || !UUID.test(versionId)) throw usage('budgets activate needs a budget version id (uuid): pmo budgets activate <version_id> [--source <json>]');
+  let source;
+  if (flags.source !== undefined) {
+    source = await readPayload(ctx, flags.source);
+    const problems = validateSource(source);
+    if (problems.length > 0) throw new CliError(`The --source row has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_source', details: problems });
+  }
+  const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+  try {
+    return await activateBudget(api, versionId.toLowerCase(), { source });
+  } catch (e) {
+    if (e instanceof ActivationRefused) throw new CliError(e.message, { code: e.code, details: { activation_mode: e.mode } });
+    if (e instanceof CliError && e.sourceLinkId) e.details = { cause: e.details ?? null, source_link_id: e.sourceLinkId, note: 'The source file stays linked to the Draft.' };
+    throw e;
+  }
+}
+
+/**
+ * `pmo accounts map set` (#1270 B): the Admin screen's own checks, then its own writes. Active Admin only (RLS
+ * decides regardless). The ERP chart is read through the same function the screen's picker uses.
+ */
+async function accounts(ctx, positionals, flags) {
+  const [area, sub, category, ...names] = positionals;
+  if (area !== 'map' || sub !== 'set') throw usage(`Unknown accounts command '${[area, sub].filter(Boolean).join(' ')}'. Use: accounts map set <category> <account...>`);
+  if (!category || names.length === 0) throw usage('accounts map set needs a category and at least one ERP account: pmo accounts map set <category> <push account> [<count-only account>...] [--dry-run]');
+  const { profile } = await readMe(ctx);
+  if (profile.role !== 'Admin' || profile.status !== 'active') {
+    throw usage("pmo accounts map set is for an active Admin. Sign in as the organisation's Admin.");
+  }
+  const q = new URLSearchParams({ select: MAP_COLUMNS.join(','), order: 'category.asc,erp_account.asc' });
+  const rows = await authed(ctx, 'GET', `/rest/v1/${MAP_TABLE}?${q}`);
+  const chart = await authed(ctx, 'POST', '/functions/v1/external-items', { body: { purpose: 'budget-accounts' } });
+  if (!chart || !Array.isArray(chart.accounts)) throw new CliError('The ERP account chart response was incomplete; nothing was changed.', { code: 'chart_unavailable' });
+  let plan;
+  try {
+    plan = planMapSet({ category, accounts: names, rows: Array.isArray(rows) ? rows : [], catalogue: chart.accounts });
+  } catch (e) {
+    if (e instanceof MapSetError) throw new CliError(`The account map was not changed: ${e.problems.length} problem(s).`, { exit: 2, code: 'invalid_account_map', details: e.problems });
+    throw e;
+  }
+  const api = {
+    post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: { prefer: 'return=representation' } }),
+    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+  };
+  try {
+    return await applyMapSet(plan, api, { dryRun: Boolean(flags['dry-run']) });
+  } catch (e) {
+    if (e instanceof CliError && e.applied) e.details = { cause: e.details ?? null, applied: e.applied };
+    throw e;
+  }
 }
 
 /**
