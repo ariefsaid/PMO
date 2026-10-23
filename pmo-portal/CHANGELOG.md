@@ -10,6 +10,18 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.25.0](https://github.com/ariefsaid/PMO/compare/v0.24.0...v0.25.0) (2026-10-23)
+
+
+### Features
+
+* v0.25 ERP purchases, contract quantities, M365 record folders, one-step create, assistant accuracy and hardening ([#1292](https://github.com/ariefsaid/PMO/issues/1292)) ([e3b80db](https://github.com/ariefsaid/PMO/commit/e3b80db845726c1606333df8fe56daa3e9b861f9))
+
+
+### Bug Fixes
+
+* **deps:** pin DOMPurify 3.4.17 for three published advisories ([#1304](https://github.com/ariefsaid/PMO/issues/1304)) ([7e56b1d](https://github.com/ariefsaid/PMO/commit/7e56b1dc2ea8b9e2a7012f953af0250c76c47065))
+
 ## [0.24.0](https://github.com/ariefsaid/PMO/compare/v0.23.0...v0.24.0) (2026-10-20)
 
 
