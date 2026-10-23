@@ -23,7 +23,9 @@ const committedSpendState = { data: 2_350_000 };
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, committedSpendHook } = vi.hoisted(() => ({
+  // Records the arguments so a test can prove which project-wide reads a role triggers.
+  committedSpendHook: vi.fn(),
   budgetVersionsBox: { value: [] as unknown[] },
   roleBox: { value: 'Project Manager' as string },
   desktopBox: { value: true },
@@ -84,7 +86,7 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectCommittedSpend: () => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }),
+  useProjectCommittedSpend: (...args: unknown[]) => committedSpendHook(...args),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => projectTransition,
@@ -173,6 +175,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     oppState.isError = false;
     oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
+    committedSpendHook.mockReset();
+    committedSpendHook.mockImplementation(() => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }));
     budgetVersionsBox.value = [];
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
@@ -289,6 +293,22 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
     // PD-B: budget use lives in the Budget snapshot's Budget position.
     expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
+  });
+
+  it('AC-SEC-229: an Engineer sees no project-wide purchase-order or spend figure — their purchasing read covers only their own requests', async () => {
+    roleBox.value = 'Engineer';
+    committedSpendState.data = 2_350_000;
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000, line_items: [] }];
+    await renderAt('/projects/p1');
+
+    // The Engineer's financial summary still renders (Contract), but no figure summed over the
+    // project's requests: the project-wide read is not issued and nothing derived from it shows.
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
+    expect(screen.queryByText('$2,350,000.00')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
+    expect(committedSpendHook).toHaveBeenCalled();
+    for (const [projectId] of committedSpendHook.mock.calls) expect(projectId).toBeNull();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {

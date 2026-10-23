@@ -37,6 +37,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 
 import { ProcurementListRow } from '../ProcurementListRow';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
 const makeRow = (over: Partial<ProcurementWithRefs> = {}): ProcurementWithRefs =>
@@ -59,11 +60,14 @@ const makeRow = (over: Partial<ProcurementWithRefs> = {}): ProcurementWithRefs =
 
 const wrap = (row: ProcurementWithRefs) =>
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ProcurementListRow row={row} />
-      </ToastProvider>
-    </MemoryRouter>,
+    // The expanded row's DecisionSupportPanel reads the viewer's real role.
+    <ImpersonationProvider realRole="Project Manager">
+      <MemoryRouter>
+        <ToastProvider>
+          <ProcurementListRow row={row} />
+        </ToastProvider>
+      </MemoryRouter>
+    </ImpersonationProvider>,
   );
 
 describe('FR-L10N-020: ProcurementListRow expanded line items — record currency', () => {

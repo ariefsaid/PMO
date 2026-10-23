@@ -26,10 +26,13 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 
 import { DecisionSupportPanel } from '../DecisionSupportPanel';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 // Wrapper renders at status 'Requested' (a panel-visible status) so these heading /
 // link tests stay visible after the ADR-0034 visibility boundary was added.
-const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+// The panel reads the viewer's real role (its figures are project-wide): render as a Project Manager.
+const wrap = (ui: React.ReactElement) =>
+  render(<ImpersonationProvider realRole="Project Manager"><MemoryRouter>{ui}</MemoryRouter></ImpersonationProvider>);
 
 beforeEach(() => {
   budgetState.data = 500000;

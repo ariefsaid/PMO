@@ -10,6 +10,9 @@ describe('AC-BUPOT-015 withholding slip policy', () => {
       expect(roles.filter((realRole) => can(action, 'vendorWithholdingSlip', { realRole }))).toEqual(['Admin', 'Finance']);
       expect(can(action, 'vendorWithholdingSlip', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
     }
-    expect(roles.every((realRole) => can('view', 'vendorWithholdingSlip', { realRole }))).toBe(true);
+  });
+
+  it('AC-SEC-229 view mirrors the server read: every role except Engineer (no payment records, migration 0350)', () => {
+    expect(roles.filter((realRole) => can('view', 'vendorWithholdingSlip', { realRole }))).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
   });
 });
