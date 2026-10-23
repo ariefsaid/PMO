@@ -8,8 +8,16 @@
 export const PURCHASE_RPCS = Object.freeze(['link_erp_purchase_documents', 'link_procurement_sharepoint_item']);
 export const PURCHASE_READ_VIEWS = Object.freeze({
   erp_purchase_orphans: Object.freeze(['id', 'erp_doctype', 'erp_name', 'supplier', 'supplier_name', 'doc_date', 'currency',
-    'grand_total', 'net_total', 'erp_status', 'project_ids']),
+    'grand_total', 'net_total', 'erp_status', 'project_ids', 'note']),
+  // `orphans --include-set-aside` (migration 0364): the same list plus the documents set aside as overhead, flagged.
+  erp_purchase_orphans_all: Object.freeze(['id', 'erp_doctype', 'erp_name', 'supplier', 'supplier_name', 'doc_date', 'currency',
+    'grand_total', 'net_total', 'erp_status', 'project_ids', 'set_aside', 'note']),
 });
+/** The ADMIN/FINANCE tier of the guard (migration 0364): set aside / undo unlinked ERP documents as overhead. */
+export const SET_ASIDE_RPCS = Object.freeze(['mark_erp_purchase_documents']);
+export const SET_ASIDE_COLUMNS = Object.freeze(['erp_doctype', 'erp_name', 'note']);
+/** Same cap as the RPC's note column. */
+export const MAX_NOTE = 500;
 export const CSV_COLUMNS = Object.freeze(['erp_doctype', 'erp_name', 'procurement_id', 'project_id', 'group', 'title',
   'budget_category', 'sp_drive_id', 'sp_item_id', 'sp_web_url', 'sp_name', 'sp_kind']);
 /** The link RPC takes 1..500 rows per call (FR-PFE-020). */
@@ -166,5 +174,69 @@ export async function runLink(api, rows, { dryRun }) {
     for (const k of Object.keys(out.counts)) out.counts[k] += Number(res?.counts?.[k] ?? 0);
   }
   out.results.sort((x, y) => x.row - y.row);
+  return out;
+}
+
+/** CSV with a SET_ASIDE_COLUMNS header → set-aside rows (empty cells omitted). Unknown columns and ragged rows are refused. */
+export function setAsideRowsFromCsv(text) {
+  const [header, ...body] = parseCsv(text);
+  if (!header) return [];
+  const names = header.map((h) => h.trim());
+  const problems = names.filter((h) => !SET_ASIDE_COLUMNS.includes(h)).map((h) => `unknown column '${h}' (columns: ${SET_ASIDE_COLUMNS.join(',')})`);
+  body.forEach((cells, i) => {
+    if (cells.length > names.length) problems.push(`row ${i + 1} has ${cells.length} cells; the header has ${names.length}`);
+  });
+  if (problems.length > 0) throw new LinkFileError(problems);
+  return body.map((cells) => {
+    const row = {};
+    names.forEach((h, i) => { const v = (cells[i] ?? '').trim(); if (v !== '') row[h] = v; });
+    return row;
+  });
+}
+
+/** CLI-side checks for a set-aside file (the database decides everything else). `undo` leaves notes alone, so a note is refused. */
+export function validateSetAsideRows(rows, { undo = false } = {}) {
+  const problems = [];
+  if (!Array.isArray(rows) || rows.length === 0) return ['the file has no rows'];
+  const seen = new Map();
+  rows.forEach((r, i) => {
+    const n = i + 1;
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { problems.push(`row ${n}: must be an object`); return; }
+    for (const k of Object.keys(r)) if (!SET_ASIDE_COLUMNS.includes(k)) problems.push(`row ${n}: unknown field '${k}'`);
+    if (typeof r.erp_name !== 'string' || r.erp_name.trim() === '') problems.push(`row ${n}: erp_name is required`);
+    if (r.note !== undefined) {
+      if (typeof r.note !== 'string') problems.push(`row ${n}: note must be text`);
+      else if (undo) problems.push(`row ${n}: --undo does not change notes; remove the note`);
+      else if (r.note.length > MAX_NOTE) problems.push(`row ${n}: note is longer than ${MAX_NOTE} characters`);
+    }
+    const name = str(r.erp_name);
+    if (name !== '') {
+      const doctype = str(r.erp_doctype);
+      const prior = (seen.get(name) ?? []).find((p) => p.doctype === '' || doctype === '' || p.doctype === doctype);
+      if (prior) problems.push(`row ${n}: ERP document ${name} is already listed on row ${prior.n}`);
+      if (!seen.has(name)) seen.set(name, []);
+      seen.get(name).push({ n, doctype });
+    }
+  });
+  return problems;
+}
+
+/** Send set-aside rows in calls of ≤ MAX_BATCH; same report shape and partial-failure fields as runLink. */
+export async function runSetAside(api, rows, { undo, dryRun }) {
+  const out = { dry_run: Boolean(dryRun), action: undo ? 'undo' : 'set_aside', counts: { apply: 0, skip: 0, refused: 0 }, results: [] };
+  for (let at = 0; at < rows.length; at += MAX_BATCH) {
+    const chunk = rows.slice(at, at + MAX_BATCH);
+    let res;
+    try {
+      res = await api.rpc('mark_erp_purchase_documents', { p_rows: chunk, p_action: out.action, p_dry_run: Boolean(dryRun) });
+    } catch (e) {
+      out.failed_at_row = at + 1;
+      out.not_saved_rows = Array.from({ length: rows.length - at }, (_, k) => at + k + 1);
+      out.error = Object.fromEntries(['message', 'code', 'status'].filter((k) => e?.[k] !== undefined && e?.[k] !== null).map((k) => [k, e[k]]));
+      break;
+    }
+    for (const r of res?.results ?? []) out.results.push({ ...r, row: at + Number(r.row) });
+    for (const k of Object.keys(out.counts)) out.counts[k] += Number(res?.counts?.[k] ?? 0);
+  }
   return out;
 }

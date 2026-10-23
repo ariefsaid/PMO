@@ -134,7 +134,8 @@ changed — none matched, or the database did not let you change it.
 - **`pmo purchases`** (active Admin, Executive, Project Manager or Finance; #1319, migration `0363`): reads
   the ERP orphan list (`erp_purchase_orphans`) and links ERPNext purchase documents and SharePoint items
   into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
-  Unlinking stays in the app.
+  Unlinking stays in the app. Admin and Finance tokens also set documents aside as overhead with
+  `mark_erp_purchase_documents` and read `erp_purchase_orphans_all` (migration `0364`, §5).
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -193,7 +194,10 @@ ERPNext; a linked document is never pushed. Documents authored in PMO (which pus
 the app, not here.
 
 ```bash
-node scripts/pmo.mjs purchases orphans [--project <project id>] [--limit n]   # unlinked, submitted ERP documents
+node scripts/pmo.mjs purchases orphans [--project <project id>] [--limit n]   # unlinked, submitted ERP documents (set-aside ones hidden)
+node scripts/pmo.mjs purchases orphans --include-set-aside                    # the same list with the set-aside ones, flagged
+node scripts/pmo.mjs purchases set-aside overhead.csv --dry-run               # Admin/Finance: mark documents as not a project purchase
+node scripts/pmo.mjs purchases set-aside overhead.csv [--undo]                # the same checks, for real; --undo brings them back
 node scripts/pmo.mjs purchases link history.csv --dry-run                     # ALWAYS first: what would happen
 node scripts/pmo.mjs purchases link history.csv                               # the same checks, for real
 node scripts/pmo.mjs purchases link-file '{"procurement_id":"…","item":{…}}'  # one SharePoint item on a purchase
@@ -256,6 +260,17 @@ linked report `skip` / `already_linked` with their purchase id, and only the res
 | `gate_request_before_order`, `gate_approval_before_order`, `gate_receipt_before_invoice`, `gate_approval_before_payment` | an organisation procurement gate refuses that step |
 | any other sentence | a guard refused the resulting status (e.g. "separation of duties: approver cannot pay own procurement") |
 
+
+**Setting overhead aside** (Admin and Finance only). Rent, insurance, cloud and similar invoices never join a
+project purchase; set them aside so the orphan list shows only what still needs a home. The file is JSON or CSV
+with the header `erp_doctype,erp_name,note` (`erp_doctype` and `note` optional; `note` is up to 500 characters and
+is kept when a document is set aside or brought back). Setting aside changes nothing in ERPNext or in actuals, can
+be undone (`--undo`; a note is refused with `--undo`), and a document that is later linked leaves the set-aside
+list. `--dry-run` runs the same checks and writes nothing. The file is refused (exit 2) for the same reasons as a
+link file: unknown column or field, a ragged CSV row, an unclosed quote, a missing `erp_name`, a document listed
+twice. Extra reason codes: `document_linked` (already in a purchase; unlink it in the app first), `note_too_long`,
+`note_invalid`; a row that changes nothing is reported `skip` / `no_change`. Counts are `apply`, `skip`, `refused`.
+A note without setting aside is a screen feature (the database function supports it); the CLI sets notes only with set-aside.
 
 ---
 

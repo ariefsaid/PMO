@@ -5,7 +5,7 @@
 -- Mutation checks: drop the role conjunct and the Engineer rows go red; drop 'Executive' and the Executive row goes
 -- red; drop is_active_member() from either branch and the matching disabled-Finance row goes red.
 begin;
-select plan(14);
+select plan(23);
 
 insert into organizations (id, name, default_currency) values ('03630000-0000-0000-0000-0000000000c0', 'API PFE', 'IDR');
 insert into auth.users (id, email) values
@@ -73,6 +73,26 @@ select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-
 -- the shipped surface is unchanged
 select pg_temp.req('03630000-0000-0000-0000-0000000000c2', 'GET', '/projects');
 select lives_ok('select public.api_client_request_guard()', 'AC-PFE-018 the shipped surface is unchanged');
+
+-- 0364 (#1319 AC-13): the set-aside RPC is Admin/Finance only; the include-set-aside view reads like the orphan list.
+select pg_temp.req('03630000-0000-0000-0000-0000000000c1', 'POST', '/rpc/mark_erp_purchase_documents');
+select lives_ok('select public.api_client_request_guard()', 'AC-13c Finance token may POST the set-aside RPC');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c6', 'POST', '/rpc/mark_erp_purchase_documents');
+select lives_ok('select public.api_client_request_guard()', 'AC-13c Admin token may POST the set-aside RPC');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c4', 'POST', '/rpc/mark_erp_purchase_documents');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c a Project Manager token may not set aside');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c5', 'POST', '/rpc/mark_erp_purchase_documents');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c an Executive token may not set aside');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c2', 'POST', '/rpc/mark_erp_purchase_documents');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c an Engineer token may not set aside');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c3', 'POST', '/rpc/mark_erp_purchase_documents');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c a disabled member token may not set aside');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c1', 'GET', '/erp_purchase_orphans_all');
+select lives_ok('select public.api_client_request_guard()', 'AC-13c Finance token may GET the include-set-aside list');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c2', 'GET', '/erp_purchase_orphans_all');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c an Engineer token may not read the include-set-aside list');
+select pg_temp.req('03630000-0000-0000-0000-0000000000c1', 'POST', '/erp_purchase_document_marks');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-13c the marks table is not on the API surface');
 
 reset role;
 select * from finish();

@@ -7,7 +7,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseCsv, rowsFromCsv, validateLinkRows, runLink, PURCHASE_RPCS, PURCHASE_READ_VIEWS, MAX_BATCH } from './lib/pmo-purchases.mjs';
+import { parseCsv, rowsFromCsv, validateLinkRows, runLink, PURCHASE_RPCS, PURCHASE_READ_VIEWS, MAX_BATCH,
+  SET_ASIDE_RPCS, setAsideRowsFromCsv, validateSetAsideRows, runSetAside, LinkFileError } from './lib/pmo-purchases.mjs';
 
 const CSV = 'erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind\n'
   + 'Purchase Invoice,PINV-1,,11111111-1111-1111-1111-111111111111,G,"Steel, batch 1",,,,,,\n'
@@ -84,6 +85,7 @@ test('AC-PFE-018: the CLI purchase tier matches the latest guard migration', () 
   const list = (name) => [...decl(name)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
   assert.deepEqual(list('purchase_rpcs'), [...PURCHASE_RPCS].sort());
   assert.deepEqual(list('purchase_read_views'), Object.keys(PURCHASE_READ_VIEWS).sort());
+  assert.deepEqual(list('set_aside_rpcs'), [...SET_ASIDE_RPCS].sort());
 });
 
 test('parseCsv handles CRLF and escaped quotes', () => {
@@ -163,4 +165,57 @@ test('AC-PFE-011: CSV with an unterminated quote, an over-long row or an unknown
   assert.throws(() => parseCsv('a,b\n"x,y\n'), /unterminated quote/);
   assert.throws(() => rowsFromCsv('erp_name,project_id\nPINV-1,p,extra\n'), /row 1 has 3 cells; the header has 2/);
   assert.throws(() => rowsFromCsv('erp_name,procurment_id\nPINV-1,p\n'), /unknown column 'procurment_id'/);
+});
+
+// ── AC-13c set-aside (#1319) ─────────────────────────────────────────────────────────────────────
+
+test('AC-13c: set-aside CSV rows keep doctype, name and note; empty cells are omitted', () => {
+  const rows = setAsideRowsFromCsv('erp_doctype,erp_name,note\nPurchase Invoice,PINV-1,"Rent, May"\n,PINV-2,\n');
+  assert.deepEqual(rows, [{ erp_doctype: 'Purchase Invoice', erp_name: 'PINV-1', note: 'Rent, May' }, { erp_name: 'PINV-2' }]);
+  assert.deepEqual(validateSetAsideRows(rows), []);
+});
+
+test('AC-13c: a bad header, a ragged row, a typo field, a missing name, a duplicate or a note with --undo is refused', () => {
+  assert.throws(() => setAsideRowsFromCsv('erp_name,notes\nPINV-1,x\n'), (e) => e instanceof LinkFileError && /unknown column 'notes'/.test(e.message));
+  assert.throws(() => setAsideRowsFromCsv('erp_name\nPINV-1,extra\n'), (e) => e instanceof LinkFileError && /row 1 has 2 cells/.test(e.message));
+  assert.throws(() => setAsideRowsFromCsv('erp_name\n"PINV-1\n'), LinkFileError);
+  assert.deepEqual(validateSetAsideRows([{ erp_name: 'A', notes: 'x' }]), ["row 1: unknown field 'notes'"]);
+  assert.deepEqual(validateSetAsideRows([{ note: 'x' }]), ['row 1: erp_name is required']);
+  assert.deepEqual(validateSetAsideRows([{ erp_name: 'A' }, { erp_name: 'A' }]), ['row 2: ERP document A is already listed on row 1']);
+  assert.deepEqual(validateSetAsideRows([{ erp_name: 'A', note: 'x' }], { undo: true }), ['row 1: --undo does not change notes; remove the note']);
+  assert.deepEqual(validateSetAsideRows([{ erp_name: 'A', note: 'x'.repeat(501) }]), ['row 1: note is longer than 500 characters']);
+  assert.deepEqual(validateSetAsideRows([]), ['the file has no rows']);
+});
+
+const markApi = (calls, { failOnCall } = {}) => ({
+  rpc: async (name, body) => {
+    calls.push({ name, body });
+    if (failOnCall === calls.length) throw Object.assign(new Error('upstream timeout'), { status: 504 });
+    return { counts: { apply: body.p_rows.length, skip: 0, refused: 0 },
+      results: body.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: 'apply', reason: null })) };
+  },
+});
+
+test('AC-13c: set-aside sends the action and dry-run flag; --undo sends undo; big files go in calls of 500 with file row numbers', async () => {
+  const calls = [];
+  const rows = Array.from({ length: 501 }, (_, i) => ({ erp_name: `PI-${i}` }));
+  const out = await runSetAside(markApi(calls), rows, { undo: false, dryRun: true });
+  assert.deepEqual(calls.map((c) => [c.name, c.body.p_action, c.body.p_dry_run, c.body.p_rows.length]),
+    [['mark_erp_purchase_documents', 'set_aside', true, 500], ['mark_erp_purchase_documents', 'set_aside', true, 500 + 1 - 500]]);
+  assert.equal(out.counts.apply, 501);
+  assert.equal(out.results.at(-1).row, 501);
+  const undoCalls = [];
+  const undone = await runSetAside(markApi(undoCalls), [{ erp_name: 'A' }], { undo: true, dryRun: false });
+  assert.equal(undoCalls[0].body.p_action, 'undo');
+  assert.equal(undoCalls[0].body.p_dry_run, false);
+  assert.equal(undone.action, 'undo');
+});
+
+test('AC-13c: a failed call keeps what earlier calls saved and names the unsaved rows', async () => {
+  const rows = Array.from({ length: 501 }, (_, i) => ({ erp_name: `PI-${i}` }));
+  const out = await runSetAside(markApi([], { failOnCall: 2 }), rows, { undo: false, dryRun: false });
+  assert.equal(out.counts.apply, 500);
+  assert.equal(out.failed_at_row, 501);
+  assert.deepEqual(out.not_saved_rows, [501]);
+  assert.equal(out.error.status, 504);
 });

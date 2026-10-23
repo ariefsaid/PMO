@@ -13,7 +13,8 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
- *   pmo purchases orphans | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
+ *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
+ *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -33,7 +34,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, validateLinkRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -625,7 +626,7 @@ function defaultOpenBrowser(url) {
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside']);
 
 export function parseArgs(argv) {
   const flags = { filter: [] };
@@ -709,7 +710,9 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
-  pmo purchases orphans [--project <id>] [--limit n]
+  pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
+  pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
+                                                   erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
   pmo purchases link-file <json | @file | ->
@@ -863,7 +866,8 @@ async function readText(ctx, arg) {
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
   if (sub === 'orphans') {
-    const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS.erp_purchase_orphans.join(','), order: 'doc_date.desc,id.asc' });
+    const view = flags['include-set-aside'] ? 'erp_purchase_orphans_all' : 'erp_purchase_orphans';
+    const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS[view].join(','), order: 'doc_date.desc,id.asc' });
     if (flags.project !== undefined) {
       if (!UUID.test(String(flags.project))) throw usage(`--project must be a project id (uuid): got '${flags.project}'`);
       q.set('project_ids', `cs.{${flags.project}}`);
@@ -872,7 +876,7 @@ async function purchases(ctx, positionals, flags) {
       if (!/^[1-9]\d*$/.test(String(flags.limit))) throw usage(`--limit must be a positive integer: got '${flags.limit}'`);
       q.set('limit', String(flags.limit));
     }
-    return authed(ctx, 'GET', `/rest/v1/erp_purchase_orphans?${q}`);
+    return authed(ctx, 'GET', `/rest/v1/${view}?${q}`);
   }
   if (sub === 'link') {
     if (!arg) throw usage('purchases link needs a file: pmo purchases link <file.json|file.csv|-> [--dry-run]');
@@ -898,6 +902,30 @@ async function purchases(ctx, positionals, flags) {
     const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
     return failed ? new Reported(report, 1) : report;
   }
+  if (sub === 'set-aside') {
+    if (!arg) throw usage('purchases set-aside needs a file: pmo purchases set-aside <file.json|file.csv|-> [--undo] [--dry-run]');
+    const invalid = (problems) =>
+      new CliError(`The set-aside file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_set_aside_file', details: problems });
+    let rows;
+    if (Boolean(flags.csv) || /\.csv$/i.test(arg)) {
+      try {
+        rows = setAsideRowsFromCsv(await readText(ctx, arg));
+      } catch (e) {
+        if (e instanceof LinkFileError) throw invalid(e.problems);
+        throw e;
+      }
+    } else {
+      rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    }
+    const undo = Boolean(flags.undo);
+    const problems = validateSetAsideRows(rows, { undo });
+    if (problems.length > 0) throw invalid(problems);
+    const dryRun = Boolean(flags['dry-run']);
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runSetAside(api, rows, { undo, dryRun });
+    const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
+    return failed ? new Reported(report, 1) : report;
+  }
   if (sub === 'link-file') {
     const body = await readPayload(ctx, arg);
     if (!body || typeof body !== 'object' || Array.isArray(body) || !body.procurement_id || !body.item) {
@@ -907,7 +935,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside or link-file.`);
 }
 
 /**

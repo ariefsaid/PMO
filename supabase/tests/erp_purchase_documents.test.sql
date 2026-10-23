@@ -128,10 +128,11 @@ select ok(
                        'procurement_payment_within_ceiling',
                        -- AMENDED BY 0362 (FR-PFE-006): reads linked ERP documents only as step evidence for its no-op.
                        'transition_procurement',
-                       -- AMENDED BY 0363: the API-client guard names the link RPC in its allow-list text; it reads no rows
-                       'api_client_request_guard'))
+                       -- AMENDED BY 0363/0364: the guard names the link/mark RPCs in its allow-lists; reads no rows
+                       'mark_erp_purchase_documents','stamp_erp_purchase_document_mark_org',
+                       'api_client_request_guard'))  -- names the link/mark RPCs in its allow-lists; reads no table
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
-                    and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans')),
+                    and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only the named link/commitment readers touch the table');
 
 select * from finish();

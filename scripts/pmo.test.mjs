@@ -1589,6 +1589,93 @@ test('FR-PFE-060: pmo purchases orphans reads the orphan view, filtered by proje
   }
 });
 
+test('AC-13c: pmo purchases orphans --include-set-aside reads the include list and selects the flag and note', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['purchases', 'orphans', '--include-set-aside', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'GET /rest/v1/erp_purchase_orphans_all');
+    assert.match(new URLSearchParams(q.search).get('select'), /,set_aside,note$/);
+    await runCli(['purchases', 'orphans', '--url', fake.url], { configDir });
+    assert.equal(fake.requests.at(-1).path, '/rest/v1/erp_purchase_orphans', 'the default list is unchanged');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+/** The set-aside RPC answers every row 'apply' (or 'refused' for BAD*); records each body. */
+const markRpc = (bodies) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/mark_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    const results = b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name,
+      outcome: r.erp_name.startsWith('BAD') ? 'refused' : 'apply', reason: r.erp_name.startsWith('BAD') ? 'document_linked' : null }));
+    send(200, { dry_run: b.p_dry_run, action: b.p_action, counts: { apply: results.filter((x) => x.outcome === 'apply').length, skip: 0,
+      refused: results.filter((x) => x.outcome === 'refused').length }, results });
+    return true;
+  }
+  return false;
+};
+
+test('AC-13c: pmo purchases set-aside posts CSV rows; --undo sends undo; --dry-run sends p_dry_run true', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: markRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'overhead.csv');
+    fs.writeFileSync(file, 'erp_doctype,erp_name,note\nPurchase Invoice,PINV-1,Rent\n,PINV-2,\n');
+    const dry = await runCli(['purchases', 'set-aside', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(bodies[0].p_dry_run, true);
+    assert.equal(bodies[0].p_action, 'set_aside');
+    assert.deepEqual(bodies[0].p_rows, [{ erp_doctype: 'Purchase Invoice', erp_name: 'PINV-1', note: 'Rent' }, { erp_name: 'PINV-2' }]);
+    assert.deepEqual(dry.json.counts, { apply: 2, skip: 0, refused: 0 });
+    const undoFile = path.join(configDir, 'undo.json');
+    fs.writeFileSync(undoFile, JSON.stringify([{ erp_name: 'PINV-1' }]));
+    const undo = await runCli(['purchases', 'set-aside', undoFile, '--undo', '--url', fake.url], { configDir });
+    assert.equal(undo.code, 0, undo.err);
+    assert.equal(bodies[1].p_action, 'undo');
+    assert.equal(bodies[1].p_dry_run, false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-13c: pmo purchases set-aside refuses a bad file before sending, and exits 1 on a refused row of a real run', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: markRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const bad = path.join(configDir, 'bad.csv');
+    fs.writeFileSync(bad, 'erp_name,notes\nPINV-1,x\n');
+    const r = await runCli(['purchases', 'set-aside', bad, '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.match(r.err, /invalid_set_aside_file/);
+    const withNote = path.join(configDir, 'note.json');
+    fs.writeFileSync(withNote, JSON.stringify([{ erp_name: 'A', note: 'x' }]));
+    assert.equal((await runCli(['purchases', 'set-aside', withNote, '--undo', '--url', fake.url], { configDir })).code, 2);
+    assert.equal((await runCli(['purchases', 'set-aside', '--url', fake.url], { configDir })).code, 2);
+    assert.equal(bodies.length, 0, 'nothing was sent');
+    const mixed = path.join(configDir, 'mixed.json');
+    fs.writeFileSync(mixed, JSON.stringify([{ erp_name: 'PINV-1' }, { erp_name: 'BAD-2' }]));
+    const dry = await runCli(['purchases', 'set-aside', mixed, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    const real = await runCli(['purchases', 'set-aside', mixed, '--url', fake.url], { configDir });
+    assert.equal(real.code, 1);
+    assert.deepEqual(real.json.results.map((x) => x.reason), [null, 'document_linked']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('FR-PFE-060: pmo purchases link-file posts one SharePoint item (a folder stays a folder)', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
