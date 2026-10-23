@@ -42,3 +42,8 @@ export const AGENT_REVENUE_VIEW_ROLES: string[] = ['Admin', 'Executive', 'Projec
 /** Roles that may RAISE a sales invoice (salesInvoice.create in policy.ts, and adapter-dispatch's
  *  REVENUE_WRITE_ROLES — the enforcement authority). draft_invoice preflight (#787, DD-AIN-3). */
 export const AGENT_REVENUE_WRITE_ROLES: string[] = ['Admin', 'Finance'];
+
+/** Roles that read vendor bills and payments (procurementInvoice.view in policy.ts; migration 0350's allow-list —
+ *  an Engineer reads none). Gates the assistant's money-record reads so an Engineer is told they are not
+ *  available rather than shown an empty list. UX scoping only; RLS is the read authority. */
+export const AGENT_MONEY_READ_ROLES: string[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];

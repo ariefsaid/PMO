@@ -59,5 +59,8 @@
   },
   "quoteSelection": {
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
+  },
+  "ledger": {
+    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda."
   }
 }

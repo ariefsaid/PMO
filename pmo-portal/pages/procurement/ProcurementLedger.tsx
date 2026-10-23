@@ -38,6 +38,7 @@ import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
 import type { RecordKind } from './RecordCaptureForm';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
+import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
@@ -263,6 +264,11 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation();
+  const may = usePermission();
+  // Migration 0350: a role that reads no vendor bills or payments must not read their absence as "none exist".
+  // Said once, only where a bill is expected (the case has reached Vendor Invoiced).
+  const billsHiddenForRole = !may('view', 'procurementInvoice')
+    && (detail.status === 'Vendor Invoiced' || detail.status === 'Paid');
   const invoiceIdentityContext = useMemo<VendorInvoiceContext>(() => ({
     state: 'ready',
     caseTitle: detail.title,
@@ -493,6 +499,11 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           busy={captureBusy}
           onCreate={handleCreate}
         />
+        {billsHiddenForRole && (
+          <p className="mt-3 text-[12px] text-muted-foreground" data-testid="ledger-bills-hidden-note">
+            {t('procurement:ledger.billsHiddenForRole', 'Vendor bills and payments are not shown for your role.')}
+          </p>
+        )}
         <p className="mt-3 text-[11px] text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>

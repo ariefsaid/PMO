@@ -59,5 +59,8 @@
   },
   "quoteSelection": {
     "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
+  },
+  "ledger": {
+    "billsHiddenForRole": "Vendor bills and payments are not shown for your role."
   }
 }

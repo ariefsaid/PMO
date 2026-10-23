@@ -535,6 +535,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   procurementInvoice: {
+    // Vendor bills and their payments: every role except Engineer (owner ruling 2026-10-23, migration 0350);
+    // server RLS remains authoritative.
+    view: allow(MASTER_DATA),
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
   },
