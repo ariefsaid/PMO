@@ -79,6 +79,14 @@
 -- and refuses unknown keys / non-boolean values; proved by supabase/tests/procurement_flexible_foundation.test.sql
 -- (FR-PFE-011). The other 0360 definers are service-role-only or non-writers and are deliberately NOT listed.
 --
+-- ⚑ AMENDED BY 0361 (#1319): `link_erp_purchase_documents`, `unlink_erp_purchase_document` and
+-- `link_procurement_sharepoint_item` join the retained set (+3, count 78). Each is a SECURITY DEFINER writer
+-- called under a member's JWT that re-asserts active membership, the caller's org and its role set
+-- (link/SharePoint: Admin, Executive, Project Manager, Finance; unlink: Admin, Finance); linking refuses
+-- cross-org, closed, mismatched and gated targets. Proved by supabase/tests/procurement_erp_links.test.sql
+-- (FR-PFE-020, NFR-PFE-012, AC-PFE-023) and supabase/tests/erp_purchase_orphans.test.sql (AC-PFE-017).
+-- The other 0361 definers are non-writers (`procurement_ledger_held`) or have no client EXECUTE.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -144,6 +152,8 @@ insert into client_callable_rpc_names (proname) values
   ('get_sales_pipeline'),
   ('get_win_rate'),
   ('is_operator'),
+  ('link_erp_purchase_documents'),
+  ('link_procurement_sharepoint_item'),
   ('admin_change_domain_ownership'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
@@ -179,6 +189,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
+  ('unlink_erp_purchase_document'),
   ('withdraw_progress_claim'),
   ('withdraw_work_order_acceptance');
 
@@ -202,8 +213,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  75,
-  'AC-ACL-002 all 75 retained client-callable RPC names still have a public function');
+  78,
+  'AC-ACL-002 all 78 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -212,8 +223,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  75,
-  'AC-ACL-003 all 75 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  78,
+  'AC-ACL-003 all 78 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration
