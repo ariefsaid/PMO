@@ -8,8 +8,8 @@
 import { it, expect } from 'vitest';
 import { DEFAULT_MODEL, resolveDefaultModel, resolveComposeModel } from '../../../../supabase/functions/_shared/modelResolution';
 
-it('AC-MC-018 resolves to deepseek/deepseek-v4-flash when no env vars are set', () => {
-  expect(resolveDefaultModel({})).toBe('deepseek/deepseek-v4-flash');
+it('AC-MC-018 resolves to deepseek/deepseek-v4.1-flash-1017 when no env vars are set', () => {
+  expect(resolveDefaultModel({})).toBe('deepseek/deepseek-v4.1-flash-1017');
   expect(resolveDefaultModel({})).toBe(DEFAULT_MODEL);
   expect(resolveComposeModel({})).toBe(DEFAULT_MODEL);
 });

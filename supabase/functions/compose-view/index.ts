@@ -146,7 +146,7 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
     );
   }
 
-  // Build the vendor-neutral model client (OpenRouter transport, deepseek-v4-flash default).
+  // Build the vendor-neutral model client (OpenRouter transport, DEFAULT_MODEL).
   // Same privacy-first backend routing policy as agent-chat (providerPolicyFromEnv).
   const modelClient = new OpenRouterModelClient({
     apiKey,

@@ -42,7 +42,9 @@ export interface OpenRouterProviderPolicy {
 }
 
 /**
- * No-train fallback order (owner decision 2026-07-10). The two green (no-RETAIN) hosts first —
+ * No-train fallback order (owner decision 2026-07-10; Relace added first 2026-10-23). Relace leads:
+ * it served the best-scoring runs of the default model in the PMO model comparison and passes
+ * OpenRouter's `data_collection: 'deny'` filter. Then the two green (no-RETAIN) hosts —
  * DeepInfra, DigitalOcean — then retain-but-NOT-train hosts by jurisdiction then speed: US GMICloud,
  * then the fastest Chinese-jurisdiction hosts (Baidu, StreamLake, Alibaba), then DeepSeek-direct as
  * the last resort. `only` (below) hard-restricts routing to exactly this set so a fallback can never
@@ -50,11 +52,12 @@ export interface OpenRouterProviderPolicy {
  *
  * ⚠ PROVIDER SLUGS — verify each against openrouter.ai/<model>/providers BEFORE a prod deploy:
  * a wrong slug in `only` silently drops that host from eligibility (worst case, if all are wrong,
- * routing fails). `deepinfra` / `deepseek` are the well-known canonical slugs; the others
+ * routing fails). `relace` / `deepinfra` / `deepseek` are the well-known canonical slugs; the others
  * (digitalocean, gmicloud, baidu, streamlake, alibaba) MUST be confirmed. All are overridable via
  * AGENT_PROVIDER_ORDER / AGENT_PROVIDER_ONLY secrets — fix a slug without a code deploy.
  */
 export const NO_TRAIN_FALLBACK_ORDER: readonly string[] = [
+  'relace',
   'deepinfra',
   'digitalocean',
   'gmicloud',
