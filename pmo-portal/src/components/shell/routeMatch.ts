@@ -126,7 +126,8 @@ export const MODULES: ModuleDef[] = [
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
+  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
+  // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
@@ -134,7 +135,7 @@ export const MODULES: ModuleDef[] = [
     label: 'My Tasks', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
-    roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+    roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin],
   },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).

@@ -89,15 +89,10 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // DD-TASK-8 (#551, migration 0204): Engineer joined this set on 2026-08-24. The exclusion it
   // replaces had NO ruling behind it — it traced to the 0002 bootstrap role list and was copied
   // forward by four migrations — while OD-MTG-1 ruled every role may minute a meeting, whose
-  // /action creates a task. Finance is still withheld here on purpose: RLS admits it, the FE does
-  // not, which is the sanctioned "FE stricter than RLS" direction (ADR-0016).
-  it('ADR-0016 + DD-TASK-8: create task = Admin·Exec·PM·Engineer', () => {
-    expect(allowedRoles('create', 'task')).toEqual([
-      'Admin',
-      'Executive',
-      'Project Manager',
-      'Engineer',
-    ]);
+  // /action creates a task. Owner ruling 2026-10-23 (migration 0355): Finance creates tasks too,
+  // scoped like an Engineer thereafter (policy.task.test.ts).
+  it('ADR-0016 + DD-TASK-8 + AC-TASK-FIN-001: create task = every role', () => {
+    expect(allowedRoles('create', 'task')).toEqual(ALL_ROLES);
   });
 
   // ⚑ The edit rule is record-scoped, so a role-list assertion cannot express it: an Engineer may
@@ -167,8 +162,8 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('archive', 'company')).toEqual(['Admin', 'Executive']);
   });
 
-  it('ADR-0016: archive task = Admin·Exec·PM·Finance', () => {
-    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  it('ADR-0016 + AC-TASK-FIN-001: archive task = Admin·Exec·PM (Finance removed by 0355)', () => {
+    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager']);
   });
 
   // ── delete (hard) ────────────────────────────────────────────────────────

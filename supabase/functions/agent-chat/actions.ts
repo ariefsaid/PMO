@@ -334,7 +334,7 @@ export const updateTaskStatusAction: AgentAction & {
   summarize: (input: UpdateTaskStatusInput) => string;
 } = {
   name: 'update_task_status',
-  description: "Advance a task's status. Requires user approval; RLS restricts engineers to their own tasks.",
+  description: "Advance a task's status. Requires user approval; RLS restricts engineers and finance to their own tasks.",
   inputSchema: UPDATE_TASK_STATUS_SCHEMA,
   surfaces: ['agent'],
   confirm: true,

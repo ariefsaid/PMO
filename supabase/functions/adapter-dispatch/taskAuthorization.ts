@@ -37,7 +37,7 @@ export async function authorizeClickUpTaskCommand(
     if (typeof requestedProjectId !== 'string' || !requestedProjectId) {
       return { ok: false, message: 'task project is required' };
     }
-    if (!deliveryRole && role !== 'Engineer') return { ok: false, message: 'caller cannot create a task' };
+    if (!deliveryRole && role !== 'Engineer' && role !== 'Finance') return { ok: false, message: 'caller cannot create a task' };
     projectId = requestedProjectId;
     const { data: project, error: projectError } = await client.from('projects').select('id')
       .eq('org_id', orgId).eq('id', requestedProjectId).maybeSingle();
@@ -61,7 +61,7 @@ export async function authorizeClickUpTaskCommand(
       : operation === 'update'
         ? deliveryRole || (stored.created_by === userId && externallyOwned !== true)
         : operation === 'transition'
-          ? deliveryRole || (role === 'Engineer' && stored.assignee_id === userId)
+          ? deliveryRole || ((role === 'Engineer' || role === 'Finance') && stored.assignee_id === userId)
           : false;
     if (!allowed) return { ok: false, message: 'caller cannot perform this task operation' };
   }

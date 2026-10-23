@@ -72,3 +72,18 @@ Deno.test('refuses a substituted project before resolving an integration binding
       'org-1', 'user-1', command('update', 'project-2'));
     assertEquals(result, { ok: false, message: 'task project does not match' });
 });
+
+Deno.test('AC-TASK-FIN-001 Finance creates and moves its own assigned tasks on a ClickUp project, like an Engineer', async () => {
+  const created = await authorizeClickUpTaskCommand(client('Finance', 'user-1') as never,
+    'org-1', 'user-1', command('create'));
+  const moved = await authorizeClickUpTaskCommand(client('Finance', 'another-user', 'project-1', 'user-1') as never,
+    'org-1', 'user-1', command('transition'));
+  const othersTask = await authorizeClickUpTaskCommand(client('Finance', 'another-user', 'project-1', 'someone-else') as never,
+    'org-1', 'user-1', command('transition'));
+  const othersEdit = await authorizeClickUpTaskCommand(client('Finance', 'another-user') as never,
+    'org-1', 'user-1', command('update'));
+  assertEquals(created.ok, true);
+  assertEquals(moved.ok, true);
+  assertEquals(othersTask.ok, false);
+  assertEquals(othersEdit.ok, false);
+});

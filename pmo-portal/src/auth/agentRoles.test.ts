@@ -3,7 +3,7 @@
  * agentRoles.ts (shared with Deno index.ts) and policy.ts (can()).
  *
  * The Deno edge fn (index.ts) imports AGENT_MASTER_DATA_ROLES and
- * AGENT_DELIVERY_WITH_ENGINEER_ROLES from agentRoles.ts. This test
+ * AGENT_TASK_STATUS_ROLES from agentRoles.ts. This test
  * asserts those arrays match the RBAC matrix expectations codified in
  * policy.ts, so a role rename that updates policy.ts will fail CI here
  * before the Deno copy drifts silently.
@@ -12,7 +12,7 @@
  * RLS/SoD is the enforcement authority.
  */
 import { describe, it, expect } from 'vitest';
-import { AGENT_MASTER_DATA_ROLES, AGENT_DELIVERY_WITH_ENGINEER_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES, AGENT_MONEY_READ_ROLES } from './agentRoles';
+import { AGENT_MASTER_DATA_ROLES, AGENT_TASK_STATUS_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES, AGENT_MONEY_READ_ROLES } from './agentRoles';
 import { moneyWriteRolesForDomain } from '../../../supabase/functions/adapter-dispatch/authGuard';
 import { can } from './policy';
 import type { Role } from './AuthContext';
@@ -27,22 +27,16 @@ describe('agentRoles (Blocker-2 drift guard)', () => {
     expect(AGENT_MASTER_DATA_ROLES.slice().sort()).toEqual(policyAllow.slice().sort());
   });
 
-  it('AGENT_DELIVERY_WITH_ENGINEER_ROLES matches policy edit taskStatus WITHOUT record-scoped check (Admin·Exec·PM + Engineer)', () => {
-    // Without record context, Engineer passes only when owns=false is the result of
-    // undefined assignee_id — policy denies it (own-task is undefined here).
-    // The agent preflight is intentionally broader than the policy: it allows Engineer
-    // (RLS is the ceiling, not can() without ctx). Test asserts the set contains at
-    // minimum all DELIVERY roles + Engineer, i.e. the agent set is a superset.
-    const deliveryRoles = ALL_ROLES.filter((r) =>
-      can('edit', 'taskStatus', { realRole: r }),
+  it('AC-TASK-FIN-001 AGENT_TASK_STATUS_ROLES = the roles policy lets set a task status (managers any; Engineer/Finance own assigned)', () => {
+    // The agent preflight has no record context, so it admits every role that can set status on
+    // SOME task — managers on any, Engineer/Finance on their own assigned task. RLS
+    // tasks_update_own_status is the authority on which task.
+    const allow = ALL_ROLES.filter((r) =>
+      can('edit', 'taskStatus', { realRole: r, currentUserId: 'u1', record: { assignee_id: 'u1' } }),
     );
-    // Delivery (Admin·Exec·PM) are always allowed; agent also includes Engineer (RLS enforces own-task)
-    for (const role of deliveryRoles) {
-      expect(AGENT_DELIVERY_WITH_ENGINEER_ROLES).toContain(role);
-    }
-    expect(AGENT_DELIVERY_WITH_ENGINEER_ROLES).toContain('Engineer');
-    // Finance is NOT in DELIVERY and should not be in the agent set
-    expect(AGENT_DELIVERY_WITH_ENGINEER_ROLES).not.toContain('Finance');
+    expect(AGENT_TASK_STATUS_ROLES.slice().sort()).toEqual(allow.slice().sort());
+    expect(AGENT_TASK_STATUS_ROLES).toContain('Finance');
+    expect(AGENT_TASK_STATUS_ROLES).toContain('Engineer');
   });
 });
 
