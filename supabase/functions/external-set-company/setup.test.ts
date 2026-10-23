@@ -1365,6 +1365,36 @@ Deno.test("AC-EXP-120 a Project Manager is refused; an unknown key or a blank ac
   assertEquals(clearBogus, 400);
 });
 
+// OD-EXP-PB-1 (2026-10-23): the single project direct-cost account is one more validated key (FR-EXP-112 expense rule).
+Deno.test("AC-EXP-120 an Admin maps project_direct_cost to an Expense account; a Liability account is refused; it can be cleared", async () => {
+  const save = (account: string, over: Record<string, unknown>) =>
+    withFetchMock([
+      ...base(), companyRoute, mapWrite("POST"),
+      erp("erp.example.test", `/api/resource/Account/${encodeURIComponent(account)}`, () => ACCOUNT(account, over)),
+    ], async ({ calls }) => {
+      const res = await handleSetCompanyRequest(await request({
+        tier: "erpnext", setupAction: "save-expense-account", accountKey: "project_direct_cost", erpAccount: account,
+      }));
+      return { status: res.status, text: await res.text(), calls };
+    });
+  const ok = await save("Project Direct Cost - EX", { root_type: "Expense", account_type: "" });
+  assertEquals(ok.status, 200, ok.text);
+  const row = restCall(ok.calls, "expense_account_map", "POST")[0].bodyJson as Record<string, unknown>;
+  assertEquals([row.org_id, row.account_key, row.erp_account], ["org-1", "project_direct_cost", "Project Direct Cost - EX"]);
+
+  const wrong = await save("Employee Payable - EX", {});
+  assertEquals(wrong.status, 422, wrong.text);
+  assertEquals(wrong.text.includes("must be an Expense account"), true, wrong.text);
+  assertEquals(restCall(wrong.calls, "expense_account_map").length, 0);
+
+  const cleared = await withFetchMock([...base(), mapWrite("DELETE")], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "clear-expense-account", accountKey: "project_direct_cost" }));
+    return { status: res.status, calls };
+  });
+  assertEquals(cleared.status, 200);
+  assertEquals(restCall(cleared.calls, "expense_account_map", "DELETE")[0].url.searchParams.get("account_key"), "eq.project_direct_cost");
+});
+
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard
 // `EXPENSES_EMPLOYABLE`, bound to the shipped GL fetch by expenseEnablement.test.ts); until then it refuses cleanly.
 Deno.test("AC-EXP-128 employ-domain expenses: refused before #901 with nothing probed or written; once open, probes then records", async () => {
