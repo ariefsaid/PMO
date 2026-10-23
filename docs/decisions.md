@@ -3559,3 +3559,5 @@ progress-billing spec §8; sequential lanes in `docs/plans/2026-10-21-contract-q
 final BAST closes it (DD-CQ-3). Work orders with no allocations keep the manual close. Already-Closed
 work orders are not migrated (none has allocations; no closing value means they read at order net).
 Management-pack earned-value recognition is follow-up #1279.
+
+**OD-TASK-FIN-1 (owner, 2026-10-23)** — Finance works tasks exactly like an Engineer: creates tasks (incl. meeting `/action`), edits tasks it created, changes status on tasks assigned to it, and gets the My Tasks doorway (rail + ⌘K); it does not edit, delete or archive other people's tasks. Supersedes the earlier Finance task scope where it differs. Enforced by migration 0355 (RLS + column guard) and the ClickUp task authorization; proof `AC-TASK-FIN-001`.
