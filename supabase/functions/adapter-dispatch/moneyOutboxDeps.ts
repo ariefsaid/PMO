@@ -279,7 +279,8 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     async markOutboxFailed(id, lastError, claimGeneration) {
       const { data, error } = await serviceClient
         .from('external_command_outbox')
-        .update({ state: 'failed', last_error: lastError })
+        // 0357: the retry delay runs from the failure, so the failure stamps updated_at.
+        .update({ state: 'failed', last_error: lastError, updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('claim_generation', String(claimGeneration))
         .select('id');

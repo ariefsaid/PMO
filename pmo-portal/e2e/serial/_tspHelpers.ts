@@ -29,6 +29,7 @@
  * HR-EMP-00001).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 export const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
@@ -406,12 +407,7 @@ export async function dispatchTimesheetPush(
 
 /** Drive the REAL `erpnext-sweep` tick (the push's SECOND originator). */
 export async function runSweep(functionsUrl: string): Promise<{ status: number; body: unknown }> {
-  const res = await fetch(`${functionsUrl}/functions/v1/erpnext-sweep`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SWEEP_SECRET}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  return { status: res.status, body: await res.json() };
+  return runFullSweep(functionsUrl, ORG_ID);
 }
 
 /** The `action-required` operator surface: `notifications` whose metadata carries this reason. */
