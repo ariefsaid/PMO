@@ -130,7 +130,9 @@ linking, by the ERP mirror, or by the record forms as today).
   only to a purchase whose project is one of them; a document with no attributed project may link to any purchase.
 - **FR-PFE-026** When a row names no purchase, the system shall create a Draft purchase (requester = caller, currency
   = the document's, project = the row's project, title = the row's title or "<supplier> <document number>",
-  `origin = 'erp_link'`) and link the document to it; rows of one call sharing a `group` key (default: the document
+  `origin = 'erp_link'`, a purchase number in `code` minted as PROC-YYMMDD#### by the normal minter, and the vendor
+  company when the supplier maps to exactly one live company of the organization: the companies mapping, else
+  `erp_supplier_name`, else the name; otherwise no vendor) and link the document to it; rows of one call sharing a `group` key (default: the document
   number) and the same project go into one new purchase.
 - **FR-PFE-027** For a purchase with `origin = 'erp_link'`, `total_value` shall be kept equal to the pre-tax total of
   its linked Purchase Orders when it has any, else of its linked Purchase Invoices, else Purchase Receipts, else
