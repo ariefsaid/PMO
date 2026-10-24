@@ -351,6 +351,11 @@ node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance" -
 node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance"
 ```
 
+**Loading an existing project's budget (owner rule, 2026-10-24).** Before activating a budget for a project that
+already exists, link its SBP to the version, and check that the version total equals the SBP total exactly, to the
+rupiah. If it doesn't match, stop and report the difference; never adjust lines to force a match. New budgets don't
+need an SBP.
+
 **`budgets activate`** is **not enabled yet**. It checks its arguments (version id, `--source` shape), then stops with
 "budget activation from the CLI is not enabled yet — activate in the app" and exit 2, before any request: the API-client
 guard has no `activate_budget_version` tier until the owner rules on one. The pieces behind it are in place and tested
