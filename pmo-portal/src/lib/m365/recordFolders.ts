@@ -90,11 +90,13 @@ export async function ensureRecordFolder(target: RecordFolderTarget): Promise<Re
   return decodeOutcome(data);
 }
 
+/** `{kind, after}` plus the server's optional sweep `run` id, which is echoed back unchanged. */
 function validCursor(value: unknown): value is RecordFolderCursor {
   return isRecord(value)
-    && hasExactKeys(value, ['kind', 'after'], ['kind', 'after'])
+    && hasExactKeys(value, ['kind', 'after', 'run'], ['kind', 'after'])
     && typeof value.kind === 'string' && KINDS.has(value.kind)
-    && (value.after === null || (typeof value.after === 'string' && UUID.test(value.after)));
+    && (value.after === null || (typeof value.after === 'string' && UUID.test(value.after)))
+    && (value.run === undefined || (typeof value.run === 'string' && UUID.test(value.run)));
 }
 
 const isCount = (value: unknown): value is number =>
