@@ -50,7 +50,9 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
 
   /** FR-PFE-025/026 — the project a new purchase lands on: the scoped project, else the document's only project. */
   const targetProject = (d: ErpPurchaseRow): string | null => projectId ?? (d.projectIds.length === 1 ? d.projectIds[0] : null);
-  const bulkNewBlocked = chosen.some((d) => targetProject(d) === null);
+  /** Only a document split across several projects is ambiguous; one with none is an explicit "No project" purchase. */
+  const isSplit = (d: ErpPurchaseRow) => projectId === undefined && d.projectIds.length > 1;
+  const bulkNewBlocked = chosen.some(isSplit);
   const projectName = (id: string) => projectNames?.get(id) ?? t('erpLinks.thisProject', 'the project');
 
   const openDialog = (docs: ErpPurchaseRow[]) => { setOutcome(null); setDialogDocs(docs); };
@@ -90,13 +92,14 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     const items: RowMenuItem[] = [{ label: t('erpLinks.linkOne', 'Link to purchase'), onClick: () => openDialog([r]) }];
     if (targetProject(r) !== null) {
       items.push({ label: t('erpLinks.newOne', 'New purchase from this'), onClick: () => void newPurchaseFrom([r], r.id), disabled: busyKey !== null });
-    } else if (r.projectIds.length > 1) {
+    } else if (!isSplit(r)) {
+      // Untagged in ERPNext: an overhead / projectless purchase is permitted, so it is an explicit choice, not a dead end.
+      items.push({ label: t('erpLinks.newNoProject', 'New purchase with no project'), onClick: () => void newPurchaseFrom([r], r.id), disabled: busyKey !== null });
+    } else {
       // Review 2a: a document split across projects is added from one of its projects, never by a refused one-click.
       for (const id of r.projectIds) {
         items.push({ label: t('erpLinks.openProject', 'Open {{project}} to add it', { project: projectName(id) }), onClick: () => navigate(`/projects/${id}/procurement`) });
       }
-    } else {
-      items.push({ label: t('erpLinks.needsProject', 'New purchase needs a project in ERPNext'), onClick: () => undefined, disabled: true });
     }
     return items;
   };
@@ -194,7 +197,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           )}
           {selecting && bulkNewBlocked && (
             <p className="basis-full text-[12.5px] text-muted-foreground">
-              {t('erpLinks.bulkNeedsProject', 'Open the project to add documents without a single project.')}
+              {t('erpLinks.bulkNeedsProject', 'Open the project to add documents split across several projects.')}
             </p>
           )}
         </div>

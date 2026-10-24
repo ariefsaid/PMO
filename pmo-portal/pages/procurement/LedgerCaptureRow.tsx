@@ -164,10 +164,13 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
       : nextKind === 'purchase_order' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
         : nextKind === 'payment' ? t('procurementLedger.types.payment', 'Payment') : CAPTURE_LABELS[nextKind];
   const paymentBlocked = nextKind === 'payment' && isApprover && !groupRefIsPmoAuthored();
+  // ERP-owned: a payment must name a PMO bill, and an ERP-linked invoice is not one. With none to pay against, point at
+  // the supported route instead of offering a form whose required bill selector is empty.
+  const paymentRecordInErp = nextKind === 'payment' && !groupRefIsPmoAuthored() && invoices.length === 0;
 
   return (
     <div ref={rowRef} data-testid="ledger-capture-row" className="mt-3">
-      {open ? (
+      {open && !paymentRecordInErp ? (
         <RecordCaptureForm
           kind={nextKind}
           invoices={invoices}
@@ -203,11 +206,16 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
                 helper={t('procurement:ledger.first.helper', 'Start from the document you already have. Your organization’s purchase rules still apply.')}
               />
             </div>
-          ) : (
+          ) : paymentRecordInErp ? null : (
             <span className="text-[13px] text-muted-foreground">
               {t('procurementLedger.capture.next', '+ Capture {{record}} — the next record for this phase.', { record: label })}
             </span>
           )}
+          {paymentRecordInErp ? (
+            <p data-testid="ledger-payment-in-erp" className="ml-auto text-[13px] text-muted-foreground">
+              {t('procurement:ledger.paymentInErp', 'Record the payment in ERPNext; it links here on the next sync.')}
+            </p>
+          ) : (<>
           <button
             type="button"
             data-testid="ledger-capture-open"
@@ -224,6 +232,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
               {t('procurementDetail.paymentApproverCannotPay', 'Separation of duties: the approver cannot pay their own procurement.')}
             </span>
           )}
+          </>)}
         </div>
       )}
     </div>

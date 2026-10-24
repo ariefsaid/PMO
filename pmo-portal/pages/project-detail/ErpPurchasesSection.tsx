@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
@@ -20,10 +20,13 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
   const may = usePermission();
   const canView = may('view', 'procurement');
   const canLink = may('create', 'erpPurchaseLink');
-  const { data, isError, refetch } = useErpPurchases(projectId, { enabled: canView });
+  const { data, isError: agingError, refetch: refetchAging } = useErpPurchases(projectId, { enabled: canView });
+  const orphanQuery = useErpOrphans(projectId, { enabled: canView });
+  const isError = agingError || orphanQuery.isError;
+  const refetch = () => Promise.all([refetchAging(), orphanQuery.refetch()]);
   const today = localToday();
   const rows = useMemo(() => data ?? [], [data]);
-  const orphans = useMemo(() => rows.filter((r) => r.procurementId === null), [rows]);
+  const orphans = useMemo(() => orphanQuery.data ?? [], [orphanQuery.data]);
   const { aging, sharedOpen } = useMemo(() => projectAging(rows, today), [rows, today]);
   if (!canView || (!isError && orphans.length === 0 && aging.length === 0)) return null;
 
