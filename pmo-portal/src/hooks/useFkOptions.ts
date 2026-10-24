@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -48,7 +49,7 @@ export function useProjectOptions() {
       const rows = await repositories.project.list();
       return rows
         .filter((p) => p.archived_at == null)
-        .map((p) => ({ value: p.id, label: p.name, sub: p.code ?? undefined }));
+        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
@@ -57,6 +58,8 @@ export function useProjectOptions() {
 
 /** A project as an invoice picker option, with what the invoice form needs to know about it (#784). */
 export interface InvoiceProjectOption extends ComboboxOption {
+  /** Immutable legal/contractual title for document previews and approvals. */
+  contractualName: string;
   /** The project's client — the invoice form offers only the chosen customer's projects (M-1). */
   clientId: string | null;
   /** Native invoice entry follows the authorized project's source currency, never the org default. */
@@ -83,8 +86,9 @@ export function useInvoiceProjectOptions() {
       const rows = await repositories.project.list();
       return rows.map((p) => ({
         value: p.id,
-        label: p.name,
-        sub: p.code ?? undefined,
+        label: projectDisplayName(p),
+        sub: projectOptionSub(p),
+        contractualName: p.name,
         clientId: p.client_id,
         ...(p.currency !== undefined ? { currency: p.currency } : {}),
         ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),

@@ -1316,6 +1316,47 @@ test('documents link validates all targets and refuses malformed rows before net
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('AC-004 #1325: project short names travel independently through authenticated create, select, filtered update and clear', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const create = await runCli(['create', 'projects', JSON.stringify({ name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' }), '--url', fake.url], { configDir });
+    assert.equal(create.code, 0, create.err);
+    assert.deepEqual(create.json, [{ name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' }]);
+    const created = fake.requests.find((call) => call.method === 'POST' && call.path === '/rest/v1/projects');
+    assert.deepEqual(JSON.parse(created.body), { name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' });
+
+    const get = await runCli(['get', 'projects', '--select', 'id,name,short_name', '--filter', 'id=eq.project-1', '--url', fake.url], { configDir });
+    assert.equal(get.code, 0, get.err);
+    assert.deepEqual(get.json, [{ id: 'row-1' }]);
+    const selected = fake.requests.find((call) => call.method === 'GET' && call.path === '/rest/v1/projects');
+    const selectedParams = new URLSearchParams(selected.search);
+    assert.equal(selectedParams.get('select'), 'id,name,short_name');
+    assert.equal(selectedParams.get('id'), 'eq.project-1');
+
+    const update = await runCli(['update', 'projects', '--filter', 'id=in.(project-1,project-2)', '{"short_name":"Depot Two"}', '--url', fake.url], { configDir });
+    assert.equal(update.code, 0, update.err);
+    assert.deepEqual(update.json, [{ short_name: 'Depot Two' }]);
+    const patch = fake.requests.find((call) => call.method === 'PATCH' && call.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(patch.search).get('id'), 'in.(project-1,project-2)');
+    assert.deepEqual(JSON.parse(patch.body), { short_name: 'Depot Two' });
+    assert.equal(Object.hasOwn(JSON.parse(patch.body), 'name'), false);
+
+    const clear = await runCli(['update', 'projects', '--filter', 'id=eq.project-1', '{"short_name":null}', '--url', fake.url], { configDir });
+    assert.equal(clear.code, 0, clear.err);
+    assert.deepEqual(clear.json, [{ short_name: null }]);
+    assert.deepEqual(JSON.parse(fake.requests.findLast((call) => call.method === 'PATCH').body), { short_name: null });
+
+    const denied = await runCli(['update', 'projects', '--filter', 'id=eq.missing', '{"short_name":"No row"}', '--url', fake.url], { configDir });
+    assert.equal(denied.code, 1);
+    assert.match(denied.errJson.error.message, /No row was updated/i);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('company short name crosses the CLI write seam separately from its legal name (references AC-NICK-003)', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();

@@ -11,7 +11,7 @@ const ORG = 'org-1';
 const ITEM = { item_code: 'SYNTHETIC-ITEM', qty: 1, rate: 100 };
 const INVOICE = { id: 'si-1', org_id: ORG, reference_number: null, work_order_id: 'wo-1', project_id: 'proj-1', erp_modified: null, received_date: null };
 const WO = { id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01' };
-const PROJECT = { id: 'proj-1', org_id: ORG, currency: 'IDR', customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01', subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
+const PROJECT = { id: 'proj-1', org_id: ORG, name: 'Contractual project title', short_name: 'Short project alias', currency: 'IDR', customer_contract_ref: 'PROJECT-PO-001', contract_date: '2026-08-01', subject_to_vat: true, tax_base_numerator: 1, tax_base_denominator: 1 };
 
 /** PostgREST boundary fake: enforce filters and requested columns, including org isolation. */
 function serviceClient(invoice: Row | null, wo: Row | null, project: Row | null, failingTable?: string): DispatchServiceClient {
@@ -113,6 +113,11 @@ async function push(invoice: Row | null = INVOICE, wo: Row | null = WO, project:
 const digest = (command: AdapterCommand) => canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: command.record });
 
 describe('sales invoice receipt date (#767)', () => {
+  it('AC-003 #1325: outgoing invoice uses the mapped ERP project identity, never the display alias', async () => {
+    const { body } = await push(INVOICE, WO, PROJECT);
+    expect(body.project).toBe('ERP-PROJ-001');
+    expect(body.project).not.toBe(PROJECT.short_name);
+  });
   it('AC-DUE-003 pushes PMO\'s recorded receipt date as custom_received_date, and never a due_date', async () => {
     // A caller-supplied receipt/due date is replaced by PMO's stored one; a due date is never sent —
     // ERPNext refuses one past the customer's payment-terms default (party.py

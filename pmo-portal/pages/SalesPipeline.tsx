@@ -25,6 +25,7 @@ import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjec
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../components/SalesKanbanBoard';
 import { readPipelineView, writePipelineView } from '@/src/hooks/usePipelineView';
@@ -153,6 +154,7 @@ const SalesPipeline: React.FC = () => {
     return base.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
+        (p.short_name ?? '').toLowerCase().includes(q) ||
         (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
         (p.code ?? '').toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||
@@ -249,7 +251,7 @@ const SalesPipeline: React.FC = () => {
       header: t('sales.column.project', 'Project'),
       kind: 'primary',
       size: 280,
-      cell: (r) => r.name,
+      cell: (r) => <span title={r.name}>{projectDisplayName(r)}</span>,
       primaryTitle: (r) => r.name,
       // One mono line: the PMO number and the client's code; the labels ride in the title.
       secondaryCell: (r) =>
@@ -454,6 +456,7 @@ const SalesPipeline: React.FC = () => {
     return classified.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
+        (p.short_name ?? '').toLowerCase().includes(q) ||
         (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
         (p.code ?? '').toLowerCase().includes(q) ||
         (p.client_name ?? '').toLowerCase().includes(q) ||

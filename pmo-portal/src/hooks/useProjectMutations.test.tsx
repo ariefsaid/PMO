@@ -82,6 +82,34 @@ describe('useProjectMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['fk-options', 'project'] });
   });
 
+  it('AC-001 #1325: create and alias edits refresh invoice, statement and reference identity caches only after success', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(client) });
+    await act(async () => { await result.current.create.mutateAsync(input); });
+    await act(async () => { await result.current.updateHeader.mutateAsync({ id: 'p9', input: {
+      name: input.name, short_name: 'Harbor', code: null, client_id: null, project_manager_id: null,
+      start_date: null, end_date: null,
+    } }); });
+    for (const queryKey of [
+      ['fk-options', 'invoice-project'],
+      ['financial-statements', 'mapped-project-name'],
+      ['uxs40', 'references'],
+      ['sales-pipeline'],
+      ['lost-deals'],
+    ]) expect(invalidate).toHaveBeenCalledWith({ queryKey });
+
+    invalidate.mockClear();
+    project.updateHeader.mockRejectedValueOnce(new Error('write refused'));
+    await expect(act(async () => {
+      await result.current.updateHeader.mutateAsync({ id: 'p9', input: {
+        name: input.name, short_name: 'Rejected', code: null, client_id: null, project_manager_id: null,
+        start_date: null, end_date: null,
+      } });
+    })).rejects.toThrow('write refused');
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
   it('AC-PRJ-004: updateHeader invokes the repository with id + header input', async () => {
     const header = {
       name: 'Renamed',

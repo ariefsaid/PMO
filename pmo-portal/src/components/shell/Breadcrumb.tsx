@@ -6,6 +6,8 @@ import { MODULES } from './routeMatch';
 
 export interface BreadcrumbPart {
   label: string;
+  /** Contractual project identity disclosed on hover. */
+  title?: string;
   /** Client-side navigation for a parent crumb; the last part omits it (current). */
   onClick?: () => void;
   /**
@@ -89,6 +91,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
             {last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
+                title={part.title}
                 // C3: at ≤921px truncate harder (20ch) — only the current crumb
                 // shows; at desktop full width allows 40ch before ellipsis.
                 className="max-w-[40ch] overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground max-[921px]:max-w-[20ch]"
@@ -118,6 +121,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                     part.onClick();
                   }}
                   aria-label={part.ariaLabel}
+                  title={part.title}
                   className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
@@ -127,6 +131,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   type="button"
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
+                  title={part.title}
                   className="whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}

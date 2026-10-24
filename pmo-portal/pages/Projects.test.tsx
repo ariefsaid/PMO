@@ -290,6 +290,21 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
 
+  it('AC-002 #1325: project rows show the short name, disclose the contractual title, and search either identity', async () => {
+    const withAlias = { ...seed[0], short_name: 'Harbor Operations' } as ProjectWithRefs;
+    projectsState.data = [withAlias, seed[1], seed[2]] as ProjectWithRefs[];
+    renderPage();
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAccessibleDescription('Innovate Corp HQ Fit-Out');
+    await userEvent.type(search, 'Harbor Operations');
+    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+    expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, 'Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+  });
+
   it('filters by search (AC-404)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Search projects/i), 'Northwind');

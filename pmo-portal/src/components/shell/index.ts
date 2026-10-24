@@ -11,6 +11,7 @@ export {
   agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,
+  recordContractualNameForPath,
   recordStatusForPath,
   recordStatusGroupForPath,
   deriveRailActiveOverride,

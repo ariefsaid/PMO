@@ -244,8 +244,8 @@ describe('KanbanStageIndicator selected tab uses the AA primary text token (AC-D
 // AC-IXD-MOBILE-W4-PR3-C5-scroll.
 
 const KANBAN_PROJECTS: PipelineProject[] = [
-  { id: 'a1', name: 'Alpha', client_name: 'A', status: 'Leads', contract_value: 100_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.1 },
-  { id: 'b1', name: 'Bravo', client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
+  { id: 'a1', name: 'Alpha', short_name: null, client_name: 'A', status: 'Leads', contract_value: 100_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.1 },
+  { id: 'b1', name: 'Bravo', short_name: null, client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
 ];
 
 describe('SalesKanbanBoard swipe→indicator sync (AC-IXD-MOBILE-W4-PR3-C5-scroll)', () => {

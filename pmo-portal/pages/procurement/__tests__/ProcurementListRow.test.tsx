@@ -68,3 +68,12 @@ describe('AC-JR-W1-03: ProcurementListRow meta — project name links', () => {
     expect(projectLinks).toHaveLength(0);
   });
 });
+
+describe('AC-002 #1325: ProcurementListRow shows the short name', () => {
+  it('links the short name and describes it by the contractual title', () => {
+    wrap(makeRow({ project: { name: 'Harbour Bridge Contractual', short_name: 'Harbour', code: 'HB-01' } }));
+    const link = screen.getByRole('link', { name: 'Open Harbour' });
+    expect(link).toHaveAccessibleDescription('Harbour Bridge Contractual');
+    expect(link).toHaveAttribute('title', 'Harbour Bridge Contractual');
+  });
+});

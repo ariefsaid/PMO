@@ -206,7 +206,7 @@ describe('listTimesheetsAwaitingApproval', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))',
+      '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))',
     );
     expect(mockEq).toHaveBeenCalledWith('status', 'Submitted');
     expect(mockNeq).toHaveBeenCalledWith('user_id', 'self-id');

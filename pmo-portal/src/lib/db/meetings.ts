@@ -16,6 +16,7 @@ export type MeetingWithRefs = MeetingRow & {
   project: {
     id: string;
     name: string;
+    short_name?: string | null;
     project_manager_id: string | null;
     pm: { id: string; full_name: string } | null;
   } | null;
@@ -103,7 +104,7 @@ function throwWrite(error: PostgrestErrorLike): never {
  *  and the nested `pm` embed MUST be qualified: profiles is reachable from projects via more than
  *  one FK). */
 const SELECT =
-  '*, project:projects!meetings_project_id_fkey(id, name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(id, full_name))';
+  '*, project:projects!meetings_project_id_fkey(id, name, short_name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(id, full_name))';
 
 export interface MeetingListParams {
   projectId?: string;

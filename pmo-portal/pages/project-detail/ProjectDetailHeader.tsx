@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
@@ -530,9 +531,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
-        icon={(project.name.trim().charAt(0) || '•').toUpperCase()}
+        icon={(projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
-        name={project.name}
+        name={<span title={project.name}>{projectDisplayName(project)}</span>}
         status={
           <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
         }

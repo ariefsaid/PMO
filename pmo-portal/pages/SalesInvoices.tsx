@@ -354,7 +354,7 @@ const SalesInvoices: React.FC = () => {
 
   const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
     if (inv.si_number) return inv.si_number;
-    const project = projectOptions?.find((option) => option.value === inv.project_id)?.label;
+    const project = projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
     const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
     return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
   };
@@ -367,7 +367,7 @@ const SalesInvoices: React.FC = () => {
         </p>
       );
     }
-    const project = projectOptions?.find((option) => option.value === inv.project_id)?.label;
+    const project = projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
     const projectContext = project
       ?? (inv.project_id
         ? projectOptionsPending
@@ -481,7 +481,8 @@ const SalesInvoices: React.FC = () => {
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || inv.customer_name?.toLowerCase().includes(q)
         // FIN-S1: the project filter control is gone; the project is reachable through search.
-        || projectOptions?.find((option) => option.value === inv.project_id)?.label.toLowerCase().includes(q));
+        // AC-002 #1325: either the short label or the contractual title finds the invoice.
+        || [projectOptions?.find((option) => option.value === inv.project_id)].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
   }, [all, organizationToday, projectOptions, search, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
@@ -669,7 +670,7 @@ const SalesInvoices: React.FC = () => {
 
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
   // columns. Dates other than Due, and the separate Customer, are export-only below.
-  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.label;
+  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',

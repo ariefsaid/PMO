@@ -54,6 +54,8 @@ export interface DecisionSupportPanelProps {
   totalValue: number;
   /** Project display name (from DETAIL_SELECT join). */
   projectName: string | null | undefined;
+  /** Contractual title behind a short `projectName`. */
+  projectLegalName?: string | null;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
@@ -65,6 +67,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectId,
   totalValue,
   projectName,
+  projectLegalName,
   status,
   currency,
 }) => {
@@ -98,6 +101,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
+          legalName={projectLegalName}
           className="text-[12.5px] font-medium text-foreground"
         />
       ) : null}

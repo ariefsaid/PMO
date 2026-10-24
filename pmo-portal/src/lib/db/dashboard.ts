@@ -14,6 +14,8 @@ export interface StatusCount<S> {
 export interface TopProject {
   id: string;
   name: string;
+  /** Optional display alias (PM dashboard payload); `name` stays contractual. */
+  short_name?: string | null;
   client_name: string | null;
   contract_value: number | null;
   currency: string;
@@ -109,6 +111,7 @@ export interface PipelineStage {
 export interface PipelineProject extends ProjectClassification {
   id: string;
   name: string;
+  short_name: string | null;
   /** Independent PMO and organisation-owned identifiers, projected for search/display. */
   pmo_project_number?: string | null;
   code?: string | null;

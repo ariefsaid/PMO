@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-finance', org_id: 'org-1' }, role: 'Finance' }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false }], isPending: false, isError: false, refetch: vi.fn() }),
+  useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Harbor Retrofit', contractualName: 'Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false }], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-18', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'erp' }));

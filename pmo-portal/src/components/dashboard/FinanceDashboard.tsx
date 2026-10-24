@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -94,7 +95,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       key: 'project',
       header: t('uxs03.financeProjectColumn', 'Project'),
       cell: (r) => (
-        <span className="text-muted-foreground">{r.project?.name ?? '—'}</span>
+        <span className="text-muted-foreground" title={r.project?.name}>{r.project ? projectDisplayName(r.project) : '—'}</span>
       ),
     },
     {
@@ -523,7 +524,7 @@ export const FinanceDashboard: React.FC = () => {
         arAgingError={arAgingError}
         onRetryArAging={() => refetchArAging()}
         customerLinks={customerLinks}
-        actualProjectNames={new Map((projects ?? []).map((project) => [project.id, project.name]))}
+        actualProjectNames={new Map((projects ?? []).map((project) => [project.id, projectDisplayName(project)]))}
       />
 
       <DashGrid>

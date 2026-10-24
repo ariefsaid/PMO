@@ -8,7 +8,7 @@ export type ProcurementRow = Tables<'procurements'>;
 
 /** A procurement row with project/vendor/requester names resolved in SQL (kills render-time .find()). */
 export type ProcurementWithRefs = ProcurementRow & {
-  project: { name: string; code: string | null; pmo_project_number?: string | null } | null;
+  project: { name: string; short_name?: string | null; code: string | null; pmo_project_number?: string | null } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
   /** #803: present only on a Requested row whose route was read (see attachApprovalRoutes). */
@@ -29,7 +29,7 @@ export function externalRefsOf(p: ProcurementWithRefs): string[] {
 }
 
 const SELECT =
-  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
+  '*, project:projects(name,short_name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
 
 /** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
  *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */

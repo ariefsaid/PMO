@@ -30,6 +30,7 @@ const emptyProjects: PipelineProject[] = [
   {
     id: 'q1',
     name: 'Alpha Deal',
+    short_name: null,
     client_name: 'Acme',
     tax_treatment: 'exclusive',
     status: 'Quotation Submitted',

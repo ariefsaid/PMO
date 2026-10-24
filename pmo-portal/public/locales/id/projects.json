@@ -10,5 +10,13 @@
     "accessDenied": "Anda tidak dapat membuat proyek",
     "leave": "Keluar",
     "stay": "Tetap di sini"
+  },
+  "shortName": {
+    "label": "Nama singkat (opsional)",
+    "hint": "Tampil di daftar. Nama kontrak tidak berubah.",
+    "searchProject": "Proyek · {{name}}",
+    "searchPipeline": "Proyek · Pipeline · {{name}}",
+    "contractName": "Nama kontrak",
+    "duplicate": "Proyek lain sudah memakai nama singkat ini"
   }
 }

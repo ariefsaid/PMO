@@ -305,3 +305,11 @@ describe('Combobox: long sub-lines never hide the option label', () => {
     expect(subEl!.className).toMatch(/truncate/);
   });
 });
+
+describe('short-name project picker disclosure (AC-002 #1325)', () => {
+  it('keeps the contractual title on the selected trigger when the alias is visible', () => {
+    render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('title', 'Depot — Contractual Project Name');
+    expect(screen.getByText('Depot')).toBeInTheDocument();
+  });
+});

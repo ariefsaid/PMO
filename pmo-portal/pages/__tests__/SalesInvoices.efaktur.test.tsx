@@ -13,7 +13,7 @@ import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance
 
 const h = vi.hoisted(() => ({
   invoices: [] as SalesInvoiceRow[],
-  projectOptions: [{ value: 'project-1', label: 'Project North' }],
+  projectOptions: [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }],
   projectOptionsPending: false,
   projectOptionsError: false,
   setEfaktur: vi.fn().mockResolvedValue(undefined),
@@ -84,7 +84,7 @@ beforeEach(async () => {
   await financeTestI18nReady;
   await financeTestI18n.changeLanguage('en');
   h.invoices = [invoice('one', 'Submitted', '010.001-26.12345678', '2026-09-28'), invoice('two', 'Draft', null, null)];
-  h.projectOptions = [{ value: 'project-1', label: 'Project North' }];
+  h.projectOptions = [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }];
   h.projectOptionsPending = false;
   h.projectOptionsError = false;
   h.setEfaktur.mockReset().mockResolvedValue(undefined);
@@ -157,11 +157,11 @@ describe('SalesInvoices e-Faktur details', () => {
     const scenarios = [
       {
         row: { ...invoice('f29c4a00-3929-4c13-a470-6d2aa43ae001', 'Submitted', '010.001-26.12345678', '2026-09-28'), si_number: 'SI-issued' },
-        options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.issued],
+        options: [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }], pending: false, error: false, expected: [copy.issued],
       },
       {
         row: { ...invoice('resolved', 'Unpaid', null, null), si_number: null, project_id: 'project-1' },
-        options: [{ value: 'project-1', label: 'Project North' }], pending: false, error: false, expected: [copy.draft, copy.project, copy.customerResolved],
+        options: [{ value: 'project-1', label: 'Project North', contractualName: 'Project North' }], pending: false, error: false, expected: [copy.draft, copy.project, copy.customerResolved],
       },
       {
         row: { ...invoice('pending-project', 'Unpaid', null, null), si_number: null, project_id: 'project-pending' },

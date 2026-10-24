@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +46,7 @@ const ExpenseClaims: React.FC = () => {
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -71,7 +72,7 @@ const ExpenseClaims: React.FC = () => {
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
-      cell: (r) => r.project?.name ?? t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
+      cell: (r) => r.project ? <span title={r.project.name}>{projectDisplayName(r.project)}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), align: 'num',

@@ -12,7 +12,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
-  projectOptions: [{ value: 'project-1', label: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
+  projectOptions: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
   incomingPaymentsState: {
     data: [{
       id: 'receipt-1', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy',

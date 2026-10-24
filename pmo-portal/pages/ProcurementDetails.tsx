@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
@@ -817,7 +818,7 @@ const ProcurementDetails: React.FC = () => {
     {
       label: t('procurementDetail.tile.prValue', 'PR value'),
       value: formatCurrency(Number(p.total_value), p.currency),
-      sub: p.project?.name ?? undefined,
+      sub: p.project ? projectDisplayName(p.project) : undefined,
     },
     // Selected quote — only when a quote is committed (Quote Selected onward).
     // AC-IXD-PROC-004: the chosen quotation tile is bound through to Paid.
@@ -884,7 +885,7 @@ const ProcurementDetails: React.FC = () => {
   // document) must not start with a stray "·".
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
-    p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={p.project.name} /> : null,
+    p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.requested_by?.full_name ? <span key="req">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
   ].filter((part): part is React.ReactElement => part !== null)
     .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
@@ -895,7 +896,7 @@ const ProcurementDetails: React.FC = () => {
     {
       label: t('procurementDetail.detail.project', 'Project'),
       value: p.project?.name ? (
-        <ProjectNameLink projectId={p.project_id} name={p.project.name} />
+        <ProjectNameLink projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} />
       ) : (
         <span className="text-muted-foreground">{t('procurementDetail.detail.notLinked', 'Not linked')}</span>
       ),
@@ -1095,7 +1096,8 @@ const ProcurementDetails: React.FC = () => {
             detailRows={detailRows}
             events={historyEvents}
             projectId={p.project_id}
-            projectName={p.project?.name ?? null}
+            projectName={p.project ? projectDisplayName(p.project) : null}
+            projectLegalName={p.project?.name ?? null}
             totalValue={Number(p.total_value)}
             status={p.status}
             currency={p.currency}

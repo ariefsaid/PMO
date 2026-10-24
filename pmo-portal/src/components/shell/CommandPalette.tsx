@@ -422,7 +422,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         <span className="flex min-w-0 flex-1 flex-col gap-px">
                           <span className="truncate font-medium leading-tight">{item.title}</span>
                           {item.sub && (
-                            <span className="text-[11.5px] leading-tight text-muted-foreground">
+                            <span title={item.sub} className="truncate text-[11.5px] leading-tight text-muted-foreground">
                               {item.sub}
                             </span>
                           )}

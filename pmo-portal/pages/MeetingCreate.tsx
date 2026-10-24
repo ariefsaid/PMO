@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -132,7 +133,7 @@ const MeetingCreate: React.FC = () => {
         <TextField id={title.id} label={t('meetings.form.title.label', 'Title')} required placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')} value={title.value} onChange={title.onChange} onBlur={title.onBlur} error={title.error} fullWidth disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={when.id} label={t('meetings.form.when.label', 'When')} type="datetime-local" value={when.value} onChange={when.onChange} onBlur={when.onBlur} error={when.error} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField id={location.id} label={t('meetings.form.location.label', 'Location')} placeholder={t('meetings.form.location.placeholder', 'e.g. Site office, Teams call')} value={location.value} onChange={location.onChange} onBlur={location.onBlur} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
-        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: item.name }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
+        <SelectField id={project.id} label={t('meetings.form.project.label', 'Project')} value={project.value} onChange={project.onChange} options={[{ value: '', label: t('meetings.form.project.none', 'No project') }, ...(projects ?? []).map((item) => ({ value: item.id, label: projectDisplayName(item) }))]} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
       </FormGrid>
     </section>
     <Card variant="bare" className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal={false} onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>

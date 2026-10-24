@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from '@/src/auth/useAuth';
@@ -23,6 +24,8 @@ export interface MyTask {
   project_id: string | null;
   /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
   project_name: string | null;
+  /** The contractual title behind a short `project_name` (hover + search). */
+  project_contractual_name?: string | null;
   /** Meeting-linked tasks without a project still have a canonical record doorway. */
   meeting_id?: string | null;
   start_date: string | null;
@@ -40,7 +43,7 @@ export interface MyTask {
 async function listMyTasks(userId: string): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
@@ -55,7 +58,7 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     meeting_id: string | null;
     start_date: string | null;
     end_date: string | null;
-    project: { name: string } | null;
+    project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
     name: t.name,
@@ -66,7 +69,8 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
     // would make it indistinguishable from a project whose name failed to load — the UI needs to
     // tell them apart to decide between a link and a plain heading (FR-FCT-041).
-    project_name: t.project?.name ?? null,
+    project_name: t.project ? projectDisplayName(t.project) : null,
+    ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
     start_date: t.start_date,
     end_date: t.end_date,
   }));

@@ -5,7 +5,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
+  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'North Terminal', sub: 'HQ Fit-Out' }] }),
   useVendorOptions: () => ({ data: [] }),
 }));
 
@@ -43,6 +43,13 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
     renderEdit();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save request/i })).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: the loaded selected project discloses its contractual title beside the alias', () => {
+    renderEdit({ projectName: 'HQ Fit-Out' });
+    const trigger = screen.getByRole('combobox', { name: 'Project' });
+    expect(trigger).toHaveTextContent('North Terminal');
+    expect(trigger).toHaveAttribute('title', 'North Terminal — HQ Fit-Out');
   });
 
   it('AC-PROC-002: edit + Save delegates the patch and closes the panel', async () => {

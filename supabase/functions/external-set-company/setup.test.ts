@@ -640,28 +640,34 @@ Deno.test("project link in another org refuses before any ERP or configuration w
     assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
-Deno.test("AC-SETUP-001 project creation stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
+Deno.test("AC-SETUP-001 AC-003 #1325: project creation uses the contractual title, never its short name, stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
   let created = false, posts = 0;
   await withFetchMock([
     ...base(),
-    supabaseSelect("projects", () =>
-      jsonResponse({
+    supabaseSelect("projects", (call) => {
+      assertEquals(call.url.searchParams.get("select"), "id,name,code,status");
+      // The fixture has a distinct alias, but the contractual boundary's requested projection excludes it.
+      const project = {
         id: "project-2",
-        name: "Example Delivery",
+        name: "Contractual Delivery Title",
+        short_name: "Delivery",
         code: "SYNTH-2",
-      })),
+        status: "Ongoing Project",
+      };
+      return jsonResponse({ id: project.id, name: project.name, code: project.code, status: project.status });
+    }),
     erp("erp.example.test", "/api/resource/Project", (call) => {
       if (call.method === "POST") {
         posts++;
         created = true;
         assertEquals(call.bodyJson, {
-          project_name: "Example Delivery",
+          project_name: "Contractual Delivery Title",
           company: "Example Company",
         });
         return jsonResponse({
           data: {
             name: "PROJ-00042",
-            project_name: "Example Delivery",
+            project_name: "Contractual Delivery Title",
             company: "Example Company",
             is_active: "Yes",
           },
@@ -679,13 +685,13 @@ Deno.test("AC-SETUP-001 project creation stores the ERP returned identity and re
       assertEquals(filters, [["company", "=", "Example Company"], [
         "project_name",
         "=",
-        "Example Delivery",
+        "Contractual Delivery Title",
       ]]);
       return jsonResponse({
         data: created
           ? [{
             name: "PROJ-00042",
-            project_name: "Example Delivery",
+            project_name: "Contractual Delivery Title",
             company: "Example Company",
             is_active: "Yes",
           }]

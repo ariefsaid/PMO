@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import React from 'react';
-import { recordLabelForPath } from '@/src/components/shell/routeMatch';
+import { recordContractualNameForPath, recordLabelForPath } from '@/src/components/shell/routeMatch';
 
 const { dal } = vi.hoisted(() => ({
   dal: {
@@ -45,12 +45,26 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(recordLabelForPath('/projects/p1', result.current.lists)).toBeUndefined();
     expect(result.current.resolved).toBe(false);
     act(() => {
-      qc.setQueryData(['project', 'org-1', 'p1'], { id: 'p1', name: 'Harbour Fit-Out', status: 'Ongoing Project' });
+      qc.setQueryData(['project', 'org-1', 'p1'], { id: 'p1', name: 'Contractual Harbour Fit-Out', short_name: 'North Terminal', status: 'Ongoing Project' });
     });
     await waitFor(() =>
-      expect(recordLabelForPath('/projects/p1', result.current.lists)).toBe('Harbour Fit-Out'),
+      expect(recordLabelForPath('/projects/p1', result.current.lists)).toBe('North Terminal'),
     );
+    expect(recordContractualNameForPath('/projects/p1', result.current.lists)).toBe('Contractual Harbour Fit-Out');
     expect(result.current.resolved).toBe(true);
+  });
+
+  it('AC-002 #1325: cached project list keeps the alias and does not issue another list read', () => {
+    const qc = new QueryClient();
+    qc.setQueryData(['projects', 'org-1'], [{ id: 'p1', name: 'Contractual Harbour Fit-Out', short_name: 'North Terminal' }]);
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useCachedRecordLists('/projects/p1'), { wrapper });
+    expect(recordLabelForPath('/projects/p1', result.current.lists)).toBe('North Terminal');
+    expect(recordContractualNameForPath('/projects/p1', result.current.lists)).toBe('Contractual Harbour Fit-Out');
+    expect(result.current.lists.projects?.[0].short_name).toBe('North Terminal');
+    expect(qc.isFetching()).toBe(0);
   });
 
   it('UXS-038: resolves a cold expense detail from its own cached record query', async () => {

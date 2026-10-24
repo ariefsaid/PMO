@@ -69,7 +69,8 @@ vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
 
 // ── Projects ────────────────────────────────────────────────────────────────
 const proj = (id: string, name: string, contract_value: number, currency: string) => ({
-  id, name, code: id, status: 'Ongoing Project', client_id: 'c1', project_manager_id: 'u1',
+  id, name, short_name: name === 'Alpha USD' ? 'North Terminal' : null,
+  code: id, status: 'Ongoing Project', client_id: 'c1', project_manager_id: 'u1',
   contract_value, currency, budget: 900_000, spent: 0, end_date: null, client: { name: 'Acme' },
   pm: { full_name: 'Alice PM' }, customer_contract_ref: null, contract_date: null, decided_at: null,
   tax_treatment: 'exclusive',
@@ -162,6 +163,8 @@ describe('AC-L10N-052 Projects and Procurement exports carry the row currency', 
     expect(col('Currency')).toBe(col('Contract') + 1);
     const row = (name: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Project')).value === name)!;
+    expect(row('Alpha USD').getCell(col('Project')).value).toBe('Alpha USD');
+    expect(row('Alpha USD').getCell(col('Project')).value).not.toBe('North Terminal');
     expect(row('Alpha USD').getCell(col('Currency')).value).toBe('USD');
     expect(row('Beta IDR').getCell(col('Currency')).value).toBe('IDR');
     expect(row('Beta IDR').getCell(col('Contract')).value).toBe(15_000_000_000);

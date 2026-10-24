@@ -135,6 +135,18 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     expect(screen.queryByText('Prepare the agenda')).not.toBeInTheDocument();
   });
 
+  it('AC-002 #1325: the project group shows the short name, titles the contractual one, and search matches either', async () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 't1', name: 'Prepare the agenda', status: 'To Do', assignee_id: 'u-self', project_id: 'p1', project_name: 'Tower', project_contractual_name: 'Contractual Tower Works', start_date: null, end_date: null },
+    ];
+    const user = userEvent.setup();
+    renderMyTasks();
+    expect(screen.getByRole('link', { name: 'Tower' })).toHaveAttribute('title', 'Contractual Tower Works');
+    await user.type(screen.getByRole('searchbox', { name: 'Search your tasks' }), 'contractual tower');
+    expect(screen.getByText('Prepare the agenda')).toBeInTheDocument();
+  });
+
   it('AC-IFW-TASKS-01 searches task and project context and clearing restores the selected queue', async () => {
     tasksState.isPending = false;
     tasksState.data = [

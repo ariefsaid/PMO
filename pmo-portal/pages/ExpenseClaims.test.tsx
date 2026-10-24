@@ -38,7 +38,7 @@ vi.mock('@/src/hooks/useExpenseCapture', async () => {
     },
   };
 });
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
@@ -71,6 +71,19 @@ describe('ExpenseClaims page', () => {
     expect(within(row).getByText('Harbour Upgrade')).toBeInTheDocument();
     expect(within(row).getByText(money(750000, 'IDR'))).toBeInTheDocument();
     expect(within(row).getByText('Submitted')).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
+    h.list.data = { rows: [{ ...ROW, project: { name: 'Harbour Upgrade', short_name: 'Harbour' } }], truncated: false };
+    renderPage();
+    const row = screen.getByRole('row', { name: /Site visit/ });
+    expect(within(row).getByTitle('Harbour Upgrade')).toHaveTextContent('Harbour');
+  });
+
+  it('AC-002 #1325: advance request project options show the short name only', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /request advance/i }));
+    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
   });
 
   it('AC-EXP-060 the Special expenses filter queries by that category', async () => {

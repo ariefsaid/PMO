@@ -365,6 +365,7 @@ const ProjectDetail: React.FC = () => {
             ...pickClassification(project),
             id: project.id,
             name: project.name,
+            short_name: project.short_name,
             code: project.code,
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,

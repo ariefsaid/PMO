@@ -493,3 +493,16 @@ describe('AC-IXD-DASH-W5-C2B — ReadyToPayTable: empty state', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
+
+describe('AC-002 #1325: Finance ready-to-pay project column', () => {
+  it('shows the short name and titles the contractual one', () => {
+    const original = procurements[1].project;
+    procurements[1].project = { name: 'Beta Contractual Works', short_name: 'Beta' } as never;
+    try {
+      renderPane();
+      expect(screen.getByTitle('Beta Contractual Works')).toHaveTextContent('Beta');
+    } finally {
+      procurements[1].project = original;
+    }
+  });
+});
